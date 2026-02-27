@@ -1,0 +1,306 @@
+
+import { Head, useForm, Link } from '@inertiajs/react';
+import AppLayout from '@/layouts/app-layout';
+import { Button } from '@/components/ui/button';
+import { BreadcrumbItem } from '@/types';
+import itemRoutes from '@/routes/items';
+import FormInput from '@/components/Partial/Form/FormInput';
+import FormTextarea from '@/components/Partial/Form/FormTextarea';
+import { Package, DollarSign, FileText, Tag, Image as ImageIcon, Info } from 'lucide-react';
+import AttributeSelector from './Partials/AttributeSelector';
+import ImageUpload from './Partials/ImageUpload';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+
+const breadcrumbs: BreadcrumbItem[] = [
+    { title: 'Dashboard', href: '/dashboard' },
+    { title: 'Items', href: '/items' },
+    { title: 'Create New', href: '#' },
+];
+
+interface Props {
+    brands: { value: string | number, label: string }[];
+    itemType: number; // 1: Item, 2: Asset Lancar
+    // Explicit tag collections
+    jahitTags: any[];
+    typeTags: any[];
+    sizeTags: any[];
+    warnaTags: any[];
+}
+
+export default function ItemsCreate({ brands, itemType, jahitTags, typeTags, sizeTags, warnaTags }: Props) {
+
+    const isAsset = itemType === 2;
+    const pageTitle = isAsset ? "Create New Asset" : "Create New Item";
+
+    const { data, setData, post, processing, errors } = useForm({
+        pcode: '',
+        name: '',
+        alias: '',
+        brand: '', // Not used in UI yet but in logic
+        type: itemType.toString(),
+        price: '',
+        cost: '',
+        description: '',
+        description2: '',
+        image: null as File | null,
+        tags: {
+            types: '', // Single (Radio)
+            sizes: [] as string[], // Multi (Checkbox)
+            warna: '', // Single (Select)
+            jahit: '' // Single (Radio)
+        },
+    });
+
+    const submit = (e: React.FormEvent) => {
+        e.preventDefault();
+        post(itemRoutes.store.url(), {
+            forceFormData: true,
+        });
+    };
+
+    // Transform tags for AttributeSelector
+    const jahitOptions = jahitTags.map(t => ({ value: t.id, label: t.name }));
+    const typeOptions = typeTags.map(t => ({ value: t.id, label: t.name }));
+    const sizeOptions = sizeTags.map(t => ({ value: t.id, label: t.name }));
+    const warnaOptions = warnaTags.map(t => ({ value: t.id, label: t.name }));
+
+    return (
+        <AppLayout breadcrumbs={breadcrumbs}>
+            <Head title={pageTitle} />
+
+            <div className="p-4 sm:p-6 lg:p-8">
+                {/* Header */}
+                <div className="mb-8">
+                    <h2 className="text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50 mb-2">{pageTitle}</h2>
+                    <p className="text-zinc-500 dark:text-zinc-400">Add a new {isAsset ? 'asset' : 'item'} to the inventory system with detailed attributes.</p>
+                </div>
+
+                <form onSubmit={submit} className="space-y-8" noValidate>
+                    {/* Generic Error Message */}
+                    {(errors as any).message && (
+                        <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4 mb-6">
+                            <div className="flex items-center gap-2 text-red-500 font-medium">
+                                <Info className="h-5 w-5" />
+                                <div className="text-zinc-900 dark:text-white">Failed to create {isAsset ? 'asset' : 'item'}</div>
+                            </div>
+                            <p className="text-sm text-red-600 dark:text-red-400 mt-1 ml-7">
+                                {(errors as any).message}
+                            </p>
+                        </div>
+                    )}
+
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                        {/* Left Column: Basic Info & Details */}
+                        <div className="lg:col-span-2 space-y-6">
+
+                            {/* Card: Basic & Financial */}
+                            <Card className="bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800">
+                                <CardHeader>
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2 bg-blue-500/10 rounded-lg">
+                                            <Info className="h-5 w-5 text-blue-500" />
+                                        </div>
+                                        <CardTitle className="text-xl text-zinc-900 dark:text-zinc-50">Basic & Financial Information</CardTitle>
+                                    </div>
+                                </CardHeader>
+                                <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <FormInput
+                                        id="code"
+                                        label="Code (PCode)"
+                                        value={data.pcode}
+                                        onChange={e => setData('pcode', e.target.value)}
+                                        error={errors.pcode}
+                                        placeholder="e.g. T-SHIRT-001"
+                                        required
+                                    />
+
+                                    {isAsset ? (
+                                        <FormInput
+                                            id="name"
+                                            label="Name"
+                                            value={data.name}
+                                            onChange={e => setData('name', e.target.value)}
+                                            error={errors.name}
+                                            placeholder="Asset Name"
+                                            required
+                                        />
+                                    ) : (
+                                        <FormInput
+                                            id="alias"
+                                            label="Alias"
+                                            value={data.alias}
+                                            onChange={e => setData('alias', e.target.value)}
+                                            // error={errors.alias}
+                                            placeholder="Alternative Name"
+                                        />
+                                    )}
+
+                                    <FormInput
+                                        id="price"
+                                        label="Selling Price"
+                                        type="number"
+                                        value={data.price}
+                                        onChange={e => setData('price', e.target.value)}
+                                        error={errors.price}
+                                        placeholder="$ 0.00"
+                                    />
+
+                                    {isAsset && (
+                                        <FormInput
+                                            id="cost"
+                                            label="Cost Price"
+                                            type="number"
+                                            value={data.cost}
+                                            onChange={e => setData('cost', e.target.value)}
+                                            // error={errors.cost}
+                                            placeholder="$ 0.00"
+                                            required
+                                        />
+                                    )}
+                                </CardContent>
+                            </Card>
+
+                            {/* Card: Details */}
+                            <Card className="bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800">
+                                <CardHeader>
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2 bg-yellow-500/10 rounded-lg">
+                                            <FileText className="h-5 w-5 text-yellow-500" />
+                                        </div>
+                                        <CardTitle className="text-xl text-zinc-900 dark:text-zinc-50">Details</CardTitle>
+                                    </div>
+                                </CardHeader>
+                                <CardContent className="space-y-6">
+                                    <FormTextarea
+                                        id="description"
+                                        label="Description"
+                                        value={data.description}
+                                        onChange={e => setData('description', e.target.value)}
+                                        error={errors.description}
+                                        placeholder="Item description..."
+                                        rows={4}
+                                    />
+
+                                    <FormTextarea
+                                        id="nb"
+                                        label="Notes (NB)"
+                                        value={data.description2}
+                                        onChange={e => setData('description2', e.target.value)}
+                                        error={errors.description2}
+                                        placeholder="Additional notes..."
+                                        rows={3}
+                                    />
+                                </CardContent>
+                            </Card>
+
+                        </div>
+
+                        {/* Right Column: Attributes & Image */}
+                        <div className="space-y-6">
+
+                            {/* Card: Attributes */}
+                            <Card className="bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800">
+                                <CardHeader>
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2 bg-purple-500/10 rounded-lg">
+                                            <Tag className="h-5 w-5 text-purple-500" />
+                                        </div>
+                                        <CardTitle className="text-xl text-zinc-900 dark:text-zinc-50">Attributes</CardTitle>
+                                    </div>
+                                </CardHeader>
+                                <CardContent className="space-y-6">
+                                    {/* Warna: For Item and Asset */}
+                                    <AttributeSelector
+                                        label="Warna (Color)"
+                                        value={data.tags.warna}
+                                        options={warnaOptions}
+                                        onSelect={(val) => setData('tags', { ...data.tags, warna: val as string })}
+                                        modalTitle="Pilih Warna"
+                                        searchPlaceholder="Cari warna..."
+                                        required={isAsset}
+                                        error={errors['tags.warna'] as string}
+                                    />
+
+                                    {/* Jahit: Item Only */}
+                                    {!isAsset && (
+                                        <AttributeSelector
+                                            label="Jahit"
+                                            value={data.tags.jahit}
+                                            options={jahitOptions}
+                                            onSelect={(val) => setData('tags', { ...data.tags, jahit: val as string })}
+                                            modalTitle="Pilih Jahit"
+                                            searchPlaceholder="Cari tipe jahit..."
+                                            required
+                                            error={errors['tags.jahit'] as string}
+                                        />
+                                    )}
+
+                                    {/* Type: For Item and Asset */}
+                                    <AttributeSelector
+                                        label="Type"
+                                        value={data.tags.types}
+                                        options={typeOptions}
+                                        onSelect={(val) => setData('tags', { ...data.tags, types: val as string })}
+                                        modalTitle="Pilih Type"
+                                        searchPlaceholder="Cari tipe..."
+                                        required
+                                        error={errors['tags.types'] as string}
+                                    />
+
+                                    {/* Size: For Item and Asset (Multi for Create) */}
+                                    <AttributeSelector
+                                        label="Size"
+                                        value={data.tags.sizes}
+                                        options={sizeOptions}
+                                        onSelect={(val) => setData('tags', { ...data.tags, sizes: val as string[] })}
+                                        modalTitle="Pilih Size"
+                                        searchPlaceholder="Cari size..."
+                                        multiple
+                                        required
+                                        error={errors['tags.sizes'] as string}
+                                    />
+                                </CardContent>
+                            </Card>
+
+                            {/* Card: Image */}
+                            <Card className="bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800">
+                                <CardHeader>
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2 bg-pink-500/10 rounded-lg">
+                                            <ImageIcon className="h-5 w-5 text-pink-500" />
+                                        </div>
+                                        <CardTitle className="text-xl text-zinc-900 dark:text-zinc-50">Image</CardTitle>
+                                    </div>
+                                </CardHeader>
+                                <CardContent>
+                                    <ImageUpload
+                                        label=""
+                                        onChange={(file) => setData('image', file)}
+                                        error={errors.image}
+                                    />
+                                </CardContent>
+                            </Card>
+
+                        </div>
+                    </div>
+
+                    {/* Footer Actions */}
+                    <div className="flex justify-end pt-8 gap-4 border-t border-zinc-200 dark:border-zinc-800">
+                        <Button
+                            variant="ghost"
+                            type="button"
+                            className="text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                            onClick={() => window.history.back()}
+                        >
+                            Cancel
+                        </Button>
+                        <Button type="submit" loading={processing} className="bg-blue-600 hover:bg-blue-700 text-white min-w-[150px]">
+                            Create {isAsset ? 'Asset' : 'Item'}
+                        </Button>
+                    </div>
+
+                </form>
+            </div>
+        </AppLayout>
+    );
+}
