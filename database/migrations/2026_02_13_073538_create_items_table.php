@@ -21,10 +21,14 @@ return new class extends Migration
             $table->integer('type')->default(1);
             $table->decimal('price', 15, 2)->default(0);
             $table->decimal('cost', 15, 2)->nullable();
+            $table->decimal('qty', 15, 2)->default(0);
             $table->text('tag_ids')->nullable(); // Legacy support
             $table->text('description')->nullable();
             $table->text('description2')->nullable();
             $table->string('url')->nullable();
+            $table->softDeletes();
+            $table->bigInteger('jubelio_item_id')->nullable();
+            $table->string('image_path', 2048)->nullable();
             $table->timestamps();
         });
     }

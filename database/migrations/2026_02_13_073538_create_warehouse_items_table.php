@@ -14,12 +14,13 @@ return new class extends Migration
         Schema::create('warehouse_items', function (Blueprint $table) {
             $table->id();
             $table->foreignId('item_id')->constrained('items')->cascadeOnDelete();
-            // Assuming locations table handles warehouses
-            $table->foreignId('warehouse_id')->constrained('locations')->cascadeOnDelete();
+            $table->foreignId('warehouse_id')->constrained('addrbooks')->cascadeOnDelete();
+            $table->string('warehouse_type')->default('App\Models\Location');
             $table->decimal('quantity', 15, 2)->default(0);
             $table->timestamps();
 
-            $table->unique(['item_id', 'warehouse_id']);
+            $table->index(['warehouse_id', 'warehouse_type']);
+            $table->unique(['item_id', 'warehouse_id', 'warehouse_type'], 'warehouse_items_item_warehouse_unique');
         });
     }
 

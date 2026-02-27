@@ -21,7 +21,7 @@ return new class extends Migration
             $table->boolean('is_online')->default(false);
             $table->boolean('ppn')->default(false);
             $table->string('member_id')->nullable();
-            $table->integer('type')->nullable()->default(1); // Default to Customer
+            $table->integer('type')->nullable();
             $table->text('description')->nullable();
             $table->softDeletes();
             $table->timestamps();

@@ -11,9 +11,9 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('addrbook_classes', function (Blueprint $table) {
+        Schema::create('addrbook_dailies', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('addrbook_id')->constrained()->cascadeOnDelete();
+            $table->unsignedBigInteger('addrbook_id');
             $table->string('type')->nullable(); // Transaction type
             $table->date('date');
             $table->decimal('cash_in', 15, 2)->default(0);
@@ -28,6 +28,8 @@ return new class extends Migration
             $table->decimal('adjust', 15, 2)->default(0);
             $table->decimal('depreciation', 15, 2)->default(0);
             $table->timestamps();
+
+            $table->foreign('addrbook_id', 'addrbook_classes_addrbook_id_foreign')->references('id')->on('addrbooks')->onDelete('cascade');
         });
     }
 
@@ -36,6 +38,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('addrbook_classes');
+        Schema::dropIfExists('addrbook_dailies');
     }
 };

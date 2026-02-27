@@ -22,10 +22,15 @@ return new class extends Migration
             $table->string('reference_number')->nullable();
             $table->text('description')->nullable();
             $table->text('notes')->nullable();
+            $table->tinyInteger('submit_type')->default(1)->comment('1: aria submit, 2: cron jubelio');
             $table->decimal('total', 15, 2)->default(0);
             $table->decimal('discount', 15, 2)->default(0);
+            $table->decimal('adjustment', 15, 2)->default(0);
             $table->decimal('tax_amount', 15, 2)->default(0);
             $table->decimal('grand_total', 15, 2)->default(0);
+            $table->decimal('total_items', 15, 2)->default(0);
+            $table->decimal('sender_balance', 15, 2)->default(0);
+            $table->decimal('receiver_balance', 15, 2)->default(0);
             $table->unsignedTinyInteger('status')->default(0);
             $table->foreignId('user_id')->constrained('users');
             $table->timestamps();
