@@ -206,7 +206,7 @@ export default function ItemsIndex({ items, filters, brands, types, tags }: Prop
 
                                             {isAsset ? (
                                                 <>
-                                                    <td className="px-6 py-4 text-zinc-300 font-medium">{item.name}</td>
+                                                    <td className="px-6 py-4 text-zinc-300 italic">{item.group?.alias || item.name || '-'}</td>
                                                     <td className="px-6 py-4 text-zinc-400">{item.code || '-'}</td>
                                                 </>
                                             ) : (
@@ -218,7 +218,7 @@ export default function ItemsIndex({ items, filters, brands, types, tags }: Prop
                                             )}
 
                                             <td className="px-6 py-4 max-w-xs truncate">
-                                                <span className="text-zinc-300">{!isAsset ? item.group?.description : item.description}</span>
+                                                <span className="text-zinc-300">{item.group?.description || item.description || '-'}</span>
                                             </td>
 
                                             <td className="px-6 py-4 font-bold text-white">

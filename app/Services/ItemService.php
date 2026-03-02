@@ -72,7 +72,7 @@ class ItemService
             $this->updateSingleItem($item, $item->group, $input, $tags, $typeId, $sizeId, $inputType); // Helper to update fields
 
             // Update group fields
-            if ($inputType === ItemType::ITEM && $item->group) {
+            if ($item->group) {
                 $group = $item->group;
                 if (isset($input->description)) {
                     $group->description = strtoupper($input->description);
@@ -224,23 +224,24 @@ class ItemService
         return DB::transaction(function () use ($input, $tags, $file, $inputType) {
             $group = ItemGroup::where('name', '=', $input->pcode)->first();
 
-            // Create Group if ITEM
-            if ($inputType === ItemType::ITEM) {
-                if (! $group) {
-                    $group = new ItemGroup;
-                }
+            // Create Group
+            if (! $group) {
+                $group = new ItemGroup;
+            }
 
-                $group->name = $input->pcode;
+            $group->name = $input->pcode;
+
+            if ($inputType === ItemType::ITEM) {
                 $codeParts = explode('/', $input->pcode);
                 $group->master = $codeParts[0] ?? null;
                 $group->variant = $codeParts[1] ?? null;
-
-                $group->description = isset($input->description) ? strtoupper($input->description) : null;
-                $group->description2 = isset($input->description2) ? strtoupper($input->description2) : null;
-                $group->alias = isset($input->alias) ? strtoupper($input->alias) : '';
-
-                $group->save();
             }
+
+            $group->description = isset($input->description) ? strtoupper($input->description) : null;
+            $group->description2 = isset($input->description2) ? strtoupper($input->description2) : null;
+            $group->alias = isset($input->alias) ? strtoupper($input->alias) : '';
+
+            $group->save();
 
             // Standardize tags
             $tags = $this->sortTags($tags);

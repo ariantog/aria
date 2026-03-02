@@ -5,6 +5,9 @@ namespace App\Http\Controllers;
 use App\Enums\ItemBrand;
 use App\Enums\ItemType;
 use App\Models\Item;
+use App\Models\ItemGroup;
+use App\Models\Transaction;
+use App\Models\TransactionDetail;
 use App\Services\ItemService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -108,7 +111,7 @@ class ItemsController extends Controller
                 'edit_asset' => auth()->user()->can($permissions['asset_lancar_edit']),
                 'delete' => auth()->user()->can($permissions['delete']),
                 'delete_asset' => auth()->user()->can($permissions['asset_lancar_delete']),
-            ]
+            ],
         ]);
     }
 
@@ -282,5 +285,127 @@ class ItemsController extends Controller
         $item->delete();
 
         return redirect()->route('items.index')->with('success', 'Item deleted successfully.');
+    }
+
+    public function group(Request $request)
+    {
+        Gate::authorize(Item::getPermissions()['view']);
+
+        $query = ItemGroup::query();
+
+        if ($request->filled('kode')) {
+            $query->where('name', 'like', "%{$request->kode}%");
+        }
+
+        if ($request->filled('alias')) {
+            $query->where('alias', 'like', "%{$request->alias}%");
+        }
+
+        if ($request->filled('desc')) {
+            $query->where('description', 'like', "%{$request->desc}%");
+        }
+
+        $groups = $query->orderBy('id', 'desc')->paginate(20)->withQueryString();
+
+        return Inertia::render('Items/GroupIndex', [
+            'groups' => $groups,
+            'filters' => $request->only(['kode', 'alias', 'desc']),
+        ]);
+    }
+
+    public function groupDetail(ItemGroup $group)
+    {
+        Gate::authorize(Item::getPermissions()['view']);
+
+        $group->load(['items.warehouseItems.warehouse']);
+
+        return Inertia::render('Items/GroupShow', [
+            'group' => $group,
+        ]);
+    }
+
+    public function groupStats(Request $request, ItemGroup $group)
+    {
+        Gate::authorize(Item::getPermissions()['view']);
+
+        $from = $request->input('from', now()->subMonths(11)->startOfMonth()->toDateString());
+        $to = $request->input('to', now()->endOfMonth()->toDateString());
+
+        $data = TransactionDetail::select([
+            'transaction_type',
+            \DB::raw("DATE_FORMAT(date,'%M %Y') AS showdate"),
+            \DB::raw("DATE_FORMAT(date,'%m') AS bulan"),
+            \DB::raw("DATE_FORMAT(date,'%Y') AS tahun"),
+            \DB::raw('SUM(quantity) as total_qty'),
+        ])
+            ->whereHas('item', function ($q) use ($group) {
+                $q->where('group_id', $group->id);
+            })
+            ->whereIn('transaction_type', [
+                Transaction::TYPE_SELL,
+                Transaction::TYPE_MOVE,
+                Transaction::TYPE_RETURN,
+                Transaction::TYPE_PRODUCTION,
+            ])
+            ->whereBetween('date', [$from, $to])
+            ->groupBy('showdate', 'transaction_type', 'bulan', 'tahun')
+            ->orderBy('date', 'desc')
+            ->get();
+
+        return Inertia::render('Items/GroupStats', [
+            'group' => $group,
+            'data' => $data,
+            'filters' => ['from' => $from, 'to' => $to],
+        ]);
+    }
+
+    public function itemTransactions(Request $request, Item $item)
+    {
+        Gate::authorize(Item::getPermissions()['view']);
+
+        $transactions = TransactionDetail::with(['transaction.sender', 'transaction.receiver'])
+            ->where('item_id', $item->id)
+            ->orderBy('date', 'desc')
+            ->orderBy('transaction_id', 'desc')
+            ->paginate(50)
+            ->withQueryString();
+
+        return Inertia::render('Items/ItemTransactions', [
+            'item' => $item->load('group'),
+            'transactions' => $transactions,
+        ]);
+    }
+
+    public function itemStats(Request $request, Item $item)
+    {
+        Gate::authorize(Item::getPermissions()['view']);
+
+        $from = $request->input('from', now()->subMonths(11)->startOfMonth()->toDateString());
+        $to = $request->input('to', now()->endOfMonth()->toDateString());
+
+        $data = TransactionDetail::select([
+            'transaction_type',
+            \DB::raw("DATE_FORMAT(date,'%M %Y') AS showdate"),
+            \DB::raw("DATE_FORMAT(date,'%m') AS bulan"),
+            \DB::raw("DATE_FORMAT(date,'%Y') AS tahun"),
+            \DB::raw('SUM(quantity) as total_qty'),
+        ])
+            ->where('item_id', $item->id)
+            ->whereIn('transaction_type', [
+                Transaction::TYPE_SELL,
+                Transaction::TYPE_MOVE,
+                Transaction::TYPE_RETURN,
+                Transaction::TYPE_PRODUCTION,
+            ])
+            ->whereBetween('date', [$from, $to])
+            ->groupBy('showdate', 'transaction_type', 'bulan', 'tahun')
+            ->orderBy('date', 'desc')
+            ->get();
+
+        return Inertia::render('Items/ItemStats', [
+            'item' => $item->load('group'),
+            'data' => $data,
+            'filters' => ['from' => $from, 'to' => $to],
+        ]);
     }
 }

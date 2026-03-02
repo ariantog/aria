@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class TransactionsController extends Controller
 {
@@ -47,16 +48,16 @@ class TransactionsController extends Controller
             'transactions' => $transactions,
             'filters' => $request->only(['from', 'to', 'sort', 'direction', 'type', 'invoice_number', 'min_total', 'max_total']),
             'can' => [
-                'create_transaction' => auth()->user()->can(\App\Models\Transaction::getPermissions()['create']),
-                'type_buy' => auth()->user()->can(\App\Models\Transaction::getPermissions()['type_buy']),
-                'type_sell' => auth()->user()->can(\App\Models\Transaction::getPermissions()['type_sell']),
-                'type_move' => auth()->user()->can(\App\Models\Transaction::getPermissions()['type_move']),
-                'cash_in' => auth()->user()->can(\App\Models\Transaction::getPermissions()['type_cash_in']),
-                'cash_out' => auth()->user()->can(\App\Models\Transaction::getPermissions()['type_cash_out']),
-                'transfer' => auth()->user()->can(\App\Models\Transaction::getPermissions()['type_transfer']),
-                'adjust' => auth()->user()->can(\App\Models\Transaction::getPermissions()['type_adjust']),
-                'return' => auth()->user()->can(\App\Models\Transaction::getPermissions()['type_return']),
-                'return_supplier' => auth()->user()->can(\App\Models\Transaction::getPermissions()['type_return_supplier']),
+                'create_transaction' => Auth::user()->can(\App\Models\Transaction::getPermissions()['create']),
+                'type_buy' => Auth::user()->can(\App\Models\Transaction::getPermissions()['type_buy']),
+                'type_sell' => Auth::user()->can(\App\Models\Transaction::getPermissions()['type_sell']),
+                'type_move' => Auth::user()->can(\App\Models\Transaction::getPermissions()['type_move']),
+                'cash_in' => Auth::user()->can(\App\Models\Transaction::getPermissions()['type_cash_in']),
+                'cash_out' => Auth::user()->can(\App\Models\Transaction::getPermissions()['type_cash_out']),
+                'transfer' => Auth::user()->can(\App\Models\Transaction::getPermissions()['type_transfer']),
+                'adjust' => Auth::user()->can(\App\Models\Transaction::getPermissions()['type_adjust']),
+                'return' => Auth::user()->can(\App\Models\Transaction::getPermissions()['type_return']),
+                'return_supplier' => Auth::user()->can(\App\Models\Transaction::getPermissions()['type_return_supplier']),
             ]
         ]);
     }
@@ -157,9 +158,8 @@ class TransactionsController extends Controller
                 'sender_id' => $validated['sender_id'],
                 'receiver_type' => $receiverType,
                 'receiver_id' => $validated['receiver_id'],
-                'invoice_number' => $validated['invoice_number'] ?? null,
                 'notes' => $validated['note'] ?? null,
-                'user_id' => auth()->id(),
+                'user_id' => Auth::id(),
                 'status' => \App\Models\Transaction::STATUS_COMPLETED,
                 'grand_total' => 0,
                 'total_items' => 0,
@@ -329,7 +329,7 @@ class TransactionsController extends Controller
                     'receiver_id' => $validated['account_id'],
                     'invoice_number' => $item['invoice_number'] ?? null,
                     'notes' => $item['note'] ?? null,
-                    'user_id' => auth()->id(),
+                    'user_id' => Auth::id(),
                     'status' => \App\Models\Transaction::STATUS_COMPLETED,
                     'grand_total' => $item['total'],
                     'total_items' => 0,
@@ -397,7 +397,7 @@ class TransactionsController extends Controller
                     'receiver_id' => $item['customer_id'],
                     'invoice_number' => $item['invoice_number'] ?? null,
                     'notes' => $item['note'] ?? null,
-                    'user_id' => auth()->id(),
+                    'user_id' => Auth::id(),
                     'status' => \App\Models\Transaction::STATUS_COMPLETED,
                     'grand_total' => -$item['total'], // Negative for Cash Out
                     'total_items' => 0,
@@ -454,7 +454,7 @@ class TransactionsController extends Controller
                 'receiver_id' => $validated['receiver'],
                 'invoice_number' => $validated['invoice'] ?? null,
                 'notes' => $validated['description'] ?? null,
-                'user_id' => auth()->id(),
+                'user_id' => Auth::id(),
                 'status' => \App\Models\Transaction::STATUS_COMPLETED,
                 'grand_total' => $validated['total'],
                 'total_items' => 0,
@@ -521,7 +521,7 @@ class TransactionsController extends Controller
                 'receiver_id' => $validated['receiver'],
                 'invoice_number' => $validated['invoice'] ?? null,
                 'notes' => $validated['description'] ?? null,
-                'user_id' => auth()->id(),
+                'user_id' => Auth::id(),
                 'status' => \App\Models\Transaction::STATUS_COMPLETED,
                 'grand_total' => $validated['total'],
                 'total_items' => 0,

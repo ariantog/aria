@@ -129,6 +129,11 @@ export function AppSidebar() {
                     href: '/assetlancar',
                     isActive: isRouteActive('/assetlancar'),
                 }] : []),
+                ...(hasPermission('items-list') || isSuperAdmin ? [{
+                    title: 'Group',
+                    href: '/items-group',
+                    isActive: isRouteActive('/items-group'),
+                }] : []),
             ].filter(Boolean) as NavItem[],
         },
         {

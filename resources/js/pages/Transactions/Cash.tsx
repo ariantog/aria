@@ -145,7 +145,7 @@ export default function Cash({ bankList, ppn_rate, type }: Props) {
         ]}>
             <Head title={config.title} />
 
-            <form onSubmit={submit} className="p-4 sm:p-6 lg:p-8 max-w-[1400px] mx-auto">
+            <form onSubmit={submit} className="sm:p-6 lg:p-8 ">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
                     <div className="flex items-center gap-4">
                         <Link href={'/transactions'}>

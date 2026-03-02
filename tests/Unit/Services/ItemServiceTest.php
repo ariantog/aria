@@ -38,10 +38,10 @@ test('it creates item group and item successfully', function () {
     ];
 
     $tags = [
-        Tag::TYPE_TYPE => [$this->typeTag->id],
-        Tag::TYPE_SIZE => [$this->sizeTag->id],
-        Tag::TYPE_WARNA => [],
-        Tag::TYPE_JAHIT => [],
+        'types' => [$this->typeTag->id],
+        'sizes' => [$this->sizeTag->id],
+        'warna' => [],
+        'jahit' => [],
     ];
 
     $result = $this->itemService->create($input, $tags);
@@ -69,8 +69,8 @@ test('it saves image when provided', function () {
     ];
 
     $tags = [
-        Tag::TYPE_TYPE => [$this->typeTag->id],
-        Tag::TYPE_SIZE => [$this->sizeTag->id],
+        'types' => [$this->typeTag->id],
+        'sizes' => [$this->sizeTag->id],
     ];
 
     $this->itemService->create($input, $tags, $file);
@@ -84,27 +84,35 @@ test('it saves image when provided', function () {
     expect($group)->not->toBeNull();
 });
 
-test('it creates asset lancar correctly', function () {
+test('it creates asset lancar correctly with group', function () {
     $input = (object) [
         'pcode' => 'ASSET001',
         'type' => ItemType::ASSET_LANCAR->value,
         'name' => 'Laptop',
+        'alias' => 'Office Laptop',
         'price' => 5000000,
     ];
 
-    // Asset lancar might not need strict pcode format in logic?
-    // Logic: if ($inputType === ItemType::ITEM) check regex.
-    // So ASSET_LANCAR skips regex.
+    $tags = [
+        'types' => [$this->typeTag->id],
+        'sizes' => [$this->sizeTag->id],
+        'warna' => [],
+        'jahit' => [],
+    ];
 
-    $result = $this->itemService->create($input, [
-        Tag::TYPE_TYPE => [$this->typeTag->id],
-        Tag::TYPE_SIZE => [$this->sizeTag->id],
-    ]);
+    $result = $this->itemService->create($input, $tags);
 
     expect($result)->toBeTrue();
+
+    // Check Item
     $this->assertDatabaseHas('items', [
         'pcode' => 'ASSET001',
-        'name' => 'LAPTOP',
         'type' => ItemType::ASSET_LANCAR->value,
+    ]);
+
+    // Check Group (New behavior: Assets also have groups)
+    $this->assertDatabaseHas('item_groups', [
+        'name' => 'ASSET001',
+        'alias' => 'OFFICE LAPTOP',
     ]);
 });

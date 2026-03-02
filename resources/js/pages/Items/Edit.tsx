@@ -151,7 +151,16 @@ export default function ItemsEdit({ item, brands, types, tags }: Props) {
                                         required
                                     />
 
-                                    {isAsset ? (
+                                    <FormInput
+                                        id="alias"
+                                        label="Alias"
+                                        value={data.alias}
+                                        onChange={e => setData('alias', e.target.value)}
+                                        error={errors.alias}
+                                        placeholder="Alternative Name"
+                                    />
+
+                                    {isAsset && (
                                         <FormInput
                                             id="name"
                                             label="Name"
@@ -160,15 +169,6 @@ export default function ItemsEdit({ item, brands, types, tags }: Props) {
                                             error={errors.name}
                                             placeholder="Asset Name"
                                             required
-                                        />
-                                    ) : (
-                                        <FormInput
-                                            id="alias"
-                                            label="Alias"
-                                            value={data.alias}
-                                            onChange={e => setData('alias', e.target.value)}
-                                            error={errors.alias}
-                                            placeholder="Alternative Name"
                                         />
                                     )}
 

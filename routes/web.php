@@ -61,6 +61,15 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::put('assetlancar/{item}', [App\Http\Controllers\ItemsController::class, 'update'])->name('assetlancar.update');
     Route::delete('assetlancar/{item}', [App\Http\Controllers\ItemsController::class, 'destroy'])->name('assetlancar.destroy');
 
+    // Item Group Routes
+    Route::get('items-group', [App\Http\Controllers\ItemsController::class, 'group'])->name('items.group');
+    Route::get('items-group/{group}', [App\Http\Controllers\ItemsController::class, 'groupDetail'])->name('items.group-detail');
+    Route::get('items-group/{group}/stats', [App\Http\Controllers\ItemsController::class, 'groupStats'])->name('items.group-stats');
+
+    // Item Stats & Transactions
+    Route::get('items/{item}/transactions', [App\Http\Controllers\ItemsController::class, 'itemTransactions'])->name('items.transactions');
+    Route::get('items/{item}/stats', [App\Http\Controllers\ItemsController::class, 'itemStats'])->name('items.stats');
+
     // Transactions Routes
     Route::get('transactions', [App\Http\Controllers\TransactionsController::class, 'index'])->name('transactions.index');
     Route::post('transactions', [App\Http\Controllers\TransactionsController::class, 'store'])->name('transactions.store');

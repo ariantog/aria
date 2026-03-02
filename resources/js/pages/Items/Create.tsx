@@ -114,7 +114,16 @@ export default function ItemsCreate({ brands, itemType, jahitTags, typeTags, siz
                                         required
                                     />
 
-                                    {isAsset ? (
+                                    <FormInput
+                                        id="alias"
+                                        label="Alias"
+                                        value={data.alias}
+                                        onChange={e => setData('alias', e.target.value)}
+                                        error={errors.alias}
+                                        placeholder="Alternative Name"
+                                    />
+
+                                    {isAsset && (
                                         <FormInput
                                             id="name"
                                             label="Name"
@@ -123,15 +132,6 @@ export default function ItemsCreate({ brands, itemType, jahitTags, typeTags, siz
                                             error={errors.name}
                                             placeholder="Asset Name"
                                             required
-                                        />
-                                    ) : (
-                                        <FormInput
-                                            id="alias"
-                                            label="Alias"
-                                            value={data.alias}
-                                            onChange={e => setData('alias', e.target.value)}
-                                            // error={errors.alias}
-                                            placeholder="Alternative Name"
                                         />
                                     )}
 
