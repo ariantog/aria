@@ -19,9 +19,9 @@ export interface AsyncComboboxProps<T> {
     className?: string;
     disabled?: boolean;
     isInvalid?: boolean;
-    onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
     onSelect?: () => void;
     excludedIds?: Extract<T, any>[]; // Or (string | number)[]
+    id?: string;
 }
 
 export const AsyncCombobox = React.forwardRef<HTMLInputElement, AsyncComboboxProps<any>>(({
@@ -40,6 +40,7 @@ export const AsyncCombobox = React.forwardRef<HTMLInputElement, AsyncComboboxPro
     onKeyDown,
     onSelect,
     excludedIds = [],
+    id,
 }, ref) => {
     const [query, setQuery] = useState('');
     const [items, setItems] = useState<any[]>([]);
@@ -105,6 +106,7 @@ export const AsyncCombobox = React.forwardRef<HTMLInputElement, AsyncComboboxPro
                             onChange={(event) => setQuery(event.target.value)}
                             placeholder={placeholder}
                             onKeyDown={onKeyDown}
+                            id={id}
                         />
                         <Combobox.Button className="absolute inset-y-0 right-0 flex items-center pr-2">
                             {loading ? (

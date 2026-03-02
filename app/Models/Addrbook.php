@@ -74,7 +74,6 @@ class Addrbook extends Model
             ['id' => self::TYPE_V_WAREHOUSE, 'name' => 'V.Warehouse', 'slug' => 'vwarehouse'],
             ['id' => self::TYPE_BANK, 'name' => 'Bank (Account)', 'slug' => 'bank'],
             ['id' => self::TYPE_V_ACCOUNT, 'name' => 'V.Account', 'slug' => 'vaccount'],
-            ['id' => self::TYPE_ACCOUNT, 'name' => 'Account', 'slug' => 'account'],
         ];
     }
 
