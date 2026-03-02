@@ -67,14 +67,14 @@ class Addrbook extends Model
     public static function getTypes(): array
     {
         return [
-            ['id' => self::TYPE_CUSTOMER, 'name' => 'Customer', 'slug' => 'customer'],
-            ['id' => self::TYPE_WAREHOUSE, 'name' => 'Warehouse', 'slug' => 'warehouse'],
-            ['id' => self::TYPE_BANK, 'name' => 'Bank', 'slug' => 'bank'],
-            ['id' => self::TYPE_SUPPLIER, 'name' => 'Supplier', 'slug' => 'supplier'],
-            ['id' => self::TYPE_V_WAREHOUSE, 'name' => 'V.Warehouse', 'slug' => 'vwarehouse'],
-            ['id' => self::TYPE_V_ACCOUNT, 'name' => 'V.Account', 'slug' => 'vaccount'],
-            ['id' => self::TYPE_RESELLER, 'name' => 'Reseller', 'slug' => 'reseller'],
-            ['id' => self::TYPE_ACCOUNT, 'name' => 'Account', 'slug' => 'account'],
+            ['id' => self::TYPE_CUSTOMER, 'name' => 'customer', 'slug' => 'customer'],
+            ['id' => self::TYPE_WAREHOUSE, 'name' => 'warehaouse', 'slug' => 'warehaouse'],
+            ['id' => self::TYPE_BANK, 'name' => 'account', 'slug' => 'account'],
+            ['id' => self::TYPE_SUPPLIER, 'name' => 'suplier', 'slug' => 'suplier'],
+            ['id' => self::TYPE_V_WAREHOUSE, 'name' => 'v.warehaous', 'slug' => 'vwarehaous'],
+            ['id' => self::TYPE_V_ACCOUNT, 'name' => 'v.account', 'slug' => 'vaccount'],
+            ['id' => self::TYPE_RESELLER, 'name' => 'reseller', 'slug' => 'reseller'],
+            ['id' => self::TYPE_ACCOUNT, 'name' => 'Account', 'slug' => 'journal-account'],
         ];
     }
 
