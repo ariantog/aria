@@ -52,7 +52,6 @@ export default function Cash({ bankList, ppn_rate, type }: Props) {
     const { data, setData, post, processing, errors } = useForm({
         date: new Date().toISOString().split('T')[0],
         account_id: '',
-        account: null as any,
         items: [
             { id: Math.random().toString(36).substr(2, 9), customer_id: '', customer: null, invoice_number: '', note: '', total: 0 }
         ] as CashItem[]
@@ -191,21 +190,21 @@ export default function Cash({ bankList, ppn_rate, type }: Props) {
                                 <Label htmlFor="account_id" className="text-sm font-semibold mb-2 block">
                                     Account / Bank <span className="text-red-500">*</span>
                                 </Label>
-                                <AsyncCombobox
-                                    value={data.account ? data.account : (data.account_id ? { id: data.account_id, name: bankList.find(b => String(b.id) === String(data.account_id))?.name || 'Unknown' } : null)}
-                                    onChange={(val) => {
-                                        setData(prev => ({
-                                            ...prev,
-                                            account_id: val ? String(val.id) : '',
-                                            account: val
-                                        }));
-                                    }}
-                                    endpoint={transactions.lookup.url({ type: config.lookupType, role: config.lookupRole })}
-                                    additionalParams={{ addrbook_type: 3 }}
-                                    placeholder="Search account/bank..."
-                                    className="w-full"
-                                    isInvalid={!!errors.account_id}
-                                />
+                                <select
+                                    id="account_id"
+                                    className={cn(
+                                        "flex h-10 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-800 dark:bg-zinc-950 dark:ring-offset-zinc-950",
+                                        errors.account_id && "border-red-500"
+                                    )}
+                                    value={data.account_id}
+                                    onChange={e => setData('account_id', e.target.value)}
+                                    required
+                                >
+                                    <option value="">Select account...</option>
+                                    {bankList.map(bank => (
+                                        <option key={bank.id} value={bank.id}>{bank.name}</option>
+                                    ))}
+                                </select>
                                 {errors.account_id && <p className="text-xs text-red-500 mt-1">{errors.account_id}</p>}
                             </div>
                         </CardContent>
