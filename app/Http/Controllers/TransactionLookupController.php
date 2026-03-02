@@ -26,7 +26,7 @@ class TransactionLookupController extends Controller
 
         // Apply type filtering
         if ($typeId !== null) {
-            $typeIds = explode(',', $typeId);
+            $typeIds = is_array($typeId) ? $typeId : explode(',', (string) $typeId);
             $query->whereIn('type', $typeIds);
         }
 

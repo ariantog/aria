@@ -86,9 +86,11 @@ class TransactionsController extends Controller
         $getLabel = function ($role) use ($config) {
             if (isset($config[$role.'_type'])) {
                 $types = collect(\App\Models\Addrbook::getTypes());
-                $type = $types->firstWhere('id', $config[$role.'_type']);
+                $typeIds = (array) $config[$role.'_type'];
+                
+                $names = $types->whereIn('id', $typeIds)->pluck('name')->toArray();
 
-                return $type ? $type['name'] : 'Contact';
+                return !empty($names) ? implode(' / ', $names) : 'Contact';
             }
 
             return 'Contact';
