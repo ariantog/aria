@@ -39,24 +39,13 @@ class MigrateLegacyAddrbook extends Command
             $this->warn('Clearing existing addrbooks...');
             DB::table('addrbooks')->truncate();
 
-            // // 2. Mapping for types
-            // $typeMapping = [
-            //     1 => Addrbook::TYPE_CUSTOMER,    // 1 -> 1
-            //     2 => Addrbook::TYPE_RESELLER,    // 2 -> 7
-            //     3 => Addrbook::TYPE_SUPPLIER,    // 3 -> 4
-            //     4 => Addrbook::TYPE_WAREHOUSE,   // 4 -> 2
-            //     5 => Addrbook::TYPE_V_WAREHOUSE, // 5 -> 5
-            //     6 => Addrbook::TYPE_ACCOUNT,     // 6 -> 8
-            //     7 => Addrbook::TYPE_V_ACCOUNT,   // 7 -> 6
-            // ];
-
-            // 3. Migrate Customers
+            // 2. Migrate Customers
             $this->info('Migrating Customers to Addrbooks...');
             $totalCount = $legacyDb->table('customers')->count();
             $progressBar = $this->output->createProgressBar($totalCount);
             $progressBar->start();
 
-            $legacyDb->table('customers')->orderBy('id')->chunk(100, function ($customers) use ($typeMapping, $progressBar) {
+            $legacyDb->table('customers')->orderBy('id')->chunk(100, function ($customers) use ($progressBar) {
                 foreach ($customers as $customer) {
                     DB::table('addrbooks')->insert([
                         'id' => $customer->id,
@@ -68,7 +57,7 @@ class MigrateLegacyAddrbook extends Command
                         'contact_person' => null, // Legacy lacks this column
                         'is_online' => (bool) $customer->is_online,
                         'ppn' => (bool) $customer->ppn,
-                        'type' => $customer->type,
+                        'type' => $customer->type ?? Addrbook::TYPE_OTHER,
                         'description' => $customer->description,
                         'deleted_at' => $this->validateDate($customer->deleted_at),
                         'created_at' => $this->validateDate($customer->created_at),
