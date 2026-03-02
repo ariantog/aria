@@ -21,6 +21,7 @@ export interface AsyncComboboxProps<T> {
     isInvalid?: boolean;
     onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
     onSelect?: () => void;
+    excludedIds?: Extract<T, any>[]; // Or (string | number)[]
 }
 
 export const AsyncCombobox = React.forwardRef<HTMLInputElement, AsyncComboboxProps<any>>(({
@@ -38,6 +39,7 @@ export const AsyncCombobox = React.forwardRef<HTMLInputElement, AsyncComboboxPro
     isInvalid = false,
     onKeyDown,
     onSelect,
+    excludedIds = [],
 }, ref) => {
     const [query, setQuery] = useState('');
     const [items, setItems] = useState<any[]>([]);
@@ -123,41 +125,44 @@ export const AsyncCombobox = React.forwardRef<HTMLInputElement, AsyncComboboxPro
                         afterLeave={() => setQuery('')}
                     >
                         <Combobox.Options className="absolute mt-1 max-h-60 w-full overflow-auto rounded-md bg-white dark:bg-zinc-950 py-1 text-base shadow-lg ring-1 ring-black/5 focus:outline-none sm:text-sm z-50">
-                            {items.length === 0 && !loading && query !== '' ? (
-                                <div className="relative cursor-default select-none px-4 py-2 text-zinc-700 dark:text-zinc-400">
-                                    Nothing found.
-                                </div>
-                            ) : (
-                                items.map((item) => (
-                                    <Combobox.Option
-                                        key={itemValue(item)}
-                                        className={({ active }) =>
-                                            `relative cursor-default select-none py-2 pl-10 pr-4 ${active ? 'bg-blue-600 text-white' : 'text-zinc-900 dark:text-zinc-100'
-                                            }`
-                                        }
-                                        value={item}
-                                    >
-                                        {({ selected, active }) => (
-                                            <>
-                                                <span
-                                                    className={`block truncate ${selected ? 'font-medium' : 'font-normal'
-                                                        }`}
-                                                >
-                                                    {renderItem ? renderItem(item) : itemLabel(item)}
-                                                </span>
-                                                {selected ? (
+                            {(() => {
+                                const filteredItems = items.filter(item => !excludedIds.map(String).includes(String(itemValue(item))));
+                                return filteredItems.length === 0 && !loading && query !== '' ? (
+                                    <div className="relative cursor-default select-none px-4 py-2 text-zinc-700 dark:text-zinc-400">
+                                        Nothing found.
+                                    </div>
+                                ) : (
+                                    filteredItems.map((item) => (
+                                        <Combobox.Option
+                                            key={itemValue(item)}
+                                            className={({ active }) =>
+                                                `relative cursor-default select-none py-2 pl-10 pr-4 ${active ? 'bg-blue-600 text-white' : 'text-zinc-900 dark:text-zinc-100'
+                                                }`
+                                            }
+                                            value={item}
+                                        >
+                                            {({ selected, active }) => (
+                                                <>
                                                     <span
-                                                        className={`absolute inset-y-0 left-0 flex items-center pl-3 ${active ? 'text-white' : 'text-blue-600'
+                                                        className={`block truncate ${selected ? 'font-medium' : 'font-normal'
                                                             }`}
                                                     >
-                                                        <Check className="h-5 w-5" aria-hidden="true" />
+                                                        {renderItem ? renderItem(item) : itemLabel(item)}
                                                     </span>
-                                                ) : null}
-                                            </>
-                                        )}
-                                    </Combobox.Option>
-                                ))
-                            )}
+                                                    {selected ? (
+                                                        <span
+                                                            className={`absolute inset-y-0 left-0 flex items-center pl-3 ${active ? 'text-white' : 'text-blue-600'
+                                                                }`}
+                                                        >
+                                                            <Check className="h-5 w-5" aria-hidden="true" />
+                                                        </span>
+                                                    ) : null}
+                                                </>
+                                            )}
+                                        </Combobox.Option>
+                                    ))
+                                );
+                            })()}
                         </Combobox.Options>
                     </Transition>
                 </div>

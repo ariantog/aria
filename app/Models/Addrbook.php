@@ -69,6 +69,7 @@ class Addrbook extends Model
         return [
             ['id' => self::TYPE_CUSTOMER, 'name' => 'Customer', 'slug' => 'customer'],
             ['id' => self::TYPE_WAREHOUSE, 'name' => 'Warehouse', 'slug' => 'warehouse'],
+            ['id' => self::TYPE_BANK, 'name' => 'Bank', 'slug' => 'bank'],
             ['id' => self::TYPE_SUPPLIER, 'name' => 'Supplier', 'slug' => 'supplier'],
             ['id' => self::TYPE_V_WAREHOUSE, 'name' => 'V.Warehouse', 'slug' => 'vwarehouse'],
             ['id' => self::TYPE_V_ACCOUNT, 'name' => 'V.Account', 'slug' => 'vaccount'],

@@ -131,6 +131,12 @@ export default function Cash({ bankList, ppn_rate, type }: Props) {
         }
     };
 
+    const getExcludedCustomerIds = (currentId: string) => {
+        return data.items
+            .filter(item => item.id !== currentId && item.customer_id)
+            .map(item => item.customer_id);
+    };
+
     return (
         <AppLayout breadcrumbs={[
             { title: 'Transactions', href: '/transactions' },
@@ -237,6 +243,7 @@ export default function Cash({ bankList, ppn_rate, type }: Props) {
                                                         endpoint={transactions.lookup.url({ type: config.lookupType, role: config.lookupRole })}
                                                         value={item.customer}
                                                         onChange={(val) => updateItem(item.id, 'customer', val)}
+                                                        excludedIds={getExcludedCustomerIds(item.id)}
                                                         placeholder={config.sourcePlaceholder}
                                                         className="w-full"
                                                         onKeyDown={e => handleKeyDown(e, item.id, 'customer')}
