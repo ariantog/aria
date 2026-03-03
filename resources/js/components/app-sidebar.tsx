@@ -147,6 +147,21 @@ export function AppSidebar() {
                     href: '/transactions',
                     isActive: url === '/transactions',
                 }] : []),
+                ...(hasPermission('transactions-type-buy') || isSuperAdmin ? [{
+                    title: 'Buy',
+                    href: '/transactions/buy/create',
+                    isActive: isRouteActive('/transactions/buy/create'),
+                }] : []),
+                ...(hasPermission('transactions-type-sell') || isSuperAdmin ? [{
+                    title: 'Sell',
+                    href: '/transactions/sell/create',
+                    isActive: isRouteActive('/transactions/sell/create'),
+                }] : []),
+                ...(hasPermission('transactions-type-move') || isSuperAdmin ? [{
+                    title: 'Move',
+                    href: '/transactions/move/create',
+                    isActive: isRouteActive('/transactions/move/create'),
+                }] : []),
                 ...(hasPermission('transactions-type-cash-in') || isSuperAdmin ? [{
                     title: 'Cash In',
                     href: '/transactions/cash-in',
