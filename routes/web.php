@@ -92,6 +92,60 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::get('transactions/{type}/create', [App\Http\Controllers\TransactionsController::class, 'create'])->name('transactions.create');
     Route::get('transactions/{type}/lookup/{role}', [App\Http\Controllers\TransactionLookupController::class, 'search'])->name('transactions.lookup');
     Route::get('tags/lookup', [App\Http\Controllers\TagLookupController::class, 'search'])->name('tags.lookup');
+    Route::resource('tags', \App\Http\Controllers\Stuff\TagController::class);
+    // Journal Module
+    Route::resource('journals/operations', \App\Http\Controllers\Journal\OperationController::class);
+    Route::resource('journals/account-list', \App\Http\Controllers\Journal\AccountListController::class)->parameters([
+        'account-list' => 'account_list',
+    ]);
+    Route::get('journals/account-list/{account_list}/ledger', [\App\Http\Controllers\Journal\AccountListController::class, 'ledger'])->name('account-list.ledger');
+
+    // Production Module
+    Route::prefix('produksi')->name('produksi.')->group(function () {
+        Route::get('/', [App\Http\Controllers\ProduksiController::class, 'index'])->name('index');
+        Route::get('/create', [App\Http\Controllers\ProduksiController::class, 'create'])->name('create');
+        Route::post('/', [App\Http\Controllers\ProduksiController::class, 'store'])->name('store');
+        Route::get('/workers/lookup', [App\Http\Controllers\ProduksiController::class, 'workerLookup'])->name('workers.lookup');
+
+        // Assign Jahit to Production Entry
+        Route::patch('/{produksi}/jahit', [App\Http\Controllers\ProduksiController::class, 'postSaveRow'])->name('assign-jahit');
+
+        // Assign QC to Production Entry
+        Route::patch('/{produksi}/qc', [App\Http\Controllers\ProduksiController::class, 'postSaveQc'])->name('assign-qc');
+
+        Route::patch('/{produksi}/setor', [App\Http\Controllers\ProduksiController::class, 'postSetor'])->name('setor');
+        Route::get('/setoran', [App\Http\Controllers\ProduksiController::class, 'setoranIndex'])->name('setoran.index');
+        Route::get('/setoran/{produksi}/edit', [App\Http\Controllers\ProduksiController::class, 'setoranEdit'])->name('setoran.edit');
+        Route::patch('/setoran/{produksi}/edit-item', [App\Http\Controllers\ProduksiController::class, 'setoranEditItem'])->name('setoran.edit-item');
+        Route::patch('/setoran/{produksi}/gudang', [App\Http\Controllers\ProduksiController::class, 'setoranGudang'])->name('setoran.gudang');
+        Route::patch('/setoran/{produksi}/status-produksi', [App\Http\Controllers\ProduksiController::class, 'setoranStatusToProduksi'])->name('setoran.status-produksi');
+
+        Route::get('/{produksi}/edit', [App\Http\Controllers\ProduksiController::class, 'edit'])->name('edit');
+        Route::patch('/{produksi}', [App\Http\Controllers\ProduksiController::class, 'update'])->name('update');
+        Route::post('/{produksi}/split', [App\Http\Controllers\ProduksiController::class, 'split'])->name('split');
+        Route::patch('/{produksi}/worker', [App\Http\Controllers\ProduksiController::class, 'gantiJahit'])->name('ganti-jahit');
+
+        Route::prefix('potong')->name('potong.')->group(function () {
+            Route::get('/list', [App\Http\Controllers\ProduksiController::class, 'workersIndex'])->name('index');
+            Route::post('/store', [App\Http\Controllers\ProduksiController::class, 'workerStore'])->name('store');
+            Route::put('/{worker}', [App\Http\Controllers\ProduksiController::class, 'workerUpdate'])->name('update');
+            Route::delete('/{worker}/delete', [App\Http\Controllers\ProduksiController::class, 'workerDestroy'])->name('destroy');
+        });
+
+        Route::prefix('jahit')->name('jahit.')->group(function () {
+            Route::get('/list', [App\Http\Controllers\ProduksiController::class, 'jahitWorkersIndex'])->name('index');
+            Route::post('/store', [App\Http\Controllers\ProduksiController::class, 'jahitWorkerStore'])->name('store');
+            Route::put('/{worker}', [App\Http\Controllers\ProduksiController::class, 'jahitWorkerUpdate'])->name('update');
+            Route::delete('/{worker}/delete', [App\Http\Controllers\ProduksiController::class, 'jahitWorkerDestroy'])->name('destroy');
+        });
+
+        Route::prefix('qc')->name('qc.')->group(function () {
+            Route::get('/list', [App\Http\Controllers\ProduksiController::class, 'qcWorkersIndex'])->name('index');
+            Route::post('/store', [App\Http\Controllers\ProduksiController::class, 'qcWorkerStore'])->name('store');
+            Route::put('/{worker}', [App\Http\Controllers\ProduksiController::class, 'qcWorkerUpdate'])->name('update');
+            Route::delete('/{worker}/delete', [App\Http\Controllers\ProduksiController::class, 'qcWorkerDestroy'])->name('destroy');
+        });
+    });
 });
 
 require __DIR__.'/settings.php';

@@ -16,6 +16,7 @@ import {
     Users,
     Receipt,
     Settings,
+    Factory,
 } from 'lucide-react';
 import { NavFooter } from '@/components/nav-footer';
 import { NavMain } from '@/components/nav-main';
@@ -134,6 +135,30 @@ export function AppSidebar() {
                     href: '/items-group',
                     isActive: isRouteActive('/items-group'),
                 }] : []),
+                ...(hasPermission('tags-list') || isSuperAdmin || true ? [{
+                    title: 'Tags',
+                    href: '/tags',
+                    isActive: isRouteActive('/tags'),
+                }] : []),
+            ].filter(Boolean) as NavItem[],
+        },
+        // Journal Group
+        {
+            title: 'Journal',
+            href: '#',
+            icon: BookOpen,
+            isActive: isRouteActive('/journals'),
+            items: [
+                ...(hasPermission('operations-list') || isSuperAdmin || true ? [{
+                    title: 'Operations',
+                    href: '/journals/operations',
+                    isActive: isRouteActive('/journals/operations'),
+                }] : []),
+                ...(hasPermission('account-list-list') || isSuperAdmin || true ? [{
+                    title: 'Account List',
+                    href: '/journals/account-list',
+                    isActive: isRouteActive('/journals/account-list'),
+                }] : []),
             ].filter(Boolean) as NavItem[],
         },
         {
@@ -215,6 +240,40 @@ export function AppSidebar() {
             icon: Settings,
             isActive: isRouteActive('/system-settings'),
         }] : []),
+        {
+            title: 'Produksi',
+            href: '#',
+            icon: Factory,
+            isActive: isRouteActive('/produksi'),
+            items: [
+                {
+                    title: 'Produksi',
+                    href: '/produksi',
+                    createUrl: '/produksi/create',
+                    isActive: isRouteActive('/produksi') && !isRouteActive('/produksi/potong') && !isRouteActive('/produksi/jahit') && !isRouteActive('/produksi/qc') && !isRouteActive('/produksi/setoran'),
+                },
+                {
+                    title: 'Setoran',
+                    href: '/produksi/setoran',
+                    isActive: isRouteActive('/produksi/setoran'),
+                },
+                {
+                    title: 'Potong',
+                    href: '/produksi/potong/list',
+                    isActive: isRouteActive('/produksi/potong/list'),
+                },
+                {
+                    title: 'Jahit',
+                    href: '/produksi/jahit/list',
+                    isActive: isRouteActive('/produksi/jahit/list'),
+                },
+                {
+                    title: 'QC',
+                    href: '/produksi/qc/list',
+                    isActive: isRouteActive('/produksi/qc/list'),
+                },
+            ],
+        },
         ...(hasPermission('posts-list') || isSuperAdmin ? [{
             title: 'Posts',
             href: '/posts',
@@ -237,7 +296,7 @@ export function AppSidebar() {
                 <SidebarMenu>
                     <SidebarMenuItem>
                         <SidebarMenuButton size="lg" asChild>
-                            <Link href={dashboard()} prefetch>
+                            <Link href={dashboard()}>
                                 <AppLogo />
                             </Link>
                         </SidebarMenuButton>

@@ -38,6 +38,7 @@ class Addrbook extends Model
     {
         if ($type) {
             $type = str_replace('-', '', $type);
+
             return [
                 'view' => "{$type}-addrbook-list",
                 'create' => "{$type}-addrbook-create",
@@ -74,6 +75,7 @@ class Addrbook extends Model
             ['id' => self::TYPE_V_WAREHOUSE, 'name' => 'V.Warehouse', 'slug' => 'vwarehouse'],
             ['id' => self::TYPE_BANK, 'name' => 'Bank (Account)', 'slug' => 'bank'],
             ['id' => self::TYPE_V_ACCOUNT, 'name' => 'V.Account', 'slug' => 'vaccount'],
+            ['id' => self::TYPE_ACCOUNT, 'name' => 'Account', 'slug' => 'account'],
         ];
     }
 
@@ -92,6 +94,11 @@ class Addrbook extends Model
     public function scopeWarehouse(Builder $query)
     {
         return $query->where('type', self::TYPE_WAREHOUSE);
+    }
+
+    public function scopeAccount(Builder $query)
+    {
+        return $query->where('type', self::TYPE_ACCOUNT);
     }
 
     public function getTypeNameAttribute(): string
@@ -125,5 +132,10 @@ class Addrbook extends Model
         return $this->belongsToMany(Item::class, 'warehouse_items', 'warehouse_id', 'item_id')
             ->withPivot('quantity')
             ->withTimestamps();
+    }
+
+    public function operation()
+    {
+        return $this->belongsTo(Operation::class, 'operation_id');
     }
 }

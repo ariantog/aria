@@ -18,20 +18,31 @@ class Tag extends Model
     ];
 
     // Constants from legacy logic
-    // Constants from legacy logic (Matched to DB)
+    const TYPE_NORMAL = 0;
+
+    const TYPE_JAHIT = 2;
+
     const TYPE_TYPE = 3;
 
     const TYPE_SIZE = 7;
 
+    const TYPE_COMPONENT = 8;
+
+    const TYPE_MATERIAL = 9;
+
+    const TYPE_VARIATION = 10;
+
     const TYPE_WARNA = 20;
 
-    const TYPE_JAHIT = 2;
-
     public static $types = [
+        self::TYPE_NORMAL => 'Normal',
+        self::TYPE_JAHIT => 'Jahit',
         self::TYPE_TYPE => 'Type',
         self::TYPE_SIZE => 'Size',
+        self::TYPE_COMPONENT => 'Komponen',
+        self::TYPE_MATERIAL => 'Material',
+        self::TYPE_VARIATION => 'Variasi',
         self::TYPE_WARNA => 'Warna',
-        self::TYPE_JAHIT => 'Jahit',
     ];
 
     public function items(): BelongsToMany

@@ -42,7 +42,7 @@ class Item extends Model
         'jubelio_item_id' => 'integer',
     ];
 
-    protected $appends = ['image_url'];
+    protected $appends = ['image_url', 'item_code'];
 
     /**
      * Define permissions associated with this model.
@@ -128,5 +128,19 @@ class Item extends Model
         $folder = str_pad(substr((string) $folderId, -2), 2, '0', STR_PAD_LEFT);
 
         return config('core-nation.item_image_path').$folder.'/'.$folderId.'.jpg';
+    }
+
+    public function getItemCode(): string
+    {
+        if ($this->type === ItemType::ASSET_LANCAR) {
+            return $this->code ?? (string) $this->id;
+        }
+
+        return $this->name ?? (string) $this->id;
+    }
+
+    public function getItemCodeAttribute(): string
+    {
+        return $this->getItemCode();
     }
 }

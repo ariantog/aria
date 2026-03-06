@@ -62,7 +62,7 @@ export function NavMain({ items = [] }: { items: NavItem[] }) {
                                                             isActive={subItem.isActive ?? isCurrentUrl(subItem.href)}
                                                             className="flex-1"
                                                         >
-                                                            <Link href={subItem.href} prefetch>
+                                                            <Link href={subItem.href}>
                                                                 <span>{subItem.title}</span>
                                                             </Link>
                                                         </SidebarMenuSubButton>
@@ -82,7 +82,7 @@ export function NavMain({ items = [] }: { items: NavItem[] }) {
                                     </CollapsibleContent>
                                 ) : (
                                     !item.items && (
-                                        <Link href={item.href} prefetch className="absolute inset-0" />
+                                        <Link href={item.href} className="absolute inset-0" />
                                     )
                                 )}
                             </SidebarMenuItem>
