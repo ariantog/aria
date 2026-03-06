@@ -57,11 +57,13 @@ class MigrateLegacyJournalsCommand extends Command
         foreach ($legacyAccounts as $acc) {
             // Find by ID in current DB addrbooks (including trashed ones)
             $addrbook = Addrbook::withTrashed()->find($acc->id);
+            $operationExists = DB::table('operations')->where('id', $acc->parent_id)->exists();
+            $operationId = $operationExists ? $acc->parent_id : null;
 
             if ($addrbook) {
-                if ($addrbook->operation_id !== $acc->parent_id || $addrbook->type != Addrbook::TYPE_ACCOUNT) {
+                if ($addrbook->operation_id !== $operationId || $addrbook->type != Addrbook::TYPE_ACCOUNT) {
                     $addrbook->type = Addrbook::TYPE_ACCOUNT;
-                    $addrbook->operation_id = $acc->parent_id;
+                    $addrbook->operation_id = $operationId;
                     $addrbook->save();
                     $updatedCount++;
                 }
@@ -72,7 +74,7 @@ class MigrateLegacyJournalsCommand extends Command
                 $newAddrbook->id = $acc->id;
                 $newAddrbook->name = $acc->name;
                 $newAddrbook->type = Addrbook::TYPE_ACCOUNT;
-                $newAddrbook->operation_id = $acc->parent_id;
+                $newAddrbook->operation_id = $operationId;
                 $newAddrbook->save();
                 $updatedCount++;
             }
