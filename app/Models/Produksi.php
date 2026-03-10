@@ -23,6 +23,18 @@ class Produksi extends Model
 
     protected $guarded = ['id'];
 
+    protected function casts(): array
+    {
+        return [
+            'potong_date' => 'date',
+            'jahit_date' => 'datetime',
+            'qc_date' => 'datetime',
+            'setor_date' => 'datetime',
+            'gudang_date' => 'date',
+            'status' => 'integer',
+        ];
+    }
+
     protected $appends = ['serial'];
 
     public function serial(): string
@@ -58,5 +70,18 @@ class Produksi extends Model
     public function qc()
     {
         return $this->belongsTo(Worker::class, 'qc_id');
+    }
+
+    public static function getPermissions(): array
+    {
+        return [
+            'view' => 'production-list',
+            'create' => 'production-create',
+            'edit' => 'production-edit',
+            'delete' => 'production-delete',
+            'setor' => 'production-setor',
+            'setoran-view' => 'production-setoran-list',
+            'gudang' => 'production-gudang',
+        ];
     }
 }

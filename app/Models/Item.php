@@ -33,14 +33,17 @@ class Item extends Model
         'jubelio_item_id',
     ];
 
-    protected $casts = [
-        'brand' => ItemBrand::class,
-        'type' => ItemType::class,
-        'price' => 'decimal:2',
-        'cost' => 'decimal:2',
-        'qty' => 'decimal:2',
-        'jubelio_item_id' => 'integer',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'brand' => ItemBrand::class,
+            'type' => ItemType::class,
+            'price' => 'decimal:2',
+            'cost' => 'decimal:2',
+            'qty' => 'decimal:2',
+            'jubelio_item_id' => 'integer',
+        ];
+    }
 
     protected $appends = ['image_url', 'item_code'];
 

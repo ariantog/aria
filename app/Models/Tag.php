@@ -15,6 +15,11 @@ class Tag extends Model
         'code',
         'type',
         'item_type',
+        'price',
+    ];
+
+    protected $casts = [
+        'price' => 'decimal:2',
     ];
 
     // Constants from legacy logic

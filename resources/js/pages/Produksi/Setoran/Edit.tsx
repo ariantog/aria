@@ -32,9 +32,13 @@ interface Props {
     produksi: Produksi;
     jahitList: { id: number; name: string }[];
     qcList: { id: number; name: string }[];
+    can: {
+        edit_setoran: boolean;
+        split_setoran: boolean;
+    };
 }
 
-export default function EditSetoran({ produksi, jahitList, qcList }: Props) {
+export default function EditSetoran({ produksi, jahitList, qcList, can }: Props) {
     const breadcrumbs: BreadcrumbItem[] = [
         { title: 'Produksi', href: '/produksi' },
         { title: 'Setoran', href: '/produksi/setoran' },
@@ -193,7 +197,7 @@ export default function EditSetoran({ produksi, jahitList, qcList }: Props) {
                                         />
                                     </div>
                                     <div className="pt-2">
-                                        <Button type="submit" disabled={basicForm.processing} className="bg-blue-600 hover:bg-blue-700 font-bold">
+                                        <Button type="submit" disabled={basicForm.processing || !can.edit_setoran} className="bg-blue-600 hover:bg-blue-700 font-bold">
                                             Save Changes
                                         </Button>
                                     </div>
@@ -225,7 +229,7 @@ export default function EditSetoran({ produksi, jahitList, qcList }: Props) {
                                             }}
                                         />
                                     </div>
-                                    <Button type="submit" disabled={workerForm.processing} className="bg-emerald-600 hover:bg-emerald-700 font-bold">
+                                    <Button type="submit" disabled={workerForm.processing || !can.edit_setoran} className="bg-emerald-600 hover:bg-emerald-700 font-bold">
                                         Update Jahit
                                     </Button>
                                 </form>
@@ -256,7 +260,7 @@ export default function EditSetoran({ produksi, jahitList, qcList }: Props) {
                                             }}
                                         />
                                     </div>
-                                    <Button type="submit" disabled={qcForm.processing} className="bg-blue-600 hover:bg-blue-700 font-bold">
+                                    <Button type="submit" disabled={qcForm.processing || !can.edit_setoran} className="bg-blue-600 hover:bg-blue-700 font-bold">
                                         Update QC
                                     </Button>
                                 </form>
@@ -279,7 +283,7 @@ export default function EditSetoran({ produksi, jahitList, qcList }: Props) {
                                             <p className="text-sm text-zinc-600 dark:text-zinc-400">
                                                 Return this item to the production list for further processing.
                                             </p>
-                                            <Button type="submit" variant="destructive" className="font-bold">
+                                            <Button type="submit" variant="destructive" className="font-bold" disabled={!can.edit_setoran}>
                                                 Kembalikan ke Produksi
                                             </Button>
                                         </div>

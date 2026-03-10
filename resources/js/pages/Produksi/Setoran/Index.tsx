@@ -62,9 +62,14 @@ interface Props {
     statusList: any[];
     statusGudang: number;
     statusBoth: number;
+    can: {
+        edit_setoran: boolean;
+        gudang_setoran: boolean;
+        kembali_produksi: boolean;
+    };
 }
 
-export default function SetoranIndex({ produksis, filters, jahitList, potongList, statusList, statusGudang, statusBoth }: Props) {
+export default function SetoranIndex({ produksis, filters, jahitList, potongList, statusList, statusGudang, statusBoth, can }: Props) {
     const breadcrumbs: BreadcrumbItem[] = [
         { title: 'Produksi', href: '#' },
         { title: 'Setoran', href: '/produksi/setoran' },
@@ -165,7 +170,7 @@ export default function SetoranIndex({ produksis, filters, jahitList, potongList
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Setoran Production" />
 
-            <div className="p-4 sm:p-6 lg:p-8">
+            <div className="p-4 ">
                 {/* Header */}
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4 border-b border-zinc-200 dark:border-zinc-800 pb-4">
                     <div>
@@ -261,18 +266,20 @@ export default function SetoranIndex({ produksis, filters, jahitList, potongList
                                                         {p.item?.item_code || p.temp_name}
                                                     </div>
                                                 ) : (
-                                                    p.item_id ? (
-                                                        <div className="text-sm font-bold text-green-600 dark:text-green-500 bg-green-50 dark:bg-green-900/30 px-2 py-0.5 rounded-md inline-block">
-                                                            {p.item?.item_code}
-                                                        </div>
-                                                    ) : (
-                                                        <button 
-                                                            onClick={() => openUpdateModal(p)} 
-                                                            className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-blue-700 bg-blue-100 border border-blue-200 rounded-md hover:bg-blue-200 hover:text-blue-800 transition-colors dark:bg-blue-900/40 dark:text-blue-300 dark:border-blue-800/50 dark:hover:bg-blue-800/60"
-                                                        >
-                                                            {p.temp_name}
-                                                        </button>
-                                                    )
+                                                     p.item_id ? (
+                                                         <div className="text-sm font-bold text-green-600 dark:text-green-500 bg-green-50 dark:bg-green-900/30 px-2 py-0.5 rounded-md inline-block">
+                                                             {p.item?.item_code}
+                                                         </div>
+                                                     ) : can.edit_setoran ? (
+                                                         <button
+                                                             onClick={() => openUpdateModal(p)}
+                                                             className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-blue-700 bg-blue-100 border border-blue-200 rounded-md hover:bg-blue-200 hover:text-blue-800 transition-colors dark:bg-blue-900/40 dark:text-blue-300 dark:border-blue-800/50 dark:hover:bg-blue-800/60"
+                                                         >
+                                                             {p.temp_name}
+                                                         </button>
+                                                     ) : (
+                                                        <span className="text-xs text-zinc-400 italic">{p.temp_name}</span>
+                                                     )
                                                 )}
                                             </td>
                                             <td className="px-4 py-3 whitespace-nowrap text-center">
@@ -331,11 +338,15 @@ export default function SetoranIndex({ produksis, filters, jahitList, potongList
                                                         {p.invoice}
                                                     </span>
                                                 ) : (
-                                                    p.item_id ? (
-                                                        <Button variant="default" size="sm" onClick={() => openGudangModal(p)} className="h-7 text-xs bg-zinc-800 hover:bg-zinc-700 text-white shadow-sm">
-                                                            To Gudang
-                                                        </Button>
-                                                    ) : (
+                                                     p.item_id ? (
+                                                         can.gudang_setoran ? (
+                                                             <Button variant="default" size="sm" onClick={() => openGudangModal(p)} className="h-7 text-xs bg-zinc-800 hover:bg-zinc-700 text-white shadow-sm">
+                                                                 To Gudang
+                                                             </Button>
+                                                         ) : (
+                                                            <span className="text-xs text-zinc-400 italic">Ready for Gudang</span>
+                                                         )
+                                                     ) : (
                                                         <span className="text-xs text-zinc-400 italic">Belum ada item</span>
                                                     )
                                                 )}

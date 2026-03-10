@@ -129,7 +129,6 @@ class ItemsController extends Controller
 
         return Inertia::render('Items/Create', [
             'brands' => collect(ItemBrand::cases())->map(fn ($b) => ['value' => $b->value, 'label' => $b->label()]),
-            'tags' => [], // Deprecated
             'jahitTags' => \App\Models\Tag::where('type', \App\Models\Tag::TYPE_JAHIT)->get(),
             'typeTags' => \App\Models\Tag::where('type', \App\Models\Tag::TYPE_TYPE)->get(),
             'sizeTags' => \App\Models\Tag::where('type', \App\Models\Tag::TYPE_SIZE)->get(),
@@ -144,7 +143,6 @@ class ItemsController extends Controller
 
         return Inertia::render('Items/Create', [
             'brands' => collect(ItemBrand::cases())->map(fn ($b) => ['value' => $b->value, 'label' => $b->label()]),
-            'tags' => [], // Deprecated
             'jahitTags' => \App\Models\Tag::where('type', \App\Models\Tag::TYPE_JAHIT)->get(),
             'typeTags' => \App\Models\Tag::where('type', \App\Models\Tag::TYPE_TYPE)->get(),
             'sizeTags' => \App\Models\Tag::where('type', \App\Models\Tag::TYPE_SIZE)->get(),

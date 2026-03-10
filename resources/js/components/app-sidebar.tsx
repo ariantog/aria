@@ -240,39 +240,48 @@ export function AppSidebar() {
             icon: Settings,
             isActive: isRouteActive('/system-settings'),
         }] : []),
+        ...(hasPermission('borongan-list') || isSuperAdmin ? [{
+            title: 'Borongan',
+            href: '/borongan',
+            createUrl: '/borongan/create',
+            icon: Receipt,
+            isActive: isRouteActive('/borongan'),
+        }] : []),
         {
             title: 'Produksi',
             href: '#',
             icon: Factory,
             isActive: isRouteActive('/produksi'),
             items: [
-                {
+                ...(hasPermission('production-list') || isSuperAdmin ? [{
                     title: 'Produksi',
                     href: '/produksi',
                     createUrl: '/produksi/create',
                     isActive: isRouteActive('/produksi') && !isRouteActive('/produksi/potong') && !isRouteActive('/produksi/jahit') && !isRouteActive('/produksi/qc') && !isRouteActive('/produksi/setoran'),
-                },
-                {
+                }] : []),
+                ...(hasPermission('production-setoran-list') || isSuperAdmin ? [{
                     title: 'Setoran',
                     href: '/produksi/setoran',
                     isActive: isRouteActive('/produksi/setoran'),
-                },
-                {
-                    title: 'Potong',
-                    href: '/produksi/potong/list',
-                    isActive: isRouteActive('/produksi/potong/list'),
-                },
-                {
-                    title: 'Jahit',
-                    href: '/produksi/jahit/list',
-                    isActive: isRouteActive('/produksi/jahit/list'),
-                },
-                {
-                    title: 'QC',
-                    href: '/produksi/qc/list',
-                    isActive: isRouteActive('/produksi/qc/list'),
-                },
-            ],
+                }] : []),
+                ...(hasPermission('production-worker-list') || isSuperAdmin ? [
+                    {
+                        title: 'Potong',
+                        href: '/produksi/potong/list',
+                        isActive: isRouteActive('/produksi/potong/list'),
+                    },
+                    {
+                        title: 'Jahit',
+                        href: '/produksi/jahit/list',
+                        isActive: isRouteActive('/produksi/jahit/list'),
+                    },
+                    {
+                        title: 'QC',
+                        href: '/produksi/qc/list',
+                        isActive: isRouteActive('/produksi/qc/list'),
+                    },
+                ] : []),
+            ].filter(Boolean) as NavItem[],
         },
         ...(hasPermission('posts-list') || isSuperAdmin ? [{
             title: 'Posts',

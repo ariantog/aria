@@ -8,66 +8,143 @@ use App\Models\Tag;
 use App\Models\Worker;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class ProduksiController extends Controller
 {
-    // Worker CRUD
-    public function workersIndex(): Response
+    // Generic Worker Management
+    public function workerIndex(string $type): Response
     {
-        return Inertia::render('Produksi/Potong/Workers/Index', [
-            'workers' => Worker::potong()->latest()->paginate(10),
+        Gate::authorize(Worker::getPermissions()['view']);
+
+        $workerType = $this->getWorkerTypeInt($type);
+        $title = ucfirst($type).' Workers';
+
+        return Inertia::render('Produksi/Workers/Index', [
+            'workers' => Worker::where('type', $workerType)->latest()->paginate(10),
+            'type' => $type,
+            'title' => $title,
+            'can' => [
+                'create_worker' => auth()->user()->can(Worker::getPermissions()['create']),
+                'edit_worker' => auth()->user()->can(Worker::getPermissions()['edit']),
+                'delete_worker' => auth()->user()->can(Worker::getPermissions()['delete']),
+            ],
         ]);
     }
 
-    public function workerStore(Request $request)
+    public function workerStore(Request $request, string $type)
     {
+        Gate::authorize(Worker::getPermissions()['create']);
+
         $request->validate([
             'name' => 'required|string|max:255',
         ]);
 
         Worker::create([
-            'name' => $request->name,
-            'type' => Worker::TYPE_POTONG,
+            'name' => trim($request->name),
+            'type' => $this->getWorkerTypeInt($type),
         ]);
 
-        return redirect()->back()->with('success', 'Worker created.');
+        return redirect()->back()->with('success', ucfirst($type).' worker created.');
     }
 
     public function workerUpdate(Request $request, Worker $worker)
     {
+        Gate::authorize(Worker::getPermissions()['edit']);
+
         $request->validate([
             'name' => 'required|string|max:255',
         ]);
 
-        $worker->update(['name' => $request->name]);
+        $worker->update(['name' => trim($request->name)]);
 
         return redirect()->back()->with('success', 'Worker updated.');
     }
 
     public function workerDestroy(Worker $worker)
     {
+        Gate::authorize(Worker::getPermissions()['delete']);
+
         $worker->delete();
 
         return redirect()->back()->with('success', 'Worker deleted.');
     }
 
-    // Production Entries
-    public function index(): Response
+    protected function getWorkerTypeInt(string $type): int
     {
-        return Inertia::render('Produksi/Potong/Index', [
-            'produksis' => Produksi::with(['potong', 'size', 'jahit', 'qc'])
-                ->where('status', Produksi::STATUS_PRODUKSI)
-                ->latest()
-                ->paginate(20),
+        return match ($type) {
+            'potong' => Worker::TYPE_POTONG,
+            'jahit' => Worker::TYPE_JAHIT,
+            'qc' => Worker::TYPE_QC,
+            default => abort(404),
+        };
+    }
+
+    // Production Entries
+    public function index(Request $request): Response
+    {
+        Gate::authorize(Produksi::getPermissions()['view']);
+
+        $query = Produksi::with(['potong', 'size', 'jahit', 'qc'])
+            ->where('status', Produksi::STATUS_PRODUKSI);
+
+        if ($request->filled('from') && $request->filled('to')) {
+            $query->whereDate('potong_date', '>=', $request->from)
+                ->whereDate('potong_date', '<=', $request->to);
+        }
+
+        if ($request->filled('kode')) {
+            $query->where('temp_name', 'like', '%'.$request->kode.'%');
+        }
+
+        if ($request->filled('customer')) {
+            $query->where('customer', 'like', '%'.$request->customer.'%');
+        }
+
+        if ($request->filled('potong_id')) {
+            $query->where('potong_id', $request->potong_id);
+        }
+
+        if ($request->filled('jahit_id')) {
+            $query->where('jahit_id', $request->jahit_id);
+        }
+
+        if ($request->filled('serial')) {
+            $serial = $request->serial;
+            $id = base_convert($serial, 36, 10);
+            $query->where(function ($q) use ($id) {
+                $q->where('id', $id)->orWhere('original_id', $id);
+            });
+        }
+
+        if ($request->filled('surat_jalan_potong')) {
+            $query->where('surat_jalan_potong', 'like', '%'.$request->surat_jalan_potong.'%');
+        }
+
+        if ($request->filled('warna')) {
+            $query->where('warna', 'like', '%'.$request->warna.'%');
+        }
+
+        return Inertia::render('Produksi/Index', [
+            'produksis' => $query->latest('id')->paginate(20)->withQueryString(),
+            'filters' => $request->only(['from', 'to', 'kode', 'customer', 'potong_id', 'jahit_id', 'serial', 'surat_jalan_potong', 'warna']),
             'jahitList' => Worker::jahit()->get(),
+            'can' => [
+                'create_produksi' => auth()->user()->can(Produksi::getPermissions()['create']),
+                'edit_produksi' => auth()->user()->can(Produksi::getPermissions()['edit']),
+                'delete_produksi' => auth()->user()->can(Produksi::getPermissions()['delete']),
+                'setor_produksi' => auth()->user()->can(Produksi::getPermissions()['setor']),
+            ],
         ]);
     }
 
     public function create(): Response
     {
-        return Inertia::render('Produksi/Potong/Create', [
+        Gate::authorize(Produksi::getPermissions()['create']);
+
+        return Inertia::render('Produksi/Create', [
             'workers' => Worker::potong()->get(),
             'sizes' => Tag::where('type', Tag::TYPE_SIZE)->get(),
         ]);
@@ -75,6 +152,8 @@ class ProduksiController extends Controller
 
     public function store(StoreProduksiRequest $request)
     {
+        Gate::authorize(Produksi::getPermissions()['create']);
+
         DB::transaction(function () use ($request) {
             foreach ($request->items as $item) {
                 Produksi::create([
@@ -96,6 +175,8 @@ class ProduksiController extends Controller
 
     public function postSaveRow(Request $request, Produksi $produksi)
     {
+        Gate::authorize(Produksi::getPermissions()['edit']);
+
         $request->validate([
             'jahit_id' => 'required|exists:workers,id',
         ]);
@@ -110,61 +191,10 @@ class ProduksiController extends Controller
         return redirect()->back()->with('success', 'Production entry #'.$produksi->id.' assigned to Jahit.');
     }
 
-    // --- Jahit Workers Management ---
-
-    public function jahitWorkersIndex()
-    {
-        $workers = Worker::jahit()->paginate(10);
-
-        return inertia('Produksi/Jahit/Workers/Index', [
-            'workers' => $workers,
-        ]);
-    }
-
-    public function jahitWorkerStore(Request $request)
-    {
-        $request->validate([
-            'name' => 'required|string|max:255',
-        ]);
-
-        Worker::create([
-            'name' => trim($request->name),
-            'type' => Worker::TYPE_JAHIT,
-        ]);
-
-        return redirect()->back()->with('success', 'Jahit worker created.');
-    }
-
-    public function jahitWorkerUpdate(Request $request, Worker $worker)
-    {
-        if ($worker->type !== Worker::TYPE_JAHIT) {
-            abort(404);
-        }
-
-        $request->validate([
-            'name' => 'required|string|max:255',
-        ]);
-
-        $worker->update([
-            'name' => trim($request->name),
-        ]);
-
-        return redirect()->back()->with('success', 'Jahit worker updated.');
-    }
-
-    public function jahitWorkerDestroy(Worker $worker)
-    {
-        if ($worker->type !== Worker::TYPE_JAHIT) {
-            abort(404);
-        }
-
-        $worker->delete();
-
-        return redirect()->back()->with('success', 'Jahit worker deleted.');
-    }
-
     public function postSaveQc(Request $request, Produksi $produksi)
     {
+        Gate::authorize(Produksi::getPermissions()['edit']);
+
         $request->validate([
             'qc_id' => 'required|exists:workers,id',
         ]);
@@ -179,61 +209,10 @@ class ProduksiController extends Controller
         return redirect()->back()->with('success', 'Production entry #'.$produksi->id.' assigned to QC.');
     }
 
-    // --- QC Workers Management ---
-
-    public function qcWorkersIndex()
-    {
-        $workers = Worker::qc()->paginate(10);
-
-        return inertia('Produksi/QC/Workers/Index', [
-            'workers' => $workers,
-        ]);
-    }
-
-    public function qcWorkerStore(Request $request)
-    {
-        $request->validate([
-            'name' => 'required|string|max:255',
-        ]);
-
-        Worker::create([
-            'name' => trim($request->name),
-            'type' => Worker::TYPE_QC,
-        ]);
-
-        return redirect()->back()->with('success', 'QC worker created.');
-    }
-
-    public function qcWorkerUpdate(Request $request, Worker $worker)
-    {
-        if ($worker->type !== Worker::TYPE_QC) {
-            abort(404);
-        }
-
-        $request->validate([
-            'name' => 'required|string|max:255',
-        ]);
-
-        $worker->update([
-            'name' => trim($request->name),
-        ]);
-
-        return redirect()->back()->with('success', 'QC worker updated.');
-    }
-
-    public function qcWorkerDestroy(Worker $worker)
-    {
-        if ($worker->type !== Worker::TYPE_QC) {
-            abort(404);
-        }
-
-        $worker->delete();
-
-        return redirect()->back()->with('success', 'QC worker deleted.');
-    }
-
     public function postSetor(Produksi $produksi)
     {
+        Gate::authorize(Produksi::getPermissions()['setor']);
+
         $produksi->update([
             'status' => Produksi::STATUS_SETOR,
             'setor_date' => now(),
@@ -268,6 +247,8 @@ class ProduksiController extends Controller
 
     public function setoranIndex(Request $request): Response
     {
+        Gate::authorize(Produksi::getPermissions()['setoran-view']);
+
         $query = Produksi::with(['item', 'potong', 'size', 'jahit', 'qc']);
 
         $from = $request->from;
@@ -338,11 +319,18 @@ class ProduksiController extends Controller
             ],
             'statusGudang' => Produksi::STATUS_GUDANG,
             'statusBoth' => Produksi::STATUS_BOTH,
+            'can' => [
+                'edit_setoran' => auth()->user()->can(Produksi::getPermissions()['edit']),
+                'gudang_setoran' => auth()->user()->can(Produksi::getPermissions()['gudang']),
+                'kembali_produksi' => auth()->user()->can(Produksi::getPermissions()['edit']),
+            ],
         ]);
     }
 
     public function setoranEditItem(Request $request, Produksi $produksi)
     {
+        Gate::authorize(Produksi::getPermissions()['edit']);
+
         $request->validate([
             'item_id' => 'required',
         ]);
@@ -382,6 +370,8 @@ class ProduksiController extends Controller
 
     public function setoranGudang(Request $request, Produksi $produksi)
     {
+        Gate::authorize(Produksi::getPermissions()['gudang']);
+
         $request->validate([
             'invoice' => 'required|string|max:255',
         ]);
@@ -458,6 +448,8 @@ class ProduksiController extends Controller
 
     public function setoranStatusToProduksi(Produksi $produksi)
     {
+        Gate::authorize(Produksi::getPermissions()['edit']);
+
         if ($produksi->status != Produksi::STATUS_SETOR) {
             return back()->withErrors(['error' => 'Inputan tidak valid, status harus Setor.']);
         }
@@ -471,7 +463,9 @@ class ProduksiController extends Controller
 
     public function edit(Produksi $produksi): Response
     {
-        return Inertia::render('Produksi/Potong/Edit', [
+        Gate::authorize(Produksi::getPermissions()['edit']);
+
+        return Inertia::render('Produksi/Edit', [
             'produksi' => $produksi->load(['potong', 'size', 'jahit', 'qc']),
             'jahitList' => Worker::jahit()->get(),
         ]);
@@ -479,6 +473,8 @@ class ProduksiController extends Controller
 
     public function setoranEdit(Produksi $produksi)
     {
+        Gate::authorize(Produksi::getPermissions()['setoran-view']);
+
         if ($produksi->status == Produksi::STATUS_PRODUKSI) {
             return redirect()->route('produksi.index')->withErrors(['error' => 'Not in Setoran status.']);
         }
@@ -487,11 +483,17 @@ class ProduksiController extends Controller
             'produksi' => $produksi->load(['potong', 'size', 'jahit', 'qc']),
             'jahitList' => Worker::jahit()->get(),
             'qcList' => Worker::qc()->get(),
+            'can' => [
+                'edit_setoran' => auth()->user()->can(Produksi::getPermissions()['edit']),
+                'split_setoran' => auth()->user()->can(Produksi::getPermissions()['edit']),
+            ],
         ]);
     }
 
     public function update(Request $request, Produksi $produksi)
     {
+        Gate::authorize(Produksi::getPermissions()['edit']);
+
         $request->validate([
             'warna' => 'nullable|string|max:255',
             'customer' => 'nullable|string|max:255',
@@ -509,6 +511,8 @@ class ProduksiController extends Controller
 
     public function split(Request $request, Produksi $produksi)
     {
+        Gate::authorize(Produksi::getPermissions()['edit']);
+
         $request->validate([
             'split_q' => 'required|numeric|min:1|max:'.($produksi->quantity - 1),
         ]);
@@ -530,6 +534,8 @@ class ProduksiController extends Controller
 
     public function gantiJahit(Request $request, Produksi $produksi)
     {
+        Gate::authorize(Produksi::getPermissions()['edit']);
+
         $request->validate([
             'jahit_id' => 'required|exists:workers,id',
         ]);

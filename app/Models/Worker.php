@@ -19,6 +19,13 @@ class Worker extends Model
 
     protected $guarded = ['id'];
 
+    protected function casts(): array
+    {
+        return [
+            'type' => 'integer',
+        ];
+    }
+
     public function scopePotong($query)
     {
         return $query->where('type', self::TYPE_POTONG);
@@ -32,5 +39,15 @@ class Worker extends Model
     public function scopeQc($query)
     {
         return $query->where('type', self::TYPE_QC);
+    }
+
+    public static function getPermissions(): array
+    {
+        return [
+            'view' => 'production-worker-list',
+            'create' => 'production-worker-create',
+            'edit' => 'production-worker-edit',
+            'delete' => 'production-worker-delete',
+        ];
     }
 }

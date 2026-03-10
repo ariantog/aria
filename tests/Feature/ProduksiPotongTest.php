@@ -18,7 +18,7 @@ it('can list potong workers', function () {
 
     $response->assertStatus(200);
     $response->assertInertia(fn ($page) => $page
-        ->component('Produksi/Potong/Workers/Index')
+        ->component('Produksi/Workers/Index')
         ->has('workers.data', 1)
     );
 });

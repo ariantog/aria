@@ -41,14 +41,27 @@ export function NavMain({ items = [] }: { items: NavItem[] }) {
                                     <SidebarMenuButton
                                         asChild
                                         isActive={item.isActive ?? isCurrentUrl(item.href)}
+                                        className="flex-1"
                                     >
-                                        <button type="button" className="w-full">
-                                            {item.icon && <item.icon />}
-                                            <span className="flex-1 text-left">{item.title}</span>
+                                        <div className="flex items-center w-full group/top-item">
+                                            <button type="button" className="flex-1 text-left flex items-center gap-2">
+                                                {item.icon && <item.icon className="h-4 w-4" />}
+                                                <span>{item.title}</span>
+                                            </button>
+                                            {item.createUrl && (
+                                                <Link
+                                                    href={item.createUrl}
+                                                    onClick={(e) => e.stopPropagation()}
+                                                    className="ml-2 p-1 text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent rounded-sm opacity-0 group-hover/top-item:opacity-100 transition-opacity"
+                                                    title={`Create ${item.title}`}
+                                                >
+                                                    <Plus className="h-4 w-4" />
+                                                </Link>
+                                            )}
                                             {item.items && (
                                                 <ChevronRight className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
                                             )}
-                                        </button>
+                                        </div>
                                     </SidebarMenuButton>
                                 </CollapsibleTrigger>
                                 {item.items?.length ? (

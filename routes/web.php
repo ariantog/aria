@@ -125,26 +125,23 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
         Route::post('/{produksi}/split', [App\Http\Controllers\ProduksiController::class, 'split'])->name('split');
         Route::patch('/{produksi}/worker', [App\Http\Controllers\ProduksiController::class, 'gantiJahit'])->name('ganti-jahit');
 
-        Route::prefix('potong')->name('potong.')->group(function () {
-            Route::get('/list', [App\Http\Controllers\ProduksiController::class, 'workersIndex'])->name('index');
-            Route::post('/store', [App\Http\Controllers\ProduksiController::class, 'workerStore'])->name('store');
-            Route::put('/{worker}', [App\Http\Controllers\ProduksiController::class, 'workerUpdate'])->name('update');
-            Route::delete('/{worker}/delete', [App\Http\Controllers\ProduksiController::class, 'workerDestroy'])->name('destroy');
-        });
+        foreach (['potong', 'jahit', 'qc'] as $type) {
+            Route::prefix($type)->name($type.'.')->group(function () use ($type) {
+                Route::get('/list', [App\Http\Controllers\ProduksiController::class, 'workerIndex'])->defaults('type', $type)->name('index');
+                Route::post('/store', [App\Http\Controllers\ProduksiController::class, 'workerStore'])->defaults('type', $type)->name('store');
+                Route::put('/{worker}', [App\Http\Controllers\ProduksiController::class, 'workerUpdate'])->name('update');
+                Route::delete('/{worker}/delete', [App\Http\Controllers\ProduksiController::class, 'workerDestroy'])->name('destroy');
+            });
+        }
+    });
 
-        Route::prefix('jahit')->name('jahit.')->group(function () {
-            Route::get('/list', [App\Http\Controllers\ProduksiController::class, 'jahitWorkersIndex'])->name('index');
-            Route::post('/store', [App\Http\Controllers\ProduksiController::class, 'jahitWorkerStore'])->name('store');
-            Route::put('/{worker}', [App\Http\Controllers\ProduksiController::class, 'jahitWorkerUpdate'])->name('update');
-            Route::delete('/{worker}/delete', [App\Http\Controllers\ProduksiController::class, 'jahitWorkerDestroy'])->name('destroy');
-        });
-
-        Route::prefix('qc')->name('qc.')->group(function () {
-            Route::get('/list', [App\Http\Controllers\ProduksiController::class, 'qcWorkersIndex'])->name('index');
-            Route::post('/store', [App\Http\Controllers\ProduksiController::class, 'qcWorkerStore'])->name('store');
-            Route::put('/{worker}', [App\Http\Controllers\ProduksiController::class, 'qcWorkerUpdate'])->name('update');
-            Route::delete('/{worker}/delete', [App\Http\Controllers\ProduksiController::class, 'qcWorkerDestroy'])->name('destroy');
-        });
+    // Borongan Module
+    Route::prefix('borongan')->name('borongan.')->group(function () {
+        Route::get('/', [App\Http\Controllers\BoronganController::class, 'index'])->name('index');
+        Route::get('/create', [App\Http\Controllers\BoronganController::class, 'create'])->name('create');
+        Route::post('/', [App\Http\Controllers\BoronganController::class, 'store'])->name('store');
+        Route::get('/ajax', [App\Http\Controllers\BoronganController::class, 'getAjaxBorongan'])->name('ajax');
+        Route::get('/{borongan}', [App\Http\Controllers\BoronganController::class, 'show'])->name('show');
     });
 });
 

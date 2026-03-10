@@ -18,7 +18,7 @@ it('can list qc workers', function () {
 
     $response->assertStatus(200);
     $response->assertInertia(fn ($page) => $page
-        ->component('Produksi/QC/Workers/Index')
+        ->component('Produksi/Workers/Index')
         ->has('workers.data', 1)
     );
 });
