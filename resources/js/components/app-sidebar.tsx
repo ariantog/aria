@@ -240,6 +240,24 @@ export function AppSidebar() {
             icon: Settings,
             isActive: isRouteActive('/system-settings'),
         }] : []),
+        ...(hasPermission('karyawan-list') || isSuperAdmin ? [{
+            title: 'Karyawan',
+            href: '#',
+            icon: Users,
+            isActive: isRouteActive('/karyawan') || isRouteActive('/gaji'),
+            items: [
+                {
+                    title: 'Daftar Karyawan',
+                    href: '/karyawan',
+                    isActive: isRouteActive('/karyawan'),
+                },
+                {
+                    title: 'Gaji Bulanan',
+                    href: '/gaji',
+                    isActive: isRouteActive('/gaji'),
+                }
+            ],
+        }] : []),
         ...(hasPermission('borongan-list') || isSuperAdmin ? [{
             title: 'Borongan',
             href: '/borongan',
