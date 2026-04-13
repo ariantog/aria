@@ -634,7 +634,7 @@ class ItemsManagerHelper
             'items.group_id',
             DB::raw('SUM(warehouse_item.quantity) as total_quantity'),
         ])->where('items.group_id', '=', $groupId)->join('warehouse_item', 'items.id', '=', 'warehouse_item.item_id')->leftJoin('customers', 'customers.id', '=', 'warehouse_item.warehouse_id')->where('customers.type', '=', Customer::TYPE_WAREHOUSE)->where(function ($query) {
-            $query->where('customers.deleted_at','=',null)->orWhere('customers.deleted_at','=','0000-00-00 00:00:00');
+            $query->where('customers.deleted_at', '=', null)->orWhere('customers.deleted_at', '=', '0000-00-00 00:00:00');
         })->first();
 
         if (! $total) {

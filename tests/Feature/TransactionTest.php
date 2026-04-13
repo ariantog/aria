@@ -106,7 +106,7 @@ class TransactionTest extends TestCase
             'name' => 'Test Warehouse',
             'type' => Addrbook::TYPE_WAREHOUSE,
             'email' => 'wh@test.com',
-            'phone' => '123'
+            'phone' => '123',
         ]);
 
         $item = Item::factory()->create([
@@ -121,7 +121,7 @@ class TransactionTest extends TestCase
             'warehouse_id' => $warehouse->id,
             'item_id' => $item->id,
             'warehouse_type' => Addrbook::TYPE_WAREHOUSE,
-            'quantity' => 20
+            'quantity' => 20,
         ]);
 
         // 2. Submit Data
@@ -155,13 +155,13 @@ class TransactionTest extends TestCase
         $this->assertDatabaseHas('warehouse_items', [
             'warehouse_id' => $warehouse->id,
             'item_id' => $item->id,
-            'quantity' => 15 // 20 - 5
+            'quantity' => 15, // 20 - 5
         ]);
 
         // 6. Verify Reseller Balance
         $this->assertDatabaseHas('addrbook_stats', [
             'addrbook_id' => $reseller->id,
-            'balance' => -25000
+            'balance' => -25000,
         ]);
     }
 }

@@ -22,7 +22,7 @@ class GajiController extends Controller
             ->orderBy('tahun', 'desc')
             ->orderBy('bulan', 'desc');
 
-        if (auth()->user() && !auth()->user()->hasRole('superadmin')) {
+        if (auth()->user() && ! auth()->user()->hasRole('superadmin')) {
             $query->whereHas('karyawan', function ($q) {
                 $q->where('flag', 1);
             });
@@ -56,13 +56,13 @@ class GajiController extends Controller
 
     public function create(Karyawan $karyawan)
     {
-        if (auth()->user() && !auth()->user()->hasRole('superadmin') && $karyawan->flag == 2) {
+        if (auth()->user() && ! auth()->user()->hasRole('superadmin') && $karyawan->flag == 2) {
             abort(404);
         }
 
         $settings = Setting::pluck('value', 'name')->toArray();
-        $limitTahunan = isset($settings['batas_cuti_tahunan']) ? (int)$settings['batas_cuti_tahunan'] : 0;
-        $limitSakit = isset($settings['batas_cuti_sakit']) ? (int)$settings['batas_cuti_sakit'] : 0;
+        $limitTahunan = isset($settings['batas_cuti_tahunan']) ? (int) $settings['batas_cuti_tahunan'] : 0;
+        $limitSakit = isset($settings['batas_cuti_sakit']) ? (int) $settings['batas_cuti_sakit'] : 0;
 
         $now = Carbon::now();
         $lastmonth = Carbon::now()->subMonth();
@@ -78,8 +78,8 @@ class GajiController extends Controller
             ->where('tahun', $lastmonth->year)
             ->first();
 
-        $kemarinTahunan = $gajiKemarin ? (int)$gajiKemarin->cuti_tahunan : 0;
-        $kemarinSakit = $gajiKemarin ? (int)$gajiKemarin->cuti_sakit : 0;
+        $kemarinTahunan = $gajiKemarin ? (int) $gajiKemarin->cuti_tahunan : 0;
+        $kemarinSakit = $gajiKemarin ? (int) $gajiKemarin->cuti_sakit : 0;
 
         // Current month's actual Cuti count
         $totalCuti = Cuti::where('karyawan_id', $karyawan->id)
@@ -88,9 +88,9 @@ class GajiController extends Controller
             ->selectRaw('SUM(sakit) as total_sakit, SUM(tahunan) as total_tahunan, SUM(mendadak) as total_mendadak')
             ->first();
 
-        $bulaniniSakit = (int)$totalCuti->total_sakit;
-        $bulaniniTahunan = (int)$totalCuti->total_tahunan;
-        $bulaniniMendadak = (int)$totalCuti->total_mendadak;
+        $bulaniniSakit = (int) $totalCuti->total_sakit;
+        $bulaniniTahunan = (int) $totalCuti->total_tahunan;
+        $bulaniniMendadak = (int) $totalCuti->total_mendadak;
 
         $totalTahunan = $kemarinTahunan + $bulaniniTahunan;
         $totalSakit = $kemarinSakit + $bulaniniSakit;
@@ -135,7 +135,7 @@ class GajiController extends Controller
 
     public function store(Request $request, Karyawan $karyawan)
     {
-        if (auth()->user() && !auth()->user()->hasRole('superadmin') && $karyawan->flag == 2) {
+        if (auth()->user() && ! auth()->user()->hasRole('superadmin') && $karyawan->flag == 2) {
             abort(404);
         }
 
@@ -159,7 +159,7 @@ class GajiController extends Controller
         $totalGajiHk = $rupiahHarian + $karyawan->bulanan + $karyawan->premi + $validated['bonus'];
         $totalSanksi = $totalPotongan + $validated['sanksi'];
         $gajiAkhir = $totalGajiHk - $totalSanksi;
-        
+
         Gaji::create([
             'karyawan_id' => $karyawan->id,
             'bulan' => $validated['bulan'],
@@ -181,7 +181,7 @@ class GajiController extends Controller
             'flag' => $validated['privasi'],
         ]);
 
-        return redirect()->route('karyawan.show', $karyawan->id)->with('success', 'Gaji ' . $karyawan->nama . ' created');
+        return redirect()->route('karyawan.show', $karyawan->id)->with('success', 'Gaji '.$karyawan->nama.' created');
     }
 
     public function destroy(Gaji $gaji)

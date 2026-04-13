@@ -3,6 +3,8 @@
 namespace App\Providers;
 
 use App\Models\Addrbook;
+use App\Models\Transaction;
+use App\Observers\TransactionObserver;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Facades\Date;
@@ -27,6 +29,8 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->configureDefaults();
+
+        Transaction::observe(TransactionObserver::class);
 
         Relation::morphMap([
             (string) Addrbook::TYPE_CUSTOMER => Addrbook::class,

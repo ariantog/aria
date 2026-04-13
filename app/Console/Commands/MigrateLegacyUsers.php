@@ -73,7 +73,7 @@ class MigrateLegacyUsers extends Command
                     'id' => $user->id,
                     'name' => $user->username,
                     'username' => $user->username,
-                    'email' => $user->username . '@mail.com', // Dummy email to satisfy schema
+                    'email' => $user->username.'@mail.com', // Dummy email to satisfy schema
                     'password' => $user->password,
                     'is_active' => (bool) $user->active,
                     'location_id' => $user->location_id ?: null,
@@ -90,7 +90,8 @@ class MigrateLegacyUsers extends Command
             return Command::SUCCESS;
         } catch (\Exception $e) {
             Schema::enableForeignKeyConstraints();
-            $this->error('Migration failed: ' . $e->getMessage());
+            $this->error('Migration failed: '.$e->getMessage());
+
             return Command::FAILURE;
         }
     }
@@ -100,7 +101,7 @@ class MigrateLegacyUsers extends Command
      */
     private function sanitizeDate(?string $date): ?string
     {
-        if (!$date || $date === '0000-00-00 00:00:00' || $date === '0000-00-00') {
+        if (! $date || $date === '0000-00-00 00:00:00' || $date === '0000-00-00') {
             return now()->toDateTimeString();
         }
 

@@ -354,6 +354,6 @@ class Item extends Model
                 break;
         }
 
-        return Route($action,$this->id);
+        return Route($action, $this->id);
     }
 }

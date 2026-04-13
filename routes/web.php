@@ -148,11 +148,21 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::resource('karyawan', \App\Http\Controllers\KaryawanController::class);
     Route::get('karyawan/{karyawan}/cuti/create', [\App\Http\Controllers\CutiController::class, 'create'])->name('karyawan.cuti.create');
     Route::post('karyawan/{karyawan}/cuti', [\App\Http\Controllers\CutiController::class, 'store'])->name('karyawan.cuti.store');
-    
+
     Route::get('gaji', [\App\Http\Controllers\GajiController::class, 'index'])->name('gaji.index');
     Route::delete('gaji/{gaji}', [\App\Http\Controllers\GajiController::class, 'destroy'])->name('gaji.destroy');
     Route::get('karyawan/{karyawan}/gaji/create', [\App\Http\Controllers\GajiController::class, 'create'])->name('karyawan.gaji.create');
     Route::post('karyawan/{karyawan}/gaji', [\App\Http\Controllers\GajiController::class, 'store'])->name('karyawan.gaji.store');
+
+    // Reports Module
+    Route::prefix('reports')->name('reports.')->group(function () {
+        Route::get('/nett-cash-sby', [\App\Http\Controllers\ReportController::class, 'nettCashSby'])->name('nett-cash-sby');
+        Route::get('/cash-flow', [\App\Http\Controllers\ReportController::class, 'cashFlow'])->name('cash-flow');
+        Route::get('/compare', [\App\Http\Controllers\ReportController::class, 'compare'])->name('compare');
+        Route::post('/compare', [\App\Http\Controllers\ReportController::class, 'storeCompare'])->name('compare.store');
+        Route::delete('/compare/{compare}', [\App\Http\Controllers\ReportController::class, 'destroyCompare'])->name('compare.destroy');
+        Route::get('/inventory-health', [\App\Http\Controllers\ReportController::class, 'inventoryHealth'])->name('inventory-health');
+    });
 });
 
 require __DIR__.'/settings.php';

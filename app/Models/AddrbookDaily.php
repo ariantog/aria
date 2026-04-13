@@ -32,4 +32,19 @@ class AddrbookDaily extends Model
     {
         return $this->belongsTo(Addrbook::class);
     }
+
+    /**
+     * Define permissions associated with this model.
+     *
+     * @return array<string, string>
+     */
+    public static function getPermissions(): array
+    {
+        return [
+            'view_nett_cash' => 'reports-nett-cash',
+            'view_cash_flow' => 'reports-cash-flow',
+            'view_compare' => 'reports-compare',
+            'view_inventory_health' => 'reports-inventory-health',
+        ];
+    }
 }

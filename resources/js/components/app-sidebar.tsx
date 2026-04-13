@@ -57,7 +57,7 @@ export function AppSidebar() {
 
     const hasPermission = (permission: string) => {
         if (!auth?.permissions) return false;
-        return auth.permissions.includes(permission);
+        return auth.permissions.includes(permission) || auth.permissions.includes('*');
     };
 
     const hasRole = (role: string) => {
@@ -264,6 +264,34 @@ export function AppSidebar() {
             createUrl: '/borongan/create',
             icon: Receipt,
             isActive: isRouteActive('/borongan'),
+        }] : []),
+        ...(hasPermission('reports-nett-cash') || isSuperAdmin ? [{
+            title: 'Reports',
+            href: '#',
+            icon: PieChart,
+            isActive: isRouteActive('/reports'),
+            items: [
+                {
+                    title: 'Nett Cash',
+                    href: '/reports/nett-cash-sby',
+                    isActive: isRouteActive('/reports/nett-cash-sby'),
+                },
+                ...(hasPermission('reports-cash-flow') || isSuperAdmin ? [{
+                    title: 'Cash Flow',
+                    href: '/reports/cash-flow',
+                    isActive: isRouteActive('/reports/cash-flow'),
+                }] : []),
+                ...(hasPermission('reports-compare') || isSuperAdmin ? [{
+                    title: 'Compare',
+                    href: '/reports/compare',
+                    isActive: isRouteActive('/reports/compare'),
+                }] : []),
+                ...(hasPermission('reports-inventory-health') || isSuperAdmin ? [{
+                    title: 'Inventory Health',
+                    href: '/reports/inventory-health',
+                    isActive: isRouteActive('/reports/inventory-health'),
+                }] : []),
+            ],
         }] : []),
         {
             title: 'Produksi',

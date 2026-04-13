@@ -30,9 +30,9 @@ class TransactionFilterSortTest extends TestCase
 
         $response->assertStatus(200);
         $data = $response->original->getData()['page']['props']['transactions']['data'];
-        
+
         $this->assertCount(2, $data);
-        $this->assertEquals('INV-002', $data[0]['invoice_number']); 
+        $this->assertEquals('INV-002', $data[0]['invoice_number']);
         $this->assertEquals('INV-001', $data[1]['invoice_number']);
     }
 

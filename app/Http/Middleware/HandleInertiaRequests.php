@@ -40,8 +40,8 @@ class HandleInertiaRequests extends Middleware
             'name' => config('app.name'),
             'auth' => [
                 'user' => $request->user(),
-                'permissions' => $request->user() ? $request->user()->getAllPermissions()->pluck('name') : [],
-                'roles' => $request->user() ? $request->user()->getRoleNames() : [],
+                'permissions' => $request->user() ? $request->user()->getAllPermissions()->pluck('name')->toArray() : [],
+                'roles' => $request->user() ? $request->user()->getRoleNames()->toArray() : [],
             ],
             'addrbook_types' => \App\Models\Addrbook::getTypes(),
             'flash' => [

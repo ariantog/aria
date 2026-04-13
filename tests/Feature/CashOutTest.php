@@ -20,13 +20,13 @@ test('cash out transaction can be stored', function () {
                 'customer_id' => $recipient->id,
                 'invoice_number' => 'CO-001',
                 'note' => 'Test payment',
-                'total' => 1000
-            ]
-        ]
+                'total' => 1000,
+            ],
+        ],
     ]);
 
     $response->assertRedirect(route('transactions.index'));
-    
+
     $this->assertDatabaseHas('transactions', [
         'type' => Transaction::TYPE_CASH_OUT,
         'sender_id' => $bank->id,    // Cashier/Bank is sender in Cash Out
@@ -59,17 +59,17 @@ test('multiple cash out rows create multiple transactions', function () {
         'items' => [
             [
                 'customer_id' => $recipient1->id,
-                'total' => 500
+                'total' => 500,
             ],
             [
                 'customer_id' => $recipient2->id,
-                'total' => 1500
-            ]
-        ]
+                'total' => 1500,
+            ],
+        ],
     ]);
 
     $this->assertEquals(2, Transaction::where('type', Transaction::TYPE_CASH_OUT)->count());
-    
+
     $this->assertDatabaseHas('addrbook_stats', [
         'addrbook_id' => $bank->id,
         'balance' => -2000,

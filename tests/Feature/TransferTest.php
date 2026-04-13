@@ -22,7 +22,7 @@ test('bank transfer can be stored and updates balances', function () {
     ]);
 
     $response->assertRedirect(route('transactions.index'));
-    
+
     $this->assertDatabaseHas('transactions', [
         'type' => Transaction::TYPE_TRANSFER,
         'sender_id' => $bankSource->id,

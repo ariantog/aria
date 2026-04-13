@@ -133,7 +133,8 @@ class MigrateLegacyItems extends Command
             return Command::SUCCESS;
         } catch (\Exception $e) {
             Schema::enableForeignKeyConstraints();
-            $this->error('Migration failed: ' . $e->getMessage());
+            $this->error('Migration failed: '.$e->getMessage());
+
             return Command::FAILURE;
         }
     }
@@ -143,7 +144,7 @@ class MigrateLegacyItems extends Command
      */
     private function validateDate(?string $date): ?string
     {
-        if (!$date || str_starts_with($date, '-') || str_contains($date, '0000-00-00')) {
+        if (! $date || str_starts_with($date, '-') || str_contains($date, '0000-00-00')) {
             return null;
         }
 

@@ -7,9 +7,11 @@ export function usePermission() {
     const hasPermission = (permission: string) => {
         if (!auth?.permissions) return false;
 
-        // Super Admin Bypass (optional, if you want frontend to reflect backend god mode)
-        // Generally backend handles security, but frontend UX should match.
+        // Super Admin Bypass
         if (auth.roles && auth.roles.includes('superadmin')) return true;
+
+        // Wildcard Permission Check
+        if (auth.permissions.includes('*')) return true;
 
         return auth.permissions.includes(permission);
     };

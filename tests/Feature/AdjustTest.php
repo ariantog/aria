@@ -25,7 +25,7 @@ test('adjust transaction can be stored and updates balances', function () {
     ]);
 
     $response->assertRedirect(route('transactions.index'));
-    
+
     $this->assertDatabaseHas('transactions', [
         'type' => Transaction::TYPE_ADJUST,
         'sender_id' => $account->id,

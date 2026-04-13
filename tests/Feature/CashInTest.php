@@ -20,13 +20,13 @@ test('cash in transaction can be stored', function () {
                 'customer_id' => $customer->id,
                 'invoice_number' => 'INV-001',
                 'note' => 'Test payment',
-                'total' => 1000
-            ]
-        ]
+                'total' => 1000,
+            ],
+        ],
     ]);
 
     $response->assertRedirect(route('transactions.index'));
-    
+
     $this->assertDatabaseHas('transactions', [
         'type' => Transaction::TYPE_CASH_IN,
         'sender_id' => $customer->id,
@@ -59,17 +59,17 @@ test('multiple cash in rows create multiple transactions', function () {
         'items' => [
             [
                 'customer_id' => $customer1->id,
-                'total' => 500
+                'total' => 500,
             ],
             [
                 'customer_id' => $customer2->id,
-                'total' => 1500
-            ]
-        ]
+                'total' => 1500,
+            ],
+        ],
     ]);
 
     $this->assertEquals(2, Transaction::where('type', Transaction::TYPE_CASH_IN)->count());
-    
+
     $this->assertDatabaseHas('addrbook_stats', [
         'addrbook_id' => $bank->id,
         'balance' => 2000,

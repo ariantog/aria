@@ -19,7 +19,7 @@ class Gaji extends Model
 
         $data = $this->belongsTo(Karyawan::class, 'karyawan_id', 'id');
 
-        if($role != 'superadmin' && $role != null){
+        if ($role != 'superadmin' && $role != null) {
             $data = $data->where('flag', 1);
         }
 
@@ -27,19 +27,19 @@ class Gaji extends Model
     }
 
     public function getGpuAttribute()
-	{
+    {
         $gpuTotal = $this->bulanan + $this->harian + $this->premi;
 
-		return $gpuTotal;
-	}
+        return $gpuTotal;
+    }
 
     public function bank()
     {
-        return $this->belongsTo(Addrbook::class,'bank_id','id');
+        return $this->belongsTo(Addrbook::class, 'bank_id', 'id');
     }
 
     public function bankSingle()
     {
-        return $this->hasOne(Addrbook::class,'id','bank_id');
+        return $this->hasOne(Addrbook::class, 'id', 'bank_id');
     }
 }

@@ -13,7 +13,7 @@ class CutiController extends Controller
     public function create(Karyawan $karyawan)
     {
         return Inertia::render('Cuti/Create', [
-            'karyawan' => $karyawan
+            'karyawan' => $karyawan,
         ]);
     }
 
@@ -33,7 +33,7 @@ class CutiController extends Controller
         $endDate = Carbon::parse($request->tgl_akhir);
         $days = $startDate->diffInDays($endDate) + 1;
 
-        $cuti = new Cuti();
+        $cuti = new Cuti;
         $cuti->karyawan_id = $karyawan->id;
         $cuti->tipe = $request->tipe;
         $cuti->tgl_mulai = $request->tgl_mulai;

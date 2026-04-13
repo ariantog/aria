@@ -19,15 +19,21 @@ class Transaction extends Model
 
     const TYPE_TRANSFER = 6;
 
-    const TYPE_ADJUST = 12;
+    const TYPE_CASH_OUT = 7;
+
+    const TYPE_USE = 8;
+
     const TYPE_CASH_IN = 9;
-    const TYPE_CASH_OUT = 10;
+
+    const TYPE_ADJUST = 12;
 
     const TYPE_RETURN = 15;
 
     const TYPE_PRODUCTION = 16;
 
     const TYPE_RETURN_SUPPLIER = 17;
+
+    const TYPE_DEPRECIATION = 18;
 
     const STATUS_PENDING = 0;
 
@@ -55,12 +61,14 @@ class Transaction extends Model
             self::TYPE_SELL => 'Sell',
             self::TYPE_MOVE => 'Move',
             self::TYPE_TRANSFER => 'Transfer',
-            self::TYPE_CASH_IN => 'Cash In',
             self::TYPE_CASH_OUT => 'Cash Out',
+            self::TYPE_USE => 'Use Items',
+            self::TYPE_CASH_IN => 'Cash In',
             self::TYPE_ADJUST => 'Adjust',
             self::TYPE_RETURN => 'Return',
             self::TYPE_PRODUCTION => 'Production',
             self::TYPE_RETURN_SUPPLIER => 'Ret. Supplier',
+            self::TYPE_DEPRECIATION => 'Depreciation',
             default => 'Unknown',
         };
     }
@@ -90,7 +98,7 @@ class Transaction extends Model
 
     /**
      * Define permissions associated with this model.
-     * 
+     *
      * @return array<string, string>
      */
     public static function getPermissions(): array

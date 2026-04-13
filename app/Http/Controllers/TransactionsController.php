@@ -58,7 +58,7 @@ class TransactionsController extends Controller
                 'adjust' => Auth::user()->can(\App\Models\Transaction::getPermissions()['type_adjust']),
                 'return' => Auth::user()->can(\App\Models\Transaction::getPermissions()['type_return']),
                 'return_supplier' => Auth::user()->can(\App\Models\Transaction::getPermissions()['type_return_supplier']),
-            ]
+            ],
         ]);
     }
 
@@ -66,7 +66,7 @@ class TransactionsController extends Controller
     {
         $permissionKey = 'type_'.str_replace('-', '_', $type);
         $permissions = \App\Models\Transaction::getPermissions();
-        
+
         if (isset($permissions[$permissionKey])) {
             \Illuminate\Support\Facades\Gate::authorize($permissions[$permissionKey]);
         } else {
@@ -88,10 +88,10 @@ class TransactionsController extends Controller
             if (isset($config[$role.'_type'])) {
                 $types = collect(\App\Models\Addrbook::getTypes());
                 $typeIds = (array) $config[$role.'_type'];
-                
+
                 $names = $types->whereIn('id', $typeIds)->pluck('name')->toArray();
 
-                return !empty($names) ? implode(' / ', $names) : 'Contact';
+                return ! empty($names) ? implode(' / ', $names) : 'Contact';
             }
 
             return 'Contact';
@@ -479,6 +479,7 @@ class TransactionsController extends Controller
     public function adjust()
     {
         \Illuminate\Support\Facades\Gate::authorize(\App\Models\Transaction::getPermissions()['type_adjust']);
+
         return inertia('Transactions/Adjust');
     }
 

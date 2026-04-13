@@ -2,9 +2,6 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
-use Illuminate\Database\Seeder;
-
 namespace Database\Seeders;
 
 use App\Models\User;
@@ -25,7 +22,7 @@ class SuperAdminSeeder extends Seeder
 
         // 2. Ensure at least one location exists
         $locationId = DB::table('locations')->value('id');
-        if (!$locationId) {
+        if (! $locationId) {
             $locationId = DB::table('locations')->insertGetId([
                 'name' => 'Default Location',
                 'created_at' => now(),

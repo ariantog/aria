@@ -46,7 +46,7 @@ echo "- Deleted {$deleted} old migration records.\n";
 DB::table('migrations')->where('migration', '0001_01_00_000000_create_locations_table')->delete();
 
 $existsCreate = DB::table('migrations')->where('migration', '2026_02_12_094114_create_locations_table')->exists();
-if (!$existsCreate) {
+if (! $existsCreate) {
     DB::table('migrations')->insert(['migration' => '2026_02_12_094114_create_locations_table', 'batch' => 1]);
     echo "- Inserted 2026_02_12_094114_create_locations_table into migrations.\n";
 } else {
@@ -54,7 +54,7 @@ if (!$existsCreate) {
 }
 
 $existsRel = DB::table('migrations')->where('migration', '2026_02_12_094116_add_location_id_to_users_table')->exists();
-if (!$existsRel) {
+if (! $existsRel) {
     DB::table('migrations')->insert(['migration' => '2026_02_12_094116_add_location_id_to_users_table', 'batch' => 1]);
     echo "- Inserted 2026_02_12_094116_add_location_id_to_users_table into migrations.\n";
 } else {
