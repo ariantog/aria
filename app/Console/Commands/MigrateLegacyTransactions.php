@@ -79,11 +79,11 @@ class MigrateLegacyTransactions extends Command
     {
         Config::set('database.connections.legacy', [
             'driver' => 'mysql',
-            'host' => '127.0.0.1',
-            'port' => '3306',
-            'database' => 'core',
-            'username' => 'root',
-            'password' => '',
+            'host' => env('LEGACY_DB_HOST', '127.0.0.1'),
+            'port' => env('LEGACY_DB_PORT', '3306'),
+            'database' => env('LEGACY_DB_DATABASE', 'core'),
+            'username' => env('LEGACY_DB_USERNAME', 'root'),
+            'password' => env('LEGACY_DB_PASSWORD', ''),
             'charset' => 'utf8mb4',
             'collation' => 'utf8mb4_unicode_ci',
             'prefix' => '',
@@ -117,7 +117,8 @@ class MigrateLegacyTransactions extends Command
 
         $addrbookTypes = DB::table('addrbooks')->pluck('type', 'id')->toArray();
 
-        $query->chunkById(1000, function ($transactions) use ($bar, $addrbookTypes) {
+        // Increase chunk size for better performance
+        $query->chunkById(2000, function ($transactions) use ($bar, $addrbookTypes) {
             $transactionBuffer = [];
             $detailBuffer = [];
             $trxIds = $transactions->pluck('id')->toArray();
@@ -169,8 +170,15 @@ class MigrateLegacyTransactions extends Command
 
                 if (isset($allDetails[$data['id']])) {
                     foreach ($allDetails[$data['id']] as $lDetail) {
-                        $qty = (float) ($lDetail->quantity ?? 0);
                         $itemId = $lDetail->item_id;
+                        
+                        // SKIP: If item doesn't exist in our local database
+                        // This prevents foreign key constraint violations while keeping totals on header unchanged
+                        if (!isset($this->itemGlobalQty[$itemId])) {
+                            continue;
+                        }
+
+                        $qty = (float) ($lDetail->quantity ?? 0);
 
                         $this->adjustStockInMemory($senderId, $itemId, -$qty);
                         $this->adjustStockInMemory($receiverId, $itemId, $qty);
@@ -207,7 +215,7 @@ class MigrateLegacyTransactions extends Command
 
             if (! empty($detailBuffer)) {
                 // Chunk details to avoid "Query too large" or memory issues
-                foreach (array_chunk($detailBuffer, 500) as $chunk) {
+                foreach (array_chunk($detailBuffer, 1000) as $chunk) {
                     DB::table('transaction_details')->upsert($chunk, ['id'], [
                         'transaction_id', 'item_id', 'quantity', 'price', 'discount', 'total', 'notes', 'updated_at',
                     ]);

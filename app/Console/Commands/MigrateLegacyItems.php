@@ -44,6 +44,8 @@ class MigrateLegacyItems extends Command
             // 2. Migrate Item Groups
             $this->info('Migrating Item Groups...');
             $legacyGroups = $legacyDb->table('item_group')->get();
+            $barGroups = $this->output->createProgressBar($legacyGroups->count());
+            $barGroups->start();
             foreach ($legacyGroups as $group) {
                 DB::table('item_groups')->insert([
                     'id' => $group->id,
@@ -54,12 +56,17 @@ class MigrateLegacyItems extends Command
                     'alias' => $group->alias,
                     'description2' => $group->description2,
                 ]);
+                $barGroups->advance();
             }
+            $barGroups->finish();
+            $this->newLine();
             $this->info("Migrated {$legacyGroups->count()} item groups.");
 
             // 3. Migrate Tags
             $this->info('Migrating Tags...');
             $legacyTags = $legacyDb->table('tags')->get();
+            $barTags = $this->output->createProgressBar($legacyTags->count());
+            $barTags->start();
             foreach ($legacyTags as $tag) {
                 DB::table('tags')->insert([
                     'id' => $tag->id,
@@ -68,38 +75,54 @@ class MigrateLegacyItems extends Command
                     'type' => $tag->type,
                     'item_type' => $tag->item_type,
                 ]);
+                $barTags->advance();
             }
+            $barTags->finish();
+            $this->newLine();
             $this->info("Migrated {$legacyTags->count()} tags.");
 
             // 4. Migrate Items
+            $this->info('Identifying active items (transactions since 2020)...');
+            $activeItemIds = $legacyDb->table('transaction_details')
+                ->join('transactions', 'transaction_details.transaction_id', '=', 'transactions.id')
+                ->whereYear('transactions.date', '>=', 2020)
+                ->distinct()
+                ->pluck('item_id')
+                ->toArray();
+
             $this->info('Migrating Items...');
-            $totalItems = $legacyDb->table('items')->count();
+            $totalItems = $legacyDb->table('items')
+                ->whereIn('id', $activeItemIds)
+                ->count();
             $bar = $this->output->createProgressBar($totalItems);
             $bar->start();
 
-            $legacyDb->table('items')->orderBy('id')->chunk(500, function ($items) use ($bar) {
-                foreach ($items as $item) {
-                    DB::table('items')->insert([
-                        'id' => $item->id,
-                        'group_id' => $item->group_id,
-                        'name' => $item->name,
-                        'code' => $item->code,
-                        'pcode' => $item->pcode,
-                        'brand' => $item->brand,
-                        'type' => $item->type,
-                        'price' => $item->price,
-                        'cost' => $item->cost,
-                        'tag_ids' => $item->tag_ids,
-                        'description' => $item->description,
-                        'description2' => $item->description2,
-                        'jubelio_item_id' => $item->jubelio_item_id,
-                        'deleted_at' => $this->validateDate($item->deleted_at),
-                        'created_at' => $this->validateDate($item->created_at),
-                        'updated_at' => $this->validateDate($item->updated_at),
-                    ]);
-                    $bar->advance();
-                }
-            });
+            $legacyDb->table('items')
+                ->whereIn('id', $activeItemIds)
+                ->orderBy('id')
+                ->chunk(500, function ($items) use ($bar) {
+                    foreach ($items as $item) {
+                        DB::table('items')->insert([
+                            'id' => $item->id,
+                            'group_id' => $item->group_id,
+                            'name' => $item->name,
+                            'code' => $item->code,
+                            'pcode' => $item->pcode,
+                            'brand' => $item->brand,
+                            'type' => $item->type,
+                            'price' => $item->price,
+                            'cost' => $item->cost,
+                            'tag_ids' => $item->tag_ids,
+                            'description' => $item->description,
+                            'description2' => $item->description2,
+                            'jubelio_item_id' => $item->jubelio_item_id,
+                            'deleted_at' => $this->validateDate($item->deleted_at),
+                            'created_at' => $this->validateDate($item->created_at),
+                            'updated_at' => $this->validateDate($item->updated_at),
+                        ]);
+                        $bar->advance();
+                    }
+                });
 
             $bar->finish();
             $this->newLine();
@@ -107,22 +130,27 @@ class MigrateLegacyItems extends Command
 
             // 5. Migrate Item Tag (Pivot)
             $this->info('Migrating Item Tag relations...');
-            $totalPivot = $legacyDb->table('item_tag')->count();
+            $totalPivot = $legacyDb->table('item_tag')
+                ->whereIn('item_id', $activeItemIds)
+                ->count();
             $barPivot = $this->output->createProgressBar($totalPivot);
             $barPivot->start();
 
-            $legacyDb->table('item_tag')->orderBy('id')->chunk(1000, function ($pivotRows) use ($barPivot) {
-                foreach ($pivotRows as $row) {
-                    DB::table('item_tag')->insert([
-                        'id' => $row->id,
-                        'item_id' => $row->item_id,
-                        'tag_id' => $row->tag_id,
-                        'created_at' => $this->validateDate($row->created_at),
-                        'updated_at' => $this->validateDate($row->updated_at),
-                    ]);
-                    $barPivot->advance();
-                }
-            });
+            $legacyDb->table('item_tag')
+                ->whereIn('item_id', $activeItemIds)
+                ->orderBy('id')
+                ->chunk(1000, function ($pivotRows) use ($barPivot) {
+                    foreach ($pivotRows as $row) {
+                        DB::table('item_tag')->insert([
+                            'id' => $row->id,
+                            'item_id' => $row->item_id,
+                            'tag_id' => $row->tag_id,
+                            'created_at' => $this->validateDate($row->created_at),
+                            'updated_at' => $this->validateDate($row->updated_at),
+                        ]);
+                        $barPivot->advance();
+                    }
+                });
 
             $barPivot->finish();
             $this->newLine();
