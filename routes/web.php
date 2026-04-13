@@ -162,6 +162,9 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
         Route::post('/compare', [\App\Http\Controllers\ReportController::class, 'storeCompare'])->name('compare.store');
         Route::delete('/compare/{compare}', [\App\Http\Controllers\ReportController::class, 'destroyCompare'])->name('compare.destroy');
         Route::get('/inventory-health', [\App\Http\Controllers\ReportController::class, 'inventoryHealth'])->name('inventory-health');
+        Route::get('/item-sales', [\App\Http\Controllers\ReportController::class, 'itemSales'])->name('item-sales');
+        Route::get('/stock-intelligence', [\App\Http\Controllers\ReportController::class, 'stockIntelligence'])->name('stock-intelligence');
+        Route::get('/rebalance-detail', [\App\Http\Controllers\ReportController::class, 'rebalanceDetail'])->name('rebalance-detail');
     });
 });
 

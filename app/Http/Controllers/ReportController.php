@@ -10,6 +10,7 @@ use App\Models\MonthlyCategorySummary;
 use App\Models\WarehouseCompare;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
@@ -111,11 +112,11 @@ class ReportController extends Controller
             SUM(cash_out) as cash_out_total,
             SUM(sell) as sell_total,
             SUM(buy) as buy_total,
-            SUM(return) as return_total,
+            SUM(`return`) as return_total,
             SUM(return_supplier) as return_supplier
         ')
-        ->groupBy('addrbook_type')
-        ->get();
+            ->groupBy('addrbook_type')
+            ->get();
 
         $results->transform(function ($item) {
             $item->cash_in_total = abs((float) $item->cash_in_total);
@@ -124,10 +125,12 @@ class ReportController extends Controller
             $item->buy_total = abs((float) $item->buy_total);
             $item->return_total = abs((float) $item->return_total);
             $item->return_supplier = abs((float) $item->return_supplier);
+
             return $item;
         });
 
-        $addrbookTypes = collect(Addrbook::getTypes());        $results->transform(function ($item) use ($addrbookTypes) {
+        $addrbookTypes = collect(Addrbook::getTypes());
+        $results->transform(function ($item) use ($addrbookTypes) {
             $type = $addrbookTypes->firstWhere('id', $item->type_id);
             $item->type_name = $type ? $type['name'] : 'Unknown';
 
@@ -227,6 +230,215 @@ class ReportController extends Controller
             'items' => $items,
             'warehouses' => $warehouses,
             'filters' => $request->only(['warehouse_id', 'search']),
+        ]);
+    }
+
+    public function itemSales(Request $request)
+    {
+        Gate::authorize(AddrbookDaily::getPermissions()['view_nett_cash']); 
+
+        $query = MonthlyItemSale::with(['group', 'customer']);
+
+        if ($request->month) {
+            $query->where('month', $request->month);
+        }
+        if ($request->year) {
+            $query->where('year', $request->year);
+        }
+        if ($request->group_id) {
+            $query->where('group_id', $request->group_id);
+        }
+
+        $dataList = $query->orderBy('year', 'desc')
+            ->orderBy('month', 'desc')
+            ->paginate(100)
+            ->withQueryString();
+
+        return Inertia::render('Reports/ItemSales', [
+            'dataList' => $dataList,
+            'filters' => $request->only(['month', 'year', 'group_id']),
+            'yearList' => range(date('Y'), 2019),
+        ]);
+    }
+
+    public function stockIntelligence(Request $request)
+    {
+        Gate::authorize(AddrbookDaily::getPermissions()['view_inventory_health']);
+
+        $search = $request->input('search');
+        $stagnancy = $request->input('stagnancy'); // options: never, 7, 30, 90
+        $date30 = now()->subDays(30)->toDateString();
+        $date7 = now()->subDays(7)->toDateString();
+        $date90 = now()->subDays(90)->toDateString();
+
+        // Query utama berbasis pasangan (Item, Warehouse) yang berstok
+        $query = DB::table('warehouse_items as wi')
+            ->join('items as i', 'wi.item_id', '=', 'i.id')
+            ->join('addrbooks as a', 'wi.warehouse_id', '=', 'a.id')
+            ->where('wi.quantity', '>', 0)
+            ->where('a.type', Addrbook::TYPE_WAREHOUSE)
+            ->select(
+                'wi.item_id',
+                'i.name as item_name',
+                'i.code as item_code',
+                'wi.warehouse_id',
+                'a.name as warehouse_name',
+                'wi.quantity as current_stock'
+            )
+            ->selectRaw('
+                (SELECT MAX(date) FROM daily_inventory_summaries 
+                 WHERE item_id = wi.item_id AND warehouse_id = wi.warehouse_id AND qty_sell > 0) as last_sold_at
+            ');
+
+        if ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('i.name', 'like', "%$search%")->orWhere('i.code', 'like', "%$search%");
+            });
+        }
+
+        // Apply Stagnancy Filters (Exclusive Ranges)
+        if ($stagnancy === 'never') {
+            $query->havingNull('last_sold_at');
+        } elseif ($stagnancy == '7') {
+            // Hanya 7 - 30 hari
+            $query->havingRaw('last_sold_at <= ? AND last_sold_at > ?', [$date7, $date30]);
+        } elseif ($stagnancy == '30') {
+            // Hanya 30 - 90 hari
+            $query->havingRaw('last_sold_at <= ? AND last_sold_at > ?', [$date30, $date90]);
+        } elseif ($stagnancy == '90') {
+            // Hanya > 90 hari
+            $query->havingRaw('last_sold_at <= ?', [$date90]);
+        } else {
+            // Default: Tampilkan semua yang bermasalah (> 7 hari atau Never Sold)
+            $query->havingRaw('last_sold_at IS NULL OR last_sold_at <= ?', [$date7]);
+        }
+
+        $items = $query->orderByRaw('ISNULL(last_sold_at) DESC, last_sold_at ASC')
+            ->paginate(50)
+            ->withQueryString();
+
+        // Map status/warnings
+        $items->getCollection()->transform(function ($item) use ($date30) {
+            $lastSold = $item->last_sold_at;
+
+            if (!$lastSold) {
+                $item->status = 'NO SALES';
+                $item->warning = 'Belum pernah terjual di gudang ini.';
+                $item->color = 'zinc';
+            } else {
+                $days = now()->diffInDays(\Carbon\Carbon::parse($lastSold));
+                
+                if ($days >= 90) {
+                    $item->status = 'DEADSTOCK';
+                    $item->warning = "SANGAT KRITIS! Sudah $days hari tidak laku.";
+                    $item->color = 'rose';
+                } elseif ($days >= 30) {
+                    $item->status = 'STAGNANT';
+                    $item->warning = "Peringatan: Sudah $days hari tidak laku.";
+                    $item->color = 'amber';
+                } else {
+                    $item->status = 'SLOW MOVING';
+                    $item->warning = "Sudah $days hari tidak ada penjualan.";
+                    $item->color = 'blue';
+                }
+            }
+
+            // --- Suggestion Logic ---
+            // Cari semua gudang lain (Warehouse tipe 2) yang penjualannya aktif (>0) dlm 30 hari terakhir
+            $potentialDestinations = DB::table('daily_inventory_summaries as dis')
+                ->join('addrbooks as a', 'dis.warehouse_id', '=', 'a.id')
+                ->where('dis.item_id', $item->item_id)
+                ->where('dis.warehouse_id', '!=', $item->warehouse_id)
+                ->where('a.type', Addrbook::TYPE_WAREHOUSE)
+                ->where('dis.date', '>=', $date30)
+                ->where('dis.qty_sell', '>', 0)
+                ->select('dis.warehouse_id')
+                ->distinct()
+                ->get();
+
+            $item->potential_count = $potentialDestinations->count();
+
+            if ($item->potential_count > 0) {
+                // Tetap ambil satu yang terbaik untuk preview (opsional)
+                $bestWarehouse = DB::table('daily_inventory_summaries as dis')
+                    ->join('addrbooks as a', 'dis.warehouse_id', '=', 'a.id')
+                    ->where('dis.item_id', $item->item_id)
+                    ->where('dis.warehouse_id', '!=', $item->warehouse_id)
+                    ->where('a.type', Addrbook::TYPE_WAREHOUSE)
+                    ->where('dis.date', '>=', $date30)
+                    ->select('a.name', 'dis.warehouse_id', DB::raw('SUM(dis.qty_sell) as total_sold'))
+                    ->groupBy('a.name', 'dis.warehouse_id')
+                    ->orderBy('total_sold', 'desc')
+                    ->first();
+
+                $item->suggestion = [
+                    'to_warehouse_id' => $bestWarehouse->warehouse_id,
+                    'to_warehouse_name' => $bestWarehouse->name,
+                    'qty_to_move' => min((float) $item->current_stock, (float) $bestWarehouse->total_sold)
+                ];
+            }
+
+            return $item;
+        });
+
+        return Inertia::render('Reports/StockIntelligence', [
+            'items' => $items,
+            'filters' => $request->only(['search', 'stagnancy']),
+        ]);
+    }
+
+    public function rebalanceDetail(Request $request)
+    {
+        Gate::authorize(AddrbookDaily::getPermissions()['view_inventory_health']);
+
+        $itemId = $request->input('item_id');
+        $sourceWhId = $request->input('warehouse_id');
+
+        $item = Item::findOrFail($itemId);
+        $sourceWh = Addrbook::findOrFail($sourceWhId);
+
+        $date30 = now()->subDays(30)->toDateString();
+
+        // 1. Ambil list semua gudang yang punya item ini
+        $warehouseStocks = DB::table('addrbooks as a')
+            ->leftJoin('warehouse_items as wi', function($join) use ($itemId) {
+                $join->on('a.id', '=', 'wi.warehouse_id')->where('wi.item_id', '=', $itemId);
+            })
+            ->where('a.type', Addrbook::TYPE_WAREHOUSE)
+            ->select(
+                'a.id as warehouse_id',
+                'a.name as warehouse_name',
+                DB::raw('COALESCE(wi.quantity, 0) as current_stock'),
+                DB::raw("(SELECT MAX(date) FROM daily_inventory_summaries WHERE item_id = $itemId AND warehouse_id = a.id AND qty_sell > 0) as last_sale_date"),
+                DB::raw("(SELECT SUM(qty_sell) FROM daily_inventory_summaries WHERE item_id = $itemId AND warehouse_id = a.id AND date >= '$date30') as sold_30d")
+            )
+            ->having('current_stock', '>', 0)
+            ->orHaving('sold_30d', '>', 0)
+            ->orderBy('sold_30d', 'desc')
+            ->get();
+
+        // 2. Hitung Rekomendasi
+        // Target adalah gudang dengan penjualan 30 hari tertinggi selain gudang asal
+        $targetWh = $warehouseStocks->where('warehouse_id', '!=', $sourceWhId)->first();
+        
+        $recommendation = null;
+        if ($targetWh && $targetWh->sold_30d > 0) {
+            $sourceStock = $warehouseStocks->where('warehouse_id', $sourceWhId)->first()?->current_stock ?? 0;
+            $recommendation = [
+                'from_id' => $sourceWh->id,
+                'from_name' => $sourceWh->name,
+                'to_id' => $targetWh->warehouse_id,
+                'to_name' => $targetWh->warehouse_name,
+                'demand_30d' => (float) $targetWh->sold_30d,
+                'suggested_qty' => min((float) $sourceStock, (float) $targetWh->sold_30d)
+            ];
+        }
+
+        return Inertia::render('Reports/RebalanceDetail', [
+            'item' => $item,
+            'sourceWarehouse' => $sourceWh,
+            'warehouseStocks' => $warehouseStocks,
+            'recommendation' => $recommendation
         ]);
     }
 

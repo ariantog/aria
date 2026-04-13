@@ -291,6 +291,16 @@ export function AppSidebar() {
                     href: '/reports/inventory-health',
                     isActive: isRouteActive('/reports/inventory-health'),
                 }] : []),
+                {
+                    title: 'Item Sales',
+                    href: '/reports/item-sales',
+                    isActive: isRouteActive('/reports/item-sales'),
+                },
+                {
+                    title: 'Stock Intelligence',
+                    href: '/reports/stock-intelligence',
+                    isActive: isRouteActive('/reports/stock-intelligence'),
+                },
             ],
         }] : []),
         {
