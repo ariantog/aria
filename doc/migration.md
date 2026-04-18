@@ -7,3 +7,5 @@ php artisan app:recalculate-nett-cash
 php artisan app:recalculate-cash-flow
 php artisan app:recalculate-inventory-health
 php artisan app:recalculate-item-sales
+
+php artisan db:truncate-transactions --force

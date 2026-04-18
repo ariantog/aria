@@ -14,6 +14,10 @@ class TransactionDetail extends Model
     public $timestamps = false;
 
     protected $casts = [
+        'date' => 'date',
+        'transaction_type' => 'integer',
+        'sender_id' => 'integer',
+        'receiver_id' => 'integer',
         'quantity' => 'decimal:2',
         'price' => 'decimal:2',
         'discount' => 'decimal:2',

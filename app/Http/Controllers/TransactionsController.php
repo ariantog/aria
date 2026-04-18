@@ -215,6 +215,10 @@ class TransactionsController extends Controller
 
                 $trx->details()->create([
                     'item_id' => $item['item_id'],
+                    'date' => $trx->date,
+                    'transaction_type' => $trx->type,
+                    'sender_id' => $trx->sender_id,
+                    'receiver_id' => $trx->receiver_id,
                     'quantity' => $item['quantity'],
                     'price' => $item['price'],
                     'discount' => $item['discount'] ?? 0,

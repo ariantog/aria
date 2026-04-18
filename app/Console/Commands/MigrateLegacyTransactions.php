@@ -171,10 +171,10 @@ class MigrateLegacyTransactions extends Command
                 if (isset($allDetails[$data['id']])) {
                     foreach ($allDetails[$data['id']] as $lDetail) {
                         $itemId = $lDetail->item_id;
-                        
+
                         // SKIP: If item doesn't exist in our local database
                         // This prevents foreign key constraint violations while keeping totals on header unchanged
-                        if (!isset($this->itemGlobalQty[$itemId])) {
+                        if (! isset($this->itemGlobalQty[$itemId])) {
                             continue;
                         }
 
@@ -188,6 +188,10 @@ class MigrateLegacyTransactions extends Command
                             'id' => $lDetail->id,
                             'transaction_id' => $data['id'],
                             'item_id' => $itemId,
+                            'date' => $lDetail->date,
+                            'transaction_type' => (int) $lDetail->transaction_type,
+                            'sender_id' => $lDetail->sender_id,
+                            'receiver_id' => $lDetail->receiver_id,
                             'quantity' => $qty,
                             'price' => (float) ($lDetail->price ?? 0),
                             'discount' => (float) ($lDetail->discount ?? 0),
@@ -217,7 +221,7 @@ class MigrateLegacyTransactions extends Command
                 // Chunk details to avoid "Query too large" or memory issues
                 foreach (array_chunk($detailBuffer, 1000) as $chunk) {
                     DB::table('transaction_details')->upsert($chunk, ['id'], [
-                        'transaction_id', 'item_id', 'quantity', 'price', 'discount', 'total', 'notes', 'updated_at',
+                        'transaction_id', 'item_id', 'date', 'transaction_type', 'sender_id', 'receiver_id', 'quantity', 'price', 'discount', 'total', 'notes', 'updated_at',
                     ]);
                 }
             }
