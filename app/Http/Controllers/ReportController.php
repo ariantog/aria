@@ -280,24 +280,27 @@ class ReportController extends Controller
         Gate::authorize(AddrbookDaily::getPermissions()['view_inventory_health']);
 
         // --- Audit Mode (Direct DD via Query String) ---
-        $range = $request->query('audit_range'); // options: 7, 30, 90, 90plus
+        $rangeInput = $request->query('audit_range'); 
 
-        if ($range) {
+        if ($rangeInput) {
             $sellType = Transaction::TYPE_SELL;
-            
-            // Menggunakan tanggal transaksi terakhir sebagai titik acuan audit (Smart Reference)
             $latestSaleInDb = DB::table('transactions')->where('type', $sellType)->max('date') ?? now()->toDateString();
             $refDate = \Carbon\Carbon::parse($latestSaleInDb);
 
-            $ranges = [
-                '7'      => [7, 30],
-                '30'     => [31, 90],
-                '90'     => [91, null],
-                '90plus' => [91, null],
-            ];
+            $start = null;
+            $end = null;
 
-            if (isset($ranges[$range])) {
-                [$start, $end] = $ranges[$range];
+            if ($rangeInput === '90plus') {
+                $start = 91;
+            } elseif (str_contains($rangeInput, '-')) {
+                $parts = explode('-', $rangeInput);
+                $start = (int) ($parts[0] ?? 0);
+                $end = (int) ($parts[1] ?? 0);
+            } else {
+                $start = (int) $rangeInput;
+            }
+
+            if ($start > 0) {
                 $startDate = $refDate->copy()->subDays($start)->toDateString();
                 
                 $query = DB::table('warehouse_items as wi')
@@ -318,12 +321,13 @@ class ReportController extends Controller
                          WHERE td.item_id = wi.item_id AND t.sender_id = wi.warehouse_id AND t.type = $sellType) as last_date_sale
                     ");
 
-                if ($end === null) {
-                    // Kasus > 90 hari: Penjualan terakhir <= (Titik Acuan - 91 hari) ATAU Tidak pernah terjual
-                    $query->havingRaw("(last_date_sale <= ? OR last_date_sale IS NULL)", [$startDate]);
-                } else {
+                if ($end) {
+                    // Kasus Rentang (e.g. 7-30)
                     $endDate = $refDate->copy()->subDays($end)->toDateString();
                     $query->havingRaw("last_date_sale <= ? AND last_date_sale >= ?", [$startDate, $endDate]);
+                } else {
+                    // Kasus Min. Hari (e.g. 15 atau 90plus) - Termasuk yang belum pernah terjual
+                    $query->havingRaw("(last_date_sale <= ? OR last_date_sale IS NULL)", [$startDate]);
                 }
 
                 $auditItems = $query->get()
