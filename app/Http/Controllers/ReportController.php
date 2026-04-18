@@ -275,6 +275,10 @@ class ReportController extends Controller
         ]);
     }
 
+    public function stockIntelligence(Request $request)
+    {
+        Gate::authorize(AddrbookDaily::getPermissions()['view_inventory_health']);
+
         // --- Audit Mode (Direct DD via Query String) ---
         $range = $request->query('audit_range'); // options: 7, 30, 90, 90plus
 
@@ -336,7 +340,7 @@ class ReportController extends Controller
                         'audit_reference_date' => $latestSaleInDb,
                     ]);
 
-                dd($auditItems);
+                return response()->json($auditItems);
             }
         }
         // -----------------------------------------------
