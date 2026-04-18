@@ -7,11 +7,13 @@ use App\Models\AddrbookDaily;
 use App\Models\Item;
 use App\Models\MonthlyAccountSummary;
 use App\Models\MonthlyCategorySummary;
+use App\Models\MonthlyItemSale;
+use App\Models\Transaction;
 use App\Models\WarehouseCompare;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -216,11 +218,23 @@ class ReportController extends Controller
         $date90 = now()->subDays(90)->toDateString();
 
         $query->selectRaw('
-            (SELECT SUM(qty_sell) FROM daily_inventory_summaries WHERE item_id = items.id AND date >= ? '.($warehouseId ? "AND warehouse_id = $warehouseId" : '').') as sold_30,
-            (SELECT SUM(qty_sell) FROM daily_inventory_summaries WHERE item_id = items.id AND date >= ? '.($warehouseId ? "AND warehouse_id = $warehouseId" : '').') as sold_90,
-            (SELECT MAX(date) FROM daily_inventory_summaries WHERE item_id = items.id AND qty_sell > 0 '.($warehouseId ? "AND warehouse_id = $warehouseId" : '').') as last_sold_at,
+            (SELECT SUM(td.quantity) 
+             FROM transactions t
+             JOIN transaction_details td ON t.id = td.transaction_id
+             WHERE td.item_id = items.id AND t.type = ? AND t.date >= ? '
+             .($warehouseId ? "AND t.sender_id = $warehouseId" : '').') as sold_30,
+            (SELECT SUM(td.quantity) 
+             FROM transactions t
+             JOIN transaction_details td ON t.id = td.transaction_id
+             WHERE td.item_id = items.id AND t.type = ? AND t.date >= ? '
+             .($warehouseId ? "AND t.sender_id = $warehouseId" : '').') as sold_90,
+            (SELECT MAX(t.date) 
+             FROM transactions t
+             JOIN transaction_details td ON t.id = td.transaction_id
+             WHERE td.item_id = items.id AND t.type = ? '
+             .($warehouseId ? "AND t.sender_id = $warehouseId" : '').') as last_sold_at,
             (SELECT SUM(quantity) FROM warehouse_items WHERE item_id = items.id '.($warehouseId ? "AND warehouse_id = $warehouseId" : '').') as current_stock
-        ', [$date30, $date90]);
+        ', [Transaction::TYPE_SELL, $date30, Transaction::TYPE_SELL, $date90, Transaction::TYPE_SELL]);
 
         $items = $query->paginate(50)->withQueryString();
 
@@ -235,7 +249,7 @@ class ReportController extends Controller
 
     public function itemSales(Request $request)
     {
-        Gate::authorize(AddrbookDaily::getPermissions()['view_nett_cash']); 
+        Gate::authorize(AddrbookDaily::getPermissions()['view_nett_cash']);
 
         $query = MonthlyItemSale::with(['group', 'customer']);
 
@@ -261,9 +275,71 @@ class ReportController extends Controller
         ]);
     }
 
-    public function stockIntelligence(Request $request)
-    {
-        Gate::authorize(AddrbookDaily::getPermissions()['view_inventory_health']);
+        // --- Audit Mode (Direct DD via Query String) ---
+        $range = $request->query('audit_range'); // options: 7, 30, 90, 90plus
+
+        if ($range) {
+            $sellType = Transaction::TYPE_SELL;
+            
+            // Menggunakan tanggal transaksi terakhir sebagai titik acuan audit (Smart Reference)
+            $latestSaleInDb = DB::table('transactions')->where('type', $sellType)->max('date') ?? now()->toDateString();
+            $refDate = \Carbon\Carbon::parse($latestSaleInDb);
+
+            $ranges = [
+                '7'      => [7, 30],
+                '30'     => [31, 90],
+                '90'     => [91, null],
+                '90plus' => [91, null],
+            ];
+
+            if (isset($ranges[$range])) {
+                [$start, $end] = $ranges[$range];
+                $startDate = $refDate->copy()->subDays($start)->toDateString();
+                
+                $query = DB::table('warehouse_items as wi')
+                    ->join('items as i', 'wi.item_id', '=', 'i.id')
+                    ->join('addrbooks as a', 'wi.warehouse_id', '=', 'a.id')
+                    ->where('wi.quantity', '>', 0)
+                    ->where('a.type', Addrbook::TYPE_WAREHOUSE)
+                    ->select(
+                        'wi.item_id',
+                        'i.name as item_name',
+                        'wi.warehouse_id',
+                        'a.name as warehouse_name',
+                        'wi.quantity as qty'
+                    )
+                    ->selectRaw("
+                        (SELECT MAX(date) FROM transactions t 
+                         JOIN transaction_details td ON t.id = td.transaction_id 
+                         WHERE td.item_id = wi.item_id AND t.sender_id = wi.warehouse_id AND t.type = $sellType) as last_date_sale
+                    ");
+
+                if ($end === null) {
+                    // Kasus > 90 hari: Penjualan terakhir <= (Titik Acuan - 91 hari) ATAU Tidak pernah terjual
+                    $query->havingRaw("(last_date_sale <= ? OR last_date_sale IS NULL)", [$startDate]);
+                } else {
+                    $endDate = $refDate->copy()->subDays($end)->toDateString();
+                    $query->havingRaw("last_date_sale <= ? AND last_date_sale >= ?", [$startDate, $endDate]);
+                }
+
+                $auditItems = $query->get()
+                    ->map(fn($item) => [
+                        'item_id' => $item->item_id,
+                        'item_name' => $item->item_name,
+                        'warehouse_id' => $item->warehouse_id,
+                        'warehouse_name' => $item->warehouse_name,
+                        'qty' => $item->qty,
+                        'last_date_sale' => $item->last_date_sale ?? 'NEVER SOLD (STAGNANT)',
+                        'days_since_last_sale' => $item->last_date_sale 
+                            ? \Carbon\Carbon::parse($item->last_date_sale)->diffInDays($refDate) . ' days'
+                            : 'N/A',
+                        'audit_reference_date' => $latestSaleInDb,
+                    ]);
+
+                dd($auditItems);
+            }
+        }
+        // -----------------------------------------------
 
         $search = $request->input('search');
         $stagnancy = $request->input('stagnancy'); // options: never, 7, 30, 90
@@ -286,9 +362,13 @@ class ReportController extends Controller
                 'wi.quantity as current_stock'
             )
             ->selectRaw('
-                (SELECT MAX(date) FROM daily_inventory_summaries 
-                 WHERE item_id = wi.item_id AND warehouse_id = wi.warehouse_id AND qty_sell > 0) as last_sold_at
-            ');
+                (SELECT MAX(t.date) 
+                 FROM transactions t
+                 JOIN transaction_details td ON t.id = td.transaction_id
+                 WHERE td.item_id = wi.item_id 
+                   AND t.sender_id = wi.warehouse_id 
+                   AND t.type = ?) as last_sold_at
+            ', [Transaction::TYPE_SELL]);
 
         if ($search) {
             $query->where(function ($q) use ($search) {
@@ -321,13 +401,13 @@ class ReportController extends Controller
         $items->getCollection()->transform(function ($item) use ($date30) {
             $lastSold = $item->last_sold_at;
 
-            if (!$lastSold) {
+            if (! $lastSold) {
                 $item->status = 'NO SALES';
                 $item->warning = 'Belum pernah terjual di gudang ini.';
                 $item->color = 'zinc';
             } else {
                 $days = now()->diffInDays(\Carbon\Carbon::parse($lastSold));
-                
+
                 if ($days >= 90) {
                     $item->status = 'DEADSTOCK';
                     $item->warning = "SANGAT KRITIS! Sudah $days hari tidak laku.";
@@ -345,14 +425,15 @@ class ReportController extends Controller
 
             // --- Suggestion Logic ---
             // Cari semua gudang lain (Warehouse tipe 2) yang penjualannya aktif (>0) dlm 30 hari terakhir
-            $potentialDestinations = DB::table('daily_inventory_summaries as dis')
-                ->join('addrbooks as a', 'dis.warehouse_id', '=', 'a.id')
-                ->where('dis.item_id', $item->item_id)
-                ->where('dis.warehouse_id', '!=', $item->warehouse_id)
+            $potentialDestinations = DB::table('transactions as t')
+                ->join('transaction_details as td', 't.id', '=', 'td.transaction_id')
+                ->join('addrbooks as a', 't.sender_id', '=', 'a.id')
+                ->where('td.item_id', $item->item_id)
+                ->where('t.sender_id', '!=', $item->warehouse_id)
                 ->where('a.type', Addrbook::TYPE_WAREHOUSE)
-                ->where('dis.date', '>=', $date30)
-                ->where('dis.qty_sell', '>', 0)
-                ->select('dis.warehouse_id')
+                ->where('t.type', Transaction::TYPE_SELL)
+                ->where('t.date', '>=', $date30)
+                ->select('t.sender_id')
                 ->distinct()
                 ->get();
 
@@ -360,21 +441,23 @@ class ReportController extends Controller
 
             if ($item->potential_count > 0) {
                 // Tetap ambil satu yang terbaik untuk preview (opsional)
-                $bestWarehouse = DB::table('daily_inventory_summaries as dis')
-                    ->join('addrbooks as a', 'dis.warehouse_id', '=', 'a.id')
-                    ->where('dis.item_id', $item->item_id)
-                    ->where('dis.warehouse_id', '!=', $item->warehouse_id)
+                $bestWarehouse = DB::table('transactions as t')
+                    ->join('transaction_details as td', 't.id', '=', 'td.transaction_id')
+                    ->join('addrbooks as a', 't.sender_id', '=', 'a.id')
+                    ->where('td.item_id', $item->item_id)
+                    ->where('t.sender_id', '!=', $item->warehouse_id)
                     ->where('a.type', Addrbook::TYPE_WAREHOUSE)
-                    ->where('dis.date', '>=', $date30)
-                    ->select('a.name', 'dis.warehouse_id', DB::raw('SUM(dis.qty_sell) as total_sold'))
-                    ->groupBy('a.name', 'dis.warehouse_id')
+                    ->where('t.type', Transaction::TYPE_SELL)
+                    ->where('t.date', '>=', $date30)
+                    ->select('a.name', 't.sender_id as warehouse_id', DB::raw('SUM(td.quantity) as total_sold'))
+                    ->groupBy('a.name', 't.sender_id')
                     ->orderBy('total_sold', 'desc')
                     ->first();
 
                 $item->suggestion = [
                     'to_warehouse_id' => $bestWarehouse->warehouse_id,
                     'to_warehouse_name' => $bestWarehouse->name,
-                    'qty_to_move' => min((float) $item->current_stock, (float) $bestWarehouse->total_sold)
+                    'qty_to_move' => min((float) $item->current_stock, (float) $bestWarehouse->total_sold),
                 ];
             }
 
@@ -401,7 +484,7 @@ class ReportController extends Controller
 
         // 1. Ambil list semua gudang yang punya item ini
         $warehouseStocks = DB::table('addrbooks as a')
-            ->leftJoin('warehouse_items as wi', function($join) use ($itemId) {
+            ->leftJoin('warehouse_items as wi', function ($join) use ($itemId) {
                 $join->on('a.id', '=', 'wi.warehouse_id')->where('wi.item_id', '=', $itemId);
             })
             ->where('a.type', Addrbook::TYPE_WAREHOUSE)
@@ -409,8 +492,14 @@ class ReportController extends Controller
                 'a.id as warehouse_id',
                 'a.name as warehouse_name',
                 DB::raw('COALESCE(wi.quantity, 0) as current_stock'),
-                DB::raw("(SELECT MAX(date) FROM daily_inventory_summaries WHERE item_id = $itemId AND warehouse_id = a.id AND qty_sell > 0) as last_sale_date"),
-                DB::raw("(SELECT SUM(qty_sell) FROM daily_inventory_summaries WHERE item_id = $itemId AND warehouse_id = a.id AND date >= '$date30') as sold_30d")
+                DB::raw("(SELECT MAX(t.date) 
+                          FROM transactions t
+                          JOIN transaction_details td ON t.id = td.transaction_id
+                          WHERE td.item_id = $itemId AND t.sender_id = a.id AND t.type = ".Transaction::TYPE_SELL.') as last_sale_date'),
+                DB::raw("(SELECT SUM(td.quantity) 
+                          FROM transactions t
+                          JOIN transaction_details td ON t.id = td.transaction_id
+                          WHERE td.item_id = $itemId AND t.sender_id = a.id AND t.date >= '$date30' AND t.type = ".Transaction::TYPE_SELL.') as sold_30d')
             )
             ->having('current_stock', '>', 0)
             ->orHaving('sold_30d', '>', 0)
@@ -420,7 +509,7 @@ class ReportController extends Controller
         // 2. Hitung Rekomendasi
         // Target adalah gudang dengan penjualan 30 hari tertinggi selain gudang asal
         $targetWh = $warehouseStocks->where('warehouse_id', '!=', $sourceWhId)->first();
-        
+
         $recommendation = null;
         if ($targetWh && $targetWh->sold_30d > 0) {
             $sourceStock = $warehouseStocks->where('warehouse_id', $sourceWhId)->first()?->current_stock ?? 0;
@@ -430,7 +519,7 @@ class ReportController extends Controller
                 'to_id' => $targetWh->warehouse_id,
                 'to_name' => $targetWh->warehouse_name,
                 'demand_30d' => (float) $targetWh->sold_30d,
-                'suggested_qty' => min((float) $sourceStock, (float) $targetWh->sold_30d)
+                'suggested_qty' => min((float) $sourceStock, (float) $targetWh->sold_30d),
             ];
         }
 
@@ -438,7 +527,7 @@ class ReportController extends Controller
             'item' => $item,
             'sourceWarehouse' => $sourceWh,
             'warehouseStocks' => $warehouseStocks,
-            'recommendation' => $recommendation
+            'recommendation' => $recommendation,
         ]);
     }
 
