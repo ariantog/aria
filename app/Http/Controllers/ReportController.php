@@ -24,25 +24,23 @@ class ReportController extends Controller
     {
         Gate::authorize(AddrbookDaily::getPermissions()['view_nett_cash']);
 
-        $datesNow = Carbon::now();
+        $datesNow = now();
         $month = $request->input('month', $datesNow->month);
         $year = $request->input('year', $datesNow->year);
 
         // Get list of relevant contacts (Customers & Resellers)
         $customers = Addrbook::whereIn('type', [Addrbook::TYPE_CUSTOMER, Addrbook::TYPE_RESELLER])
             ->orderBy('name')
-            ->get();
+            ->get(['id', 'name']);
 
-        $customerList = $customers->where('type', Addrbook::TYPE_CUSTOMER)->values();
-        $resellerList = $customers->where('type', Addrbook::TYPE_RESELLER)->values();
-
-        // Optimized Query using Summary Table
-        $summaries = MonthlyAccountSummary::where('year', $year)
-            ->where('month', $month)
+        // Monthly Summary
+        $summaries = MonthlyAccountSummary::where('month', $month)
+            ->where('year', $year)
             ->whereIn('addrbook_id', $customers->pluck('id'))
-            ->get();
+            ->get()
+            ->groupBy('addrbook_id');
 
-        $prepareReport = function ($list) use ($summaries) {
+        $reportData = $customers->map(function ($cust) use ($summaries) {
             $report = [
                 'cashIn' => [],
                 'cashOut' => [],
@@ -52,36 +50,47 @@ class ReportController extends Controller
                 'nettSell' => 0,
             ];
 
-            foreach ($list as $item) {
-                $s = $summaries->firstWhere('addrbook_id', $item->id);
-                // We store raw net values, but for report display we usually want ABS
-                $report['cashIn'][$item->id] = $s ? (float) abs($s->cash_in) : 0;
-                $report['cashOut'][$item->id] = $s ? (float) abs($s->cash_out) : 0;
-                $report['sell'][$item->id] = $s ? (float) abs($s->sell) : 0;
-                $report['return'][$item->id] = $s ? (float) abs($s->return) : 0;
+            if (isset($summaries[$cust->id])) {
+                foreach ($summaries[$cust->id] as $summary) {
+                    $item = [
+                        'amount' => (float) $summary->amount,
+                        'notes' => $summary->notes,
+                    ];
+
+                    switch ($summary->transaction_type) {
+                        case Transaction::TYPE_CASH_IN:
+                            $report['cashIn'][] = $item;
+                            $report['nettCash'] += $item['amount'];
+                            break;
+                        case Transaction::TYPE_CASH_OUT:
+                            $report['cashOut'][] = $item;
+                            $report['nettCash'] -= $item['amount'];
+                            break;
+                        case Transaction::TYPE_SELL:
+                            $report['sell'][] = $item;
+                            $report['nettSell'] += $item['amount'];
+                            break;
+                        case Transaction::TYPE_RETURN:
+                            $report['return'][] = $item;
+                            $report['nettSell'] -= $item['amount'];
+                            break;
+                    }
+                }
             }
 
-            // Nett Cash calculation: Total In + Total Out (Out is already negative in DB, so adding them gives Net)
-            // But if we use ABS above, we must do: In - Out
-            $report['nettCash'] = array_sum($report['cashIn']) - array_sum($report['cashOut']);
-            $report['nettSell'] = array_sum($report['sell']) - array_sum($report['return']);
-
-            return $report;
-        };
-
-        $customerReport = $prepareReport($customerList);
-        $resellerReport = $prepareReport($resellerList);
-
-        $yearList = range(date('Y'), 2019);
+            return [
+                'id' => $cust->id,
+                'name' => $cust->name,
+                'details' => $report,
+            ];
+        })->filter(function ($item) {
+            return $item['details']['nettCash'] != 0 || $item['details']['nettSell'] != 0;
+        })->values();
 
         return Inertia::render('Reports/NettCashSby', [
-            'customerList' => $customerList,
-            'resellerList' => $resellerList,
-            'customerReport' => $customerReport,
-            'resellerReport' => $resellerReport,
-            'filters' => ['month' => (int) $month, 'year' => (int) $year],
-            'yearList' => $yearList,
-            'datesNow' => ['month' => $datesNow->month, 'year' => $datesNow->year],
+            'reportData' => $reportData,
+            'filters' => $request->only(['month', 'year']),
+            'yearList' => range(date('Y'), 2019),
         ]);
     }
 
@@ -89,64 +98,50 @@ class ReportController extends Controller
     {
         Gate::authorize(AddrbookDaily::getPermissions()['view_cash_flow']);
 
-        $datesNow = Carbon::now();
-        $month = $request->input('month');
+        $datesNow = now();
+        $month = $request->input('month', $datesNow->month);
         $year = $request->input('year', $datesNow->year);
 
-        $types = [
-            Addrbook::TYPE_CUSTOMER,
-            Addrbook::TYPE_RESELLER,
-            Addrbook::TYPE_BANK,
-            Addrbook::TYPE_ACCOUNT,
-        ];
+        $accounts = Addrbook::where('type', Addrbook::TYPE_ACCOUNT)
+            ->orderBy('name')
+            ->get(['id', 'name']);
 
-        // Optimized Query using Summary Table
-        $query = MonthlyCategorySummary::where('year', $year)
-            ->whereIn('addrbook_type', $types);
+        $summaries = MonthlyAccountSummary::where('month', $month)
+            ->where('year', $year)
+            ->whereIn('addrbook_id', $accounts->pluck('id'))
+            ->get()
+            ->groupBy('addrbook_id');
 
-        if ($month) {
-            $query->where('month', $month);
-        }
+        $reportData = $accounts->map(function ($acc) use ($summaries) {
+            $totalIn = 0;
+            $totalOut = 0;
 
-        $results = $query->selectRaw('
-            addrbook_type as type_id,
-            SUM(cash_in) as cash_in_total,
-            SUM(cash_out) as cash_out_total,
-            SUM(sell) as sell_total,
-            SUM(buy) as buy_total,
-            SUM(`return`) as return_total,
-            SUM(return_supplier) as return_supplier
-        ')
-            ->groupBy('addrbook_type')
-            ->get();
+            if (isset($summaries[$acc->id])) {
+                foreach ($summaries[$acc->id] as $summary) {
+                    $amt = (float) $summary->amount;
+                    if ($amt > 0) {
+                        $totalIn += $amt;
+                    } else {
+                        $totalOut += abs($amt);
+                    }
+                }
+            }
 
-        $results->transform(function ($item) {
-            $item->cash_in_total = abs((float) $item->cash_in_total);
-            $item->cash_out_total = abs((float) $item->cash_out_total);
-            $item->sell_total = abs((float) $item->sell_total);
-            $item->buy_total = abs((float) $item->buy_total);
-            $item->return_total = abs((float) $item->return_total);
-            $item->return_supplier = abs((float) $item->return_supplier);
-
-            return $item;
-        });
-
-        $addrbookTypes = collect(Addrbook::getTypes());
-        $results->transform(function ($item) use ($addrbookTypes) {
-            $type = $addrbookTypes->firstWhere('id', $item->type_id);
-            $item->type_name = $type ? $type['name'] : 'Unknown';
-
-            return $item;
-        });
-
-        $yearList = range(date('Y'), 2019);
+            return [
+                'id' => $acc->id,
+                'name' => $acc->name,
+                'totalIn' => $totalIn,
+                'totalOut' => $totalOut,
+                'nett' => $totalIn - $totalOut,
+            ];
+        })->filter(function ($item) {
+            return $item['totalIn'] != 0 || $item['totalOut'] != 0;
+        })->values();
 
         return Inertia::render('Reports/CashFlow', [
-            'groupBySender' => $results, // In category summary, sender/receiver are combined by type
-            'groupByReceiver' => [],
-            'filters' => ['month' => $month ? (int) $month : null, 'year' => (int) $year],
-            'yearList' => $yearList,
-            'datesNow' => ['month' => $datesNow->month, 'year' => $datesNow->year],
+            'reportData' => $reportData,
+            'filters' => $request->only(['month', 'year']),
+            'yearList' => range(date('Y'), 2019),
         ]);
     }
 
@@ -154,44 +149,53 @@ class ReportController extends Controller
     {
         Gate::authorize(AddrbookDaily::getPermissions()['view_compare']);
 
-        $user = Auth::user();
-        $selectedWarehouses = WarehouseCompare::with('warehouse')
-            ->where('user_id', $user->id)
-            ->orderBy('created_at', 'asc')
+        $userCompares = WarehouseCompare::where('user_id', Auth::id())
+            ->with('warehouse:id,name')
             ->get();
 
-        $warehouseIds = $selectedWarehouses->pluck('warehouse_id')->toArray();
+        $warehouseIds = $userCompares->pluck('warehouse_id')->toArray();
 
-        $query = Item::query()->select('items.id', 'items.name', 'items.code');
+        // 1. Get items that exist in at least one of these warehouses
+        $itemQuery = DB::table('warehouse_items')
+            ->whereIn('warehouse_id', $warehouseIds)
+            ->where('quantity', '>', 0)
+            ->select('item_id')
+            ->distinct();
 
-        if ($request->search) {
-            $query->where(function ($q) use ($request) {
-                $q->where('items.name', 'like', "%{$request->search}%")
-                    ->orWhere('items.code', 'like', "%{$request->search}%");
+        $search = $request->input('search');
+        $items = Item::whereIn('id', $itemQuery);
+
+        if ($search) {
+            $items->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%$search%")->orWhere('code', 'like', "%$search%");
             });
         }
 
-        foreach ($warehouseIds as $whId) {
-            $query->selectRaw("(SELECT SUM(quantity) FROM warehouse_items WHERE item_id = items.id AND warehouse_id = ?) as wh_{$whId}", [$whId]);
-        }
+        $items = $items->orderBy('name')->paginate(50)->withQueryString();
 
-        $sort = $request->input('sort', 'name');
-        $direction = $request->input('direction', 'asc');
+        // 2. Get stock levels for these items across selected warehouses
+        $stockLevels = DB::table('warehouse_items')
+            ->whereIn('warehouse_id', $warehouseIds)
+            ->whereIn('item_id', $items->pluck('id'))
+            ->get()
+            ->groupBy('item_id');
 
-        if (str_starts_with($sort, 'wh_')) {
-            $query->orderByRaw("($sort) $direction");
-        } else {
-            $query->orderBy($sort, $direction);
-        }
+        $items->getCollection()->transform(function ($item) use ($stockLevels, $warehouseIds) {
+            $stocks = [];
+            foreach ($warehouseIds as $whId) {
+                $stockRecord = $stockLevels->get($item->id)?->firstWhere('warehouse_id', $whId);
+                $stocks[$whId] = $stockRecord ? (float) $stockRecord->quantity : 0;
+            }
+            $item->stocks = $stocks;
 
-        $items = $query->paginate(50)->withQueryString();
-        $allWarehouses = Addrbook::where('type', Addrbook::TYPE_WAREHOUSE)->orderBy('name')->get();
+            return $item;
+        });
 
-        return Inertia::render('Reports/Compare', [
+        return Inertia::render('Reports/WarehouseCompare', [
             'items' => $items,
-            'selectedWarehouses' => $selectedWarehouses,
-            'allWarehouses' => $allWarehouses,
-            'filters' => $request->only(['search', 'sort', 'direction']),
+            'userCompares' => $userCompares,
+            'allWarehouses' => Addrbook::where('type', Addrbook::TYPE_WAREHOUSE)->orderBy('name')->get(['id', 'name']),
+            'filters' => $request->only(['search']),
         ]);
     }
 
@@ -202,8 +206,7 @@ class ReportController extends Controller
         $warehouseId = $request->input('warehouse_id');
         $search = $request->input('search');
 
-        $query = Item::query()
-            ->select('items.id', 'items.name', 'items.code');
+        $query = Item::query();
 
         if ($search) {
             $query->where(function ($q) use ($search) {
@@ -211,8 +214,7 @@ class ReportController extends Controller
             });
         }
 
-        // Metrics from Summary Table
-        // 1. Sales last 30 days (Fast Moving)
+        // 1. Sales last 30 days
         $date30 = now()->subDays(30)->toDateString();
         // 2. Sales last 90 days (Dead Stock detection)
         $date90 = now()->subDays(90)->toDateString();
@@ -246,9 +248,10 @@ class ReportController extends Controller
 
     public function itemSales(Request $request)
     {
-        Gate::authorize(AddrbookDaily::getPermissions()['view_nett_cash']);
+        Gate::authorize(AddrbookDaily::getPermissions()['view_inventory_health']);
 
-        $query = MonthlyItemSale::with(['group', 'customer']);
+        $datesNow = now();
+        $query = MonthlyItemSale::with('item:id,name,code');
 
         if ($request->month) {
             $query->where('month', $request->month);
@@ -276,82 +279,18 @@ class ReportController extends Controller
     {
         Gate::authorize(AddrbookDaily::getPermissions()['view_inventory_health']);
 
-        // --- Audit Mode (Direct DD via Query String) ---
-        $rangeInput = $request->query('audit_range');
+        $sellType = Transaction::TYPE_SELL;
+        $performanceFilter = $request->query('performance');
+        $daysFilter = $request->query('days');
+        $search = $request->query('search');
 
-        if ($rangeInput) {
-            $sellType = Transaction::TYPE_SELL;
-            $latestSaleInDb = DB::table('transaction_details')->where('transaction_type', $sellType)->max('date') ?? now()->toDateString();
-            $refDate = \Carbon\Carbon::parse($latestSaleInDb);
+        // 1. Ambil Tanggal Transaksi Terakhir di Sistem (Info kesegaran data)
+        $systemLatestDate = DB::table('transaction_details')->where('transaction_type', $sellType)->max('date') ?? now()->toDateString();
+        
+        // Titik acuan perhitungan hari tetap hari ini agar "days_ago" akurat sesuai kalender
+        $today = now();
 
-            $start = null;
-            $end = null;
-
-            if ($rangeInput === '90plus') {
-                $start = 91;
-            } elseif (str_contains($rangeInput, '-')) {
-                $parts = explode('-', $rangeInput);
-                $start = (int) ($parts[0] ?? 0);
-                $end = (int) ($parts[1] ?? 0);
-            } else {
-                $start = (int) $rangeInput;
-            }
-
-            if ($start > 0) {
-                $startDate = $refDate->copy()->subDays($start)->toDateString();
-
-                $query = DB::table('warehouse_items as wi')
-                    ->join('items as i', 'wi.item_id', '=', 'i.id')
-                    ->join('addrbooks as a', 'wi.warehouse_id', '=', 'a.id')
-                    ->where('wi.quantity', '>', 0)
-                    ->where('a.type', Addrbook::TYPE_WAREHOUSE)
-                    ->select(
-                        'wi.item_id',
-                        'i.name as item_name',
-                        'wi.warehouse_id',
-                        'a.name as warehouse_name',
-                        'wi.quantity as qty'
-                    )
-                    ->selectRaw("
-                        (SELECT MAX(date) FROM transaction_details td 
-                         WHERE td.item_id = wi.item_id AND td.sender_id = wi.warehouse_id AND td.transaction_type = $sellType) as last_date_sale
-                    ");
-
-                if ($end) {
-                    // Kasus Rentang (e.g. 7-30)
-                    $endDate = $refDate->copy()->subDays($end)->toDateString();
-                    $query->havingRaw('last_date_sale <= ? AND last_date_sale >= ?', [$startDate, $endDate]);
-                } else {
-                    // Kasus Min. Hari (e.g. 15 atau 90plus) - Termasuk yang belum pernah terjual
-                    $query->havingRaw('(last_date_sale <= ? OR last_date_sale IS NULL)', [$startDate]);
-                }
-
-                $auditItems = $query->get()
-                    ->map(fn ($item) => [
-                        'item_id' => $item->item_id,
-                        'item_name' => $item->item_name,
-                        'warehouse_id' => $item->warehouse_id,
-                        'warehouse_name' => $item->warehouse_name,
-                        'qty' => $item->qty,
-                        'last_date_sale' => $item->last_date_sale ?? 'NEVER SOLD (STAGNANT)',
-                        'days_since_last_sale' => $item->last_date_sale
-                            ? \Carbon\Carbon::parse($item->last_date_sale)->diffInDays($refDate).' days'
-                            : 'N/A',
-                        'audit_reference_date' => $latestSaleInDb,
-                    ]);
-
-                return response()->json($auditItems);
-            }
-        }
-        // -----------------------------------------------
-
-        $search = $request->input('search');
-        $stagnancy = $request->input('stagnancy'); // options: never, 7, 30, 90
-        $date30 = now()->subDays(30)->toDateString();
-        $date7 = now()->subDays(7)->toDateString();
-        $date90 = now()->subDays(90)->toDateString();
-
-        // Query utama berbasis pasangan (Item, Warehouse) yang berstok
+        // 2. Query Utama
         $query = DB::table('warehouse_items as wi')
             ->join('items as i', 'wi.item_id', '=', 'i.id')
             ->join('addrbooks as a', 'wi.warehouse_id', '=', 'a.id')
@@ -360,114 +299,134 @@ class ReportController extends Controller
             ->select(
                 'wi.item_id',
                 'i.name as item_name',
-                'i.code as item_code',
                 'wi.warehouse_id',
                 'a.name as warehouse_name',
-                'wi.quantity as current_stock'
+                'wi.quantity as current_qty'
             )
-            ->selectRaw('
-                (SELECT MAX(td.date) 
-                 FROM transaction_details td
-                 WHERE td.item_id = wi.item_id 
-                   AND td.sender_id = wi.warehouse_id 
-                   AND td.transaction_type = ?) as last_sold_at
-            ', [Transaction::TYPE_SELL]);
+            ->selectRaw("
+                (SELECT MAX(date) FROM transaction_details td 
+                 WHERE td.item_id = wi.item_id AND td.sender_id = wi.warehouse_id AND td.transaction_type = $sellType) as last_date_sale
+            ");
 
         if ($search) {
             $query->where(function ($q) use ($search) {
-                $q->where('i.name', 'like', "%$search%")->orWhere('i.code', 'like', "%$search%");
+                $q->where('i.name', 'like', "%$search%");
             });
         }
 
-        // Apply Stagnancy Filters (Exclusive Ranges)
-        if ($stagnancy === 'never') {
-            $query->havingNull('last_sold_at');
-        } elseif ($stagnancy == '7') {
-            // Hanya 7 - 30 hari
-            $query->havingRaw('last_sold_at <= ? AND last_sold_at > ?', [$date7, $date30]);
-        } elseif ($stagnancy == '30') {
-            // Hanya 30 - 90 hari
-            $query->havingRaw('last_sold_at <= ? AND last_sold_at > ?', [$date30, $date90]);
-        } elseif ($stagnancy == '90') {
-            // Hanya > 90 hari
-            $query->havingRaw('last_sold_at <= ?', [$date90]);
-        } else {
-            // Default: Tampilkan semua yang bermasalah (> 7 hari atau Never Sold)
-            $query->havingRaw('last_sold_at IS NULL OR last_sold_at <= ?', [$date7]);
-        }
+        // 3. Proses data
+        $data = $query->get()->map(function ($item) use ($sellType, $today, $systemLatestDate) {
+            $currentDays = $item->last_date_sale 
+                ? (int) $today->diffInDays(\Carbon\Carbon::parse($item->last_date_sale), true)
+                : null;
 
-        $items = $query->orderByRaw('ISNULL(last_sold_at) DESC, last_sold_at ASC')
-            ->paginate(50)
-            ->withQueryString();
-
-        // Map status/warnings
-        $items->getCollection()->transform(function ($item) use ($date30) {
-            $lastSold = $item->last_sold_at;
-
-            if (! $lastSold) {
-                $item->status = 'NO SALES';
-                $item->warning = 'Belum pernah terjual di gudang ini.';
-                $item->color = 'zinc';
-            } else {
-                $days = now()->diffInDays(\Carbon\Carbon::parse($lastSold));
-
-                if ($days >= 90) {
-                    $item->status = 'DEADSTOCK';
-                    $item->warning = "SANGAT KRITIS! Sudah $days hari tidak laku.";
-                    $item->color = 'rose';
-                } elseif ($days >= 30) {
-                    $item->status = 'STAGNANT';
-                    $item->warning = "Peringatan: Sudah $days hari tidak laku.";
-                    $item->color = 'amber';
-                } else {
-                    $item->status = 'SLOW MOVING';
-                    $item->warning = "Sudah $days hari tidak ada penjualan.";
-                    $item->color = 'blue';
-                }
-            }
-
-            // --- Suggestion Logic ---
-            // Cari semua gudang lain (Warehouse tipe 2) yang penjualannya aktif (>0) dlm 30 hari terakhir
-            $potentialDestinations = DB::table('transaction_details as td')
+            // Cari Gudang Terbaik Secara Global
+            $bestSale = DB::table('transaction_details as td')
                 ->join('addrbooks as a', 'td.sender_id', '=', 'a.id')
                 ->where('td.item_id', $item->item_id)
-                ->where('td.sender_id', '!=', $item->warehouse_id)
-                ->where('a.type', Addrbook::TYPE_WAREHOUSE)
-                ->where('td.transaction_type', Transaction::TYPE_SELL)
-                ->where('td.date', '>=', $date30)
-                ->select('td.sender_id')
-                ->distinct()
-                ->get();
+                ->where('td.transaction_type', $sellType)
+                ->select('td.date', 'td.sender_id', 'a.name as warehouse_name')
+                ->orderByDesc('td.date')
+                ->orderByDesc('td.id')
+                ->first();
 
-            $item->potential_count = $potentialDestinations->count();
-
-            if ($item->potential_count > 0) {
-                // Tetap ambil satu yang terbaik untuk preview (opsional)
-                $bestWarehouse = DB::table('transaction_details as td')
-                    ->join('addrbooks as a', 'td.sender_id', '=', 'a.id')
-                    ->where('td.item_id', $item->item_id)
-                    ->where('td.sender_id', '!=', $item->warehouse_id)
-                    ->where('a.type', Addrbook::TYPE_WAREHOUSE)
-                    ->where('td.transaction_type', Transaction::TYPE_SELL)
-                    ->where('td.date', '>=', $date30)
-                    ->select('a.name', 'td.sender_id as warehouse_id', DB::raw('SUM(td.quantity) as total_sold'))
-                    ->groupBy('a.name', 'td.sender_id')
-                    ->orderBy('total_sold', 'desc')
-                    ->first();
-
-                $item->suggestion = [
-                    'to_warehouse_id' => $bestWarehouse->warehouse_id,
-                    'to_warehouse_name' => $bestWarehouse->name,
-                    'qty_to_move' => min((float) $item->current_stock, (float) $bestWarehouse->total_sold),
-                ];
+            $bestWarehouseQty = 0;
+            $bestDays = null;
+            if ($bestSale) {
+                $bestWarehouseQty = (int) DB::table('warehouse_items')
+                    ->where('item_id', $item->item_id)
+                    ->where('warehouse_id', $bestSale->sender_id)
+                    ->value('quantity');
+                $bestDays = (int) $today->diffInDays(\Carbon\Carbon::parse($bestSale->date), true);
             }
 
-            return $item;
+            // --- Rumus doc/score.md ---
+            $maxGap = 90; $maxDays = 90;
+            $gap = 0; $gapScore = 0; $saleScore = 0; $finalScore = 0;
+            $performanceLevel = '7. Critical (Belum Terjual)';
+            $perfKey = 'critical';
+
+            if ($currentDays === null) {
+                $gap = 9999;
+            } elseif ($currentDays > $maxDays) {
+                $performanceLevel = '6. Deadstock (Mati)';
+                $perfKey = 'deadstock';
+                $gap = $bestDays !== null ? ($currentDays - $bestDays) : 9999;
+            } elseif ($bestDays !== null) {
+                $gap = $currentDays - $bestDays;
+                $gapScore = max(0.0, min(1.0, 1 - ($gap / $maxGap)));
+                $saleScore = max(0.0, min(1.0, 1 - ($currentDays / $maxDays)));
+
+                // Bobot Baru: 20% Gap, 80% Sale History (Memprioritaskan kecepatan jual saat ini)
+                $finalScore = ($gapScore * 0.2) + ($saleScore * 0.8);
+
+                if ($finalScore >= 0.90) { $performanceLevel = '1. Elite (Terbaik)'; $perfKey = 'elite'; }
+                elseif ($finalScore >= 0.70) { $performanceLevel = '2. Good (Aktif)'; $perfKey = 'good'; }
+                elseif ($finalScore >= 0.50) { $performanceLevel = '3. Active (Normal)'; $perfKey = 'active'; }
+                elseif ($finalScore >= 0.30) { $performanceLevel = '4. Lagging (Lambat)'; $perfKey = 'lagging'; }
+                else { $performanceLevel = '5. Stagnant (Sangat Lambat)'; $perfKey = 'stagnant'; }
+            }
+
+            return [
+                'item_id' => $item->item_id,
+                'item_name' => $item->item_name,
+                'score' => round($finalScore, 4),
+                'performance_key' => $perfKey,
+                'performance_level' => $performanceLevel,
+                'gap_days' => $item->last_date_sale ? $gap : 'NEVER SOLD',
+                'current_warehouse' => [
+                    'name' => $item->warehouse_name,
+                    'qty' => (int) $item->current_qty,
+                    'last_sale' => $item->last_date_sale ?? 'NEVER SOLD',
+                    'days_ago' => $item->last_date_sale ? $currentDays : 'NEVER SOLD',
+                ],
+                'best_performing_warehouse' => $bestSale ? [
+                    'name' => $bestSale->warehouse_name,
+                    'last_sale' => $bestSale->date,
+                    'days_ago' => $bestDays,
+                    'qty' => $bestWarehouseQty,
+                ] : null,
+                'audit_reference_date' => $systemLatestDate,
+            ];
         });
 
+        // Hitung Statistik (Stats)
+        $stats = [
+            'all' => $data->count(),
+            'elite' => $data->where('performance_key', 'elite')->count(),
+            'good' => $data->where('performance_key', 'good')->count(),
+            'active' => $data->where('performance_key', 'active')->count(),
+            'lagging' => $data->where('performance_key', 'lagging')->count(),
+            'stagnant' => $data->where('performance_key', 'stagnant')->count(),
+            'deadstock' => $data->where('performance_key', 'deadstock')->count(),
+            'critical' => $data->where('performance_key', 'critical')->count(),
+        ];
+
+        if ($performanceFilter && $performanceFilter !== 'all') {
+            $data = $data->where('performance_key', $performanceFilter);
+        }
+
+        if ($daysFilter) {
+            $data = $data->where('current_warehouse.days_ago', '<=', (int) $daysFilter);
+        }
+
+        // Paginasi manual untuk collection
+        $page = $request->input('page', 1);
+        $perPage = 50;
+        $items = $data->sortByDesc('score')->values();
+        
+        $paginatedData = new \Illuminate\Pagination\LengthAwarePaginator(
+            $items->forPage($page, $perPage),
+            $items->count(),
+            $perPage,
+            $page,
+            ['path' => $request->url(), 'query' => $request->query()]
+        );
+
         return Inertia::render('Reports/StockIntelligence', [
-            'items' => $items,
-            'filters' => $request->only(['search', 'stagnancy']),
+            'data' => $paginatedData,
+            'stats' => $stats,
+            'filters' => $request->only(['days', 'performance', 'search']),
         ]);
     }
 
@@ -506,7 +465,6 @@ class ReportController extends Controller
             ->get();
 
         // 2. Hitung Rekomendasi
-        // Target adalah gudang dengan penjualan 30 hari tertinggi selain gudang asal
         $targetWh = $warehouseStocks->where('warehouse_id', '!=', $sourceWhId)->first();
 
         $recommendation = null;

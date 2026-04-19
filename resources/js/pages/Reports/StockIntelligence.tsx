@@ -1,44 +1,67 @@
 import AppLayout from '@/layouts/app-layout';
 import { BreadcrumbItem } from '@/types';
-import { Head, router } from '@inertiajs/react';
-import { Card, CardHeader } from '@/components/ui/card';
+import { Head, Link, router } from '@inertiajs/react';
+import { Card, CardHeader, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Filter, X, Clock, Calendar, Warehouse, Plus } from 'lucide-react';
+import { Filter, X, Clock, Warehouse, ChevronLeft, ChevronRight, TrendingUp } from 'lucide-react';
 import { useState } from 'react';
-import Pagination from '@/components/pagination';
+import { Badge } from '@/components/ui/badge';
 
-interface StagnantItem {
+interface StockItem {
     item_id: number;
     item_name: string;
-    item_code: string;
-    warehouse_id: number;
-    warehouse_name: string;
-    current_stock: number | string;
-    last_sold_at: string | null;
-    status: string;
-    warning: string;
-    color: string;
-    potential_count: number;
+    performance_level: string;
+    performance_key: string;
+    score: number;
+    gap_days: number | string;
+    current_warehouse: {
+        name: string;
+        qty: number;
+        last_sale: string;
+        days_ago: number | string;
+    };
+    best_performing_warehouse: {
+        name: string;
+        last_sale: string;
+        days_ago: number;
+        qty: number;
+    } | null;
+    audit_reference_date: string;
+}
+
+interface PaginationLink {
+    url: string | null;
+    label: string;
+    active: boolean;
+}
+
+interface PaginatedResponse {
+    data: StockItem[];
+    current_page: number;
+    last_page: number;
+    per_page: number;
+    total: number;
+    links: PaginationLink[];
+    next_page_url: string | null;
+    prev_page_url: string | null;
 }
 
 interface Props {
-    items: {
-        data: StagnantItem[];
-        links: any[];
-    };
+    data: PaginatedResponse;
+    stats: Record<string, number>;
     filters: {
+        days: string | null;
+        performance: string | null;
         search: string | null;
-        stagnancy: string | null;
     };
 }
 
-export default function StockIntelligence({ items, filters }: Props) {
+export default function StockIntelligence({ data, stats, filters }: Props) {
+    const [days, setDays] = useState(filters.days || '');
     const [search, setSearch] = useState(filters.search || '');
-    const [stagnancy, setStagnancy] = useState(filters.stagnancy || 'default');
 
     const breadcrumbs: BreadcrumbItem[] = [
         { title: 'Dashboard', href: '/dashboard' },
@@ -46,23 +69,41 @@ export default function StockIntelligence({ items, filters }: Props) {
         { title: 'Stock Intelligence', href: '/reports/stock-intelligence' },
     ];
 
-    const handleFilter = (e: React.FormEvent) => {
-        e.preventDefault();
-        router.get('/reports/stock-intelligence', { search, stagnancy }, { preserveState: true });
+    const performanceTabs = [
+        { key: 'all', label: 'Semua' },
+        { key: 'elite', label: '1. Elite' },
+        { key: 'good', label: '2. Good' },
+        { key: 'active', label: '3. Active' },
+        { key: 'lagging', label: '4. Lagging' },
+        { key: 'stagnant', label: '5. Stagnant' },
+        { key: 'deadstock', label: '6. Deadstock' },
+        { key: 'critical', label: '7. Critical' },
+    ];
+
+    const handleFilter = () => {
+        router.get('/reports/stock-intelligence', {
+            performance: filters.performance,
+            days: days || null,
+            search: search || null,
+        }, { preserveState: true });
     };
 
-    const handleClear = () => {
+    const resetFilter = () => {
+        setDays('');
         setSearch('');
-        setStagnancy('default');
         router.get('/reports/stock-intelligence');
     };
 
-    const getBadgeClass = (color: string) => {
-        switch (color) {
-            case 'rose': return 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 border-rose-200';
-            case 'zinc': return 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 border-zinc-200';
-            case 'amber': return 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 border-amber-200';
-            default: return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 border-blue-200';
+    const getPerformanceBadge = (key: string, label: string) => {
+        switch (key) {
+            case 'elite': return <Badge className="bg-emerald-500 hover:bg-emerald-600 text-white border-none">{label}</Badge>;
+            case 'good': return <Badge className="bg-blue-500 hover:bg-blue-600 text-white border-none">{label}</Badge>;
+            case 'active': return <Badge className="bg-cyan-500 hover:bg-cyan-600 text-white border-none">{label}</Badge>;
+            case 'lagging': return <Badge variant="secondary" className="bg-amber-100 text-amber-700 hover:bg-amber-100 border-amber-200">{label}</Badge>;
+            case 'stagnant': return <Badge variant="outline" className="text-orange-600 border-orange-200 bg-orange-50">{label}</Badge>;
+            case 'deadstock': return <Badge variant="destructive" className="bg-rose-500 text-white border-none">{label}</Badge>;
+            case 'critical': return <Badge variant="destructive" className="bg-zinc-800 text-white border-none">{label}</Badge>;
+            default: return <Badge variant="outline">{label}</Badge>;
         }
     };
 
@@ -70,149 +111,172 @@ export default function StockIntelligence({ items, filters }: Props) {
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Stock Intelligence" />
 
-            <div className="flex flex-col gap-6 p-4 sm:p-6 lg:p-8">
-                <div>
-                    <h1 className="text-2xl font-bold tracking-tight">Stock Intelligence & Rebalancing</h1>
-                    <p className="text-zinc-500 dark:text-zinc-400">
-                        Analisis barang macet dan rekomendasi pemindahan ke gudang dengan permintaan tinggi.
-                    </p>
+            <div className="flex flex-col gap-6 p-6">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div>
+                        <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">Stock Intelligence & Performance</h1>
+                        <p className="text-zinc-500 dark:text-zinc-400 text-sm">Analisis performa stok berdasarkan bobot (20% Gap, 80% Riwayat Jual).</p>
+                    </div>
                 </div>
 
-                <Card>
-                    <CardHeader className="p-4 sm:p-6 pb-4 sm:pb-4">
-                        <form onSubmit={handleFilter} className="flex flex-wrap items-end gap-4">
-                            <div className="grid gap-1.5 w-full md:w-[300px]">
-                                <Label htmlFor="search">Cari Item</Label>
+                {/* Performance Tabs */}
+                <div className="flex flex-wrap gap-2">
+                    {performanceTabs.map((tab) => {
+                        const isActive = (filters.performance || 'all') === tab.key;
+                        const count = stats[tab.key] || 0;
+                        const queryParams: any = { ...filters, performance: tab.key === 'all' ? null : tab.key, page: null };
+                        
+                        return (
+                            <Link
+                                key={tab.key}
+                                href={`/reports/stock-intelligence?${new URLSearchParams(Object.fromEntries(Object.entries(queryParams).filter(([_, v]) => v != null))).toString()}`}
+                                preserveState
+                                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all border ${
+                                    isActive 
+                                        ? 'bg-zinc-900 text-white border-zinc-900 dark:bg-zinc-100 dark:text-zinc-900 dark:border-zinc-100 shadow-sm' 
+                                        : 'bg-white text-zinc-600 border-zinc-200 hover:border-zinc-300 dark:bg-zinc-900 dark:text-zinc-400 dark:border-zinc-800 dark:hover:border-zinc-700'
+                                }`}
+                            >
+                                {tab.label}
+                                <span className={`px-1.5 py-0.5 rounded-md text-[10px] ${
+                                    isActive 
+                                        ? 'bg-zinc-700 text-zinc-100 dark:bg-zinc-300 dark:text-zinc-800' 
+                                        : 'bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-500'
+                                }`}>
+                                    {count}
+                                </span>
+                            </Link>
+                        );
+                    })}
+                </div>
+
+                {/* Filters */}
+                <Card className="dark:bg-zinc-900/50">
+                    <CardContent className="pt-6">
+                        <div className="flex flex-wrap items-end gap-4">
+                            <div className="space-y-2 flex-1 min-w-[300px]">
+                                <Label className="text-[10px] uppercase font-bold text-zinc-400">Pencarian Barang</Label>
                                 <Input 
-                                    id="search"
-                                    placeholder="Nama atau kode barang..." 
+                                    placeholder="Cari nama barang..." 
                                     value={search}
                                     onChange={(e) => setSearch(e.target.value)}
+                                    className="dark:bg-zinc-900 dark:border-zinc-800"
                                 />
                             </div>
-                            <div className="grid gap-1.5 w-[200px]">
-                                <Label htmlFor="stagnancy">Kriteria Stagnasi</Label>
-                                <Select value={stagnancy} onValueChange={setStagnancy}>
-                                    <SelectTrigger id="stagnancy">
-                                        <SelectValue placeholder="Pilih Kriteria" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="default">Semua Bermasalah (> 7 Hari)</SelectItem>
-                                        <SelectItem value="never">Belum Pernah Terjual</SelectItem>
-                                        <SelectItem value="7">Hanya 7 - 30 Hari</SelectItem>
-                                        <SelectItem value="30">Hanya 30 - 90 Hari</SelectItem>
-                                        <SelectItem value="90">Hanya > 90 Hari (Deadstock)</SelectItem>
-                                    </SelectContent>
-                                </Select>
+                            <div className="space-y-2 w-[180px]">
+                                <Label className="text-[10px] uppercase font-bold text-zinc-400">Maks. Hari (≤ X)</Label>
+                                <Input 
+                                    type="number"
+                                    value={days}
+                                    onChange={(e) => setDays(e.target.value)}
+                                    className="dark:bg-zinc-900 dark:border-zinc-800"
+                                />
                             </div>
-                            <div className="flex gap-2">
-                                <Button type="submit">
-                                    <Filter className="mr-2 h-4 w-4" />
-                                    Filter
-                                </Button>
-                                <Button type="button" variant="outline" onClick={handleClear}>
-                                    <X className="mr-2 h-4 w-4" />
-                                    Bersihkan
+                            <div className="flex items-center gap-2">
+                                <Button onClick={handleFilter}>Filter</Button>
+                                <Button variant="outline" size="icon" onClick={resetFilter} className="dark:border-zinc-800">
+                                    <X className="h-4 w-4" />
                                 </Button>
                             </div>
-                        </form>
-                    </CardHeader>
+                        </div>
+                    </CardContent>
                 </Card>
 
-                <div className="rounded-md border bg-white dark:bg-zinc-900 shadow-sm overflow-hidden">
+                {/* Data Table */}
+                <Card className="overflow-hidden border-zinc-200 dark:border-zinc-800 shadow-sm">
                     <Table>
                         <TableHeader>
-                            <TableRow className="bg-zinc-50 dark:bg-zinc-900/50">
-                                <TableHead className="w-[250px]">Item Details</TableHead>
-                                <TableHead>Current Location</TableHead>
-                                <TableHead className="text-center">Last Sale</TableHead>
-                                <TableHead className="text-center">Stock</TableHead>
-                                <TableHead className="w-[180px]">Status</TableHead>
-                                <TableHead className="w-[250px]">Smart Suggestion</TableHead>
+                            <TableRow className="bg-zinc-50/50 dark:bg-zinc-900/50">
+                                <TableHead className="w-[280px] dark:text-zinc-400">Item Info</TableHead>
+                                <TableHead className="text-center dark:text-zinc-400">Score</TableHead>
+                                <TableHead className="dark:text-zinc-400">Performance</TableHead>
+                                <TableHead className="dark:text-zinc-400">Current Warehouse</TableHead>
+                                <TableHead className="dark:text-zinc-400">Best Alternative</TableHead>
+                                <TableHead className="text-right dark:text-zinc-400">Action</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {items.data.length === 0 ? (
-                                <TableRow>
-                                    <TableCell colSpan={6} className="h-24 text-center">Tidak ada data stagnant.</TableCell>
-                                </TableRow>
-                            ) : (
-                                items.data.map((item, idx) => (
-                                    <TableRow key={`${item.item_id}-${item.warehouse_id}-${idx}`} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-900/50 transition-colors">
+                            {data.data.length > 0 ? (
+                                data.data.map((item) => (
+                                    <TableRow key={`${item.item_id}-${item.current_warehouse.name}`} className="dark:hover:bg-zinc-900/50">
                                         <TableCell>
-                                            <div className="font-bold text-sm">{item.item_name}</div>
-                                            <div className="text-[10px] text-zinc-500 font-mono uppercase">{item.item_code}</div>
+                                            <div className="font-bold text-zinc-900 dark:text-zinc-100 leading-tight">{item.item_name}</div>
+                                            <div className="text-[10px] text-zinc-400 mt-1 uppercase">ID: {item.item_id}</div>
+                                        </TableCell>
+                                        <TableCell className="text-center font-mono font-bold text-lg dark:text-zinc-100">
+                                            {item.score.toFixed(4)}
                                         </TableCell>
                                         <TableCell>
-                                            <div className="flex items-center gap-2 text-xs font-semibold">
-                                                <Warehouse className="h-3.5 w-3.5 text-zinc-400" />
-                                                {item.warehouse_name}
+                                            {getPerformanceBadge(item.performance_key, item.performance_level)}
+                                        </TableCell>
+                                        <TableCell>
+                                            <div className="flex flex-col gap-1">
+                                                <div className="flex items-center gap-1.5 font-medium text-zinc-700 dark:text-zinc-300 text-sm">
+                                                    <Warehouse className="h-3.5 w-3.5" />
+                                                    {item.current_warehouse.name}
+                                                </div>
+                                                <div className="flex items-center gap-2 text-xs">
+                                                    <span className="bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded font-bold">QTY: {item.current_warehouse.qty}</span>
+                                                    <span className="text-zinc-500 flex items-center gap-1">
+                                                        <Clock className="h-3 w-3" />
+                                                        {item.current_warehouse.days_ago === 'NEVER SOLD' ? 'Never' : `${item.current_warehouse.days_ago}d`}
+                                                    </span>
+                                                </div>
                                             </div>
                                         </TableCell>
-                                        <TableCell className="text-center">
-                                            {item.last_sold_at ? (
-                                                <div className="flex flex-col items-center">
-                                                    <div className="flex items-center gap-1 text-xs font-mono font-bold text-rose-600">
-                                                        <Calendar className="h-3 w-3" />
-                                                        {item.last_sold_at}
+                                        <TableCell>
+                                            {item.best_performing_warehouse ? (
+                                                <div className="flex flex-col gap-1">
+                                                    <div className="font-medium text-emerald-700 dark:text-emerald-400 text-sm italic">
+                                                        {item.best_performing_warehouse.name}
+                                                    </div>
+                                                    <div className="flex items-center gap-2 text-[11px]">
+                                                        <span className="text-emerald-600 font-bold uppercase">Stok: {item.best_performing_warehouse.qty}</span>
+                                                        <span className="text-zinc-400">({item.best_performing_warehouse.days_ago}d ago)</span>
                                                     </div>
                                                 </div>
-                                            ) : (
-                                                <span className="text-[10px] font-bold text-zinc-400 italic">NEVER SOLD</span>
-                                            )}
+                                            ) : '-'}
                                         </TableCell>
-                                        <TableCell className="text-center">
-                                            <div className="text-sm font-mono font-bold text-blue-600">
-                                                {item.current_stock}
-                                            </div>
-                                        </TableCell>
-                                        <TableCell>
-                                            <div className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-[10px] font-bold uppercase ${getBadgeClass(item.color)}`}>
-                                                <Clock className="h-3 w-3" />
-                                                {item.status}
-                                            </div>
-                                            <p className="text-[10px] mt-1 text-zinc-500 leading-tight">
-                                                {item.warning}
-                                            </p>
-                                        </TableCell>
-                                        <TableCell>
-                                            {item.potential_count > 0 ? (
-                                                <div className="flex items-center gap-3">
-                                                    <Button 
-                                                        size="sm" 
-                                                        variant="outline"
-                                                        className="h-9 px-3 border-emerald-200 text-emerald-700 hover:bg-emerald-600 hover:text-white transition-all gap-2 font-bold shadow-sm"
-                                                        onClick={() => router.get('/reports/rebalance-detail', {
-                                                            item_id: item.item_id,
-                                                            warehouse_id: item.warehouse_id
-                                                        })}
-                                                    >
-                                                        <Plus className="h-4 w-4" />
-                                                        Rebalance
-                                                    </Button>
-                                                    <div className="flex flex-col">
-                                                        <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 dark:bg-emerald-900/30 px-1.5 py-0.5 rounded-md border border-emerald-100 dark:border-emerald-800">
-                                                            {item.potential_count} Gudang
-                                                        </span>
-                                                        <span className="text-[8px] text-zinc-400 uppercase font-bold mt-0.5">Potensial</span>
-                                                    </div>
-                                                </div>
-                                            ) : (
-                                                <div className="text-[10px] text-zinc-400 italic bg-zinc-50 dark:bg-zinc-900/50 py-2 px-3 rounded-md border border-dashed text-center">
-                                                    Permintaan di gudang lain rendah
-                                                </div>
-                                            )}
+                                        <TableCell className="text-right">
+                                            <Button variant="ghost" size="sm" asChild className="h-8">
+                                                <Link href={`/reports/rebalance-detail?item_id=${item.item_id}&warehouse_id=${item.current_warehouse.name}`}>
+                                                    <TrendingUp className="h-3.5 w-3.5 mr-1.5" />
+                                                    Rebalance
+                                                </Link>
+                                            </Button>
                                         </TableCell>
                                     </TableRow>
                                 ))
+                            ) : (
+                                <TableRow>
+                                    <TableCell colSpan={6} className="h-32 text-center text-zinc-500 italic">Data kosong.</TableCell>
+                                </TableRow>
                             )}
                         </TableBody>
                     </Table>
-                </div>
+                </Card>
 
-                <div className="mt-4">
-                    <Pagination links={items.links} />
-                </div>
+                {/* Pagination */}
+                {data.last_page > 1 && (
+                    <div className="flex items-center justify-between mt-4">
+                        <p className="text-xs text-zinc-500 font-medium">Halaman {data.current_page} dari {data.last_page} ({data.total} item)</p>
+                        <div className="flex gap-1">
+                            {data.links.map((link, i) => (
+                                <Link
+                                    key={i}
+                                    href={link.url || '#'}
+                                    preserveState
+                                    className={`px-3 py-1.5 rounded-md text-xs font-bold border transition-all ${
+                                        link.active 
+                                            ? 'bg-zinc-900 text-white border-zinc-900 dark:bg-zinc-100 dark:text-zinc-900' 
+                                            : 'bg-white text-zinc-600 border-zinc-200 dark:bg-zinc-900 dark:border-zinc-800'
+                                    } ${!link.url && 'opacity-30 cursor-not-allowed'}`}
+                                    dangerouslySetInnerHTML={{ __html: link.label }}
+                                />
+                            ))}
+                        </div>
+                    </div>
+                )}
             </div>
         </AppLayout>
     );
