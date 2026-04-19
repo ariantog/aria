@@ -1,14 +1,23 @@
 import AppLayout from '@/layouts/app-layout';
 import { BreadcrumbItem } from '@/types';
-import { Head, Link, router } from '@inertiajs/react';
+import { Head, Link, router, useForm } from '@inertiajs/react';
 import { Card, CardHeader, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Filter, X, Clock, Warehouse, ChevronLeft, ChevronRight, TrendingUp } from 'lucide-react';
-import { useState } from 'react';
+import { Filter, X, Clock, Warehouse, ChevronLeft, ChevronRight, TrendingUp, CheckCircle, Settings2, Save, Search } from 'lucide-react';
+import { useState, useEffect } from 'react';
 import { Badge } from '@/components/ui/badge';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from "@/components/ui/dialog";
 
 interface StockItem {
     item_id: number;
@@ -18,12 +27,14 @@ interface StockItem {
     score: number;
     gap_days: number | string;
     current_warehouse: {
+        id: number;
         name: string;
         qty: number;
         last_sale: string;
         days_ago: number | string;
     };
     best_performing_warehouse: {
+        id: number;
         name: string;
         last_sale: string;
         days_ago: number;
@@ -52,6 +63,12 @@ interface PaginatedResponse {
 interface Props {
     data: PaginatedResponse;
     stats: Record<string, number>;
+    settings: {
+        gap_weight: number;
+        sale_weight: number;
+        max_gap: number;
+        max_days: number;
+    };
     filters: {
         days: string | null;
         performance: string | null;
@@ -59,9 +76,17 @@ interface Props {
     };
 }
 
-export default function StockIntelligence({ data, stats, filters }: Props) {
+export default function StockIntelligence({ data, stats, settings, filters }: Props) {
     const [days, setDays] = useState(filters.days || '');
     const [search, setSearch] = useState(filters.search || '');
+    const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
+    const { data: form, setData, post, processing, reset } = useForm({
+        gap_weight: settings.gap_weight,
+        sale_weight: settings.sale_weight,
+        max_gap: settings.max_gap,
+        max_days: settings.max_days,
+    });
 
     const breadcrumbs: BreadcrumbItem[] = [
         { title: 'Dashboard', href: '/dashboard' },
@@ -94,6 +119,13 @@ export default function StockIntelligence({ data, stats, filters }: Props) {
         router.get('/reports/stock-intelligence');
     };
 
+    const saveSettings = (e: React.FormEvent) => {
+        e.preventDefault();
+        post('/reports/stock-settings', {
+            onSuccess: () => setIsSettingsOpen(false),
+        });
+    };
+
     const getPerformanceBadge = (key: string, label: string) => {
         switch (key) {
             case 'elite': return <Badge className="bg-emerald-500 hover:bg-emerald-600 text-white border-none">{label}</Badge>;
@@ -115,7 +147,103 @@ export default function StockIntelligence({ data, stats, filters }: Props) {
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
                         <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">Stock Intelligence & Performance</h1>
-                        <p className="text-zinc-500 dark:text-zinc-400 text-sm">Analisis performa stok berdasarkan bobot (20% Gap, 80% Riwayat Jual).</p>
+                        <p className="text-zinc-500 dark:text-zinc-400 text-sm italic">Weighted Calculation: {settings.gap_weight * 100}% Gap, {settings.sale_weight * 100}% Sale History (Max: {settings.max_days}d)</p>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                        {/* Search & Quick Filter Bar */}
+                        <div className="flex items-center gap-2 bg-white dark:bg-zinc-900 p-1 rounded-lg border border-zinc-200 dark:border-zinc-800 shadow-sm">
+                            <Input 
+                                placeholder="Cari item..." 
+                                value={search}
+                                onChange={(e) => setSearch(e.target.value)}
+                                className="h-9 w-[200px] border-none shadow-none focus-visible:ring-0 bg-transparent"
+                                onKeyDown={(e) => e.key === 'Enter' && handleFilter()}
+                            />
+                            <div className="h-4 w-px bg-zinc-200 dark:bg-zinc-800" />
+                            <Input 
+                                type="number"
+                                placeholder="Hari"
+                                value={days}
+                                onChange={(e) => setDays(e.target.value)}
+                                className="h-9 w-[70px] border-none shadow-none focus-visible:ring-0 bg-transparent"
+                                onKeyDown={(e) => e.key === 'Enter' && handleFilter()}
+                            />
+                            <Button size="icon" variant="ghost" onClick={handleFilter} className="h-8 w-8">
+                                <Search className="h-4 w-4" />
+                            </Button>
+                            <Button size="icon" variant="ghost" onClick={resetFilter} className="h-8 w-8 text-zinc-400 hover:text-rose-500">
+                                <X className="h-4 w-4" />
+                            </Button>
+                        </div>
+
+                        {/* Settings Modal */}
+                        <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
+                            <DialogTrigger asChild>
+                                <Button variant="outline" size="icon" className="h-11 w-11 rounded-lg dark:border-zinc-800">
+                                    <Settings2 className="h-5 w-5" />
+                                </Button>
+                            </DialogTrigger>
+                            <DialogContent className="sm:max-w-[425px]">
+                                <form onSubmit={saveSettings}>
+                                    <DialogHeader>
+                                        <DialogTitle>Stock Algorithm Settings</DialogTitle>
+                                        <DialogDescription>
+                                            Sesuaikan bobot dan nilai maksimal untuk perhitungan skor performa stok.
+                                        </DialogDescription>
+                                    </DialogHeader>
+                                    <div className="grid gap-4 py-4">
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div className="space-y-2">
+                                                <Label htmlFor="gap_weight">Bobot Gap (0.0 - 1.0)</Label>
+                                                <Input 
+                                                    id="gap_weight" 
+                                                    type="number" 
+                                                    step="0.1" 
+                                                    value={form.gap_weight} 
+                                                    onChange={e => setData('gap_weight', parseFloat(e.target.value))}
+                                                />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <Label htmlFor="sale_weight">Bobot Sale (0.0 - 1.0)</Label>
+                                                <Input 
+                                                    id="sale_weight" 
+                                                    type="number" 
+                                                    step="0.1" 
+                                                    value={form.sale_weight} 
+                                                    onChange={e => setData('sale_weight', parseFloat(e.target.value))}
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div className="space-y-2">
+                                                <Label htmlFor="max_gap">Max Gap (Hari)</Label>
+                                                <Input 
+                                                    id="max_gap" 
+                                                    type="number" 
+                                                    value={form.max_gap} 
+                                                    onChange={e => setData('max_gap', parseInt(e.target.value))}
+                                                />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <Label htmlFor="max_days">Max Days (Hari)</Label>
+                                                <Input 
+                                                    id="max_days" 
+                                                    type="number" 
+                                                    value={form.max_days} 
+                                                    onChange={e => setData('max_days', parseInt(e.target.value))}
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <DialogFooter>
+                                        <Button type="submit" disabled={processing} className="w-full">
+                                            <Save className="h-4 w-4 mr-2" /> Simpan Konfigurasi
+                                        </Button>
+                                    </DialogFooter>
+                                </form>
+                            </DialogContent>
+                        </Dialog>
                     </div>
                 </div>
 
@@ -150,49 +278,18 @@ export default function StockIntelligence({ data, stats, filters }: Props) {
                     })}
                 </div>
 
-                {/* Filters */}
-                <Card className="dark:bg-zinc-900/50">
-                    <CardContent className="pt-6">
-                        <div className="flex flex-wrap items-end gap-4">
-                            <div className="space-y-2 flex-1 min-w-[300px]">
-                                <Label className="text-[10px] uppercase font-bold text-zinc-400">Pencarian Barang</Label>
-                                <Input 
-                                    placeholder="Cari nama barang..." 
-                                    value={search}
-                                    onChange={(e) => setSearch(e.target.value)}
-                                    className="dark:bg-zinc-900 dark:border-zinc-800"
-                                />
-                            </div>
-                            <div className="space-y-2 w-[180px]">
-                                <Label className="text-[10px] uppercase font-bold text-zinc-400">Maks. Hari (≤ X)</Label>
-                                <Input 
-                                    type="number"
-                                    value={days}
-                                    onChange={(e) => setDays(e.target.value)}
-                                    className="dark:bg-zinc-900 dark:border-zinc-800"
-                                />
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <Button onClick={handleFilter}>Filter</Button>
-                                <Button variant="outline" size="icon" onClick={resetFilter} className="dark:border-zinc-800">
-                                    <X className="h-4 w-4" />
-                                </Button>
-                            </div>
-                        </div>
-                    </CardContent>
-                </Card>
-
                 {/* Data Table */}
                 <Card className="overflow-hidden border-zinc-200 dark:border-zinc-800 shadow-sm">
                     <Table>
                         <TableHeader>
                             <TableRow className="bg-zinc-50/50 dark:bg-zinc-900/50">
-                                <TableHead className="w-[280px] dark:text-zinc-400">Item Info</TableHead>
-                                <TableHead className="text-center dark:text-zinc-400">Score</TableHead>
-                                <TableHead className="dark:text-zinc-400">Performance</TableHead>
-                                <TableHead className="dark:text-zinc-400">Current Warehouse</TableHead>
-                                <TableHead className="dark:text-zinc-400">Best Alternative</TableHead>
-                                <TableHead className="text-right dark:text-zinc-400">Action</TableHead>
+                                <TableHead className="w-[280px] dark:text-zinc-400 font-bold uppercase text-[11px] tracking-wider">Item Info</TableHead>
+                                <TableHead className="text-center dark:text-zinc-400 font-bold uppercase text-[11px] tracking-wider">Score</TableHead>
+                                <TableHead className="dark:text-zinc-400 font-bold uppercase text-[11px] tracking-wider">Performance</TableHead>
+                                <TableHead className="dark:text-zinc-400 font-bold uppercase text-[11px] tracking-wider">Current Warehouse</TableHead>
+                                <TableHead className="dark:text-zinc-400 font-bold uppercase text-[11px] tracking-wider">Best Performance</TableHead>
+                                <TableHead className="text-center dark:text-zinc-400 font-bold uppercase text-[11px] tracking-wider">Gap Days</TableHead>
+                                <TableHead className="text-right dark:text-zinc-400 font-bold uppercase text-[11px] tracking-wider">Action</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -215,8 +312,11 @@ export default function StockIntelligence({ data, stats, filters }: Props) {
                                                     <Warehouse className="h-3.5 w-3.5" />
                                                     {item.current_warehouse.name}
                                                 </div>
-                                                <div className="flex items-center gap-2 text-xs">
-                                                    <span className="bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded font-bold">QTY: {item.current_warehouse.qty}</span>
+                                                <div className="text-[10px] text-zinc-500 font-medium">
+                                                    Last Sale: {item.current_warehouse.last_sale}
+                                                </div>
+                                                <div className="flex items-center gap-2 text-xs mt-0.5">
+                                                    <span className="bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded font-bold text-zinc-600 dark:text-zinc-400">QTY: {item.current_warehouse.qty}</span>
                                                     <span className="text-zinc-500 flex items-center gap-1">
                                                         <Clock className="h-3 w-3" />
                                                         {item.current_warehouse.days_ago === 'NEVER SOLD' ? 'Never' : `${item.current_warehouse.days_ago}d`}
@@ -227,29 +327,49 @@ export default function StockIntelligence({ data, stats, filters }: Props) {
                                         <TableCell>
                                             {item.best_performing_warehouse ? (
                                                 <div className="flex flex-col gap-1">
-                                                    <div className="font-medium text-emerald-700 dark:text-emerald-400 text-sm italic">
+                                                    <div className="font-medium text-emerald-700 dark:text-emerald-400 text-sm italic leading-tight">
                                                         {item.best_performing_warehouse.name}
                                                     </div>
-                                                    <div className="flex items-center gap-2 text-[11px]">
+                                                    <div className="text-[10px] text-zinc-500">
+                                                        Last Sale: {item.best_performing_warehouse.last_sale}
+                                                    </div>
+                                                    <div className="flex items-center gap-2 text-[11px] mt-0.5">
                                                         <span className="text-emerald-600 font-bold uppercase">Stok: {item.best_performing_warehouse.qty}</span>
                                                         <span className="text-zinc-400">({item.best_performing_warehouse.days_ago}d ago)</span>
                                                     </div>
                                                 </div>
                                             ) : '-'}
                                         </TableCell>
+                                        <TableCell className="text-center">
+                                            <div className={`font-mono font-bold text-base ${
+                                                item.gap_days === 'NEVER SOLD' ? 'text-zinc-400' : 
+                                                (Number(item.gap_days) > 30 ? 'text-rose-600' : 'text-zinc-900 dark:text-zinc-100')
+                                            }`}>
+                                                {item.gap_days === 'NEVER SOLD' ? '-' : `+${item.gap_days}`}
+                                            </div>
+                                        </TableCell>
                                         <TableCell className="text-right">
-                                            <Button variant="ghost" size="sm" asChild className="h-8">
-                                                <Link href={`/reports/rebalance-detail?item_id=${item.item_id}&warehouse_id=${item.current_warehouse.name}`}>
-                                                    <TrendingUp className="h-3.5 w-3.5 mr-1.5" />
-                                                    Rebalance
-                                                </Link>
-                                            </Button>
+                                            <div className="flex justify-end">
+                                                {item.best_performing_warehouse && item.best_performing_warehouse.name === item.current_warehouse.name ? (
+                                                    <div className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold uppercase flex items-center gap-1.5 bg-emerald-50 dark:bg-emerald-900/20 px-2.5 py-1.5 rounded-md border border-emerald-100 dark:border-emerald-800/30 shadow-sm">
+                                                        <CheckCircle className="h-3.5 w-3.5" />
+                                                        Gudang Terbaik
+                                                    </div>
+                                                ) : (
+                                                    <Button variant="outline" size="sm" asChild className="h-8 border-zinc-200 dark:border-zinc-800 shadow-sm">
+                                                        <Link href={`/reports/rebalance-detail?item_id=${item.item_id}&warehouse_id=${item.current_warehouse.id}`}>
+                                                            <TrendingUp className="h-3.5 w-3.5 mr-1.5 text-blue-500" />
+                                                            Rebalance
+                                                        </Link>
+                                                    </Button>
+                                                )}
+                                            </div>
                                         </TableCell>
                                     </TableRow>
                                 ))
                             ) : (
                                 <TableRow>
-                                    <TableCell colSpan={6} className="h-32 text-center text-zinc-500 italic">Data kosong.</TableCell>
+                                    <TableCell colSpan={7} className="h-32 text-center text-zinc-500 italic">Data kosong.</TableCell>
                                 </TableRow>
                             )}
                         </TableBody>

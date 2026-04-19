@@ -6,7 +6,6 @@ use App\Models\Addrbook;
 use App\Models\AddrbookDaily;
 use App\Models\Item;
 use App\Models\MonthlyAccountSummary;
-use App\Models\MonthlyCategorySummary;
 use App\Models\MonthlyItemSale;
 use App\Models\Transaction;
 use App\Models\WarehouseCompare;
@@ -223,16 +222,16 @@ class ReportController extends Controller
             (SELECT SUM(td.quantity) 
              FROM transaction_details td
              WHERE td.item_id = items.id AND td.transaction_type = ? AND td.date >= ? '
-            . ($warehouseId ? "AND td.sender_id = $warehouseId" : '') . ') as sold_30,
+            .($warehouseId ? "AND td.sender_id = $warehouseId" : '').') as sold_30,
             (SELECT SUM(td.quantity) 
              FROM transaction_details td
              WHERE td.item_id = items.id AND td.transaction_type = ? AND td.date >= ? '
-            . ($warehouseId ? "AND td.sender_id = $warehouseId" : '') . ') as sold_90,
+            .($warehouseId ? "AND td.sender_id = $warehouseId" : '').') as sold_90,
             (SELECT MAX(td.date) 
              FROM transaction_details td
              WHERE td.item_id = items.id AND td.transaction_type = ? '
-            . ($warehouseId ? "AND td.sender_id = $warehouseId" : '') . ') as last_sold_at,
-            (SELECT SUM(quantity) FROM warehouse_items WHERE item_id = items.id ' . ($warehouseId ? "AND warehouse_id = $warehouseId" : '') . ') as current_stock
+            .($warehouseId ? "AND td.sender_id = $warehouseId" : '').') as last_sold_at,
+            (SELECT SUM(quantity) FROM warehouse_items WHERE item_id = items.id '.($warehouseId ? "AND warehouse_id = $warehouseId" : '').') as current_stock
         ', [Transaction::TYPE_SELL, $date30, Transaction::TYPE_SELL, $date90, Transaction::TYPE_SELL]);
 
         $items = $query->paginate(50)->withQueryString();
@@ -304,7 +303,7 @@ class ReportController extends Controller
     //             'wi.quantity as current_qty'
     //         )
     //         ->selectRaw("
-    //             (SELECT MAX(date) FROM transaction_details td 
+    //             (SELECT MAX(date) FROM transaction_details td
     //              WHERE td.item_id = wi.item_id AND td.sender_id = wi.warehouse_id AND td.transaction_type = $sellType) as last_date_sale
     //         ");
 
@@ -316,7 +315,7 @@ class ReportController extends Controller
 
     //     // 3. Proses data
     //     $data = $query->get()->map(function ($item) use ($sellType, $today, $systemLatestDate) {
-    //         $currentDays = $item->last_date_sale 
+    //         $currentDays = $item->last_date_sale
     //             ? (int) $today->diffInDays(\Carbon\Carbon::parse($item->last_date_sale), true)
     //             : null;
 
@@ -434,12 +433,20 @@ class ReportController extends Controller
     {
         Gate::authorize(AddrbookDaily::getPermissions()['view_inventory_health']);
 
-        $sellType   = Transaction::TYPE_SELL;
+        $sellType = Transaction::TYPE_SELL;
         $perfFilter = $request->query('performance');
         $daysFilter = $request->query('days');
-        $search     = $request->query('search');
-        $page       = max(1, (int) $request->input('page', 1));
-        $perPage    = 50;
+        $search = $request->query('search');
+        $page = max(1, (int) $request->input('page', 1));
+        $perPage = 50;
+
+        // 1. Load Settings from Cache
+        $settings = cache()->get('stock_intelligence_settings', [
+            'gap_weight' => 0.2,
+            'sale_weight' => 0.8,
+            'max_gap' => 90,
+            'max_days' => 90,
+        ]);
 
         $systemLatestDate = DB::table('transaction_details')
             ->where('transaction_type', $sellType)
@@ -453,18 +460,18 @@ class ReportController extends Controller
             ->join('addrbooks as a', 'wi.warehouse_id', '=', 'a.id')
 
             // [ls] Last sale date per (item, warehouse) — aggregate, bukan correlated
-            ->leftJoin(DB::raw("(
+            ->leftJoin(DB::raw('(
             SELECT item_id, sender_id, MAX(date) AS last_sale_date
             FROM   transaction_details
             WHERE  transaction_type = ?
             GROUP  BY item_id, sender_id
-        ) ls"), function ($j) {
-                $j->on('ls.item_id',   '=', 'wi.item_id')
+        ) ls'), function ($j) {
+                $j->on('ls.item_id', '=', 'wi.item_id')
                     ->on('ls.sender_id', '=', 'wi.warehouse_id');
             })
 
             // [gb] Best global warehouse per item (tanggal penjualan terbaru)
-            ->leftJoin(DB::raw("(
+            ->leftJoin(DB::raw('(
             SELECT
                 td.item_id,
                 td.sender_id                       AS best_warehouse_id,
@@ -480,11 +487,11 @@ class ReportController extends Controller
                     WHERE  transaction_type = ?
                     GROUP  BY item_id
                   )
-        ) gb"), 'gb.item_id', '=', 'wi.item_id')
+        ) gb'), 'gb.item_id', '=', 'wi.item_id')
 
             // [wibest] Qty di best warehouse
             ->leftJoin('warehouse_items as wibest', function ($j) {
-                $j->on('wibest.item_id',     '=', 'wi.item_id')
+                $j->on('wibest.item_id', '=', 'wi.item_id')
                     ->on('wibest.warehouse_id', '=', 'gb.best_warehouse_id');
             })
 
@@ -517,7 +524,7 @@ class ReportController extends Controller
         // ─────────────────────────────────────────────────────────────────
         // DERIVED SQL — dijadikan string untuk dibungkus query luar
         // ─────────────────────────────────────────────────────────────────
-        $baseSql      = $baseQuery->toSql();
+        $baseSql = $baseQuery->toSql();
         $baseBindings = $baseQuery->getBindings();
 
         // ─────────────────────────────────────────────────────────────────
@@ -578,11 +585,11 @@ class ReportController extends Controller
             ->first();
 
         $stats = [
-            'all'      => (int) $statsRow->total,
-            'elite'    => (int) $statsRow->cnt_elite,
-            'good'     => (int) $statsRow->cnt_good,
-            'active'   => (int) $statsRow->cnt_active,
-            'lagging'  => (int) $statsRow->cnt_lagging,
+            'all' => (int) $statsRow->total,
+            'elite' => (int) $statsRow->cnt_elite,
+            'good' => (int) $statsRow->cnt_good,
+            'active' => (int) $statsRow->cnt_active,
+            'lagging' => (int) $statsRow->cnt_lagging,
             'stagnant' => (int) $statsRow->cnt_stagnant,
             'deadstock' => (int) $statsRow->cnt_deadstock,
             'critical' => (int) $statsRow->cnt_critical,
@@ -615,10 +622,10 @@ class ReportController extends Controller
         // MAP — pure transformation, zero DB call, zero Carbon
         // ─────────────────────────────────────────────────────────────────
         $perfLabels = [
-            'elite'    => '1. Elite (Terbaik)',
-            'good'     => '2. Good (Aktif)',
-            'active'   => '3. Active (Normal)',
-            'lagging'  => '4. Lagging (Lambat)',
+            'elite' => '1. Elite (Terbaik)',
+            'good' => '2. Good (Aktif)',
+            'active' => '3. Active (Normal)',
+            'lagging' => '4. Lagging (Lambat)',
             'stagnant' => '5. Stagnant (Sangat Lambat)',
             'deadstock' => '6. Deadstock (Mati)',
             'critical' => '7. Critical (Belum Terjual)',
@@ -626,29 +633,29 @@ class ReportController extends Controller
 
         $mapped = $rows->map(function ($r) use ($systemLatestDate, $perfLabels) {
             $gapDays = match (true) {
-                $r->last_sale_date === null  => 'NEVER SOLD',
-                $r->best_days_ago !== null   => (int) $r->days_ago - (int) $r->best_days_ago,
-                default                      => 9999,
+                $r->last_sale_date === null => 'NEVER SOLD',
+                $r->best_days_ago !== null => (int) $r->days_ago - (int) $r->best_days_ago,
+                default => 9999,
             };
 
             return [
-                'item_id'           => $r->item_id,
-                'item_name'         => $r->item_name,
-                'score'             => (float) $r->score,
-                'performance_key'   => $r->perf_key,
+                'item_id' => $r->item_id,
+                'item_name' => $r->item_name,
+                'score' => (float) $r->score,
+                'performance_key' => $r->perf_key,
                 'performance_level' => $perfLabels[$r->perf_key] ?? $r->perf_key,
-                'gap_days'          => $gapDays,
+                'gap_days' => $gapDays,
                 'current_warehouse' => [
-                    'name'      => $r->warehouse_name,
-                    'qty'       => (int) $r->current_qty,
+                    'name' => $r->warehouse_name,
+                    'qty' => (int) $r->current_qty,
                     'last_sale' => $r->last_sale_date ?? 'NEVER SOLD',
-                    'days_ago'  => $r->days_ago       ?? 'NEVER SOLD',
+                    'days_ago' => $r->days_ago ?? 'NEVER SOLD',
                 ],
                 'best_performing_warehouse' => $r->best_warehouse_id ? [
-                    'name'      => $r->best_warehouse_name,
+                    'name' => $r->best_warehouse_name,
                     'last_sale' => $r->best_sale_date,
-                    'days_ago'  => (int) $r->best_days_ago,
-                    'qty'       => (int) $r->best_warehouse_qty,
+                    'days_ago' => (int) $r->best_days_ago,
+                    'qty' => (int) $r->best_warehouse_qty,
                 ] : null,
                 'audit_reference_date' => $systemLatestDate,
             ];
@@ -663,8 +670,9 @@ class ReportController extends Controller
         );
 
         return Inertia::render('Reports/StockIntelligence', [
-            'data'    => $paginatedData,
-            'stats'   => $stats,
+            'data' => $paginatedData,
+            'stats' => $stats,
+            'settings' => $settings,
             'filters' => $request->only(['days', 'performance', 'search']),
         ]);
     }
@@ -693,10 +701,10 @@ class ReportController extends Controller
                 DB::raw('COALESCE(wi.quantity, 0) as current_stock'),
                 DB::raw("(SELECT MAX(td.date) 
                           FROM transaction_details td
-                          WHERE td.item_id = $itemId AND td.sender_id = a.id AND td.transaction_type = " . Transaction::TYPE_SELL . ') as last_sale_date'),
+                          WHERE td.item_id = $itemId AND td.sender_id = a.id AND td.transaction_type = ".Transaction::TYPE_SELL.') as last_sale_date'),
                 DB::raw("(SELECT SUM(td.quantity) 
                           FROM transaction_details td
-                          WHERE td.item_id = $itemId AND td.sender_id = a.id AND td.date >= '$date30' AND td.transaction_type = " . Transaction::TYPE_SELL . ') as sold_30d')
+                          WHERE td.item_id = $itemId AND td.sender_id = a.id AND td.date >= '$date30' AND td.transaction_type = ".Transaction::TYPE_SELL.') as sold_30d')
             )
             ->having('current_stock', '>', 0)
             ->orHaving('sold_30d', '>', 0)
@@ -732,7 +740,7 @@ class ReportController extends Controller
         $request->validate([
             'warehouse_id' => [
                 'required',
-                Rule::unique('warehouse_compares', 'warehouse_id')->where(fn($q) => $q->where('user_id', Auth::id())),
+                Rule::unique('warehouse_compares', 'warehouse_id')->where(fn ($q) => $q->where('user_id', Auth::id())),
             ],
         ]);
 
