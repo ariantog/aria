@@ -70,14 +70,12 @@ interface Props {
         max_days: number;
     };
     filters: {
-        days: string | null;
         performance: string | null;
         search: string | null;
     };
 }
 
 export default function StockIntelligence({ data, stats, settings, filters }: Props) {
-    const [days, setDays] = useState(filters.days || '');
     const [search, setSearch] = useState(filters.search || '');
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
@@ -108,13 +106,11 @@ export default function StockIntelligence({ data, stats, settings, filters }: Pr
     const handleFilter = () => {
         router.get('/reports/stock-intelligence', {
             performance: filters.performance,
-            days: days || null,
             search: search || null,
         }, { preserveState: true });
     };
 
     const resetFilter = () => {
-        setDays('');
         setSearch('');
         router.get('/reports/stock-intelligence');
     };
@@ -124,6 +120,23 @@ export default function StockIntelligence({ data, stats, settings, filters }: Pr
         post('/reports/stock-settings', {
             onSuccess: () => setIsSettingsOpen(false),
         });
+    };
+
+    const resetToDefault = () => {
+        if (confirm('Apakah Anda yakin ingin mengembalikan semua pengaturan algoritma ke nilai default?')) {
+            router.post('/reports/stock-settings/reset', {}, {
+                onSuccess: () => {
+                    setIsSettingsOpen(false);
+                    // Reset local form state to default values
+                    setData({
+                        gap_weight: 0.2,
+                        sale_weight: 0.8,
+                        max_gap: 90,
+                        max_days: 90,
+                    });
+                }
+            });
+        }
     };
 
     const getPerformanceBadge = (key: string, label: string) => {
@@ -157,16 +170,7 @@ export default function StockIntelligence({ data, stats, settings, filters }: Pr
                                 placeholder="Cari item..." 
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
-                                className="h-9 w-[200px] border-none shadow-none focus-visible:ring-0 bg-transparent"
-                                onKeyDown={(e) => e.key === 'Enter' && handleFilter()}
-                            />
-                            <div className="h-4 w-px bg-zinc-200 dark:bg-zinc-800" />
-                            <Input 
-                                type="number"
-                                placeholder="Hari"
-                                value={days}
-                                onChange={(e) => setDays(e.target.value)}
-                                className="h-9 w-[70px] border-none shadow-none focus-visible:ring-0 bg-transparent"
+                                className="h-9 w-[280px] border-none shadow-none focus-visible:ring-0 bg-transparent"
                                 onKeyDown={(e) => e.key === 'Enter' && handleFilter()}
                             />
                             <Button size="icon" variant="ghost" onClick={handleFilter} className="h-8 w-8">
@@ -236,8 +240,16 @@ export default function StockIntelligence({ data, stats, settings, filters }: Pr
                                             </div>
                                         </div>
                                     </div>
-                                    <DialogFooter>
-                                        <Button type="submit" disabled={processing} className="w-full">
+                                    <DialogFooter className="flex-col sm:flex-row gap-2 pt-2 border-t dark:border-zinc-800">
+                                        <Button 
+                                            type="button" 
+                                            variant="ghost" 
+                                            onClick={resetToDefault} 
+                                            className="text-zinc-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/20"
+                                        >
+                                            Reset to Default
+                                        </Button>
+                                        <Button type="submit" disabled={processing} className="sm:flex-1">
                                             <Save className="h-4 w-4 mr-2" /> Simpan Konfigurasi
                                         </Button>
                                     </DialogFooter>
@@ -250,9 +262,9 @@ export default function StockIntelligence({ data, stats, settings, filters }: Pr
                 {/* Performance Tabs */}
                 <div className="flex flex-wrap gap-2">
                     {performanceTabs.map((tab) => {
-                        const isActive = (filters.performance || 'all') === tab.key;
+                        const isActive = filters.performance === tab.key;
                         const count = stats[tab.key] || 0;
-                        const queryParams: any = { ...filters, performance: tab.key === 'all' ? null : tab.key, page: null };
+                        const queryParams: any = { ...filters, performance: tab.key, page: null };
                         
                         return (
                             <Link
