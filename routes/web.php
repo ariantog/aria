@@ -164,6 +164,7 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
         Route::get('/inventory-health', [\App\Http\Controllers\ReportController::class, 'inventoryHealth'])->name('inventory-health');
         Route::get('/item-sales', [\App\Http\Controllers\ReportController::class, 'itemSales'])->name('item-sales');
         Route::get('/stock-intelligence', [\App\Http\Controllers\ReportController::class, 'stockIntelligence'])->name('stock-intelligence');
+        Route::post('/stock-intelligence/generate', [\App\Http\Controllers\ReportController::class, 'generateManual'])->name('stock-intelligence.generate');
         Route::post('/stock-settings', [\App\Http\Controllers\ReportController::class, 'updateStockSettings'])->name('stock-settings.update');
         Route::post('/stock-settings/reset', [\App\Http\Controllers\ReportController::class, 'resetStockSettings'])->name('stock-settings.reset');
         Route::get('/rebalance-detail', [\App\Http\Controllers\ReportController::class, 'rebalanceDetail'])->name('rebalance-detail');

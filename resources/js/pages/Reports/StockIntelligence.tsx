@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Filter, X, Clock, Warehouse, ChevronLeft, ChevronRight, TrendingUp, CheckCircle, Settings2, Save, Search } from 'lucide-react';
+import { Filter, X, Clock, Warehouse, ChevronLeft, ChevronRight, TrendingUp, CheckCircle, Settings2, Save, Search, AlertCircle } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -25,6 +25,7 @@ interface StockItem {
     performance_level: string;
     performance_key: string;
     score: number;
+    previous_score: number | null;
     gap_days: number | string;
     current_warehouse: {
         id: number;
@@ -68,22 +69,36 @@ interface Props {
         sale_weight: number;
         max_gap: number;
         max_days: number;
+        total_rows: number;
+        generate_days: string[];
     };
+    reportInfo: {
+        generet_at: string;
+        type: string;
+        generet_by: string;
+        next_run: string | null;
+        last_update_days_ago: string;
+    } | null;
+    reportHistory: { id: number; label: string }[];
+    currentReportId: number | null;
     filters: {
         performance: string | null;
         search: string | null;
     };
 }
 
-export default function StockIntelligence({ data, stats, settings, filters }: Props) {
+export default function StockIntelligence({ data, stats, settings, reportInfo, reportHistory, currentReportId, filters }: Props) {
     const [search, setSearch] = useState(filters.search || '');
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+    const [isGenerateDialogOpen, setIsGenerateDialogOpen] = useState(false);
 
     const { data: form, setData, post, processing, reset } = useForm({
         gap_weight: settings.gap_weight,
         sale_weight: settings.sale_weight,
         max_gap: settings.max_gap,
         max_days: settings.max_days,
+        total_rows: settings.total_rows,
+        generate_days: settings.generate_days || [],
     });
 
     const breadcrumbs: BreadcrumbItem[] = [
@@ -107,12 +122,26 @@ export default function StockIntelligence({ data, stats, settings, filters }: Pr
         router.get('/reports/stock-intelligence', {
             performance: filters.performance,
             search: search || null,
+            report_id: currentReportId,
         }, { preserveState: true });
     };
 
     const resetFilter = () => {
         setSearch('');
-        router.get('/reports/stock-intelligence');
+        router.get('/reports/stock-intelligence', {
+            report_id: currentReportId
+        });
+    };
+
+    const handleGenerate = () => {
+        setIsGenerateDialogOpen(true);
+    };
+
+    const confirmGenerate = () => {
+        setIsGenerateDialogOpen(false);
+        router.post('/reports/stock-intelligence/generate', {}, {
+            preserveScroll: true,
+        });
     };
 
     const saveSettings = (e: React.FormEvent) => {
@@ -133,6 +162,8 @@ export default function StockIntelligence({ data, stats, settings, filters }: Pr
                         sale_weight: 0.8,
                         max_gap: 90,
                         max_days: 90,
+                        total_rows: 1000,
+                        generate_days: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
                     });
                 }
             });
@@ -159,8 +190,10 @@ export default function StockIntelligence({ data, stats, settings, filters }: Pr
             <div className="flex flex-col gap-6 p-6">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
-                        <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">Stock Intelligence & Performance</h1>
-                        <p className="text-zinc-500 dark:text-zinc-400 text-sm italic">Weighted Calculation: {settings.gap_weight * 100}% Gap, {settings.sale_weight * 100}% Sale History (Max: {settings.max_days}d)</p>
+                        <h1 className="text-3xl font-black tracking-tight text-zinc-900 dark:text-zinc-100 uppercase">Stock Intelligence</h1>
+                        <p className="text-zinc-500 dark:text-zinc-400 text-sm italic mt-1 font-medium">
+                            Weighted Algorithm: <span className="text-zinc-900 dark:text-zinc-100 font-bold">{settings.gap_weight * 100}% Gap</span> & <span className="text-zinc-900 dark:text-zinc-100 font-bold">{settings.sale_weight * 100}% Sale History</span> (Max: {settings.max_days}d)
+                        </p>
                     </div>
 
                     <div className="flex items-center gap-2">
@@ -170,7 +203,7 @@ export default function StockIntelligence({ data, stats, settings, filters }: Pr
                                 placeholder="Cari item..." 
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
-                                className="h-9 w-[280px] border-none shadow-none focus-visible:ring-0 bg-transparent"
+                                className="h-9 w-[280px] border-none shadow-none focus-visible:ring-0 bg-transparent font-medium"
                                 onKeyDown={(e) => e.key === 'Enter' && handleFilter()}
                             />
                             <Button size="icon" variant="ghost" onClick={handleFilter} className="h-8 w-8">
@@ -181,10 +214,58 @@ export default function StockIntelligence({ data, stats, settings, filters }: Pr
                             </Button>
                         </div>
 
+                        {/* Manual Generate Button */}
+                        <Button 
+                            onClick={handleGenerate} 
+                            disabled={processing}
+                            className="h-11 px-6 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-lg flex gap-2 transition-all hover:scale-105 active:scale-95"
+                        >
+                            <TrendingUp className="h-5 w-5" />
+                            Generate Laporan Hari Ini
+                        </Button>
+
+                        {/* Manual Generate Alert Dialog (Using Dialog Component) */}
+                        <Dialog open={isGenerateDialogOpen} onOpenChange={setIsGenerateDialogOpen}>
+                            <DialogContent className="sm:max-w-[450px] border-none p-0 overflow-hidden shadow-2xl">
+                                <div className="bg-emerald-600 p-6 flex items-center gap-4">
+                                    <div className="bg-white/20 p-3 rounded-full">
+                                        <AlertCircle className="h-8 w-8 text-white" />
+                                    </div>
+                                    <div>
+                                        <DialogTitle className="text-xl font-black text-white uppercase tracking-tight">Konfirmasi Generate</DialogTitle>
+                                        <p className="text-emerald-100 text-xs font-medium uppercase tracking-widest mt-1">Manual Action Required</p>
+                                    </div>
+                                </div>
+                                <div className="p-6">
+                                    <DialogDescription className="text-zinc-600 dark:text-zinc-400 text-sm leading-relaxed font-medium">
+                                        Apakah Anda yakin ingin melakukan <span className="font-bold text-zinc-900 dark:text-zinc-100 italic">Generate Laporan Stock Intelligence</span> untuk hari ini? 
+                                        <br/><br/>
+                                        Sistem akan menghitung ulang seluruh skor performa stok berdasarkan parameter algoritma yang aktif. Proses ini membutuhkan sumber daya server yang cukup intensif.
+                                    </DialogDescription>
+                                </div>
+                                <DialogFooter className="bg-zinc-50 dark:bg-zinc-900/50 p-4 border-t dark:border-zinc-800 flex-row justify-end gap-2">
+                                    <Button 
+                                        variant="ghost" 
+                                        onClick={() => setIsGenerateDialogOpen(false)}
+                                        className="font-bold uppercase text-[11px] tracking-widest text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                                    >
+                                        Batal
+                                    </Button>
+                                    <Button 
+                                        onClick={confirmGenerate} 
+                                        disabled={processing}
+                                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold uppercase text-[11px] tracking-widest px-6 shadow-md"
+                                    >
+                                        {processing ? 'Sedang Memproses...' : 'Lanjutkan Generate'}
+                                    </Button>
+                                </DialogFooter>
+                            </DialogContent>
+                        </Dialog>
+
                         {/* Settings Modal */}
                         <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
                             <DialogTrigger asChild>
-                                <Button variant="outline" size="icon" className="h-11 w-11 rounded-lg dark:border-zinc-800">
+                                <Button variant="outline" size="icon" className="h-11 w-11 rounded-lg dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm">
                                     <Settings2 className="h-5 w-5" />
                                 </Button>
                             </DialogTrigger>
@@ -221,15 +302,6 @@ export default function StockIntelligence({ data, stats, settings, filters }: Pr
                                         </div>
                                         <div className="grid grid-cols-2 gap-4">
                                             <div className="space-y-2">
-                                                <Label htmlFor="max_gap">Max Gap (Hari)</Label>
-                                                <Input 
-                                                    id="max_gap" 
-                                                    type="number" 
-                                                    value={form.max_gap} 
-                                                    onChange={e => setData('max_gap', parseInt(e.target.value))}
-                                                />
-                                            </div>
-                                            <div className="space-y-2">
                                                 <Label htmlFor="max_days">Max Days (Hari)</Label>
                                                 <Input 
                                                     id="max_days" 
@@ -238,6 +310,47 @@ export default function StockIntelligence({ data, stats, settings, filters }: Pr
                                                     onChange={e => setData('max_days', parseInt(e.target.value))}
                                                 />
                                             </div>
+                                            <div className="space-y-2">
+                                                <Label htmlFor="total_rows">Total Data (Baris)</Label>
+                                                <Input 
+                                                    id="total_rows" 
+                                                    type="number" 
+                                                    min="100"
+                                                    max="10000"
+                                                    value={form.total_rows} 
+                                                    onChange={e => setData('total_rows', parseInt(e.target.value))}
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className="space-y-3">
+                                            <Label>Hari Generet Laporan</Label>
+                                            <div className="flex flex-wrap gap-2">
+                                                {['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'].map((day) => {
+                                                    const isSelected = form.generate_days.includes(day);
+                                                    return (
+                                                        <Button
+                                                            key={day}
+                                                            type="button"
+                                                            variant={isSelected ? 'default' : 'outline'}
+                                                            size="sm"
+                                                            className={`h-8 px-3 text-[11px] font-bold uppercase transition-all ${
+                                                                isSelected 
+                                                                    ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 shadow-md scale-105' 
+                                                                    : 'bg-transparent text-zinc-500 border-zinc-200 dark:border-zinc-800'
+                                                            }`}
+                                                            onClick={() => {
+                                                                const nextDays = isSelected
+                                                                    ? form.generate_days.filter(d => d !== day)
+                                                                    : [...form.generate_days, day];
+                                                                setData('generate_days', nextDays);
+                                                            }}
+                                                        >
+                                                            {day}
+                                                        </Button>
+                                                    );
+                                                })}
+                                            </div>
+                                            <p className="text-[10px] text-zinc-400 italic font-medium">* Cron hanya akan berjalan pada hari-hari yang dipilih.</p>
                                         </div>
                                     </div>
                                     <DialogFooter className="flex-col sm:flex-row gap-2 pt-2 border-t dark:border-zinc-800">
@@ -259,12 +372,86 @@ export default function StockIntelligence({ data, stats, settings, filters }: Pr
                     </div>
                 </div>
 
+                {/* History Selector & Info Banner */}
+                <div className="flex flex-col gap-4">
+                    <div className="flex items-center gap-3 overflow-x-auto pb-2 scrollbar-hide">
+                        <div className="flex items-center gap-2 px-3 py-2 bg-zinc-100 dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800 shrink-0">
+                            <Clock className="h-4 w-4 text-zinc-500" />
+                            <span className="text-xs font-bold uppercase text-zinc-500 tracking-wider">Riwayat:</span>
+                        </div>
+                        {reportHistory.map((report) => (
+                            <Link
+                                key={report.id}
+                                href={`/reports/stock-intelligence?report_id=${report.id}`}
+                                className={`shrink-0 px-4 py-2 rounded-lg text-xs font-bold transition-all border ${
+                                    currentReportId === report.id
+                                        ? 'bg-zinc-900 text-white border-zinc-900 dark:bg-zinc-100 dark:text-zinc-900 shadow-md'
+                                        : 'bg-white text-zinc-600 border-zinc-200 hover:border-zinc-300 dark:bg-zinc-900 dark:text-zinc-400 dark:border-zinc-800'
+                                }`}
+                            >
+                                {report.label}
+                            </Link>
+                        ))}
+                    </div>
+
+                    {/* Prominent Report Status Banner */}
+                    {reportInfo && (
+                        <div className="bg-zinc-900 dark:bg-zinc-100 border border-zinc-800 dark:border-zinc-200 rounded-2xl p-6 flex flex-col md:flex-row md:items-center justify-between gap-6 shadow-xl">
+                            <div className="flex items-center gap-5">
+                                <div className="bg-zinc-800 dark:bg-zinc-200 p-4 rounded-xl shadow-inner">
+                                    <Clock className="h-8 w-8 text-zinc-100 dark:text-zinc-900" />
+                                </div>
+                                <div>
+                                    <div className="text-[10px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-[0.2em] mb-1">Terakhir Diperbarui</div>
+                                    <div className="text-3xl font-mono font-black text-white dark:text-zinc-950 leading-none tabular-nums tracking-tight flex items-baseline gap-3">
+                                        {reportInfo.generet_at}
+                                        <span className="text-sm font-bold text-zinc-500 dark:text-zinc-400">
+                                            ({reportInfo.last_update_days_ago})
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div className="flex items-center gap-6 text-right">
+                                {reportInfo.next_run && (
+                                    <div className="flex flex-col items-end">
+                                        <div className="text-[10px] font-black text-emerald-500 dark:text-emerald-600 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
+                                            <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                            Next Run
+                                        </div>
+                                        <div className="text-lg font-mono font-bold text-white dark:text-zinc-950 leading-none">
+                                            {reportInfo.next_run}
+                                        </div>
+                                    </div>
+                                )}
+                                <div className="flex flex-col items-end text-right hidden md:flex">
+                                    <div className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1.5">Metode</div>
+                                    <Badge 
+                                        className={`text-xs px-4 py-1 font-black uppercase rounded-full shadow-lg border-none ${
+                                            reportInfo.type === 'cron' 
+                                                ? 'bg-blue-500 text-white hover:bg-blue-500' 
+                                                : 'bg-amber-500 text-white hover:bg-amber-500'
+                                        }`}
+                                    >
+                                        {reportInfo.type}
+                                    </Badge>
+                                </div>
+                                <div className="h-12 w-px bg-zinc-800 dark:bg-zinc-300 hidden md:block opacity-50" />
+                                <div className="flex flex-col">
+                                    <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">Oleh</span>
+                                    <span className="text-lg font-black text-white dark:text-zinc-950 uppercase tracking-tight">{reportInfo.generet_by}</span>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+
                 {/* Performance Tabs */}
                 <div className="flex flex-wrap gap-2">
                     {performanceTabs.map((tab) => {
                         const isActive = filters.performance === tab.key;
                         const count = stats[tab.key] || 0;
-                        const queryParams: any = { ...filters, performance: tab.key, page: null };
+                        const queryParams: any = { ...filters, performance: tab.key, page: null, report_id: currentReportId };
                         
                         return (
                             <Link
@@ -312,8 +499,33 @@ export default function StockIntelligence({ data, stats, settings, filters }: Pr
                                             <div className="font-bold text-zinc-900 dark:text-zinc-100 leading-tight">{item.item_name}</div>
                                             <div className="text-[10px] text-zinc-400 mt-1 uppercase">ID: {item.item_id}</div>
                                         </TableCell>
-                                        <TableCell className="text-center font-mono font-bold text-lg dark:text-zinc-100">
-                                            {item.score.toFixed(4)}
+                                        <TableCell className="text-center">
+                                            <div className="flex flex-col items-center justify-center gap-1">
+                                                <div className="font-mono font-black text-xl dark:text-zinc-100">
+                                                    {item.score.toFixed(4)}
+                                                </div>
+                                                {item.previous_score !== null && (
+                                                    <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 shadow-sm scale-90">
+                                                        {item.score > item.previous_score ? (
+                                                            <>
+                                                                <TrendingUp className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
+                                                                <span className="text-[10px] font-black text-emerald-600 dark:text-emerald-400">
+                                                                    +{(item.score - item.previous_score).toFixed(4)}
+                                                                </span>
+                                                            </>
+                                                        ) : item.score < item.previous_score ? (
+                                                            <>
+                                                                <TrendingUp className="h-3 w-3 text-rose-600 dark:text-rose-400 rotate-180" />
+                                                                <span className="text-[10px] font-black text-rose-600 dark:text-rose-400">
+                                                                    {(item.score - item.previous_score).toFixed(4)}
+                                                                </span>
+                                                            </>
+                                                        ) : (
+                                                            <span className="text-[10px] font-black text-zinc-400 uppercase tracking-tighter">No Change</span>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
                                         </TableCell>
                                         <TableCell>
                                             {getPerformanceBadge(item.performance_key, item.performance_level)}
@@ -396,7 +608,7 @@ export default function StockIntelligence({ data, stats, settings, filters }: Pr
                             {data.links.map((link, i) => (
                                 <Link
                                     key={i}
-                                    href={link.url || '#'}
+                                    href={link.url ? `${link.url}&report_id=${currentReportId || ''}` : '#'}
                                     preserveState
                                     className={`px-3 py-1.5 rounded-md text-xs font-bold border transition-all ${
                                         link.active 

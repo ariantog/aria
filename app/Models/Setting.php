@@ -7,7 +7,27 @@ use Illuminate\Database\Eloquent\Model;
 
 class Setting extends Model
 {
-    protected $fillable = ['name', 'slug', 'value'];
+    /** @use HasFactory<\Database\Factories\SettingFactory> */
+    use HasFactory;
+
+    protected $fillable = ['group', 'name', 'slug', 'value'];
+
+    const DAY_MAP = [
+        'Senin' => 'Monday',
+        'Selasa' => 'Tuesday',
+        'Rabu' => 'Wednesday',
+        'Kamis' => 'Thursday',
+        'Jumat' => 'Friday',
+        'Sabtu' => 'Saturday',
+        'Minggu' => 'Sunday',
+    ];
+
+    protected function casts(): array
+    {
+        return [
+            'value' => 'json',
+        ];
+    }
 
     /**
      * Define permissions associated with this model.
@@ -30,7 +50,4 @@ class Setting extends Model
 
         return $setting ? $setting->value : $default;
     }
-
-    /** @use HasFactory<\Database\Factories\SettingFactory> */
-    use HasFactory;
 }

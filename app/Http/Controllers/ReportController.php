@@ -10,6 +10,7 @@ use App\Models\MonthlyItemSale;
 use App\Models\Transaction;
 use App\Models\WarehouseCompare;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -270,221 +271,197 @@ class ReportController extends Controller
     {
         Gate::authorize(AddrbookDaily::getPermissions()['view_inventory_health']);
 
-        $sellType = Transaction::TYPE_SELL;
-        $perfFilter = $request->query('performance', 'deadstock');
+        $reportId = $request->query('report_id');
+
+        // Ambil daftar riwayat laporan (5 terakhir)
+        $reportHistory = \App\Models\StokReport::latest('generet_at')
+            ->limit(5)
+            ->get(['id', 'generet_at', 'type'])
+            ->map(fn ($r) => [
+                'id' => $r->id,
+                'label' => $r->generet_at->locale('id')->translatedFormat('d M Y H:i')." ({$r->type})",
+            ]);
+
+        // Jika ada report_id, ambil yang spesifik. Jika tidak, ambil yang terbaru.
+        $latestReport = $reportId
+            ? \App\Models\StokReport::find($reportId)
+            : \App\Models\StokReport::latest('generet_at')->first();
+
+        // Perbaikan: Cari laporan yang persis 1 urutan di bawah laporan saat ini (berdasarkan waktu)
+        $previousReport = null;
+        if ($latestReport) {
+            $previousReport = \App\Models\StokReport::where('generet_at', '<', $latestReport->generet_at)
+                ->latest('generet_at')
+                ->first();
+        }
+
+        $previousScores = [];
+        if ($previousReport) {
+            $previousScores = \App\Models\StockData::where('id_stock_report', $previousReport->id)
+                ->pluck('score', 'item_id')
+                ->toArray();
+        }
+
+        $perfFilter = $request->query('performance', 'all');
         $search = $request->query('search');
-        $page = max(1, (int) $request->input('page', 1));
         $perPage = 50;
 
-        $settings = cache()->get('stock_intelligence_settings', [
-            'gap_weight' => 0.2,
-            'sale_weight' => 0.8,
-            'max_gap' => 90,
-            'max_days' => 90,
-        ]);
+        $dbGenerateDays = \App\Models\Setting::getValue('si_generate_days', ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']);
 
-        $systemLatestDate = DB::table('transaction_details')
-            ->where('transaction_type', $sellType)
-            ->max('date') ?? now()->toDateString();
+        // Map English to Indonesian for UI
+        $revMap = array_flip(\App\Models\Setting::DAY_MAP);
+        $uiGenerateDays = array_map(fn ($en) => $revMap[$en] ?? $en, $dbGenerateDays);
 
-        $baseQuery = DB::table('warehouse_items as wi')
-            ->join('items as i', 'wi.item_id', '=', 'i.id')
-            ->join('addrbooks as a', 'wi.warehouse_id', '=', 'a.id')
-            ->leftJoin(DB::raw('(
-                SELECT item_id, sender_id, MAX(date) AS last_sale_date
-                FROM   transaction_details
-                WHERE  transaction_type = ?
-                GROUP  BY item_id, sender_id
-            ) ls'), function ($j) {
-                $j->on('ls.item_id', '=', 'wi.item_id')
-                    ->on('ls.sender_id', '=', 'wi.warehouse_id');
-            })
-            ->leftJoin(DB::raw('(
-                SELECT
-                    td.item_id,
-                    td.sender_id                       AS best_warehouse_id,
-                    td.date                            AS best_sale_date,
-                    a2.name                            AS best_warehouse_name,
-                    DATEDIFF(CURDATE(), td.date)       AS best_days_ago
-                FROM transaction_details td
-                JOIN addrbooks a2 ON a2.id = td.sender_id
-                WHERE td.transaction_type = ?
-                  AND (td.item_id, td.date, td.id) IN (
-                        SELECT item_id, MAX(date), MAX(id)
-                        FROM   transaction_details
-                        WHERE  transaction_type = ?
-                        GROUP  BY item_id
-                      )
-            ) gb'), 'gb.item_id', '=', 'wi.item_id')
-            ->leftJoin('warehouse_items as wibest', function ($j) {
-                $j->on('wibest.item_id', '=', 'wi.item_id')
-                    ->on('wibest.warehouse_id', '=', 'gb.best_warehouse_id');
-            })
-            ->where('wi.quantity', '>', 0)
-            ->where('a.type', Addrbook::TYPE_WAREHOUSE)
-            ->select(
-                'wi.item_id',
-                'i.name                          as item_name',
-                'wi.warehouse_id',
-                'a.name                          as warehouse_name',
-                'wi.quantity                     as current_qty',
-                'ls.last_sale_date',
-                DB::raw('CASE WHEN ls.last_sale_date IS NOT NULL
-                         THEN DATEDIFF(CURDATE(), ls.last_sale_date)
-                         ELSE NULL END                               AS days_ago'),
-                'gb.best_warehouse_id',
-                'gb.best_warehouse_name',
-                'gb.best_sale_date',
-                'gb.best_days_ago',
-                DB::raw('COALESCE(wibest.quantity, 0)                   AS best_warehouse_qty')
-            )
-            ->addBinding([$sellType, $sellType, $sellType], 'join');
+        $settings = [
+            'gap_weight' => (float) \App\Models\Setting::getValue('si_gap_weight', 0.2),
+            'sale_weight' => (float) \App\Models\Setting::getValue('si_sale_weight', 0.8),
+            'max_gap' => (int) \App\Models\Setting::getValue('si_max_gap', 90),
+            'max_days' => (int) \App\Models\Setting::getValue('si_max_days', 90),
+            'total_rows' => (int) \App\Models\Setting::getValue('si_total_rows', 1000),
+            'generate_days' => $uiGenerateDays,
+        ];
 
-        if ($search) {
-            $baseQuery->where(function ($q) use ($search) {
-                $q->where('i.name', 'like', "%{$search}%")
-                    ->orWhere('i.code', 'like', "%{$search}%")
-                    ->orWhere('i.id', $search);
-            });
+        // LOGIC NEXT RUN (Requested Flow)
+        $nextRun = null;
+        $now = now();
+        $lastDate = $latestReport ? $latestReport->generet_at->copy() : $now->copy()->subDay();
+
+        if (! empty($dbGenerateDays)) {
+            // 1. Bikin array date next dengan loop si_generate_days
+            $nextDatesArray = [];
+            foreach ($dbGenerateDays as $enDay) {
+                // Konversi jadi date (Carbon)
+                $d = $lastDate->copy()->next($enDay);
+                // Key array isi dengan tanggal day (d) saja
+                $nextDatesArray[(int) $d->format('d')] = $d;
+            }
+
+            // 2. Urutkan date nya (berdasarkan key tanggal d)
+            ksort($nextDatesArray);
+
+            // 3. Bandingkan date sekarang dengan array nextdate mana yang akan lebih dulu
+            $nowDay = (int) $now->format('d');
+            $nextDayResult = null;
+
+            foreach ($nextDatesArray as $dayNum => $dateObj) {
+                // Hitung dengan hari ini juga dengan (d) juga
+                if ($dayNum > $nowDay) {
+                    $nextDayResult = $dateObj;
+                    break;
+                }
+            }
+
+            // Jika tidak ada yang lebih besar di bulan ini, ambil yang paling awal (bulan depan)
+            if (! $nextDayResult && ! empty($nextDatesArray)) {
+                $nextDayResult = reset($nextDatesArray);
+                // Jika masih di bulan yang sama (karena ksort), pastikan dia jadi bulan depan
+                if ($nextDayResult->lte($now)) {
+                    $nextDayResult = $nextDayResult->addWeeks(1);
+                }
+            }
+
+            if ($nextDayResult) {
+                $nextRun = $nextDayResult->toDateTimeString();
+            }
         }
-
-        $baseSql = $baseQuery->toSql();
-        $baseBindings = $baseQuery->getBindings();
-
-        $gw = (float) $settings['gap_weight'];
-        $sw = (float) $settings['sale_weight'];
-        $mg = (float) $settings['max_gap'];
-        $md = (float) $settings['max_days'];
-
-        $scoredSql = "
-        SELECT
-            base.*,
-            CASE
-                WHEN base.days_ago IS NULL      THEN 0
-                WHEN base.days_ago > {$md}      THEN 0
-                WHEN base.best_days_ago IS NOT NULL THEN
-                    ROUND(
-                          GREATEST(0, LEAST(1, 1 - (base.days_ago - base.best_days_ago) / {$mg})) * {$gw}
-                        + GREATEST(0, LEAST(1, 1 - base.days_ago / {$md})) * {$sw}
-                    , 4)
-                ELSE 0
-            END AS score,
-            CASE
-                WHEN base.days_ago IS NULL THEN 'critical'
-                WHEN base.days_ago > {$md} THEN 'deadstock'
-                WHEN base.best_days_ago IS NOT NULL AND
-                    (GREATEST(0, LEAST(1, 1 - (base.days_ago - base.best_days_ago) / {$mg})) * {$gw}
-                   + GREATEST(0, LEAST(1, 1 - base.days_ago / {$md})) * {$sw}) >= 0.90 THEN 'elite'
-                WHEN base.best_days_ago IS NOT NULL AND
-                    (GREATEST(0, LEAST(1, 1 - (base.days_ago - base.best_days_ago) / {$mg})) * {$gw}
-                   + GREATEST(0, LEAST(1, 1 - base.days_ago / {$md})) * {$sw}) >= 0.70 THEN 'good'
-                WHEN base.best_days_ago IS NOT NULL AND
-                    (GREATEST(0, LEAST(1, 1 - (base.days_ago - base.best_days_ago) / {$mg})) * {$gw}
-                   + GREATEST(0, LEAST(1, 1 - base.days_ago / {$md})) * {$sw}) >= 0.50 THEN 'active'
-                WHEN base.best_days_ago IS NOT NULL AND
-                    (GREATEST(0, LEAST(1, 1 - (base.days_ago - base.best_days_ago) / {$mg})) * {$gw}
-                   + GREATEST(0, LEAST(1, 1 - base.days_ago / {$md})) * {$sw}) >= 0.30 THEN 'lagging'
-                WHEN base.best_days_ago IS NOT NULL THEN 'stagnant'
-                ELSE 'critical'
-            END AS perf_key
-        FROM ({$baseSql}) AS base
-        ";
-
-        $statsQuery = DB::table(DB::raw("({$scoredSql}) as scored"))
-            ->addBinding($baseBindings, 'join');
-
-        $statsRow = $statsQuery->selectRaw("
-            COUNT(*)                                            AS total,
-            COALESCE(SUM(perf_key = 'elite'), 0)                AS cnt_elite,
-            COALESCE(SUM(perf_key = 'good'), 0)                 AS cnt_good,
-            COALESCE(SUM(perf_key = 'active'), 0)               AS cnt_active,
-            COALESCE(SUM(perf_key = 'lagging'), 0)              AS cnt_lagging,
-            COALESCE(SUM(perf_key = 'stagnant'), 0)             AS cnt_stagnant,
-            COALESCE(SUM(perf_key = 'deadstock'), 0)            AS cnt_deadstock,
-            COALESCE(SUM(perf_key = 'critical'), 0)             AS cnt_critical
-        ")->first();
 
         $stats = [
-            'all' => (int) $statsRow->total,
-            'elite' => (int) $statsRow->cnt_elite,
-            'good' => (int) $statsRow->cnt_good,
-            'active' => (int) $statsRow->cnt_active,
-            'lagging' => (int) $statsRow->cnt_lagging,
-            'stagnant' => (int) $statsRow->cnt_stagnant,
-            'deadstock' => (int) $statsRow->cnt_deadstock,
-            'critical' => (int) $statsRow->cnt_critical,
+            'all' => 0, 'elite' => 0, 'good' => 0, 'active' => 0,
+            'lagging' => 0, 'stagnant' => 0, 'deadstock' => 0, 'critical' => 0,
         ];
 
-        $dataQuery = DB::table(DB::raw("({$scoredSql}) as scored"))
-            ->addBinding($baseBindings, 'join')
-            ->select('*');
+        $data = [
+            'data' => [], 'current_page' => 1, 'last_page' => 1,
+            'per_page' => $perPage, 'total' => 0, 'links' => [],
+        ];
 
-        if ($perfFilter && $perfFilter !== 'all') {
-            $dataQuery->where('perf_key', $perfFilter);
+        $reportInfo = [
+            'generet_at' => $latestReport ? $latestReport->generet_at->locale('id')->translatedFormat('d F Y H:i') : 'Never',
+            'last_update_days_ago' => $latestReport ? $latestReport->generet_at->locale('id')->diffForHumans() : '-',
+            'type' => $latestReport ? $latestReport->type : '-',
+            'generet_by' => $latestReport ? ($latestReport->user?->name ?? 'System') : '-',
+            'next_run' => $nextRun ? \Illuminate\Support\Carbon::parse($nextRun)->locale('id')->translatedFormat('d F Y H:i') : null,
+        ];
+
+        if ($latestReport) {
+            $statsRow = \App\Models\StockData::where('id_stock_report', $latestReport->id)
+                ->selectRaw("
+                    COUNT(*) as total,
+                    SUM(CASE WHEN performance_key = 'elite' THEN 1 ELSE 0 END) as elite,
+                    SUM(CASE WHEN performance_key = 'good' THEN 1 ELSE 0 END) as good,
+                    SUM(CASE WHEN performance_key = 'active' THEN 1 ELSE 0 END) as active,
+                    SUM(CASE WHEN performance_key = 'lagging' THEN 1 ELSE 0 END) as lagging,
+                    SUM(CASE WHEN performance_key = 'stagnant' THEN 1 ELSE 0 END) as stagnant,
+                    SUM(CASE WHEN performance_key = 'deadstock' THEN 1 ELSE 0 END) as deadstock,
+                    SUM(CASE WHEN performance_key = 'critical' THEN 1 ELSE 0 END) as critical
+                ")
+                ->first();
+
+            $stats = [
+                'all' => (int) $statsRow->total,
+                'elite' => (int) $statsRow->elite,
+                'good' => (int) $statsRow->good,
+                'active' => (int) $statsRow->active,
+                'lagging' => (int) $statsRow->lagging,
+                'stagnant' => (int) $statsRow->stagnant,
+                'deadstock' => (int) $statsRow->deadstock,
+                'critical' => (int) $statsRow->critical,
+            ];
+
+            $dataQuery = \App\Models\StockData::where('id_stock_report', $latestReport->id);
+
+            if ($search) {
+                $dataQuery->where(function ($q) use ($search) {
+                    $q->where('item_name', 'like', "%{$search}%")
+                        ->orWhere('item_id', $search);
+                });
+            }
+
+            if ($perfFilter && $perfFilter !== 'all') {
+                $dataQuery->where('performance_key', $perfFilter);
+            }
+
+            $rows = $dataQuery->orderByDesc('score')->paginate($perPage)->withQueryString();
+
+            $rows->getCollection()->transform(function ($r) use ($latestReport, $previousScores) {
+                $prevScore = $previousScores[$r->item_id] ?? null;
+
+                return [
+                    'item_id' => $r->item_id,
+                    'item_name' => $r->item_name,
+                    'score' => (float) $r->score,
+                    'previous_score' => $prevScore !== null ? (float) $prevScore : null,
+                    'performance_key' => $r->performance_key,
+                    'performance_level' => $r->performance_level,
+                    'gap_days' => $r->gap_days ?? 'NEVER SOLD',
+                    'current_warehouse' => [
+                        'id' => $r->current_warehouse_id,
+                        'name' => $r->current_warehouse_name,
+                        'qty' => (int) $r->current_warehouse_qty,
+                        'last_sale' => $r->current_warehouse_last_sale ?? 'NEVER SOLD',
+                        'days_ago' => $r->current_warehouse_days_ago ?? 'NEVER SOLD',
+                    ],
+                    'best_performing_warehouse' => $r->best_performing_warehouse_id ? [
+                        'name' => $r->best_performing_warehouse_name,
+                        'last_sale' => $r->best_performing_warehouse_last_sale,
+                        'days_ago' => (int) $r->best_performing_warehouse_days_ago,
+                        'qty' => (int) $r->best_performing_warehouse_qty,
+                        'id' => $r->best_performing_warehouse_id,
+                    ] : null,
+                    'audit_reference_date' => $latestReport->generet_at->toDateTimeString(),
+                ];
+            });
+
+            $data = $rows;
         }
 
-        $totalFiltered = (clone $dataQuery)->count();
-
-        $rows = $dataQuery
-            ->orderByDesc('score')
-            ->offset(($page - 1) * $perPage)
-            ->limit($perPage)
-            ->get();
-
-        $perfLabels = [
-            'elite' => '1. Elite (Terbaik)',
-            'good' => '2. Good (Aktif)',
-            'active' => '3. Active (Normal)',
-            'lagging' => '4. Lagging (Lambat)',
-            'stagnant' => '5. Stagnant (Sangat Lambat)',
-            'deadstock' => '6. Deadstock (Mati)',
-            'critical' => '7. Critical (Belum Terjual)',
-        ];
-
-        $mapped = $rows->map(function ($r) use ($systemLatestDate, $perfLabels) {
-            $gapDays = match (true) {
-                $r->last_sale_date === null => 'NEVER SOLD',
-                $r->best_days_ago !== null => (int) $r->days_ago - (int) $r->best_days_ago,
-                default => 9999,
-            };
-
-            return [
-                'item_id' => $r->item_id,
-                'item_name' => $r->item_name,
-                'score' => (float) $r->score,
-                'performance_key' => $r->perf_key,
-                'performance_level' => $perfLabels[$r->perf_key] ?? $r->perf_key,
-                'gap_days' => $gapDays,
-                'current_warehouse' => [
-                    'id' => $r->warehouse_id,
-                    'name' => $r->warehouse_name,
-                    'qty' => (int) $r->current_qty,
-                    'last_sale' => $r->last_sale_date ?? 'NEVER SOLD',
-                    'days_ago' => $r->days_ago ?? 'NEVER SOLD',
-                ],
-                'best_performing_warehouse' => $r->best_warehouse_id ? [
-                    'name' => $r->best_warehouse_name,
-                    'last_sale' => $r->best_sale_date,
-                    'days_ago' => (int) $r->best_days_ago,
-                    'qty' => (int) $r->best_warehouse_qty,
-                    'id' => $r->best_warehouse_id,
-                ] : null,
-                'audit_reference_date' => $systemLatestDate,
-            ];
-        });
-
-        $paginatedData = new \Illuminate\Pagination\LengthAwarePaginator(
-            $mapped,
-            $totalFiltered,
-            $perPage,
-            $page,
-            ['path' => $request->url(), 'query' => $request->query()]
-        );
-
         return Inertia::render('Reports/StockIntelligence', [
-            'data' => $paginatedData,
+            'data' => $data,
             'stats' => $stats,
             'settings' => $settings,
+            'reportInfo' => $reportInfo,
+            'reportHistory' => $reportHistory,
+            'currentReportId' => $latestReport?->id,
             'filters' => [
                 'performance' => $perfFilter,
                 'search' => $search,
@@ -499,16 +476,32 @@ class ReportController extends Controller
             'sale_weight' => 'required|numeric|min:0|max:1',
             'max_gap' => 'required|integer|min:1',
             'max_days' => 'required|integer|min:1',
+            'total_rows' => 'required|integer|min:100|max:10000',
+            'generate_days' => 'required|array',
+            'generate_days.*' => 'string|in:Senin,Selasa,Rabu,Kamis,Jumat,Sabtu,Minggu',
         ]);
 
-        cache()->forever('stock_intelligence_settings', $validated);
+        // Map Indonesian back to English for DB storage
+        $enGenerateDays = array_map(fn ($idDay) => \App\Models\Setting::DAY_MAP[$idDay] ?? $idDay, $validated['generate_days']);
+
+        \App\Models\Setting::updateOrCreate(['slug' => 'si_gap_weight'], ['value' => $validated['gap_weight'], 'group' => 'stock_intelligence', 'name' => 'Gap Weight']);
+        \App\Models\Setting::updateOrCreate(['slug' => 'si_sale_weight'], ['value' => $validated['sale_weight'], 'group' => 'stock_intelligence', 'name' => 'Sale Weight']);
+        \App\Models\Setting::updateOrCreate(['slug' => 'si_max_gap'], ['value' => $validated['max_gap'], 'group' => 'stock_intelligence', 'name' => 'Max Gap']);
+        \App\Models\Setting::updateOrCreate(['slug' => 'si_max_days'], ['value' => $validated['max_days'], 'group' => 'stock_intelligence', 'name' => 'Max Days']);
+        \App\Models\Setting::updateOrCreate(['slug' => 'si_total_rows'], ['value' => $validated['total_rows'], 'group' => 'stock_intelligence', 'name' => 'Total Rows']);
+        \App\Models\Setting::updateOrCreate(['slug' => 'si_generate_days'], ['value' => $enGenerateDays, 'group' => 'stock_intelligence', 'name' => 'Generate Days']);
 
         return back()->with('success', 'Settings updated.');
     }
 
     public function resetStockSettings()
     {
-        cache()->forget('stock_intelligence_settings');
+        \App\Models\Setting::updateOrCreate(['slug' => 'si_gap_weight'], ['value' => 0.2]);
+        \App\Models\Setting::updateOrCreate(['slug' => 'si_sale_weight'], ['value' => 0.8]);
+        \App\Models\Setting::updateOrCreate(['slug' => 'si_max_gap'], ['value' => 90]);
+        \App\Models\Setting::updateOrCreate(['slug' => 'si_max_days'], ['value' => 90]);
+        \App\Models\Setting::updateOrCreate(['slug' => 'si_total_rows'], ['value' => 1000]);
+        \App\Models\Setting::updateOrCreate(['slug' => 'si_generate_days'], ['value' => ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']]);
 
         return back()->with('success', 'Settings reset to default.');
     }
@@ -591,5 +584,24 @@ class ReportController extends Controller
         $compare->delete();
 
         return back()->with('success', 'Warehouse removed.');
+    }
+
+    public function generateManual()
+    {
+        Gate::authorize(AddrbookDaily::getPermissions()['view_inventory_health']);
+
+        $today = now()->toDateString();
+        $exists = \App\Models\StokReport::whereDate('generet_at', $today)->exists();
+
+        if ($exists) {
+            return back()->with('error', 'Laporan untuk hari ini sudah ada.');
+        }
+
+        Artisan::call('app:generate-stock-intelligence', [
+            '--type' => 'manual',
+            '--user_id' => Auth::id(),
+        ]);
+
+        return back()->with('success', 'Laporan berhasil di-generate.');
     }
 }
