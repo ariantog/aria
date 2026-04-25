@@ -24,15 +24,18 @@ interface Addrbook {
     name: string;
     type: number;
     type_slug: string;
+    deleted_at: string | null;
 }
 
 interface Props {
     customerList: Addrbook[];
     resellerList: Addrbook[];
+    bankList: Addrbook[];
     customerReport: ReportData;
     resellerReport: ReportData;
+    bankReport: ReportData;
     filters: {
-        month: number;
+        month: number | string | null;
         year: number;
     };
     yearList: number[];
@@ -42,8 +45,8 @@ interface Props {
     };
 }
 
-export default function NettCashSby({ customerList, resellerList, customerReport, resellerReport, filters, yearList, datesNow }: Props) {
-    const [month, setMonth] = useState(filters.month.toString());
+export default function NettCashSby({ customerList, resellerList, bankList, customerReport, resellerReport, bankReport, filters, yearList, datesNow }: Props) {
+    const [month, setMonth] = useState(filters.month?.toString() || 'all');
     const [year, setYear] = useState(filters.year.toString());
 
     const breadcrumbs: BreadcrumbItem[] = [
@@ -58,7 +61,7 @@ export default function NettCashSby({ customerList, resellerList, customerReport
     };
 
     const handleClear = () => {
-        setMonth(datesNow.month.toString());
+        setMonth('all');
         setYear(datesNow.year.toString());
         router.get('/reports/nett-cash-sby');
     };
@@ -67,7 +70,7 @@ export default function NettCashSby({ customerList, resellerList, customerReport
         return new Intl.NumberFormat('id-ID', {
             style: 'currency',
             currency: 'IDR',
-            minimumFractionDigits: 0,
+            minimumFractionDigits: 2,
         }).format(Number(amount));
     };
 
@@ -94,10 +97,10 @@ export default function NettCashSby({ customerList, resellerList, customerReport
                             </TableRow>
                         ) : (
                             list.map((item) => (
-                                <TableRow key={item.id}>
+                                <TableRow key={item.id} className={item.deleted_at ? 'opacity-60 grayscale' : ''}>
                                     <TableCell className="font-medium">
                                         <Link href={`/${item.type_slug}/${item.id}`} className="text-blue-600 dark:text-blue-400 hover:underline">
-                                            {item.name}
+                                            {item.name} {item.deleted_at && <Badge variant="outline" className="ml-2 py-0 h-4 text-[10px]">Deleted</Badge>}
                                         </Link>
                                     </TableCell>
                                     <TableCell className="text-right">{formatCurrency(report.cashIn[item.id] || 0)}</TableCell>
@@ -129,23 +132,23 @@ export default function NettCashSby({ customerList, resellerList, customerReport
         </div>
     );
 
+    // TOTALS: Match legacy by counting from Customer + Reseller perspective (excludes Bank to avoid double-counting)
     const totalCashIn = sumValues(customerReport.cashIn) + sumValues(resellerReport.cashIn);
     const totalCashOut = sumValues(customerReport.cashOut) + sumValues(resellerReport.cashOut);
     const totalSell = sumValues(customerReport.sell) + sumValues(resellerReport.sell);
     const totalReturn = sumValues(customerReport.return) + sumValues(resellerReport.return);
-    const totalNettCash = customerReport.nettCash + resellerReport.nettCash;
     const totalNettSell = customerReport.nettSell + resellerReport.nettSell;
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Nett Cash" />
 
-            <div className="flex flex-col gap-6 p-4">
+            <div className="flex flex-col gap-6 p-4 pb-20">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
                         <h1 className="text-2xl font-bold tracking-tight">Nett Cash</h1>
                         <p className="text-zinc-500 dark:text-zinc-400">
-                            Data for {filters.month} - {filters.year}
+                            Data for {filters.month && filters.month !== 'all' ? `Month ${filters.month} - ${filters.year}` : `Year ${filters.year}`}
                         </p>
                     </div>
                 </div>
@@ -160,6 +163,7 @@ export default function NettCashSby({ customerList, resellerList, customerReport
                                         <SelectValue placeholder="Select month" />
                                     </SelectTrigger>
                                     <SelectContent>
+                                        <SelectItem value="all">Semua Bulan (Tahunan)</SelectItem>
                                         {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
                                             <SelectItem key={m} value={m.toString()}>{m}</SelectItem>
                                         ))}
@@ -196,13 +200,14 @@ export default function NettCashSby({ customerList, resellerList, customerReport
                 <div className="space-y-10">
                     <ReportTable title="Customer" list={customerList} report={customerReport} />
                     <ReportTable title="Reseller" list={resellerList} report={resellerReport} />
+                    <ReportTable title="Bank (Account)" list={bankList} report={bankReport} />
 
                     <div className="space-y-6">
-                        <h3 className="text-lg font-bold px-1">Global Summary</h3>
+                        <h3 className="text-lg font-bold px-1">Global Summary (Customer Only)</h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                             <Card>
                                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                    <CardTitle className="text-sm font-medium">Cash In</CardTitle>
+                                    <CardTitle className="text-sm font-medium">Global Cash In</CardTitle>
                                     <TrendingUp className="h-4 w-4 text-emerald-500" />
                                 </CardHeader>
                                 <CardContent>
@@ -211,7 +216,7 @@ export default function NettCashSby({ customerList, resellerList, customerReport
                             </Card>
                             <Card>
                                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                    <CardTitle className="text-sm font-medium">Cash Out</CardTitle>
+                                    <CardTitle className="text-sm font-medium">Global Cash Out</CardTitle>
                                     <TrendingDown className="h-4 w-4 text-rose-500" />
                                 </CardHeader>
                                 <CardContent>
@@ -220,7 +225,7 @@ export default function NettCashSby({ customerList, resellerList, customerReport
                             </Card>
                             <Card>
                                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                    <CardTitle className="text-sm font-medium">Sell</CardTitle>
+                                    <CardTitle className="text-sm font-medium">Global Sell</CardTitle>
                                     <ShoppingCart className="h-4 w-4 text-blue-500" />
                                 </CardHeader>
                                 <CardContent>
@@ -229,7 +234,7 @@ export default function NettCashSby({ customerList, resellerList, customerReport
                             </Card>
                             <Card>
                                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                    <CardTitle className="text-sm font-medium">Return</CardTitle>
+                                    <CardTitle className="text-sm font-medium">Global Return</CardTitle>
                                     <RefreshCw className="h-4 w-4 text-rose-500" />
                                 </CardHeader>
                                 <CardContent>
@@ -241,12 +246,12 @@ export default function NettCashSby({ customerList, resellerList, customerReport
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <Card className="bg-emerald-50/50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/20">
                                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                    <CardTitle className="text-sm font-medium">Global Nett Cash</CardTitle>
+                                    <CardTitle className="text-sm font-medium">Summary Total Cash In</CardTitle>
                                     <Wallet className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                                 </CardHeader>
                                 <CardContent>
                                     <div className="text-2xl font-bold text-emerald-700 dark:text-emerald-300">
-                                        {formatCurrency(totalNettCash)}
+                                        {formatCurrency(totalCashIn)}
                                     </div>
                                 </CardContent>
                             </Card>

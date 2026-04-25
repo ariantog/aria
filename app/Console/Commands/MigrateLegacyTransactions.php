@@ -16,7 +16,7 @@ class MigrateLegacyTransactions extends Command
      *
      * @var string
      */
-    protected $signature = 'migrate:legacy-transactions {--year=2024 : The year to migrate} {--only : Only migrate the specific year provided}';
+    protected $signature = 'migrate:legacy-transactions {--year=2024 : The year to migrate} {--month= : Optional: The month to migrate} {--only : Only migrate the specific year provided}';
 
     /**
      * The console command description.
@@ -40,9 +40,13 @@ class MigrateLegacyTransactions extends Command
     public function handle(TransactionService $service)
     {
         $year = $this->option('year');
+        $month = $this->option('month');
         $only = $this->option('only');
 
         $scopeText = $only ? "ONLY year {$year}" : "from year {$year} onwards";
+        if ($month) {
+            $scopeText .= " (Month: {$month})";
+        }
         $this->info("Starting HIGH PERFORMANCE migration for {$scopeText}");
 
         $this->setupLegacyConnection();
@@ -104,11 +108,16 @@ class MigrateLegacyTransactions extends Command
 
     protected function migrateOptimized($year, $only)
     {
+        $month = $this->option('month');
         $operator = $only ? '=' : '>=';
         $query = DB::connection('legacy')->table('transactions')
             ->whereYear('date', $operator, $year)
             ->orderBy('date', 'asc')
             ->orderBy('id', 'asc');
+
+        if ($month) {
+            $query->whereMonth('date', $month);
+        }
 
         $total = $query->count();
         $this->info("Total transactions to process: {$total}");
@@ -133,8 +142,10 @@ class MigrateLegacyTransactions extends Command
 
                 $senderId = $data['sender_id'];
                 $receiverId = $data['receiver_id'];
-                $senderType = $addrbookTypes[$senderId] ?? \App\Models\Addrbook::TYPE_OTHER;
-                $receiverType = $addrbookTypes[$receiverId] ?? \App\Models\Addrbook::TYPE_OTHER;
+                
+                // Use raw legacy types to ensure consistency (even if they are 0)
+                $senderType = $data['sender_type'];
+                $receiverType = $data['receiver_type'];
 
                 $grandTotal = (float) ($data['real_total'] ?? $data['grand_total'] ?? 0);
                 if ($data['type'] == Transaction::TYPE_SELL || $data['type'] == Transaction::TYPE_RETURN_SUPPLIER) {
@@ -142,6 +153,12 @@ class MigrateLegacyTransactions extends Command
                 }
 
                 $this->calculateBalances($data, $senderId, $receiverId, $grandTotal);
+
+                $createdAt = $data['created_at'];
+                $updatedAt = $data['updated_at'] ?? $createdAt;
+                if ($updatedAt == '0000-00-00 00:00:00') {
+                    $updatedAt = $createdAt;
+                }
 
                 $transactionBuffer[] = [
                     'id' => $data['id'],
@@ -164,8 +181,8 @@ class MigrateLegacyTransactions extends Command
                     'notes' => $data['notes'] ?? $data['note'] ?? null,
                     'status' => 1,
                     'submit_type' => 1,
-                    'created_at' => now(),
-                    'updated_at' => now(),
+                    'created_at' => $createdAt,
+                    'updated_at' => $updatedAt,
                 ];
 
                 if (isset($allDetails[$data['id']])) {
@@ -173,7 +190,6 @@ class MigrateLegacyTransactions extends Command
                         $itemId = $lDetail->item_id;
 
                         // SKIP: If item doesn't exist in our local database
-                        // This prevents foreign key constraint violations while keeping totals on header unchanged
                         if (! isset($this->itemGlobalQty[$itemId])) {
                             continue;
                         }
@@ -183,6 +199,12 @@ class MigrateLegacyTransactions extends Command
                         $this->adjustStockInMemory($senderId, $itemId, -$qty);
                         $this->adjustStockInMemory($receiverId, $itemId, $qty);
                         $this->updateGlobalStockInMemory($data['type'], $itemId, $qty);
+
+                        $dCreatedAt = $lDetail->created_at ?? $createdAt;
+                        $dUpdatedAt = $lDetail->updated_at ?? $dCreatedAt;
+                        if ($dUpdatedAt == '0000-00-00 00:00:00') {
+                            $dUpdatedAt = $dCreatedAt;
+                        }
 
                         $detailBuffer[] = [
                             'id' => $lDetail->id,
@@ -197,8 +219,8 @@ class MigrateLegacyTransactions extends Command
                             'discount' => (float) ($lDetail->discount ?? 0),
                             'total' => (float) ($lDetail->total ?? 0),
                             'notes' => $lDetail->notes ?? null,
-                            'created_at' => now(),
-                            'updated_at' => now(),
+                            'created_at' => $dCreatedAt,
+                            'updated_at' => $dUpdatedAt,
                         ];
                     }
                 }
@@ -213,7 +235,7 @@ class MigrateLegacyTransactions extends Command
                     'date', 'type', 'sender_id', 'sender_type', 'sender_balance',
                     'receiver_id', 'receiver_type', 'receiver_balance', 'invoice_number',
                     'grand_total', 'total', 'discount', 'adjustment', 'tax_amount',
-                    'total_items', 'user_id', 'notes', 'status', 'submit_type', 'updated_at',
+                    'total_items', 'user_id', 'notes', 'status', 'submit_type', 'created_at', 'updated_at',
                 ]);
             }
 
@@ -221,7 +243,7 @@ class MigrateLegacyTransactions extends Command
                 // Chunk details to avoid "Query too large" or memory issues
                 foreach (array_chunk($detailBuffer, 1000) as $chunk) {
                     DB::table('transaction_details')->upsert($chunk, ['id'], [
-                        'transaction_id', 'item_id', 'date', 'transaction_type', 'sender_id', 'receiver_id', 'quantity', 'price', 'discount', 'total', 'notes', 'updated_at',
+                        'transaction_id', 'item_id', 'date', 'transaction_type', 'sender_id', 'receiver_id', 'quantity', 'price', 'discount', 'total', 'notes', 'created_at', 'updated_at',
                     ]);
                 }
             }

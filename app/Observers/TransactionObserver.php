@@ -7,6 +7,7 @@ use App\Models\DailyInventorySummary;
 use App\Models\MonthlyAccountSummary;
 use App\Models\MonthlyCategorySummary;
 use App\Models\Transaction;
+use Illuminate\Support\Facades\DB;
 
 class TransactionObserver
 {
@@ -47,13 +48,56 @@ class TransactionObserver
 
         // 3. Update Daily Inventory Summaries (Stock Analysis)
         $this->updateInventorySummary($transaction, $date);
+
+        // 4. Update Stat Sells (Item Sales)
+        $this->updateStatSell($transaction);
+    }
+
+    protected function updateStatSell(Transaction $transaction): void
+    {
+        if (! in_array($transaction->type, [Transaction::TYPE_SELL, Transaction::TYPE_RETURN])) {
+            return;
+        }
+
+        $result = DB::table('transaction_details')
+            ->where('transaction_details.transaction_id', $transaction->id)
+            ->join('items', 'transaction_details.item_id', '=', 'items.id')
+            ->leftJoin('item_groups', 'items.group_id', '=', 'item_groups.id')
+            ->selectRaw('
+                item_groups.id as group_id,
+                MONTH(transaction_details.date) as bulan,
+                YEAR(transaction_details.date) as tahun,
+                transaction_details.sender_id,
+                transaction_details.transaction_type as type,
+                SUM(transaction_details.quantity) as sum_qty,
+                SUM(transaction_details.total) as sum_total
+            ')
+            ->groupBy('group_id', 'bulan', 'tahun', 'transaction_details.sender_id', 'type')
+            ->get();
+
+        foreach ($result as $row) {
+            DB::table('stat_sells')->updateOrInsert(
+                [
+                    'group_id' => $row->group_id,
+                    'bulan' => $row->bulan,
+                    'tahun' => $row->tahun,
+                    'sender_id' => $row->sender_id,
+                    'type' => $row->type,
+                ],
+                [
+                    'sum_qty' => DB::raw('sum_qty + '.(float) $row->sum_qty),
+                    'sum_total' => DB::raw('sum_total + '.(float) $row->sum_total),
+                    'updated_at' => now(),
+                ]
+            );
+        }
     }
 
     protected function updateAccountSummary(Transaction $transaction, $year, $month): void
     {
         // One-sided attribution to match legacy reporting logic
         $targetId = null;
-        
+
         switch ($transaction->type) {
             case Transaction::TYPE_CASH_IN:
             case Transaction::TYPE_RETURN:
@@ -167,8 +211,12 @@ class TransactionObserver
                 $summary->increment('qty_buy', $qty);
                 break;
             case Transaction::TYPE_MOVE:
-                if ($side === 'receiver') $summary->increment('qty_move_in', $qty);
-                if ($side === 'sender') $summary->increment('qty_move_out', $qty);
+                if ($side === 'receiver') {
+                    $summary->increment('qty_move_in', $qty);
+                }
+                if ($side === 'sender') {
+                    $summary->increment('qty_move_out', $qty);
+                }
                 break;
             case Transaction::TYPE_RETURN:
                 $summary->increment('qty_return_in', $qty);
@@ -177,8 +225,12 @@ class TransactionObserver
                 $summary->increment('qty_return_out', $qty);
                 break;
             case Transaction::TYPE_ADJUST:
-                if ($qty > 0) $summary->increment('qty_adjust_in', $qty);
-                if ($qty < 0) $summary->increment('qty_adjust_out', abs($qty));
+                if ($qty > 0) {
+                    $summary->increment('qty_adjust_in', $qty);
+                }
+                if ($qty < 0) {
+                    $summary->increment('qty_adjust_out', abs($qty));
+                }
                 break;
         }
     }

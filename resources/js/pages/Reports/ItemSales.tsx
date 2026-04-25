@@ -6,18 +6,21 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { Filter, X } from 'lucide-react';
+import { Filter, X, Search } from 'lucide-react';
 import { useState } from 'react';
 import Pagination from '@/components/pagination';
+import { Input } from '@/components/ui/input';
 
 interface MonthlyItemSale {
-    id: number;
+    id: string;
     year: number;
     month: number;
     group_id: number;
     customer_id: number;
-    qty_net: string | number;
-    amount_net: string | number;
+    type: number;
+    type_name: string;
+    sum_qty: number;
+    sum_total: number;
     group?: {
         id: number;
         name: string;
@@ -34,15 +37,19 @@ interface Props {
         links: any[];
     };
     filters: {
-        month: number | string | null;
-        year: number | string | null;
+        bulan: number | string | null;
+        tahun: number | string | null;
+        type: number | string | null;
+        search_group: string | null;
     };
     yearList: number[];
 }
 
 export default function ItemSales({ dataList, filters, yearList }: Props) {
-    const [month, setMonth] = useState(filters.month?.toString() || '0');
-    const [year, setYear] = useState(filters.year?.toString() || new Date().getFullYear().toString());
+    const [bulan, setBulan] = useState(filters.bulan?.toString() || '0');
+    const [tahun, setTahun] = useState(filters.tahun?.toString() || new Date().getFullYear().toString());
+    const [type, setType] = useState(filters.type?.toString() || '0');
+    const [searchGroup, setSearchGroup] = useState(filters.search_group || '');
 
     const breadcrumbs: BreadcrumbItem[] = [
         { title: 'Dashboard', href: '/dashboard' },
@@ -52,14 +59,19 @@ export default function ItemSales({ dataList, filters, yearList }: Props) {
 
     const handleFilter = (e: React.FormEvent) => {
         e.preventDefault();
-        const params: any = { year };
-        if (month !== '0') params.month = month;
+        const params: any = {};
+        if (bulan !== '0') params.bulan = bulan;
+        if (tahun !== '0') params.tahun = tahun;
+        if (type !== '0') params.type = type;
+        if (searchGroup) params.search_group = searchGroup;
         router.get('/reports/item-sales', params, { preserveState: true });
     };
 
     const handleClear = () => {
-        setMonth('0');
-        setYear(new Date().getFullYear().toString());
+        setBulan('0');
+        setTahun(new Date().getFullYear().toString());
+        setType('0');
+        setSearchGroup('');
         router.get('/reports/item-sales');
     };
 
@@ -81,39 +93,66 @@ export default function ItemSales({ dataList, filters, yearList }: Props) {
 
             <div className="flex flex-col gap-6 p-4 sm:p-6 lg:p-8">
                 <div>
-                    <h1 className="text-2xl font-bold tracking-tight">Item Sales (Net)</h1>
+                    <h1 className="text-2xl font-bold tracking-tight">Item Sales</h1>
                     <p className="text-zinc-500 dark:text-zinc-400">
-                        Laporan penjualan bersih per kategori dan customer (Net = Sell - Return).
+                        Laporan penjualan per kategori dan customer.
                     </p>
                 </div>
 
                 <Card>
                     <CardHeader className="p-4 sm:p-6 pb-4 sm:pb-4">
                         <form onSubmit={handleFilter} className="flex flex-wrap items-end gap-4">
-                            <div className="grid gap-1.5 w-[150px]">
+                            <div className="grid gap-1.5 w-[120px]">
                                 <Label htmlFor="month">Bulan</Label>
-                                <Select value={month} onValueChange={setMonth}>
+                                <Select value={bulan} onValueChange={setBulan}>
                                     <SelectTrigger id="month">
-                                        <SelectValue placeholder="Semua Bulan" />
+                                        <SelectValue placeholder="Semua" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="0">Semua Bulan</SelectItem>
+                                        <SelectItem value="0">Semua</SelectItem>
                                         {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
                                             <SelectItem key={m} value={m.toString()}>{m}</SelectItem>
                                         ))}
                                     </SelectContent>
                                 </Select>
                             </div>
-                            <div className="grid gap-1.5 w-[150px]">
+                            <div className="grid gap-1.5 w-[120px]">
                                 <Label htmlFor="year">Tahun</Label>
-                                <Select value={year} onValueChange={setYear}>
+                                <Select value={tahun} onValueChange={setTahun}>
                                     <SelectTrigger id="year">
-                                        <SelectValue placeholder="Pilih Tahun" />
+                                        <SelectValue placeholder="Tahun" />
                                     </SelectTrigger>
                                     <SelectContent>
                                         {yearList.map((y) => (
                                             <SelectItem key={y} value={y.toString()}>{y}</SelectItem>
                                         ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="grid gap-1.5 w-[250px]">
+                                <Label htmlFor="search_group">Cari Grup Item</Label>
+                                <div className="relative">
+                                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-zinc-500" />
+                                    <Input
+                                        id="search_group"
+                                        type="text"
+                                        placeholder="Ketik nama grup..."
+                                        className="pl-9"
+                                        value={searchGroup}
+                                        onChange={(e) => setSearchGroup(e.target.value)}
+                                    />
+                                </div>
+                            </div>
+                            <div className="grid gap-1.5 w-[120px]">
+                                <Label htmlFor="type">Tipe</Label>
+                                <Select value={type} onValueChange={setType}>
+                                    <SelectTrigger id="type">
+                                        <SelectValue placeholder="Semua" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="0">Semua</SelectItem>
+                                        <SelectItem value="2">Sell</SelectItem>
+                                        <SelectItem value="15">Return</SelectItem>
                                     </SelectContent>
                                 </Select>
                             </div>
@@ -135,23 +174,24 @@ export default function ItemSales({ dataList, filters, yearList }: Props) {
                     <Table>
                         <TableHeader>
                             <TableRow className="bg-zinc-50 dark:bg-zinc-900/50">
-                                <TableHead className="w-[120px]">Periode</TableHead>
+                                <TableHead className="w-[100px]">Periode</TableHead>
                                 <TableHead>Grup Item</TableHead>
                                 <TableHead>Customer</TableHead>
-                                <TableHead className="text-right w-[120px]">Qty Jual (Net)</TableHead>
-                                <TableHead className="text-right w-[180px]">Nominal (Net)</TableHead>
+                                <TableHead className="w-[100px]">Tipe</TableHead>
+                                <TableHead className="text-right w-[100px]">Total Qty</TableHead>
+                                <TableHead className="text-right w-[160px]">Total</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {dataList.data.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={5} className="h-24 text-center">Data Kosong</TableCell>
+                                    <TableCell colSpan={6} className="h-24 text-center">Data Kosong</TableCell>
                                 </TableRow>
                             ) : (
                                 dataList.data.map((item) => (
                                     <TableRow key={item.id} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-900/50 transition-colors">
-                                        <TableCell className="font-medium">{item.month}/{item.year}</TableCell>
-                                        <TableCell>
+                                        <TableCell className="font-medium text-xs">{item.month}/{item.year}</TableCell>
+                                        <TableCell className="text-xs">
                                             {item.group ? (
                                                 <Link 
                                                     href={`/items-group/${item.group.id}`}
@@ -161,14 +201,23 @@ export default function ItemSales({ dataList, filters, yearList }: Props) {
                                                 </Link>
                                             ) : '-'}
                                         </TableCell>
-                                        <TableCell className="font-semibold text-zinc-700 dark:text-zinc-300">
+                                        <TableCell className="font-semibold text-zinc-700 dark:text-zinc-300 text-xs">
                                             {item.customer?.name || '-'}
                                         </TableCell>
-                                        <TableCell className="text-right font-mono font-bold text-emerald-600">
-                                            {formatNumber(item.qty_net)}
+                                        <TableCell>
+                                            <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold ${
+                                                item.type === 2 
+                                                    ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400' 
+                                                    : 'bg-rose-100 text-rose-800 dark:bg-rose-900/30 dark:text-rose-400'
+                                            }`}>
+                                                {item.type_name}
+                                            </span>
                                         </TableCell>
-                                        <TableCell className="text-right font-mono font-bold">
-                                            {formatCurrency(item.amount_net)}
+                                        <TableCell className="text-right font-mono font-bold text-xs">
+                                            {formatNumber(item.sum_qty)}
+                                        </TableCell>
+                                        <TableCell className="text-right font-mono font-bold text-xs">
+                                            {formatCurrency(item.sum_total)}
                                         </TableCell>
                                     </TableRow>
                                 ))

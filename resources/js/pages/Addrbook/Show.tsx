@@ -18,7 +18,8 @@ import {
     ArrowUpCircle,
     ArrowDownCircle,
     ShoppingBag,
-    Truck
+    Truck,
+    Package
 } from 'lucide-react';
 import { useState } from 'react';
 import addrbookRoutes from '@/routes/addrbook';
@@ -50,6 +51,18 @@ interface AdditionalFee {
     type: 'percent' | 'nominal';
 }
 
+interface AddrbookItem {
+    id: number;
+    name: string;
+    code: string;
+    type: number;
+    calculated_cost: number;
+    total_calculated_cost: number;
+    pivot: {
+        quantity: string | number;
+    };
+}
+
 interface Addrbook {
     id: number;
     name: string;
@@ -67,6 +80,7 @@ interface Addrbook {
     stat?: AddrbookStat;
     dailies?: AddrbookDaily[];
     additional_fees?: AdditionalFee[];
+    items?: AddrbookItem[];
 }
 
 interface Props {
@@ -98,10 +112,14 @@ const TabButton = ({ active, children, onClick }: { active: boolean; children: R
 );
 
 export default function AddrbookShow({ addrbook, ppn_rate }: Props) {
-    const [activeTab, setActiveTab] = useState<'overview' | 'stats' | 'history'>('overview');
+    const [activeTab, setActiveTab] = useState<'overview' | 'stats' | 'history' | 'inventory'>('overview');
 
     const formatCurrency = (value: string | number) => {
-        return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(Number(value) || 0);
+        return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(Number(value) || 0);
+    };
+
+    const formatNumber = (value: string | number) => {
+        return new Intl.NumberFormat('id-ID').format(Number(value) || 0);
     };
 
     return (
@@ -170,10 +188,80 @@ export default function AddrbookShow({ addrbook, ppn_rate }: Props) {
                             <History className="h-4 w-4" /> Financial History
                         </div>
                     </TabButton>
+                    {addrbook.type === 2 && ( // TYPE_WAREHOUSE
+                        <TabButton active={activeTab === 'inventory'} onClick={() => setActiveTab('inventory')}>
+                            <div className="flex items-center gap-2">
+                                <Package className="h-4 w-4" /> Inventory
+                            </div>
+                        </TabButton>
+                    )}
                 </div>
 
                 {/* Tab Content */}
                 <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+                    {/* Inventory Tab */}
+                    {activeTab === 'inventory' && (
+                        <Card className="rounded-2xl border-zinc-200 dark:border-zinc-800 shadow-sm overflow-hidden">
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-sm text-left">
+                                    <thead className="bg-zinc-50 dark:bg-zinc-900/50 border-b border-zinc-200 dark:border-zinc-800 text-xs text-zinc-500 uppercase font-bold tracking-wider">
+                                        <tr>
+                                            <th className="px-6 py-4">Item Name</th>
+                                            <th className="px-6 py-4">Code</th>
+                                            <th className="px-6 py-4 text-right">Qty</th>
+                                            <th className="px-6 py-4 text-right">Cost/Unit</th>
+                                            <th className="px-6 py-4 text-right">Total Cost</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800/50">
+                                        {addrbook.items && addrbook.items.length > 0 ? (
+                                            addrbook.items.map((item) => (
+                                                <tr key={item.id} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/40 transition-colors">
+                                                    <td className="px-6 py-4 font-medium text-zinc-900 dark:text-zinc-100">
+                                                        {item.name}
+                                                    </td>
+                                                    <td className="px-6 py-4 font-mono text-xs text-zinc-500">
+                                                        {item.code}
+                                                    </td>
+                                                    <td className="px-6 py-4 text-right tabular-nums font-semibold">
+                                                        {formatNumber(item.pivot.quantity)}
+                                                    </td>
+                                                    <td className="px-6 py-4 text-right tabular-nums text-zinc-500">
+                                                        {formatCurrency(item.calculated_cost)}
+                                                    </td>
+                                                    <td className="px-6 py-4 text-right tabular-nums font-bold text-zinc-900 dark:text-zinc-100">
+                                                        {formatCurrency(item.total_calculated_cost)}
+                                                    </td>
+                                                </tr>
+                                            ))
+                                        ) : (
+                                            <tr>
+                                                <td colSpan={5} className="px-6 py-20 text-center text-zinc-400">
+                                                    <Package className="h-10 w-10 mx-auto mb-3 opacity-20" />
+                                                    No stock found in this warehouse.
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                    {addrbook.items && addrbook.items.length > 0 && (
+                                        <tfoot className="bg-zinc-50 dark:bg-zinc-900/50 font-bold border-t border-zinc-200 dark:border-zinc-800">
+                                            <tr>
+                                                <td colSpan={2} className="px-6 py-4 text-left">TOTAL</td>
+                                                <td className="px-6 py-4 text-right tabular-nums">
+                                                    {formatNumber(addrbook.items.reduce((acc, item) => acc + Number(item.pivot.quantity), 0))}
+                                                </td>
+                                                <td className="px-6 py-4"></td>
+                                                <td className="px-6 py-4 text-right tabular-nums">
+                                                    {formatCurrency(addrbook.items.reduce((acc, item) => acc + item.total_calculated_cost, 0))}
+                                                </td>
+                                            </tr>
+                                        </tfoot>
+                                    )}
+                                </table>
+                            </div>
+                        </Card>
+                    )}
+
                     {/* Overview Tab */}
                     {activeTab === 'overview' && (
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

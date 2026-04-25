@@ -156,13 +156,16 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
 
     // Reports Module
     Route::prefix('reports')->name('reports.')->group(function () {
-        Route::get('/nett-cash-sby', [\App\Http\Controllers\ReportController::class, 'nettCashSby'])->name('nett-cash-sby');
-        Route::get('/cash-flow', [\App\Http\Controllers\ReportController::class, 'cashFlow'])->name('cash-flow');
-        Route::get('/compare', [\App\Http\Controllers\ReportController::class, 'compare'])->name('compare');
-        Route::post('/compare', [\App\Http\Controllers\ReportController::class, 'storeCompare'])->name('compare.store');
-        Route::delete('/compare/{compare}', [\App\Http\Controllers\ReportController::class, 'destroyCompare'])->name('compare.destroy');
+        Route::get('/nett-cash-sby', \App\Http\Controllers\Reports\NettCashController::class)->name('nett-cash-sby');
+        Route::get('/purchase', \App\Http\Controllers\Reports\PurchaseReportController::class)->name('purchase');
+        Route::get('/expense', \App\Http\Controllers\Reports\ExpenseReportController::class)->name('expense');
+        Route::get('/warehouse-item', [\App\Http\Controllers\Reports\WarehouseItemReportController::class, 'index'])->name('warehouse-item');
+        Route::get('/cash-flow', \App\Http\Controllers\CashFlowController::class)->name('cash-flow');
+        Route::get('/compare', [\App\Http\Controllers\Reports\CompareReportController::class, 'index'])->name('compare');
+        Route::post('/compare', [\App\Http\Controllers\Reports\CompareReportController::class, 'store'])->name('compare.store');
+        Route::delete('/compare/{compare}', [\App\Http\Controllers\Reports\CompareReportController::class, 'destroy'])->name('compare.destroy');
         Route::get('/inventory-health', [\App\Http\Controllers\ReportController::class, 'inventoryHealth'])->name('inventory-health');
-        Route::get('/item-sales', [\App\Http\Controllers\ReportController::class, 'itemSales'])->name('item-sales');
+        Route::get('/item-sales', \App\Http\Controllers\Reports\ItemSaleReportController::class)->name('item-sales');
         Route::get('/stock-intelligence', [\App\Http\Controllers\ReportController::class, 'stockIntelligence'])->name('stock-intelligence');
         Route::post('/stock-intelligence/generate', [\App\Http\Controllers\ReportController::class, 'generateManual'])->name('stock-intelligence.generate');
         Route::post('/stock-settings', [\App\Http\Controllers\ReportController::class, 'updateStockSettings'])->name('stock-settings.update');

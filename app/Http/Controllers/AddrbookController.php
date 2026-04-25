@@ -131,9 +131,29 @@ class AddrbookController extends Controller
     {
         Gate::authorize(Addrbook::getPermissions($addrbook->type_slug)['view']);
 
-        $addrbook->load(['stat', 'dailies' => function ($query) {
+        $load = ['stat', 'dailies' => function ($query) {
             $query->latest('date')->limit(50);
-        }]);
+        }];
+
+        if ($addrbook->type === Addrbook::TYPE_WAREHOUSE) {
+            $load[] = 'items';
+        }
+
+        $addrbook->load($load);
+
+        // Calculate costs for warehouse items
+        if ($addrbook->type === Addrbook::TYPE_WAREHOUSE) {
+            $addrbook->items->each(function ($item) {
+                $cost = 0;
+                if ($item->type->value === 2) { // ASSET_LANCAR
+                    $cost = (float) $item->cost;
+                } elseif ($item->type->value === 1) { // ITEM
+                    $cost = (float) $item->price * 0.3;
+                }
+                $item->calculated_cost = $cost;
+                $item->total_calculated_cost = $cost * (float) $item->pivot->quantity;
+            });
+        }
 
         return Inertia::render('Addrbook/Show', [
             'addrbook' => $addrbook,

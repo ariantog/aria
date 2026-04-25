@@ -30,7 +30,8 @@ import {
     SidebarMenuButton,
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
-import { dashboard } from '@/routes';
+import { dashboard } from '@/routes/index';
+import reports from '@/routes/reports/index';
 import type { NavItem } from '@/types';
 import AppLogo from './app-logo';
 
@@ -273,33 +274,43 @@ export function AppSidebar() {
             items: [
                 {
                     title: 'Nett Cash',
-                    href: '/reports/nett-cash-sby',
-                    isActive: isRouteActive('/reports/nett-cash-sby'),
+                    href: reports.nettCashSby.url(),
+                    isActive: isRouteActive(reports.nettCashSby.url()),
                 },
                 ...(hasPermission('reports-cash-flow') || isSuperAdmin ? [{
                     title: 'Cash Flow',
-                    href: '/reports/cash-flow',
-                    isActive: isRouteActive('/reports/cash-flow'),
+                    href: reports.cashFlow.url(),
+                    isActive: isRouteActive(reports.cashFlow.url()),
                 }] : []),
                 ...(hasPermission('reports-compare') || isSuperAdmin ? [{
                     title: 'Compare',
-                    href: '/reports/compare',
-                    isActive: isRouteActive('/reports/compare'),
-                }] : []),
-                ...(hasPermission('reports-inventory-health') || isSuperAdmin ? [{
-                    title: 'Inventory Health',
-                    href: '/reports/inventory-health',
-                    isActive: isRouteActive('/reports/inventory-health'),
+                    href: reports.compare.url(),
+                    isActive: isRouteActive(reports.compare.url()),
                 }] : []),
                 {
-                    title: 'Item Sales',
-                    href: '/reports/item-sales',
-                    isActive: isRouteActive('/reports/item-sales'),
+                    title: 'Item Sale',
+                    href: reports.itemSales.url(),
+                    isActive: isRouteActive(reports.itemSales.url()),
                 },
                 {
-                    title: 'Stock Intelligence',
-                    href: '/reports/stock-intelligence',
-                    isActive: isRouteActive('/reports/stock-intelligence'),
+                    title: 'Pembelian',
+                    href: reports.purchase.url(),
+                    isActive: isRouteActive(reports.purchase.url()),
+                },
+                {
+                    title: 'Item Gudang',
+                    href: reports.warehouseItem.url(),
+                    isActive: isRouteActive(reports.warehouseItem.url()),
+                },
+                {
+                    title: 'Laporan Biaya',
+                    href: reports.expense.url(),
+                    isActive: isRouteActive(reports.expense.url()),
+                },
+                {
+                    title: 'Stock Intelegen',
+                    href: reports.stockIntelligence.url(),
+                    isActive: isRouteActive(reports.stockIntelligence.url()),
                 },
             ],
         }] : []),

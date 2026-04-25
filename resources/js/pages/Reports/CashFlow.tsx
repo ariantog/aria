@@ -15,9 +15,7 @@ interface CashFlowItem {
     cash_in_total: number;
     cash_out_total: number;
     sell_total: number;
-    return_total: number;
-    buy_total: number;
-    return_supplier: number;
+    return_suplier: number;
 }
 
 interface Props {
@@ -95,7 +93,7 @@ export default function CashFlow({ groupBySender, groupByReceiver, filters, year
                                     <TableCell className="text-right font-medium">{formatCurrency(item.sell_total)}</TableCell>
                                     <TableCell className="text-right text-rose-500 font-medium">{formatCurrency(item.return_total)}</TableCell>
                                     <TableCell className="text-right font-medium">{formatCurrency(item.buy_total)}</TableCell>
-                                    <TableCell className="text-right text-emerald-500 font-medium">{formatCurrency(item.return_supplier)}</TableCell>
+                                    <TableCell className="text-right text-emerald-500 font-medium">{formatCurrency(item.return_suplier)}</TableCell>
                                 </TableRow>
                             ))
                         )}
@@ -114,7 +112,7 @@ export default function CashFlow({ groupBySender, groupByReceiver, filters, year
                     <div>
                         <h1 className="text-2xl font-bold tracking-tight">Cash Flow</h1>
                         <p className="text-zinc-500 dark:text-zinc-400">
-                            Summary of transactions by sender and receiver type.
+                            Data for {filters.month ? `Month ${filters.month} - ${filters.year}` : `Year ${filters.year}`}
                         </p>
                     </div>
                 </div>
