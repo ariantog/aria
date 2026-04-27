@@ -22,6 +22,7 @@ class UpdateSettingRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'group' => 'required|string|max:255',
             'name' => 'required|string|max:255',
             'value' => 'nullable|string',
         ];

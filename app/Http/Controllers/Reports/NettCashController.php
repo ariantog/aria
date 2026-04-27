@@ -44,32 +44,32 @@ class NettCashController extends Controller
                         ]);
                 })
                 // CASH OUT & SELL → receiver
-                ->orWhere(function ($sub) {
-                    $sub->whereIn('type', [
-                        Transaction::TYPE_CASH_OUT,
-                        Transaction::TYPE_SELL,
-                    ])
-                    ->whereIn('receiver_type', [
-                        Addrbook::TYPE_CUSTOMER,
-                        Addrbook::TYPE_RESELLER,
-                    ]);
-                })
+                    ->orWhere(function ($sub) {
+                        $sub->whereIn('type', [
+                            Transaction::TYPE_CASH_OUT,
+                            Transaction::TYPE_SELL,
+                        ])
+                            ->whereIn('receiver_type', [
+                                Addrbook::TYPE_CUSTOMER,
+                                Addrbook::TYPE_RESELLER,
+                            ]);
+                    })
                 // RETURN → sender
-                ->orWhere(function ($sub) {
-                    $sub->where('type', Transaction::TYPE_RETURN)
-                        ->whereIn('sender_type', [
-                            Addrbook::TYPE_CUSTOMER,
-                            Addrbook::TYPE_RESELLER,
-                        ]);
-                })
+                    ->orWhere(function ($sub) {
+                        $sub->where('type', Transaction::TYPE_RETURN)
+                            ->whereIn('sender_type', [
+                                Addrbook::TYPE_CUSTOMER,
+                                Addrbook::TYPE_RESELLER,
+                            ]);
+                    })
                 // BANK → receiver
-                ->orWhere(function ($sub) {
-                    $sub->where('receiver_type', Addrbook::TYPE_BANK)
-                        ->whereIn('sender_type', [
-                            Addrbook::TYPE_CUSTOMER,
-                            Addrbook::TYPE_RESELLER,
-                        ]);
-                });
+                    ->orWhere(function ($sub) {
+                        $sub->where('receiver_type', Addrbook::TYPE_BANK)
+                            ->whereIn('sender_type', [
+                                Addrbook::TYPE_CUSTOMER,
+                                Addrbook::TYPE_RESELLER,
+                            ]);
+                    });
             })
             ->get()
             ->flatMap(function ($row) {
@@ -90,10 +90,10 @@ class NettCashController extends Controller
                 // ✅ semua aktif
                 $q->whereNull('deleted_at')
                 // ✅ hanya deleted yang ada di transaksi
-                ->orWhere(function ($sub) use ($trxCustomerIds) {
-                    $sub->whereNotNull('deleted_at')
-                        ->whereIn('id', $trxCustomerIds);
-                });
+                    ->orWhere(function ($sub) use ($trxCustomerIds) {
+                        $sub->whereNotNull('deleted_at')
+                            ->whereIn('id', $trxCustomerIds);
+                    });
             })
             ->get();
 
@@ -116,39 +116,39 @@ class NettCashController extends Controller
                             Addrbook::TYPE_RESELLER,
                         ]);
                 })
-                ->orWhere(function ($sub) {
-                    $sub->whereIn('type', [
-                        Transaction::TYPE_CASH_OUT,
-                        Transaction::TYPE_SELL,
-                    ])
-                    ->whereIn('receiver_type', [
-                        Addrbook::TYPE_CUSTOMER,
-                        Addrbook::TYPE_RESELLER,
-                    ]);
-                })
-                ->orWhere(function ($sub) {
-                    $sub->where('type', Transaction::TYPE_RETURN)
-                        ->whereIn('sender_type', [
-                            Addrbook::TYPE_CUSTOMER,
-                            Addrbook::TYPE_RESELLER,
-                        ]);
-                })
-                ->orWhere(function ($sub) {
-                    $sub->where('receiver_type', Addrbook::TYPE_BANK)
-                        ->whereIn('sender_type', [
-                            Addrbook::TYPE_CUSTOMER,
-                            Addrbook::TYPE_RESELLER,
-                        ]);
-                });
+                    ->orWhere(function ($sub) {
+                        $sub->whereIn('type', [
+                            Transaction::TYPE_CASH_OUT,
+                            Transaction::TYPE_SELL,
+                        ])
+                            ->whereIn('receiver_type', [
+                                Addrbook::TYPE_CUSTOMER,
+                                Addrbook::TYPE_RESELLER,
+                            ]);
+                    })
+                    ->orWhere(function ($sub) {
+                        $sub->where('type', Transaction::TYPE_RETURN)
+                            ->whereIn('sender_type', [
+                                Addrbook::TYPE_CUSTOMER,
+                                Addrbook::TYPE_RESELLER,
+                            ]);
+                    })
+                    ->orWhere(function ($sub) {
+                        $sub->where('receiver_type', Addrbook::TYPE_BANK)
+                            ->whereIn('sender_type', [
+                                Addrbook::TYPE_CUSTOMER,
+                                Addrbook::TYPE_RESELLER,
+                            ]);
+                    });
             })
-            ->selectRaw("
+            ->selectRaw('
                 sender_id,
                 sender_type,
                 receiver_id,
                 receiver_type,
                 type,
                 SUM(total) as total
-            ")
+            ')
             ->groupBy(
                 'sender_id',
                 'sender_type',
@@ -159,7 +159,7 @@ class NettCashController extends Controller
             ->get();
 
         // ================= INIT =================
-        $init = fn() => [
+        $init = fn () => [
             'cashIn' => [],
             'cashOut' => [],
             'sell' => [],

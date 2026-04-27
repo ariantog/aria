@@ -21,6 +21,7 @@ const breadcrumbs: BreadcrumbItem[] = [
 
 export default function SettingCreate() {
     const { data, setData, post, processing, errors } = useForm({
+        group: '',
         name: '',
         slug: '',
         value: '',
@@ -53,9 +54,19 @@ export default function SettingCreate() {
                         <Card className="border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/50">
                             <CardHeader>
                                 <CardTitle>Setting Details</CardTitle>
-                                <CardDescription>Define the name, unique slug, and value for this setting.</CardDescription>
+                                <CardDescription>Define the category, name, unique slug, and value for this setting.</CardDescription>
                             </CardHeader>
                             <CardContent className="space-y-4">
+                                <FormInput
+                                    id="group"
+                                    label="Group / Category"
+                                    value={data.group}
+                                    onChange={(e) => setData('group', e.target.value)}
+                                    placeholder="e.g. Accounting, System, Inventory"
+                                    error={errors.group}
+                                    required
+                                />
+
                                 <FormInput
                                     id="name"
                                     label="Name"

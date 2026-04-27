@@ -13,7 +13,8 @@ class SettingController extends Controller
         Gate::authorize(Setting::getPermissions()['view']);
 
         return Inertia::render('SystemSettings/Index', [
-            'settings' => Setting::latest()->get(),
+            'settings' => Setting::orderBy('group')->orderBy('name')->get(),
+            'groups' => Setting::select('group')->distinct()->orderBy('group')->pluck('group'),
         ]);
     }
 

@@ -38,7 +38,7 @@ class WarehouseItemReportController extends Controller
                 'c.name as nama_gudang',
                 DB::raw('COUNT(DISTINCT wi.item_id) as total_item'),
                 DB::raw('COALESCE(SUM(wi.qty), 0) as total_qty'),
-                DB::raw("
+                DB::raw('
                     COALESCE(SUM(
                         wi.qty * 
                         CASE 
@@ -47,7 +47,7 @@ class WarehouseItemReportController extends Controller
                             ELSE 0
                         END
                     ), 0) as total_cost
-                ")
+                ')
             )
             ->groupBy('c.id', 'c.name')
             ->orderBy('c.name')

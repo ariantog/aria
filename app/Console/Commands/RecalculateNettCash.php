@@ -9,6 +9,7 @@ use Illuminate\Console\Command;
 class RecalculateNettCash extends Command
 {
     protected $signature = 'app:recalculate-nett-cash';
+
     protected $description = 'Recalculate monthly account summaries using legacy logic (Proper one-sided attribution)';
 
     public function handle()
@@ -30,25 +31,27 @@ class RecalculateNettCash extends Command
 
     protected function processSide($side, array $types)
     {
-        $this->info("Processing $side side for types: " . implode(',', $types));
+        $this->info("Processing $side side for types: ".implode(',', $types));
         $idCol = "{$side}_id";
 
         $results = Transaction::selectRaw("
             YEAR(date) as year,
             MONTH(date) as month,
             $idCol as addrbook_id,
-            SUM(CASE WHEN type = ".Transaction::TYPE_CASH_IN." THEN total ELSE 0 END) as cash_in,
-            SUM(CASE WHEN type = ".Transaction::TYPE_CASH_OUT." THEN total ELSE 0 END) as cash_out,
-            SUM(CASE WHEN type = ".Transaction::TYPE_SELL." THEN total ELSE 0 END) as sell,
-            SUM(CASE WHEN type = ".Transaction::TYPE_RETURN." THEN total ELSE 0 END) as `return`
-        ")
-        ->where('status', Transaction::STATUS_COMPLETED)
-        ->whereIn('type', $types)
-        ->groupBy('year', 'month', $idCol)
-        ->get();
+            SUM(CASE WHEN type = ".Transaction::TYPE_CASH_IN.' THEN total ELSE 0 END) as cash_in,
+            SUM(CASE WHEN type = '.Transaction::TYPE_CASH_OUT.' THEN total ELSE 0 END) as cash_out,
+            SUM(CASE WHEN type = '.Transaction::TYPE_SELL.' THEN total ELSE 0 END) as sell,
+            SUM(CASE WHEN type = '.Transaction::TYPE_RETURN.' THEN total ELSE 0 END) as `return`
+        ')
+            ->where('status', Transaction::STATUS_COMPLETED)
+            ->whereIn('type', $types)
+            ->groupBy('year', 'month', $idCol)
+            ->get();
 
         foreach ($results as $row) {
-            if (!$row->addrbook_id) continue;
+            if (! $row->addrbook_id) {
+                continue;
+            }
 
             $summary = MonthlyAccountSummary::firstOrNew([
                 'year' => $row->year,

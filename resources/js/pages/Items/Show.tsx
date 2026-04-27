@@ -21,6 +21,7 @@ interface WarehouseItem {
     warehouse: {
         id: number;
         name: string;
+        type: number;
     };
     quantity: number;
 }
@@ -69,7 +70,49 @@ export default function ItemsShow({ item }: Props) {
     ];
 
     // Calculate total stock
-    const totalStock = item.warehouse_items?.reduce((sum, wh) => sum + wh.quantity, 0) || 0;
+    const totalStock = item.warehouse_items?.reduce((sum, wh) => sum + Number(wh.quantity), 0) || 0;
+
+    // Filter lists
+    const warehouseList = item.warehouse_items || [];
+
+    const renderStockList = (list: WarehouseItem[]) => {
+        const visibleList = showZero ? list : list.filter(wh => Number(wh.quantity) > 0);
+
+        if (visibleList.length === 0) {
+            return (
+                <div className="col-span-full py-8 text-center text-gray-500 italic text-sm">
+                    No warehouse data available.
+                </div>
+            );
+        }
+
+        return (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {visibleList.map((whItem) => (
+                    <div
+                        key={whItem.id}
+                        className={cn(
+                            "bg-[#161616] border border-gray-800 p-4 rounded-xl flex justify-between items-center transition-all",
+                            whItem.quantity < 1 ? "opacity-50" : ""
+                        )}
+                    >
+                        <div>
+                            <p className="text-white font-medium">{whItem.warehouse?.name || 'Unknown'}</p>
+                            <p className="text-[10px] text-gray-500 uppercase">ID: {whItem.warehouse?.id}</p>
+                        </div>
+                        <div className="text-right">
+                            <p className={cn("text-lg font-bold", whItem.quantity > 0 ? "text-blue-400" : "text-gray-500")}>
+                                {whItem.quantity}
+                            </p>
+                            <p className="text-[10px] text-gray-600 uppercase font-bold">
+                                {whItem.quantity > 0 ? 'Units' : 'Out of Stock'}
+                            </p>
+                        </div>
+                    </div>
+                ))}
+            </div>
+        );
+    };
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
@@ -103,20 +146,50 @@ export default function ItemsShow({ item }: Props) {
 
                     {/* Navigation Tabs */}
                     <div className="flex border-b border-gray-800 mb-8 overflow-x-auto">
-                        {tabs.map((tab) => (
-                            <button
-                                key={tab.name}
-                                onClick={() => setActiveTab(tab.name)}
-                                className={cn(
-                                    "px-6 py-4 text-sm font-medium transition-all border-b-2",
-                                    activeTab === tab.name
-                                        ? "text-blue-500 border-blue-500"
-                                        : "text-gray-500 hover:text-white border-transparent hover:border-gray-700"
-                                )}
-                            >
-                                {tab.name}
-                            </button>
-                        ))}
+                        <Link
+                            href={`/items/${item.id}`}
+                            className={cn(
+                                "px-6 py-4 text-sm font-medium transition-all border-b-2",
+                                activeTab === 'Detail'
+                                    ? "text-blue-500 border-blue-500"
+                                    : "text-gray-500 hover:text-white border-transparent hover:border-gray-700"
+                            )}
+                        >
+                            Detail
+                        </Link>
+                        <Link
+                            href={`/items/${item.id}/transactions`}
+                            className={cn(
+                                "px-6 py-4 text-sm font-medium transition-all border-b-2",
+                                activeTab === 'Transaction'
+                                    ? "text-blue-500 border-blue-500"
+                                    : "text-gray-500 hover:text-white border-transparent hover:border-gray-700"
+                            )}
+                        >
+                            Transaction
+                        </Link>
+                        <Link
+                            href={`/items/${item.id}/stats`}
+                            className={cn(
+                                "px-6 py-4 text-sm font-medium transition-all border-b-2",
+                                activeTab === 'Stats'
+                                    ? "text-blue-500 border-blue-500"
+                                    : "text-gray-500 hover:text-white border-transparent hover:border-gray-700"
+                            )}
+                        >
+                            Stats
+                        </Link>
+                        <Link
+                            href={`/items/${item.id}/jubelio`}
+                            className={cn(
+                                "px-6 py-4 text-sm font-medium transition-all border-b-2",
+                                activeTab === 'Jubelio'
+                                    ? "text-blue-500 border-blue-500"
+                                    : "text-gray-500 hover:text-white border-transparent hover:border-gray-700"
+                            )}
+                        >
+                            Jubelio
+                        </Link>
                     </div>
 
                     {/* Detail Content Grid */}
@@ -276,37 +349,7 @@ export default function ItemsShow({ item }: Props) {
                             </div>
 
                             <div className="p-6">
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                    {item.warehouse_items && item.warehouse_items.length > 0 ? (
-                                        item.warehouse_items.map((whItem) => (
-                                            <div
-                                                key={whItem.id}
-                                                className={cn(
-                                                    "bg-[#161616] border border-gray-800 p-4 rounded-xl flex justify-between items-center transition-all",
-                                                    !showZero && whItem.quantity < 1 ? "hidden" : "",
-                                                    whItem.quantity < 1 ? "opacity-50" : ""
-                                                )}
-                                            >
-                                                <div>
-                                                    <p className="text-white font-medium">{whItem.warehouse?.name || 'Unknown'}</p>
-                                                    <p className="text-[10px] text-gray-500 uppercase">Warehouse ID: {whItem.warehouse?.id}</p>
-                                                </div>
-                                                <div className="text-right">
-                                                    <p className={cn("text-lg font-bold", whItem.quantity > 0 ? "text-blue-400" : "text-gray-500")}>
-                                                        {whItem.quantity}
-                                                    </p>
-                                                    <p className="text-[10px] text-gray-600 uppercase font-bold">
-                                                        {whItem.quantity > 0 ? 'Units' : 'Out of Stock'}
-                                                    </p>
-                                                </div>
-                                            </div>
-                                        ))
-                                    ) : (
-                                        <div className="col-span-full py-8 text-center text-gray-500">
-                                            No warehouse data available.
-                                        </div>
-                                    )}
-                                </div>
+                                {renderStockList(warehouseList)}
                             </div>
                         </div>
                     </div>

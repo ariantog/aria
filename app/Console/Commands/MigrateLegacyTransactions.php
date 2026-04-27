@@ -127,7 +127,7 @@ class MigrateLegacyTransactions extends Command
         $addrbookTypes = DB::table('addrbooks')->pluck('type', 'id')->toArray();
 
         // Increase chunk size for better performance
-        $query->chunkById(2000, function ($transactions) use ($bar, $addrbookTypes) {
+        $query->chunkById(2000, function ($transactions) use ($bar) {
             $transactionBuffer = [];
             $detailBuffer = [];
             $trxIds = $transactions->pluck('id')->toArray();
@@ -142,7 +142,7 @@ class MigrateLegacyTransactions extends Command
 
                 $senderId = $data['sender_id'];
                 $receiverId = $data['receiver_id'];
-                
+
                 // Use raw legacy types to ensure consistency (even if they are 0)
                 $senderType = $data['sender_type'];
                 $receiverType = $data['receiver_type'];

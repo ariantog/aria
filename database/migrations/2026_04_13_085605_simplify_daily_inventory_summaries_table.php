@@ -19,7 +19,7 @@ return new class extends Migration
                 'qty_return_in',
                 'qty_return_out',
                 'qty_adjust_in',
-                'qty_adjust_out'
+                'qty_adjust_out',
             ]);
         });
     }

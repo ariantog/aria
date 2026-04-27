@@ -11,6 +11,7 @@ import systemSettings from '@/routes/system-settings';
 
 interface Setting {
     id: number;
+    group: string;
     name: string;
     slug: string;
     value: string;
@@ -33,6 +34,7 @@ export default function SettingEdit({ setting }: Props) {
     ];
 
     const { data, setData, put, processing, errors } = useForm({
+        group: setting.group || '',
         name: setting.name,
         value: setting.value || '',
     });
@@ -64,7 +66,7 @@ export default function SettingEdit({ setting }: Props) {
                         <Card className="border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/50">
                             <CardHeader>
                                 <CardTitle>Setting Details</CardTitle>
-                                <CardDescription>Update name and value. The slug cannot be changed.</CardDescription>
+                                <CardDescription>Update category, name and value. The slug cannot be changed.</CardDescription>
                             </CardHeader>
                             <CardContent className="space-y-4">
                                 <div className="space-y-2 opacity-60">
@@ -73,6 +75,15 @@ export default function SettingEdit({ setting }: Props) {
                                         {setting.slug}
                                     </div>
                                 </div>
+
+                                <FormInput
+                                    id="group"
+                                    label="Group / Category"
+                                    value={data.group}
+                                    onChange={(e) => setData('group', e.target.value)}
+                                    error={errors.group}
+                                    required
+                                />
 
                                 <FormInput
                                     id="name"

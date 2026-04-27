@@ -54,6 +54,24 @@ class Transaction extends Model
         'submit_type' => 'integer',
     ];
 
+    public static function getTypes(): array
+    {
+        return [
+            ['id' => self::TYPE_BUY, 'name' => 'Buy'],
+            ['id' => self::TYPE_SELL, 'name' => 'Sell'],
+            ['id' => self::TYPE_MOVE, 'name' => 'Move'],
+            ['id' => self::TYPE_TRANSFER, 'name' => 'Transfer'],
+            ['id' => self::TYPE_CASH_OUT, 'name' => 'Cash Out'],
+            ['id' => self::TYPE_USE, 'name' => 'Use Items'],
+            ['id' => self::TYPE_CASH_IN, 'name' => 'Cash In'],
+            ['id' => self::TYPE_ADJUST, 'name' => 'Adjust'],
+            ['id' => self::TYPE_RETURN, 'name' => 'Return'],
+            ['id' => self::TYPE_PRODUCTION, 'name' => 'Production'],
+            ['id' => self::TYPE_RETURN_SUPPLIER, 'name' => 'Ret. Supplier'],
+            ['id' => self::TYPE_DEPRECIATION, 'name' => 'Depreciation'],
+        ];
+    }
+
     public function getTypeLabel(): string
     {
         return match ($this->type) {

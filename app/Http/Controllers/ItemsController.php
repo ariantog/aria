@@ -6,7 +6,6 @@ use App\Enums\ItemBrand;
 use App\Enums\ItemType;
 use App\Models\Item;
 use App\Models\ItemGroup;
-use App\Models\Transaction;
 use App\Models\TransactionDetail;
 use App\Services\ItemService;
 use Illuminate\Http\Request;
@@ -211,7 +210,15 @@ class ItemsController extends Controller
      */
     public function show(Item $item)
     {
-        $item->load(['group', 'tags', 'warehouseItems.location']);
+        $item->load([
+            'group',
+            'tags',
+            'warehouseItems' => function ($query) {
+                $query->whereIn('warehouse_id', function ($q) {
+                    $q->select('id')->from('addrbooks')->where('type', \App\Models\Addrbook::TYPE_WAREHOUSE);
+                })->with('warehouse');
+            },
+        ]);
 
         return Inertia::render('Items/Show', [
             'item' => $item,
@@ -315,7 +322,13 @@ class ItemsController extends Controller
     {
         Gate::authorize(Item::getPermissions()['view']);
 
-        $group->load(['items.warehouseItems.warehouse']);
+        $group->load([
+            'items.warehouseItems' => function ($query) {
+                $query->whereIn('warehouse_id', function ($q) {
+                    $q->select('id')->from('addrbooks')->where('type', \App\Models\Addrbook::TYPE_WAREHOUSE);
+                })->with('warehouse');
+            },
+        ]);
 
         return Inertia::render('Items/GroupShow', [
             'group' => $group,
@@ -329,25 +342,19 @@ class ItemsController extends Controller
         $from = $request->input('from', now()->subMonths(11)->startOfMonth()->toDateString());
         $to = $request->input('to', now()->endOfMonth()->toDateString());
 
-        $data = TransactionDetail::select([
-            'transaction_type',
-            \DB::raw("DATE_FORMAT(date,'%M %Y') AS showdate"),
-            \DB::raw("DATE_FORMAT(date,'%m') AS bulan"),
-            \DB::raw("DATE_FORMAT(date,'%Y') AS tahun"),
-            \DB::raw('SUM(quantity) as total_qty'),
+        $data = \App\Models\StatSell::select([
+            'type as transaction_type',
+            \DB::raw("DATE_FORMAT(STR_TO_DATE(CONCAT(tahun, '-', bulan, '-01'), '%Y-%m-%d'), '%M %Y') as showdate"),
+            'bulan',
+            'tahun',
+            \DB::raw('SUM(sum_qty) as total_qty'),
         ])
-            ->whereHas('item', function ($q) use ($group) {
-                $q->where('group_id', $group->id);
-            })
-            ->whereIn('transaction_type', [
-                Transaction::TYPE_SELL,
-                Transaction::TYPE_MOVE,
-                Transaction::TYPE_RETURN,
-                Transaction::TYPE_PRODUCTION,
-            ])
-            ->whereBetween('date', [$from, $to])
-            ->groupBy('showdate', 'transaction_type', 'bulan', 'tahun')
-            ->orderBy('date', 'desc')
+            ->where('group_id', $group->id)
+            ->where(\DB::raw('tahun * 100 + bulan'), '>=', \DB::raw('YEAR("'.$from.'") * 100 + MONTH("'.$from.'")'))
+            ->where(\DB::raw('tahun * 100 + bulan'), '<=', \DB::raw('YEAR("'.$to.'") * 100 + MONTH("'.$to.'")'))
+            ->groupBy('showdate', 'type', 'bulan', 'tahun')
+            ->orderBy('tahun', 'desc')
+            ->orderBy('bulan', 'desc')
             ->get();
 
         return Inertia::render('Items/GroupStats', [
@@ -378,10 +385,11 @@ class ItemsController extends Controller
     {
         Gate::authorize(Item::getPermissions()['view']);
 
-        $from = $request->input('from', now()->subMonths(11)->startOfMonth()->toDateString());
-        $to = $request->input('to', now()->endOfMonth()->toDateString());
+        $from = $request->input('from');
+        $to = $request->input('to');
+        $addrId = $request->input('addr');
 
-        $data = TransactionDetail::select([
+        $query = \App\Models\TransactionDetail::select([
             'transaction_type',
             \DB::raw("DATE_FORMAT(date,'%M %Y') AS showdate"),
             \DB::raw("DATE_FORMAT(date,'%m') AS bulan"),
@@ -390,20 +398,49 @@ class ItemsController extends Controller
         ])
             ->where('item_id', $item->id)
             ->whereIn('transaction_type', [
-                Transaction::TYPE_SELL,
-                Transaction::TYPE_MOVE,
-                Transaction::TYPE_RETURN,
-                Transaction::TYPE_PRODUCTION,
+                \App\Models\Transaction::TYPE_SELL,
+                \App\Models\Transaction::TYPE_MOVE,
+                \App\Models\Transaction::TYPE_RETURN,
+                \App\Models\Transaction::TYPE_PRODUCTION,
             ])
-            ->whereBetween('date', [$from, $to])
             ->groupBy('showdate', 'transaction_type', 'bulan', 'tahun')
-            ->orderBy('date', 'desc')
-            ->get();
+            ->orderBy('tahun', 'DESC')
+            ->orderBy('bulan', 'DESC');
+
+        if ($from) {
+            $query->whereDate('date', '>=', $from);
+        }
+
+        if ($to) {
+            $query->whereDate('date', '<=', $to);
+        }
+
+        if ($addrId) {
+            $query->where(function ($q) use ($addrId) {
+                $q->where('sender_id', $addrId)
+                    ->orWhere('receiver_id', $addrId);
+            });
+        }
+
+        $data = $query->get();
+
+        $addrbooks = \App\Models\Addrbook::whereIn('type', [
+            \App\Models\Addrbook::TYPE_CUSTOMER,
+            \App\Models\Addrbook::TYPE_RESELLER,
+            \App\Models\Addrbook::TYPE_WAREHOUSE,
+        ])
+            ->orderBy('name')
+            ->get(['id', 'name', 'type']);
 
         return Inertia::render('Items/ItemStats', [
             'item' => $item->load('group'),
             'data' => $data,
-            'filters' => ['from' => $from, 'to' => $to],
+            'addrbooks' => $addrbooks,
+            'filters' => [
+                'from' => $from,
+                'to' => $to,
+                'addr' => $addrId,
+            ],
         ]);
     }
 }

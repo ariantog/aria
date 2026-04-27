@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\StoreAddrbookRequest;
 use App\Http\Requests\UpdateAddrbookRequest;
 use App\Models\Addrbook;
+use App\Models\StatSell;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 
@@ -166,6 +167,26 @@ class AddrbookController extends Controller
         return $this->show($addrbook);
     }
 
+    public function transactionsType(string $type, Addrbook $addrbook)
+    {
+        return $this->transactions($addrbook->id);
+    }
+
+    public function itemsType(string $type, Addrbook $addrbook)
+    {
+        return $this->items($addrbook->id);
+    }
+
+    public function statType(string $type, Addrbook $addrbook)
+    {
+        return $this->stat($addrbook->id);
+    }
+
+    public function itemSalesType(string $type, Addrbook $addrbook)
+    {
+        return $this->itemSales($addrbook->id);
+    }
+
     /**
      * Show the form for editing the specified resource.
      */
@@ -194,6 +215,239 @@ class AddrbookController extends Controller
         $addrbook->update($request->validated());
 
         return redirect()->route('addrbook.index')->with('success', 'Address Book entry updated successfully.');
+    }
+
+    public function transactions($id)
+    {
+        $addrbook = Addrbook::withTrashed()->findOrFail($id);
+
+        Gate::authorize(Addrbook::getPermissions($addrbook->type_slug)['view']);
+
+        $from = request()->query('from');
+        $to = request()->query('to');
+        $type = request()->query('type');
+        $orderDate = request()->query('order_date', 'date');
+
+        $query = \App\Models\Transaction::where(function ($q) use ($addrbook) {
+            $q->where('sender_id', $addrbook->id)
+                ->orWhere('receiver_id', $addrbook->id);
+        })
+            ->with(['sender', 'receiver', 'user']);
+
+        if ($from) {
+            $query->whereDate('date', '>=', $from);
+        }
+
+        if ($to) {
+            $query->whereDate('date', '<=', $to);
+        }
+
+        if ($type) {
+            $query->where('type', $type);
+        }
+
+        if ($orderDate === 'created_at') {
+            $query->orderBy('created_at', 'desc');
+        } else {
+            $query->orderBy('date', 'desc')->orderBy('id', 'desc');
+        }
+
+        $transactions = $query->paginate(50)->withQueryString();
+
+        return Inertia::render('Addrbook/Transactions', [
+            'addrbook' => $addrbook,
+            'transactions' => $transactions,
+            'transactionTypes' => \App\Models\Transaction::getTypes(),
+            'filters' => request()->all(['from', 'to', 'type', 'order_date']),
+        ]);
+    }
+
+    public function items($id)
+    {
+        $addrbook = Addrbook::withTrashed()->findOrFail($id);
+        Gate::authorize(Addrbook::getPermissions($addrbook->type_slug)['view']);
+
+        $name = request()->query('name');
+        $sort = request()->query('sort', 'qtydesc');
+        $show0 = request()->query('show0') === 'show';
+
+        $query = $addrbook->items()->with('group');
+
+        if ($name) {
+            $query->where(function ($q) use ($name) {
+                $q->where('items.name', 'like', "%{$name}%")
+                    ->orWhere('items.code', 'like', "%{$name}%");
+            });
+        }
+
+        if (! $show0) {
+            $query->wherePivot('quantity', '>', 0);
+        }
+
+        switch ($sort) {
+            case 'qtyasc':
+                $query->orderByPivot('quantity', 'asc');
+                break;
+            case 'codedesc':
+                $query->orderBy('items.code', 'desc');
+                break;
+            case 'codeasc':
+                $query->orderBy('items.code', 'asc');
+                break;
+            case 'namedesc':
+                $query->orderBy('items.name', 'desc');
+                break;
+            case 'nameasc':
+                $query->orderBy('items.name', 'asc');
+                break;
+            case 'iddesc':
+                $query->orderBy('items.id', 'desc');
+                break;
+            case 'idasc':
+                $query->orderBy('items.id', 'asc');
+                break;
+            default: // qtydesc
+                $query->orderByPivot('quantity', 'desc');
+                break;
+        }
+
+        $items = $query->paginate(50)->withQueryString();
+
+        return Inertia::render('Addrbook/Items', [
+            'addrbook' => $addrbook,
+            'items' => $items,
+            'filters' => request()->all(['name', 'sort', 'show0']),
+        ]);
+    }
+
+    public function itemSales($id)
+    {
+        $addrbook = Addrbook::withTrashed()->findOrFail($id);
+        Gate::authorize(Addrbook::getPermissions($addrbook->type_slug)['view']);
+
+        $bulan = request()->query('bulan');
+        $tahun = request()->query('tahun');
+        $search = request()->query('search');
+        $type = request()->query('type');
+
+        $query = StatSell::where('sender_id', $addrbook->id)
+            ->with('group');
+
+        if ($bulan) {
+            $query->where('bulan', $bulan);
+        }
+
+        if ($tahun) {
+            $query->where('tahun', $tahun);
+        }
+
+        if ($search) {
+            $query->whereHas('group', function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                    ->orWhere('description', 'like', "%{$search}%");
+            });
+        }
+
+        if ($type) {
+            $query->where('type', $type);
+        }
+
+        $sales = $query->orderBy('tahun', 'desc')
+            ->orderBy('bulan', 'desc')
+            ->paginate(50)
+            ->withQueryString();
+
+        return Inertia::render('Addrbook/ItemSales', [
+            'addrbook' => $addrbook,
+            'sales' => $sales,
+            'filters' => [
+                'bulan' => $bulan ? (int) $bulan : null,
+                'tahun' => $tahun ? (int) $tahun : null,
+                'search' => $search,
+                'type' => $type ? (int) $type : null,
+            ],
+            'years' => range(date('Y'), date('Y') - 5),
+            'transactionTypes' => \App\Models\Transaction::getTypes(),
+        ]);
+    }
+
+    public function stat($id)
+    {
+        $addrbook = Addrbook::withTrashed()->findOrFail($id);
+        Gate::authorize(Addrbook::getPermissions($addrbook->type_slug)['view']);
+
+        $month = request('month');
+        $year = request('year', date('Y'));
+
+        // Fetch all transactions involving this addrbook for the selected period
+        $query = \App\Models\Transaction::where(function ($q) use ($addrbook) {
+            $q->where('sender_id', $addrbook->id)
+                ->orWhere('receiver_id', $addrbook->id);
+        })
+            ->whereYear('date', $year);
+
+        if ($month) {
+            $query->whereMonth('date', $month);
+        }
+
+        $transactions = $query->with(['sender', 'receiver'])->get();
+
+        $categories = ['customer', 'reseller', 'journal', 'bank', 'warehouse', 'other'];
+        $metrics = ['cash_in', 'cash_out', 'sell', 'return'];
+
+        $dataStat = [];
+        foreach ($metrics as $metric) {
+            foreach ($categories as $cat) {
+                $dataStat[$metric][$cat] = 0;
+            }
+            $dataStat[$metric]['total'] = 0;
+        }
+
+        foreach ($transactions as $t) {
+            // Determine counterpart
+            $otherParty = ($t->sender_id == $addrbook->id) ? $t->receiver : $t->sender;
+            $type = $otherParty->type ?? null;
+
+            $cat = match ($type) {
+                Addrbook::TYPE_CUSTOMER => 'customer',
+                Addrbook::TYPE_RESELLER => 'reseller',
+                Addrbook::TYPE_ACCOUNT => 'journal',
+                Addrbook::TYPE_BANK => 'bank',
+                Addrbook::TYPE_WAREHOUSE => 'warehouse',
+                default => 'other',
+            };
+
+            // Cash In (relative to current addrbook)
+            // If we are receiver, cash came in. If we are sender, cash went out.
+            // But usually this stat is used for Warehouse/Bank relative to others.
+            if ($t->type == \App\Models\Transaction::TYPE_CASH_IN) {
+                $amt = (float) $t->grand_total;
+                $dataStat['cash_in'][$cat] += $amt;
+                $dataStat['cash_in']['total'] += $amt;
+            } elseif ($t->type == \App\Models\Transaction::TYPE_CASH_OUT) {
+                $amt = (float) $t->grand_total;
+                $dataStat['cash_out'][$cat] += $amt;
+                $dataStat['cash_out']['total'] += $amt;
+            } elseif ($t->type == \App\Models\Transaction::TYPE_SELL) {
+                $amt = (float) $t->grand_total;
+                $dataStat['sell'][$cat] += $amt;
+                $dataStat['sell']['total'] += $amt;
+            } elseif ($t->type == \App\Models\Transaction::TYPE_RETURN) {
+                $amt = (float) $t->grand_total;
+                $dataStat['return'][$cat] += $amt;
+                $dataStat['return']['total'] += $amt;
+            }
+        }
+
+        return Inertia::render('Addrbook/Stats', [
+            'addrbook' => $addrbook,
+            'dataStat' => $dataStat,
+            'filters' => [
+                'month' => (int) $month,
+                'year' => (int) $year,
+            ],
+            'years' => range(date('Y'), date('Y') - 5),
+        ]);
     }
 
     public function destroy(Addrbook $addrbook)

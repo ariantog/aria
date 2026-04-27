@@ -27,8 +27,9 @@ class TruncateTransactions extends Command
      */
     public function handle(): int
     {
-        if (!$this->option('force') && !$this->confirm('Are you sure you want to truncate transactions and transaction_details? This will delete ALL transaction data!')) {
+        if (! $this->option('force') && ! $this->confirm('Are you sure you want to truncate transactions and transaction_details? This will delete ALL transaction data!')) {
             $this->info('Operation cancelled.');
+
             return 0;
         }
 
@@ -49,7 +50,8 @@ class TruncateTransactions extends Command
 
             $this->info('Successfully truncated all transaction tables.');
         } catch (\Exception $e) {
-            $this->error('Failed to truncate tables: ' . $e->getMessage());
+            $this->error('Failed to truncate tables: '.$e->getMessage());
+
             return 1;
         } finally {
             Schema::enableForeignKeyConstraints();

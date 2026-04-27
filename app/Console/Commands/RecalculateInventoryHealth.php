@@ -33,7 +33,7 @@ class RecalculateInventoryHealth extends Command
             $whType = Addrbook::TYPE_WAREHOUSE;
 
             // 1. Proses hanya transaksi SELL di mana SENDER adalah WAREHOUSE
-            $this->info("Processing sales for warehouses only...");
+            $this->info('Processing sales for warehouses only...');
 
             $years = DB::table('transactions')->selectRaw('DISTINCT YEAR(date) as year')->pluck('year');
 
@@ -70,7 +70,7 @@ class RecalculateInventoryHealth extends Command
             $this->info("Recalculation completed successfully in {$time} seconds.");
 
         } catch (\Exception $e) {
-            $this->error('Error: ' . $e->getMessage());
+            $this->error('Error: '.$e->getMessage());
         } finally {
             Schema::enableForeignKeyConstraints();
         }
@@ -79,7 +79,7 @@ class RecalculateInventoryHealth extends Command
     protected function snapshotStockOptimized()
     {
         $whType = Addrbook::TYPE_WAREHOUSE;
-        
+
         $sql = "
             INSERT INTO daily_inventory_summaries 
             (date, warehouse_id, item_id, stock_on_hand, created_at, updated_at)

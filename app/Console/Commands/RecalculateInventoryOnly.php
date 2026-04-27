@@ -62,7 +62,7 @@ class RecalculateInventoryOnly extends Command
 
                 // 3. Warehouse Stock (warehouse_items)
                 $this->info('Recalculating Warehouse Stock...');
-                
+
                 // Process Inbound (+)
                 $this->info(' - Processing Inbound items...');
                 DB::statement('
@@ -90,10 +90,11 @@ class RecalculateInventoryOnly extends Command
 
             $time = round(microtime(true) - $start, 2);
             $this->info("Inventory recalculation finished in {$time} seconds.");
-            
+
             return Command::SUCCESS;
         } catch (\Exception $e) {
             $this->error('Error: '.$e->getMessage());
+
             return Command::FAILURE;
         } finally {
             Schema::enableForeignKeyConstraints();

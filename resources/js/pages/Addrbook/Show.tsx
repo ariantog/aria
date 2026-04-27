@@ -173,300 +173,149 @@ export default function AddrbookShow({ addrbook, ppn_rate }: Props) {
 
                 {/* Tabs Navigation */}
                 <div className="border-b border-zinc-200 dark:border-zinc-800 mb-8 flex overflow-x-auto scrollbar-hide">
-                    <TabButton active={activeTab === 'overview'} onClick={() => setActiveTab('overview')}>
-                        <div className="flex items-center gap-2">
-                            <Info className="h-4 w-4" /> Overview
-                        </div>
-                    </TabButton>
-                    <TabButton active={activeTab === 'stats'} onClick={() => setActiveTab('stats')}>
-                        <div className="flex items-center gap-2">
-                            <BarChart3 className="h-4 w-4" /> Statistics
-                        </div>
-                    </TabButton>
-                    <TabButton active={activeTab === 'history'} onClick={() => setActiveTab('history')}>
-                        <div className="flex items-center gap-2">
-                            <History className="h-4 w-4" /> Financial History
-                        </div>
-                    </TabButton>
+                    <Link
+                        href={`/${addrbook.type_slug}/${addrbook.id}`}
+                        className="px-6 py-4 text-sm font-medium transition-all border-b-2 text-blue-600 dark:text-blue-400 border-blue-600 dark:border-blue-400 whitespace-nowrap"
+                    >
+                        Detail
+                    </Link>
+                    <Link
+                        href={`/${addrbook.type_slug}/${addrbook.id}/transactions`}
+                        className="px-6 py-4 text-sm font-medium transition-all border-b-2 border-transparent text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:border-zinc-200 dark:hover:border-zinc-800 whitespace-nowrap"
+                    >
+                        Transaction
+                    </Link>
                     {addrbook.type === 2 && ( // TYPE_WAREHOUSE
-                        <TabButton active={activeTab === 'inventory'} onClick={() => setActiveTab('inventory')}>
-                            <div className="flex items-center gap-2">
-                                <Package className="h-4 w-4" /> Inventory
-                            </div>
-                        </TabButton>
+                        <>
+                            <Link
+                                href={`/${addrbook.type_slug}/${addrbook.id}/items`}
+                                className="px-6 py-4 text-sm font-medium transition-all border-b-2 border-transparent text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:border-zinc-200 dark:hover:border-zinc-800 whitespace-nowrap"
+                            >
+                                Items
+                            </Link>
+                            <Link
+                                href={`/${addrbook.type_slug}/${addrbook.id}/stats`}
+                                className="px-6 py-4 text-sm font-medium transition-all border-b-2 border-transparent text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:border-zinc-200 dark:hover:border-zinc-800 whitespace-nowrap"
+                            >
+                                Stats
+                            </Link>
+                        </>
                     )}
+                    <Link
+                        href={`/${addrbook.type_slug}/${addrbook.id}/item-sales`}
+                        className="px-6 py-4 text-sm font-medium transition-all border-b-2 border-transparent text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:border-zinc-200 dark:hover:border-zinc-800 whitespace-nowrap"
+                    >
+                        Item Sale
+                    </Link>
                 </div>
 
                 {/* Tab Content */}
                 <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-                    {/* Inventory Tab */}
-                    {activeTab === 'inventory' && (
-                        <Card className="rounded-2xl border-zinc-200 dark:border-zinc-800 shadow-sm overflow-hidden">
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-sm text-left">
-                                    <thead className="bg-zinc-50 dark:bg-zinc-900/50 border-b border-zinc-200 dark:border-zinc-800 text-xs text-zinc-500 uppercase font-bold tracking-wider">
-                                        <tr>
-                                            <th className="px-6 py-4">Item Name</th>
-                                            <th className="px-6 py-4">Code</th>
-                                            <th className="px-6 py-4 text-right">Qty</th>
-                                            <th className="px-6 py-4 text-right">Cost/Unit</th>
-                                            <th className="px-6 py-4 text-right">Total Cost</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800/50">
-                                        {addrbook.items && addrbook.items.length > 0 ? (
-                                            addrbook.items.map((item) => (
-                                                <tr key={item.id} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/40 transition-colors">
-                                                    <td className="px-6 py-4 font-medium text-zinc-900 dark:text-zinc-100">
-                                                        {item.name}
-                                                    </td>
-                                                    <td className="px-6 py-4 font-mono text-xs text-zinc-500">
-                                                        {item.code}
-                                                    </td>
-                                                    <td className="px-6 py-4 text-right tabular-nums font-semibold">
-                                                        {formatNumber(item.pivot.quantity)}
-                                                    </td>
-                                                    <td className="px-6 py-4 text-right tabular-nums text-zinc-500">
-                                                        {formatCurrency(item.calculated_cost)}
-                                                    </td>
-                                                    <td className="px-6 py-4 text-right tabular-nums font-bold text-zinc-900 dark:text-zinc-100">
-                                                        {formatCurrency(item.total_calculated_cost)}
-                                                    </td>
-                                                </tr>
-                                            ))
-                                        ) : (
-                                            <tr>
-                                                <td colSpan={5} className="px-6 py-20 text-center text-zinc-400">
-                                                    <Package className="h-10 w-10 mx-auto mb-3 opacity-20" />
-                                                    No stock found in this warehouse.
-                                                </td>
-                                            </tr>
-                                        )}
-                                    </tbody>
-                                    {addrbook.items && addrbook.items.length > 0 && (
-                                        <tfoot className="bg-zinc-50 dark:bg-zinc-900/50 font-bold border-t border-zinc-200 dark:border-zinc-800">
-                                            <tr>
-                                                <td colSpan={2} className="px-6 py-4 text-left">TOTAL</td>
-                                                <td className="px-6 py-4 text-right tabular-nums">
-                                                    {formatNumber(addrbook.items.reduce((acc, item) => acc + Number(item.pivot.quantity), 0))}
-                                                </td>
-                                                <td className="px-6 py-4"></td>
-                                                <td className="px-6 py-4 text-right tabular-nums">
-                                                    {formatCurrency(addrbook.items.reduce((acc, item) => acc + item.total_calculated_cost, 0))}
-                                                </td>
-                                            </tr>
-                                        </tfoot>
-                                    )}
-                                </table>
-                            </div>
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                        <Card className="lg:col-span-2 rounded-2xl border-zinc-200 dark:border-zinc-800 shadow-sm overflow-hidden">
+                            <CardHeader className="bg-zinc-50/50 dark:bg-zinc-900/30 border-b border-zinc-200 dark:border-zinc-800 p-6">
+                                <CardTitle className="text-lg font-bold">General Information</CardTitle>
+                                <CardDescription>Primary contact and basic details</CardDescription>
+                            </CardHeader>
+                            <CardContent className="p-8 space-y-8">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8">
+                                    <div className="space-y-2">
+                                        <p className="text-xs font-bold uppercase tracking-wider text-zinc-400">Contact Person</p>
+                                        <div className="flex items-center gap-3 text-zinc-900 dark:text-zinc-100 font-medium">
+                                            <div className="h-9 w-9 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-500">
+                                                <User className="h-4 w-4" />
+                                            </div>
+                                            {addrbook.contact_person || 'No data available'}
+                                        </div>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <p className="text-xs font-bold uppercase tracking-wider text-zinc-400">Phone Number</p>
+                                        <div className="flex items-center gap-3 text-zinc-900 dark:text-zinc-100 font-medium">
+                                            <div className="h-9 w-9 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-500">
+                                                <Phone className="h-4 w-4" />
+                                            </div>
+                                            {addrbook.phone || 'No data available'}
+                                        </div>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <p className="text-xs font-bold uppercase tracking-wider text-zinc-400">Email Address</p>
+                                        <div className="flex items-center gap-3 text-zinc-900 dark:text-zinc-100 font-medium">
+                                            <div className="h-9 w-9 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-500">
+                                                <Mail className="h-4 w-4" />
+                                            </div>
+                                            {addrbook.email || 'No data available'}
+                                        </div>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <p className="text-xs font-bold uppercase tracking-wider text-zinc-400">Tax Status (PPN)</p>
+                                        <div className="flex flex-wrap gap-2">
+                                            {addrbook.ppn ? (
+                                                <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 border-none px-3 py-1 font-medium">
+                                                    PPN Active ({ppn_rate}%)
+                                                </Badge>
+                                            ) : (
+                                                <Badge variant="outline" className="text-zinc-400 border-zinc-200 dark:border-zinc-800 px-3 py-1">PPN Non-Active</Badge>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="pt-6 border-t border-zinc-100 dark:border-zinc-800 space-y-3">
+                                    <p className="text-xs font-bold uppercase tracking-wider text-zinc-400">Full Address</p>
+                                    <div className="flex gap-4 items-start bg-zinc-50/50 dark:bg-zinc-900/50 p-6 rounded-2xl border border-zinc-200 dark:border-zinc-800">
+                                        <div className="h-10 w-10 rounded-xl bg-white dark:bg-zinc-900 flex items-center justify-center shadow-sm text-zinc-500">
+                                            <MapPin className="h-5 w-5" />
+                                        </div>
+                                        <p className="text-zinc-600 dark:text-zinc-300 leading-relaxed whitespace-pre-line text-sm md:text-base">
+                                            {addrbook.address || 'No address provided'}
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {addrbook.description && (
+                                    <div className="space-y-3">
+                                        <p className="text-xs font-bold uppercase tracking-wider text-zinc-400">Description / Internal Notes</p>
+                                        <p className="text-sm text-zinc-600 dark:text-zinc-400 italic">
+                                            {addrbook.description}
+                                        </p>
+                                    </div>
+                                )}
+
+
+                            </CardContent>
                         </Card>
-                    )}
 
-                    {/* Overview Tab */}
-                    {activeTab === 'overview' && (
-                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                            <Card className="lg:col-span-2 rounded-2xl border-zinc-200 dark:border-zinc-800 shadow-sm overflow-hidden">
-                                <CardHeader className="bg-zinc-50/50 dark:bg-zinc-900/30 border-b border-zinc-200 dark:border-zinc-800 p-6">
-                                    <CardTitle className="text-lg font-bold">General Information</CardTitle>
-                                    <CardDescription>Primary contact and basic details</CardDescription>
-                                </CardHeader>
-                                <CardContent className="p-8 space-y-8">
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8">
-                                        <div className="space-y-2">
-                                            <p className="text-xs font-bold uppercase tracking-wider text-zinc-400">Contact Person</p>
-                                            <div className="flex items-center gap-3 text-zinc-900 dark:text-zinc-100 font-medium">
-                                                <div className="h-9 w-9 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-500">
-                                                    <User className="h-4 w-4" />
-                                                </div>
-                                                {addrbook.contact_person || 'No data available'}
-                                            </div>
-                                        </div>
-                                        <div className="space-y-2">
-                                            <p className="text-xs font-bold uppercase tracking-wider text-zinc-400">Phone Number</p>
-                                            <div className="flex items-center gap-3 text-zinc-900 dark:text-zinc-100 font-medium">
-                                                <div className="h-9 w-9 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-500">
-                                                    <Phone className="h-4 w-4" />
-                                                </div>
-                                                {addrbook.phone || 'No data available'}
-                                            </div>
-                                        </div>
-                                        <div className="space-y-2">
-                                            <p className="text-xs font-bold uppercase tracking-wider text-zinc-400">Email Address</p>
-                                            <div className="flex items-center gap-3 text-zinc-900 dark:text-zinc-100 font-medium">
-                                                <div className="h-9 w-9 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-500">
-                                                    <Mail className="h-4 w-4" />
-                                                </div>
-                                                {addrbook.email || 'No data available'}
-                                            </div>
-                                        </div>
-                                        <div className="space-y-2">
-                                            <p className="text-xs font-bold uppercase tracking-wider text-zinc-400">Tax Status (PPN)</p>
-                                            <div className="flex flex-wrap gap-2">
-                                                {addrbook.ppn ? (
-                                                    <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 border-none px-3 py-1 font-medium">
-                                                        PPN Active ({ppn_rate}%)
-                                                    </Badge>
-                                                ) : (
-                                                    <Badge variant="outline" className="text-zinc-400 border-zinc-200 dark:border-zinc-800 px-3 py-1">PPN Non-Active</Badge>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div className="pt-6 border-t border-zinc-100 dark:border-zinc-800 space-y-3">
-                                        <p className="text-xs font-bold uppercase tracking-wider text-zinc-400">Full Address</p>
-                                        <div className="flex gap-4 items-start bg-zinc-50/50 dark:bg-zinc-900/50 p-6 rounded-2xl border border-zinc-200 dark:border-zinc-800">
-                                            <div className="h-10 w-10 rounded-xl bg-white dark:bg-zinc-900 flex items-center justify-center shadow-sm text-zinc-500">
-                                                <MapPin className="h-5 w-5" />
-                                            </div>
-                                            <p className="text-zinc-600 dark:text-zinc-300 leading-relaxed whitespace-pre-line text-sm md:text-base">
-                                                {addrbook.address || 'No address provided'}
-                                            </p>
-                                        </div>
-                                    </div>
-
-                                    {addrbook.description && (
-                                        <div className="space-y-3">
-                                            <p className="text-xs font-bold uppercase tracking-wider text-zinc-400">Description / Internal Notes</p>
-                                            <p className="text-sm text-zinc-600 dark:text-zinc-400 italic">
-                                                {addrbook.description}
-                                            </p>
-                                        </div>
-                                    )}
-
-
+                        <div className="space-y-8">
+                            <Card className="rounded-2xl border-none bg-blue-600 text-white shadow-xl shadow-blue-600/20 overflow-hidden relative">
+                                <div className="absolute top-0 right-0 p-8 opacity-10">
+                                    <BarChart3 className="h-32 w-32 rotate-12" />
+                                </div>
+                                <CardContent className="p-8">
+                                    <p className="text-blue-100 text-sm font-medium mb-1 uppercase tracking-widest">Current Balance</p>
+                                    <h3 className="text-4xl font-extrabold truncate">
+                                        {formatCurrency(addrbook.stat?.balance || 0)}
+                                    </h3>
+                                    <p className="text-blue-200 text-xs mt-4">Total outstanding or credit balance</p>
                                 </CardContent>
                             </Card>
 
-                            <div className="space-y-8">
-                                <Card className="rounded-2xl border-none bg-blue-600 text-white shadow-xl shadow-blue-600/20 overflow-hidden relative">
-                                    <div className="absolute top-0 right-0 p-8 opacity-10">
-                                        <BarChart3 className="h-32 w-32 rotate-12" />
+                            <Card className="rounded-2xl border-zinc-200 dark:border-zinc-800 shadow-sm overflow-hidden">
+                                <CardHeader className="p-6 pb-2">
+                                    <CardTitle className="text-sm font-bold uppercase tracking-wider text-zinc-400">Account Metadata</CardTitle>
+                                </CardHeader>
+                                <CardContent className="p-6 space-y-4">
+                                    <div className="flex justify-between items-center text-sm">
+                                        <span className="text-zinc-500">Joined on</span>
+                                        <span className="font-medium">{new Date(addrbook.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
                                     </div>
-                                    <CardContent className="p-8">
-                                        <p className="text-blue-100 text-sm font-medium mb-1 uppercase tracking-widest">Current Balance</p>
-                                        <h3 className="text-4xl font-extrabold truncate">
-                                            {formatCurrency(addrbook.stat?.balance || 0)}
-                                        </h3>
-                                        <p className="text-blue-200 text-xs mt-4">Total outstanding or credit balance</p>
-                                    </CardContent>
-                                </Card>
-
-                                <Card className="rounded-2xl border-zinc-200 dark:border-zinc-800 shadow-sm overflow-hidden">
-                                    <CardHeader className="p-6 pb-2">
-                                        <CardTitle className="text-sm font-bold uppercase tracking-wider text-zinc-400">Account Metadata</CardTitle>
-                                    </CardHeader>
-                                    <CardContent className="p-6 space-y-4">
-                                        <div className="flex justify-between items-center text-sm">
-                                            <span className="text-zinc-500">Joined on</span>
-                                            <span className="font-medium">{new Date(addrbook.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
-                                        </div>
-                                        <div className="flex justify-between items-center text-sm">
-                                            <span className="text-zinc-500">Last activity</span>
-                                            <span className="font-medium">{addrbook.dailies?.[0]?.date ? new Date(addrbook.dailies[0].date).toLocaleDateString() : 'N/A'}</span>
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Stats Tab */}
-                    {activeTab === 'stats' && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                            <Card className="rounded-2xl border-zinc-200 dark:border-zinc-800 shadow-sm p-6 flex flex-col items-center justify-center text-center">
-                                <div className="h-12 w-12 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mb-4">
-                                    <ArrowUpCircle className="h-6 w-6" />
-                                </div>
-                                <p className="text-zinc-500 text-xs font-bold uppercase tracking-wider">Total Sales</p>
-                                <p className="text-2xl font-bold mt-1">{formatCurrency(addrbook.dailies?.reduce((acc, c) => acc + Number(c.sell), 0) || 0)}</p>
-                            </Card>
-                            <Card className="rounded-2xl border-zinc-200 dark:border-zinc-800 shadow-sm p-6 flex flex-col items-center justify-center text-center">
-                                <div className="h-12 w-12 rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 flex items-center justify-center mb-4">
-                                    <ShoppingBag className="h-6 w-6" />
-                                </div>
-                                <p className="text-zinc-500 text-xs font-bold uppercase tracking-wider">Total Purchases</p>
-                                <p className="text-2xl font-bold mt-1">{formatCurrency(addrbook.dailies?.reduce((acc, c) => acc + Number(c.buy), 0) || 0)}</p>
-                            </Card>
-                            <Card className="rounded-2xl border-zinc-200 dark:border-zinc-800 shadow-sm p-6 flex flex-col items-center justify-center text-center">
-                                <div className="h-12 w-12 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center mb-4">
-                                    <ArrowDownCircle className="h-6 w-6" />
-                                </div>
-                                <p className="text-zinc-500 text-xs font-bold uppercase tracking-wider">Cash In</p>
-                                <p className="text-2xl font-bold mt-1">{formatCurrency(addrbook.dailies?.reduce((acc, c) => acc + Number(c.cash_in), 0) || 0)}</p>
-                            </Card>
-                            <Card className="rounded-2xl border-zinc-200 dark:border-zinc-800 shadow-sm p-6 flex flex-col items-center justify-center text-center">
-                                <div className="h-12 w-12 rounded-full bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 flex items-center justify-center mb-4">
-                                    <Truck className="h-6 w-6" />
-                                </div>
-                                <p className="text-zinc-500 text-xs font-bold uppercase tracking-wider">Return Items</p>
-                                <p className="text-2xl font-bold mt-1">{formatCurrency(addrbook.dailies?.reduce((acc, c) => acc + Number(c.return), 0) || 0)}</p>
-                            </Card>
-
-                            <Card className="md:col-span-2 lg:col-span-4 rounded-2xl border-zinc-200 dark:border-zinc-800 shadow-sm p-12 text-center bg-zinc-50/50 dark:bg-zinc-900/30">
-                                <BarChart3 className="h-16 w-16 mx-auto mb-4 text-zinc-300" />
-                                <h3 className="text-lg font-bold text-zinc-400">Detailed analytics coming soon</h3>
-                                <p className="text-zinc-400 text-sm max-w-sm mx-auto">Visual charts and historical trends will be available in the next update.</p>
+                                    <div className="flex justify-between items-center text-sm">
+                                        <span className="text-zinc-500">Last activity</span>
+                                        <span className="font-medium">{addrbook.dailies?.[0]?.date ? new Date(addrbook.dailies[0].date).toLocaleDateString() : 'N/A'}</span>
+                                    </div>
+                                </CardContent>
                             </Card>
                         </div>
-                    )}
-
-                    {/* History Tab */}
-                    {activeTab === 'history' && (
-                        <Card className="rounded-2xl border-zinc-200 dark:border-zinc-800 shadow-sm overflow-hidden">
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-sm text-left">
-                                    <thead className="bg-zinc-50 dark:bg-zinc-900/50 border-b border-zinc-200 dark:border-zinc-800 text-xs text-zinc-500 uppercase font-bold tracking-wider">
-                                        <tr>
-                                            <th className="px-6 py-4">Date</th>
-                                            <th className="px-6 py-4 text-right">Sell</th>
-                                            <th className="px-6 py-4 text-right">Buy</th>
-                                            <th className="px-6 py-4 text-right">Cash In</th>
-                                            <th className="px-6 py-4 text-right">Cash Out</th>
-                                            <th className="px-6 py-4 text-right">Return</th>
-                                            <th className="px-6 py-4 text-right">Adjustment</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800/50">
-                                        {addrbook.dailies && addrbook.dailies.length > 0 ? (
-                                            addrbook.dailies.map((cls) => (
-                                                <tr key={cls.id} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/40 transition-colors">
-                                                    <td className="px-6 py-4 whitespace-nowrap font-medium font-mono text-zinc-600 dark:text-zinc-300">
-                                                        {new Date(cls.date).toLocaleDateString('id-ID')}
-                                                    </td>
-                                                    <td className={`px-6 py-4 text-right ${Number(cls.sell) > 0 ? 'text-emerald-600 dark:text-emerald-400 font-medium' : 'text-zinc-400'}`}>
-                                                        {formatCurrency(cls.sell)}
-                                                    </td>
-                                                    <td className={`px-6 py-4 text-right ${Number(cls.buy) > 0 ? 'text-red-500 font-medium' : 'text-zinc-400'}`}>
-                                                        {formatCurrency(cls.buy)}
-                                                    </td>
-                                                    <td className={`px-6 py-4 text-right ${Number(cls.cash_in) > 0 ? 'text-blue-600 dark:text-blue-400 font-medium' : 'text-zinc-400'}`}>
-                                                        {formatCurrency(cls.cash_in)}
-                                                    </td>
-                                                    <td className={`px-6 py-4 text-right ${Number(cls.cash_out) > 0 ? 'text-orange-500 font-medium' : 'text-zinc-400'}`}>
-                                                        {formatCurrency(cls.cash_out)}
-                                                    </td>
-                                                    <td className="px-6 py-4 text-right text-zinc-400">
-                                                        {formatCurrency(cls.return)}
-                                                    </td>
-                                                    <td className="px-6 py-4 text-right text-zinc-400">
-                                                        {formatCurrency(cls.adjust)}
-                                                    </td>
-                                                </tr>
-                                            ))
-                                        ) : (
-                                            <tr>
-                                                <td colSpan={7} className="px-6 py-20 text-center text-zinc-400">
-                                                    <History className="h-10 w-10 mx-auto mb-3 opacity-20" />
-                                                    No financial logs found.
-                                                </td>
-                                            </tr>
-                                        )}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </Card>
-                    )}
+                    </div>
                 </div>
             </div>
         </AppLayout>

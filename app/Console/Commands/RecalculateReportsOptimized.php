@@ -22,9 +22,7 @@ class RecalculateReportsOptimized extends Command
         try {
             DB::transaction(function () {
                 // 1. Reset
-                $this->info('Resetting old stats...');
-                DB::table('addrbook_stats')->update(['balance' => 0]);
-                DB::table('addrbook_dailies')->delete();
+                $this->info('Resetting old stock stats...');
                 DB::table('warehouse_items')->delete();
                 DB::table('items')->update(['qty' => 0]);
 
@@ -70,52 +68,6 @@ class RecalculateReportsOptimized extends Command
                     WHERE t.sender_id IS NOT NULL
                     GROUP BY t.sender_id, td.item_id
                     ON DUPLICATE KEY UPDATE quantity = quantity + VALUES(quantity)
-                ');
-
-                // 4. Addrbook Balances (addrbook_stats)
-                $this->info('Recalculating Addrbook Balances...');
-
-                // Logic Receiver Side (+)
-                // Type 1:BUY(na), 2:SELL(-), 9:CASH_IN(+), 10:CASH_OUT(-), 6:TRF(+), 12:ADJ(+), 15:RET(-)
-                DB::statement('
-                    INSERT INTO addrbook_stats (addrbook_id, balance, created_at, updated_at)
-                    SELECT receiver_id, SUM(grand_total), NOW(), NOW()
-                    FROM transactions 
-                    WHERE receiver_id IS NOT NULL AND type IN (2, 9, 10, 6, 12, 15)
-                    GROUP BY receiver_id
-                    ON DUPLICATE KEY UPDATE balance = balance + VALUES(balance)
-                ');
-
-                // Logic Sender Side (+)
-                // Type 1:BUY(+), 9:CASH_IN(+), 10:CASH_OUT(-), 6:TRF(-), 12:ADJ(-), 15:RET(+)
-                DB::statement('
-                    INSERT INTO addrbook_stats (addrbook_id, balance, created_at, updated_at)
-                    SELECT sender_id, 
-                           SUM(CASE WHEN type IN (6, 12) THEN -grand_total ELSE grand_total END), 
-                           NOW(), NOW()
-                    FROM transactions 
-                    WHERE sender_id IS NOT NULL AND type IN (1, 9, 10, 6, 12, 15)
-                    GROUP BY sender_id
-                    ON DUPLICATE KEY UPDATE balance = balance + VALUES(balance)
-                ');
-
-                // 5. Daily Reports (addrbook_dailies)
-                $this->info('Generating Daily Reports...');
-                DB::statement('
-                    INSERT INTO addrbook_dailies (addrbook_id, date, buy, sell, `return`, return_supplier, move, transfer, adjust, created_at, updated_at)
-                    SELECT 
-                        COALESCE(sender_id, receiver_id), 
-                        date, 
-                        SUM(CASE WHEN type = 1 THEN grand_total ELSE 0 END),
-                        SUM(CASE WHEN type = 2 THEN ABS(grand_total) ELSE 0 END),
-                        SUM(CASE WHEN type = 15 THEN grand_total ELSE 0 END),
-                        SUM(CASE WHEN type = 17 THEN ABS(grand_total) ELSE 0 END),
-                        SUM(CASE WHEN type = 3 THEN 1 ELSE 0 END),
-                        SUM(CASE WHEN type = 6 THEN grand_total ELSE 0 END),
-                        SUM(CASE WHEN type = 12 THEN grand_total ELSE 0 END),
-                        NOW(), NOW()
-                    FROM transactions
-                    GROUP BY COALESCE(sender_id, receiver_id), date
                 ');
             });
 

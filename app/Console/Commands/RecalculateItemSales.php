@@ -30,12 +30,12 @@ class RecalculateItemSales extends Command
                 $this->info("Cleaning old data for year $yearOption...");
                 MonthlyItemSale::where('year', $yearOption)->delete();
             } else {
-                $this->info("Resetting entire summary table...");
+                $this->info('Resetting entire summary table...');
                 MonthlyItemSale::truncate();
             }
 
             $years = DB::table('transactions')
-                ->when($yearOption, fn($q) => $q->whereYear('date', $yearOption))
+                ->when($yearOption, fn ($q) => $q->whereYear('date', $yearOption))
                 ->selectRaw('DISTINCT YEAR(date) as year')
                 ->pluck('year');
 
@@ -44,7 +44,7 @@ class RecalculateItemSales extends Command
 
             foreach ($years as $year) {
                 $this->info("Processing year $year...");
-                
+
                 $results = DB::table('transaction_details as td')
                     ->join('transactions as t', 'td.transaction_id', '=', 't.id')
                     ->join('items as i', 'td.item_id', '=', 'i.id')
@@ -85,7 +85,7 @@ class RecalculateItemSales extends Command
                             'year' => $row->tahun,
                             'month' => $row->bulan,
                             'group_id' => $row->group_id,
-                            'customer_id' => $row->customer_id, 
+                            'customer_id' => $row->customer_id,
                             'qty_net' => $row->net_qty,
                             'amount_net' => $row->net_amount,
                             'created_at' => now(),
@@ -104,7 +104,7 @@ class RecalculateItemSales extends Command
             $this->info("Recalculation completed successfully in {$time} seconds.");
 
         } catch (\Exception $e) {
-            $this->error('Error: ' . $e->getMessage());
+            $this->error('Error: '.$e->getMessage());
         } finally {
             Schema::enableForeignKeyConstraints();
         }

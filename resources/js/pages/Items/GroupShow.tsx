@@ -8,10 +8,12 @@ import { Package, BarChart2, History, FileEdit, ArrowLeft, Info } from 'lucide-r
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { useState } from 'react';
+import { cn } from "@/lib/utils";
 
 interface Warehouse {
     id: number;
     name: string;
+    type: number;
 }
 
 interface WarehouseItem {

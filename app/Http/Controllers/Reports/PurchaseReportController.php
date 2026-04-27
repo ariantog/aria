@@ -53,7 +53,7 @@ class PurchaseReportController extends Controller
         $customers = Addrbook::withTrashed()
             ->whereIn('type', [
                 Addrbook::TYPE_SUPPLIER,
-                Addrbook::TYPE_ACCOUNT
+                Addrbook::TYPE_ACCOUNT,
             ])
             ->where(function ($q) use ($transactionCustomerIds) {
                 $q->whereNull('deleted_at') // aktif
@@ -80,12 +80,12 @@ class PurchaseReportController extends Controller
                 $q->whereIn('sender_id', $allIds)
                     ->orWhereIn('receiver_id', $allIds);
             })
-            ->selectRaw("
+            ->selectRaw('
                 sender_id,
                 receiver_id,
                 type,
                 SUM(total) as total
-            ")
+            ')
             ->groupBy('sender_id', 'receiver_id', 'type')
             ->get();
 
