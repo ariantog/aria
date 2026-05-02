@@ -13,7 +13,7 @@ class MigrateLegacyItems extends Command
      *
      * @var string
      */
-    protected $signature = 'app:migrate-legacy-items';
+    protected $signature = 'app:migrate-legacy-items {--truncate : Truncate existing item tables before migration}';
 
     /**
      * The console command description.
@@ -34,12 +34,17 @@ class MigrateLegacyItems extends Command
         try {
             Schema::disableForeignKeyConstraints();
 
-            // 1. Clear existing data
-            $this->warn('Clearing existing item tables...');
-            DB::table('item_tag')->truncate();
-            DB::table('items')->truncate();
-            DB::table('item_groups')->truncate();
-            DB::table('tags')->truncate();
+            // 1. Clear existing data if flag is provided
+            if ($this->option('truncate')) {
+                $this->warn('Clearing existing item tables...');
+                DB::table('item_tag')->truncate();
+                DB::table('items')->truncate();
+                DB::table('item_groups')->truncate();
+                DB::table('tags')->truncate();
+                $this->info('Tables truncated.');
+            } else {
+                $this->info('Truncate flag not provided. Appending data...');
+            }
 
             // 2. Migrate Item Groups
             $this->info('Migrating Item Groups...');

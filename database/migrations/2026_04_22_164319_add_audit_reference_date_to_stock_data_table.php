@@ -11,9 +11,11 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('stock_data', function (Blueprint $table) {
-            $table->string('audit_reference_date')->nullable()->after('best_performing_warehouse_qty');
-        });
+        if (! Schema::hasColumn('stock_data', 'audit_reference_date')) {
+            Schema::table('stock_data', function (Blueprint $table) {
+                $table->string('audit_reference_date')->nullable()->after('best_performing_warehouse_qty');
+            });
+        }
     }
 
     /**

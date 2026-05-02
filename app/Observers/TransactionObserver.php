@@ -62,9 +62,8 @@ class TransactionObserver
         $result = DB::table('transaction_details')
             ->where('transaction_details.transaction_id', $transaction->id)
             ->join('items', 'transaction_details.item_id', '=', 'items.id')
-            ->leftJoin('item_groups', 'items.group_id', '=', 'item_groups.id')
             ->selectRaw('
-                item_groups.id as group_id,
+                items.group_id,
                 MONTH(transaction_details.date) as bulan,
                 YEAR(transaction_details.date) as tahun,
                 transaction_details.sender_id,
@@ -72,7 +71,7 @@ class TransactionObserver
                 SUM(transaction_details.quantity) as sum_qty,
                 SUM(transaction_details.total) as sum_total
             ')
-            ->groupBy('group_id', 'bulan', 'tahun', 'transaction_details.sender_id', 'type')
+            ->groupBy('items.group_id', DB::raw('MONTH(transaction_details.date)'), DB::raw('YEAR(transaction_details.date)'), 'transaction_details.sender_id', 'transaction_details.transaction_type')
             ->get();
 
         foreach ($result as $row) {

@@ -41,6 +41,10 @@ class Transaction extends Model
 
     const STATUS_CANCELLED = 2;
 
+    const SUBMIT_TYPE_MANUAL = 1;
+
+    const SUBMIT_TYPE_JUBELIO = 2;
+
     protected $casts = [
         'date' => 'date',
         'due_date' => 'date',
@@ -89,6 +93,25 @@ class Transaction extends Model
             self::TYPE_DEPRECIATION => 'Depreciation',
             default => 'Unknown',
         };
+    }
+
+    public function getSubmitTypeLabel(): string
+    {
+        return match ($this->submit_type) {
+            self::SUBMIT_TYPE_MANUAL => 'Manual',
+            self::SUBMIT_TYPE_JUBELIO => 'Jubelio Sync',
+            default => 'Unknown',
+        };
+    }
+
+    public function isManual(): bool
+    {
+        return $this->submit_type === self::SUBMIT_TYPE_MANUAL;
+    }
+
+    public function isFromJubelio(): bool
+    {
+        return $this->submit_type === self::SUBMIT_TYPE_JUBELIO;
     }
 
     public function sender()

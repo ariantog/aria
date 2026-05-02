@@ -30,12 +30,29 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::resource('locations', \App\Http\Controllers\LocationController::class);
     Route::resource('posts', App\Http\Controllers\PostController::class);
     Route::resource('items', App\Http\Controllers\ItemsController::class);
+    Route::resource('jubelio', App\Http\Controllers\JubelioController::class);
+    Route::post('jubelio/webhook/order', [App\Http\Controllers\JubelioController::class, 'webhookOrder'])->name('jubelio.webhook.order');
+
+    // Jubelio Sync Mappings
+    Route::get('jubelio-sync', [App\Http\Controllers\JubelioSyncController::class, 'index'])->name('jubelio.sync.index');
+    Route::get('jubelio-sync/create', [App\Http\Controllers\JubelioSyncController::class, 'create'])->name('jubelio.sync.create');
+    Route::post('jubelio-sync', [App\Http\Controllers\JubelioSyncController::class, 'store'])->name('jubelio.sync.store');
+    Route::get('jubelio-sync/{sync}/edit', [App\Http\Controllers\JubelioSyncController::class, 'edit'])->name('jubelio.sync.edit');
+    Route::patch('jubelio-sync/{sync}', [App\Http\Controllers\JubelioSyncController::class, 'update'])->name('jubelio.sync.update');
+    Route::delete('jubelio-sync/{sync}', [App\Http\Controllers\JubelioSyncController::class, 'destroy'])->name('jubelio.sync.delete');
+    Route::get('jubelio-sync/{sync}/bin', [App\Http\Controllers\JubelioSyncController::class, 'getBin'])->name('jubelio.sync.getBin');
+
     Route::resource('addrbook', App\Http\Controllers\AddrbookController::class);
     Route::get('addrbook/{addrbook}/transactions', [App\Http\Controllers\AddrbookController::class, 'transactions'])->name('addrbook.transactions');
     Route::get('addrbook/{addrbook}/items', [App\Http\Controllers\AddrbookController::class, 'items'])->name('addrbook.items');
     Route::get('addrbook/{addrbook}/item-sales', [App\Http\Controllers\AddrbookController::class, 'itemSales'])->name('addrbook.item-sales');
     Route::get('addrbook/{addrbook}/stats', [App\Http\Controllers\AddrbookController::class, 'stat'])->name('addrbook.stats');
     Route::resource('system-settings', App\Http\Controllers\SettingController::class)->except(['show']);
+
+    // Cron Manager
+    Route::get('cron-manager', [App\Http\Controllers\ScheduledTaskController::class, 'index'])->name('scheduled-tasks.index');
+    Route::patch('cron-manager/{scheduledTask}', [App\Http\Controllers\ScheduledTaskController::class, 'update'])->name('scheduled-tasks.update');
+    Route::post('cron-manager/{scheduledTask}/toggle', [App\Http\Controllers\ScheduledTaskController::class, 'toggle'])->name('scheduled-tasks.toggle');
 
     // Dynamic Addrbook Type Routes (e.g., /customer, /supplier)
     $addrbookTypes = implode('|', array_column(\App\Models\Addrbook::getTypes(), 'slug'));

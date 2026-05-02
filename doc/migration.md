@@ -9,7 +9,7 @@ php artisan app:generate-stock-intelligence
 php artisan app:sync-stat-sells --refresh
 
 php artisan app:generate-stock-intelligence --date=2026-04-12
-
+php artisan app:truncate-items
 
 php artisan app:delete-transactions --year=2026
 

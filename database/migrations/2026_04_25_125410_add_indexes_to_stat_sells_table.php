@@ -11,11 +11,22 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('stat_sells', function (Blueprint $table) {
-            $table->index('bulan');
-            $table->index('tahun');
-            $table->index('group_id');
-            $table->index('type');
+        $indexes = Schema::getIndexes('stat_sells');
+        $indexNames = array_column($indexes, 'name');
+
+        Schema::table('stat_sells', function (Blueprint $table) use ($indexNames) {
+            if (! in_array('stat_sells_bulan_index', $indexNames)) {
+                $table->index('bulan');
+            }
+            if (! in_array('stat_sells_tahun_index', $indexNames)) {
+                $table->index('tahun');
+            }
+            if (! in_array('stat_sells_group_id_index', $indexNames)) {
+                $table->index('group_id');
+            }
+            if (! in_array('stat_sells_type_index', $indexNames)) {
+                $table->index('type');
+            }
         });
     }
 

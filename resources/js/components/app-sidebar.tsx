@@ -145,6 +145,24 @@ export function AppSidebar() {
                 }] : []),
             ].filter(Boolean) as NavItem[],
         },
+        {
+            title: 'Jubelio',
+            href: '#',
+            icon: Command,
+            isActive: isRouteActive('/jubelio'),
+            items: [
+                {
+                    title: 'Webhook',
+                    href: '/jubelio',
+                    isActive: isRouteActive('/jubelio'),
+                },
+                {
+                    title: 'Sync Mapping',
+                    href: '/jubelio-sync',
+                    isActive: isRouteActive('/jubelio-sync'),
+                },
+            ],
+        },
         // Address Book Group
         {
             title: 'Address Book',
@@ -320,7 +338,19 @@ export function AppSidebar() {
             title: 'System Settings',
             href: '/system-settings',
             icon: Settings,
-            isActive: isRouteActive('/system-settings'),
+            isActive: isRouteActive('/system-settings') || isRouteActive('/cron-manager'),
+            items: [
+                {
+                    title: 'General Settings',
+                    href: '/system-settings',
+                    isActive: isRouteActive('/system-settings'),
+                },
+                {
+                    title: 'Cron Manager',
+                    href: '/cron-manager',
+                    isActive: isRouteActive('/cron-manager'),
+                },
+            ],
         }] : []),
         // User Management Group
         {
