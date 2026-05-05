@@ -12,7 +12,7 @@ import {
     SelectItem,
     SelectTrigger,
     SelectValue,
-} from "@/components/ui/select";
+} from '@/components/ui/select';
 import { useState } from 'react';
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -47,7 +47,7 @@ export default function SyncCreate({ locations, addrbookTypes }: Props) {
         customer_id: '',
     });
 
-    const [selectedLocation, setSelectedLocation] = useState<string>("");
+    const [selectedLocation, setSelectedLocation] = useState<string>('');
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -75,14 +75,21 @@ export default function SyncCreate({ locations, addrbookTypes }: Props) {
                     <CardContent>
                         <form onSubmit={handleSubmit} className="space-y-6">
                             <div className="space-y-2">
-                                <Label htmlFor="location">Jubelio Location</Label>
-                                <Select 
+                                <Label htmlFor="location">
+                                    Jubelio Location
+                                </Label>
+                                <Select
                                     onValueChange={(val) => {
-                                        const loc = locations.find(l => l.location_id.toString() === val);
+                                        const loc = locations.find(
+                                            (l) =>
+                                                l.location_id.toString() ===
+                                                val,
+                                        );
                                         setData({
                                             ...data,
                                             location_id: val,
-                                            location_name: loc?.location_name || ''
+                                            location_name:
+                                                loc?.location_name || '',
                                         });
                                     }}
                                 >
@@ -91,13 +98,20 @@ export default function SyncCreate({ locations, addrbookTypes }: Props) {
                                     </SelectTrigger>
                                     <SelectContent>
                                         {locations.map((loc) => (
-                                            <SelectItem key={loc.location_id} value={loc.location_id.toString()}>
+                                            <SelectItem
+                                                key={loc.location_id}
+                                                value={loc.location_id.toString()}
+                                            >
                                                 {loc.location_name}
                                             </SelectItem>
                                         ))}
                                     </SelectContent>
                                 </Select>
-                                {errors.location_id && <p className="text-sm text-red-500">{errors.location_id}</p>}
+                                {errors.location_id && (
+                                    <p className="text-sm text-red-500">
+                                        {errors.location_id}
+                                    </p>
+                                )}
                             </div>
 
                             <div className="space-y-2">
@@ -106,9 +120,15 @@ export default function SyncCreate({ locations, addrbookTypes }: Props) {
                                     route={`/transactions/sell/lookup/sender?addrbook_type=${addrbookTypes.warehouse}`}
                                     placeholder="Search warehouse..."
                                     value={data.warehouse_id}
-                                    onValueChange={(val) => setData('warehouse_id', val)}
+                                    onValueChange={(val) =>
+                                        setData('warehouse_id', val)
+                                    }
                                 />
-                                {errors.warehouse_id && <p className="text-sm text-red-500">{errors.warehouse_id}</p>}
+                                {errors.warehouse_id && (
+                                    <p className="text-sm text-red-500">
+                                        {errors.warehouse_id}
+                                    </p>
+                                )}
                             </div>
 
                             <div className="space-y-2">
@@ -117,9 +137,15 @@ export default function SyncCreate({ locations, addrbookTypes }: Props) {
                                     route={`/transactions/sell/lookup/receiver?addrbook_type=${addrbookTypes.customer}`}
                                     placeholder="Search customer..."
                                     value={data.customer_id}
-                                    onValueChange={(val) => setData('customer_id', val)}
+                                    onValueChange={(val) =>
+                                        setData('customer_id', val)
+                                    }
                                 />
-                                {errors.customer_id && <p className="text-sm text-red-500">{errors.customer_id}</p>}
+                                {errors.customer_id && (
+                                    <p className="text-sm text-red-500">
+                                        {errors.customer_id}
+                                    </p>
+                                )}
                             </div>
 
                             <div className="flex justify-end gap-3 pt-4">
@@ -127,7 +153,9 @@ export default function SyncCreate({ locations, addrbookTypes }: Props) {
                                     <Link href="/jubelio-sync">Cancel</Link>
                                 </Button>
                                 <Button type="submit" disabled={processing}>
-                                    {processing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                    {processing && (
+                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    )}
                                     Create Mapping
                                 </Button>
                             </div>

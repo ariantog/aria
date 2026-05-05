@@ -35,4 +35,11 @@ return [
         ],
     ],
 
+    'jubelio' => [
+        'active' => env('JUBELIO_ACTIVE', false),
+        'url' => env('JUBELIO_URL'),
+        'email' => env('JUBELIO_EMAIL'),
+        'password' => env('JUBELIO_PASSWORD'),
+    ],
+
 ];

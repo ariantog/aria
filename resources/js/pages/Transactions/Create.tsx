@@ -71,7 +71,7 @@ export default function Create({ type, config, ppn_rate }: Props) {
         total_before_discount: 0,
         total_before_ppn: 0,
         ppn_amount: 0,
-        grand_total: 0
+        grand_total: 0,
     });
 
     // Transform data before submission
@@ -82,10 +82,17 @@ export default function Create({ type, config, ppn_rate }: Props) {
 
     // --- Calculations ---
     useEffect(() => {
-        const totalQty = data.items.reduce((s, i) => s + Number(i.quantity || 0), 0);
-        const totalLineItems = data.items.reduce((s, i) => s + Number(i.subtotal || 0), 0);
+        const totalQty = data.items.reduce(
+            (s, i) => s + Number(i.quantity || 0),
+            0,
+        );
+        const totalLineItems = data.items.reduce(
+            (s, i) => s + Number(i.subtotal || 0),
+            0,
+        );
 
-        const discountAmount = totalLineItems * (Number(data.discount_percent || 0) / 100);
+        const discountAmount =
+            totalLineItems * (Number(data.discount_percent || 0) / 100);
         const afterDiscount = totalLineItems - discountAmount;
         const withAdjustment = afterDiscount + Number(data.adjustment || 0);
 
@@ -93,23 +100,32 @@ export default function Create({ type, config, ppn_rate }: Props) {
         const contact = type === 'buy' ? data.sender : data.receiver;
         const isPpn = contact?.ppn || false;
 
-        const ppn = isPpn ? (withAdjustment * (ppn_rate / 100)) : 0;
+        const ppn = isPpn ? withAdjustment * (ppn_rate / 100) : 0;
         const finalTotal = withAdjustment + ppn;
 
-        setData(prev => ({
+        setData((prev) => ({
             ...prev,
             total_quantity: totalQty,
             total_before_discount: totalLineItems,
             total_before_ppn: withAdjustment,
             ppn_amount: ppn,
-            grand_total: finalTotal
+            grand_total: finalTotal,
         }));
-    }, [data.items, data.discount_percent, data.adjustment, data.sender, data.receiver]);
+    }, [
+        data.items,
+        data.discount_percent,
+        data.adjustment,
+        data.sender,
+        data.receiver,
+    ]);
 
     // Keyboard Shortcut Ctrl+I
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
-            if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'i' || e.code === 'KeyI')) {
+            if (
+                (e.ctrlKey || e.metaKey) &&
+                (e.key.toLowerCase() === 'i' || e.code === 'KeyI')
+            ) {
                 e.preventDefault();
                 setIsAddItemDrawerOpen(true);
             }
@@ -134,10 +150,10 @@ export default function Create({ type, config, ppn_rate }: Props) {
                 price: itemData.price,
                 discount: itemData.discount,
                 subtotal: itemData.subtotal,
-                note: itemData.note
-            }
+                note: itemData.note,
+            },
         ]);
-        // Modal closes in modal component, but state managed here? 
+        // Modal closes in modal component, but state managed here?
         // Logic in modal calls onAdd then onClose ideally.
     };
 
@@ -147,7 +163,11 @@ export default function Create({ type, config, ppn_rate }: Props) {
         setData('items', newItems);
     };
 
-    const updateItem = (index: number, field: keyof TransactionItem, value: any) => {
+    const updateItem = (
+        index: number,
+        field: keyof TransactionItem,
+        value: any,
+    ) => {
         const newItems = [...data.items];
         const item = { ...newItems[index], [field]: value };
 
@@ -161,7 +181,7 @@ export default function Create({ type, config, ppn_rate }: Props) {
         // Let's stick to discount as percent to match modal.
 
         const discNominal = Number(item.discount) || 0;
-        const subtotal = (qty * price) - discNominal;
+        const subtotal = qty * price - discNominal;
         item.subtotal = subtotal;
 
         newItems[index] = item;
@@ -172,40 +192,65 @@ export default function Create({ type, config, ppn_rate }: Props) {
         e.preventDefault();
         post(transactions.store.url(), {
             onError: (errors) => {
-                console.error("Submission errors:", errors);
-            }
+                console.error('Submission errors:', errors);
+            },
         });
     };
 
     return (
-        <AppLayout breadcrumbs={[
-            { title: 'Transactions', href: '/transactions' },
-            { title: `${type === 'buy' ? 'Buy' : 'Sell'} Transaction`, href: '#' },
-        ]}>
-            <Head title={`New ${type.charAt(0).toUpperCase() + type.slice(1)} Transaction`} />
+        <AppLayout
+            breadcrumbs={[
+                { title: 'Transactions', href: '/transactions' },
+                {
+                    title: `${type === 'buy' ? 'Buy' : 'Sell'} Transaction`,
+                    href: '#',
+                },
+            ]}
+        >
+            <Head
+                title={`New ${type.charAt(0).toUpperCase() + type.slice(1)} Transaction`}
+            />
 
-            <form onSubmit={submit} className="p-4 sm:p-6 lg:p-8 max-w-[1600px] mx-auto">
-
+            <form
+                onSubmit={submit}
+                className="mx-auto max-w-[1600px] p-4 sm:p-6 lg:p-8"
+            >
                 {/* Header */}
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
+                <div className="mb-8 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
                     <div className="flex items-center gap-4">
                         <Link href={transactions.index.url()}>
-                            <Button variant="ghost" size="icon" className="-ml-2">
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="-ml-2"
+                            >
                                 <ArrowLeft className="h-4 w-4" />
                             </Button>
                         </Link>
                         <div>
-                            <h2 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">New {type.charAt(0).toUpperCase() + type.slice(1)} Transaction</h2>
+                            <h2 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
+                                New{' '}
+                                {type.charAt(0).toUpperCase() + type.slice(1)}{' '}
+                                Transaction
+                            </h2>
                             <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
                                 Create a new {type} transaction and add items.
                             </p>
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
-                        <Button variant="outline" type="button" onClick={() => window.history.back()}>
+                        <Button
+                            variant="outline"
+                            type="button"
+                            onClick={() => window.history.back()}
+                        >
                             Discard
                         </Button>
-                        <Button type="submit" disabled={processing} className="bg-blue-700 hover:bg-blue-800 text-white min-w-[140px]">
+                        <Button
+                            type="submit"
+                            disabled={processing}
+                            className="min-w-[140px] bg-blue-700 text-white hover:bg-blue-800"
+                        >
                             {processing ? (
                                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                             ) : (
@@ -215,27 +260,27 @@ export default function Create({ type, config, ppn_rate }: Props) {
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-
+                <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
                     {/* Left Column (Main Form) */}
-                    <div className="xl:col-span-2 space-y-6">
-
+                    <div className="space-y-6 xl:col-span-2">
                         {/* Basic Info */}
                         <Card>
                             <CardHeader className="pb-3">
-                                <CardTitle className="text-base font-semibold flex items-center gap-2">
+                                <CardTitle className="flex items-center gap-2 text-base font-semibold">
                                     <Info className="h-4 w-4 text-blue-600" />
                                     Basic Info
                                 </CardTitle>
                             </CardHeader>
-                            <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <CardContent className="grid grid-cols-1 gap-6 md:grid-cols-2">
                                 <div>
                                     <FormInput
                                         id="date"
                                         label="Date"
                                         type="date"
                                         value={data.date}
-                                        onChange={e => setData('date', e.target.value)}
+                                        onChange={(e) =>
+                                            setData('date', e.target.value)
+                                        }
                                         error={errors.date}
                                         required
                                     />
@@ -247,7 +292,12 @@ export default function Create({ type, config, ppn_rate }: Props) {
                                             label="Due Date"
                                             type="date"
                                             value={data.due_date}
-                                            onChange={e => setData('due_date', e.target.value)}
+                                            onChange={(e) =>
+                                                setData(
+                                                    'due_date',
+                                                    e.target.value,
+                                                )
+                                            }
                                         />
                                     )}
                                 </div>
@@ -256,7 +306,15 @@ export default function Create({ type, config, ppn_rate }: Props) {
                                         label={`Sender (${config.sender_label})`}
                                         endpoint={config.sender_route}
                                         value={data.sender}
-                                        onChange={(val) => setData(data => ({ ...data, sender_id: String(val?.id || ''), sender: val }))}
+                                        onChange={(val) =>
+                                            setData((data) => ({
+                                                ...data,
+                                                sender_id: String(
+                                                    val?.id || '',
+                                                ),
+                                                sender: val,
+                                            }))
+                                        }
                                         placeholder={`Select ${config.sender_label}...`}
                                         error={errors.sender_id}
                                     />
@@ -266,7 +324,15 @@ export default function Create({ type, config, ppn_rate }: Props) {
                                         label={`Receiver (${config.receiver_label})`}
                                         endpoint={config.receiver_route}
                                         value={data.receiver}
-                                        onChange={(val) => setData(data => ({ ...data, receiver_id: String(val?.id || ''), receiver: val }))}
+                                        onChange={(val) =>
+                                            setData((data) => ({
+                                                ...data,
+                                                receiver_id: String(
+                                                    val?.id || '',
+                                                ),
+                                                receiver: val,
+                                            }))
+                                        }
                                         placeholder={`Select ${config.receiver_label}...`}
                                         error={errors.receiver_id}
                                     />
@@ -277,20 +343,27 @@ export default function Create({ type, config, ppn_rate }: Props) {
                         {/* Transaction Details */}
                         <Card>
                             <CardHeader className="pb-3">
-                                <CardTitle className="text-base font-semibold flex items-center gap-2">
-                                    <div className="h-4 w-4 rounded bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-                                        <span className="text-xs font-bold text-blue-600">≡</span>
+                                <CardTitle className="flex items-center gap-2 text-base font-semibold">
+                                    <div className="flex h-4 w-4 items-center justify-center rounded bg-blue-100 dark:bg-blue-900/30">
+                                        <span className="text-xs font-bold text-blue-600">
+                                            ≡
+                                        </span>
                                     </div>
                                     Transaction Details
                                 </CardTitle>
                             </CardHeader>
-                            <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <CardContent className="grid grid-cols-1 gap-6 md:grid-cols-2">
                                 <div>
                                     <FormInput
                                         id="invoice_number"
                                         label="Invoice Number"
                                         value={data.invoice_number}
-                                        onChange={e => setData('invoice_number', e.target.value)}
+                                        onChange={(e) =>
+                                            setData(
+                                                'invoice_number',
+                                                e.target.value,
+                                            )
+                                        }
                                         placeholder="INV-202X-XXX"
                                     />
                                 </div>
@@ -299,7 +372,9 @@ export default function Create({ type, config, ppn_rate }: Props) {
                                         id="note"
                                         label="Note"
                                         value={data.note}
-                                        onChange={e => setData('note', e.target.value)}
+                                        onChange={(e) =>
+                                            setData('note', e.target.value)
+                                        }
                                         placeholder="Add optional notes..."
                                         rows={1}
                                     />
@@ -309,17 +384,22 @@ export default function Create({ type, config, ppn_rate }: Props) {
 
                         {/* Line Items */}
                         <Card>
-                            <CardHeader className="pb-3 flex flex-row items-center justify-between">
-                                <CardTitle className="text-base font-semibold flex items-center gap-2">
-                                    <div className="h-4 w-4 rounded bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-                                        <span className="text-xs font-bold text-blue-600">🛒</span>
+                            <CardHeader className="flex flex-row items-center justify-between pb-3">
+                                <CardTitle className="flex items-center gap-2 text-base font-semibold">
+                                    <div className="flex h-4 w-4 items-center justify-center rounded bg-blue-100 dark:bg-blue-900/30">
+                                        <span className="text-xs font-bold text-blue-600">
+                                            🛒
+                                        </span>
                                     </div>
                                     Line Items
                                 </CardTitle>
                             </CardHeader>
                             <CardContent>
                                 {errors.items && (
-                                    <Alert variant="destructive" className="mb-4">
+                                    <Alert
+                                        variant="destructive"
+                                        className="mb-4"
+                                    >
                                         <TriangleAlert className="h-4 w-4" />
                                         <AlertTitle>Error</AlertTitle>
                                         <AlertDescription>
@@ -329,52 +409,107 @@ export default function Create({ type, config, ppn_rate }: Props) {
                                 )}
 
                                 {/* Items Table */}
-                                <div className="rounded-md border mb-4">
-                                    <div className="grid grid-cols-12 gap-4 p-3 bg-zinc-50 dark:bg-zinc-900/50 text-xs font-medium text-zinc-500 border-b">
-                                        <div className={type === 'move' ? "col-span-6" : "col-span-5"}>ITEM</div>
-                                        <div className="col-span-2 text-center">QTY / WH STOCK</div>
-                                        <div className="col-span-2 text-right">PRICE</div>
-                                        {type !== 'move' && <div className="col-span-1 text-right">DISC</div>}
-                                        <div className="col-span-2 text-right">SUBTOTAL</div>
+                                <div className="mb-4 rounded-md border">
+                                    <div className="grid grid-cols-12 gap-4 border-b bg-zinc-50 p-3 text-xs font-medium text-zinc-500 dark:bg-zinc-900/50">
+                                        <div
+                                            className={
+                                                type === 'move'
+                                                    ? 'col-span-6'
+                                                    : 'col-span-5'
+                                            }
+                                        >
+                                            ITEM
+                                        </div>
+                                        <div className="col-span-2 text-center">
+                                            QTY / WH STOCK
+                                        </div>
+                                        <div className="col-span-2 text-right">
+                                            PRICE
+                                        </div>
+                                        {type !== 'move' && (
+                                            <div className="col-span-1 text-right">
+                                                DISC
+                                            </div>
+                                        )}
+                                        <div className="col-span-2 text-right">
+                                            SUBTOTAL
+                                        </div>
                                     </div>
 
                                     {/* Rows */}
                                     <div className="divide-y">
                                         {data.items.length === 0 && (
                                             <div className="p-8 text-center text-sm text-zinc-500">
-                                                No items added. Press <span className="font-mono bg-zinc-100 px-1 rounded">Ctrl+I</span> or click below to add.
+                                                No items added. Press{' '}
+                                                <span className="rounded bg-zinc-100 px-1 font-mono">
+                                                    Ctrl+I
+                                                </span>{' '}
+                                                or click below to add.
                                             </div>
                                         )}
                                         {data.items.map((item, index) => (
-                                            <div key={index} className="grid grid-cols-12 gap-4 p-3 items-center text-sm hover:bg-zinc-50/50 transition-colors group relative">
-                                                <div className={type === 'move' ? "col-span-6" : "col-span-5"}>
-                                                    <div className="font-mono text-xs text-zinc-500">{item.code}</div>
-                                                    <div className="font-medium">{item.name}</div>
+                                            <div
+                                                key={index}
+                                                className="group relative grid grid-cols-12 items-center gap-4 p-3 text-sm transition-colors hover:bg-zinc-50/50"
+                                            >
+                                                <div
+                                                    className={
+                                                        type === 'move'
+                                                            ? 'col-span-6'
+                                                            : 'col-span-5'
+                                                    }
+                                                >
+                                                    <div className="font-mono text-xs text-zinc-500">
+                                                        {item.code}
+                                                    </div>
+                                                    <div className="font-medium">
+                                                        {item.name}
+                                                    </div>
                                                     {item.note && (
-                                                        <div className="text-xs text-zinc-400 truncate mt-0.5 max-w-[300px]" title={item.note}>
+                                                        <div
+                                                            className="mt-0.5 max-w-[300px] truncate text-xs text-zinc-400"
+                                                            title={item.note}
+                                                        >
                                                             📝 {item.note}
                                                         </div>
                                                     )}
                                                 </div>
                                                 <div className="col-span-2 text-center">
-                                                    <span className="font-bold">{item.quantity}</span>
-                                                    <span className="text-zinc-400 mx-1">/</span>
-                                                    <span className="text-zinc-500">{item.warehouse_stock}</span>
+                                                    <span className="font-bold">
+                                                        {item.quantity}
+                                                    </span>
+                                                    <span className="mx-1 text-zinc-400">
+                                                        /
+                                                    </span>
+                                                    <span className="text-zinc-500">
+                                                        {item.warehouse_stock}
+                                                    </span>
                                                 </div>
                                                 <div className="col-span-2 text-right">
                                                     {item.price.toLocaleString()}
                                                 </div>
                                                 {type !== 'move' && (
                                                     <div className="col-span-1 text-right">
-                                                        {item.discount > 0 ? <span className="text-red-500">-{item.discount.toLocaleString()}</span> : '-'}
+                                                        {item.discount > 0 ? (
+                                                            <span className="text-red-500">
+                                                                -
+                                                                {item.discount.toLocaleString()}
+                                                            </span>
+                                                        ) : (
+                                                            '-'
+                                                        )}
                                                     </div>
                                                 )}
                                                 <div className="col-span-2 flex items-center justify-end gap-2">
-                                                    <span className="font-semibold">{item.subtotal.toLocaleString()}</span>
+                                                    <span className="font-semibold">
+                                                        {item.subtotal.toLocaleString()}
+                                                    </span>
                                                     <button
                                                         type="button"
-                                                        onClick={() => removeItem(index)}
-                                                        className="text-zinc-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity ml-2"
+                                                        onClick={() =>
+                                                            removeItem(index)
+                                                        }
+                                                        className="ml-2 text-zinc-400 opacity-0 transition-opacity group-hover:opacity-100 hover:text-red-500"
                                                     >
                                                         <Trash2 className="h-4 w-4" />
                                                     </button>
@@ -388,27 +523,30 @@ export default function Create({ type, config, ppn_rate }: Props) {
                                 <button
                                     type="button"
                                     onClick={() => setIsAddItemDrawerOpen(true)}
-                                    className="w-full py-3 border-2 border-dashed rounded-lg text-sm text-zinc-400 hover:text-blue-600 hover:border-blue-200 hover:bg-blue-50/30 transition-all flex items-center justify-center gap-2"
+                                    className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed py-3 text-sm text-zinc-400 transition-all hover:border-blue-200 hover:bg-blue-50/30 hover:text-blue-600"
                                 >
-                                    <Plus className="h-4 w-4" /> Add New Line Item (Ctrl+I)
+                                    <Plus className="h-4 w-4" /> Add New Line
+                                    Item (Ctrl+I)
                                 </button>
                             </CardContent>
                         </Card>
-
                     </div>
 
                     {/* Right Column (Totals) */}
                     <div className="space-y-6">
-
                         {/* Totals Summary */}
-                        <div className="bg-[#1e293b] text-white rounded-xl shadow-lg p-6 space-y-6">
-                            <div className="flex items-center gap-3 mb-2">
-                                <div className="p-1.5 bg-white/10 rounded">
+                        <div className="space-y-6 rounded-xl bg-[#1e293b] p-6 text-white shadow-lg">
+                            <div className="mb-2 flex items-center gap-3">
+                                <div className="rounded bg-white/10 p-1.5">
                                     <span className="text-xl">🧾</span>
                                 </div>
                                 <div>
-                                    <h3 className="font-bold text-lg leading-tight">Totals</h3>
-                                    <div className="text-blue-200 text-sm">Summary</div>
+                                    <h3 className="text-lg leading-tight font-bold">
+                                        Totals
+                                    </h3>
+                                    <div className="text-sm text-blue-200">
+                                        Summary
+                                    </div>
                                 </div>
                             </div>
 
@@ -416,43 +554,77 @@ export default function Create({ type, config, ppn_rate }: Props) {
 
                             <div className="space-y-3 text-sm">
                                 <div className="flex justify-between">
-                                    <span className="text-blue-100">TOTAL QTY</span>
-                                    <span className="font-semibold">{data.total_quantity.toLocaleString()}</span>
+                                    <span className="text-blue-100">
+                                        TOTAL QTY
+                                    </span>
+                                    <span className="font-semibold">
+                                        {data.total_quantity.toLocaleString()}
+                                    </span>
                                 </div>
                                 {type !== 'move' && (
                                     <>
                                         <div className="flex justify-between">
-                                            <span className="text-blue-100">BEFORE DISC</span>
-                                            <span className="font-semibold">{data.total_before_discount.toLocaleString()}</span>
+                                            <span className="text-blue-100">
+                                                BEFORE DISC
+                                            </span>
+                                            <span className="font-semibold">
+                                                {data.total_before_discount.toLocaleString()}
+                                            </span>
                                         </div>
-                                        <div className="flex justify-between items-center">
-                                            <span className="text-blue-100">DISCOUNT (%)</span>
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-blue-100">
+                                                DISCOUNT (%)
+                                            </span>
                                             <Input
                                                 type="number"
-                                                className="h-8 w-16 bg-white/10 border-white/20 text-right text-white"
+                                                className="h-8 w-16 border-white/20 bg-white/10 text-right text-white"
                                                 value={data.discount_percent}
-                                                onChange={e => setData('discount_percent', Number(e.target.value))}
+                                                onChange={(e) =>
+                                                    setData(
+                                                        'discount_percent',
+                                                        Number(e.target.value),
+                                                    )
+                                                }
                                             />
                                         </div>
                                         <div className="flex justify-between">
-                                            <span className="text-blue-100">TOTAL</span>
-                                            <span className="font-semibold">{data.total_before_discount.toLocaleString()}</span>
+                                            <span className="text-blue-100">
+                                                TOTAL
+                                            </span>
+                                            <span className="font-semibold">
+                                                {data.total_before_discount.toLocaleString()}
+                                            </span>
                                         </div>
                                         <div className="flex justify-between">
-                                            <span className="text-blue-100">TOTAL BEFORE PPN</span>
-                                            <span className="font-semibold">{data.total_before_ppn.toLocaleString()}</span>
+                                            <span className="text-blue-100">
+                                                TOTAL BEFORE PPN
+                                            </span>
+                                            <span className="font-semibold">
+                                                {data.total_before_ppn.toLocaleString()}
+                                            </span>
                                         </div>
                                         <div className="flex justify-between">
-                                            <span className="text-blue-100">PPN ({ppn_rate}%)</span>
-                                            <span className="font-semibold">{data.ppn_amount.toLocaleString()}</span>
+                                            <span className="text-blue-100">
+                                                PPN ({ppn_rate}%)
+                                            </span>
+                                            <span className="font-semibold">
+                                                {data.ppn_amount.toLocaleString()}
+                                            </span>
                                         </div>
-                                        <div className="flex justify-between items-center">
-                                            <span className="text-blue-100">ADJUSTMENT</span>
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-blue-100">
+                                                ADJUSTMENT
+                                            </span>
                                             <Input
                                                 type="number"
-                                                className="h-8 w-24 bg-white/10 border-white/20 text-right text-white"
+                                                className="h-8 w-24 border-white/20 bg-white/10 text-right text-white"
                                                 value={data.adjustment}
-                                                onChange={e => setData('adjustment', Number(e.target.value))}
+                                                onChange={(e) =>
+                                                    setData(
+                                                        'adjustment',
+                                                        Number(e.target.value),
+                                                    )
+                                                }
                                             />
                                         </div>
                                     </>
@@ -462,22 +634,31 @@ export default function Create({ type, config, ppn_rate }: Props) {
                             <Separator className="bg-white/10" />
 
                             <div className="space-y-1">
-                                <div className="text-blue-200 text-xs uppercase tracking-wider">{type === 'move' ? 'Total' : 'Grand Total'}</div>
+                                <div className="text-xs tracking-wider text-blue-200 uppercase">
+                                    {type === 'move' ? 'Total' : 'Grand Total'}
+                                </div>
                                 <div className="text-3xl font-bold">
-                                    <span className="text-blue-200 text-lg mr-1">IDR</span>
+                                    <span className="mr-1 text-lg text-blue-200">
+                                        IDR
+                                    </span>
                                     {data.grand_total.toLocaleString()}
                                 </div>
                             </div>
 
-                            <Button onClick={submit} type="button" className="w-full bg-white text-blue-900 hover:bg-blue-50 font-bold mt-4" size="lg">
+                            <Button
+                                onClick={submit}
+                                type="button"
+                                className="mt-4 w-full bg-white font-bold text-blue-900 hover:bg-blue-50"
+                                size="lg"
+                            >
                                 SUBMIT NEW {type.toUpperCase()}
                             </Button>
 
-                            <p className="text-xs text-blue-200 text-center leading-relaxed opacity-80">
-                                By clicking submit, you agree to post this transaction to the general ledger.
+                            <p className="text-center text-xs leading-relaxed text-blue-200 opacity-80">
+                                By clicking submit, you agree to post this
+                                transaction to the general ledger.
                             </p>
                         </div>
-
                     </div>
                 </div>
 
@@ -489,10 +670,13 @@ export default function Create({ type, config, ppn_rate }: Props) {
                     senderId={data.sender_id}
                     receiverId={data.receiver_id}
                     priceSource={config.price_source}
-                    checkStock={data.sender?.type ? String(data.sender.type) === '2' : String(config.sender_type) === '2'}
+                    checkStock={
+                        data.sender?.type
+                            ? String(data.sender.type) === '2'
+                            : String(config.sender_type) === '2'
+                    }
                     type={type}
                 />
-
             </form>
         </AppLayout>
     );

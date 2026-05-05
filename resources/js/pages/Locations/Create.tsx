@@ -1,4 +1,3 @@
-
 import { Head, useForm, Link } from '@inertiajs/react';
 import AppLayout from '@/layouts/app-layout';
 import { Button } from '@/components/ui/button';
@@ -30,39 +29,65 @@ export default function LocationsCreate() {
             <div className="p-4 sm:p-6 lg:p-8">
                 {/* Header */}
                 <div className="mb-8">
-                    <div className="flex items-center gap-2 text-sm text-zinc-500 mb-1">
-                        <Link href="/dashboard" className="hover:text-zinc-300 transition-colors">Dashboard</Link>
+                    <div className="mb-1 flex items-center gap-2 text-sm text-zinc-500">
+                        <Link
+                            href="/dashboard"
+                            className="transition-colors hover:text-zinc-300"
+                        >
+                            Dashboard
+                        </Link>
                         <span>›</span>
-                        <Link href="/locations" className="hover:text-zinc-300 transition-colors">Locations</Link>
+                        <Link
+                            href="/locations"
+                            className="transition-colors hover:text-zinc-300"
+                        >
+                            Locations
+                        </Link>
                         <span>›</span>
-                        <span className="text-zinc-100 font-medium">New Location</span>
+                        <span className="font-medium text-zinc-100">
+                            New Location
+                        </span>
                     </div>
-                    <h2 className="text-3xl font-bold tracking-tight text-white mb-2">Create New Location</h2>
-                    <p className="text-zinc-400">Add a new physical location to the system.</p>
+                    <h2 className="mb-2 text-3xl font-bold tracking-tight text-white">
+                        Create New Location
+                    </h2>
+                    <p className="text-zinc-400">
+                        Add a new physical location to the system.
+                    </p>
                 </div>
 
-                <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden shadow-sm p-8">
-                    <form onSubmit={submit} className="space-y-8 max-w-4xl">
+                <div className="overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900 p-8 shadow-sm">
+                    <form onSubmit={submit} className="max-w-4xl space-y-8">
                         <div className="space-y-8">
                             <FormInput
                                 id="name"
                                 label="Location Name"
                                 value={data.name}
-                                onChange={e => setData('name', e.target.value)}
+                                onChange={(e) =>
+                                    setData('name', e.target.value)
+                                }
                                 error={errors.name}
                                 icon={MapPin}
                                 required
                                 placeholder="e.g. Main Office"
                             />
-
-
                         </div>
 
-                        <div className="flex justify-end pt-4 border-t border-zinc-800 gap-4">
+                        <div className="flex justify-end gap-4 border-t border-zinc-800 pt-4">
                             <Link href={locationRoutes.index.url()}>
-                                <Button variant="ghost" type="button" className="text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800">Cancel</Button>
+                                <Button
+                                    variant="ghost"
+                                    type="button"
+                                    className="text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100"
+                                >
+                                    Cancel
+                                </Button>
                             </Link>
-                            <Button type="submit" loading={processing} className="bg-blue-600 hover:bg-blue-700 text-white min-w-[150px]">
+                            <Button
+                                type="submit"
+                                loading={processing}
+                                className="min-w-[150px] bg-blue-600 text-white hover:bg-blue-700"
+                            >
                                 {processing ? 'Creating...' : 'Create Location'}
                             </Button>
                         </div>

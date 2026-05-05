@@ -68,22 +68,30 @@ export default function SyncEdit({ sync, addrbookTypes }: Props) {
                     <h1 className="text-2xl font-bold">Edit Sync Mapping</h1>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <Card className="bg-sidebar-accent/10 border-dashed">
-                        <CardContent className="p-4 flex items-center gap-3">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <Card className="border-dashed bg-sidebar-accent/10">
+                        <CardContent className="flex items-center gap-3 p-4">
                             <Store className="h-5 w-5 text-blue-500" />
                             <div>
-                                <p className="text-[10px] uppercase font-bold text-sidebar-foreground/50">Jubelio Store</p>
-                                <p className="text-sm font-medium">{sync.jubelio_store_name}</p>
+                                <p className="text-[10px] font-bold text-sidebar-foreground/50 uppercase">
+                                    Jubelio Store
+                                </p>
+                                <p className="text-sm font-medium">
+                                    {sync.jubelio_store_name}
+                                </p>
                             </div>
                         </CardContent>
                     </Card>
-                    <Card className="bg-sidebar-accent/10 border-dashed">
-                        <CardContent className="p-4 flex items-center gap-3">
+                    <Card className="border-dashed bg-sidebar-accent/10">
+                        <CardContent className="flex items-center gap-3 p-4">
                             <MapPin className="h-5 w-5 text-red-500" />
                             <div>
-                                <p className="text-[10px] uppercase font-bold text-sidebar-foreground/50">Jubelio Location</p>
-                                <p className="text-sm font-medium">{sync.jubelio_location_name}</p>
+                                <p className="text-[10px] font-bold text-sidebar-foreground/50 uppercase">
+                                    Jubelio Location
+                                </p>
+                                <p className="text-sm font-medium">
+                                    {sync.jubelio_location_name}
+                                </p>
                             </div>
                         </CardContent>
                     </Card>
@@ -102,9 +110,15 @@ export default function SyncEdit({ sync, addrbookTypes }: Props) {
                                     placeholder="Search warehouse..."
                                     value={data.warehouse_id}
                                     defaultValue={sync.warehouse?.name}
-                                    onValueChange={(val) => setData('warehouse_id', val)}
+                                    onValueChange={(val) =>
+                                        setData('warehouse_id', val)
+                                    }
                                 />
-                                {errors.warehouse_id && <p className="text-sm text-red-500">{errors.warehouse_id}</p>}
+                                {errors.warehouse_id && (
+                                    <p className="text-sm text-red-500">
+                                        {errors.warehouse_id}
+                                    </p>
+                                )}
                             </div>
 
                             <div className="space-y-2">
@@ -114,9 +128,15 @@ export default function SyncEdit({ sync, addrbookTypes }: Props) {
                                     placeholder="Search customer..."
                                     value={data.customer_id}
                                     defaultValue={sync.customer?.name}
-                                    onValueChange={(val) => setData('customer_id', val)}
+                                    onValueChange={(val) =>
+                                        setData('customer_id', val)
+                                    }
                                 />
-                                {errors.customer_id && <p className="text-sm text-red-500">{errors.customer_id}</p>}
+                                {errors.customer_id && (
+                                    <p className="text-sm text-red-500">
+                                        {errors.customer_id}
+                                    </p>
+                                )}
                             </div>
 
                             <div className="flex justify-end gap-3 pt-4">
@@ -124,7 +144,9 @@ export default function SyncEdit({ sync, addrbookTypes }: Props) {
                                     <Link href="/jubelio-sync">Cancel</Link>
                                 </Button>
                                 <Button type="submit" disabled={processing}>
-                                    {processing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                    {processing && (
+                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    )}
                                     Save Changes
                                 </Button>
                             </div>

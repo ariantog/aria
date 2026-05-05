@@ -53,52 +53,82 @@ export default function JubelioShow({ order }: Props) {
                                 <ArrowLeft className="h-5 w-5" />
                             </Link>
                         </Button>
-                        <h1 className="text-2xl font-bold flex items-center gap-2">
+                        <h1 className="flex items-center gap-2 text-2xl font-bold">
                             <Command className="h-6 w-6" />
                             Order #{order.invoice}
                         </h1>
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div className="md:col-span-1 space-y-6">
+                <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+                    <div className="space-y-6 md:col-span-1">
                         <div className="rounded-xl border border-sidebar-border bg-sidebar p-6 shadow-sm">
-                            <h2 className="text-lg font-semibold mb-4">Order Details</h2>
+                            <h2 className="mb-4 text-lg font-semibold">
+                                Order Details
+                            </h2>
                             <dl className="space-y-4">
                                 <div>
-                                    <dt className="text-sm text-sidebar-foreground/50">Jubelio Order ID</dt>
-                                    <dd className="text-sm font-medium">{order.jubelio_order_id}</dd>
-                                </div>
-                                <div>
-                                    <dt className="text-sm text-sidebar-foreground/50">Type</dt>
+                                    <dt className="text-sm text-sidebar-foreground/50">
+                                        Jubelio Order ID
+                                    </dt>
                                     <dd className="text-sm font-medium">
-                                        <Badge variant="outline">{order.type}</Badge>
+                                        {order.jubelio_order_id}
                                     </dd>
                                 </div>
                                 <div>
-                                    <dt className="text-sm text-sidebar-foreground/50">Order Status</dt>
+                                    <dt className="text-sm text-sidebar-foreground/50">
+                                        Type
+                                    </dt>
                                     <dd className="text-sm font-medium">
-                                        <Badge variant="secondary">{order.order_status}</Badge>
+                                        <Badge variant="outline">
+                                            {order.type}
+                                        </Badge>
                                     </dd>
                                 </div>
                                 <div>
-                                    <dt className="text-sm text-sidebar-foreground/50">Sync Status</dt>
+                                    <dt className="text-sm text-sidebar-foreground/50">
+                                        Order Status
+                                    </dt>
                                     <dd className="text-sm font-medium">
-                                        <SyncStatusBadge status={order.status} />
+                                        <Badge variant="secondary">
+                                            {order.order_status}
+                                        </Badge>
                                     </dd>
                                 </div>
                                 <div>
-                                    <dt className="text-sm text-sidebar-foreground/50">Run Count</dt>
-                                    <dd className="text-sm font-medium">{order.run_count}</dd>
-                                </div>
-                                <div>
-                                    <dt className="text-sm text-sidebar-foreground/50">Executed By</dt>
-                                    <dd className="text-sm font-medium">{order.user?.name || 'System'}</dd>
-                                </div>
-                                <div>
-                                    <dt className="text-sm text-sidebar-foreground/50">Date</dt>
+                                    <dt className="text-sm text-sidebar-foreground/50">
+                                        Sync Status
+                                    </dt>
                                     <dd className="text-sm font-medium">
-                                        {new Date(order.created_at).toLocaleString()}
+                                        <SyncStatusBadge
+                                            status={order.status}
+                                        />
+                                    </dd>
+                                </div>
+                                <div>
+                                    <dt className="text-sm text-sidebar-foreground/50">
+                                        Run Count
+                                    </dt>
+                                    <dd className="text-sm font-medium">
+                                        {order.run_count}
+                                    </dd>
+                                </div>
+                                <div>
+                                    <dt className="text-sm text-sidebar-foreground/50">
+                                        Executed By
+                                    </dt>
+                                    <dd className="text-sm font-medium">
+                                        {order.user?.name || 'System'}
+                                    </dd>
+                                </div>
+                                <div>
+                                    <dt className="text-sm text-sidebar-foreground/50">
+                                        Date
+                                    </dt>
+                                    <dd className="text-sm font-medium">
+                                        {new Date(
+                                            order.created_at,
+                                        ).toLocaleString()}
                                     </dd>
                                 </div>
                             </dl>
@@ -106,32 +136,48 @@ export default function JubelioShow({ order }: Props) {
 
                         {order.trx && (
                             <div className="rounded-xl border border-blue-500/30 bg-blue-500/5 p-6 shadow-sm">
-                                <h2 className="text-lg font-semibold mb-4 text-blue-400">Linked Transaction</h2>
-                                <p className="text-sm text-blue-300/70 mb-4">
-                                    This order is linked to an internal transaction.
+                                <h2 className="mb-4 text-lg font-semibold text-blue-400">
+                                    Linked Transaction
+                                </h2>
+                                <p className="mb-4 text-sm text-blue-300/70">
+                                    This order is linked to an internal
+                                    transaction.
                                 </p>
-                                <Button className="w-full gap-2" variant="outline" asChild>
-                                    <Link href={`/transactions/${order.trx.id}`}>
-                                        View Transaction <ExternalLink className="h-4 w-4" />
+                                <Button
+                                    className="w-full gap-2"
+                                    variant="outline"
+                                    asChild
+                                >
+                                    <Link
+                                        href={`/transactions/${order.trx.id}`}
+                                    >
+                                        View Transaction{' '}
+                                        <ExternalLink className="h-4 w-4" />
                                     </Link>
                                 </Button>
                             </div>
                         )}
                     </div>
 
-                    <div className="md:col-span-2 space-y-6">
+                    <div className="space-y-6 md:col-span-2">
                         <div className="rounded-xl border border-sidebar-border bg-sidebar p-6 shadow-sm">
-                            <h2 className="text-lg font-semibold mb-4">Payload</h2>
-                            <div className="p-4 rounded-lg bg-black/40 font-mono text-xs overflow-x-auto">
+                            <h2 className="mb-4 text-lg font-semibold">
+                                Payload
+                            </h2>
+                            <div className="overflow-x-auto rounded-lg bg-black/40 p-4 font-mono text-xs">
                                 <pre>{formatPayload(order.payload)}</pre>
                             </div>
                         </div>
 
                         {order.error && (
                             <div className="rounded-xl border border-red-900/30 bg-red-900/10 p-6 shadow-sm">
-                                <h2 className="text-lg font-semibold mb-4 text-red-400">Error Details</h2>
-                                <div className="p-4 rounded-lg bg-red-900/20 border border-red-900/30 text-red-300 font-mono text-xs">
-                                    <pre className="whitespace-pre-wrap">{order.error}</pre>
+                                <h2 className="mb-4 text-lg font-semibold text-red-400">
+                                    Error Details
+                                </h2>
+                                <div className="rounded-lg border border-red-900/30 bg-red-900/20 p-4 font-mono text-xs text-red-300">
+                                    <pre className="whitespace-pre-wrap">
+                                        {order.error}
+                                    </pre>
                                 </div>
                             </div>
                         )}
@@ -148,8 +194,11 @@ function SyncStatusBadge({ status }: { status: number }) {
         1: { label: 'Success', variant: 'default' },
         2: { label: 'Failed', variant: 'destructive' },
     };
-    
-    const { label, variant } = config[status] || { label: 'Unknown', variant: 'outline' };
+
+    const { label, variant } = config[status] || {
+        label: 'Unknown',
+        variant: 'outline',
+    };
     return <Badge variant={variant}>{label}</Badge>;
 }
 

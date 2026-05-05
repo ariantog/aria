@@ -14,4 +14,3 @@ export type NavItem = {
     items?: NavItem[];
     createUrl?: string;
 };
-

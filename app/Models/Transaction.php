@@ -137,6 +137,16 @@ class Transaction extends Model
         return $this->belongsTo(User::class);
     }
 
+    public function submitByA()
+    {
+        return $this->belongsTo(User::class, 'a_submit_by');
+    }
+
+    public function submitByB()
+    {
+        return $this->belongsTo(User::class, 'b_submit_by');
+    }
+
     /**
      * Define permissions associated with this model.
      *

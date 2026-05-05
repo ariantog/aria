@@ -2,7 +2,17 @@ import { Head, Link, router } from '@inertiajs/react';
 import AppLayout from '@/layouts/app-layout';
 import { BreadcrumbItem } from '@/types';
 import { Badge } from '@/components/ui/badge';
-import { Command, Plus, Search, X, Edit, Trash2, Box, Store, MapPin } from 'lucide-react';
+import {
+    Command,
+    Plus,
+    Search,
+    X,
+    Edit,
+    Trash2,
+    Box,
+    Store,
+    MapPin,
+} from 'lucide-react';
 import Pagination from '@/components/Pagination';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -62,28 +72,38 @@ export default function SyncIndex({ dataList, filters }: Props) {
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Jubelio Sync Mapping" />
-            
+
             <div className="flex flex-col gap-6 p-4">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <h1 className="text-2xl font-bold flex items-center gap-2">
+                <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
+                    <h1 className="flex items-center gap-2 text-2xl font-bold">
                         <Command className="h-6 w-6" />
                         Jubelio Sync Mapping
                     </h1>
 
                     <div className="flex items-center gap-2">
-                        <form onSubmit={handleSearch} className="flex items-center gap-2">
+                        <form
+                            onSubmit={handleSearch}
+                            className="flex items-center gap-2"
+                        >
                             <div className="relative">
-                                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-sidebar-foreground/50" />
-                                <Input 
-                                    placeholder="Search location..." 
-                                    className="pl-9 w-64 h-9"
+                                <Search className="absolute top-2.5 left-2.5 h-4 w-4 text-sidebar-foreground/50" />
+                                <Input
+                                    placeholder="Search location..."
+                                    className="h-9 w-64 pl-9"
                                     value={search}
                                     onChange={(e) => setSearch(e.target.value)}
                                 />
                             </div>
-                            <Button type="submit" size="sm">Search</Button>
+                            <Button type="submit" size="sm">
+                                Search
+                            </Button>
                             {filters.name && (
-                                <Button type="button" variant="ghost" size="sm" onClick={clearFilters}>
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={clearFilters}
+                                >
                                     <X className="h-4 w-4" />
                                 </Button>
                             )}
@@ -99,23 +119,30 @@ export default function SyncIndex({ dataList, filters }: Props) {
                 <div className="overflow-hidden rounded-xl border border-sidebar-border bg-sidebar shadow-sm">
                     <div className="overflow-x-auto">
                         <table className="w-full text-left text-sm">
-                            <thead className="bg-sidebar-accent/50 text-sidebar-foreground uppercase font-semibold text-[10px]">
+                            <thead className="bg-sidebar-accent/50 text-[10px] font-semibold text-sidebar-foreground uppercase">
                                 <tr>
                                     <th className="px-6 py-4">Store Name</th>
                                     <th className="px-6 py-4">Location</th>
                                     <th className="px-6 py-4">Warehouse</th>
                                     <th className="px-6 py-4">Customer</th>
                                     <th className="px-6 py-4">Bin ID</th>
-                                    <th className="px-6 py-4 text-right">Actions</th>
+                                    <th className="px-6 py-4 text-right">
+                                        Actions
+                                    </th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-sidebar-border">
                                 {dataList.data.map((item) => (
-                                    <tr key={item.id} className="hover:bg-sidebar-accent/30 transition-colors">
+                                    <tr
+                                        key={item.id}
+                                        className="transition-colors hover:bg-sidebar-accent/30"
+                                    >
                                         <td className="px-6 py-4">
                                             <div className="flex items-center gap-2">
                                                 <Store className="h-3.5 w-3.5 text-blue-500" />
-                                                <span className="font-medium">{item.jubelio_store_name}</span>
+                                                <span className="font-medium">
+                                                    {item.jubelio_store_name}
+                                                </span>
                                             </div>
                                         </td>
                                         <td className="px-6 py-4">
@@ -125,36 +152,70 @@ export default function SyncIndex({ dataList, filters }: Props) {
                                             </div>
                                         </td>
                                         <td className="px-6 py-4">
-                                            <Badge variant="outline" className="font-medium text-blue-500 border-blue-500/20">
-                                                {item.warehouse?.name || 'Unknown'}
+                                            <Badge
+                                                variant="outline"
+                                                className="border-blue-500/20 font-medium text-blue-500"
+                                            >
+                                                {item.warehouse?.name ||
+                                                    'Unknown'}
                                             </Badge>
                                         </td>
                                         <td className="px-6 py-4">
                                             {item.customer ? (
-                                                <Badge variant="outline" className="font-medium text-green-500 border-green-500/20">
+                                                <Badge
+                                                    variant="outline"
+                                                    className="border-green-500/20 font-medium text-green-500"
+                                                >
                                                     {item.customer.name}
                                                 </Badge>
                                             ) : (
-                                                <span className="text-sidebar-foreground/30 italic text-xs">Not Set</span>
+                                                <span className="text-xs text-sidebar-foreground/30 italic">
+                                                    Not Set
+                                                </span>
                                             )}
                                         </td>
                                         <td className="px-6 py-4">
                                             <div className="flex items-center gap-2">
                                                 <Box className="h-3.5 w-3.5 text-yellow-500" />
-                                                <code className="text-xs">{item.bin_id || '-'}</code>
+                                                <code className="text-xs">
+                                                    {item.bin_id || '-'}
+                                                </code>
                                             </div>
                                         </td>
                                         <td className="px-6 py-4 text-right">
                                             <div className="flex items-center justify-end gap-2">
-                                                <Button variant="outline" size="xs" asChild className="h-7 text-[10px]">
-                                                    <Link href={`/jubelio-sync/${item.id}/bin`}>Set Bin</Link>
+                                                <Button
+                                                    variant="outline"
+                                                    size="xs"
+                                                    asChild
+                                                    className="h-7 text-[10px]"
+                                                >
+                                                    <Link
+                                                        href={`/jubelio-sync/${item.id}/bin`}
+                                                    >
+                                                        Set Bin
+                                                    </Link>
                                                 </Button>
-                                                <Button variant="ghost" size="icon" asChild className="h-8 w-8">
-                                                    <Link href={`/jubelio-sync/${item.id}/edit`}>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    asChild
+                                                    className="h-8 w-8"
+                                                >
+                                                    <Link
+                                                        href={`/jubelio-sync/${item.id}/edit`}
+                                                    >
                                                         <Edit className="h-4 w-4 text-blue-500" />
                                                     </Link>
                                                 </Button>
-                                                <Button variant="ghost" size="icon" onClick={() => deleteMapping(item.id)} className="h-8 w-8">
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    onClick={() =>
+                                                        deleteMapping(item.id)
+                                                    }
+                                                    className="h-8 w-8"
+                                                >
                                                     <Trash2 className="h-4 w-4 text-red-500" />
                                                 </Button>
                                             </div>
@@ -163,7 +224,10 @@ export default function SyncIndex({ dataList, filters }: Props) {
                                 ))}
                                 {dataList.data.length === 0 && (
                                     <tr>
-                                        <td colSpan={6} className="px-6 py-8 text-center text-sidebar-foreground/50 italic">
+                                        <td
+                                            colSpan={6}
+                                            className="px-6 py-8 text-center text-sidebar-foreground/50 italic"
+                                        >
                                             No sync mappings found.
                                         </td>
                                     </tr>

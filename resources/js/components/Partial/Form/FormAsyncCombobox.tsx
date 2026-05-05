@@ -21,15 +21,15 @@ export function FormAsyncCombobox<T extends { id: string | number }>({
 }: FormAsyncComboboxProps<T>) {
     return (
         <div className="space-y-2">
-            <Label htmlFor={id} className="text-zinc-300 font-medium">
+            <Label htmlFor={id} className="font-medium text-zinc-300">
                 {label} {required && <span className="text-red-500">*</span>}
             </Label>
             <AsyncCombobox
-                className={`bg-zinc-950 border-zinc-800 text-zinc-100 placeholder:text-zinc-600 focus:ring-blue-600/20 ${className || ''}`}
+                className={`border-zinc-800 bg-zinc-950 text-zinc-100 placeholder:text-zinc-600 focus:ring-blue-600/20 ${className || ''}`}
                 isInvalid={!!error}
                 {...props}
             />
-            {error && <div className="text-red-500 text-sm">{error}</div>}
+            {error && <div className="text-sm text-red-500">{error}</div>}
         </div>
     );
 }

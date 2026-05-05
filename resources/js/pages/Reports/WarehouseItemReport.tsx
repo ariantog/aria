@@ -2,7 +2,14 @@ import AppLayout from '@/layouts/app-layout';
 import { BreadcrumbItem } from '@/types';
 import { Head, Link } from '@inertiajs/react';
 import { Card, CardContent } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from '@/components/ui/table';
 
 interface WarehouseData {
     id: number;
@@ -46,7 +53,9 @@ export default function WarehouseItemReport({ data, totalWarehouse }: Props) {
 
             <div className="flex flex-col gap-6 p-4 sm:p-6 lg:p-8">
                 <div>
-                    <h1 className="text-2xl font-bold tracking-tight">Item Gudang</h1>
+                    <h1 className="text-2xl font-bold tracking-tight">
+                        Item Gudang
+                    </h1>
                     <p className="text-zinc-500 dark:text-zinc-400">
                         Total {totalWarehouse} Gudang
                     </p>
@@ -54,38 +63,63 @@ export default function WarehouseItemReport({ data, totalWarehouse }: Props) {
 
                 {/* Warehouse List Table */}
                 <div className="space-y-4">
-                    <h3 className="text-lg font-bold px-1 text-zinc-900 dark:text-zinc-100">Warehouse Stock</h3>
-                    <div className="rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm overflow-hidden">
+                    <h3 className="px-1 text-lg font-bold text-zinc-900 dark:text-zinc-100">
+                        Warehouse Stock
+                    </h3>
+                    <div className="overflow-hidden rounded-md border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
                         <Table>
                             <TableHeader>
                                 <TableRow className="bg-zinc-50 dark:bg-zinc-900/50">
-                                    <TableHead className="text-zinc-900 dark:text-zinc-100">Gudang</TableHead>
-                                    <TableHead className="text-right text-zinc-900 dark:text-zinc-100">Item</TableHead>
-                                    <TableHead className="text-right text-zinc-900 dark:text-zinc-100">Qty</TableHead>
-                                    <TableHead className="text-right text-zinc-900 dark:text-zinc-100">Cost</TableHead>
+                                    <TableHead className="text-zinc-900 dark:text-zinc-100">
+                                        Gudang
+                                    </TableHead>
+                                    <TableHead className="text-right text-zinc-900 dark:text-zinc-100">
+                                        Item
+                                    </TableHead>
+                                    <TableHead className="text-right text-zinc-900 dark:text-zinc-100">
+                                        Qty
+                                    </TableHead>
+                                    <TableHead className="text-right text-zinc-900 dark:text-zinc-100">
+                                        Cost
+                                    </TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
                                 {data.map((row) => (
-                                    <TableRow key={row.id} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors">
+                                    <TableRow
+                                        key={row.id}
+                                        className="transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
+                                    >
                                         <TableCell className="font-medium">
-                                            <Link 
-                                                href={`/warehouse/${row.id}`} 
-                                                className="text-blue-600 dark:text-blue-400 hover:underline"
+                                            <Link
+                                                href={`/warehouse/${row.id}`}
+                                                className="text-blue-600 hover:underline dark:text-blue-400"
                                             >
                                                 {row.nama_gudang}
                                             </Link>
                                         </TableCell>
-                                        <TableCell className="text-right tabular-nums">{formatNumber(row.total_item)}</TableCell>
-                                        <TableCell className="text-right tabular-nums">{formatNumber(row.total_qty)}</TableCell>
-                                        <TableCell className="text-right font-semibold tabular-nums">{formatCurrency(row.total_cost)}</TableCell>
+                                        <TableCell className="text-right tabular-nums">
+                                            {formatNumber(row.total_item)}
+                                        </TableCell>
+                                        <TableCell className="text-right tabular-nums">
+                                            {formatNumber(row.total_qty)}
+                                        </TableCell>
+                                        <TableCell className="text-right font-semibold tabular-nums">
+                                            {formatCurrency(row.total_cost)}
+                                        </TableCell>
                                     </TableRow>
                                 ))}
-                                <TableRow className="bg-zinc-100/50 dark:bg-zinc-800/50 font-bold">
+                                <TableRow className="bg-zinc-100/50 font-bold dark:bg-zinc-800/50">
                                     <TableCell>TOTAL</TableCell>
-                                    <TableCell className="text-right tabular-nums">{formatNumber(grandTotalItem)}</TableCell>
-                                    <TableCell className="text-right tabular-nums">{formatNumber(grandTotalQty)}</TableCell>
-                                    <TableCell className="text-right tabular-nums">{formatCurrency(grandTotalCost)}</TableCell>
+                                    <TableCell className="text-right tabular-nums">
+                                        {formatNumber(grandTotalItem)}
+                                    </TableCell>
+                                    <TableCell className="text-right tabular-nums">
+                                        {formatNumber(grandTotalQty)}
+                                    </TableCell>
+                                    <TableCell className="text-right tabular-nums">
+                                        {formatCurrency(grandTotalCost)}
+                                    </TableCell>
                                 </TableRow>
                             </TableBody>
                         </Table>
@@ -93,23 +127,33 @@ export default function WarehouseItemReport({ data, totalWarehouse }: Props) {
                 </div>
 
                 {/* Summary Cards at the bottom */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                     <Card className="border-zinc-200 dark:border-zinc-800">
                         <CardContent className="p-4">
-                            <p className="text-sm text-zinc-500 mb-1">Total Item (SKU)</p>
-                            <p className="text-2xl font-bold text-right tabular-nums">{formatNumber(grandTotalItem)}</p>
+                            <p className="mb-1 text-sm text-zinc-500">
+                                Total Item (SKU)
+                            </p>
+                            <p className="text-right text-2xl font-bold tabular-nums">
+                                {formatNumber(grandTotalItem)}
+                            </p>
                         </CardContent>
                     </Card>
                     <Card className="border-zinc-200 dark:border-zinc-800">
                         <CardContent className="p-4">
-                            <p className="text-sm text-zinc-500 mb-1">Total Qty</p>
-                            <p className="text-2xl font-bold text-right tabular-nums">{formatNumber(grandTotalQty)}</p>
+                            <p className="mb-1 text-sm text-zinc-500">
+                                Total Qty
+                            </p>
+                            <p className="text-right text-2xl font-bold tabular-nums">
+                                {formatNumber(grandTotalQty)}
+                            </p>
                         </CardContent>
                     </Card>
                     <Card className="border-zinc-200 dark:border-zinc-800">
                         <CardContent className="p-4">
-                            <p className="text-sm text-zinc-500 mb-1">Total Asset (Cost)</p>
-                            <p className="text-2xl font-bold text-right text-emerald-600 dark:text-emerald-400 tabular-nums">
+                            <p className="mb-1 text-sm text-zinc-500">
+                                Total Asset (Cost)
+                            </p>
+                            <p className="text-right text-2xl font-bold text-emerald-600 tabular-nums dark:text-emerald-400">
                                 {formatCurrency(grandTotalCost)}
                             </p>
                         </CardContent>

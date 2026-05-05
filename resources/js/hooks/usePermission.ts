@@ -1,4 +1,3 @@
-
 import { usePage } from '@inertiajs/react';
 
 export function usePermission() {

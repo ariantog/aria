@@ -3,9 +3,16 @@ import AppLayout from '@/layouts/app-layout';
 import { BreadcrumbItem } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
-import { Label } from "@/components/ui/label";
+import { Label } from '@/components/ui/label';
 import { ArrowLeft, BarChart2, Filter, X, Package } from 'lucide-react';
 import { useState } from 'react';
 
@@ -46,23 +53,31 @@ export default function GroupStats({ group, data, filters }: Props) {
     const pivotData = () => {
         const months: Record<string, any> = {};
 
-        data.forEach(entry => {
+        data.forEach((entry) => {
             if (!months[entry.showdate]) {
                 months[entry.showdate] = {
                     date: entry.showdate,
                     sell: 0,
                     move: 0,
                     return: 0,
-                    production: 0
+                    production: 0,
                 };
             }
 
             const qty = Number(entry.total_qty);
             switch (entry.transaction_type) {
-                case 2: months[entry.showdate].sell += qty; break;
-                case 3: months[entry.showdate].move += qty; break;
-                case 15: months[entry.showdate].return += qty; break;
-                case 16: months[entry.showdate].production += qty; break;
+                case 2:
+                    months[entry.showdate].sell += qty;
+                    break;
+                case 3:
+                    months[entry.showdate].move += qty;
+                    break;
+                case 15:
+                    months[entry.showdate].return += qty;
+                    break;
+                case 16:
+                    months[entry.showdate].production += qty;
+                    break;
             }
         });
 
@@ -72,16 +87,21 @@ export default function GroupStats({ group, data, filters }: Props) {
     const pivotedRows = pivotData();
 
     // Totals
-    const totals = pivotedRows.reduce((acc, row) => ({
-        sell: acc.sell + row.sell,
-        move: acc.move + row.move,
-        return: acc.return + row.return,
-        production: acc.production + row.production
-    }), { sell: 0, move: 0, return: 0, production: 0 });
+    const totals = pivotedRows.reduce(
+        (acc, row) => ({
+            sell: acc.sell + row.sell,
+            move: acc.move + row.move,
+            return: acc.return + row.return,
+            production: acc.production + row.production,
+        }),
+        { sell: 0, move: 0, return: 0, production: 0 },
+    );
 
     const handleFilter = (e: React.FormEvent) => {
         e.preventDefault();
-        router.get(`/items-group/${group.id}/stats`, searchParams, { preserveState: true });
+        router.get(`/items-group/${group.id}/stats`, searchParams, {
+            preserveState: true,
+        });
     };
 
     const clearFilters = () => {
@@ -91,7 +111,7 @@ export default function GroupStats({ group, data, filters }: Props) {
 
         const reset = {
             from: defaultFrom.toISOString().split('T')[0],
-            to: new Date().toISOString().split('T')[0]
+            to: new Date().toISOString().split('T')[0],
         };
         setSearchParams(reset);
         router.get(`/items-group/${group.id}/stats`, reset);
@@ -101,58 +121,101 @@ export default function GroupStats({ group, data, filters }: Props) {
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title={`Group Stats: ${group.name}`} />
 
-            <div className="p-4 sm:p-6 lg:p-8 bg-black min-h-screen text-zinc-100">
+            <div className="min-h-screen bg-black p-4 text-zinc-100 sm:p-6 lg:p-8">
                 {/* Header */}
-                <div className="mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div className="mb-8 flex flex-col items-start justify-between gap-4 md:flex-row md:items-center">
                     <div className="flex items-center gap-4">
                         <Button
                             variant="outline"
                             size="icon"
-                            className="border-zinc-800 bg-zinc-900/50 hover:bg-zinc-800 text-zinc-400 h-10 w-10"
-                            onClick={() => router.get(`/items-group/${group.id}`)}
+                            className="h-10 w-10 border-zinc-800 bg-zinc-900/50 text-zinc-400 hover:bg-zinc-800"
+                            onClick={() =>
+                                router.get(`/items-group/${group.id}`)
+                            }
                         >
                             <ArrowLeft className="h-5 w-5" />
                         </Button>
                         <div>
-                            <div className="flex items-center gap-2 mb-1">
-                                <h1 className="text-2xl font-bold tracking-tight text-white">Group: {group.name}</h1>
-                                {group.alias && <Badge variant="secondary" className="bg-zinc-800 text-zinc-400 hover:bg-zinc-700 italic">{group.alias}</Badge>}
+                            <div className="mb-1 flex items-center gap-2">
+                                <h1 className="text-2xl font-bold tracking-tight text-white">
+                                    Group: {group.name}
+                                </h1>
+                                {group.alias && (
+                                    <Badge
+                                        variant="secondary"
+                                        className="bg-zinc-800 text-zinc-400 italic hover:bg-zinc-700"
+                                    >
+                                        {group.alias}
+                                    </Badge>
+                                )}
                             </div>
-                            <p className="text-zinc-500 flex items-center gap-2">
-                                <BarChart2 className="h-4 w-4" /> Collective Group Performance
+                            <p className="flex items-center gap-2 text-zinc-500">
+                                <BarChart2 className="h-4 w-4" /> Collective
+                                Group Performance
                             </p>
                         </div>
                     </div>
                 </div>
 
                 {/* Filters */}
-                <div className="mb-8 p-4 bg-zinc-900/50 border border-zinc-800 rounded-xl shadow-sm">
-                    <form onSubmit={handleFilter} className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                <div className="mb-8 rounded-xl border border-zinc-800 bg-zinc-900/50 p-4 shadow-sm">
+                    <form
+                        onSubmit={handleFilter}
+                        className="grid grid-cols-1 items-end gap-4 md:grid-cols-3"
+                    >
                         <div className="space-y-2">
-                            <Label htmlFor="from" className="text-xs font-semibold uppercase text-zinc-500">From</Label>
+                            <Label
+                                htmlFor="from"
+                                className="text-xs font-semibold text-zinc-500 uppercase"
+                            >
+                                From
+                            </Label>
                             <Input
                                 id="from"
                                 type="date"
                                 value={searchParams.from}
-                                onChange={e => setSearchParams({ ...searchParams, from: e.target.value })}
-                                className="bg-zinc-950 border-zinc-800 text-zinc-200"
+                                onChange={(e) =>
+                                    setSearchParams({
+                                        ...searchParams,
+                                        from: e.target.value,
+                                    })
+                                }
+                                className="border-zinc-800 bg-zinc-950 text-zinc-200"
                             />
                         </div>
                         <div className="space-y-2">
-                            <Label htmlFor="to" className="text-xs font-semibold uppercase text-zinc-500">To</Label>
+                            <Label
+                                htmlFor="to"
+                                className="text-xs font-semibold text-zinc-500 uppercase"
+                            >
+                                To
+                            </Label>
                             <Input
                                 id="to"
                                 type="date"
                                 value={searchParams.to}
-                                onChange={e => setSearchParams({ ...searchParams, to: e.target.value })}
-                                className="bg-zinc-950 border-zinc-800 text-zinc-200"
+                                onChange={(e) =>
+                                    setSearchParams({
+                                        ...searchParams,
+                                        to: e.target.value,
+                                    })
+                                }
+                                className="border-zinc-800 bg-zinc-950 text-zinc-200"
                             />
                         </div>
                         <div className="flex gap-2">
-                            <Button type="submit" className="flex-1 bg-zinc-100 text-zinc-900 hover:bg-zinc-200">
+                            <Button
+                                type="submit"
+                                className="flex-1 bg-zinc-100 text-zinc-900 hover:bg-zinc-200"
+                            >
                                 <Filter className="mr-2 h-4 w-4" /> Filter
                             </Button>
-                            <Button type="button" variant="outline" onClick={clearFilters} className="border-zinc-800 text-zinc-400 hover:bg-zinc-800/50">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={clearFilters}
+                                className="border-zinc-800 text-zinc-400 hover:bg-zinc-800/50"
+                            >
                                 <X className="h-4 w-4" /> Clear
                             </Button>
                         </div>
@@ -160,44 +223,83 @@ export default function GroupStats({ group, data, filters }: Props) {
                 </div>
 
                 {/* Table */}
-                <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 overflow-hidden shadow-sm">
+                <div className="overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900/50 shadow-sm">
                     <Table>
-                        <TableHeader className="bg-zinc-900/80 border-b border-zinc-800">
-                            <TableRow className="hover:bg-transparent border-zinc-800">
-                                <TableHead className="text-zinc-500 font-bold tracking-wider uppercase text-[10px] px-6 py-4">Month</TableHead>
-                                <TableHead className="text-zinc-500 font-bold tracking-wider uppercase text-[10px] px-6 py-4 text-right">Sell</TableHead>
-                                <TableHead className="text-zinc-500 font-bold tracking-wider uppercase text-[10px] px-6 py-4 text-right text-rose-400">Return</TableHead>
-                                <TableHead className="text-zinc-500 font-bold tracking-wider uppercase text-[10px] px-6 py-4 text-right text-amber-400">Move</TableHead>
-                                <TableHead className="text-zinc-500 font-bold tracking-wider uppercase text-[10px] px-6 py-4 text-right text-indigo-400">Production</TableHead>
+                        <TableHeader className="border-b border-zinc-800 bg-zinc-900/80">
+                            <TableRow className="border-zinc-800 hover:bg-transparent">
+                                <TableHead className="px-6 py-4 text-[10px] font-bold tracking-wider text-zinc-500 uppercase">
+                                    Month
+                                </TableHead>
+                                <TableHead className="px-6 py-4 text-right text-[10px] font-bold tracking-wider text-zinc-500 uppercase">
+                                    Sell
+                                </TableHead>
+                                <TableHead className="px-6 py-4 text-right text-[10px] font-bold tracking-wider text-rose-400 text-zinc-500 uppercase">
+                                    Return
+                                </TableHead>
+                                <TableHead className="px-6 py-4 text-right text-[10px] font-bold tracking-wider text-amber-400 text-zinc-500 uppercase">
+                                    Move
+                                </TableHead>
+                                <TableHead className="px-6 py-4 text-right text-[10px] font-bold tracking-wider text-indigo-400 text-zinc-500 uppercase">
+                                    Production
+                                </TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody className="divide-y divide-zinc-800/50 uppercase">
                             {pivotedRows.length > 0 ? (
                                 <>
                                     {pivotedRows.map((row, idx) => (
-                                        <TableRow key={idx} className="hover:bg-zinc-800/40 border-zinc-800/50 transition-colors">
-                                            <TableCell className="px-6 py-4 text-white font-medium">{row.date}</TableCell>
-                                            <TableCell className="px-6 py-4 text-right text-zinc-300 font-mono">{row.sell || '-'}</TableCell>
-                                            <TableCell className="px-6 py-4 text-right text-rose-500/80 font-mono">{row.return || '-'}</TableCell>
-                                            <TableCell className="px-6 py-4 text-right text-amber-500/80 font-mono">{row.move || '-'}</TableCell>
-                                            <TableCell className="px-6 py-4 text-right text-indigo-500/80 font-mono">{row.production || '-'}</TableCell>
+                                        <TableRow
+                                            key={idx}
+                                            className="border-zinc-800/50 transition-colors hover:bg-zinc-800/40"
+                                        >
+                                            <TableCell className="px-6 py-4 font-medium text-white">
+                                                {row.date}
+                                            </TableCell>
+                                            <TableCell className="px-6 py-4 text-right font-mono text-zinc-300">
+                                                {row.sell || '-'}
+                                            </TableCell>
+                                            <TableCell className="px-6 py-4 text-right font-mono text-rose-500/80">
+                                                {row.return || '-'}
+                                            </TableCell>
+                                            <TableCell className="px-6 py-4 text-right font-mono text-amber-500/80">
+                                                {row.move || '-'}
+                                            </TableCell>
+                                            <TableCell className="px-6 py-4 text-right font-mono text-indigo-500/80">
+                                                {row.production || '-'}
+                                            </TableCell>
                                         </TableRow>
                                     ))}
                                     {/* Footer Totals */}
-                                    <TableRow className="bg-zinc-900/80 hover:bg-zinc-900/80 font-bold border-t-2 border-zinc-700">
-                                        <TableCell className="px-6 py-4 text-white uppercase tracking-wider">Total</TableCell>
-                                        <TableCell className="px-6 py-4 text-right text-green-400 font-mono">{totals.sell}</TableCell>
-                                        <TableCell className="px-6 py-4 text-right text-rose-400 font-mono">{totals.return}</TableCell>
-                                        <TableCell className="px-6 py-4 text-right text-amber-400 font-mono">{totals.move}</TableCell>
-                                        <TableCell className="px-6 py-4 text-right text-indigo-400 font-mono">{totals.production}</TableCell>
+                                    <TableRow className="border-t-2 border-zinc-700 bg-zinc-900/80 font-bold hover:bg-zinc-900/80">
+                                        <TableCell className="px-6 py-4 tracking-wider text-white uppercase">
+                                            Total
+                                        </TableCell>
+                                        <TableCell className="px-6 py-4 text-right font-mono text-green-400">
+                                            {totals.sell}
+                                        </TableCell>
+                                        <TableCell className="px-6 py-4 text-right font-mono text-rose-400">
+                                            {totals.return}
+                                        </TableCell>
+                                        <TableCell className="px-6 py-4 text-right font-mono text-amber-400">
+                                            {totals.move}
+                                        </TableCell>
+                                        <TableCell className="px-6 py-4 text-right font-mono text-indigo-400">
+                                            {totals.production}
+                                        </TableCell>
                                     </TableRow>
                                 </>
                             ) : (
                                 <TableRow>
-                                    <TableCell colSpan={5} className="h-64 text-center">
+                                    <TableCell
+                                        colSpan={5}
+                                        className="h-64 text-center"
+                                    >
                                         <div className="flex flex-col items-center gap-2 text-zinc-600">
                                             <Package className="h-10 w-10 opacity-20" />
-                                            <p>No statistical data found for this period.</p>
+                                            <p>
+                                                No statistical data found for
+                                                this period.
+                                            </p>
                                         </div>
                                     </TableCell>
                                 </TableRow>

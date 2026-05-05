@@ -29,8 +29,17 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::resource('users', \App\Http\Controllers\UserController::class);
     Route::resource('locations', \App\Http\Controllers\LocationController::class);
     Route::resource('posts', App\Http\Controllers\PostController::class);
+    Route::get('items/{item}/transactions', [App\Http\Controllers\ItemsController::class, 'itemTransactions'])->name('items.transactions');
+    Route::get('items/{item}/stats', [App\Http\Controllers\ItemsController::class, 'itemStats'])->name('items.stats');
+    Route::get('items/{item}/jubelio', [App\Http\Controllers\ItemsController::class, 'jubelio'])->name('items.jubelio');
+    Route::get('items/{item}/jubelio-search', [App\Http\Controllers\ItemsController::class, 'getJubelioItems'])->name('items.jubelio-search');
+    Route::post('items/{item}/jubelio-link', [App\Http\Controllers\ItemsController::class, 'updateJubelioId'])->name('items.jubelio-link');
     Route::resource('items', App\Http\Controllers\ItemsController::class);
     Route::resource('jubelio', App\Http\Controllers\JubelioController::class);
+    Route::get('jubelio-transaction/sync', [App\Http\Controllers\JubelioController::class, 'transactionSync'])->name('jubelio.transaction.sync');
+    Route::get('jubelio-transaction/{transaction}/detail-sync', [App\Http\Controllers\JubelioController::class, 'detailJubelioSync'])->name('jubelio.transaction.detail-sync');
+    Route::patch('jubelio-transaction/{transaction}/sync-display', [App\Http\Controllers\JubelioController::class, 'transactionSyncDisplay'])->name('jubelio.transaction.sync-display');
+    Route::post('jubelio-transaction/{id}/adjust-stok', [App\Http\Controllers\JubelioController::class, 'adjustStok'])->name('jubelio.adjustStok');
     Route::post('jubelio/webhook/order', [App\Http\Controllers\JubelioController::class, 'webhookOrder'])->name('jubelio.webhook.order');
 
     // Jubelio Sync Mappings

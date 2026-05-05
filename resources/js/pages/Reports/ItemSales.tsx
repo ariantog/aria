@@ -2,8 +2,21 @@ import AppLayout from '@/layouts/app-layout';
 import { BreadcrumbItem } from '@/types';
 import { Head, Link, router } from '@inertiajs/react';
 import { Card, CardHeader } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from '@/components/ui/table';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Filter, X, Search } from 'lucide-react';
@@ -47,7 +60,9 @@ interface Props {
 
 export default function ItemSales({ dataList, filters, yearList }: Props) {
     const [bulan, setBulan] = useState(filters.bulan?.toString() || '0');
-    const [tahun, setTahun] = useState(filters.tahun?.toString() || new Date().getFullYear().toString());
+    const [tahun, setTahun] = useState(
+        filters.tahun?.toString() || new Date().getFullYear().toString(),
+    );
     const [type, setType] = useState(filters.type?.toString() || '0');
     const [searchGroup, setSearchGroup] = useState(filters.search_group || '');
 
@@ -93,16 +108,21 @@ export default function ItemSales({ dataList, filters, yearList }: Props) {
 
             <div className="flex flex-col gap-6 p-4 sm:p-6 lg:p-8">
                 <div>
-                    <h1 className="text-2xl font-bold tracking-tight">Item Sales</h1>
+                    <h1 className="text-2xl font-bold tracking-tight">
+                        Item Sales
+                    </h1>
                     <p className="text-zinc-500 dark:text-zinc-400">
                         Laporan penjualan per kategori dan customer.
                     </p>
                 </div>
 
                 <Card>
-                    <CardHeader className="p-4 sm:p-6 pb-4 sm:pb-4">
-                        <form onSubmit={handleFilter} className="flex flex-wrap items-end gap-4">
-                            <div className="grid gap-1.5 w-[120px]">
+                    <CardHeader className="p-4 pb-4 sm:p-6 sm:pb-4">
+                        <form
+                            onSubmit={handleFilter}
+                            className="flex flex-wrap items-end gap-4"
+                        >
+                            <div className="grid w-[120px] gap-1.5">
                                 <Label htmlFor="month">Bulan</Label>
                                 <Select value={bulan} onValueChange={setBulan}>
                                     <SelectTrigger id="month">
@@ -110,13 +130,21 @@ export default function ItemSales({ dataList, filters, yearList }: Props) {
                                     </SelectTrigger>
                                     <SelectContent>
                                         <SelectItem value="0">Semua</SelectItem>
-                                        {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-                                            <SelectItem key={m} value={m.toString()}>{m}</SelectItem>
+                                        {Array.from(
+                                            { length: 12 },
+                                            (_, i) => i + 1,
+                                        ).map((m) => (
+                                            <SelectItem
+                                                key={m}
+                                                value={m.toString()}
+                                            >
+                                                {m}
+                                            </SelectItem>
                                         ))}
                                     </SelectContent>
                                 </Select>
                             </div>
-                            <div className="grid gap-1.5 w-[120px]">
+                            <div className="grid w-[120px] gap-1.5">
                                 <Label htmlFor="year">Tahun</Label>
                                 <Select value={tahun} onValueChange={setTahun}>
                                     <SelectTrigger id="year">
@@ -124,26 +152,35 @@ export default function ItemSales({ dataList, filters, yearList }: Props) {
                                     </SelectTrigger>
                                     <SelectContent>
                                         {yearList.map((y) => (
-                                            <SelectItem key={y} value={y.toString()}>{y}</SelectItem>
+                                            <SelectItem
+                                                key={y}
+                                                value={y.toString()}
+                                            >
+                                                {y}
+                                            </SelectItem>
                                         ))}
                                     </SelectContent>
                                 </Select>
                             </div>
-                            <div className="grid gap-1.5 w-[250px]">
-                                <Label htmlFor="search_group">Cari Grup Item</Label>
+                            <div className="grid w-[250px] gap-1.5">
+                                <Label htmlFor="search_group">
+                                    Cari Grup Item
+                                </Label>
                                 <div className="relative">
-                                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-zinc-500" />
+                                    <Search className="absolute top-2.5 left-2.5 h-4 w-4 text-zinc-500" />
                                     <Input
                                         id="search_group"
                                         type="text"
                                         placeholder="Ketik nama grup..."
                                         className="pl-9"
                                         value={searchGroup}
-                                        onChange={(e) => setSearchGroup(e.target.value)}
+                                        onChange={(e) =>
+                                            setSearchGroup(e.target.value)
+                                        }
                                     />
                                 </div>
                             </div>
-                            <div className="grid gap-1.5 w-[120px]">
+                            <div className="grid w-[120px] gap-1.5">
                                 <Label htmlFor="type">Tipe</Label>
                                 <Select value={type} onValueChange={setType}>
                                     <SelectTrigger id="type">
@@ -152,7 +189,9 @@ export default function ItemSales({ dataList, filters, yearList }: Props) {
                                     <SelectContent>
                                         <SelectItem value="0">Semua</SelectItem>
                                         <SelectItem value="2">Sell</SelectItem>
-                                        <SelectItem value="15">Return</SelectItem>
+                                        <SelectItem value="15">
+                                            Return
+                                        </SelectItem>
                                     </SelectContent>
                                 </Select>
                             </div>
@@ -161,7 +200,11 @@ export default function ItemSales({ dataList, filters, yearList }: Props) {
                                     <Filter className="mr-2 h-4 w-4" />
                                     Filter
                                 </Button>
-                                <Button type="button" variant="outline" onClick={handleClear}>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={handleClear}
+                                >
                                     <X className="mr-2 h-4 w-4" />
                                     Bersihkan
                                 </Button>
@@ -170,53 +213,75 @@ export default function ItemSales({ dataList, filters, yearList }: Props) {
                     </CardHeader>
                 </Card>
 
-                <div className="rounded-md border bg-white dark:bg-zinc-900 shadow-sm overflow-hidden">
+                <div className="overflow-hidden rounded-md border bg-white shadow-sm dark:bg-zinc-900">
                     <Table>
                         <TableHeader>
                             <TableRow className="bg-zinc-50 dark:bg-zinc-900/50">
-                                <TableHead className="w-[100px]">Periode</TableHead>
+                                <TableHead className="w-[100px]">
+                                    Periode
+                                </TableHead>
                                 <TableHead>Grup Item</TableHead>
                                 <TableHead>Customer</TableHead>
-                                <TableHead className="w-[100px]">Tipe</TableHead>
-                                <TableHead className="text-right w-[100px]">Total Qty</TableHead>
-                                <TableHead className="text-right w-[160px]">Total</TableHead>
+                                <TableHead className="w-[100px]">
+                                    Tipe
+                                </TableHead>
+                                <TableHead className="w-[100px] text-right">
+                                    Total Qty
+                                </TableHead>
+                                <TableHead className="w-[160px] text-right">
+                                    Total
+                                </TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {dataList.data.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={6} className="h-24 text-center">Data Kosong</TableCell>
+                                    <TableCell
+                                        colSpan={6}
+                                        className="h-24 text-center"
+                                    >
+                                        Data Kosong
+                                    </TableCell>
                                 </TableRow>
                             ) : (
                                 dataList.data.map((item) => (
-                                    <TableRow key={item.id} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-900/50 transition-colors">
-                                        <TableCell className="font-medium text-xs">{item.month}/{item.year}</TableCell>
+                                    <TableRow
+                                        key={item.id}
+                                        className="transition-colors hover:bg-zinc-50/50 dark:hover:bg-zinc-900/50"
+                                    >
+                                        <TableCell className="text-xs font-medium">
+                                            {item.month}/{item.year}
+                                        </TableCell>
                                         <TableCell className="text-xs">
                                             {item.group ? (
-                                                <Link 
+                                                <Link
                                                     href={`/items-group/${item.group.id}`}
                                                     className="text-blue-600 hover:underline dark:text-blue-400"
                                                 >
                                                     {item.group.name}
                                                 </Link>
-                                            ) : '-'}
+                                            ) : (
+                                                '-'
+                                            )}
                                         </TableCell>
-                                        <TableCell className="font-semibold text-zinc-700 dark:text-zinc-300 text-xs">
+                                        <TableCell className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
                                             {item.customer?.name || '-'}
                                         </TableCell>
                                         <TableCell>
-                                            <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold ${
-                                                item.type === 2 
-                                                    ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400' 
-                                                    : 'bg-rose-100 text-rose-800 dark:bg-rose-900/30 dark:text-rose-400'
-                                            }`}>
+                                            <span
+                                                className={`rounded px-2 py-0.5 text-[10px] font-bold uppercase ${
+                                                    item.type === 2
+                                                        ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400'
+                                                        : 'bg-rose-100 text-rose-800 dark:bg-rose-900/30 dark:text-rose-400'
+                                                }`}
+                                            >
                                                 {item.type_name}
                                             </span>
                                         </TableCell>
-                                        <TableCell className="text-right font-mono font-bold text-xs">
+                                        <TableCell className="text-right font-mono text-xs font-bold">
                                             {formatNumber(item.sum_qty)}
                                         </TableCell>
-                                        <TableCell className="text-right font-mono font-bold text-xs">
+                                        <TableCell className="text-right font-mono text-xs font-bold">
                                             {formatCurrency(item.sum_total)}
                                         </TableCell>
                                     </TableRow>
@@ -225,7 +290,7 @@ export default function ItemSales({ dataList, filters, yearList }: Props) {
                         </TableBody>
                     </Table>
                 </div>
-                
+
                 <div className="mt-4">
                     <Pagination links={dataList.links} />
                 </div>

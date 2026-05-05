@@ -10,7 +10,7 @@ import {
     SelectItem,
     SelectTrigger,
     SelectValue,
-} from "@/components/ui/select"
+} from '@/components/ui/select';
 import { format } from 'date-fns';
 import { id } from 'date-fns/locale';
 import { Eye, X, Plus, Search } from 'lucide-react';
@@ -43,12 +43,15 @@ export default function Index({ borongans, filters, can }: any) {
             <Head title="Borongan List" />
             <div className="flex h-full flex-1 flex-col gap-4 rounded-xl p-4">
                 <div className="flex items-center justify-between">
-                    <h1 className="text-2xl font-bold tracking-tight">Borongan List</h1>
+                    <h1 className="text-2xl font-bold tracking-tight">
+                        Borongan List
+                    </h1>
                     <div className="flex items-center gap-2">
                         {can.create_borongan && (
                             <Button asChild>
                                 <Link href="/borongan/create">
-                                    <Plus className="mr-2 h-4 w-4" /> Tambah Borongan
+                                    <Plus className="mr-2 h-4 w-4" /> Tambah
+                                    Borongan
                                 </Link>
                             </Button>
                         )}
@@ -63,41 +66,90 @@ export default function Index({ borongans, filters, can }: any) {
                             <table className="w-full caption-bottom text-sm">
                                 <thead className="bg-gray-100 dark:bg-gray-800">
                                     <tr className="border-b transition-colors hover:bg-muted/50">
-                                        <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground uppercase text-xs">Date</th>
-                                        <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground uppercase text-xs">Jahit</th>
-                                        <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground uppercase text-xs">Items</th>
-                                        <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground uppercase text-xs">Tres</th>
-                                        <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground uppercase text-xs">Permak</th>
-                                        <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground uppercase text-xs">Lain2</th>
-                                        <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground uppercase text-xs">Total</th>
+                                        <th className="h-12 px-4 text-left align-middle text-xs font-medium text-muted-foreground uppercase">
+                                            Date
+                                        </th>
+                                        <th className="h-12 px-4 text-left align-middle text-xs font-medium text-muted-foreground uppercase">
+                                            Jahit
+                                        </th>
+                                        <th className="h-12 px-4 text-left align-middle text-xs font-medium text-muted-foreground uppercase">
+                                            Items
+                                        </th>
+                                        <th className="h-12 px-4 text-left align-middle text-xs font-medium text-muted-foreground uppercase">
+                                            Tres
+                                        </th>
+                                        <th className="h-12 px-4 text-left align-middle text-xs font-medium text-muted-foreground uppercase">
+                                            Permak
+                                        </th>
+                                        <th className="h-12 px-4 text-left align-middle text-xs font-medium text-muted-foreground uppercase">
+                                            Lain2
+                                        </th>
+                                        <th className="h-12 px-4 text-left align-middle text-xs font-medium text-muted-foreground uppercase">
+                                            Total
+                                        </th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {borongans?.data?.length > 0 ? (
                                         borongans.data.map((item: any) => (
-                                            <tr key={item.id} className="border-b transition-colors hover:bg-muted/50">
+                                            <tr
+                                                key={item.id}
+                                                className="border-b transition-colors hover:bg-muted/50"
+                                            >
                                                 <td className="p-4 align-middle">
                                                     {can.view_borongan ? (
-                                                        <Link href={`/borongan/${item.id}`} className="font-medium text-blue-600 hover:underline">
-                                                            {item.date ? format(new Date(item.date), 'yyyy-MM-dd') : '-'}
+                                                        <Link
+                                                            href={`/borongan/${item.id}`}
+                                                            className="font-medium text-blue-600 hover:underline"
+                                                        >
+                                                            {item.date
+                                                                ? format(
+                                                                      new Date(
+                                                                          item.date,
+                                                                      ),
+                                                                      'yyyy-MM-dd',
+                                                                  )
+                                                                : '-'}
                                                         </Link>
                                                     ) : (
                                                         <span className="font-medium">
-                                                            {item.date ? format(new Date(item.date), 'yyyy-MM-dd') : '-'}
+                                                            {item.date
+                                                                ? format(
+                                                                      new Date(
+                                                                          item.date,
+                                                                      ),
+                                                                      'yyyy-MM-dd',
+                                                                  )
+                                                                : '-'}
                                                         </span>
                                                     )}
                                                 </td>
-                                                <td className="p-4 align-middle">{item.jahit?.name || '-'}</td>
-                                                <td className="p-4 align-middle">{item.total_items}</td>
-                                                <td className="p-4 align-middle">{item.tres || 0}</td>
-                                                <td className="p-4 align-middle">{item.permak || 0}</td>
-                                                <td className="p-4 align-middle">{item.lain2 || 0}</td>
-                                                <td className="p-4 align-middle font-semibold">{formatCurrency(item.total)}</td>
+                                                <td className="p-4 align-middle">
+                                                    {item.jahit?.name || '-'}
+                                                </td>
+                                                <td className="p-4 align-middle">
+                                                    {item.total_items}
+                                                </td>
+                                                <td className="p-4 align-middle">
+                                                    {item.tres || 0}
+                                                </td>
+                                                <td className="p-4 align-middle">
+                                                    {item.permak || 0}
+                                                </td>
+                                                <td className="p-4 align-middle">
+                                                    {item.lain2 || 0}
+                                                </td>
+                                                <td className="p-4 align-middle font-semibold">
+                                                    {formatCurrency(item.total)}
+                                                </td>
                                             </tr>
                                         ))
                                     ) : (
                                         <tr>
-                                            <td colSpan={7} className="p-4 text-center text-muted-foreground">
+                                            <td
+                                                colSpan={7}
+                                                className="p-4 text-center text-muted-foreground"
+                                            >
                                                 Data Empty
                                             </td>
                                         </tr>
@@ -108,30 +160,45 @@ export default function Index({ borongans, filters, can }: any) {
 
                         {/* Pagination Component */}
                         {borongans?.links && borongans.last_page > 1 && (
-                            <div className="py-4 flex justify-center px-4 border-t">
+                            <div className="flex justify-center border-t px-4 py-4">
                                 <Pagination>
                                     <PaginationContent>
-                                        {borongans.links.map((link: any, index: number) => {
-                                            if (link.url === null) {
+                                        {borongans.links.map(
+                                            (link: any, index: number) => {
+                                                if (link.url === null) {
+                                                    return (
+                                                        <PaginationItem
+                                                            key={index}
+                                                        >
+                                                            <span
+                                                                className="cursor-not-allowed px-3 py-2 text-sm opacity-50"
+                                                                dangerouslySetInnerHTML={{
+                                                                    __html: link.label,
+                                                                }}
+                                                            />
+                                                        </PaginationItem>
+                                                    );
+                                                }
+
                                                 return (
                                                     <PaginationItem key={index}>
-                                                        <span className="px-3 py-2 opacity-50 cursor-not-allowed text-sm" dangerouslySetInnerHTML={{ __html: link.label }} />
+                                                        <PaginationLink
+                                                            href={link.url}
+                                                            isActive={
+                                                                link.active
+                                                            }
+                                                            size="sm"
+                                                        >
+                                                            <span
+                                                                dangerouslySetInnerHTML={{
+                                                                    __html: link.label,
+                                                                }}
+                                                            />
+                                                        </PaginationLink>
                                                     </PaginationItem>
                                                 );
-                                            }
-
-                                            return (
-                                                <PaginationItem key={index}>
-                                                    <PaginationLink
-                                                        href={link.url}
-                                                        isActive={link.active}
-                                                        size="sm"
-                                                    >
-                                                        <span dangerouslySetInnerHTML={{ __html: link.label }} />
-                                                    </PaginationLink>
-                                                </PaginationItem>
-                                            );
-                                        })}
+                                            },
+                                        )}
                                     </PaginationContent>
                                 </Pagination>
                             </div>

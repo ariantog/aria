@@ -47,13 +47,28 @@ interface WorkersProps {
     };
 }
 
-export default function WorkersIndex({ workers, type, title, can }: WorkersProps) {
+export default function WorkersIndex({
+    workers,
+    type,
+    title,
+    can,
+}: WorkersProps) {
     const breadcrumbs: BreadcrumbItem[] = [
         { title: 'Produksi', href: '/produksi' },
         { title: title, href: `/produksi/${type}/list` },
     ];
 
-    const { data, setData, post, put, delete: destroy, processing, errors, reset, clearErrors } = useForm({
+    const {
+        data,
+        setData,
+        post,
+        put,
+        delete: destroy,
+        processing,
+        errors,
+        reset,
+        clearErrors,
+    } = useForm({
         name: '',
     });
 
@@ -97,15 +112,19 @@ export default function WorkersIndex({ workers, type, title, can }: WorkersProps
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title={title} />
             <div className="flex h-full flex-1 flex-col gap-4 rounded-xl p-4">
-                <div className="flex items-center justify-between mb-4">
+                <div className="mb-4 flex items-center justify-between">
                     <div>
-                        <h2 className="text-2xl font-bold tracking-tight">{title}</h2>
-                        <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">Total {workers.total} workers found</p>
+                        <h2 className="text-2xl font-bold tracking-tight">
+                            {title}
+                        </h2>
+                        <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+                            Total {workers.total} workers found
+                        </p>
                     </div>
                     {can.create_worker && (
                         <Button
                             onClick={openCreateModal}
-                            className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm flex items-center gap-2"
+                            className="flex items-center gap-2 bg-blue-600 text-white shadow-sm hover:bg-blue-700"
                         >
                             <Plus className="h-4 w-4" />
                             Add New Worker
@@ -113,24 +132,31 @@ export default function WorkersIndex({ workers, type, title, can }: WorkersProps
                     )}
                 </div>
 
-                <div className="rounded-xl border bg-white dark:bg-zinc-900 shadow-sm overflow-hidden">
+                <div className="overflow-hidden rounded-xl border bg-white shadow-sm dark:bg-zinc-900">
                     <Table>
                         <TableHeader className="bg-zinc-50/50 dark:bg-zinc-900/50">
                             <TableRow>
                                 <TableHead className="w-[100px]">ID</TableHead>
                                 <TableHead>Name</TableHead>
                                 <TableHead>Joined At</TableHead>
-                                <TableHead className="text-right">Actions</TableHead>
+                                <TableHead className="text-right">
+                                    Actions
+                                </TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {workers.data.length > 0 ? (
                                 workers.data.map((worker) => (
-                                    <TableRow key={worker.id} className="group hover:bg-zinc-50/50 dark:hover:bg-zinc-800/50 transition-colors">
-                                        <TableCell className="font-medium">{worker.id}</TableCell>
+                                    <TableRow
+                                        key={worker.id}
+                                        className="group transition-colors hover:bg-zinc-50/50 dark:hover:bg-zinc-800/50"
+                                    >
+                                        <TableCell className="font-medium">
+                                            {worker.id}
+                                        </TableCell>
                                         <TableCell>
                                             <div className="flex items-center gap-3">
-                                                <div className="h-8 w-8 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                                                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900/30">
                                                     <UsersIcon className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                                                 </div>
                                                 <div className="font-bold text-zinc-900 dark:text-white">
@@ -139,37 +165,50 @@ export default function WorkersIndex({ workers, type, title, can }: WorkersProps
                                             </div>
                                         </TableCell>
                                         <TableCell className="text-muted-foreground">
-                                            {new Date(worker.created_at).toLocaleDateString()}
+                                            {new Date(
+                                                worker.created_at,
+                                            ).toLocaleDateString()}
                                         </TableCell>
-                                         <TableCell className="text-right">
-                                             <div className="flex justify-end gap-2">
-                                                 {can.edit_worker && (
-                                                     <Button
-                                                         variant="outline"
-                                                         size="icon"
-                                                         className="h-8 w-8 text-blue-600 border-blue-100 hover:bg-blue-50"
-                                                         onClick={() => openEditModal(worker)}
-                                                     >
-                                                         <Edit className="h-4 w-4" />
-                                                     </Button>
-                                                 )}
-                                                 {can.delete_worker && (
-                                                     <Button
-                                                         variant="outline"
-                                                         size="icon"
-                                                         className="h-8 w-8 text-red-600 border-red-100 hover:bg-red-50"
-                                                         onClick={() => handleDelete(worker.id)}
-                                                     >
-                                                         <Trash2 className="h-4 w-4" />
-                                                     </Button>
-                                                 )}
-                                             </div>
-                                         </TableCell>
+                                        <TableCell className="text-right">
+                                            <div className="flex justify-end gap-2">
+                                                {can.edit_worker && (
+                                                    <Button
+                                                        variant="outline"
+                                                        size="icon"
+                                                        className="h-8 w-8 border-blue-100 text-blue-600 hover:bg-blue-50"
+                                                        onClick={() =>
+                                                            openEditModal(
+                                                                worker,
+                                                            )
+                                                        }
+                                                    >
+                                                        <Edit className="h-4 w-4" />
+                                                    </Button>
+                                                )}
+                                                {can.delete_worker && (
+                                                    <Button
+                                                        variant="outline"
+                                                        size="icon"
+                                                        className="h-8 w-8 border-red-100 text-red-600 hover:bg-red-50"
+                                                        onClick={() =>
+                                                            handleDelete(
+                                                                worker.id,
+                                                            )
+                                                        }
+                                                    >
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </Button>
+                                                )}
+                                            </div>
+                                        </TableCell>
                                     </TableRow>
                                 ))
                             ) : (
                                 <TableRow>
-                                    <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
+                                    <TableCell
+                                        colSpan={4}
+                                        className="h-24 text-center text-muted-foreground"
+                                    >
                                         No workers found.
                                     </TableCell>
                                 </TableRow>
@@ -180,7 +219,13 @@ export default function WorkersIndex({ workers, type, title, can }: WorkersProps
 
                 {workers.links && workers.links.length > 3 && (
                     <div className="mt-4">
-                        <Pagination links={workers.links} from={workers.from} to={workers.to} total={workers.total} label="workers" />
+                        <Pagination
+                            links={workers.links}
+                            from={workers.from}
+                            to={workers.to}
+                            total={workers.total}
+                            label="workers"
+                        />
                     </div>
                 )}
             </div>
@@ -188,7 +233,9 @@ export default function WorkersIndex({ workers, type, title, can }: WorkersProps
             <Dialog open={isOpen} onOpenChange={setIsOpen}>
                 <DialogContent className="sm:max-w-[425px]">
                     <DialogHeader>
-                        <DialogTitle>{editingId ? 'Edit Worker' : 'Add Worker'}</DialogTitle>
+                        <DialogTitle>
+                            {editingId ? 'Edit Worker' : 'Add Worker'}
+                        </DialogTitle>
                     </DialogHeader>
                     <form onSubmit={handleSubmit} className="space-y-4">
                         <div className="grid gap-2">
@@ -196,18 +243,32 @@ export default function WorkersIndex({ workers, type, title, can }: WorkersProps
                             <Input
                                 id="name"
                                 value={data.name}
-                                onChange={(e) => setData('name', e.target.value)}
+                                onChange={(e) =>
+                                    setData('name', e.target.value)
+                                }
                                 placeholder="Worker's name"
                                 autoFocus
                                 required
                             />
-                            {errors.name && <p className="text-sm text-red-500">{errors.name}</p>}
+                            {errors.name && (
+                                <p className="text-sm text-red-500">
+                                    {errors.name}
+                                </p>
+                            )}
                         </div>
                         <DialogFooter>
-                            <Button type="button" variant="outline" onClick={() => setIsOpen(false)}>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => setIsOpen(false)}
+                            >
                                 Cancel
                             </Button>
-                            <Button type="submit" disabled={processing} className="bg-blue-600 hover:bg-blue-700 text-white">
+                            <Button
+                                type="submit"
+                                disabled={processing}
+                                className="bg-blue-600 text-white hover:bg-blue-700"
+                            >
                                 {editingId ? 'Save changes' : 'Add worker'}
                             </Button>
                         </DialogFooter>

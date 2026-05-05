@@ -5,7 +5,7 @@ import {
     SelectItem,
     SelectTrigger,
     SelectValue,
-} from "@/components/ui/select";
+} from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -33,19 +33,19 @@ export default function FormSelect({
     value,
     onValueChange,
     options,
-    placeholder = "Select an option",
+    placeholder = 'Select an option',
     error,
     touched,
     icon: Icon,
     required,
-    disabled
+    disabled,
 }: FormSelectProps) {
     const isInvalid = !!error;
     const isValid = !error && !!touched && value !== '' && value !== undefined;
 
     return (
         <div className="space-y-2">
-            <Label className="text-zinc-300 font-medium">
+            <Label className="font-medium text-zinc-300">
                 {label} {required && <span className="text-red-500">*</span>}
             </Label>
             <Select
@@ -53,34 +53,46 @@ export default function FormSelect({
                 onValueChange={onValueChange}
                 disabled={disabled}
             >
-                <SelectTrigger className={cn(
-                    "bg-zinc-950 border-zinc-800 focus:border-blue-600 focus:ring-blue-600/20 h-11 text-zinc-100",
-                    isInvalid && "border-red-500 ring-red-500/20 focus:border-red-500 focus:ring-red-500/20 bg-red-500/10 text-red-500",
-                    isValid && "border-green-500 ring-green-500/20 focus:border-green-500 focus:ring-green-500/20 bg-green-500/10 text-green-500"
-                )}>
+                <SelectTrigger
+                    className={cn(
+                        'h-11 border-zinc-800 bg-zinc-950 text-zinc-100 focus:border-blue-600 focus:ring-blue-600/20',
+                        isInvalid &&
+                            'border-red-500 bg-red-500/10 text-red-500 ring-red-500/20 focus:border-red-500 focus:ring-red-500/20',
+                        isValid &&
+                            'border-green-500 bg-green-500/10 text-green-500 ring-green-500/20 focus:border-green-500 focus:ring-green-500/20',
+                    )}
+                >
                     <div className="flex items-center gap-2">
                         {Icon ? (
-                            <div className="bg-zinc-800 rounded-full p-0.5">
-                                <Icon className="h-3 w-3 text-zinc-400 p-[1px]" />
+                            <div className="rounded-full bg-zinc-800 p-0.5">
+                                <Icon className="h-3 w-3 p-[1px] text-zinc-400" />
                             </div>
                         ) : (
-                            <div className="bg-zinc-800 rounded-full p-0.5">
-                                <div className="h-3 w-3 bg-zinc-400 rounded-full"></div>
+                            <div className="rounded-full bg-zinc-800 p-0.5">
+                                <div className="h-3 w-3 rounded-full bg-zinc-400"></div>
                             </div>
                         )}
                         <SelectValue placeholder={placeholder} />
                     </div>
                 </SelectTrigger>
-                <SelectContent className="bg-zinc-900 border-zinc-800 text-zinc-100">
+                <SelectContent className="border-zinc-800 bg-zinc-900 text-zinc-100">
                     {options.map((option) => (
-                        <SelectItem key={option.value} value={option.value} className="focus:bg-zinc-800 focus:text-zinc-100 cursor-pointer">
+                        <SelectItem
+                            key={option.value}
+                            value={option.value}
+                            className="cursor-pointer focus:bg-zinc-800 focus:text-zinc-100"
+                        >
                             {option.label}
                         </SelectItem>
                     ))}
-                    {options.length === 0 && <div className="p-2 text-sm text-zinc-500">No options available</div>}
+                    {options.length === 0 && (
+                        <div className="p-2 text-sm text-zinc-500">
+                            No options available
+                        </div>
+                    )}
                 </SelectContent>
             </Select>
-            {error && <div className="text-red-500 text-sm mt-1">{error}</div>}
+            {error && <div className="mt-1 text-sm text-red-500">{error}</div>}
         </div>
     );
 }

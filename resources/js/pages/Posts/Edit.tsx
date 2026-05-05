@@ -1,4 +1,3 @@
-
 import { Head, useForm, Link } from '@inertiajs/react';
 import AppLayout from '@/layouts/app-layout';
 import { Button } from '@/components/ui/button';
@@ -37,15 +36,20 @@ export default function PostsEdit({ post }: Props) {
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title={`Edit Post: ${post.title}`} />
 
-            <div className="p-6 max-w-2xl mx-auto">
+            <div className="mx-auto max-w-2xl p-6">
                 <div className="mb-6 flex items-center justify-between">
-                    <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-200">Edit Post</h2>
-                    <Link href={postRoutes.index.url()} className="text-gray-600 dark:text-gray-400 hover:underline">
+                    <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-200">
+                        Edit Post
+                    </h2>
+                    <Link
+                        href={postRoutes.index.url()}
+                        className="text-gray-600 hover:underline dark:text-gray-400"
+                    >
                         Cancel
                     </Link>
                 </div>
 
-                <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
+                <div className="rounded-lg bg-white p-6 shadow dark:bg-gray-800">
                     <form onSubmit={submit} className="space-y-6">
                         <div>
                             <Label htmlFor="title">Title</Label>
@@ -53,10 +57,16 @@ export default function PostsEdit({ post }: Props) {
                                 type="text"
                                 id="title"
                                 value={data.title}
-                                onChange={e => setData('title', e.target.value)}
+                                onChange={(e) =>
+                                    setData('title', e.target.value)
+                                }
                                 className="mt-1"
                             />
-                            {errors.title && <div className="text-red-500 text-sm mt-1">{errors.title}</div>}
+                            {errors.title && (
+                                <div className="mt-1 text-sm text-red-500">
+                                    {errors.title}
+                                </div>
+                            )}
                         </div>
 
                         <div>
@@ -64,14 +74,22 @@ export default function PostsEdit({ post }: Props) {
                             <textarea
                                 id="content"
                                 value={data.content}
-                                onChange={e => setData('content', e.target.value)}
-                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-900 dark:border-gray-700 dark:text-gray-300 sm:text-sm min-h-[150px] p-2"
+                                onChange={(e) =>
+                                    setData('content', e.target.value)
+                                }
+                                className="mt-1 block min-h-[150px] w-full rounded-md border-gray-300 p-2 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
                             />
-                            {errors.content && <div className="text-red-500 text-sm mt-1">{errors.content}</div>}
+                            {errors.content && (
+                                <div className="mt-1 text-sm text-red-500">
+                                    {errors.content}
+                                </div>
+                            )}
                         </div>
 
                         <div className="flex justify-end">
-                            <Button type="submit" disabled={processing}>Update Post</Button>
+                            <Button type="submit" disabled={processing}>
+                                Update Post
+                            </Button>
                         </div>
                     </form>
                 </div>

@@ -26,7 +26,10 @@ export function NavMain({ items = [] }: { items: NavItem[] }) {
             <SidebarGroupLabel>Platform</SidebarGroupLabel>
             <SidebarMenu>
                 {items.map((item) => {
-                    const isChildActive = item.items?.some((subItem) => subItem.isActive ?? isCurrentUrl(subItem.href));
+                    const isChildActive = item.items?.some(
+                        (subItem) =>
+                            subItem.isActive ?? isCurrentUrl(subItem.href),
+                    );
                     const isOpen = item.isActive || isChildActive;
 
                     return (
@@ -40,19 +43,29 @@ export function NavMain({ items = [] }: { items: NavItem[] }) {
                                 <CollapsibleTrigger asChild>
                                     <SidebarMenuButton
                                         asChild
-                                        isActive={item.isActive ?? isCurrentUrl(item.href)}
+                                        isActive={
+                                            item.isActive ??
+                                            isCurrentUrl(item.href)
+                                        }
                                         className="flex-1"
                                     >
-                                        <div className="flex items-center w-full group/top-item">
-                                            <button type="button" className="flex-1 text-left flex items-center gap-2">
-                                                {item.icon && <item.icon className="h-4 w-4" />}
+                                        <div className="group/top-item flex w-full items-center">
+                                            <button
+                                                type="button"
+                                                className="flex flex-1 items-center gap-2 text-left"
+                                            >
+                                                {item.icon && (
+                                                    <item.icon className="h-4 w-4" />
+                                                )}
                                                 <span>{item.title}</span>
                                             </button>
                                             {item.createUrl && (
                                                 <Link
                                                     href={item.createUrl}
-                                                    onClick={(e) => e.stopPropagation()}
-                                                    className="ml-2 p-1 text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent rounded-sm opacity-0 group-hover/top-item:opacity-100 transition-opacity"
+                                                    onClick={(e) =>
+                                                        e.stopPropagation()
+                                                    }
+                                                    className="ml-2 rounded-sm p-1 text-sidebar-foreground/70 opacity-0 transition-opacity group-hover/top-item:opacity-100 hover:bg-sidebar-accent hover:text-sidebar-foreground"
                                                     title={`Create ${item.title}`}
                                                 >
                                                     <Plus className="h-4 w-4" />
@@ -68,21 +81,38 @@ export function NavMain({ items = [] }: { items: NavItem[] }) {
                                     <CollapsibleContent>
                                         <SidebarMenuSub>
                                             {item.items.map((subItem) => (
-                                                <SidebarMenuSubItem key={subItem.title}>
-                                                    <div className="flex items-center w-full group/item">
+                                                <SidebarMenuSubItem
+                                                    key={subItem.title}
+                                                >
+                                                    <div className="group/item flex w-full items-center">
                                                         <SidebarMenuSubButton
                                                             asChild
-                                                            isActive={subItem.isActive ?? isCurrentUrl(subItem.href)}
+                                                            isActive={
+                                                                subItem.isActive ??
+                                                                isCurrentUrl(
+                                                                    subItem.href,
+                                                                )
+                                                            }
                                                             className="flex-1"
                                                         >
-                                                            <Link href={subItem.href}>
-                                                                <span>{subItem.title}</span>
+                                                            <Link
+                                                                href={
+                                                                    subItem.href
+                                                                }
+                                                            >
+                                                                <span>
+                                                                    {
+                                                                        subItem.title
+                                                                    }
+                                                                </span>
                                                             </Link>
                                                         </SidebarMenuSubButton>
                                                         {subItem.createUrl && (
                                                             <Link
-                                                                href={subItem.createUrl}
-                                                                className="ml-2 p-1 text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent rounded-sm opacity-0 group-hover/item:opacity-100 transition-opacity"
+                                                                href={
+                                                                    subItem.createUrl
+                                                                }
+                                                                className="ml-2 rounded-sm p-1 text-sidebar-foreground/70 opacity-0 transition-opacity group-hover/item:opacity-100 hover:bg-sidebar-accent hover:text-sidebar-foreground"
                                                                 title={`Create ${subItem.title}`}
                                                             >
                                                                 <Plus className="h-4 w-4" />
@@ -95,7 +125,10 @@ export function NavMain({ items = [] }: { items: NavItem[] }) {
                                     </CollapsibleContent>
                                 ) : (
                                     !item.items && (
-                                        <Link href={item.href} className="absolute inset-0" />
+                                        <Link
+                                            href={item.href}
+                                            className="absolute inset-0"
+                                        />
                                     )
                                 )}
                             </SidebarMenuItem>
@@ -106,4 +139,3 @@ export function NavMain({ items = [] }: { items: NavItem[] }) {
         </SidebarGroup>
     );
 }
-

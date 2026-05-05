@@ -1,4 +1,3 @@
-
 import { Head, Link, useForm } from '@inertiajs/react';
 import { Button } from '@/components/ui/button';
 import { ShieldAlert, LogOut } from 'lucide-react';
@@ -13,35 +12,42 @@ export default function Banned() {
     };
 
     return (
-        <div className="min-h-screen flex flex-col items-center justify-center bg-zinc-950 text-zinc-100 p-4">
+        <div className="flex min-h-screen flex-col items-center justify-center bg-zinc-950 p-4 text-zinc-100">
             <Head title="Account Suspended" />
 
             <div className="w-full max-w-md space-y-8 text-center">
-                <div className="mx-auto h-24 w-24 rounded-full bg-red-900/20 flex items-center justify-center">
+                <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-full bg-red-900/20">
                     <ShieldAlert className="h-12 w-12 text-red-500" />
                 </div>
 
                 <div className="space-y-4">
-                    <h1 className="text-3xl font-bold tracking-tighter sm:text-4xl text-white">
+                    <h1 className="text-3xl font-bold tracking-tighter text-white sm:text-4xl">
                         Account Suspended
                     </h1>
-                    <p className="text-zinc-400 text-lg">
-                        Your account has been deactivated by an administrator. You strictly cannot access this application.
+                    <p className="text-lg text-zinc-400">
+                        Your account has been deactivated by an administrator.
+                        You strictly cannot access this application.
                     </p>
                 </div>
 
-                <div className="bg-zinc-900/50 border border-zinc-800 rounded-lg p-6 text-sm text-zinc-400">
+                <div className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-6 text-sm text-zinc-400">
                     <p>
-                        If you believe this is a mistake, please contact support immediately with your account details.
+                        If you believe this is a mistake, please contact support
+                        immediately with your account details.
                     </p>
-                    <div className="mt-4 pt-4 border-t border-zinc-800">
-                        <p className="font-mono text-zinc-300">support@active-aria.test</p>
+                    <div className="mt-4 border-t border-zinc-800 pt-4">
+                        <p className="font-mono text-zinc-300">
+                            support@active-aria.test
+                        </p>
                     </div>
                 </div>
 
                 <div className="flex justify-center">
                     <form onSubmit={handleLogout}>
-                        <Button variant="outline" className="gap-2 border-zinc-700 hover:bg-zinc-800 hover:text-white">
+                        <Button
+                            variant="outline"
+                            className="gap-2 border-zinc-700 hover:bg-zinc-800 hover:text-white"
+                        >
                             <LogOut className="h-4 w-4" />
                             Sign Out
                         </Button>

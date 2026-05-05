@@ -5,7 +5,13 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { BreadcrumbItem } from '@/types';
 import userRoutes from '@/routes/users';
-import { User as UserIcon, Mail, Shield, AlertTriangle, MapPin } from 'lucide-react';
+import {
+    User as UserIcon,
+    Mail,
+    Shield,
+    AlertTriangle,
+    MapPin,
+} from 'lucide-react';
 import FormInput from '@/components/Partial/Form/FormInput';
 import FormSelect from '@/components/Partial/Form/FormSelect';
 
@@ -40,12 +46,17 @@ interface Props {
     locations: Location[];
 }
 
-export default function UsersEdit({ user, roles, userRoles, locations }: Props) {
+export default function UsersEdit({
+    user,
+    roles,
+    userRoles,
+    locations,
+}: Props) {
     const { data, setData, put, processing, errors } = useForm({
         name: user.name,
         username: user.username,
         email: user.email,
-        roles: userRoles.length > 0 ? userRoles : [] as string[],
+        roles: userRoles.length > 0 ? userRoles : ([] as string[]),
         role_id: userRoles.length > 0 ? userRoles[0] : '', // For Select component
         is_active: Boolean(user.is_active),
         location_id: user.location_id || '',
@@ -59,10 +70,10 @@ export default function UsersEdit({ user, roles, userRoles, locations }: Props) 
 
     // Handle Role Change for Select component (Single role for now as per CoreAdmin style)
     const handleRoleChange = (value: string) => {
-        setData(previousData => ({
+        setData((previousData) => ({
             ...previousData,
             role_id: value,
-            roles: [value]
+            roles: [value],
         }));
     };
 
@@ -72,21 +83,25 @@ export default function UsersEdit({ user, roles, userRoles, locations }: Props) 
 
             <div className="p-4 sm:p-6 lg:p-8">
                 {/* Header */}
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
+                <div className="mb-8 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
                     <div>
-                        <h2 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">Edit User: <span className="text-blue-500">{user.name}</span></h2>
-                        <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">Manage user details, role, and account status.</p>
+                        <h2 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
+                            Edit User:{' '}
+                            <span className="text-blue-500">{user.name}</span>
+                        </h2>
+                        <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+                            Manage user details, role, and account status.
+                        </p>
                     </div>
                 </div>
 
-
                 <form onSubmit={submit} className="space-y-8" noValidate>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                         <FormInput
                             id="name"
                             label="Full Name"
                             value={data.name}
-                            onChange={e => setData('name', e.target.value)}
+                            onChange={(e) => setData('name', e.target.value)}
                             error={errors.name}
                             required
                             icon={UserIcon}
@@ -96,7 +111,9 @@ export default function UsersEdit({ user, roles, userRoles, locations }: Props) 
                             id="username"
                             label="Username"
                             value={data.username}
-                            onChange={e => setData('username', e.target.value)}
+                            onChange={(e) =>
+                                setData('username', e.target.value)
+                            }
                             error={errors.username}
                             required
                             icon={UserIcon}
@@ -107,7 +124,7 @@ export default function UsersEdit({ user, roles, userRoles, locations }: Props) 
                             label="Email Address"
                             type="email"
                             value={data.email}
-                            onChange={e => setData('email', e.target.value)}
+                            onChange={(e) => setData('email', e.target.value)}
                             error={errors.email}
                             required
                             icon={Mail}
@@ -117,7 +134,10 @@ export default function UsersEdit({ user, roles, userRoles, locations }: Props) 
                             label="Role Assignment"
                             value={data.role_id}
                             onValueChange={handleRoleChange}
-                            options={roles.map(role => ({ value: role.name, label: role.name }))}
+                            options={roles.map((role) => ({
+                                value: role.name,
+                                label: role.name,
+                            }))}
                             error={errors.roles || errors.role_id} // Handle potential error keys
                             icon={Shield}
                             placeholder="Select a role"
@@ -127,10 +147,18 @@ export default function UsersEdit({ user, roles, userRoles, locations }: Props) 
                         <FormSelect
                             label="Location"
                             value={String(data.location_id)}
-                            onValueChange={(value) => setData('location_id', value === 'null' ? '' : Number(value))}
+                            onValueChange={(value) =>
+                                setData(
+                                    'location_id',
+                                    value === 'null' ? '' : Number(value),
+                                )
+                            }
                             options={[
                                 { value: 'null', label: 'No Location' },
-                                ...locations.map(location => ({ value: String(location.id), label: location.name }))
+                                ...locations.map((location) => ({
+                                    value: String(location.id),
+                                    label: location.name,
+                                })),
                             ]}
                             error={errors.location_id}
                             icon={MapPin}
@@ -139,53 +167,86 @@ export default function UsersEdit({ user, roles, userRoles, locations }: Props) 
                     </div>
 
                     {/* Danger Zone */}
-                    <div className="pt-8 mt-8 border-t border-zinc-200 dark:border-zinc-800">
+                    <div className="mt-8 border-t border-zinc-200 pt-8 dark:border-zinc-800">
                         <div className="rounded-lg border border-red-900/30 bg-red-900/10 p-6">
                             <div className="flex items-start gap-4">
-                                <div className="p-2 bg-red-900/20 rounded-lg">
+                                <div className="rounded-lg bg-red-900/20 p-2">
                                     <AlertTriangle className="h-6 w-6 text-red-500" />
                                 </div>
                                 <div className="flex-1">
-                                    <h3 className="text-lg font-semibold text-red-500 mb-1">Danger Zone</h3>
-                                    <p className="text-zinc-500 dark:text-zinc-400 text-sm mb-6">
-                                        Actions here can affect the user's ability to access the system.
+                                    <h3 className="mb-1 text-lg font-semibold text-red-500">
+                                        Danger Zone
+                                    </h3>
+                                    <p className="mb-6 text-sm text-zinc-500 dark:text-zinc-400">
+                                        Actions here can affect the user's
+                                        ability to access the system.
                                     </p>
 
                                     <div className="flex flex-col gap-4">
-                                        <div className="flex items-center justify-between p-4 bg-white/50 dark:bg-zinc-950/50 rounded-lg border border-red-900/20">
+                                        <div className="flex items-center justify-between rounded-lg border border-red-900/20 bg-white/50 p-4 dark:bg-zinc-950/50">
                                             <div className="space-y-0.5">
-                                                <Label className="text-base text-zinc-900 dark:text-zinc-200">Reset Password</Label>
+                                                <Label className="text-base text-zinc-900 dark:text-zinc-200">
+                                                    Reset Password
+                                                </Label>
                                                 <p className="text-sm text-zinc-600 dark:text-zinc-500">
-                                                    Generate a new random password for this user.
+                                                    Generate a new random
+                                                    password for this user.
                                                 </p>
                                             </div>
                                             <div className="flex items-center gap-2">
                                                 <Switch
-                                                    checked={data.update_password}
-                                                    onCheckedChange={(checked) => setData('update_password', checked)}
+                                                    checked={
+                                                        data.update_password
+                                                    }
+                                                    onCheckedChange={(
+                                                        checked,
+                                                    ) =>
+                                                        setData(
+                                                            'update_password',
+                                                            checked,
+                                                        )
+                                                    }
                                                     className="data-[state=checked]:bg-blue-600"
                                                 />
-                                                <span className={`font-medium ${data.update_password ? 'text-blue-500' : 'text-zinc-500'}`}>
-                                                    {data.update_password ? 'RESET ON SAVE' : 'No Change'}
+                                                <span
+                                                    className={`font-medium ${data.update_password ? 'text-blue-500' : 'text-zinc-500'}`}
+                                                >
+                                                    {data.update_password
+                                                        ? 'RESET ON SAVE'
+                                                        : 'No Change'}
                                                 </span>
                                             </div>
                                         </div>
 
-                                        <div className="flex items-center justify-between p-4 bg-white/50 dark:bg-zinc-950/50 rounded-lg border border-red-900/20">
+                                        <div className="flex items-center justify-between rounded-lg border border-red-900/20 bg-white/50 p-4 dark:bg-zinc-950/50">
                                             <div className="space-y-0.5">
-                                                <Label className="text-base text-zinc-900 dark:text-zinc-200">Ban User</Label>
+                                                <Label className="text-base text-zinc-900 dark:text-zinc-200">
+                                                    Ban User
+                                                </Label>
                                                 <p className="text-sm text-zinc-600 dark:text-zinc-500">
-                                                    Prevent this user from logging in.
+                                                    Prevent this user from
+                                                    logging in.
                                                 </p>
                                             </div>
                                             <div className="flex items-center gap-2">
                                                 <Switch
                                                     checked={!data.is_active}
-                                                    onCheckedChange={(checked) => setData('is_active', !checked)}
+                                                    onCheckedChange={(
+                                                        checked,
+                                                    ) =>
+                                                        setData(
+                                                            'is_active',
+                                                            !checked,
+                                                        )
+                                                    }
                                                     className="data-[state=checked]:bg-red-600"
                                                 />
-                                                <span className={`font-medium ${!data.is_active ? 'text-red-500' : 'text-zinc-500'}`}>
-                                                    {!data.is_active ? 'BANNED' : 'Active'}
+                                                <span
+                                                    className={`font-medium ${!data.is_active ? 'text-red-500' : 'text-zinc-500'}`}
+                                                >
+                                                    {!data.is_active
+                                                        ? 'BANNED'
+                                                        : 'Active'}
                                                 </span>
                                             </div>
                                         </div>
@@ -195,10 +256,11 @@ export default function UsersEdit({ user, roles, userRoles, locations }: Props) 
                         </div>
                     </div>
 
-
-                    <div className="flex justify-end pt-8 gap-4">
+                    <div className="flex justify-end gap-4 pt-8">
                         <Link href={userRoutes.index.url()}>
-                            <Button variant="ghost" type="button">Cancel</Button>
+                            <Button variant="ghost" type="button">
+                                Cancel
+                            </Button>
                         </Link>
                         <Button type="submit" loading={processing}>
                             Save Changes

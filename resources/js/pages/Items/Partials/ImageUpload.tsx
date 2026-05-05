@@ -11,9 +11,16 @@ interface ImageUploadProps {
     initialPreview?: string;
 }
 
-export default function ImageUpload({ label = "Image", onChange, error, initialPreview }: ImageUploadProps) {
+export default function ImageUpload({
+    label = 'Image',
+    onChange,
+    error,
+    initialPreview,
+}: ImageUploadProps) {
     const inputRef = useRef<HTMLInputElement>(null);
-    const [preview, setPreview] = useState<string | null>(initialPreview || null);
+    const [preview, setPreview] = useState<string | null>(
+        initialPreview || null,
+    );
     const [fileName, setFileName] = useState<string | null>(null);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -50,30 +57,31 @@ export default function ImageUpload({ label = "Image", onChange, error, initialP
 
     return (
         <div className="space-y-4">
-
             <div
                 className={cn(
-                    "border-2 border-dashed rounded-xl p-8 transition-all flex flex-col items-center justify-center text-center gap-4 relative overflow-hidden group min-h-[250px]",
-                    error ? "border-red-500 bg-red-500/5" : "border-zinc-800 bg-zinc-950 hover:bg-zinc-900 hover:border-zinc-700",
-                    preview ? "border-solid pl-0 pr-0 pt-0 pb-0" : ""
+                    'group relative flex min-h-[250px] flex-col items-center justify-center gap-4 overflow-hidden rounded-xl border-2 border-dashed p-8 text-center transition-all',
+                    error
+                        ? 'border-red-500 bg-red-500/5'
+                        : 'border-zinc-800 bg-zinc-950 hover:border-zinc-700 hover:bg-zinc-900',
+                    preview ? 'border-solid pt-0 pr-0 pb-0 pl-0' : '',
                 )}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={handleDrop}
             >
                 {preview ? (
-                    <div className="relative w-full h-full min-h-[250px] flex items-center justify-center bg-black">
+                    <div className="relative flex h-full min-h-[250px] w-full items-center justify-center bg-black">
                         <img
                             src={preview}
                             alt="Preview"
-                            className="max-w-full max-h-[250px] object-contain"
+                            className="max-h-[250px] max-w-full object-contain"
                         />
-                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                        <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
                             <Button
                                 type="button"
                                 variant="destructive"
                                 size="sm"
                                 onClick={handleRemove}
-                                className="h-8 w-8 p-0 rounded-full"
+                                className="h-8 w-8 rounded-full p-0"
                             >
                                 <X className="h-4 w-4" />
                             </Button>
@@ -89,8 +97,8 @@ export default function ImageUpload({ label = "Image", onChange, error, initialP
                     </div>
                 ) : (
                     <>
-                        <div className="p-4 rounded-full bg-zinc-900 border border-zinc-800 group-hover:scale-110 transition-transform duration-300">
-                            <Upload className="h-8 w-8 text-zinc-500 group-hover:text-blue-500 transition-colors" />
+                        <div className="rounded-full border border-zinc-800 bg-zinc-900 p-4 transition-transform duration-300 group-hover:scale-110">
+                            <Upload className="h-8 w-8 text-zinc-500 transition-colors group-hover:text-blue-500" />
                         </div>
                         <div className="space-y-1">
                             <p className="text-sm font-medium text-zinc-300">
@@ -104,7 +112,7 @@ export default function ImageUpload({ label = "Image", onChange, error, initialP
                             type="button"
                             variant="outline"
                             size="sm"
-                            className="mt-2 border-zinc-700 hover:bg-zinc-800 text-zinc-300"
+                            className="mt-2 border-zinc-700 text-zinc-300 hover:bg-zinc-800"
                             onClick={() => inputRef.current?.click()}
                         >
                             Browse File

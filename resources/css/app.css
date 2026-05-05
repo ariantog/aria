@@ -98,7 +98,7 @@
 }
 
 .dark {
-    --background: oklch(0.10 0 0);
+    --background: oklch(0.1 0 0);
     /* Darker base background (approx Zinc 950) */
     --foreground: oklch(0.985 0 0);
     --card: oklch(0.17 0 0);
@@ -126,7 +126,7 @@
     /* Keep charts as is or desaturate if requested later */
     --chart-4: oklch(0.627 0.265 303.9);
     --chart-5: oklch(0.645 0.246 16.439);
-    --sidebar: oklch(0.10 0 0);
+    --sidebar: oklch(0.1 0 0);
     /* Match background or slightly refined */
     --sidebar-foreground: oklch(0.985 0 0);
     --sidebar-primary: oklch(0.985 0 0);

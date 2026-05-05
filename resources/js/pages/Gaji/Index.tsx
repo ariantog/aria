@@ -1,7 +1,13 @@
 import { Head, Link, router } from '@inertiajs/react';
 import AppLayout from '@/layouts/app-layout';
 import { BreadcrumbItem } from '@/types';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import {
+    Card,
+    CardContent,
+    CardHeader,
+    CardTitle,
+    CardDescription,
+} from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Eye, Edit, Trash2, Printer, Search } from 'lucide-react';
@@ -11,7 +17,7 @@ import {
     SelectItem,
     SelectTrigger,
     SelectValue,
-} from "@/components/ui/select"
+} from '@/components/ui/select';
 import { useState } from 'react';
 import {
     Pagination,
@@ -20,7 +26,14 @@ import {
     PaginationLink,
 } from '@/components/ui/pagination';
 
-export default function Index({ gajiList, gajiPerBank, bulanSelect, yearSelect, filters, auth }: any) {
+export default function Index({
+    gajiList,
+    gajiPerBank,
+    bulanSelect,
+    yearSelect,
+    filters,
+    auth,
+}: any) {
     const [search, setSearch] = useState(filters.karyawan || '');
     const [bulan, setBulan] = useState(bulanSelect.toString());
     const [tahun, setTahun] = useState(yearSelect.toString());
@@ -33,7 +46,11 @@ export default function Index({ gajiList, gajiPerBank, bulanSelect, yearSelect, 
 
     const handleFilter = (e?: React.FormEvent) => {
         if (e) e.preventDefault();
-        router.get('/gaji', { bulan, tahun, karyawan: search }, { preserveState: true });
+        router.get(
+            '/gaji',
+            { bulan, tahun, karyawan: search },
+            { preserveState: true },
+        );
     };
 
     const handleDelete = (id: number) => {
@@ -50,11 +67,24 @@ export default function Index({ gajiList, gajiPerBank, bulanSelect, yearSelect, 
     };
 
     // Calculate Grand Total for all banks
-    const grandTotalBank = gajiPerBank.reduce((sum: number, item: any) => sum + Number(item.total_gaji), 0);
+    const grandTotalBank = gajiPerBank.reduce(
+        (sum: number, item: any) => sum + Number(item.total_gaji),
+        0,
+    );
 
     const monthNames = [
-        "Januari", "Februari", "Maret", "April", "Mei", "Juni",
-        "Juli", "Agustus", "September", "Oktober", "November", "Desember"
+        'Januari',
+        'Februari',
+        'Maret',
+        'April',
+        'Mei',
+        'Juni',
+        'Juli',
+        'Agustus',
+        'September',
+        'Oktober',
+        'November',
+        'Desember',
     ];
 
     return (
@@ -62,25 +92,46 @@ export default function Index({ gajiList, gajiPerBank, bulanSelect, yearSelect, 
             <Head title="Gaji Bulanan" />
             <div className="flex h-full flex-1 flex-col gap-4 rounded-xl p-4">
                 <div className="flex items-center justify-between">
-                    <h1 className="text-2xl font-bold tracking-tight">Gaji Bulanan Karyawan</h1>
+                    <h1 className="text-2xl font-bold tracking-tight">
+                        Gaji Bulanan Karyawan
+                    </h1>
                 </div>
 
                 {/* Filters */}
-                <div className="bg-white p-4 rounded-lg border shadow-sm dark:bg-gray-800 dark:border-gray-700 flex flex-wrap gap-4 items-end">
+                <div className="flex flex-wrap items-end gap-4 rounded-lg border bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
                     <div className="space-y-2">
                         <label className="text-sm font-medium">Bulan</label>
-                        <Select value={bulan} onValueChange={(v) => { setBulan(v); setTimeout(() => router.get('/gaji', { bulan: v, tahun, karyawan: search }), 100); }}>
+                        <Select
+                            value={bulan}
+                            onValueChange={(v) => {
+                                setBulan(v);
+                                setTimeout(
+                                    () =>
+                                        router.get('/gaji', {
+                                            bulan: v,
+                                            tahun,
+                                            karyawan: search,
+                                        }),
+                                    100,
+                                );
+                            }}
+                        >
                             <SelectTrigger className="w-[150px]">
                                 <SelectValue placeholder="Bulan" />
                             </SelectTrigger>
                             <SelectContent>
                                 {monthNames.map((m, i) => (
-                                    <SelectItem key={i} value={(i + 1).toString()}>{m}</SelectItem>
+                                    <SelectItem
+                                        key={i}
+                                        value={(i + 1).toString()}
+                                    >
+                                        {m}
+                                    </SelectItem>
                                 ))}
                             </SelectContent>
                         </Select>
                     </div>
-                    
+
                     <div className="space-y-2">
                         <label className="text-sm font-medium">Tahun</label>
                         <Input
@@ -92,40 +143,50 @@ export default function Index({ gajiList, gajiPerBank, bulanSelect, yearSelect, 
                         />
                     </div>
 
-                    <form onSubmit={handleFilter} className="flex gap-2 flex-1">
-                        <div className="space-y-2 flex-1 max-w-xs">
-                            <label className="text-sm font-medium">Cari Karyawan</label>
+                    <form onSubmit={handleFilter} className="flex flex-1 gap-2">
+                        <div className="max-w-xs flex-1 space-y-2">
+                            <label className="text-sm font-medium">
+                                Cari Karyawan
+                            </label>
                             <Input
                                 placeholder="Nama Karyawan..."
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
                             />
                         </div>
-                        <div className="pb-0 self-end">
+                        <div className="self-end pb-0">
                             <Button type="submit" variant="secondary">
-                                <Search className="h-4 w-4 mr-2" /> Cari
+                                <Search className="mr-2 h-4 w-4" /> Cari
                             </Button>
                         </div>
                     </form>
                 </div>
 
                 {isSuperAdmin && (
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                         <Card className="bg-blue-50/50">
                             <CardHeader className="pb-2">
-                                <CardTitle className="text-sm text-muted-foreground uppercase">Grand Total Gaji</CardTitle>
+                                <CardTitle className="text-sm text-muted-foreground uppercase">
+                                    Grand Total Gaji
+                                </CardTitle>
                             </CardHeader>
                             <CardContent>
-                                <div className="text-2xl font-bold text-blue-700">{formatCurrency(grandTotalBank)}</div>
+                                <div className="text-2xl font-bold text-blue-700">
+                                    {formatCurrency(grandTotalBank)}
+                                </div>
                             </CardContent>
                         </Card>
                         {gajiPerBank.map((bank: any) => (
                             <Card key={bank.bank_id}>
                                 <CardHeader className="pb-2">
-                                    <CardTitle className="text-sm text-muted-foreground uppercase">{bank.bank?.name || 'Kas Tunai'}</CardTitle>
+                                    <CardTitle className="text-sm text-muted-foreground uppercase">
+                                        {bank.bank?.name || 'Kas Tunai'}
+                                    </CardTitle>
                                 </CardHeader>
                                 <CardContent>
-                                    <div className="text-2xl font-bold text-gray-800 dark:text-gray-100">{formatCurrency(bank.total_gaji)}</div>
+                                    <div className="text-2xl font-bold text-gray-800 dark:text-gray-100">
+                                        {formatCurrency(bank.total_gaji)}
+                                    </div>
                                 </CardContent>
                             </Card>
                         ))}
@@ -138,44 +199,96 @@ export default function Index({ gajiList, gajiPerBank, bulanSelect, yearSelect, 
                             <table className="w-full caption-bottom text-sm">
                                 <thead className="bg-gray-100 dark:bg-gray-800">
                                     <tr className="border-b transition-colors hover:bg-muted/50">
-                                        <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground uppercase text-xs">Nama</th>
-                                        <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground uppercase text-xs">Bank</th>
-                                        <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground uppercase text-xs">HK (Rp/Hari)</th>
-                                        <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground uppercase text-xs">Bulanan</th>
-                                        <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground uppercase text-xs">Sanksi & Potongan</th>
-                                        <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground uppercase text-xs">Total Gaji</th>
+                                        <th className="h-12 px-4 text-left align-middle text-xs font-medium text-muted-foreground uppercase">
+                                            Nama
+                                        </th>
+                                        <th className="h-12 px-4 text-left align-middle text-xs font-medium text-muted-foreground uppercase">
+                                            Bank
+                                        </th>
+                                        <th className="h-12 px-4 text-left align-middle text-xs font-medium text-muted-foreground uppercase">
+                                            HK (Rp/Hari)
+                                        </th>
+                                        <th className="h-12 px-4 text-left align-middle text-xs font-medium text-muted-foreground uppercase">
+                                            Bulanan
+                                        </th>
+                                        <th className="h-12 px-4 text-left align-middle text-xs font-medium text-muted-foreground uppercase">
+                                            Sanksi & Potongan
+                                        </th>
+                                        <th className="h-12 px-4 text-left align-middle text-xs font-medium text-muted-foreground uppercase">
+                                            Total Gaji
+                                        </th>
                                         {isSuperAdmin && (
-                                            <th className="h-12 px-4 text-center align-middle font-medium text-muted-foreground uppercase text-xs">Aksi</th>
+                                            <th className="h-12 px-4 text-center align-middle text-xs font-medium text-muted-foreground uppercase">
+                                                Aksi
+                                            </th>
                                         )}
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {gajiList?.data?.length > 0 ? (
                                         gajiList.data.map((item: any) => (
-                                            <tr key={item.id} className="border-b transition-colors hover:bg-muted/50">
+                                            <tr
+                                                key={item.id}
+                                                className="border-b transition-colors hover:bg-muted/50"
+                                            >
                                                 <td className="p-4 align-middle font-medium">
-                                                    <Link href={`/karyawan/${item.karyawan_id}`} className="text-blue-600 hover:underline">
+                                                    <Link
+                                                        href={`/karyawan/${item.karyawan_id}`}
+                                                        className="text-blue-600 hover:underline"
+                                                    >
                                                         {item.karyawan?.nama}
                                                     </Link>
                                                 </td>
-                                                <td className="p-4 align-middle">{item.bank_single?.name || '-'}</td>
-                                                <td className="p-4 align-middle">{formatCurrency(item.harian)}</td>
-                                                <td className="p-4 align-middle">{formatCurrency(item.bulanan)}</td>
+                                                <td className="p-4 align-middle">
+                                                    {item.bank_single?.name ||
+                                                        '-'}
+                                                </td>
+                                                <td className="p-4 align-middle">
+                                                    {formatCurrency(
+                                                        item.harian,
+                                                    )}
+                                                </td>
+                                                <td className="p-4 align-middle">
+                                                    {formatCurrency(
+                                                        item.bulanan,
+                                                    )}
+                                                </td>
                                                 <td className="p-4 align-middle text-red-600">
-                                                    {formatCurrency((item.total_potongan || 0) + (item.sanksi || 0))}
+                                                    {formatCurrency(
+                                                        (item.total_potongan ||
+                                                            0) +
+                                                            (item.sanksi || 0),
+                                                    )}
                                                 </td>
                                                 <td className="p-4 align-middle font-bold text-green-700">
-                                                    {formatCurrency(item.total_gaji)}
+                                                    {formatCurrency(
+                                                        item.total_gaji,
+                                                    )}
                                                 </td>
                                                 {isSuperAdmin && (
-                                                    <td className="p-4 align-middle text-center">
+                                                    <td className="p-4 text-center align-middle">
                                                         <div className="flex items-center justify-center gap-2">
-                                                            <Button variant="outline" size="sm" asChild>
-                                                                <a href={`/gaji/cetak/${item.id}`} target="_blank">
+                                                            <Button
+                                                                variant="outline"
+                                                                size="sm"
+                                                                asChild
+                                                            >
+                                                                <a
+                                                                    href={`/gaji/cetak/${item.id}`}
+                                                                    target="_blank"
+                                                                >
                                                                     <Printer className="h-4 w-4" />
                                                                 </a>
                                                             </Button>
-                                                            <Button variant="destructive" size="icon" onClick={() => handleDelete(item.id)}>
+                                                            <Button
+                                                                variant="destructive"
+                                                                size="icon"
+                                                                onClick={() =>
+                                                                    handleDelete(
+                                                                        item.id,
+                                                                    )
+                                                                }
+                                                            >
                                                                 <Trash2 className="h-4 w-4" />
                                                             </Button>
                                                         </div>
@@ -185,8 +298,12 @@ export default function Index({ gajiList, gajiPerBank, bulanSelect, yearSelect, 
                                         ))
                                     ) : (
                                         <tr>
-                                            <td colSpan={isSuperAdmin ? 7 : 6} className="p-4 text-center text-muted-foreground">
-                                                Belum ada data gaji pada bulan/tahun ini.
+                                            <td
+                                                colSpan={isSuperAdmin ? 7 : 6}
+                                                className="p-4 text-center text-muted-foreground"
+                                            >
+                                                Belum ada data gaji pada
+                                                bulan/tahun ini.
                                             </td>
                                         </tr>
                                     )}
@@ -195,30 +312,45 @@ export default function Index({ gajiList, gajiPerBank, bulanSelect, yearSelect, 
                         </div>
 
                         {gajiList?.links && gajiList.last_page > 1 && (
-                            <div className="py-4 flex justify-center px-4 border-t">
+                            <div className="flex justify-center border-t px-4 py-4">
                                 <Pagination>
                                     <PaginationContent>
-                                        {gajiList.links.map((link: any, index: number) => {
-                                            if (link.url === null) {
+                                        {gajiList.links.map(
+                                            (link: any, index: number) => {
+                                                if (link.url === null) {
+                                                    return (
+                                                        <PaginationItem
+                                                            key={index}
+                                                        >
+                                                            <span
+                                                                className="cursor-not-allowed px-3 py-2 text-sm opacity-50"
+                                                                dangerouslySetInnerHTML={{
+                                                                    __html: link.label,
+                                                                }}
+                                                            />
+                                                        </PaginationItem>
+                                                    );
+                                                }
+
                                                 return (
                                                     <PaginationItem key={index}>
-                                                        <span className="px-3 py-2 opacity-50 cursor-not-allowed text-sm" dangerouslySetInnerHTML={{ __html: link.label }} />
+                                                        <PaginationLink
+                                                            href={link.url}
+                                                            isActive={
+                                                                link.active
+                                                            }
+                                                            size="sm"
+                                                        >
+                                                            <span
+                                                                dangerouslySetInnerHTML={{
+                                                                    __html: link.label,
+                                                                }}
+                                                            />
+                                                        </PaginationLink>
                                                     </PaginationItem>
                                                 );
-                                            }
-
-                                            return (
-                                                <PaginationItem key={index}>
-                                                    <PaginationLink
-                                                        href={link.url}
-                                                        isActive={link.active}
-                                                        size="sm"
-                                                    >
-                                                        <span dangerouslySetInnerHTML={{ __html: link.label }} />
-                                                    </PaginationLink>
-                                                </PaginationItem>
-                                            );
-                                        })}
+                                            },
+                                        )}
                                     </PaginationContent>
                                 </Pagination>
                             </div>

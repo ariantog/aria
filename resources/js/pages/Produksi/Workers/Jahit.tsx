@@ -41,7 +41,17 @@ export default function WorkersIndex({ workers }: WorkersProps) {
         { title: 'Jahit Workers', href: '/produksi/jahit/list' },
     ];
 
-    const { data, setData, post, put, delete: destroy, processing, errors, reset, clearErrors } = useForm({
+    const {
+        data,
+        setData,
+        post,
+        put,
+        delete: destroy,
+        processing,
+        errors,
+        reset,
+        clearErrors,
+    } = useForm({
         name: '',
     });
 
@@ -85,12 +95,19 @@ export default function WorkersIndex({ workers }: WorkersProps) {
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Jahit Workers" />
             <div className="flex h-full flex-1 flex-col gap-4 rounded-xl p-4">
-                <div className="flex items-center justify-between mb-4">
+                <div className="mb-4 flex items-center justify-between">
                     <div>
-                        <h2 className="text-2xl font-bold tracking-tight">Jahit Workers</h2>
-                        <p className="text-muted-foreground">Manage your sewing team members.</p>
+                        <h2 className="text-2xl font-bold tracking-tight">
+                            Jahit Workers
+                        </h2>
+                        <p className="text-muted-foreground">
+                            Manage your sewing team members.
+                        </p>
                     </div>
-                    <Button onClick={openCreateModal} className="bg-blue-600 hover:bg-blue-700 text-white gap-2">
+                    <Button
+                        onClick={openCreateModal}
+                        className="gap-2 bg-blue-600 text-white hover:bg-blue-700"
+                    >
                         <Plus className="h-4 w-4" />
                         Add Worker
                     </Button>
@@ -102,30 +119,38 @@ export default function WorkersIndex({ workers }: WorkersProps) {
                             <TableRow>
                                 <TableHead className="w-[100px]">ID</TableHead>
                                 <TableHead>Name</TableHead>
-                                <TableHead className="text-right">Actions</TableHead>
+                                <TableHead className="text-right">
+                                    Actions
+                                </TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {workers.data.length > 0 ? (
                                 workers.data.map((worker) => (
                                     <TableRow key={worker.id}>
-                                        <TableCell className="font-medium">{worker.id}</TableCell>
+                                        <TableCell className="font-medium">
+                                            {worker.id}
+                                        </TableCell>
                                         <TableCell>{worker.name}</TableCell>
                                         <TableCell className="text-right">
                                             <div className="flex justify-end gap-2">
                                                 <Button
                                                     variant="ghost"
                                                     size="icon"
-                                                    onClick={() => openEditModal(worker)}
-                                                    className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-900/50"
+                                                    onClick={() =>
+                                                        openEditModal(worker)
+                                                    }
+                                                    className="text-blue-600 hover:bg-blue-50 hover:text-blue-700 dark:hover:bg-blue-900/50"
                                                 >
                                                     <Edit className="h-4 w-4" />
                                                 </Button>
                                                 <Button
                                                     variant="ghost"
                                                     size="icon"
-                                                    onClick={() => handleDelete(worker.id)}
-                                                    className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/50"
+                                                    onClick={() =>
+                                                        handleDelete(worker.id)
+                                                    }
+                                                    className="text-red-600 hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-900/50"
                                                 >
                                                     <Trash2 className="h-4 w-4" />
                                                 </Button>
@@ -135,7 +160,10 @@ export default function WorkersIndex({ workers }: WorkersProps) {
                                 ))
                             ) : (
                                 <TableRow>
-                                    <TableCell colSpan={3} className="h-24 text-center text-muted-foreground">
+                                    <TableCell
+                                        colSpan={3}
+                                        className="h-24 text-center text-muted-foreground"
+                                    >
                                         No workers found.
                                     </TableCell>
                                 </TableRow>
@@ -145,15 +173,19 @@ export default function WorkersIndex({ workers }: WorkersProps) {
                 </div>
 
                 {/* Optional: Add basic pagination if workers.links are available */}
-                <div className="mt-4 flex justify-between items-center text-sm text-muted-foreground">
-                    {workers.data.length > 0 && <div>Showing {workers.data.length} workers</div>}
+                <div className="mt-4 flex items-center justify-between text-sm text-muted-foreground">
+                    {workers.data.length > 0 && (
+                        <div>Showing {workers.data.length} workers</div>
+                    )}
                 </div>
             </div>
 
             <Dialog open={isOpen} onOpenChange={setIsOpen}>
                 <DialogContent className="sm:max-w-[425px]">
                     <DialogHeader>
-                        <DialogTitle>{editingId ? 'Edit Worker' : 'Add Worker'}</DialogTitle>
+                        <DialogTitle>
+                            {editingId ? 'Edit Worker' : 'Add Worker'}
+                        </DialogTitle>
                     </DialogHeader>
                     <form onSubmit={handleSubmit} className="space-y-4">
                         <div className="grid gap-2">
@@ -161,17 +193,31 @@ export default function WorkersIndex({ workers }: WorkersProps) {
                             <Input
                                 id="name"
                                 value={data.name}
-                                onChange={(e) => setData('name', e.target.value)}
+                                onChange={(e) =>
+                                    setData('name', e.target.value)
+                                }
                                 placeholder="Worker's name"
                                 autoFocus
                             />
-                            {errors.name && <p className="text-sm text-red-500">{errors.name}</p>}
+                            {errors.name && (
+                                <p className="text-sm text-red-500">
+                                    {errors.name}
+                                </p>
+                            )}
                         </div>
                         <DialogFooter>
-                            <Button type="button" variant="ghost" onClick={() => setIsOpen(false)}>
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                onClick={() => setIsOpen(false)}
+                            >
                                 Cancel
                             </Button>
-                            <Button type="submit" disabled={processing} className="bg-blue-600 hover:bg-blue-700 text-white">
+                            <Button
+                                type="submit"
+                                disabled={processing}
+                                className="bg-blue-600 text-white hover:bg-blue-700"
+                            >
                                 {editingId ? 'Save changes' : 'Add worker'}
                             </Button>
                         </DialogFooter>

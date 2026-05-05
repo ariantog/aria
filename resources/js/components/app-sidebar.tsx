@@ -35,8 +35,6 @@ import reports from '@/routes/reports/index';
 import type { NavItem } from '@/types';
 import AppLogo from './app-logo';
 
-
-
 const footerNavItems: NavItem[] = [
     {
         title: 'Repository',
@@ -58,7 +56,10 @@ export function AppSidebar() {
 
     const hasPermission = (permission: string) => {
         if (!auth?.permissions) return false;
-        return auth.permissions.includes(permission) || auth.permissions.includes('*');
+        return (
+            auth.permissions.includes(permission) ||
+            auth.permissions.includes('*')
+        );
     };
 
     const hasRole = (role: string) => {
@@ -71,78 +72,148 @@ export function AppSidebar() {
     const { addrbook_types } = usePage().props as any;
 
     // Build Address Book menu items
-    const addrbookItems = addrbook_types?.map((type: any) => ({
-        title: type.name,
-        href: '/' + type.slug,
-        createUrl: '/' + type.slug + '/create',
-        icon: null,
-        isActive: isRouteActive('/' + type.slug),
-        permission: `${type.slug}-addrbook-list`
-    })).filter((item: any) => hasPermission(item.permission) || isSuperAdmin) || [];
+    const addrbookItems =
+        addrbook_types
+            ?.map((type: any) => ({
+                title: type.name,
+                href: '/' + type.slug,
+                createUrl: '/' + type.slug + '/create',
+                icon: null,
+                isActive: isRouteActive('/' + type.slug),
+                permission: `${type.slug}-addrbook-list`,
+            }))
+            .filter(
+                (item: any) => hasPermission(item.permission) || isSuperAdmin,
+            ) || [];
 
     const navItems: NavItem[] = [
-        ...(hasPermission('dashboard-view') || true ? [{ // Dashboard usually everyone can see, or check a specific permission
-            title: 'Dashboard',
-            href: dashboard.url(),
-            icon: LayoutGrid,
-            isActive: isRouteActive(dashboard.url()),
-        }] : []),
+        ...(hasPermission('dashboard-view') || true
+            ? [
+                  {
+                      // Dashboard usually everyone can see, or check a specific permission
+                      title: 'Dashboard',
+                      href: dashboard.url(),
+                      icon: LayoutGrid,
+                      isActive: isRouteActive(dashboard.url()),
+                  },
+              ]
+            : []),
         {
             title: 'Transactions',
             href: '/transactions',
             icon: Receipt,
             isActive: isRouteActive('/transactions'),
             items: [
-                ...(hasPermission('transactions-list') || isSuperAdmin ? [{
-                    title: 'List All',
-                    href: '/transactions',
-                    isActive: url === '/transactions',
-                }] : []),
-                ...(hasPermission('transactions-type-buy') || isSuperAdmin ? [{
-                    title: 'Buy',
-                    href: '/transactions/buy/create',
-                    isActive: isRouteActive('/transactions/buy/create'),
-                }] : []),
-                ...(hasPermission('transactions-type-sell') || isSuperAdmin ? [{
-                    title: 'Sell',
-                    href: '/transactions/sell/create',
-                    isActive: isRouteActive('/transactions/sell/create'),
-                }] : []),
-                ...(hasPermission('transactions-type-move') || isSuperAdmin ? [{
-                    title: 'Move',
-                    href: '/transactions/move/create',
-                    isActive: isRouteActive('/transactions/move/create'),
-                }] : []),
-                ...(hasPermission('transactions-type-cash-in') || isSuperAdmin ? [{
-                    title: 'Cash In',
-                    href: '/transactions/cash-in',
-                    isActive: isRouteActive('/transactions/cash-in'),
-                }] : []),
-                ...(hasPermission('transactions-type-cash-out') || isSuperAdmin ? [{
-                    title: 'Cash Out',
-                    href: '/transactions/cash-out',
-                    isActive: isRouteActive('/transactions/cash-out'),
-                }] : []),
-                ...(hasPermission('transactions-type-transfer') || isSuperAdmin ? [{
-                    title: 'Transfer',
-                    href: '/transactions/transfer',
-                    isActive: isRouteActive('/transactions/transfer'),
-                }] : []),
-                ...(hasPermission('transactions-type-adjust') || isSuperAdmin ? [{
-                    title: 'Adjust',
-                    href: '/transactions/adjust',
-                    isActive: isRouteActive('/transactions/adjust'),
-                }] : []),
-                ...(hasPermission('transactions-type-return') || isSuperAdmin ? [{
-                    title: 'Return',
-                    href: '/transactions/return/create',
-                    isActive: isRouteActive('/transactions/return/create'),
-                }] : []),
-                ...(hasPermission('transactions-type-return-supplier') || isSuperAdmin ? [{
-                    title: 'Return Supplier',
-                    href: '/transactions/return-supplier/create',
-                    isActive: isRouteActive('/transactions/return-supplier/create'),
-                }] : []),
+                ...(hasPermission('transactions-list') || isSuperAdmin
+                    ? [
+                          {
+                              title: 'List All',
+                              href: '/transactions',
+                              isActive: url === '/transactions',
+                          },
+                      ]
+                    : []),
+                ...(hasPermission('transactions-list') || isSuperAdmin
+                    ? [
+                          {
+                              title: 'Transaction Sync',
+                              href: '/jubelio-transaction/sync',
+                              isActive: isRouteActive('/jubelio-transaction'),
+                          },
+                      ]
+                    : []),
+                ...(hasPermission('transactions-type-buy') || isSuperAdmin
+                    ? [
+                          {
+                              title: 'Buy',
+                              href: '/transactions/buy/create',
+                              isActive: isRouteActive(
+                                  '/transactions/buy/create',
+                              ),
+                          },
+                      ]
+                    : []),
+                ...(hasPermission('transactions-type-sell') || isSuperAdmin
+                    ? [
+                          {
+                              title: 'Sell',
+                              href: '/transactions/sell/create',
+                              isActive: isRouteActive(
+                                  '/transactions/sell/create',
+                              ),
+                          },
+                      ]
+                    : []),
+                ...(hasPermission('transactions-type-move') || isSuperAdmin
+                    ? [
+                          {
+                              title: 'Move',
+                              href: '/transactions/move/create',
+                              isActive: isRouteActive(
+                                  '/transactions/move/create',
+                              ),
+                          },
+                      ]
+                    : []),
+                ...(hasPermission('transactions-type-cash-in') || isSuperAdmin
+                    ? [
+                          {
+                              title: 'Cash In',
+                              href: '/transactions/cash-in',
+                              isActive: isRouteActive('/transactions/cash-in'),
+                          },
+                      ]
+                    : []),
+                ...(hasPermission('transactions-type-cash-out') || isSuperAdmin
+                    ? [
+                          {
+                              title: 'Cash Out',
+                              href: '/transactions/cash-out',
+                              isActive: isRouteActive('/transactions/cash-out'),
+                          },
+                      ]
+                    : []),
+                ...(hasPermission('transactions-type-transfer') || isSuperAdmin
+                    ? [
+                          {
+                              title: 'Transfer',
+                              href: '/transactions/transfer',
+                              isActive: isRouteActive('/transactions/transfer'),
+                          },
+                      ]
+                    : []),
+                ...(hasPermission('transactions-type-adjust') || isSuperAdmin
+                    ? [
+                          {
+                              title: 'Adjust',
+                              href: '/transactions/adjust',
+                              isActive: isRouteActive('/transactions/adjust'),
+                          },
+                      ]
+                    : []),
+                ...(hasPermission('transactions-type-return') || isSuperAdmin
+                    ? [
+                          {
+                              title: 'Return',
+                              href: '/transactions/return/create',
+                              isActive: isRouteActive(
+                                  '/transactions/return/create',
+                              ),
+                          },
+                      ]
+                    : []),
+                ...(hasPermission('transactions-type-return-supplier') ||
+                isSuperAdmin
+                    ? [
+                          {
+                              title: 'Return Supplier',
+                              href: '/transactions/return-supplier/create',
+                              isActive: isRouteActive(
+                                  '/transactions/return-supplier/create',
+                              ),
+                          },
+                      ]
+                    : []),
             ].filter(Boolean) as NavItem[],
         },
         {
@@ -168,14 +239,20 @@ export function AppSidebar() {
             title: 'Address Book',
             href: '/addrbook',
             icon: BookOpen,
-            isActive: isRouteActive('/addrbook') || addrbookItems.some((item: any) => item.isActive),
+            isActive:
+                isRouteActive('/addrbook') ||
+                addrbookItems.some((item: any) => item.isActive),
             items: [
-                ...(hasPermission('addrbook-list') || isSuperAdmin ? [{
-                    title: 'All Contacts',
-                    href: '/addrbook',
-                    isActive: url === '/addrbook',
-                }] : []),
-                ...addrbookItems
+                ...(hasPermission('addrbook-list') || isSuperAdmin
+                    ? [
+                          {
+                              title: 'All Contacts',
+                              href: '/addrbook',
+                              isActive: url === '/addrbook',
+                          },
+                      ]
+                    : []),
+                ...addrbookItems,
             ],
         },
         // Stuff Group
@@ -184,26 +261,42 @@ export function AppSidebar() {
             href: '#',
             icon: Package,
             items: [
-                ...(hasPermission('items-list') || isSuperAdmin ? [{
-                    title: 'Item',
-                    href: '/items',
-                    isActive: isRouteActive('/items'),
-                }] : []),
-                ...(hasPermission('asset-lancar-list') || isSuperAdmin ? [{
-                    title: 'Asset Lancar',
-                    href: '/assetlancar',
-                    isActive: isRouteActive('/assetlancar'),
-                }] : []),
-                ...(hasPermission('items-list') || isSuperAdmin ? [{
-                    title: 'Group',
-                    href: '/items-group',
-                    isActive: isRouteActive('/items-group'),
-                }] : []),
-                ...(hasPermission('tags-list') || isSuperAdmin || true ? [{
-                    title: 'Tags',
-                    href: '/tags',
-                    isActive: isRouteActive('/tags'),
-                }] : []),
+                ...(hasPermission('items-list') || isSuperAdmin
+                    ? [
+                          {
+                              title: 'Item',
+                              href: '/items',
+                              isActive: isRouteActive('/items'),
+                          },
+                      ]
+                    : []),
+                ...(hasPermission('asset-lancar-list') || isSuperAdmin
+                    ? [
+                          {
+                              title: 'Asset Lancar',
+                              href: '/assetlancar',
+                              isActive: isRouteActive('/assetlancar'),
+                          },
+                      ]
+                    : []),
+                ...(hasPermission('items-list') || isSuperAdmin
+                    ? [
+                          {
+                              title: 'Group',
+                              href: '/items-group',
+                              isActive: isRouteActive('/items-group'),
+                          },
+                      ]
+                    : []),
+                ...(hasPermission('tags-list') || isSuperAdmin || true
+                    ? [
+                          {
+                              title: 'Tags',
+                              href: '/tags',
+                              isActive: isRouteActive('/tags'),
+                          },
+                      ]
+                    : []),
             ].filter(Boolean) as NavItem[],
         },
         // Journal Group
@@ -213,16 +306,24 @@ export function AppSidebar() {
             icon: BookOpen,
             isActive: isRouteActive('/journals'),
             items: [
-                ...(hasPermission('operations-list') || isSuperAdmin || true ? [{
-                    title: 'Operations',
-                    href: '/journals/operations',
-                    isActive: isRouteActive('/journals/operations'),
-                }] : []),
-                ...(hasPermission('account-list-list') || isSuperAdmin || true ? [{
-                    title: 'Account List',
-                    href: '/journals/account-list',
-                    isActive: isRouteActive('/journals/account-list'),
-                }] : []),
+                ...(hasPermission('operations-list') || isSuperAdmin || true
+                    ? [
+                          {
+                              title: 'Operations',
+                              href: '/journals/operations',
+                              isActive: isRouteActive('/journals/operations'),
+                          },
+                      ]
+                    : []),
+                ...(hasPermission('account-list-list') || isSuperAdmin || true
+                    ? [
+                          {
+                              title: 'Account List',
+                              href: '/journals/account-list',
+                              isActive: isRouteActive('/journals/account-list'),
+                          },
+                      ]
+                    : []),
             ].filter(Boolean) as NavItem[],
         },
         {
@@ -231,162 +332,234 @@ export function AppSidebar() {
             icon: Factory,
             isActive: isRouteActive('/produksi'),
             items: [
-                ...(hasPermission('production-list') || isSuperAdmin ? [{
-                    title: 'Produksi',
-                    href: '/produksi',
-                    createUrl: '/produksi/create',
-                    isActive: isRouteActive('/produksi') && !isRouteActive('/produksi/potong') && !isRouteActive('/produksi/jahit') && !isRouteActive('/produksi/qc') && !isRouteActive('/produksi/setoran'),
-                }] : []),
-                ...(hasPermission('production-setoran-list') || isSuperAdmin ? [{
-                    title: 'Setoran',
-                    href: '/produksi/setoran',
-                    isActive: isRouteActive('/produksi/setoran'),
-                }] : []),
-                ...(hasPermission('production-worker-list') || isSuperAdmin ? [
-                    {
-                        title: 'Potong',
-                        href: '/produksi/potong/list',
-                        isActive: isRouteActive('/produksi/potong/list'),
-                    },
-                    {
-                        title: 'Jahit',
-                        href: '/produksi/jahit/list',
-                        isActive: isRouteActive('/produksi/jahit/list'),
-                    },
-                    {
-                        title: 'QC',
-                        href: '/produksi/qc/list',
-                        isActive: isRouteActive('/produksi/qc/list'),
-                    },
-                ] : []),
+                ...(hasPermission('production-list') || isSuperAdmin
+                    ? [
+                          {
+                              title: 'Produksi',
+                              href: '/produksi',
+                              createUrl: '/produksi/create',
+                              isActive:
+                                  isRouteActive('/produksi') &&
+                                  !isRouteActive('/produksi/potong') &&
+                                  !isRouteActive('/produksi/jahit') &&
+                                  !isRouteActive('/produksi/qc') &&
+                                  !isRouteActive('/produksi/setoran'),
+                          },
+                      ]
+                    : []),
+                ...(hasPermission('production-setoran-list') || isSuperAdmin
+                    ? [
+                          {
+                              title: 'Setoran',
+                              href: '/produksi/setoran',
+                              isActive: isRouteActive('/produksi/setoran'),
+                          },
+                      ]
+                    : []),
+                ...(hasPermission('production-worker-list') || isSuperAdmin
+                    ? [
+                          {
+                              title: 'Potong',
+                              href: '/produksi/potong/list',
+                              isActive: isRouteActive('/produksi/potong/list'),
+                          },
+                          {
+                              title: 'Jahit',
+                              href: '/produksi/jahit/list',
+                              isActive: isRouteActive('/produksi/jahit/list'),
+                          },
+                          {
+                              title: 'QC',
+                              href: '/produksi/qc/list',
+                              isActive: isRouteActive('/produksi/qc/list'),
+                          },
+                      ]
+                    : []),
             ].filter(Boolean) as NavItem[],
         },
-        ...(hasPermission('borongan-list') || isSuperAdmin ? [{
-            title: 'Borongan',
-            href: '/borongan',
-            createUrl: '/borongan/create',
-            icon: Receipt,
-            isActive: isRouteActive('/borongan'),
-        }] : []),
-        ...(hasPermission('karyawan-list') || isSuperAdmin ? [{
-            title: 'Karyawan',
-            href: '#',
-            icon: Users,
-            isActive: isRouteActive('/karyawan') || isRouteActive('/gaji'),
-            items: [
-                {
-                    title: 'Daftar Karyawan',
-                    href: '/karyawan',
-                    isActive: isRouteActive('/karyawan'),
-                },
-                {
-                    title: 'Gaji Bulanan',
-                    href: '/gaji',
-                    isActive: isRouteActive('/gaji'),
-                }
-            ],
-        }] : []),
-        ...(hasPermission('reports-nett-cash') || isSuperAdmin ? [{
-            title: 'Reports',
-            href: '#',
-            icon: PieChart,
-            isActive: isRouteActive('/reports'),
-            items: [
-                {
-                    title: 'Nett Cash',
-                    href: reports.nettCashSby.url(),
-                    isActive: isRouteActive(reports.nettCashSby.url()),
-                },
-                ...(hasPermission('reports-cash-flow') || isSuperAdmin ? [{
-                    title: 'Cash Flow',
-                    href: reports.cashFlow.url(),
-                    isActive: isRouteActive(reports.cashFlow.url()),
-                }] : []),
-                ...(hasPermission('reports-compare') || isSuperAdmin ? [{
-                    title: 'Compare',
-                    href: reports.compare.url(),
-                    isActive: isRouteActive(reports.compare.url()),
-                }] : []),
-                {
-                    title: 'Item Sale',
-                    href: reports.itemSales.url(),
-                    isActive: isRouteActive(reports.itemSales.url()),
-                },
-                {
-                    title: 'Pembelian',
-                    href: reports.purchase.url(),
-                    isActive: isRouteActive(reports.purchase.url()),
-                },
-                {
-                    title: 'Item Gudang',
-                    href: reports.warehouseItem.url(),
-                    isActive: isRouteActive(reports.warehouseItem.url()),
-                },
-                {
-                    title: 'Laporan Biaya',
-                    href: reports.expense.url(),
-                    isActive: isRouteActive(reports.expense.url()),
-                },
-                {
-                    title: 'Stock Intelegen',
-                    href: reports.stockIntelligence.url(),
-                    isActive: isRouteActive(reports.stockIntelligence.url()),
-                },
-            ],
-        }] : []),
-        ...(hasPermission('setting-system-list') || isSuperAdmin ? [{
-            title: 'System Settings',
-            href: '/system-settings',
-            icon: Settings,
-            isActive: isRouteActive('/system-settings') || isRouteActive('/cron-manager'),
-            items: [
-                {
-                    title: 'General Settings',
-                    href: '/system-settings',
-                    isActive: isRouteActive('/system-settings'),
-                },
-                {
-                    title: 'Cron Manager',
-                    href: '/cron-manager',
-                    isActive: isRouteActive('/cron-manager'),
-                },
-            ],
-        }] : []),
+        ...(hasPermission('borongan-list') || isSuperAdmin
+            ? [
+                  {
+                      title: 'Borongan',
+                      href: '/borongan',
+                      createUrl: '/borongan/create',
+                      icon: Receipt,
+                      isActive: isRouteActive('/borongan'),
+                  },
+              ]
+            : []),
+        ...(hasPermission('karyawan-list') || isSuperAdmin
+            ? [
+                  {
+                      title: 'Karyawan',
+                      href: '#',
+                      icon: Users,
+                      isActive:
+                          isRouteActive('/karyawan') || isRouteActive('/gaji'),
+                      items: [
+                          {
+                              title: 'Daftar Karyawan',
+                              href: '/karyawan',
+                              isActive: isRouteActive('/karyawan'),
+                          },
+                          {
+                              title: 'Gaji Bulanan',
+                              href: '/gaji',
+                              isActive: isRouteActive('/gaji'),
+                          },
+                      ],
+                  },
+              ]
+            : []),
+        ...(hasPermission('reports-nett-cash') || isSuperAdmin
+            ? [
+                  {
+                      title: 'Reports',
+                      href: '#',
+                      icon: PieChart,
+                      isActive: isRouteActive('/reports'),
+                      items: [
+                          {
+                              title: 'Nett Cash',
+                              href: reports.nettCashSby.url(),
+                              isActive: isRouteActive(
+                                  reports.nettCashSby.url(),
+                              ),
+                          },
+                          ...(hasPermission('reports-cash-flow') || isSuperAdmin
+                              ? [
+                                    {
+                                        title: 'Cash Flow',
+                                        href: reports.cashFlow.url(),
+                                        isActive: isRouteActive(
+                                            reports.cashFlow.url(),
+                                        ),
+                                    },
+                                ]
+                              : []),
+                          ...(hasPermission('reports-compare') || isSuperAdmin
+                              ? [
+                                    {
+                                        title: 'Compare',
+                                        href: reports.compare.url(),
+                                        isActive: isRouteActive(
+                                            reports.compare.url(),
+                                        ),
+                                    },
+                                ]
+                              : []),
+                          {
+                              title: 'Item Sale',
+                              href: reports.itemSales.url(),
+                              isActive: isRouteActive(reports.itemSales.url()),
+                          },
+                          {
+                              title: 'Pembelian',
+                              href: reports.purchase.url(),
+                              isActive: isRouteActive(reports.purchase.url()),
+                          },
+                          {
+                              title: 'Item Gudang',
+                              href: reports.warehouseItem.url(),
+                              isActive: isRouteActive(
+                                  reports.warehouseItem.url(),
+                              ),
+                          },
+                          {
+                              title: 'Laporan Biaya',
+                              href: reports.expense.url(),
+                              isActive: isRouteActive(reports.expense.url()),
+                          },
+                          {
+                              title: 'Stock Intelegen',
+                              href: reports.stockIntelligence.url(),
+                              isActive: isRouteActive(
+                                  reports.stockIntelligence.url(),
+                              ),
+                          },
+                      ],
+                  },
+              ]
+            : []),
+        ...(hasPermission('setting-system-list') || isSuperAdmin
+            ? [
+                  {
+                      title: 'System Settings',
+                      href: '/system-settings',
+                      icon: Settings,
+                      isActive:
+                          isRouteActive('/system-settings') ||
+                          isRouteActive('/cron-manager'),
+                      items: [
+                          {
+                              title: 'General Settings',
+                              href: '/system-settings',
+                              isActive: isRouteActive('/system-settings'),
+                          },
+                          {
+                              title: 'Cron Manager',
+                              href: '/cron-manager',
+                              isActive: isRouteActive('/cron-manager'),
+                          },
+                      ],
+                  },
+              ]
+            : []),
         // User Management Group
         {
             title: 'User Management',
             href: '#',
             icon: Users,
             items: [
-                ...(hasPermission('users-list') || isSuperAdmin ? [{
-                    title: 'Users',
-                    href: '/users',
-                    isActive: isRouteActive('/users'),
-                }] : []),
-                ...(hasPermission('roles-list') || isSuperAdmin ? [{
-                    title: 'Roles',
-                    href: '/roles',
-                    isActive: isRouteActive('/roles'),
-                }] : []),
-                ...(hasPermission('permissions-list') || isSuperAdmin ? [{
-                    title: 'Permissions',
-                    href: '/permissions',
-                    isActive: isRouteActive('/permissions'),
-                }] : []),
-                ...(hasPermission('locations-list') || isSuperAdmin ? [{
-                    title: 'Locations',
-                    href: '/locations',
-                    isActive: isRouteActive('/locations'),
-                }] : []),
+                ...(hasPermission('users-list') || isSuperAdmin
+                    ? [
+                          {
+                              title: 'Users',
+                              href: '/users',
+                              isActive: isRouteActive('/users'),
+                          },
+                      ]
+                    : []),
+                ...(hasPermission('roles-list') || isSuperAdmin
+                    ? [
+                          {
+                              title: 'Roles',
+                              href: '/roles',
+                              isActive: isRouteActive('/roles'),
+                          },
+                      ]
+                    : []),
+                ...(hasPermission('permissions-list') || isSuperAdmin
+                    ? [
+                          {
+                              title: 'Permissions',
+                              href: '/permissions',
+                              isActive: isRouteActive('/permissions'),
+                          },
+                      ]
+                    : []),
+                ...(hasPermission('locations-list') || isSuperAdmin
+                    ? [
+                          {
+                              title: 'Locations',
+                              href: '/locations',
+                              isActive: isRouteActive('/locations'),
+                          },
+                      ]
+                    : []),
             ].filter(Boolean) as NavItem[],
         },
-        ...(hasPermission('posts-list') || isSuperAdmin ? [{
-            title: 'Posts',
-            href: '/posts',
-            icon: FileText,
-            isActive: isRouteActive('/posts'),
-        }] : []),
-    ].filter(item => {
+        ...(hasPermission('posts-list') || isSuperAdmin
+            ? [
+                  {
+                      title: 'Posts',
+                      href: '/posts',
+                      icon: FileText,
+                      isActive: isRouteActive('/posts'),
+                  },
+              ]
+            : []),
+    ].filter((item) => {
         if (item.items) {
             return item.items.length > 0;
         }
@@ -394,7 +567,6 @@ export function AppSidebar() {
     });
 
     const filteredNavItems = navItems;
-
 
     return (
         <Sidebar collapsible="icon" variant="inset">

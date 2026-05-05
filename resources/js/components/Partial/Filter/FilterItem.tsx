@@ -9,7 +9,7 @@ import {
     DropdownMenuLabel,
     DropdownMenuSeparator,
     DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from '@/components/ui/dropdown-menu';
 import { Separator } from '@/components/ui/separator';
 import { AsyncCombobox } from '@/components/AsyncCombobox';
 
@@ -36,7 +36,12 @@ interface Props {
     isAsset?: boolean;
 }
 
-export default function FilterItem({ baseUrl, filters, tags, isAsset = false }: Props) {
+export default function FilterItem({
+    baseUrl,
+    filters,
+    tags,
+    isAsset = false,
+}: Props) {
     const [code, setCode] = useState(filters.code || '');
     const [name, setName] = useState(filters.name || '');
     const [alias, setAlias] = useState(filters.alias || '');
@@ -53,7 +58,9 @@ export default function FilterItem({ baseUrl, filters, tags, isAsset = false }: 
         const findTag = (id: any) => {
             if (!id) return null;
             for (const group in tags) {
-                const found = tags[group].find(t => t.id.toString() === id.toString());
+                const found = tags[group].find(
+                    (t) => t.id.toString() === id.toString(),
+                );
                 if (found) return found;
             }
             return null;
@@ -75,17 +82,25 @@ export default function FilterItem({ baseUrl, filters, tags, isAsset = false }: 
             item_type: selectedType?.id || null,
             warna: selectedColor?.id || null,
             size: selectedSize?.id || null,
-            ...(newFilters || {})
+            ...(newFilters || {}),
         };
 
         // Clean up empty values
-        Object.keys(params).forEach(key => {
-            if (params[key] === null || params[key] === undefined || params[key] === '') {
+        Object.keys(params).forEach((key) => {
+            if (
+                params[key] === null ||
+                params[key] === undefined ||
+                params[key] === ''
+            ) {
                 delete params[key];
             }
         });
 
-        router.get(baseUrl, params, { preserveState: true, replace: true, preserveScroll: true });
+        router.get(baseUrl, params, {
+            preserveState: true,
+            replace: true,
+            preserveScroll: true,
+        });
     };
 
     // Auto-apply logic for text inputs (Debounced)
@@ -137,20 +152,29 @@ export default function FilterItem({ baseUrl, filters, tags, isAsset = false }: 
         router.get(baseUrl, {}, { preserveState: true, replace: true });
     };
 
-    const hasFilters = code || name || alias || desc ||
-        selectedJahit || selectedType || selectedColor || selectedSize;
+    const hasFilters =
+        code ||
+        name ||
+        alias ||
+        desc ||
+        selectedJahit ||
+        selectedType ||
+        selectedColor ||
+        selectedSize;
 
     return (
-        <div className="bg-white dark:bg-zinc-900 p-3 rounded-xl border shadow-sm mb-6">
+        <div className="mb-6 rounded-xl border bg-white p-3 shadow-sm dark:bg-zinc-900">
             <div className="flex flex-wrap items-end gap-3">
                 {/* Barcode / SKU */}
-                <div className="flex-1 min-w-[180px] space-y-1.5">
-                    <label className="text-xs font-medium text-zinc-500 ml-1">Barcode / SKU</label>
+                <div className="min-w-[180px] flex-1 space-y-1.5">
+                    <label className="ml-1 text-xs font-medium text-zinc-500">
+                        Barcode / SKU
+                    </label>
                     <div className="relative">
-                        <Search className="absolute left-3 top-2.5 h-4 w-4 text-zinc-400" />
+                        <Search className="absolute top-2.5 left-3 h-4 w-4 text-zinc-400" />
                         <Input
                             placeholder="Barcode / SKU"
-                            className="pl-9 h-9 bg-zinc-50 dark:bg-zinc-800/50 border-zinc-200 dark:border-zinc-700 font-medium"
+                            className="h-9 border-zinc-200 bg-zinc-50 pl-9 font-medium dark:border-zinc-700 dark:bg-zinc-800/50"
                             value={code}
                             onChange={(e) => setCode(e.target.value)}
                         />
@@ -158,33 +182,39 @@ export default function FilterItem({ baseUrl, filters, tags, isAsset = false }: 
                 </div>
 
                 {/* Long SKU */}
-                <div className="flex-1 min-w-[180px] space-y-1.5">
-                    <label className="text-xs font-medium text-zinc-500 ml-1">Long SKU</label>
+                <div className="min-w-[180px] flex-1 space-y-1.5">
+                    <label className="ml-1 text-xs font-medium text-zinc-500">
+                        Long SKU
+                    </label>
                     <Input
                         placeholder="Long SKU name..."
-                        className="h-9 bg-zinc-50 dark:bg-zinc-800/50 border-zinc-200 dark:border-zinc-700"
+                        className="h-9 border-zinc-200 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800/50"
                         value={name}
                         onChange={(e) => setName(e.target.value)}
                     />
                 </div>
 
                 {/* Alias */}
-                <div className="flex-1 min-w-[180px] space-y-1.5">
-                    <label className="text-xs font-medium text-zinc-500 ml-1">Alias</label>
+                <div className="min-w-[180px] flex-1 space-y-1.5">
+                    <label className="ml-1 text-xs font-medium text-zinc-500">
+                        Alias
+                    </label>
                     <Input
                         placeholder="Alias name..."
-                        className="h-9 bg-zinc-50 dark:bg-zinc-800/50 border-zinc-200 dark:border-zinc-700"
+                        className="h-9 border-zinc-200 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800/50"
                         value={alias}
                         onChange={(e) => setAlias(e.target.value)}
                     />
                 </div>
 
                 {/* Description */}
-                <div className="flex-1 min-w-[150px] space-y-1.5">
-                    <label className="text-xs font-medium text-zinc-500 ml-1">Description</label>
+                <div className="min-w-[150px] flex-1 space-y-1.5">
+                    <label className="ml-1 text-xs font-medium text-zinc-500">
+                        Description
+                    </label>
                     <Input
                         placeholder="Description..."
-                        className="h-9 bg-zinc-50 dark:bg-zinc-800/50 border-zinc-200 dark:border-zinc-700"
+                        className="h-9 border-zinc-200 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800/50"
                         value={desc}
                         onChange={(e) => setDesc(e.target.value)}
                     />
@@ -195,65 +225,91 @@ export default function FilterItem({ baseUrl, filters, tags, isAsset = false }: 
                     <div className="shrink-0">
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                                <Button variant="outline" size="sm" className="h-9 border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/50 font-medium">
-                                    <Filter className="mr-2 h-4 w-4" /> More Filters
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-9 border-zinc-200 bg-zinc-50 font-medium dark:border-zinc-700 dark:bg-zinc-800/50"
+                                >
+                                    <Filter className="mr-2 h-4 w-4" /> More
+                                    Filters
                                 </Button>
                             </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-[500px] p-4 shadow-2xl">
-                                <DropdownMenuLabel className="px-0">Advanced Filters</DropdownMenuLabel>
+                            <DropdownMenuContent
+                                align="end"
+                                className="w-[500px] p-4 shadow-2xl"
+                            >
+                                <DropdownMenuLabel className="px-0">
+                                    Advanced Filters
+                                </DropdownMenuLabel>
                                 <DropdownMenuSeparator className="my-2" />
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="space-y-1.5">
-                                        <label className="text-xs font-medium text-zinc-500 ml-1">Jahit</label>
+                                        <label className="ml-1 text-xs font-medium text-zinc-500">
+                                            Jahit
+                                        </label>
                                         <AsyncCombobox
                                             endpoint="/tags/lookup"
                                             additionalParams={{ type: 2 }}
                                             value={selectedJahit}
                                             onChange={(val) => {
                                                 setSelectedJahit(val);
-                                                applyFilters({ jahit: val?.id || null });
+                                                applyFilters({
+                                                    jahit: val?.id || null,
+                                                });
                                             }}
                                             placeholder="Search jahit..."
                                             className="h-9 rounded-md"
                                         />
                                     </div>
                                     <div className="space-y-1.5">
-                                        <label className="text-xs font-medium text-zinc-500 ml-1">Type (Genre)</label>
+                                        <label className="ml-1 text-xs font-medium text-zinc-500">
+                                            Type (Genre)
+                                        </label>
                                         <AsyncCombobox
                                             endpoint="/tags/lookup"
                                             additionalParams={{ type: 3 }}
                                             value={selectedType}
                                             onChange={(val) => {
                                                 setSelectedType(val);
-                                                applyFilters({ item_type: val?.id || null });
+                                                applyFilters({
+                                                    item_type: val?.id || null,
+                                                });
                                             }}
                                             placeholder="Search type..."
                                             className="h-9 rounded-md"
                                         />
                                     </div>
                                     <div className="space-y-1.5">
-                                        <label className="text-xs font-medium text-zinc-500 ml-1">Color</label>
+                                        <label className="ml-1 text-xs font-medium text-zinc-500">
+                                            Color
+                                        </label>
                                         <AsyncCombobox
                                             endpoint="/tags/lookup"
                                             additionalParams={{ type: 20 }}
                                             value={selectedColor}
                                             onChange={(val) => {
                                                 setSelectedColor(val);
-                                                applyFilters({ warna: val?.id || null });
+                                                applyFilters({
+                                                    warna: val?.id || null,
+                                                });
                                             }}
                                             placeholder="Search color..."
                                             className="h-9 rounded-md"
                                         />
                                     </div>
                                     <div className="space-y-1.5">
-                                        <label className="text-xs font-medium text-zinc-500 ml-1">Size</label>
+                                        <label className="ml-1 text-xs font-medium text-zinc-500">
+                                            Size
+                                        </label>
                                         <AsyncCombobox
                                             endpoint="/tags/lookup"
                                             additionalParams={{ type: 7 }}
                                             value={selectedSize}
                                             onChange={(val) => {
                                                 setSelectedSize(val);
-                                                applyFilters({ size: val?.id || null });
+                                                applyFilters({
+                                                    size: val?.id || null,
+                                                });
                                             }}
                                             placeholder="Search size..."
                                             className="h-9 rounded-md"
@@ -272,7 +328,7 @@ export default function FilterItem({ baseUrl, filters, tags, isAsset = false }: 
                             variant="ghost"
                             size="sm"
                             onClick={handleReset}
-                            className="h-9 px-3 text-zinc-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/10 transition-colors"
+                            className="h-9 px-3 text-zinc-500 transition-colors hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-900/10"
                         >
                             <X className="mr-2 h-4 w-4" /> Clear
                         </Button>

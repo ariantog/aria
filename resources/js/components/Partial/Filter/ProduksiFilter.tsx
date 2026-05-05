@@ -9,7 +9,7 @@ import {
     DropdownMenuLabel,
     DropdownMenuSeparator,
     DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from '@/components/ui/dropdown-menu';
 import { AsyncCombobox } from '@/components/AsyncCombobox';
 
 interface Props {
@@ -32,7 +32,7 @@ export default function ProduksiFilter({ filters }: Props) {
     const [to, setTo] = useState(filters.to || '');
     const [kode, setKode] = useState(filters.kode || '');
     const [customer, setCustomer] = useState(filters.customer || '');
-    
+
     // Advanced Filters
     const [serial, setSerial] = useState(filters.serial || '');
     const [sjp, setSjp] = useState(filters.surat_jalan_potong || '');
@@ -45,9 +45,13 @@ export default function ProduksiFilter({ filters }: Props) {
         const fetchWorker = async (id: any, type: string) => {
             if (!id) return;
             try {
-                const response = await fetch(`/produksi/workers/lookup?type=${type}&search=${id}`);
+                const response = await fetch(
+                    `/produksi/workers/lookup?type=${type}&search=${id}`,
+                );
                 const data = await response.json();
-                const found = data.find((w: any) => w.id.toString() === id.toString());
+                const found = data.find(
+                    (w: any) => w.id.toString() === id.toString(),
+                );
                 if (found) {
                     if (type === 'potong') setSelectedPotong(found);
                     if (type === 'jahit') setSelectedJahit(found);
@@ -72,17 +76,25 @@ export default function ProduksiFilter({ filters }: Props) {
             warna,
             potong_id: selectedPotong?.id || null,
             jahit_id: selectedJahit?.id || null,
-            ...(newFilters || {})
+            ...(newFilters || {}),
         };
 
         // Clean up empty values
-        Object.keys(params).forEach(key => {
-            if (params[key] === null || params[key] === undefined || params[key] === '') {
+        Object.keys(params).forEach((key) => {
+            if (
+                params[key] === null ||
+                params[key] === undefined ||
+                params[key] === ''
+            ) {
                 delete params[key];
             }
         });
 
-        router.get('/produksi', params, { preserveState: true, replace: true, preserveScroll: true });
+        router.get('/produksi', params, {
+            preserveState: true,
+            replace: true,
+            preserveScroll: true,
+        });
     };
 
     // Auto-apply for text inputs (Debounced)
@@ -95,7 +107,8 @@ export default function ProduksiFilter({ filters }: Props) {
 
     useEffect(() => {
         const timer = setTimeout(() => {
-            if (customer !== (filters.customer || '')) applyFilters({ customer });
+            if (customer !== (filters.customer || ''))
+                applyFilters({ customer });
         }, 500);
         return () => clearTimeout(timer);
     }, [customer]);
@@ -109,7 +122,8 @@ export default function ProduksiFilter({ filters }: Props) {
 
     useEffect(() => {
         const timer = setTimeout(() => {
-            if (sjp !== (filters.surat_jalan_potong || '')) applyFilters({ surat_jalan_potong: sjp });
+            if (sjp !== (filters.surat_jalan_potong || ''))
+                applyFilters({ surat_jalan_potong: sjp });
         }, 500);
         return () => clearTimeout(timer);
     }, [sjp]);
@@ -134,20 +148,31 @@ export default function ProduksiFilter({ filters }: Props) {
         router.get('/produksi', {}, { preserveState: true, replace: true });
     };
 
-    const hasFilters = from || to || kode || customer || serial || sjp || warna || selectedPotong || selectedJahit;
+    const hasFilters =
+        from ||
+        to ||
+        kode ||
+        customer ||
+        serial ||
+        sjp ||
+        warna ||
+        selectedPotong ||
+        selectedJahit;
 
     return (
-        <div className="bg-white dark:bg-zinc-900 p-3 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-sm mb-6">
+        <div className="mb-6 rounded-xl border border-zinc-200 bg-white p-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
             <div className="flex flex-wrap items-end gap-3">
                 {/* Date Range */}
-                <div className="flex gap-2 min-w-[300px]">
+                <div className="flex min-w-[300px] gap-2">
                     <div className="flex-1 space-y-1.5">
-                        <label className="text-xs font-medium text-zinc-500 ml-1">Date From</label>
+                        <label className="ml-1 text-xs font-medium text-zinc-500">
+                            Date From
+                        </label>
                         <div className="relative">
-                            <CalendarIcon className="absolute left-3 top-2.5 h-4 w-4 text-zinc-400" />
+                            <CalendarIcon className="absolute top-2.5 left-3 h-4 w-4 text-zinc-400" />
                             <Input
                                 type="date"
-                                className="pl-9 h-9 bg-zinc-50 dark:bg-zinc-800/50 border-zinc-200 dark:border-zinc-700"
+                                className="h-9 border-zinc-200 bg-zinc-50 pl-9 dark:border-zinc-700 dark:bg-zinc-800/50"
                                 value={from}
                                 onChange={(e) => {
                                     setFrom(e.target.value);
@@ -157,10 +182,12 @@ export default function ProduksiFilter({ filters }: Props) {
                         </div>
                     </div>
                     <div className="flex-1 space-y-1.5">
-                        <label className="text-xs font-medium text-zinc-500 ml-1">Date To</label>
+                        <label className="ml-1 text-xs font-medium text-zinc-500">
+                            Date To
+                        </label>
                         <Input
                             type="date"
-                            className="h-9 bg-zinc-50 dark:bg-zinc-800/50 border-zinc-200 dark:border-zinc-700"
+                            className="h-9 border-zinc-200 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800/50"
                             value={to}
                             onChange={(e) => {
                                 setTo(e.target.value);
@@ -171,13 +198,15 @@ export default function ProduksiFilter({ filters }: Props) {
                 </div>
 
                 {/* Kode */}
-                <div className="flex-1 min-w-[150px] space-y-1.5">
-                    <label className="text-xs font-medium text-zinc-500 ml-1">Kode</label>
+                <div className="min-w-[150px] flex-1 space-y-1.5">
+                    <label className="ml-1 text-xs font-medium text-zinc-500">
+                        Kode
+                    </label>
                     <div className="relative">
-                        <Search className="absolute left-3 top-2.5 h-4 w-4 text-zinc-400" />
+                        <Search className="absolute top-2.5 left-3 h-4 w-4 text-zinc-400" />
                         <Input
                             placeholder="Search kode..."
-                            className="pl-9 h-9 bg-zinc-50 dark:bg-zinc-800/50 border-zinc-200 dark:border-zinc-700 font-medium"
+                            className="h-9 border-zinc-200 bg-zinc-50 pl-9 font-medium dark:border-zinc-700 dark:bg-zinc-800/50"
                             value={kode}
                             onChange={(e) => setKode(e.target.value)}
                         />
@@ -185,11 +214,13 @@ export default function ProduksiFilter({ filters }: Props) {
                 </div>
 
                 {/* Customer */}
-                <div className="flex-1 min-w-[150px] space-y-1.5">
-                    <label className="text-xs font-medium text-zinc-500 ml-1">Customer</label>
+                <div className="min-w-[150px] flex-1 space-y-1.5">
+                    <label className="ml-1 text-xs font-medium text-zinc-500">
+                        Customer
+                    </label>
                     <Input
                         placeholder="Search customer..."
-                        className="h-9 bg-zinc-50 dark:bg-zinc-800/50 border-zinc-200 dark:border-zinc-700"
+                        className="h-9 border-zinc-200 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800/50"
                         value={customer}
                         onChange={(e) => setCustomer(e.target.value)}
                     />
@@ -199,53 +230,76 @@ export default function ProduksiFilter({ filters }: Props) {
                 <div className="shrink-0">
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                            <Button variant="outline" size="sm" className="h-9 border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/50 font-medium">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-9 border-zinc-200 bg-zinc-50 font-medium dark:border-zinc-700 dark:bg-zinc-800/50"
+                            >
                                 <Filter className="mr-2 h-4 w-4" /> More Filters
                             </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-[500px] p-4 shadow-2xl border-zinc-200 dark:border-zinc-800">
-                            <DropdownMenuLabel className="px-0">Advanced Filters</DropdownMenuLabel>
+                        <DropdownMenuContent
+                            align="end"
+                            className="w-[500px] border-zinc-200 p-4 shadow-2xl dark:border-zinc-800"
+                        >
+                            <DropdownMenuLabel className="px-0">
+                                Advanced Filters
+                            </DropdownMenuLabel>
                             <DropdownMenuSeparator className="my-2" />
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-1.5">
-                                    <label className="text-xs font-medium text-zinc-500 ml-1">Potong Worker</label>
+                                    <label className="ml-1 text-xs font-medium text-zinc-500">
+                                        Potong Worker
+                                    </label>
                                     <AsyncCombobox
                                         endpoint="/produksi/workers/lookup"
                                         additionalParams={{ type: 'potong' }}
                                         value={selectedPotong}
                                         onChange={(val) => {
                                             setSelectedPotong(val);
-                                            applyFilters({ potong_id: val?.id || null });
+                                            applyFilters({
+                                                potong_id: val?.id || null,
+                                            });
                                         }}
                                         placeholder="Search worker..."
                                         className="h-9 rounded-md"
                                     />
                                 </div>
                                 <div className="space-y-1.5">
-                                    <label className="text-xs font-medium text-zinc-500 ml-1">Jahit Worker</label>
+                                    <label className="ml-1 text-xs font-medium text-zinc-500">
+                                        Jahit Worker
+                                    </label>
                                     <AsyncCombobox
                                         endpoint="/produksi/workers/lookup"
                                         additionalParams={{ type: 'jahit' }}
                                         value={selectedJahit}
                                         onChange={(val) => {
                                             setSelectedJahit(val);
-                                            applyFilters({ jahit_id: val?.id || null });
+                                            applyFilters({
+                                                jahit_id: val?.id || null,
+                                            });
                                         }}
                                         placeholder="Search worker..."
                                         className="h-9 rounded-md"
                                     />
                                 </div>
                                 <div className="space-y-1.5">
-                                    <label className="text-xs font-medium text-zinc-500 ml-1">Kitir (Serial)</label>
+                                    <label className="ml-1 text-xs font-medium text-zinc-500">
+                                        Kitir (Serial)
+                                    </label>
                                     <Input
                                         placeholder="Kitir serial..."
                                         className="h-9"
                                         value={serial}
-                                        onChange={(e) => setSerial(e.target.value)}
+                                        onChange={(e) =>
+                                            setSerial(e.target.value)
+                                        }
                                     />
                                 </div>
                                 <div className="space-y-1.5">
-                                    <label className="text-xs font-medium text-zinc-500 ml-1">SJP (Surat Jalan)</label>
+                                    <label className="ml-1 text-xs font-medium text-zinc-500">
+                                        SJP (Surat Jalan)
+                                    </label>
                                     <Input
                                         placeholder="SJP number..."
                                         className="h-9"
@@ -254,12 +308,16 @@ export default function ProduksiFilter({ filters }: Props) {
                                     />
                                 </div>
                                 <div className="space-y-1.5">
-                                    <label className="text-xs font-medium text-zinc-500 ml-1">Warna</label>
+                                    <label className="ml-1 text-xs font-medium text-zinc-500">
+                                        Warna
+                                    </label>
                                     <Input
                                         placeholder="Color..."
                                         className="h-9"
                                         value={warna}
-                                        onChange={(e) => setWarna(e.target.value)}
+                                        onChange={(e) =>
+                                            setWarna(e.target.value)
+                                        }
                                     />
                                 </div>
                             </div>
@@ -274,7 +332,7 @@ export default function ProduksiFilter({ filters }: Props) {
                             variant="ghost"
                             size="sm"
                             onClick={handleReset}
-                            className="h-9 px-3 text-zinc-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/10 transition-colors"
+                            className="h-9 px-3 text-zinc-500 transition-colors hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-900/10"
                         >
                             <X className="mr-2 h-4 w-4" /> Clear
                         </Button>

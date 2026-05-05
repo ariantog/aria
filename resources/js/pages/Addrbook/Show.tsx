@@ -1,10 +1,15 @@
-
 import { Head, Link, router } from '@inertiajs/react';
 import AppLayout from '@/layouts/app-layout';
 import { BreadcrumbItem } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import {
+    Card,
+    CardContent,
+    CardHeader,
+    CardTitle,
+    CardDescription,
+} from '@/components/ui/card';
 import {
     FilePen,
     ArrowLeft,
@@ -19,7 +24,7 @@ import {
     ArrowDownCircle,
     ShoppingBag,
     Truck,
-    Package
+    Package,
 } from 'lucide-react';
 import { useState } from 'react';
 import addrbookRoutes from '@/routes/addrbook';
@@ -99,23 +104,38 @@ const breadcrumbs: BreadcrumbItem[] = [
     },
 ];
 
-const TabButton = ({ active, children, onClick }: { active: boolean; children: React.ReactNode; onClick: () => void }) => (
+const TabButton = ({
+    active,
+    children,
+    onClick,
+}: {
+    active: boolean;
+    children: React.ReactNode;
+    onClick: () => void;
+}) => (
     <button
         onClick={onClick}
-        className={`px-6 py-4 text-sm font-medium transition-all relative ${active
-            ? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400'
-            : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 border-b-2 border-transparent hover:border-zinc-200 dark:hover:border-zinc-800'
-            }`}
+        className={`relative px-6 py-4 text-sm font-medium transition-all ${
+            active
+                ? 'border-b-2 border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400'
+                : 'border-b-2 border-transparent text-zinc-500 hover:border-zinc-200 hover:text-zinc-700 dark:hover:border-zinc-800 dark:hover:text-zinc-300'
+        }`}
     >
         {children}
     </button>
 );
 
 export default function AddrbookShow({ addrbook, ppn_rate }: Props) {
-    const [activeTab, setActiveTab] = useState<'overview' | 'stats' | 'history' | 'inventory'>('overview');
+    const [activeTab, setActiveTab] = useState<
+        'overview' | 'stats' | 'history' | 'inventory'
+    >('overview');
 
     const formatCurrency = (value: string | number) => {
-        return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(Number(value) || 0);
+        return new Intl.NumberFormat('id-ID', {
+            style: 'currency',
+            currency: 'IDR',
+            minimumFractionDigits: 0,
+        }).format(Number(value) || 0);
     };
 
     const formatNumber = (value: string | number) => {
@@ -128,17 +148,20 @@ export default function AddrbookShow({ addrbook, ppn_rate }: Props) {
 
             <div className="p-4 sm:p-6 lg:p-8">
                 {/* Header Card */}
-                <div className="mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                <div className="mb-8 flex flex-col items-start justify-between gap-6 md:flex-row md:items-center">
                     <div className="flex items-start gap-5">
-                        <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white shadow-lg shadow-blue-500/20">
+                        <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-lg shadow-blue-500/20">
                             <User className="h-8 w-8" />
                         </div>
                         <div>
-                            <div className="flex items-center gap-3 mb-1">
+                            <div className="mb-1 flex items-center gap-3">
                                 <h1 className="text-3xl font-extrabold tracking-tight text-zinc-900 dark:text-zinc-50">
                                     {addrbook.name}
                                 </h1>
-                                <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-800">
+                                <Badge
+                                    variant="outline"
+                                    className="border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-900/20 dark:text-blue-400"
+                                >
                                     {addrbook.type_name}
                                 </Badge>
                             </div>
@@ -152,7 +175,9 @@ export default function AddrbookShow({ addrbook, ppn_rate }: Props) {
                                     </span>
                                 )}
                                 <span className="flex items-center gap-1.5">
-                                    <span className={`h-2 w-2 rounded-full ${addrbook.is_online ? 'bg-emerald-500' : 'bg-zinc-300'}`}></span>
+                                    <span
+                                        className={`h-2 w-2 rounded-full ${addrbook.is_online ? 'bg-emerald-500' : 'bg-zinc-300'}`}
+                                    ></span>
                                     {addrbook.is_online ? 'Online' : 'Offline'}
                                 </span>
                             </div>
@@ -160,28 +185,33 @@ export default function AddrbookShow({ addrbook, ppn_rate }: Props) {
                     </div>
 
                     <div className="flex items-center gap-2">
-                        <Button variant="outline" onClick={() => window.history.back()} className="rounded-xl h-11 px-5 border-zinc-200 dark:border-zinc-800">
+                        <Button
+                            variant="outline"
+                            onClick={() => window.history.back()}
+                            className="h-11 rounded-xl border-zinc-200 px-5 dark:border-zinc-800"
+                        >
                             <ArrowLeft className="mr-2 h-4 w-4" /> Back
                         </Button>
                         <Link href={addrbookRoutes.edit.url(addrbook.id)}>
-                            <Button className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl h-11 px-5 shadow-lg shadow-blue-600/20">
-                                <FilePen className="mr-2 h-4 w-4" /> Edit Details
+                            <Button className="h-11 rounded-xl bg-blue-600 px-5 text-white shadow-lg shadow-blue-600/20 hover:bg-blue-700">
+                                <FilePen className="mr-2 h-4 w-4" /> Edit
+                                Details
                             </Button>
                         </Link>
                     </div>
                 </div>
 
                 {/* Tabs Navigation */}
-                <div className="border-b border-zinc-200 dark:border-zinc-800 mb-8 flex overflow-x-auto scrollbar-hide">
+                <div className="scrollbar-hide mb-8 flex overflow-x-auto border-b border-zinc-200 dark:border-zinc-800">
                     <Link
                         href={`/${addrbook.type_slug}/${addrbook.id}`}
-                        className="px-6 py-4 text-sm font-medium transition-all border-b-2 text-blue-600 dark:text-blue-400 border-blue-600 dark:border-blue-400 whitespace-nowrap"
+                        className="border-b-2 border-blue-600 px-6 py-4 text-sm font-medium whitespace-nowrap text-blue-600 transition-all dark:border-blue-400 dark:text-blue-400"
                     >
                         Detail
                     </Link>
                     <Link
                         href={`/${addrbook.type_slug}/${addrbook.id}/transactions`}
-                        className="px-6 py-4 text-sm font-medium transition-all border-b-2 border-transparent text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:border-zinc-200 dark:hover:border-zinc-800 whitespace-nowrap"
+                        className="border-b-2 border-transparent px-6 py-4 text-sm font-medium whitespace-nowrap text-zinc-500 transition-all hover:border-zinc-200 hover:text-zinc-700 dark:hover:border-zinc-800 dark:hover:text-zinc-300"
                     >
                         Transaction
                     </Link>
@@ -189,13 +219,13 @@ export default function AddrbookShow({ addrbook, ppn_rate }: Props) {
                         <>
                             <Link
                                 href={`/${addrbook.type_slug}/${addrbook.id}/items`}
-                                className="px-6 py-4 text-sm font-medium transition-all border-b-2 border-transparent text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:border-zinc-200 dark:hover:border-zinc-800 whitespace-nowrap"
+                                className="border-b-2 border-transparent px-6 py-4 text-sm font-medium whitespace-nowrap text-zinc-500 transition-all hover:border-zinc-200 hover:text-zinc-700 dark:hover:border-zinc-800 dark:hover:text-zinc-300"
                             >
                                 Items
                             </Link>
                             <Link
                                 href={`/${addrbook.type_slug}/${addrbook.id}/stats`}
-                                className="px-6 py-4 text-sm font-medium transition-all border-b-2 border-transparent text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:border-zinc-200 dark:hover:border-zinc-800 whitespace-nowrap"
+                                className="border-b-2 border-transparent px-6 py-4 text-sm font-medium whitespace-nowrap text-zinc-500 transition-all hover:border-zinc-200 hover:text-zinc-700 dark:hover:border-zinc-800 dark:hover:text-zinc-300"
                             >
                                 Stats
                             </Link>
@@ -203,114 +233,163 @@ export default function AddrbookShow({ addrbook, ppn_rate }: Props) {
                     )}
                     <Link
                         href={`/${addrbook.type_slug}/${addrbook.id}/item-sales`}
-                        className="px-6 py-4 text-sm font-medium transition-all border-b-2 border-transparent text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:border-zinc-200 dark:hover:border-zinc-800 whitespace-nowrap"
+                        className="border-b-2 border-transparent px-6 py-4 text-sm font-medium whitespace-nowrap text-zinc-500 transition-all hover:border-zinc-200 hover:text-zinc-700 dark:hover:border-zinc-800 dark:hover:text-zinc-300"
                     >
                         Item Sale
                     </Link>
                 </div>
 
                 {/* Tab Content */}
-                <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                        <Card className="lg:col-span-2 rounded-2xl border-zinc-200 dark:border-zinc-800 shadow-sm overflow-hidden">
-                            <CardHeader className="bg-zinc-50/50 dark:bg-zinc-900/30 border-b border-zinc-200 dark:border-zinc-800 p-6">
-                                <CardTitle className="text-lg font-bold">General Information</CardTitle>
-                                <CardDescription>Primary contact and basic details</CardDescription>
+                <div className="animate-in duration-300 fade-in slide-in-from-bottom-2">
+                    <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
+                        <Card className="overflow-hidden rounded-2xl border-zinc-200 shadow-sm lg:col-span-2 dark:border-zinc-800">
+                            <CardHeader className="border-b border-zinc-200 bg-zinc-50/50 p-6 dark:border-zinc-800 dark:bg-zinc-900/30">
+                                <CardTitle className="text-lg font-bold">
+                                    General Information
+                                </CardTitle>
+                                <CardDescription>
+                                    Primary contact and basic details
+                                </CardDescription>
                             </CardHeader>
-                            <CardContent className="p-8 space-y-8">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8">
+                            <CardContent className="space-y-8 p-8">
+                                <div className="grid grid-cols-1 gap-x-12 gap-y-8 md:grid-cols-2">
                                     <div className="space-y-2">
-                                        <p className="text-xs font-bold uppercase tracking-wider text-zinc-400">Contact Person</p>
-                                        <div className="flex items-center gap-3 text-zinc-900 dark:text-zinc-100 font-medium">
-                                            <div className="h-9 w-9 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-500">
+                                        <p className="text-xs font-bold tracking-wider text-zinc-400 uppercase">
+                                            Contact Person
+                                        </p>
+                                        <div className="flex items-center gap-3 font-medium text-zinc-900 dark:text-zinc-100">
+                                            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-zinc-100 text-zinc-500 dark:bg-zinc-800">
                                                 <User className="h-4 w-4" />
                                             </div>
-                                            {addrbook.contact_person || 'No data available'}
+                                            {addrbook.contact_person ||
+                                                'No data available'}
                                         </div>
                                     </div>
                                     <div className="space-y-2">
-                                        <p className="text-xs font-bold uppercase tracking-wider text-zinc-400">Phone Number</p>
-                                        <div className="flex items-center gap-3 text-zinc-900 dark:text-zinc-100 font-medium">
-                                            <div className="h-9 w-9 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-500">
+                                        <p className="text-xs font-bold tracking-wider text-zinc-400 uppercase">
+                                            Phone Number
+                                        </p>
+                                        <div className="flex items-center gap-3 font-medium text-zinc-900 dark:text-zinc-100">
+                                            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-zinc-100 text-zinc-500 dark:bg-zinc-800">
                                                 <Phone className="h-4 w-4" />
                                             </div>
-                                            {addrbook.phone || 'No data available'}
+                                            {addrbook.phone ||
+                                                'No data available'}
                                         </div>
                                     </div>
                                     <div className="space-y-2">
-                                        <p className="text-xs font-bold uppercase tracking-wider text-zinc-400">Email Address</p>
-                                        <div className="flex items-center gap-3 text-zinc-900 dark:text-zinc-100 font-medium">
-                                            <div className="h-9 w-9 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-500">
+                                        <p className="text-xs font-bold tracking-wider text-zinc-400 uppercase">
+                                            Email Address
+                                        </p>
+                                        <div className="flex items-center gap-3 font-medium text-zinc-900 dark:text-zinc-100">
+                                            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-zinc-100 text-zinc-500 dark:bg-zinc-800">
                                                 <Mail className="h-4 w-4" />
                                             </div>
-                                            {addrbook.email || 'No data available'}
+                                            {addrbook.email ||
+                                                'No data available'}
                                         </div>
                                     </div>
                                     <div className="space-y-2">
-                                        <p className="text-xs font-bold uppercase tracking-wider text-zinc-400">Tax Status (PPN)</p>
+                                        <p className="text-xs font-bold tracking-wider text-zinc-400 uppercase">
+                                            Tax Status (PPN)
+                                        </p>
                                         <div className="flex flex-wrap gap-2">
                                             {addrbook.ppn ? (
-                                                <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 border-none px-3 py-1 font-medium">
+                                                <Badge className="border-none bg-emerald-100 px-3 py-1 font-medium text-emerald-700 hover:bg-emerald-100">
                                                     PPN Active ({ppn_rate}%)
                                                 </Badge>
                                             ) : (
-                                                <Badge variant="outline" className="text-zinc-400 border-zinc-200 dark:border-zinc-800 px-3 py-1">PPN Non-Active</Badge>
+                                                <Badge
+                                                    variant="outline"
+                                                    className="border-zinc-200 px-3 py-1 text-zinc-400 dark:border-zinc-800"
+                                                >
+                                                    PPN Non-Active
+                                                </Badge>
                                             )}
                                         </div>
                                     </div>
                                 </div>
 
-                                <div className="pt-6 border-t border-zinc-100 dark:border-zinc-800 space-y-3">
-                                    <p className="text-xs font-bold uppercase tracking-wider text-zinc-400">Full Address</p>
-                                    <div className="flex gap-4 items-start bg-zinc-50/50 dark:bg-zinc-900/50 p-6 rounded-2xl border border-zinc-200 dark:border-zinc-800">
-                                        <div className="h-10 w-10 rounded-xl bg-white dark:bg-zinc-900 flex items-center justify-center shadow-sm text-zinc-500">
+                                <div className="space-y-3 border-t border-zinc-100 pt-6 dark:border-zinc-800">
+                                    <p className="text-xs font-bold tracking-wider text-zinc-400 uppercase">
+                                        Full Address
+                                    </p>
+                                    <div className="flex items-start gap-4 rounded-2xl border border-zinc-200 bg-zinc-50/50 p-6 dark:border-zinc-800 dark:bg-zinc-900/50">
+                                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-zinc-500 shadow-sm dark:bg-zinc-900">
                                             <MapPin className="h-5 w-5" />
                                         </div>
-                                        <p className="text-zinc-600 dark:text-zinc-300 leading-relaxed whitespace-pre-line text-sm md:text-base">
-                                            {addrbook.address || 'No address provided'}
+                                        <p className="text-sm leading-relaxed whitespace-pre-line text-zinc-600 md:text-base dark:text-zinc-300">
+                                            {addrbook.address ||
+                                                'No address provided'}
                                         </p>
                                     </div>
                                 </div>
 
                                 {addrbook.description && (
                                     <div className="space-y-3">
-                                        <p className="text-xs font-bold uppercase tracking-wider text-zinc-400">Description / Internal Notes</p>
-                                        <p className="text-sm text-zinc-600 dark:text-zinc-400 italic">
+                                        <p className="text-xs font-bold tracking-wider text-zinc-400 uppercase">
+                                            Description / Internal Notes
+                                        </p>
+                                        <p className="text-sm text-zinc-600 italic dark:text-zinc-400">
                                             {addrbook.description}
                                         </p>
                                     </div>
                                 )}
-
-
                             </CardContent>
                         </Card>
 
                         <div className="space-y-8">
-                            <Card className="rounded-2xl border-none bg-blue-600 text-white shadow-xl shadow-blue-600/20 overflow-hidden relative">
+                            <Card className="relative overflow-hidden rounded-2xl border-none bg-blue-600 text-white shadow-xl shadow-blue-600/20">
                                 <div className="absolute top-0 right-0 p-8 opacity-10">
                                     <BarChart3 className="h-32 w-32 rotate-12" />
                                 </div>
                                 <CardContent className="p-8">
-                                    <p className="text-blue-100 text-sm font-medium mb-1 uppercase tracking-widest">Current Balance</p>
-                                    <h3 className="text-4xl font-extrabold truncate">
-                                        {formatCurrency(addrbook.stat?.balance || 0)}
+                                    <p className="mb-1 text-sm font-medium tracking-widest text-blue-100 uppercase">
+                                        Current Balance
+                                    </p>
+                                    <h3 className="truncate text-4xl font-extrabold">
+                                        {formatCurrency(
+                                            addrbook.stat?.balance || 0,
+                                        )}
                                     </h3>
-                                    <p className="text-blue-200 text-xs mt-4">Total outstanding or credit balance</p>
+                                    <p className="mt-4 text-xs text-blue-200">
+                                        Total outstanding or credit balance
+                                    </p>
                                 </CardContent>
                             </Card>
 
-                            <Card className="rounded-2xl border-zinc-200 dark:border-zinc-800 shadow-sm overflow-hidden">
+                            <Card className="overflow-hidden rounded-2xl border-zinc-200 shadow-sm dark:border-zinc-800">
                                 <CardHeader className="p-6 pb-2">
-                                    <CardTitle className="text-sm font-bold uppercase tracking-wider text-zinc-400">Account Metadata</CardTitle>
+                                    <CardTitle className="text-sm font-bold tracking-wider text-zinc-400 uppercase">
+                                        Account Metadata
+                                    </CardTitle>
                                 </CardHeader>
-                                <CardContent className="p-6 space-y-4">
-                                    <div className="flex justify-between items-center text-sm">
-                                        <span className="text-zinc-500">Joined on</span>
-                                        <span className="font-medium">{new Date(addrbook.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+                                <CardContent className="space-y-4 p-6">
+                                    <div className="flex items-center justify-between text-sm">
+                                        <span className="text-zinc-500">
+                                            Joined on
+                                        </span>
+                                        <span className="font-medium">
+                                            {new Date(
+                                                addrbook.created_at,
+                                            ).toLocaleDateString('id-ID', {
+                                                day: 'numeric',
+                                                month: 'long',
+                                                year: 'numeric',
+                                            })}
+                                        </span>
                                     </div>
-                                    <div className="flex justify-between items-center text-sm">
-                                        <span className="text-zinc-500">Last activity</span>
-                                        <span className="font-medium">{addrbook.dailies?.[0]?.date ? new Date(addrbook.dailies[0].date).toLocaleDateString() : 'N/A'}</span>
+                                    <div className="flex items-center justify-between text-sm">
+                                        <span className="text-zinc-500">
+                                            Last activity
+                                        </span>
+                                        <span className="font-medium">
+                                            {addrbook.dailies?.[0]?.date
+                                                ? new Date(
+                                                      addrbook.dailies[0].date,
+                                                  ).toLocaleDateString()
+                                                : 'N/A'}
+                                        </span>
                                     </div>
                                 </CardContent>
                             </Card>
@@ -321,4 +400,3 @@ export default function AddrbookShow({ addrbook, ppn_rate }: Props) {
         </AppLayout>
     );
 }
-

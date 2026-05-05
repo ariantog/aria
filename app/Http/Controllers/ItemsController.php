@@ -292,6 +292,105 @@ class ItemsController extends Controller
         return redirect()->route('items.index')->with('success', 'Item deleted successfully.');
     }
 
+    public function jubelio(Item $item, \App\Services\JubelioService $jubelioService)
+    {
+        Gate::authorize(Item::getPermissions()['view']);
+
+        $item->load(['group', 'tags']);
+
+        $message = 'ok';
+        $dataJubelio = [];
+
+        if ($item->jubelio_item_id > 0) {
+            $token = $jubelioService->getCachedToken();
+
+            if (! $token) {
+                $message = 'Gagal otentikasi Jubelio';
+            } else {
+                try {
+                    $response = \Illuminate\Support\Facades\Http::withHeaders([
+                        'Content-Type' => 'application/json',
+                        'authorization' => $token,
+                    ])->post('https://api2.jubelio.com/inventory/items/all-stocks/', [
+                        'ids' => [$item->jubelio_item_id],
+                    ]);
+
+                    if ($response->successful()) {
+                        $result = $response->json();
+                        if (empty($result['data'])) {
+                            $message = 'Item tidak ditemukan di Jubelio';
+                        } else {
+                            $dataJubelio = $result['data'][0];
+                        }
+                    } else {
+                        $message = 'Gagal mengambil data dari Jubelio: '.$response->status();
+                    }
+                } catch (\Exception $e) {
+                    $message = 'Error: '.$e->getMessage();
+                }
+            }
+        } else {
+            $message = 'Item belum terhubung dengan Jubelio';
+        }
+
+        return Inertia::render('Items/Jubelio', [
+            'item' => $item,
+            'dataJubelio' => $dataJubelio,
+            'message' => $message,
+        ]);
+    }
+
+    public function getJubelioItems(Item $item, \App\Services\JubelioService $jubelioService, Request $request)
+    {
+        Gate::authorize(Item::getPermissions()['edit']);
+
+        $token = $jubelioService->getCachedToken();
+
+        if (! $token) {
+            return back()->withErrors(['message' => 'Gagal otentikasi Jubelio']);
+        }
+
+        $query = $request->input('q', $item->code);
+
+        try {
+            $response = \Illuminate\Support\Facades\Http::withHeaders([
+                'Content-Type' => 'application/json',
+                'authorization' => $token,
+            ])->get('https://api2.jubelio.com/inventory/items/to-stock/', [
+                'q' => $query,
+            ]);
+
+            if ($response->successful()) {
+                $result = $response->json();
+
+                return Inertia::render('Items/JubelioSearch', [
+                    'item' => $item,
+                    'jubelioItems' => $result['data'] ?? [],
+                    'query' => $query,
+                ]);
+            }
+
+            return back()->withErrors(['message' => 'Gagal mengambil daftar item dari Jubelio']);
+        } catch (\Exception $e) {
+            return back()->withErrors(['message' => 'Error: '.$e->getMessage()]);
+        }
+    }
+
+    public function updateJubelioId(Item $item, Request $request)
+    {
+        Gate::authorize(Item::getPermissions()['edit']);
+
+        $request->validate([
+            'jubelio_item_id' => 'nullable|integer',
+        ]);
+
+        $item->update([
+            'jubelio_item_id' => $request->jubelio_item_id,
+        ]);
+
+        return redirect()->route('items.jubelio', $item->id)->with('success', 'Koneksi Jubelio diperbarui');
+    }
+
     public function group(Request $request)
     {
         Gate::authorize(Item::getPermissions()['view']);

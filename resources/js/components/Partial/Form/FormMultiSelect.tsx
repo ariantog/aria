@@ -1,18 +1,17 @@
-
-import * as React from "react";
-import { X, ChevronsUpDown } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Label } from "@/components/ui/label";
+import * as React from 'react';
+import { X, ChevronsUpDown } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Label } from '@/components/ui/label';
 import {
     DropdownMenu,
     DropdownMenuCheckboxItem,
     DropdownMenuContent,
     DropdownMenuTrigger,
     DropdownMenuLabel,
-    DropdownMenuSeparator
-} from "@/components/ui/dropdown-menu";
+    DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
 
 interface Option {
     value: string;
@@ -33,8 +32,8 @@ export default function FormMultiSelect({
     options,
     value = [], // Ensure default empty array
     onValueChange,
-    placeholder = "Select items...",
-    error
+    placeholder = 'Select items...',
+    error,
 }: FormMultiSelectProps) {
     const selectedValues = Array.isArray(value) ? value : [];
 
@@ -55,7 +54,7 @@ export default function FormMultiSelect({
 
     return (
         <div className="space-y-2">
-            <Label className="text-zinc-300 font-medium">{label}</Label>
+            <Label className="font-medium text-zinc-300">{label}</Label>
 
             <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -63,28 +62,32 @@ export default function FormMultiSelect({
                         variant="outline"
                         role="combobox"
                         className={cn(
-                            "w-full justify-between h-auto min-h-[2.75rem] py-2 bg-zinc-950 border-zinc-800 text-zinc-100 hover:bg-zinc-900 group",
-                            error && "border-red-500 ring-red-500/20"
+                            'group h-auto min-h-[2.75rem] w-full justify-between border-zinc-800 bg-zinc-950 py-2 text-zinc-100 hover:bg-zinc-900',
+                            error && 'border-red-500 ring-red-500/20',
                         )}
                     >
-                        <div className="flex flex-wrap gap-1 items-center text-left">
+                        <div className="flex flex-wrap items-center gap-1 text-left">
                             {!displayPlaceholder ? (
                                 selectedValues.map((val) => {
-                                    const option = options.find((o) => o.value === val);
+                                    const option = options.find(
+                                        (o) => o.value === val,
+                                    );
                                     return (
                                         <Badge
                                             key={val}
                                             variant="secondary"
-                                            className="bg-zinc-800 text-zinc-100 hover:bg-zinc-700 font-normal pr-1 shrink-0"
+                                            className="shrink-0 bg-zinc-800 pr-1 font-normal text-zinc-100 hover:bg-zinc-700"
                                         >
                                             {option?.label || val}
                                             <div
-                                                className="ml-1 ring-offset-background rounded-full outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 cursor-pointer"
+                                                className="ml-1 cursor-pointer rounded-full ring-offset-background outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
                                                 onMouseDown={(e) => {
                                                     e.preventDefault();
                                                     e.stopPropagation();
                                                 }}
-                                                onClick={(e) => handleRemove(val, e)}
+                                                onClick={(e) =>
+                                                    handleRemove(val, e)
+                                                }
                                             >
                                                 <X className="h-3 w-3 text-zinc-400 hover:text-zinc-200" />
                                             </div>
@@ -92,33 +95,41 @@ export default function FormMultiSelect({
                                     );
                                 })
                             ) : (
-                                <span className="text-zinc-500 font-normal">{placeholder}</span>
+                                <span className="font-normal text-zinc-500">
+                                    {placeholder}
+                                </span>
                             )}
                         </div>
-                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50 text-zinc-500" />
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 text-zinc-500 opacity-50" />
                     </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-[--radix-dropdown-menu-trigger-width] min-w-[var(--radix-dropdown-menu-trigger-width)] max-h-[300px] overflow-y-auto bg-zinc-900 border-zinc-800 text-zinc-100">
-                    <DropdownMenuLabel className="text-zinc-400 text-xs">{label}</DropdownMenuLabel>
+                <DropdownMenuContent className="max-h-[300px] w-[--radix-dropdown-menu-trigger-width] min-w-[var(--radix-dropdown-menu-trigger-width)] overflow-y-auto border-zinc-800 bg-zinc-900 text-zinc-100">
+                    <DropdownMenuLabel className="text-xs text-zinc-400">
+                        {label}
+                    </DropdownMenuLabel>
                     <DropdownMenuSeparator className="bg-zinc-800" />
                     {options.length > 0 ? (
                         options.map((option) => (
                             <DropdownMenuCheckboxItem
                                 key={option.value}
                                 checked={selectedValues.includes(option.value)}
-                                onCheckedChange={(checked) => handleSelect(option.value, checked)}
-                                className="text-zinc-100 focus:bg-zinc-800 focus:text-zinc-50 cursor-pointer"
+                                onCheckedChange={(checked) =>
+                                    handleSelect(option.value, checked)
+                                }
+                                className="cursor-pointer text-zinc-100 focus:bg-zinc-800 focus:text-zinc-50"
                             >
                                 {option.label}
                             </DropdownMenuCheckboxItem>
                         ))
                     ) : (
-                        <div className="p-2 text-sm text-zinc-500 text-center">No items available</div>
+                        <div className="p-2 text-center text-sm text-zinc-500">
+                            No items available
+                        </div>
                     )}
                 </DropdownMenuContent>
             </DropdownMenu>
 
-            {error && <div className="text-red-500 text-sm">{error}</div>}
+            {error && <div className="text-sm text-red-500">{error}</div>}
         </div>
     );
 }
