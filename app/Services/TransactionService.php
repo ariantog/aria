@@ -22,48 +22,52 @@ class TransactionService
         });
     }
 
-    protected function updateStock(Transaction $transaction)
+    public function revertTransaction(Transaction $transaction)
+    {
+        DB::transaction(function () use ($transaction) {
+            $this->updateStock($transaction, true);
+            $this->updateBalances($transaction, true);
+        });
+    }
+
+    protected function updateStock(Transaction $transaction, bool $revert = false)
     {
         foreach ($transaction->details as $detail) {
+            $qty = $revert ? -$detail->quantity : $detail->quantity;
+
             // Update Sender (Stock Out)
             if ($transaction->sender_id) {
-                $this->adjustStock($transaction->sender_id, $transaction->sender_type, $detail->item_id, -$detail->quantity);
+                $this->adjustStock($transaction->sender_id, $transaction->sender_type, $detail->item_id, -$qty);
             }
 
             // Update Receiver (Stock In)
             if ($transaction->receiver_id) {
-                $this->adjustStock($transaction->receiver_id, $transaction->receiver_type, $detail->item_id, $detail->quantity);
+                $this->adjustStock($transaction->receiver_id, $transaction->receiver_type, $detail->item_id, $qty);
             }
 
             // Update Global Item Stock
-            $this->updateGlobalStock($transaction, $detail);
+            $this->updateGlobalStock($transaction, $detail, $revert);
         }
     }
 
-    protected function updateGlobalStock(Transaction $transaction, $detail)
+    protected function updateGlobalStock(Transaction $transaction, $detail, bool $revert = false)
     {
         $item = \App\Models\Item::find($detail->item_id);
         if (! $item) {
             return;
         }
 
-        // Logic:
-        // Buy: Supplier -> Warehouse (Increase Global Stock)
-        // Sell: Warehouse -> Customer (Decrease Global Stock)
-        // Move: Warehouse -> Warehouse (No Change)
-        // Transfer, Adjust: Depends.
+        $qty = $revert ? -$detail->quantity : $detail->quantity;
 
         if ($transaction->type === Transaction::TYPE_BUY) {
-            $item->increment('qty', $detail->quantity);
+            $item->increment('qty', $qty);
         } elseif ($transaction->type === Transaction::TYPE_SELL) {
-            $item->decrement('qty', $detail->quantity);
+            $item->decrement('qty', $qty);
         } elseif ($transaction->type === Transaction::TYPE_RETURN) {
-            $item->increment('qty', $detail->quantity);
+            $item->increment('qty', $qty);
         } elseif ($transaction->type === Transaction::TYPE_RETURN_SUPPLIER) {
-            $item->decrement('qty', $detail->quantity);
+            $item->decrement('qty', $qty);
         }
-        // CASH_IN does not affect global stock as it's purely financial.
-        // Add other types if necessary (e.g. production, return)
     }
 
     protected function adjustStock($warehouseId, $warehouseType, $itemId, $quantity)
@@ -83,9 +87,9 @@ class TransactionService
         $wi->save();
     }
 
-    protected function updateBalances(Transaction $transaction)
+    protected function updateBalances(Transaction $transaction, bool $revert = false)
     {
-        $amount = $transaction->grand_total;
+        $amount = $revert ? -$transaction->grand_total : $transaction->grand_total;
 
         if ($transaction->type === Transaction::TYPE_BUY && $transaction->sender_id) {
             // BUY: Sender (Supplier) balance increases (+)
@@ -106,7 +110,6 @@ class TransactionService
             $this->updateDailyReports($transaction, 'receiver', $amount);
         } elseif ($transaction->type === Transaction::TYPE_CASH_IN) {
             // CASH_IN: Increase balance for both sides (Sender: Source of funds, Receiver: Bank account)
-            // legacy: $sm->add($transaction->sender_id,$transaction); $sm->add($transaction->receiver_id,$transaction);
             $this->updateEntityBalance($transaction, 'sender', $amount);
             $this->updateDailyReports($transaction, 'sender', $amount);
             $this->updateEntityBalance($transaction, 'receiver', $amount);

@@ -40,7 +40,9 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { cn } from '@/lib/utils';
 import { BreadcrumbItem } from '@/types';
+import ConfirmDialog from '@/components/confirm-dialog';
 
 import transactions from '@/routes/transactions';
 import items from '@/routes/items';
@@ -54,9 +56,13 @@ interface Props {
         type_slug: string;
     };
     auth: any;
+    can: {
+        delete_transaction: boolean;
+        edit_transaction: boolean;
+    };
 }
 
-export default function Show({ transaction, config, auth }: Props) {
+export default function Show({ transaction, config, auth, can }: Props) {
     const { delete: destroy } = useForm();
 
     const breadcrumbs: BreadcrumbItem[] = [
@@ -76,13 +82,7 @@ export default function Show({ transaction, config, auth }: Props) {
     const [showSku, setShowSku] = useState(false);
 
     const handleDelete = () => {
-        if (
-            confirm(
-                'Are you absolutely sure you want to delete this transaction? This action cannot be undone.',
-            )
-        ) {
-            destroy(transactions.destroy.url({ transaction: transaction.id }));
-        }
+        destroy(transactions.destroy.url({ transaction: transaction.id }));
     };
 
     const formatNumber = (num: number) => {
@@ -154,14 +154,22 @@ export default function Show({ transaction, config, auth }: Props) {
                             Print
                         </Button>
 
-                        <Button
-                            variant="destructive"
-                            onClick={handleDelete}
-                            className="gap-2"
-                        >
-                            <Trash2 className="h-4 w-4" />
-                            Delete
-                        </Button>
+                        {can.delete_transaction && (
+                            <ConfirmDialog
+                                onConfirm={handleDelete}
+                                title="Hapus Transaksi"
+                                description="Apakah Anda yakin ingin menghapus transaksi ini? Transaksi akan dipindahkan ke daftar hapus dan dampak stok/saldo akan dibatalkan."
+                                trigger={
+                                    <Button
+                                        variant="destructive"
+                                        className="gap-2"
+                                    >
+                                        <Trash2 className="h-4 w-4" />
+                                        Hapus
+                                    </Button>
+                                }
+                            />
+                        )}
                     </div>
                 </div>
 
@@ -247,6 +255,25 @@ export default function Show({ transaction, config, auth }: Props) {
                                         </span>
                                     </div>
                                 )}
+                                {transaction.sync_cek && (
+                                    <div className="flex justify-between pt-2 text-sm">
+                                        <span className="flex items-center gap-1.5 font-bold text-blue-600">
+                                            <RefreshCw className="h-3.5 w-3.5" />{' '}
+                                            Sinkron Jubelio
+                                        </span>
+                                        <Link
+                                            href={`/jubelio-transaction/${transaction.id}/detail-sync`}
+                                        >
+                                            <Badge
+                                                variant="outline"
+                                                className="cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                                            >
+                                                Kelola Sinkron{' '}
+                                                <ExternalLink className="ml-1 h-3 w-3" />
+                                            </Badge>
+                                        </Link>
+                                    </div>
+                                )}
                             </div>
                         </CardContent>
                     </Card>
@@ -276,8 +303,23 @@ export default function Show({ transaction, config, auth }: Props) {
                                                 {transaction.sender.name}
                                             </p>
                                             <p className="mt-1 font-mono text-xs text-muted-foreground">
-                                                ID: {transaction.sender.code}
+                                                ID: {transaction.sender.id}
                                             </p>
+                                            <SideStatus
+                                                submitted={transaction.a_synced}
+                                                needsSync={
+                                                    transaction.sync_cek ===
+                                                        'S' ||
+                                                    transaction.sync_cek === 'B'
+                                                }
+                                                jubelioLocation={
+                                                    transaction.jubelio_a
+                                                }
+                                                isFromJubelio={
+                                                    transaction.is_from_jubelio
+                                                }
+                                                role="sender"
+                                            />
                                         </div>
                                     </div>
 
@@ -345,8 +387,23 @@ export default function Show({ transaction, config, auth }: Props) {
                                                 {transaction.receiver.name}
                                             </p>
                                             <p className="mt-1 font-mono text-xs text-muted-foreground">
-                                                ID: {transaction.receiver.code}
+                                                ID: {transaction.receiver.id}
                                             </p>
+                                            <SideStatus
+                                                submitted={transaction.b_synced}
+                                                needsSync={
+                                                    transaction.sync_cek ===
+                                                        'R' ||
+                                                    transaction.sync_cek === 'B'
+                                                }
+                                                jubelioLocation={
+                                                    transaction.jubelio_b
+                                                }
+                                                isFromJubelio={
+                                                    transaction.is_from_jubelio
+                                                }
+                                                role="receiver"
+                                            />
                                         </div>
                                     </div>
 
@@ -738,5 +795,78 @@ export default function Show({ transaction, config, auth }: Props) {
                 }
             `}</style>
         </AppLayout>
+    );
+}
+
+function SideStatus({
+    submitted,
+    needsSync,
+    jubelioLocation,
+    isFromJubelio,
+    role,
+}: {
+    submitted: boolean;
+    needsSync: boolean;
+    jubelioLocation?: string;
+    isFromJubelio?: boolean;
+    role: 'sender' | 'receiver';
+}) {
+    if (!jubelioLocation) return null;
+
+    if (submitted) {
+        return (
+            <div className="mt-1 flex flex-col gap-1">
+                <Badge className="w-fit gap-1 border-green-500/20 bg-green-500/10 text-[9px] font-bold tracking-tighter text-green-600 uppercase hover:bg-green-500/20">
+                    <CheckCircle2 className="h-2.5 w-2.5" />{' '}
+                    {isFromJubelio
+                        ? 'Tersinkron (Sistem)'
+                        : 'Tersinkron ke Jubelio'}
+                </Badge>
+                <p className="ml-1 text-[10px] text-muted-foreground italic">
+                    Lok: {jubelioLocation}
+                </p>
+            </div>
+        );
+    }
+
+    if (needsSync) {
+        return (
+            <div className="mt-1 flex flex-col gap-1">
+                <Badge
+                    variant="outline"
+                    className={cn(
+                        'w-fit animate-pulse gap-1 text-[9px] font-bold tracking-tighter uppercase',
+                        role === 'sender'
+                            ? 'border-zinc-500/20 bg-zinc-500/10 text-zinc-500'
+                            : 'border-blue-500/20 bg-blue-500/10 text-blue-500',
+                    )}
+                >
+                    <div
+                        className={cn(
+                            'h-1.5 w-1.5 rounded-full',
+                            role === 'sender' ? 'bg-zinc-500' : 'bg-blue-500',
+                        )}
+                    />
+                    Menunggu Sinkron
+                </Badge>
+                <p className="ml-1 text-[10px] font-medium text-muted-foreground italic">
+                    Target: {jubelioLocation}
+                </p>
+            </div>
+        );
+    }
+
+    return (
+        <div className="mt-1 flex flex-col gap-1 opacity-50">
+            <Badge
+                variant="secondary"
+                className="w-fit gap-1 text-[9px] font-bold tracking-tighter uppercase"
+            >
+                <Info className="h-2.5 w-2.5" /> Mapping Aktif
+            </Badge>
+            <p className="ml-1 text-[10px] text-muted-foreground italic">
+                Terhubung ke: {jubelioLocation}
+            </p>
+        </div>
     );
 }

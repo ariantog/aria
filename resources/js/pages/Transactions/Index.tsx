@@ -16,6 +16,7 @@ import { Badge } from '@/components/ui/badge';
 import Pagination from '@/components/Partial/Pagination';
 import FilterTransaction from '@/components/Partial/Filter/FilterTransaction';
 import transactionsRoutes from '@/routes/transactions';
+import ConfirmDialog from '@/components/confirm-dialog';
 import {
     Search,
     Plus,
@@ -24,6 +25,7 @@ import {
     ArrowUp,
     ArrowDown,
     ArrowUpDown,
+    Trash2,
 } from 'lucide-react';
 import {
     DropdownMenu,
@@ -66,6 +68,11 @@ interface Props {
         min_total?: string;
         max_total?: string;
     };
+    can: {
+        create_transaction: boolean;
+        delete_transaction: boolean;
+        [key: string]: boolean;
+    };
 }
 
 const breadcrumbs = [
@@ -89,6 +96,7 @@ const typeOptions = [
 export default function Index({
     transactions: paginatedTransactions,
     filters,
+    can,
 }: Props) {
     const formatDate = (dateString: string) => {
         const date = new Date(dateString);
@@ -196,6 +204,10 @@ export default function Index({
         });
     };
 
+    const handleDelete = (id: number) => {
+        router.delete(`/transactions/${id}`);
+    };
+
     const SortIcon = ({ column }: { column: string }) => {
         if (filters.sort !== column)
             return <ArrowUpDown className="ml-2 h-4 w-4 text-zinc-400" />;
@@ -224,6 +236,19 @@ export default function Index({
                             Manage and track your buy, sell, and transfer
                             transactions.
                         </p>
+                    </div>
+                    <div className="flex gap-2">
+                        {can.delete_transaction && (
+                            <Link href="/transactions/deleted">
+                                <Button
+                                    variant="outline"
+                                    className="flex items-center gap-2 border-rose-200 text-rose-600 hover:bg-rose-50 hover:text-rose-700 dark:border-rose-900/50 dark:text-rose-400"
+                                >
+                                    <Trash2 className="h-4 w-4" />
+                                    View Deleted
+                                </Button>
+                            </Link>
+                        )}
                     </div>
                 </div>
 
@@ -401,6 +426,30 @@ export default function Index({
                                                             View Details
                                                         </DropdownMenuItem>
                                                         <DropdownMenuSeparator />
+                                                        {can.delete_transaction && (
+                                                            <ConfirmDialog
+                                                                onConfirm={() =>
+                                                                    handleDelete(
+                                                                        transaction.id,
+                                                                    )
+                                                                }
+                                                                title="Hapus Transaksi"
+                                                                description="Apakah Anda yakin ingin menghapus transaksi ini? Transaksi akan dipindahkan ke daftar hapus dan dampak stok/saldo akan dibatalkan."
+                                                                trigger={
+                                                                    <DropdownMenuItem
+                                                                        className="text-rose-600 focus:bg-rose-50 focus:text-rose-700 dark:text-rose-400 dark:focus:bg-rose-900/20"
+                                                                        onSelect={(
+                                                                            e,
+                                                                        ) =>
+                                                                            e.preventDefault()
+                                                                        }
+                                                                    >
+                                                                        <Trash2 className="mr-2 h-4 w-4" />{' '}
+                                                                        Delete
+                                                                    </DropdownMenuItem>
+                                                                }
+                                                            />
+                                                        )}
                                                     </DropdownMenuContent>
                                                 </DropdownMenu>
                                             </TableCell>

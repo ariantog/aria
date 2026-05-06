@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Jubeliosync;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -49,6 +50,7 @@ class TransactionsController extends Controller
             'filters' => $request->only(['from', 'to', 'sort', 'direction', 'type', 'invoice_number', 'min_total', 'max_total']),
             'can' => [
                 'create_transaction' => Auth::user()->can(\App\Models\Transaction::getPermissions()['create']),
+                'delete_transaction' => Auth::user()->can(\App\Models\Transaction::getPermissions()['delete']),
                 'type_buy' => Auth::user()->can(\App\Models\Transaction::getPermissions()['type_buy']),
                 'type_sell' => Auth::user()->can(\App\Models\Transaction::getPermissions()['type_sell']),
                 'type_move' => Auth::user()->can(\App\Models\Transaction::getPermissions()['type_move']),
@@ -257,7 +259,7 @@ class TransactionsController extends Controller
     public function show(\App\Models\Transaction $transaction)
     {
         \Illuminate\Support\Facades\Gate::authorize(\App\Models\Transaction::getPermissions()['show']);
-        $transaction->load(['details.item', 'sender', 'receiver', 'user']);
+        $transaction->load(['details.item', 'sender', 'receiver', 'user', 'submitByA', 'submitByB']);
 
         // Find transaction type key from ID
         $typeKey = collect(config('transaction_rules'))->firstWhere('id', $transaction->type);
@@ -277,12 +279,59 @@ class TransactionsController extends Controller
             return 'Contact';
         };
 
+        // Refined Sync Relevance Logic
+        $isManual = $transaction->submit_type === \App\Models\Transaction::SUBMIT_TYPE_MANUAL;
+        $isFromJubelio = $transaction->submit_type === \App\Models\Transaction::SUBMIT_TYPE_JUBELIO;
+
+        $syncRelevantA = in_array($transaction->type, [\App\Models\Transaction::TYPE_SELL, \App\Models\Transaction::TYPE_RETURN_SUPPLIER, \App\Models\Transaction::TYPE_MOVE]);
+        $syncRelevantB = in_array($transaction->type, [\App\Models\Transaction::TYPE_BUY, \App\Models\Transaction::TYPE_RETURN, \App\Models\Transaction::TYPE_MOVE]);
+
+        $jubSyncA = Jubeliosync::where('warehouse_id', $transaction->sender_id)->first();
+        $jubSyncB = Jubeliosync::where('warehouse_id', $transaction->receiver_id)->first();
+
+        // Only expose Jubelio location if it's MANUAL AND mapped AND relevant to this transaction type
+        $transaction->jubelio_a = ($isManual && $jubSyncA && $syncRelevantA) ? $jubSyncA->jubelio_location_name : null;
+        $transaction->jubelio_b = ($isManual && $jubSyncB && $syncRelevantB) ? $jubSyncB->jubelio_location_name : null;
+
+        $syncedWarehouseIds = Jubeliosync::pluck('warehouse_id')->toArray();
+        $sync_cek = null;
+
+        if ($isManual) {
+            if (in_array($transaction->type, [\App\Models\Transaction::TYPE_SELL, \App\Models\Transaction::TYPE_RETURN_SUPPLIER])) {
+                $sync_cek = in_array($transaction->sender_id, $syncedWarehouseIds) ? 'S' : null;
+            } elseif (in_array($transaction->type, [\App\Models\Transaction::TYPE_BUY, \App\Models\Transaction::TYPE_RETURN])) {
+                $sync_cek = in_array($transaction->receiver_id, $syncedWarehouseIds) ? 'R' : null;
+            } elseif ($transaction->type == \App\Models\Transaction::TYPE_MOVE) {
+                $senderSynced = in_array($transaction->sender_id, $syncedWarehouseIds);
+                $receiverSynced = in_array($transaction->receiver_id, $syncedWarehouseIds);
+
+                if ($senderSynced && $receiverSynced) {
+                    $sync_cek = 'B';
+                } elseif ($senderSynced) {
+                    $sync_cek = 'S';
+                } elseif ($receiverSynced) {
+                    $sync_cek = 'R';
+                }
+            }
+        }
+
+        $transaction->sync_cek = $sync_cek;
+
+        // Determine actual sync state for the badges (Manual transactions only)
+        $transaction->a_synced = $isManual && (bool) $transaction->a_submit_by;
+        $transaction->b_synced = $isManual && (bool) $transaction->b_submit_by;
+        $transaction->is_from_jubelio = $isFromJubelio;
+
         return inertia('Transactions/Show', [
             'transaction' => $transaction,
             'config' => [
                 'sender_label' => $getLabel('sender'),
                 'receiver_label' => $getLabel('receiver'),
                 'type_slug' => $typeSlug,
+            ],
+            'can' => [
+                'delete_transaction' => Auth::user()->can(\App\Models\Transaction::getPermissions()['delete']),
+                'edit_transaction' => Auth::user()->can(\App\Models\Transaction::getPermissions()['edit']),
             ],
         ]);
     }
@@ -546,5 +595,33 @@ class TransactionsController extends Controller
         });
 
         return redirect()->route('transactions.index')->with('success', 'Adjust record created: #'.$trx->id);
+    }
+
+    public function destroy(\App\Models\Transaction $transaction, \App\Services\TransactionService $service)
+    {
+        \Illuminate\Support\Facades\Gate::authorize(\App\Models\Transaction::getPermissions()['delete']);
+
+        \Illuminate\Support\Facades\DB::transaction(function () use ($transaction, $service) {
+            // 1. Reverse side effects (stock, balance, etc.)
+            $service->revertTransaction($transaction);
+
+            // 2. Copy Transaction to DeletedTransaction
+            $transactionData = $transaction->getAttributes();
+            $transactionData['deleted_at'] = now();
+            \App\Models\DeletedTransaction::create($transactionData);
+
+            // 3. Copy Details to DeletedTransactionDetail
+            foreach ($transaction->details as $detail) {
+                $detailData = $detail->getAttributes();
+                $detailData['deleted_at'] = now();
+                \App\Models\DeletedTransactionDetail::create($detailData);
+            }
+
+            // 4. Physically remove from main tables (Moving the data)
+            $transaction->details()->forceDelete();
+            $transaction->forceDelete();
+        });
+
+        return redirect()->route('transactions.index')->with('success', 'Transaction moved to deleted.');
     }
 }

@@ -117,6 +117,9 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::get('items/{item}/stats', [App\Http\Controllers\ItemsController::class, 'itemStats'])->name('items.stats');
 
     // Transactions Routes
+    Route::get('transactions/deleted', [App\Http\Controllers\DeletedTransactionsController::class, 'index'])->name('transactions.deleted.index');
+    Route::get('transactions/deleted/{id}', [App\Http\Controllers\DeletedTransactionsController::class, 'show'])->name('transactions.deleted.show');
+    Route::post('transactions/deleted/{id}/restore', [App\Http\Controllers\DeletedTransactionsController::class, 'restore'])->name('transactions.deleted.restore');
     Route::get('transactions', [App\Http\Controllers\TransactionsController::class, 'index'])->name('transactions.index');
     Route::post('transactions', [App\Http\Controllers\TransactionsController::class, 'store'])->name('transactions.store');
 

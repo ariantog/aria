@@ -49,6 +49,7 @@ interface Transaction {
 
 interface Props {
     data: Transaction;
+    can_sync: boolean;
     JubelioA: string | null;
     JubelioB: string | null;
     adJustTypeA: number;
@@ -61,6 +62,7 @@ interface Props {
 
 export default function DetailSync({
     data,
+    can_sync,
     JubelioA,
     JubelioB,
     adJustTypeA,
@@ -113,6 +115,21 @@ export default function DetailSync({
                         </h1>
                     </div>
                 </div>
+
+                {!can_sync && (
+                    <div className="flex items-center gap-3 rounded-xl border border-blue-500/20 bg-blue-500/5 p-6 text-blue-600 shadow-sm">
+                        <CheckCircle2 className="h-6 w-6 shrink-0" />
+                        <div>
+                            <h3 className="font-bold">Transaksi Otomatis</h3>
+                            <p className="text-sm opacity-80">
+                                Transaksi ini dikirimkan secara otomatis oleh
+                                sistem (Cron/Jubelio). Sinkronisasi manual tidak
+                                diperlukan dan tidak dapat dilakukan untuk data
+                                ini.
+                            </p>
+                        </div>
+                    </div>
+                )}
 
                 <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
                     <div className="space-y-6 md:col-span-1">
@@ -181,34 +198,42 @@ export default function DetailSync({
                             </div>
                         </div>
 
-                        <div className="space-y-4">
-                            <SyncCard
-                                title="Sender (Side A)"
-                                whName={whAName || data.sender?.name || '-'}
-                                jubName={JubelioA}
-                                type={adJustTypeA}
-                                qty={data.total_items}
-                                submittedBy={data.submit_by_a?.username}
-                                referenceId={data.a_reference_id}
-                                onSync={() => handleAdjust(1, whA, adJustTypeA)}
-                                needsSync={adJustTypeA > 0}
-                                disabled={data.item_with_jubelio_count > 0}
-                                role="sender"
-                            />
-                            <SyncCard
-                                title="Receiver (Side B)"
-                                whName={whBName || data.receiver?.name || '-'}
-                                jubName={JubelioB}
-                                type={adJustTypeB}
-                                qty={data.total_items}
-                                submittedBy={data.submit_by_b?.username}
-                                referenceId={data.b_reference_id}
-                                onSync={() => handleAdjust(2, whB, adJustTypeB)}
-                                needsSync={adJustTypeB > 0}
-                                disabled={data.item_with_jubelio_count > 0}
-                                role="receiver"
-                            />
-                        </div>
+                        {can_sync && (
+                            <div className="space-y-4">
+                                <SyncCard
+                                    title="Sender (Side A)"
+                                    whName={whAName || data.sender?.name || '-'}
+                                    jubName={JubelioA}
+                                    type={adJustTypeA}
+                                    qty={data.total_items}
+                                    submittedBy={data.submit_by_a?.username}
+                                    referenceId={data.a_reference_id}
+                                    onSync={() =>
+                                        handleAdjust(1, whA, adJustTypeA)
+                                    }
+                                    needsSync={adJustTypeA > 0}
+                                    disabled={data.item_with_jubelio_count > 0}
+                                    role="sender"
+                                />
+                                <SyncCard
+                                    title="Receiver (Side B)"
+                                    whName={
+                                        whBName || data.receiver?.name || '-'
+                                    }
+                                    jubName={JubelioB}
+                                    type={adJustTypeB}
+                                    qty={data.total_items}
+                                    submittedBy={data.submit_by_b?.username}
+                                    referenceId={data.b_reference_id}
+                                    onSync={() =>
+                                        handleAdjust(2, whB, adJustTypeB)
+                                    }
+                                    needsSync={adJustTypeB > 0}
+                                    disabled={data.item_with_jubelio_count > 0}
+                                    role="receiver"
+                                />
+                            </div>
+                        )}
                     </div>
 
                     <div className="md:col-span-2">
@@ -217,13 +242,13 @@ export default function DetailSync({
                                 <AlertTriangle className="h-5 w-5 shrink-0" />
                                 <div>
                                     <h3 className="mb-1 font-bold">
-                                        Missing Mappings
+                                        Mapping Item Hilang
                                     </h3>
                                     <p className="text-sm opacity-80">
-                                        There are {data.item_with_jubelio_count}{' '}
-                                        items in this transaction that are not
-                                        linked to Jubelio. You must link them in
-                                        the Items menu before syncing.
+                                        Ada {data.item_with_jubelio_count} item
+                                        dalam transaksi ini yang belum terhubung
+                                        ke Jubelio. Anda harus menghubungkannya
+                                        di menu Item sebelum melakukan sinkron.
                                     </p>
                                 </div>
                             </div>

@@ -329,8 +329,12 @@ class JubelioController extends Controller
             }
         }
 
+        // Only manual transactions can be synced
+        $canSync = $data->submit_type === \App\Models\Transaction::SUBMIT_TYPE_MANUAL;
+
         return Inertia::render('jubelio/DetailSync', [
             'data' => $data,
+            'can_sync' => $canSync,
             'JubelioA' => $JubelioA,
             'JubelioB' => $JubelioB,
             'adJustTypeA' => $adJustTypeA,

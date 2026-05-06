@@ -66,6 +66,7 @@ interface Props {
 
 import addrbookRoutes from '@/routes/addrbook';
 import FilterAddrbook from '@/components/Partial/Filter/FilterAddrbook';
+import ConfirmDialog from '@/components/confirm-dialog';
 
 export default function AddrbookIndex({
     addrbooks,
@@ -77,9 +78,7 @@ export default function AddrbookIndex({
     const { props } = usePage();
 
     const handleDelete = (id: number) => {
-        if (confirm('Are you sure you want to delete this entry?')) {
-            router.delete(addrbookRoutes.destroy.url(id));
-        }
+        router.delete(addrbookRoutes.destroy.url(id));
     };
 
     return (
@@ -255,16 +254,14 @@ export default function AddrbookIndex({
                                                     >
                                                         <FilePen className="h-4 w-4" />
                                                     </Link>
-                                                    <button
-                                                        onClick={() =>
+                                                    <ConfirmDialog
+                                                        onConfirm={() =>
                                                             handleDelete(
                                                                 addrbook.id,
                                                             )
                                                         }
-                                                        className="inline-flex items-center justify-center rounded-md p-2 text-zinc-400 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/20"
-                                                    >
-                                                        <Trash2 className="h-4 w-4" />
-                                                    </button>
+                                                        description="Apakah Anda yakin ingin menghapus data ini?"
+                                                    />
                                                 </div>
                                             </td>
                                         </tr>
