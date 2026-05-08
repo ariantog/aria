@@ -1,7 +1,9 @@
 import { Head, Link, useForm } from '@inertiajs/react';
-import { Plus, Trash2, ArrowLeft, Loader2, Info } from 'lucide-react';
+import axios from 'axios';
+import { Plus, Trash2, ArrowLeft, Loader2, Info, Scan, Camera } from 'lucide-react';
 import { TriangleAlert } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import { toast } from 'sonner';
 import { AsyncCombobox } from '@/components/AsyncCombobox';
 import FormAsyncCombobox from '@/components/Partial/Form/FormAsyncCombobox';
 import FormInput from '@/components/Partial/Form/FormInput';
@@ -17,6 +19,7 @@ import transactions from '@/routes/transactions';
 import { Separator } from '@/components/ui/separator';
 import AppLayout from '@/layouts/app-layout';
 import AddItemDrawer from './AddItemDrawer';
+import CameraScanner from './CameraScanner';
 
 interface Props {
     type: string;
@@ -48,6 +51,8 @@ interface TransactionItem {
 export default function Create({ type, config, ppn_rate, min_date }: Props) {
     const isBuy = type === 'buy';
     const [isAddItemDrawerOpen, setIsAddItemDrawerOpen] = useState(false);
+    const [isCameraScannerOpen, setIsCameraScannerOpen] = useState(false);
+    const [isScanning, setIsScanning] = useState(false);
 
     const { data, setData, post, processing, errors, transform } = useForm({
         date: min_date || new Date().toISOString().split('T')[0],
@@ -120,42 +125,126 @@ export default function Create({ type, config, ppn_rate, min_date }: Props) {
         data.receiver,
     ]);
 
-    // Keyboard Shortcut Ctrl+I
+    // Keyboard Shortcut Ctrl+I and Barcode Scanner (Global)
     useEffect(() => {
+        let buffer = '';
+        let lastKeyTime = Date.now();
+
         const handleKeyDown = (e: KeyboardEvent) => {
+            // Shortcut Ctrl+I
             if (
                 (e.ctrlKey || e.metaKey) &&
                 (e.key.toLowerCase() === 'i' || e.code === 'KeyI')
             ) {
                 e.preventDefault();
                 setIsAddItemDrawerOpen(true);
+                return;
+            }
+
+            // Global Barcode Listener
+            const target = e.target as HTMLElement;
+            // Ignore if typing in an input
+            if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT') {
+                return;
+            }
+
+            const currentTime = Date.now();
+            if (currentTime - lastKeyTime > 50) {
+                buffer = '';
+            }
+            lastKeyTime = currentTime;
+
+            if (e.key === 'Enter') {
+                if (buffer.length > 2) {
+                    e.preventDefault();
+                    handleBarcodeScan(buffer);
+                }
+                buffer = '';
+            } else if (e.key.length === 1) {
+                buffer += e.key;
             }
         };
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, []);
+    }, [data.sender_id, data.receiver_id]);
+
+    const handleBarcodeScan = async (code: string) => {
+        if (isScanning) return;
+        setIsScanning(true);
+
+        try {
+            const response = await axios.get('/items', {
+                params: {
+                    json: true,
+                    code: code,
+                    type: '1,2'
+                }
+            });
+
+            const items = response.data.data || response.data;
+            if (items && items.length > 0) {
+                const item = items[0];
+                
+                // Get stock for selected warehouse
+                const warehouseId = isBuy || type === 'return' ? data.receiver_id : data.sender_id;
+                const whStock = item.warehouse_items?.find((wi: any) => String(wi.warehouse_id) === String(warehouseId))?.quantity || 0;
+
+                addItem({
+                    id: item.id,
+                    code: item.code,
+                    name: item.name,
+                    quantity: 1,
+                    price: config.price_source === 'cost' ? Number(item.cost || 0) : Number(item.price || 0),
+                    discount: 0,
+                    warehouse_name: 'Selected',
+                    warehouse_stock: whStock,
+                    subtotal: config.price_source === 'cost' ? Number(item.cost || 0) : Number(item.price || 0),
+                });
+            } else {
+                toast.error(`Item with code "${code}" not found.`);
+            }
+        } catch (err) {
+            console.error('Barcode scan error:', err);
+            toast.error('Failed to lookup item code.');
+        } finally {
+            setIsScanning(false);
+        }
+    };
 
     const addItem = (itemData: any) => {
         if (!itemData) return;
 
-        setData('items', [
-            ...data.items,
-            {
-                item_id: String(itemData.id),
-                code: itemData.code,
-                name: itemData.name,
-                quantity: itemData.quantity,
-                warehouse_name: itemData.warehouse_name || 'Central',
-                warehouse_stock: itemData.warehouse_stock,
-                price: itemData.price,
-                discount: itemData.discount,
-                subtotal: itemData.subtotal,
-                note: itemData.note,
-            },
-        ]);
-        // Modal closes in modal component, but state managed here?
-        // Logic in modal calls onAdd then onClose ideally.
+        const existingIndex = data.items.findIndex(
+            (i) => String(i.item_id) === String(itemData.id),
+        );
+
+        if (existingIndex > -1) {
+            const newItems = [...data.items];
+            const item = { ...newItems[existingIndex] };
+            item.quantity += Number(itemData.quantity || 1);
+            item.subtotal = item.quantity * item.price - item.discount;
+            newItems[existingIndex] = item;
+            setData('items', newItems);
+            toast.success(`Updated ${item.name} quantity to ${item.quantity}`);
+        } else {
+            setData('items', [
+                ...data.items,
+                {
+                    item_id: String(itemData.id),
+                    code: itemData.code,
+                    name: itemData.name,
+                    quantity: Number(itemData.quantity || 1),
+                    warehouse_name: itemData.warehouse_name || 'Central',
+                    warehouse_stock: itemData.warehouse_stock,
+                    price: Number(itemData.price),
+                    discount: Number(itemData.discount || 0),
+                    subtotal: Number(itemData.subtotal),
+                    note: itemData.note,
+                },
+            ]);
+            toast.success(`${itemData.name} added to list`);
+        }
     };
 
     const removeItem = (index: number) => {
@@ -395,6 +484,18 @@ export default function Create({ type, config, ppn_rate, min_date }: Props) {
                                     </div>
                                     Line Items
                                 </CardTitle>
+                                <div className="flex gap-2">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        type="button"
+                                        onClick={() => setIsCameraScannerOpen(true)}
+                                        className="h-8 gap-1.5 text-xs font-bold"
+                                    >
+                                        <Camera className="h-3.5 w-3.5" />
+                                        Camera Scan
+                                    </Button>
+                                </div>
                             </CardHeader>
                             <CardContent>
                                 {errors.items && (
@@ -442,11 +543,11 @@ export default function Create({ type, config, ppn_rate, min_date }: Props) {
                                     <div className="divide-y">
                                         {data.items.length === 0 && (
                                             <div className="p-8 text-center text-sm text-zinc-500">
-                                                No items added. Press{' '}
+                                                No items added. Scan a barcode or press{' '}
                                                 <span className="rounded bg-zinc-100 px-1 font-mono">
                                                     Ctrl+I
                                                 </span>{' '}
-                                                or click below to add.
+                                                to add.
                                             </div>
                                         )}
                                         {data.items.map((item, index) => (
@@ -522,14 +623,22 @@ export default function Create({ type, config, ppn_rate, min_date }: Props) {
                                 </div>
 
                                 {/* Add New Line Item Button */}
-                                <button
-                                    type="button"
-                                    onClick={() => setIsAddItemDrawerOpen(true)}
-                                    className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed py-3 text-sm text-zinc-400 transition-all hover:border-blue-200 hover:bg-blue-50/30 hover:text-blue-600"
-                                >
-                                    <Plus className="h-4 w-4" /> Add New Line
-                                    Item (Ctrl+I)
-                                </button>
+                                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsAddItemDrawerOpen(true)}
+                                        className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed py-3 text-sm text-zinc-400 transition-all hover:border-blue-200 hover:bg-blue-50/30 hover:text-blue-600"
+                                    >
+                                        <Plus className="h-4 w-4" /> Add Item (Ctrl+I)
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsCameraScannerOpen(true)}
+                                        className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed py-3 text-sm text-zinc-400 transition-all hover:border-zinc-200 hover:bg-zinc-50/50 hover:text-zinc-600 sm:hidden"
+                                    >
+                                        <Scan className="h-4 w-4" /> Scan Barcode
+                                    </button>
+                                </div>
                             </CardContent>
                         </Card>
                     </div>
@@ -678,6 +787,15 @@ export default function Create({ type, config, ppn_rate, min_date }: Props) {
                             : String(config.sender_type) === '2'
                     }
                     type={type}
+                />
+
+                <CameraScanner 
+                    isOpen={isCameraScannerOpen}
+                    onClose={() => setIsCameraScannerOpen(false)}
+                    onScan={(code) => {
+                        handleBarcodeScan(code);
+                        setIsCameraScannerOpen(false);
+                    }}
                 />
             </form>
         </AppLayout>
