@@ -26,6 +26,7 @@ interface Props {
     priceSource?: 'cost' | 'price';
     checkStock?: boolean;
     type?: string;
+    initialItem?: any;
 }
 
 export default function AddItemModal({
@@ -38,6 +39,7 @@ export default function AddItemModal({
     priceSource = 'cost',
     checkStock = false,
     type,
+    initialItem,
 }: Props) {
     const [selectedItem, setSelectedItem] = useState<any>(null);
     const [quantity, setQuantity] = useState('');
@@ -70,16 +72,6 @@ export default function AddItemModal({
         }, 100);
     };
 
-    // Reset state when opening
-    useEffect(() => {
-        if (isOpen) {
-            resetForm();
-            const defaultWh =
-                type === 'buy' || type === 'return' ? receiverId : senderId;
-            setSelectedWarehouseId(defaultWh || '');
-        }
-    }, [isOpen, type, senderId, receiverId]);
-
     const handleItemSelect = (item: any) => {
         setSelectedItem(item);
         const defaultPrice =
@@ -87,8 +79,23 @@ export default function AddItemModal({
                 ? Number(item.cost || 0)
                 : Number(item.price || 0);
         setPrice(String(defaultPrice));
+        setQuantity('1'); // Default to 1 on selection/scan
         setTimeout(() => qtyInputRef.current?.focus(), 50);
     };
+
+    // Reset state when opening
+    useEffect(() => {
+        if (isOpen) {
+            resetForm();
+            const defaultWh =
+                type === 'buy' || type === 'return' ? receiverId : senderId;
+            setSelectedWarehouseId(defaultWh || '');
+
+            if (initialItem) {
+                handleItemSelect(initialItem);
+            }
+        }
+    }, [isOpen, type, senderId, receiverId, initialItem]);
 
     const getStock = () => {
         if (
@@ -169,7 +176,7 @@ export default function AddItemModal({
     };
 
     return (
-        <Sheet open={isOpen} onOpenChange={onClose} modal={false}>
+        <Sheet open={isOpen} onOpenChange={(val) => !val && onClose()}>
             <SheetContent
                 side="right"
                 hideOverlay={true}

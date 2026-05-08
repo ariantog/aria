@@ -53,6 +53,7 @@ export default function Create({ type, config, ppn_rate, min_date }: Props) {
     const [isAddItemDrawerOpen, setIsAddItemDrawerOpen] = useState(false);
     const [isCameraScannerOpen, setIsCameraScannerOpen] = useState(false);
     const [isScanning, setIsScanning] = useState(false);
+    const [scannedItem, setScannedItem] = useState<any>(null);
 
     const { data, setData, post, processing, errors, transform } = useForm({
         date: min_date || new Date().toISOString().split('T')[0],
@@ -185,22 +186,8 @@ export default function Create({ type, config, ppn_rate, min_date }: Props) {
             const items = response.data.data || response.data;
             if (items && items.length > 0) {
                 const item = items[0];
-                
-                // Get stock for selected warehouse
-                const warehouseId = isBuy || type === 'return' ? data.receiver_id : data.sender_id;
-                const whStock = item.warehouse_items?.find((wi: any) => String(wi.warehouse_id) === String(warehouseId))?.quantity || 0;
-
-                addItem({
-                    id: item.id,
-                    code: item.code,
-                    name: item.name,
-                    quantity: 1,
-                    price: config.price_source === 'cost' ? Number(item.cost || 0) : Number(item.price || 0),
-                    discount: 0,
-                    warehouse_name: 'Selected',
-                    warehouse_stock: whStock,
-                    subtotal: config.price_source === 'cost' ? Number(item.cost || 0) : Number(item.price || 0),
-                });
+                setScannedItem(item);
+                setIsAddItemDrawerOpen(true);
             } else {
                 toast.error(`Item with ID "${code}" not found.`);
             }
@@ -775,7 +762,10 @@ export default function Create({ type, config, ppn_rate, min_date }: Props) {
 
                 <AddItemDrawer
                     isOpen={isAddItemDrawerOpen}
-                    onClose={() => setIsAddItemDrawerOpen(false)}
+                    onClose={() => {
+                        setIsAddItemDrawerOpen(false);
+                        setScannedItem(null);
+                    }}
                     onAdd={addItem}
                     isBuy={isBuy}
                     senderId={data.sender_id}
@@ -787,6 +777,7 @@ export default function Create({ type, config, ppn_rate, min_date }: Props) {
                             : String(config.sender_type) === '2'
                     }
                     type={type}
+                    initialItem={scannedItem}
                 />
 
                 <CameraScanner 
