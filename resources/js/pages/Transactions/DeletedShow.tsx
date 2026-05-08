@@ -1,5 +1,3 @@
-import React, { useState } from 'react';
-import AppLayout from '@/layouts/app-layout';
 import { Head, Link, router } from '@inertiajs/react';
 import {
     Printer,
@@ -16,6 +14,9 @@ import {
     AlertCircle,
     Trash2,
 } from 'lucide-react';
+import React, { useState } from 'react';
+import ConfirmDialog from '@/components/confirm-dialog';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
     Card,
@@ -24,16 +25,15 @@ import {
     CardTitle,
     CardDescription,
 } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Separator } from '@/components/ui/separator';
+import AppLayout from '@/layouts/app-layout';
 import { cn } from '@/lib/utils';
-import { BreadcrumbItem } from '@/types';
-import ConfirmDialog from '@/components/confirm-dialog';
-
-import transactions from '@/routes/transactions';
-import items from '@/routes/items';
 import addrbook from '@/routes/addrbook';
+import items from '@/routes/items';
+import transactions from '@/routes/transactions';
+import type { BreadcrumbItem } from '@/types';
+
 
 interface Props {
     transaction: any;

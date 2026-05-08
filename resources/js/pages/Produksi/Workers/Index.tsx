@@ -1,6 +1,18 @@
-import React, { useState, FormEvent } from 'react';
 import { Head, useForm } from '@inertiajs/react';
-import AppLayout from '@/layouts/app-layout';
+import { Plus, Edit, Trash2, Users as UsersIcon } from 'lucide-react';
+import type { FormEvent } from 'react';
+import React, { useState } from 'react';
+import Pagination from '@/components/Partial/Pagination';
+import { Button } from '@/components/ui/button';
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogFooter,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
     Table,
     TableBody,
@@ -9,19 +21,8 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
-    DialogFooter,
-} from '@/components/ui/dialog';
-import { Plus, Edit, Trash2, Users as UsersIcon } from 'lucide-react';
+import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
-import Pagination from '@/components/Partial/Pagination';
 
 interface Worker {
     id: number;

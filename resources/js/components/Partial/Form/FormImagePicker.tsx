@@ -1,7 +1,7 @@
-import React, { useRef, useState } from 'react';
-import { Label } from '@/components/ui/label';
-import { Button } from '@/components/ui/button';
 import { ImagePlus, X } from 'lucide-react';
+import React, { useRef, useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 
 interface FormImagePickerProps {

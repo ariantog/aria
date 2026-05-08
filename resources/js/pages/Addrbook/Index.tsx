@@ -1,8 +1,4 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
-import AppLayout from '@/layouts/app-layout';
-import { BreadcrumbItem } from '@/types';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import {
     FilePen,
     Trash2,
@@ -14,8 +10,15 @@ import {
     User,
     X,
 } from 'lucide-react';
-import { Input } from '@/components/ui/input';
+import ConfirmDialog from '@/components/confirm-dialog';
+import FilterAddrbook from '@/components/Partial/Filter/FilterAddrbook';
 import Pagination from '@/components/Partial/Pagination';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import AppLayout from '@/layouts/app-layout';
+import addrbookRoutes from '@/routes/addrbook';
+import type { BreadcrumbItem } from '@/types';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -64,9 +67,6 @@ interface Props {
     ppn_rate: number;
 }
 
-import addrbookRoutes from '@/routes/addrbook';
-import FilterAddrbook from '@/components/Partial/Filter/FilterAddrbook';
-import ConfirmDialog from '@/components/confirm-dialog';
 
 export default function AddrbookIndex({
     addrbooks,

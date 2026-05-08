@@ -1,16 +1,16 @@
-import { useState, useEffect } from 'react';
-import AppLayout from '@/layouts/app-layout';
 import { Head, Link, useForm } from '@inertiajs/react';
+import { Plus, Trash2, ArrowLeft, Loader2, Info } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { AsyncCombobox } from '@/components/AsyncCombobox';
+import FormInput from '@/components/Partial/Form/FormInput';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Plus, Trash2, ArrowLeft, Loader2, Info } from 'lucide-react';
+import AppLayout from '@/layouts/app-layout';
 import { cn } from '@/lib/utils';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import transactions from '@/routes/transactions';
-import { AsyncCombobox } from '@/components/AsyncCombobox';
-import FormInput from '@/components/Partial/Form/FormInput';
 
 interface Bank {
     id: number;

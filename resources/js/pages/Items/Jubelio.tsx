@@ -1,7 +1,4 @@
 import { Head, Link, useForm } from '@inertiajs/react';
-import AppLayout from '@/layouts/app-layout';
-import { Button } from '@/components/ui/button';
-import { BreadcrumbItem } from '@/types';
 import {
     Image as ImageIcon,
     Search,
@@ -9,6 +6,8 @@ import {
     ExternalLink,
     Box,
 } from 'lucide-react';
+import { useState } from 'react';
+import { Button } from '@/components/ui/button';
 import {
     Card,
     CardContent,
@@ -16,8 +15,9 @@ import {
     CardHeader,
     CardTitle,
 } from '@/components/ui/card';
-import { useState } from 'react';
+import AppLayout from '@/layouts/app-layout';
 import { cn } from '@/lib/utils';
+import type { BreadcrumbItem } from '@/types';
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Items', href: '/items' },

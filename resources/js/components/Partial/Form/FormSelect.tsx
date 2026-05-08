@@ -1,4 +1,6 @@
+import type { LucideIcon } from 'lucide-react';
 import React from 'react';
+import { Label } from '@/components/ui/label';
 import {
     Select,
     SelectContent,
@@ -6,8 +8,6 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import { Label } from '@/components/ui/label';
-import { LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface SelectOption {

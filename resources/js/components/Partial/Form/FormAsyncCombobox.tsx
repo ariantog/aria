@@ -1,6 +1,7 @@
 import React from 'react';
+import type { AsyncComboboxProps } from '@/components/AsyncCombobox';
+import { AsyncCombobox } from '@/components/AsyncCombobox';
 import { Label } from '@/components/ui/label';
-import { AsyncCombobox, AsyncComboboxProps } from '@/components/AsyncCombobox';
 
 interface FormAsyncComboboxProps<T> extends AsyncComboboxProps<T> {
     label: string;

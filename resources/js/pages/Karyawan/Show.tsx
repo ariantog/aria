@@ -1,14 +1,6 @@
 import { Head, Link, router } from '@inertiajs/react';
-import AppLayout from '@/layouts/app-layout';
-import { BreadcrumbItem } from '@/types';
-import {
-    Card,
-    CardContent,
-    CardHeader,
-    CardTitle,
-    CardDescription,
-} from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import { format } from 'date-fns';
+import { id } from 'date-fns/locale';
 import {
     ArrowLeft,
     Edit,
@@ -17,8 +9,16 @@ import {
     Calendar,
     DollarSign,
 } from 'lucide-react';
-import { format } from 'date-fns';
-import { id } from 'date-fns/locale';
+import { Button } from '@/components/ui/button';
+import {
+    Card,
+    CardContent,
+    CardHeader,
+    CardTitle,
+    CardDescription,
+} from '@/components/ui/card';
+import AppLayout from '@/layouts/app-layout';
+import type { BreadcrumbItem } from '@/types';
 
 export default function Show({ karyawan, auth }: any) {
     const breadcrumbs: BreadcrumbItem[] = [

@@ -1,15 +1,7 @@
-import { useState, useEffect } from 'react';
 import { router } from '@inertiajs/react';
-import { Input } from '@/components/ui/input';
 import { Search, X, Filter } from 'lucide-react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -17,6 +9,14 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Input } from '@/components/ui/input';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
 
 interface Props {
     baseUrl: string;

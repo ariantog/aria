@@ -1,10 +1,10 @@
 import { Head, Link, usePage } from '@inertiajs/react';
-import AppLayout from '@/layouts/app-layout';
-import { Button } from '@/components/ui/button';
-import { BreadcrumbItem } from '@/types';
+import { router } from '@inertiajs/react';
 import { Package, BarChart2, ArrowLeft, Calendar, User } from 'lucide-react';
 import { useState } from 'react';
-import { router } from '@inertiajs/react';
+import { Button } from '@/components/ui/button';
+import AppLayout from '@/layouts/app-layout';
+import type { BreadcrumbItem } from '@/types';
 
 interface StatRow {
     transaction_type: number;

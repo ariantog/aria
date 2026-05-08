@@ -1,11 +1,11 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
-import AppLayout from '@/layouts/app-layout';
-import { BreadcrumbItem } from '@/types';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { FilePen, Trash2, Plus, Phone, User, ExternalLink } from 'lucide-react';
-import Pagination from '@/components/Partial/Pagination';
 import FilterAddrbook from '@/components/Partial/Filter/FilterAddrbook';
+import Pagination from '@/components/Partial/Pagination';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import AppLayout from '@/layouts/app-layout';
+import type { BreadcrumbItem } from '@/types';
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Karyawan', href: '/karyawan' },

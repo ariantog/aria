@@ -1,7 +1,4 @@
 import { Head, Link, router } from '@inertiajs/react';
-import AppLayout from '@/layouts/app-layout';
-import { BreadcrumbItem } from '@/types';
-import { Button } from '@/components/ui/button';
 import {
     Calendar,
     Plus,
@@ -10,9 +7,12 @@ import {
     Pencil,
     Send,
 } from 'lucide-react';
+import { useState } from 'react';
+import { AsyncCombobox } from '@/components/AsyncCombobox';
+import ProduksiFilter from '@/components/Partial/Filter/ProduksiFilter';
 import Pagination from '@/components/Partial/Pagination';
 import { Badge } from '@/components/ui/badge';
-import { useState } from 'react';
+import { Button } from '@/components/ui/button';
 import {
     Dialog,
     DialogContent,
@@ -21,8 +21,8 @@ import {
     DialogFooter,
     DialogDescription,
 } from '@/components/ui/dialog';
-import { AsyncCombobox } from '@/components/AsyncCombobox';
-import ProduksiFilter from '@/components/Partial/Filter/ProduksiFilter';
+import AppLayout from '@/layouts/app-layout';
+import type { BreadcrumbItem } from '@/types';
 
 interface Produksi {
     id: number;

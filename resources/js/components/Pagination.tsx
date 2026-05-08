@@ -1,6 +1,6 @@
 import { Link } from '@inertiajs/react';
-import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 interface PaginationLink {
     url: string | null;

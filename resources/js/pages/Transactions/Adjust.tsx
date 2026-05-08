@@ -1,3 +1,6 @@
+import { Head, useForm } from '@inertiajs/react';
+import { AlertCircle, Calendar, FileText, Info, Save } from 'lucide-react';
+import React from 'react';
 import { AsyncCombobox } from '@/components/AsyncCombobox';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -5,11 +8,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import AppLayout from '@/layouts/app-layout';
-import { BreadcrumbItem } from '@/types';
-import { Head, useForm } from '@inertiajs/react';
-import { AlertCircle, Calendar, FileText, Info, Save } from 'lucide-react';
-import React from 'react';
 import transactions from '@/routes/transactions';
+import type { BreadcrumbItem } from '@/types';
 
 interface Props {
     min_date?: string;

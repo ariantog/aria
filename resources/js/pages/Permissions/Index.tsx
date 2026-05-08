@@ -1,14 +1,14 @@
 import { Head, useForm, usePage } from '@inertiajs/react';
-import AppLayout from '@/layouts/app-layout';
+import { Link } from '@inertiajs/react';
+import { Lock, Search, Plus, Zap, Box } from 'lucide-react';
+import FormInput from '@/components/Partial/Form/FormInput';
+import Pagination from '@/components/Partial/Pagination';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { BreadcrumbItem } from '@/types';
+import AppLayout from '@/layouts/app-layout';
 import permissionRoutes from '@/routes/permissions';
-import { Lock, Search, Plus, Zap, Box } from 'lucide-react';
-import { Link } from '@inertiajs/react';
-import Pagination from '@/components/Partial/Pagination';
-import FormInput from '@/components/Partial/Form/FormInput';
+import type { BreadcrumbItem } from '@/types';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {

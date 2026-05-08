@@ -1,3 +1,6 @@
+import { Head, useForm } from '@inertiajs/react';
+import { ArrowRightLeft, Calendar, FileText, Info, Save } from 'lucide-react';
+import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -11,10 +14,7 @@ import {
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import AppLayout from '@/layouts/app-layout';
-import { BreadcrumbItem } from '@/types';
-import { Head, useForm } from '@inertiajs/react';
-import { ArrowRightLeft, Calendar, FileText, Info, Save } from 'lucide-react';
-import React from 'react';
+import type { BreadcrumbItem } from '@/types';
 
 interface Bank {
     id: number;

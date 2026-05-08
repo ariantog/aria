@@ -1,10 +1,4 @@
 import { Head, useForm, Link } from '@inertiajs/react';
-import AppLayout from '@/layouts/app-layout';
-import { Button } from '@/components/ui/button';
-import { BreadcrumbItem } from '@/types';
-import itemRoutes from '@/routes/items';
-import FormInput from '@/components/Partial/Form/FormInput';
-import FormTextarea from '@/components/Partial/Form/FormTextarea';
 import {
     Package,
     DollarSign,
@@ -13,8 +7,9 @@ import {
     Image as ImageIcon,
     Info,
 } from 'lucide-react';
-import AttributeSelector from './Partials/AttributeSelector';
-import ImageUpload from './Partials/ImageUpload';
+import FormInput from '@/components/Partial/Form/FormInput';
+import FormTextarea from '@/components/Partial/Form/FormTextarea';
+import { Button } from '@/components/ui/button';
 import {
     Card,
     CardContent,
@@ -22,6 +17,11 @@ import {
     CardTitle,
     CardDescription,
 } from '@/components/ui/card';
+import AppLayout from '@/layouts/app-layout';
+import itemRoutes from '@/routes/items';
+import type { BreadcrumbItem } from '@/types';
+import AttributeSelector from './Partials/AttributeSelector';
+import ImageUpload from './Partials/ImageUpload';
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Dashboard', href: '/dashboard' },

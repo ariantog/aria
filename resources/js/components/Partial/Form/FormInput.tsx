@@ -1,7 +1,7 @@
+import type { LucideIcon } from 'lucide-react';
 import React from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { LucideIcon } from 'lucide-react';
 
 interface FormInputProps extends React.InputHTMLAttributes<HTMLInputElement> {
     label: string;

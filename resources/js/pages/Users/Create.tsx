@@ -1,15 +1,15 @@
 import { Head, Link, useForm } from '@inertiajs/react';
 // import { useForm } from 'laravel-precognition-react'; // Removed
-import { cn } from '@/lib/utils';
-import AppLayout from '@/layouts/app-layout';
-import { Button } from '@/components/ui/button';
-import { Switch } from '@/components/ui/switch';
-import FormInput from '@/components/Partial/Form/FormInput';
-import FormSelect from '@/components/Partial/Form/FormSelect';
-import { BreadcrumbItem } from '@/types';
-import userRoutes from '@/routes/users';
 import { User, Mail, Lock, Eye, EyeOff, MapPin } from 'lucide-react';
 import { useState } from 'react';
+import FormInput from '@/components/Partial/Form/FormInput';
+import FormSelect from '@/components/Partial/Form/FormSelect';
+import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
+import AppLayout from '@/layouts/app-layout';
+import { cn } from '@/lib/utils';
+import userRoutes from '@/routes/users';
+import type { BreadcrumbItem } from '@/types';
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Users', href: '/users' },

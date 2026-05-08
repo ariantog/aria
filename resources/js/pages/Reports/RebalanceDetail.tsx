@@ -1,6 +1,15 @@
-import AppLayout from '@/layouts/app-layout';
-import { BreadcrumbItem } from '@/types';
 import { Head, Link, router } from '@inertiajs/react';
+import {
+    ArrowLeft,
+    Warehouse,
+    Calendar,
+    Package,
+    TrendingUp,
+    RefreshCw,
+    ArrowRight,
+    CheckCircle2,
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import {
     Card,
     CardContent,
@@ -16,17 +25,8 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
-import { Button } from '@/components/ui/button';
-import {
-    ArrowLeft,
-    Warehouse,
-    Calendar,
-    Package,
-    TrendingUp,
-    RefreshCw,
-    ArrowRight,
-    CheckCircle2,
-} from 'lucide-react';
+import AppLayout from '@/layouts/app-layout';
+import type { BreadcrumbItem } from '@/types';
 
 interface WarehouseStock {
     warehouse_id: number;

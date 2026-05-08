@@ -1,13 +1,10 @@
 import { Head, Link, router } from '@inertiajs/react';
-import AppLayout from '@/layouts/app-layout';
-import { BreadcrumbItem } from '@/types';
-import { Badge } from '@/components/ui/badge';
 import { Command, Search, X, CheckCircle2, Eye, EyeOff } from 'lucide-react';
-import Pagination from '@/components/Pagination';
 import { useState } from 'react';
-import { cn } from '@/lib/utils';
-import { Input } from '@/components/ui/input';
+import Pagination from '@/components/Pagination';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import {
     Select,
     SelectContent,
@@ -15,6 +12,9 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
+import AppLayout from '@/layouts/app-layout';
+import { cn } from '@/lib/utils';
+import type { BreadcrumbItem } from '@/types';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {

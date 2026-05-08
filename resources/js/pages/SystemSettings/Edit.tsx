@@ -1,6 +1,9 @@
 import { Head, useForm, Link } from '@inertiajs/react';
-import AppLayout from '@/layouts/app-layout';
-import { BreadcrumbItem } from '@/types';
+import { Save, ArrowLeft, Settings as SettingsIcon } from 'lucide-react';
+import FormAsyncCombobox from '@/components/Partial/Form/FormAsyncCombobox';
+import FormInput from '@/components/Partial/Form/FormInput';
+import FormSelect from '@/components/Partial/Form/FormSelect';
+import FormTextarea from '@/components/Partial/Form/FormTextarea';
 import { Button } from '@/components/ui/button';
 import {
     Card,
@@ -9,13 +12,10 @@ import {
     CardTitle,
     CardDescription,
 } from '@/components/ui/card';
-import { Save, ArrowLeft, Settings as SettingsIcon } from 'lucide-react';
-import FormInput from '@/components/Partial/Form/FormInput';
-import FormTextarea from '@/components/Partial/Form/FormTextarea';
-import FormSelect from '@/components/Partial/Form/FormSelect';
-import FormAsyncCombobox from '@/components/Partial/Form/FormAsyncCombobox';
 import { Label } from '@/components/ui/label';
+import AppLayout from '@/layouts/app-layout';
 import systemSettings from '@/routes/system-settings';
+import type { BreadcrumbItem } from '@/types';
 
 interface Setting {
     id: number;

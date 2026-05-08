@@ -1,9 +1,4 @@
 import { Head, Link, router } from '@inertiajs/react';
-import AppLayout from '@/layouts/app-layout';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { BreadcrumbItem } from '@/types';
-import roleRoutes from '@/routes/roles';
 import {
     FilePen,
     Trash2,
@@ -12,8 +7,13 @@ import {
     Search,
     Shield,
 } from 'lucide-react';
-import { Input } from '@/components/ui/input';
 import Pagination from '@/components/Partial/Pagination';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import AppLayout from '@/layouts/app-layout';
+import roleRoutes from '@/routes/roles';
+import type { BreadcrumbItem } from '@/types';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {

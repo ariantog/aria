@@ -1,7 +1,4 @@
 import { Head, Link, router } from '@inertiajs/react';
-import AppLayout from '@/layouts/app-layout';
-import { BreadcrumbItem } from '@/types';
-import { Button } from '@/components/ui/button';
 import {
     Package,
     Image as ImageIcon,
@@ -9,11 +6,14 @@ import {
     X,
     Filter,
 } from 'lucide-react';
+import { useState } from 'react';
+import Pagination from '@/components/Partial/Pagination';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import Pagination from '@/components/Partial/Pagination';
-import { useState } from 'react';
+import AppLayout from '@/layouts/app-layout';
+import type { BreadcrumbItem } from '@/types';
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Items', href: '/items' },

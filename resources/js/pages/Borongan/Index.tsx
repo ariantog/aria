@@ -1,9 +1,18 @@
 import { Head, Link, router } from '@inertiajs/react';
-import AppLayout from '@/layouts/app-layout';
-import { BreadcrumbItem } from '@/types';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { format } from 'date-fns';
+import { id } from 'date-fns/locale';
+import { Eye, X, Plus, Search } from 'lucide-react';
+import { useState } from 'react';
+import BoronganFilter from '@/components/Partial/Filter/BoronganFilter';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import {
+    Pagination,
+    PaginationContent,
+    PaginationItem,
+    PaginationLink,
+} from '@/components/ui/pagination';
 import {
     Select,
     SelectContent,
@@ -11,17 +20,8 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import { format } from 'date-fns';
-import { id } from 'date-fns/locale';
-import { Eye, X, Plus, Search } from 'lucide-react';
-import { useState } from 'react';
-import BoronganFilter from '@/components/Partial/Filter/BoronganFilter';
-import {
-    Pagination,
-    PaginationContent,
-    PaginationItem,
-    PaginationLink,
-} from '@/components/ui/pagination';
+import AppLayout from '@/layouts/app-layout';
+import type { BreadcrumbItem } from '@/types';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {

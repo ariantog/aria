@@ -1,11 +1,11 @@
 import { Head, useForm, Link } from '@inertiajs/react';
-import AppLayout from '@/layouts/app-layout';
-import { Button } from '@/components/ui/button';
-import { BreadcrumbItem } from '@/types';
-import locationRoutes from '@/routes/locations';
 import { MapPin, Navigation } from 'lucide-react';
 import FormInput from '@/components/Partial/Form/FormInput';
 import FormTextarea from '@/components/Partial/Form/FormTextarea';
+import { Button } from '@/components/ui/button';
+import AppLayout from '@/layouts/app-layout';
+import locationRoutes from '@/routes/locations';
+import type { BreadcrumbItem } from '@/types';
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Locations', href: '/locations' },

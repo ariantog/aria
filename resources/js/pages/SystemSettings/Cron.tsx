@@ -1,4 +1,11 @@
 import { Head, useForm } from '@inertiajs/react';
+import { useState } from 'react';
+import { toast } from 'sonner';
+import {
+    index as cronIndex,
+    update as cronUpdate,
+    toggle as cronToggle,
+} from '@/actions/App/Http/Controllers/ScheduledTaskController';
 import Heading from '@/components/heading';
 import { Button } from '@/components/ui/button';
 import {
@@ -8,8 +15,23 @@ import {
     CardHeader,
     CardTitle,
 } from '@/components/ui/card';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import {
     Table,
@@ -19,30 +41,8 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
 import AppLayout from '@/layouts/app-layout';
-import {
-    index as cronIndex,
-    update as cronUpdate,
-    toggle as cronToggle,
-} from '@/actions/App/Http/Controllers/ScheduledTaskController';
 import type { BreadcrumbItem } from '@/types';
-import { useState } from 'react';
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from '@/components/ui/dialog';
-import { toast } from 'sonner';
 
 interface ScheduledTask {
     id: number;

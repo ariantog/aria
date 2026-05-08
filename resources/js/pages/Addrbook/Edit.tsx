@@ -1,6 +1,8 @@
 import { Head, useForm, Link } from '@inertiajs/react';
-import AppLayout from '@/layouts/app-layout';
-import { BreadcrumbItem } from '@/types';
+import { User, MapPin, Phone, Mail, Wallet } from 'lucide-react';
+import FormInput from '@/components/Partial/Form/FormInput';
+import FormMultiSelect from '@/components/Partial/Form/FormMultiSelect';
+import FormSelect from '@/components/Partial/Form/FormSelect';
 import { Button } from '@/components/ui/button';
 import {
     Card,
@@ -9,14 +11,12 @@ import {
     CardHeader,
     CardTitle,
 } from '@/components/ui/card';
-import FormInput from '@/components/Partial/Form/FormInput';
-import FormSelect from '@/components/Partial/Form/FormSelect';
-import FormMultiSelect from '@/components/Partial/Form/FormMultiSelect';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { User, MapPin, Phone, Mail, Wallet } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
+import AppLayout from '@/layouts/app-layout';
 import addrbookRoutes from '@/routes/addrbook';
+import type { BreadcrumbItem } from '@/types';
 
 interface Addrbook {
     id: number;

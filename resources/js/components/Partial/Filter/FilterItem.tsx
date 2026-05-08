@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
 import { router } from '@inertiajs/react';
-import { Input } from '@/components/ui/input';
 import { Search, X, Filter } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { AsyncCombobox } from '@/components/AsyncCombobox';
 import { Button } from '@/components/ui/button';
 import {
     DropdownMenu,
@@ -10,8 +10,8 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
-import { AsyncCombobox } from '@/components/AsyncCombobox';
 
 interface Option {
     value: string;

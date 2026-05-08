@@ -1,12 +1,12 @@
 import { Head, useForm, Link } from '@inertiajs/react';
-import AppLayout from '@/layouts/app-layout';
-import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
-import { BreadcrumbItem } from '@/types';
-import PermissionMatrix from '@/components/PermissionMatrix';
-import roleRoutes from '@/routes/roles';
 import { Shield } from 'lucide-react';
 import FormInput from '@/components/Partial/Form/FormInput';
+import PermissionMatrix from '@/components/PermissionMatrix';
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import AppLayout from '@/layouts/app-layout';
+import roleRoutes from '@/routes/roles';
+import type { BreadcrumbItem } from '@/types';
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Roles', href: '/roles' },

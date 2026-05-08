@@ -1,11 +1,11 @@
 import { Head, Link, router } from '@inertiajs/react';
-import AppLayout from '@/layouts/app-layout';
-import { BreadcrumbItem } from '@/types';
-import { Button } from '@/components/ui/button';
 import { FilePen, Trash2, Plus, Settings, ChevronRight } from 'lucide-react';
-import systemSettings from '@/routes/system-settings';
 import { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import AppLayout from '@/layouts/app-layout';
 import { cn } from '@/lib/utils';
+import systemSettings from '@/routes/system-settings';
+import type { BreadcrumbItem } from '@/types';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {

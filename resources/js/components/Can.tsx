@@ -1,5 +1,5 @@
+import type { ReactNode } from 'react';
 import { usePermission } from '@/hooks/usePermission';
-import { ReactNode } from 'react';
 
 interface Props {
     permission?: string;

@@ -1,6 +1,6 @@
 import { Head, Link, useForm } from '@inertiajs/react';
-import { Button } from '@/components/ui/button';
 import { ShieldAlert, LogOut } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { logout } from '@/routes';
 
 export default function Banned() {

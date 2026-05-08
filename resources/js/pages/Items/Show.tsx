@@ -1,8 +1,4 @@
 import { Head, Link, usePage } from '@inertiajs/react';
-import AppLayout from '@/layouts/app-layout';
-import { Button } from '@/components/ui/button';
-import { BreadcrumbItem } from '@/types';
-import itemRoutes from '@/routes/items';
 import {
     FilePen,
     Package,
@@ -12,11 +8,15 @@ import {
     Box,
     ChevronRight,
 } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
-import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
 import { useState } from 'react';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import AppLayout from '@/layouts/app-layout';
 import { cn } from '@/lib/utils';
+import itemRoutes from '@/routes/items';
+import type { BreadcrumbItem } from '@/types';
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Items', href: '/items' },

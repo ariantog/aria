@@ -1,9 +1,9 @@
 import { Head } from '@inertiajs/react';
-import AppLayout from '@/layouts/app-layout';
-import { BreadcrumbItem } from '@/types';
+import { format } from 'date-fns';
 import Pagination from '@/components/Partial/Pagination';
 import { Badge } from '@/components/ui/badge';
-import { format } from 'date-fns';
+import AppLayout from '@/layouts/app-layout';
+import type { BreadcrumbItem } from '@/types';
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Stuff', href: '#' },

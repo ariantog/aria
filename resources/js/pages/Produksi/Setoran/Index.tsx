@@ -1,7 +1,4 @@
-import { useState, FormEvent } from 'react';
 import { Head, router, useForm, Link } from '@inertiajs/react';
-import AppLayout from '@/layouts/app-layout';
-import { BreadcrumbItem } from '@/types';
 import {
     Calendar,
     CheckCircle2,
@@ -12,11 +9,14 @@ import {
     ArrowRight,
     X,
 } from 'lucide-react';
+import type { FormEvent } from 'react';
+import { useState } from 'react';
+import { toast } from 'sonner';
+import { AsyncCombobox } from '@/components/AsyncCombobox';
+import FormInput from '@/components/Partial/Form/FormInput';
 import Pagination from '@/components/Partial/Pagination';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import {
     Dialog,
     DialogContent,
@@ -25,15 +25,16 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
-import { AsyncCombobox } from '@/components/AsyncCombobox';
-import FormInput from '@/components/Partial/Form/FormInput';
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { toast } from 'sonner';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import AppLayout from '@/layouts/app-layout';
+import type { BreadcrumbItem } from '@/types';
 
 interface Produksi {
     id: number;

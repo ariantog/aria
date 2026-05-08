@@ -1,9 +1,9 @@
+import { Combobox, Transition } from '@headlessui/react';
+import axios from 'axios';
+import { Check, ChevronsUpDown, Loader2 } from 'lucide-react';
 import * as React from 'react';
 import { useState, useEffect, Fragment } from 'react';
-import { Combobox, Transition } from '@headlessui/react';
-import { Check, ChevronsUpDown, Loader2 } from 'lucide-react';
 import { useDebounce } from '@/hooks/use-debounce';
-import axios from 'axios';
 import { cn } from '@/lib/utils';
 
 export interface AsyncComboboxProps<T> {

@@ -1,10 +1,4 @@
 import { Head, useForm, Link } from '@inertiajs/react';
-import AppLayout from '@/layouts/app-layout';
-import { Button } from '@/components/ui/button';
-import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
-import { BreadcrumbItem } from '@/types';
-import userRoutes from '@/routes/users';
 import {
     User as UserIcon,
     Mail,
@@ -14,6 +8,12 @@ import {
 } from 'lucide-react';
 import FormInput from '@/components/Partial/Form/FormInput';
 import FormSelect from '@/components/Partial/Form/FormSelect';
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import AppLayout from '@/layouts/app-layout';
+import userRoutes from '@/routes/users';
+import type { BreadcrumbItem } from '@/types';
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Users', href: userRoutes.index.url() },
