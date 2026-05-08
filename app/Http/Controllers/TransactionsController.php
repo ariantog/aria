@@ -42,7 +42,7 @@ class TransactionsController extends Controller
             $transactions->latest();
         }
 
-        $transactions = $transactions->paginate(10)
+        $transactions = $transactions->paginate(50)
             ->withQueryString();
 
         return inertia('Transactions/Index', [
