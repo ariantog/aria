@@ -11,14 +11,18 @@ import { AlertCircle, Calendar, FileText, Info, Save } from 'lucide-react';
 import React from 'react';
 import transactions from '@/routes/transactions';
 
-export default function Adjust() {
+interface Props {
+    min_date?: string;
+}
+
+export default function Adjust({ min_date }: Props) {
     const breadcrumbs: BreadcrumbItem[] = [
         { title: 'Transactions', href: '/transactions' },
         { title: 'New Adjust', href: '/transactions/adjust' },
     ];
 
     const { data, setData, post, processing, errors } = useForm({
-        date: new Date().toISOString().split('T')[0],
+        date: min_date || new Date().toISOString().split('T')[0],
         invoice: '',
         sender: '', // Debit(+)
         receiver: '', // Credit(+)
@@ -69,6 +73,7 @@ export default function Adjust() {
                                         <Input
                                             id="date"
                                             type="date"
+                                            min={min_date}
                                             value={data.date}
                                             onChange={(e) =>
                                                 setData('date', e.target.value)

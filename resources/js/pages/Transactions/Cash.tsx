@@ -21,6 +21,7 @@ interface Props {
     bankList: Bank[];
     ppn_rate: number;
     type: 'in' | 'out'; // Determiner
+    min_date?: string;
 }
 
 interface CashItem {
@@ -54,7 +55,7 @@ export default function Cash({ bankList, ppn_rate, type }: Props) {
     };
 
     const { data, setData, post, processing, errors } = useForm({
-        date: new Date().toISOString().split('T')[0],
+        date: min_date || new Date().toISOString().split('T')[0],
         account_id: '',
         account: null as Bank | null,
         items: [
@@ -237,6 +238,7 @@ export default function Cash({ bankList, ppn_rate, type }: Props) {
                                 id="date"
                                 label="Transaction Date"
                                 type="date"
+                                min={min_date}
                                 value={data.date}
                                 onChange={(e) =>
                                     setData('date', e.target.value)

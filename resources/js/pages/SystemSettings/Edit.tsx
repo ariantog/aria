@@ -12,6 +12,8 @@ import {
 import { Save, ArrowLeft, Settings as SettingsIcon } from 'lucide-react';
 import FormInput from '@/components/Partial/Form/FormInput';
 import FormTextarea from '@/components/Partial/Form/FormTextarea';
+import FormSelect from '@/components/Partial/Form/FormSelect';
+import FormAsyncCombobox from '@/components/Partial/Form/FormAsyncCombobox';
 import { Label } from '@/components/ui/label';
 import systemSettings from '@/routes/system-settings';
 
@@ -20,7 +22,7 @@ interface Setting {
     group: string;
     name: string;
     slug: string;
-    value: string;
+    value: any;
 }
 
 interface Props {
@@ -42,13 +44,24 @@ export default function SettingEdit({ setting }: Props) {
     const { data, setData, put, processing, errors } = useForm({
         group: setting.group || '',
         name: setting.name,
-        value: setting.value || '',
+        value: setting.value ?? '',
     });
 
     const submit = (e: React.FormEvent) => {
         e.preventDefault();
         put(systemSettings.update.url({ system_setting: setting.id }));
     };
+
+    const isAccountSetting = ['sell_100', 'ongkir'].includes(setting.slug);
+    const isTutupBuku = setting.slug === 'tutup_buku';
+    const isNumericSetting = ['batas_cuti_tahunan', 'batas_cuti_sakit'].includes(
+        setting.slug,
+    );
+
+    const tutupBukuOptions = [3, 4, 5, 6, 7, 8, 9, 10, 20, 28].map((day) => ({
+        value: String(day),
+        label: `Tanggal ${day}`,
+    }));
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
@@ -114,15 +127,54 @@ export default function SettingEdit({ setting }: Props) {
                                     required
                                 />
 
-                                <FormTextarea
-                                    id="value"
-                                    label="Value"
-                                    value={data.value}
-                                    onChange={(e) =>
-                                        setData('value', e.target.value)
-                                    }
-                                    error={errors.value}
-                                />
+                                {isTutupBuku ? (
+                                    <FormSelect
+                                        label="Value"
+                                        value={String(data.value)}
+                                        onValueChange={(val) =>
+                                            setData('value', val)
+                                        }
+                                        options={tutupBukuOptions}
+                                        error={errors.value}
+                                        required
+                                    />
+                                ) : isAccountSetting ? (
+                                    <FormAsyncCombobox
+                                        label="Value (Select Account)"
+                                        endpoint="/addrbook/account"
+                                        value={data.value}
+                                        onChange={(val) =>
+                                            setData('value', val)
+                                        }
+                                        placeholder="Select account..."
+                                        error={errors.value}
+                                    />
+                                ) : isNumericSetting ? (
+                                    <FormInput
+                                        id="value"
+                                        label="Value"
+                                        type="number"
+                                        value={String(data.value)}
+                                        onChange={(e) =>
+                                            setData('value', e.target.value)
+                                        }
+                                        error={errors.value}
+                                    />
+                                ) : (
+                                    <FormTextarea
+                                        id="value"
+                                        label="Value"
+                                        value={
+                                            typeof data.value === 'string'
+                                                ? data.value
+                                                : JSON.stringify(data.value)
+                                        }
+                                        onChange={(e) =>
+                                            setData('value', e.target.value)
+                                        }
+                                        error={errors.value}
+                                    />
+                                )}
                             </CardContent>
                         </Card>
 

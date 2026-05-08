@@ -60,9 +60,8 @@ class GajiController extends Controller
             abort(404);
         }
 
-        $settings = Setting::pluck('value', 'name')->toArray();
-        $limitTahunan = isset($settings['batas_cuti_tahunan']) ? (int) $settings['batas_cuti_tahunan'] : 0;
-        $limitSakit = isset($settings['batas_cuti_sakit']) ? (int) $settings['batas_cuti_sakit'] : 0;
+        $limitTahunan = (int) Setting::getValue('batas_cuti_tahunan', 0);
+        $limitSakit = (int) Setting::getValue('batas_cuti_sakit', 0);
 
         $now = Carbon::now();
         $lastmonth = Carbon::now()->subMonth();

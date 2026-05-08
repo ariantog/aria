@@ -29,6 +29,7 @@ interface Props {
         [key: string]: any;
     };
     ppn_rate: number;
+    min_date?: string;
 }
 
 interface TransactionItem {
@@ -44,12 +45,12 @@ interface TransactionItem {
     warehouse_stock?: number; // Added
 }
 
-export default function Create({ type, config, ppn_rate }: Props) {
+export default function Create({ type, config, ppn_rate, min_date }: Props) {
     const isBuy = type === 'buy';
     const [isAddItemDrawerOpen, setIsAddItemDrawerOpen] = useState(false);
 
     const { data, setData, post, processing, errors, transform } = useForm({
-        date: new Date().toISOString().split('T')[0],
+        date: min_date || new Date().toISOString().split('T')[0],
         due_date: '',
         type: type,
         sender_id: '',
@@ -277,6 +278,7 @@ export default function Create({ type, config, ppn_rate }: Props) {
                                         id="date"
                                         label="Date"
                                         type="date"
+                                        min={min_date}
                                         value={data.date}
                                         onChange={(e) =>
                                             setData('date', e.target.value)

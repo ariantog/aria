@@ -18,24 +18,36 @@ class SettingSeeder extends Seeder
                 'slug' => 'ppn_rate',
                 'value' => '11',
             ],
-            // [
-            //     'group' => 'Inventory',
-            //     'name' => 'Default Warehouse',
-            //     'slug' => 'default_warehouse_id',
-            //     'value' => '1',
-            // ],
-            // [
-            //     'group' => 'System',
-            //     'name' => 'Application Name',
-            //     'slug' => 'app_name',
-            //     'value' => 'Core Aria',
-            // ],
-            // [
-            //     'group' => 'Inventory',
-            //     'name' => 'Low Stock Threshold',
-            //     'slug' => 'low_stock_threshold',
-            //     'value' => '10',
-            // ],
+            [
+                'group' => 'Accounting',
+                'name' => 'Tutup Buku',
+                'slug' => 'tutup_buku',
+                'value' => '28',
+            ],
+            [
+                'group' => 'Accounting',
+                'name' => 'Account for 100% Discount',
+                'slug' => 'sell_100',
+                'value' => null,
+            ],
+            [
+                'group' => 'Accounting',
+                'name' => 'Account for Ongkir',
+                'slug' => 'ongkir',
+                'value' => null,
+            ],
+            [
+                'group' => 'HR',
+                'name' => 'Batas Cuti Tahunan',
+                'slug' => 'batas_cuti_tahunan',
+                'value' => '12',
+            ],
+            [
+                'group' => 'HR',
+                'name' => 'Batas Cuti Sakit',
+                'slug' => 'batas_cuti_sakit',
+                'value' => '30',
+            ],
         ];
 
         foreach ($settings as $setting) {

@@ -64,7 +64,7 @@ class TransactionsController extends Controller
         ]);
     }
 
-    public function create(string $type)
+    public function create(string $type, \App\Services\BookClosingService $bookClosingService)
     {
         $permissionKey = 'type_'.str_replace('-', '_', $type);
         $permissions = \App\Models\Transaction::getPermissions();
@@ -106,6 +106,7 @@ class TransactionsController extends Controller
             'type' => $type,
             'config' => $config,
             'ppn_rate' => (float) \App\Models\Setting::getValue('ppn_rate', 11),
+            'min_date' => $bookClosingService->getMinAllowedDate()->toDateString(),
             'suppliers' => [],
             'customers' => [],
             'warehouses' => [],
@@ -113,7 +114,7 @@ class TransactionsController extends Controller
         ]);
     }
 
-    public function store(\Illuminate\Http\Request $request, \App\Services\TransactionService $service)
+    public function store(\Illuminate\Http\Request $request, \App\Services\TransactionService $service, \App\Services\BookClosingService $bookClosingService)
     {
         $validatedType = $request->input('type');
         $permissionKey = 'type_'.str_replace('-', '_', $validatedType);
@@ -141,6 +142,8 @@ class TransactionsController extends Controller
             'discount_percent' => 'nullable|numeric|min:0|max:100',
             'adjustment' => 'nullable|numeric',
         ]);
+
+        $bookClosingService->validateDate($validated['date']);
 
         $config = config("transaction_rules.{$validated['type']}");
 
@@ -336,7 +339,7 @@ class TransactionsController extends Controller
         ]);
     }
 
-    public function cashIn()
+    public function cashIn(\App\Services\BookClosingService $bookClosingService)
     {
         \Illuminate\Support\Facades\Gate::authorize(\App\Models\Transaction::getPermissions()['type_cash_in']);
         $bankList = \App\Models\Addrbook::where('type', \App\Models\Addrbook::TYPE_BANK)->orderBy('name', 'asc')->get();
@@ -344,11 +347,12 @@ class TransactionsController extends Controller
         return inertia('Transactions/Cash', [
             'bankList' => $bankList,
             'ppn_rate' => (float) \App\Models\Setting::getValue('ppn_rate', 11),
+            'min_date' => $bookClosingService->getMinAllowedDate()->toDateString(),
             'type' => 'in',
         ]);
     }
 
-    public function storeCashIn(Request $request, \App\Services\TransactionService $service)
+    public function storeCashIn(Request $request, \App\Services\TransactionService $service, \App\Services\BookClosingService $bookClosingService)
     {
         \Illuminate\Support\Facades\Gate::authorize(\App\Models\Transaction::getPermissions()['type_cash_in']);
         $validated = $request->validate([
@@ -360,6 +364,8 @@ class TransactionsController extends Controller
             'items.*.note' => 'nullable|string',
             'items.*.total' => 'required|numeric|min:0',
         ]);
+
+        $bookClosingService->validateDate($validated['date']);
 
         $createdIds = [];
 
@@ -404,7 +410,7 @@ class TransactionsController extends Controller
         return redirect()->route('transactions.index')->with('success', 'Cash In records created: #'.implode(', #', $createdIds));
     }
 
-    public function cashOut()
+    public function cashOut(\App\Services\BookClosingService $bookClosingService)
     {
         \Illuminate\Support\Facades\Gate::authorize(\App\Models\Transaction::getPermissions()['type_cash_out']);
         $bankList = \App\Models\Addrbook::where('type', \App\Models\Addrbook::TYPE_BANK)->orderBy('name', 'asc')->get();
@@ -412,11 +418,12 @@ class TransactionsController extends Controller
         return inertia('Transactions/Cash', [
             'bankList' => $bankList,
             'ppn_rate' => (float) \App\Models\Setting::getValue('ppn_rate', 11),
+            'min_date' => $bookClosingService->getMinAllowedDate()->toDateString(),
             'type' => 'out',
         ]);
     }
 
-    public function storeCashOut(Request $request, \App\Services\TransactionService $service)
+    public function storeCashOut(Request $request, \App\Services\TransactionService $service, \App\Services\BookClosingService $bookClosingService)
     {
         \Illuminate\Support\Facades\Gate::authorize(\App\Models\Transaction::getPermissions()['type_cash_out']);
         $validated = $request->validate([
@@ -428,6 +435,8 @@ class TransactionsController extends Controller
             'items.*.note' => 'nullable|string',
             'items.*.total' => 'required|numeric|min:0',
         ]);
+
+        $bookClosingService->validateDate($validated['date']);
 
         $createdIds = [];
 
@@ -472,17 +481,18 @@ class TransactionsController extends Controller
         return redirect()->route('transactions.index')->with('success', 'Cash Out records created: #'.implode(', #', $createdIds));
     }
 
-    public function transfer()
+    public function transfer(\App\Services\BookClosingService $bookClosingService)
     {
         \Illuminate\Support\Facades\Gate::authorize(\App\Models\Transaction::getPermissions()['type_transfer']);
         $bankList = \App\Models\Addrbook::where('type', \App\Models\Addrbook::TYPE_BANK)->orderBy('name', 'asc')->get();
 
         return inertia('Transactions/Transfer', [
             'bankList' => $bankList,
+            'min_date' => $bookClosingService->getMinAllowedDate()->toDateString(),
         ]);
     }
 
-    public function storeTransfer(\Illuminate\Http\Request $request, \App\Services\TransactionService $service)
+    public function storeTransfer(\Illuminate\Http\Request $request, \App\Services\TransactionService $service, \App\Services\BookClosingService $bookClosingService)
     {
         \Illuminate\Support\Facades\Gate::authorize(\App\Models\Transaction::getPermissions()['type_transfer']);
         $validated = $request->validate([
@@ -493,6 +503,8 @@ class TransactionsController extends Controller
             'description' => 'nullable|string',
             'total' => 'required|numeric|min:0',
         ]);
+
+        $bookClosingService->validateDate($validated['date']);
 
         $trx = \Illuminate\Support\Facades\DB::transaction(function () use ($validated, $service) {
             $sender = \App\Models\Addrbook::find($validated['sender']);
@@ -529,14 +541,16 @@ class TransactionsController extends Controller
         return redirect()->route('transactions.index')->with('success', 'Transfer record created: #'.$trx->id);
     }
 
-    public function adjust()
+    public function adjust(\App\Services\BookClosingService $bookClosingService)
     {
         \Illuminate\Support\Facades\Gate::authorize(\App\Models\Transaction::getPermissions()['type_adjust']);
 
-        return inertia('Transactions/Adjust');
+        return inertia('Transactions/Adjust', [
+            'min_date' => $bookClosingService->getMinAllowedDate()->toDateString(),
+        ]);
     }
 
-    public function storeAdjust(\Illuminate\Http\Request $request, \App\Services\TransactionService $service)
+    public function storeAdjust(\Illuminate\Http\Request $request, \App\Services\TransactionService $service, \App\Services\BookClosingService $bookClosingService)
     {
         \Illuminate\Support\Facades\Gate::authorize(\App\Models\Transaction::getPermissions()['type_adjust']);
         $validated = $request->validate([
@@ -547,6 +561,8 @@ class TransactionsController extends Controller
             'description' => 'nullable|string',
             'total' => 'required|numeric|min:0',
         ]);
+
+        $bookClosingService->validateDate($validated['date']);
 
         $trx = \Illuminate\Support\Facades\DB::transaction(function () use ($validated, $service) {
             $sender = \App\Models\Addrbook::find($validated['sender']);

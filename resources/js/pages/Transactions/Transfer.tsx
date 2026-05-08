@@ -23,16 +23,17 @@ interface Bank {
 
 interface Props {
     bankList: Bank[];
+    min_date?: string;
 }
 
-export default function Transfer({ bankList }: Props) {
+export default function Transfer({ bankList, min_date }: Props) {
     const breadcrumbs: BreadcrumbItem[] = [
         { title: 'Transactions', href: '/transactions' },
         { title: 'Transfer', href: '/transactions/transfer' },
     ];
 
     const { data, setData, post, processing, errors } = useForm({
-        date: new Date().toISOString().split('T')[0],
+        date: min_date || new Date().toISOString().split('T')[0],
         sender: '',
         receiver: '',
         invoice: '',
@@ -76,6 +77,7 @@ export default function Transfer({ bankList }: Props) {
                                         <Input
                                             id="date"
                                             type="date"
+                                            min={min_date}
                                             value={data.date}
                                             onChange={(e) =>
                                                 setData('date', e.target.value)

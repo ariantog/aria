@@ -157,9 +157,12 @@ export default function SettingsIndex({ settings, groups }: Props) {
                                                     </td>
                                                     <td className="px-6 py-4 text-zinc-700 dark:text-zinc-300">
                                                         <div className="max-w-xs truncate font-medium">
-                                                            {typeof setting.value ===
-                                                            'object'
-                                                                ? JSON.stringify(
+                                                            {setting.value &&
+                                                            typeof setting.value ===
+                                                                'object'
+                                                                ? (setting.value as any)
+                                                                      .name ||
+                                                                  JSON.stringify(
                                                                       setting.value,
                                                                   )
                                                                 : setting.value}
