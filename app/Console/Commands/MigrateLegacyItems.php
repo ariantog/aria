@@ -87,13 +87,20 @@ class MigrateLegacyItems extends Command
             $this->info("Migrated {$legacyTags->count()} tags.");
 
             // 4. Migrate Items
-            $this->info('Identifying active items (transactions since 2020)...');
-            $activeItemIds = $legacyDb->table('transaction_details')
+            $this->info('Identifying items to migrate (active since 2020 or created since 2025)...');
+            $activeItemIdsFromTransactions = $legacyDb->table('transaction_details')
                 ->join('transactions', 'transaction_details.transaction_id', '=', 'transactions.id')
                 ->whereYear('transactions.date', '>=', 2020)
                 ->distinct()
                 ->pluck('item_id')
                 ->toArray();
+
+            $freshItemIds = $legacyDb->table('items')
+                ->whereYear('created_at', '>=', 2025)
+                ->pluck('id')
+                ->toArray();
+
+            $activeItemIds = array_unique(array_merge($activeItemIdsFromTransactions, $freshItemIds));
 
             $this->info('Migrating Items...');
             $totalItems = $legacyDb->table('items')
