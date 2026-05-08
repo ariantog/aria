@@ -21,8 +21,12 @@ export default function CameraScanner({ isOpen, onClose, onScan }: Props) {
     const [isPaused, setIsPaused] = useState(false);
 
     const { ref } = useZxing({
+        constraints: {
+            video: { facingMode: 'environment' }
+        },
         onDecodeResult(result) {
             if (!isPaused) {
+                console.log('Decoded barcode:', result.getText());
                 onScan(result.getText());
                 // Optional: add a small delay before allowing next scan or close
                 setIsPaused(true);
@@ -30,10 +34,16 @@ export default function CameraScanner({ isOpen, onClose, onScan }: Props) {
             }
         },
         onError(err) {
-            console.error(err);
+            console.error('ZXing error:', err);
             // Don't show error for every frame fail, only major ones
             if (err.name === 'NotAllowedError') {
-                setError('Camera permission denied.');
+                setError('Camera permission denied. Please allow camera access in your browser settings.');
+            } else if (err.name === 'NotFoundError') {
+                setError('No camera found on this device.');
+            } else if (err.name === 'NotReadableError') {
+                setError('Camera is already in use by another application.');
+            } else if (err.name === 'SecurityError') {
+                setError('Camera access is restricted in this context (possibly missing HTTPS).');
             }
         },
         paused: isPaused || !isOpen,
@@ -52,6 +62,8 @@ export default function CameraScanner({ isOpen, onClose, onScan }: Props) {
                 <div className="relative aspect-video overflow-hidden rounded-lg bg-black">
                     <video
                         ref={ref}
+                        muted
+                        playsInline
                         className="h-full w-full object-cover"
                     />
                     
