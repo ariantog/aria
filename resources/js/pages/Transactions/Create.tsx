@@ -2,7 +2,7 @@ import { Head, Link, useForm } from '@inertiajs/react';
 import axios from 'axios';
 import { Plus, Trash2, ArrowLeft, Loader2, Info, Scan, Camera } from 'lucide-react';
 import { TriangleAlert } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
 import { AsyncCombobox } from '@/components/AsyncCombobox';
 import FormAsyncCombobox from '@/components/Partial/Form/FormAsyncCombobox';
@@ -126,6 +126,35 @@ export default function Create({ type, config, ppn_rate, min_date }: Props) {
         data.receiver,
     ]);
 
+    const handleBarcodeScan = useCallback(async (code: string) => {
+        if (isScanning) return;
+        setIsScanning(true);
+
+        try {
+            const response = await axios.get('/items', {
+                params: {
+                    json: true,
+                    id: code, // Search specifically by ID as requested
+                    type: '1,2'
+                }
+            });
+
+            const items = response.data.data || response.data;
+            if (items && items.length > 0) {
+                const item = items[0];
+                setScannedItem(item);
+                setIsAddItemDrawerOpen(true);
+            } else {
+                toast.error(`Item with ID "${code}" not found.`);
+            }
+        } catch (err) {
+            console.error('Barcode scan error:', err);
+            toast.error('Failed to lookup item code.');
+        } finally {
+            setIsScanning(false);
+        }
+    }, [isScanning]);
+
     // Keyboard Shortcut Ctrl+I and Barcode Scanner (Global)
     useEffect(() => {
         let buffer = '';
@@ -168,36 +197,7 @@ export default function Create({ type, config, ppn_rate, min_date }: Props) {
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [data.sender_id, data.receiver_id]);
-
-    const handleBarcodeScan = async (code: string) => {
-        if (isScanning) return;
-        setIsScanning(true);
-
-        try {
-            const response = await axios.get('/items', {
-                params: {
-                    json: true,
-                    id: code, // Search specifically by ID as requested
-                    type: '1,2'
-                }
-            });
-
-            const items = response.data.data || response.data;
-            if (items && items.length > 0) {
-                const item = items[0];
-                setScannedItem(item);
-                setIsAddItemDrawerOpen(true);
-            } else {
-                toast.error(`Item with ID "${code}" not found.`);
-            }
-        } catch (err) {
-            console.error('Barcode scan error:', err);
-            toast.error('Failed to lookup item code.');
-        } finally {
-            setIsScanning(false);
-        }
-    };
+    }, [handleBarcodeScan]);
 
     const addItem = (itemData: any) => {
         if (!itemData) return;
@@ -784,8 +784,9 @@ export default function Create({ type, config, ppn_rate, min_date }: Props) {
                     isOpen={isCameraScannerOpen}
                     onClose={() => setIsCameraScannerOpen(false)}
                     onScan={(code) => {
-                        handleBarcodeScan(code);
                         setIsCameraScannerOpen(false);
+                        // Delay slightly to allow camera dialog to close first
+                        setTimeout(() => handleBarcodeScan(code), 300);
                     }}
                 />
             </form>
