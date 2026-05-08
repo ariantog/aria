@@ -262,11 +262,20 @@ export default function Index({
                 {/* Data Table */}
                 <div className="overflow-hidden rounded-xl border bg-white text-sm shadow-sm dark:bg-zinc-900">
                     <Table>
-                        <TableHeader className="bg-zinc-50/50 dark:bg-zinc-900/50">
+                        <TableHeader className="bg-zinc-50 dark:bg-zinc-900">
                             <TableRow>
                                 <TableHead
+                                    onClick={() => handleSort('invoice_number')}
+                                    className="sticky top-0 left-0 z-30 w-[120px] cursor-pointer border-r bg-zinc-50 transition-colors hover:bg-zinc-100 dark:bg-zinc-900 dark:hover:bg-zinc-800"
+                                >
+                                    <div className="flex items-center">
+                                        Invoice{' '}
+                                        <SortIcon column="invoice_number" />
+                                    </div>
+                                </TableHead>
+                                <TableHead
                                     onClick={() => handleSort('date')}
-                                    className="cursor-pointer bg-blue-50/10 whitespace-nowrap transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                                    className="sticky top-0 z-20 cursor-pointer whitespace-nowrap bg-zinc-50 transition-colors hover:bg-zinc-100 dark:bg-zinc-900 dark:hover:bg-zinc-800"
                                 >
                                     <div className="flex items-center">
                                         Date <SortIcon column="date" />
@@ -274,45 +283,36 @@ export default function Index({
                                 </TableHead>
                                 <TableHead
                                     onClick={() => handleSort('type')}
-                                    className="w-[80px] cursor-pointer transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                                    className="sticky top-0 z-20 w-[80px] cursor-pointer bg-zinc-50 transition-colors hover:bg-zinc-100 dark:bg-zinc-900 dark:hover:bg-zinc-800"
                                 >
                                     <div className="flex items-center">
                                         Type <SortIcon column="type" />
                                     </div>
                                 </TableHead>
-                                <TableHead
-                                    onClick={() => handleSort('invoice_number')}
-                                    className="w-[120px] cursor-pointer transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800"
-                                >
-                                    <div className="flex items-center">
-                                        Invoice{' '}
-                                        <SortIcon column="invoice_number" />
-                                    </div>
-                                </TableHead>
-                                <TableHead className="max-w-[150px]">
+                                <TableHead className="sticky top-0 z-20 bg-zinc-50 dark:bg-zinc-900 max-w-[150px]">
                                     Description
                                 </TableHead>
                                 <TableHead
                                     onClick={() => handleSort('grand_total')}
-                                    className="cursor-pointer text-right transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                                    className="sticky top-0 z-20 cursor-pointer bg-zinc-50 text-right transition-colors hover:bg-zinc-100 dark:bg-zinc-900 dark:hover:bg-zinc-800"
                                 >
                                     <div className="flex items-center justify-end whitespace-nowrap">
                                         Grand Total{' '}
                                         <SortIcon column="grand_total" />
                                     </div>
                                 </TableHead>
-                                <TableHead className="text-right">
+                                <TableHead className="sticky top-0 z-20 bg-zinc-50 dark:bg-zinc-900 text-right">
                                     Total Items
                                 </TableHead>
-                                <TableHead>Sender</TableHead>
-                                <TableHead className="text-right">
+                                <TableHead className="sticky top-0 z-20 bg-zinc-50 dark:bg-zinc-900">Sender</TableHead>
+                                <TableHead className="sticky top-0 z-20 bg-zinc-50 dark:bg-zinc-900 text-right">
                                     Sender Bal
                                 </TableHead>
-                                <TableHead>Receiver</TableHead>
-                                <TableHead className="border-r text-right">
+                                <TableHead className="sticky top-0 z-20 bg-zinc-50 dark:bg-zinc-900">Receiver</TableHead>
+                                <TableHead className="sticky top-0 z-20 bg-zinc-50 dark:bg-zinc-900 border-r text-right">
                                     Receiver Bal
                                 </TableHead>
-                                <TableHead className="w-[50px]"></TableHead>
+                                <TableHead className="sticky top-0 z-20 bg-zinc-50 dark:bg-zinc-900 w-[50px]"></TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -337,13 +337,7 @@ export default function Index({
                                             key={transaction.id}
                                             className="transition-colors hover:bg-zinc-50/50 dark:hover:bg-zinc-900/50"
                                         >
-                                            <TableCell className="whitespace-nowrap text-zinc-500 tabular-nums">
-                                                {formatDate(transaction.date)}
-                                            </TableCell>
-                                            <TableCell className="min-w-[80px] py-1 break-words whitespace-normal">
-                                                {getTypeLabel(transaction.type)}
-                                            </TableCell>
-                                            <TableCell className="min-w-[120px] py-1 font-mono text-[10px] break-words whitespace-normal">
+                                            <TableCell className="sticky left-0 z-10 border-r bg-white min-w-[120px] py-1 font-mono text-[10px] break-words whitespace-normal dark:bg-zinc-900">
                                                 <Link
                                                     href={transactionsRoutes.show.url(
                                                         {
@@ -355,6 +349,12 @@ export default function Index({
                                                 >
                                                     {transaction.invoice_number}
                                                 </Link>
+                                            </TableCell>
+                                            <TableCell className="whitespace-nowrap text-zinc-500 tabular-nums">
+                                                {formatDate(transaction.date)}
+                                            </TableCell>
+                                            <TableCell className="min-w-[80px] py-1 break-words whitespace-normal">
+                                                {getTypeLabel(transaction.type)}
                                             </TableCell>
                                             <TableCell className="max-w-[150px] py-1 text-[10px] break-words whitespace-normal text-zinc-500">
                                                 {transaction.description ||
