@@ -115,6 +115,8 @@ class MigrateLegacyItems extends Command
                             'pcode' => $item->pcode,
                             'brand' => $item->brand,
                             'type' => $item->type,
+                            'size' => $item->size,
+                            'genre' => $item->genre,
                             'price' => $item->price,
                             'cost' => $item->cost,
                             'tag_ids' => $item->tag_ids,

@@ -142,6 +142,8 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::get('transactions/{type}/lookup/{role}', [App\Http\Controllers\TransactionLookupController::class, 'search'])->name('transactions.lookup');
     Route::get('tags/lookup', [App\Http\Controllers\TagLookupController::class, 'search'])->name('tags.lookup');
     Route::resource('tags', \App\Http\Controllers\Stuff\TagController::class);
+    Route::resource('contributors', \App\Http\Controllers\Stuff\ContributorController::class);
+    Route::get('contributors/filter', [\App\Http\Controllers\Stuff\ContributorController::class, 'index'])->name('contributor.filter');
     // Journal Module
     Route::resource('journals/operations', \App\Http\Controllers\Journal\OperationController::class);
     Route::resource('journals/account-list', \App\Http\Controllers\Journal\AccountListController::class)->parameters([
@@ -220,6 +222,25 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
         Route::post('/stock-settings', [\App\Http\Controllers\ReportController::class, 'updateStockSettings'])->name('stock-settings.update');
         Route::post('/stock-settings/reset', [\App\Http\Controllers\ReportController::class, 'resetStockSettings'])->name('stock-settings.reset');
         Route::get('/rebalance-detail', [\App\Http\Controllers\ReportController::class, 'rebalanceDetail'])->name('rebalance-detail');
+    });
+
+    // Restock Module
+    Route::prefix('restock')->name('restock.')->group(function () {
+        Route::get('/', [App\Http\Controllers\RestockController::class, 'index'])->name('index');
+        Route::get('/create', [App\Http\Controllers\RestockController::class, 'create'])->name('create');
+        Route::post('/add-item', [App\Http\Controllers\RestockController::class, 'addItem'])->name('addItem');
+        Route::post('/remove-item/{code}', [App\Http\Controllers\RestockController::class, 'removeItem'])->name('removeItem');
+        Route::post('/', [App\Http\Controllers\RestockController::class, 'store'])->name('store');
+        Route::get('/{id}/update', [App\Http\Controllers\RestockController::class, 'update'])->name('update');
+        Route::post('/{id}/update-qty', [App\Http\Controllers\RestockController::class, 'updateQty'])->name('updateQty');
+        Route::get('/received', [App\Http\Controllers\RestockController::class, 'received'])->name('received');
+        Route::post('/received/store', [App\Http\Controllers\RestockController::class, 'receiveStore'])->name('receiveStore');
+        Route::post('/remove-cart-item/{code}', [App\Http\Controllers\RestockController::class, 'removeCartItem'])->name('removeCartItem');
+        Route::post('/{id}/add-to-gudang', [App\Http\Controllers\RestockController::class, 'addToGudangCart'])->name('addToGudangCart');
+        Route::get('/{id}/history', [App\Http\Controllers\RestockController::class, 'history'])->name('history');
+        Route::post('/{id}/reset', [App\Http\Controllers\RestockController::class, 'resetSingleQty'])->name('resetSingleQty');
+        Route::get('/upload', [App\Http\Controllers\RestockController::class, 'uploadExcel'])->name('uploadExcel');
+        Route::post('/import', [App\Http\Controllers\RestockController::class, 'importExcel'])->name('importExcel');
     });
 });
 

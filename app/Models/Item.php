@@ -23,6 +23,8 @@ class Item extends Model
         'pcode',
         'brand',
         'type',
+        'size',
+        'genre',
         'price',
         'cost',
         'qty',
@@ -38,6 +40,8 @@ class Item extends Model
         return [
             'brand' => ItemBrand::class,
             'type' => ItemType::class,
+            'size' => 'integer',
+            'genre' => 'integer',
             'price' => 'decimal:2',
             'cost' => 'decimal:2',
             'qty' => 'decimal:2',

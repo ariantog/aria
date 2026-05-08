@@ -67,10 +67,9 @@ class MigrateLegacyTransactions extends Command
         try {
             $this->migrateOptimized($year, $only);
 
-            // Final Aggregation is skipped as requested
-            // $this->finalizeMigration();
+            $this->finalizeMigration();
 
-            $this->info('Migration process finished (Data migrated, aggregation skipped).');
+            $this->info('Migration process finished (Data migrated and aggregated).');
         } catch (\Exception $e) {
             $this->error('Migration failed: '.$e->getMessage());
             $this->error($e->getTraceAsString());
@@ -126,8 +125,8 @@ class MigrateLegacyTransactions extends Command
 
         $addrbookTypes = DB::table('addrbooks')->pluck('type', 'id')->toArray();
 
-        // Increase chunk size for better performance
-        $query->chunkById(2000, function ($transactions) use ($bar) {
+        // Reduce chunk size to avoid "Too many placeholders" error
+        $query->chunkById(1000, function ($transactions) use ($bar) {
             $transactionBuffer = [];
             $detailBuffer = [];
             $trxIds = $transactions->pluck('id')->toArray();
@@ -147,8 +146,33 @@ class MigrateLegacyTransactions extends Command
                 $senderType = $data['sender_type'];
                 $receiverType = $data['receiver_type'];
 
-                $grandTotal = (float) ($data['real_total'] ?? $data['grand_total'] ?? 0);
+                $lDiscountPercent = (float) ($data['discount'] ?? 0);
+                $lTotal = (float) ($data['total'] ?? 0);
+                $lPpn = (float) ($data['ppn'] ?? $data['tax_amount'] ?? 0);
+
+                $details = $allDetails[$data['id']] ?? collect();
+                $subtotal = $details->sum('total');
+
+                // In the new system, 'total' must match legacy 'total' for reports to be consistent.
+                // Legacy 'total' is the amount after transaction discount and adjustments, but before tax.
+                $total = $lTotal;
+
+                // Nominal discount calculation for the header
+                $nominalDiscount = $subtotal * ($lDiscountPercent / 100);
+
+                // grand_total is the final amount including tax.
+                $grandTotal = $lTotal;
+                if ($lPpn > 0) {
+                    // Adjust grandTotal with tax (following the sign of total)
+                    if ($total < 0) {
+                        $grandTotal -= $lPpn;
+                    } else {
+                        $grandTotal += $lPpn;
+                    }
+                }
+
                 if ($data['type'] == Transaction::TYPE_SELL || $data['type'] == Transaction::TYPE_RETURN_SUPPLIER) {
+                    $total = -abs($total);
                     $grandTotal = -abs($grandTotal);
                 }
 
@@ -175,10 +199,11 @@ class MigrateLegacyTransactions extends Command
                     'description' => $data['description'] ?? null,
                     'notes' => $data['notes'] ?? $data['note'] ?? null,
                     'grand_total' => $grandTotal,
-                    'total' => (float) ($data['total'] ?? $grandTotal),
-                    'discount' => (float) ($data['discount'] ?? 0),
+                    'total' => $total,
+                    'discount' => $nominalDiscount,
+                    'discount_percent' => $lDiscountPercent,
                     'adjustment' => (float) ($data['adjustment'] ?? 0),
-                    'tax_amount' => (float) ($data['ppn'] ?? $data['tax_amount'] ?? 0),
+                    'tax_amount' => $lPpn,
                     'total_items' => (float) ($data['total_items'] ?? 0),
                     'user_id' => ($data['user_id'] < 0) ? 1 : $data['user_id'],
                     'status' => $data['status'] ?? 1,
@@ -204,17 +229,22 @@ class MigrateLegacyTransactions extends Command
                             continue;
                         }
 
-                        $qty = (float) ($lDetail->quantity ?? 0);
+                        $dQty = (float) ($lDetail->quantity ?? 0);
+                        $dPrice = (float) ($lDetail->price ?? 0);
+                        $dTotal = (float) ($lDetail->total ?? 0);
 
-                        $this->adjustStockInMemory($senderId, $itemId, -$qty);
-                        $this->adjustStockInMemory($receiverId, $itemId, $qty);
-                        $this->updateGlobalStockInMemory($data['type'], $itemId, $qty);
+                        $this->adjustStockInMemory($senderId, $itemId, -$dQty);
+                        $this->adjustStockInMemory($receiverId, $itemId, $dQty);
+                        $this->updateGlobalStockInMemory($data['type'], $itemId, $dQty);
 
                         $dCreatedAt = $lDetail->created_at ?? $createdAt;
                         $dUpdatedAt = $lDetail->updated_at ?? $dCreatedAt;
                         if ($dUpdatedAt == '0000-00-00 00:00:00') {
                             $dUpdatedAt = $dCreatedAt;
                         }
+
+                        // In the new system, detail discount is NOMINAL
+                        $dDiscountNominal = ($dPrice * $dQty) - $dTotal;
 
                         $detailBuffer[] = [
                             'id' => $lDetail->id,
@@ -224,10 +254,10 @@ class MigrateLegacyTransactions extends Command
                             'transaction_type' => (int) $lDetail->transaction_type,
                             'sender_id' => $lDetail->sender_id,
                             'receiver_id' => $lDetail->receiver_id,
-                            'quantity' => $qty,
-                            'price' => (float) ($lDetail->price ?? 0),
-                            'discount' => (float) ($lDetail->discount ?? 0),
-                            'total' => (float) ($lDetail->total ?? 0),
+                            'quantity' => $dQty,
+                            'price' => $dPrice,
+                            'discount' => $dDiscountNominal,
+                            'total' => $dTotal,
                             'notes' => $lDetail->notes ?? null,
                             'created_at' => $dCreatedAt,
                             'updated_at' => $dUpdatedAt,
@@ -235,7 +265,7 @@ class MigrateLegacyTransactions extends Command
                     }
                 }
 
-                $this->trackDailyReport($data['type'], $data['date'], $senderId, $receiverId, $grandTotal);
+                $this->trackDailyReport($data['type'], $data['date'], $senderId, $receiverId, $total);
                 $bar->advance();
             }
 
@@ -245,7 +275,7 @@ class MigrateLegacyTransactions extends Command
                     'date', 'type', 'sender_id', 'sender_type', 'sender_balance',
                     'receiver_id', 'receiver_type', 'receiver_balance', 'invoice_number',
                     'due_date', 'description', 'notes',
-                    'grand_total', 'total', 'discount', 'adjustment', 'tax_amount',
+                    'grand_total', 'total', 'discount', 'discount_percent', 'adjustment', 'tax_amount',
                     'total_items', 'user_id', 'status', 'submit_type',
                     'sync_hide', 'a_submit_by', 'b_submit_by', 'a_reference_id', 'b_reference_id',
                     'submit_a_count', 'submit_b_count', 'jubelio_return',
@@ -255,7 +285,7 @@ class MigrateLegacyTransactions extends Command
 
             if (! empty($detailBuffer)) {
                 // Chunk details to avoid "Query too large" or memory issues
-                foreach (array_chunk($detailBuffer, 1000) as $chunk) {
+                foreach (array_chunk($detailBuffer, 500) as $chunk) {
                     DB::table('transaction_details')->upsert($chunk, ['id'], [
                         'transaction_id', 'item_id', 'date', 'transaction_type', 'sender_id', 'receiver_id', 'quantity', 'price', 'discount', 'total', 'notes', 'created_at', 'updated_at',
                     ]);
@@ -318,8 +348,21 @@ class MigrateLegacyTransactions extends Command
             return;
         }
         $dateStr = substr($date, 0, 10);
-        $this->addDaily($senderId, $dateStr, $column, (int) $type == Transaction::TYPE_TRANSFER ? -$amount : $amount);
-        $this->addDaily($receiverId, $dateStr, $column, $amount);
+
+        // One-sided attribution to match legacy reporting logic
+        // CASH_IN & RETURN: Hanya dihitung dari sisi Sender.
+        // CASH_OUT & SELL: Hanya dihitung dari sisi Receiver.
+        // BUY & RETURN_SUPPLIER: Hanya dihitung dari sisi Receiver (Warehouse/Account side).
+
+        if ($type == Transaction::TYPE_CASH_IN || $type == Transaction::TYPE_RETURN) {
+            $this->addDaily($senderId, $dateStr, $column, $amount);
+        } elseif ($type == Transaction::TYPE_CASH_OUT || $type == Transaction::TYPE_SELL || $type == Transaction::TYPE_BUY || $type == Transaction::TYPE_RETURN_SUPPLIER) {
+            $this->addDaily($receiverId, $dateStr, $column, $amount);
+        } else {
+            // Default behavior for other types (TRANSFER, MOVE, ADJUST, etc.)
+            $this->addDaily($senderId, $dateStr, $column, (int) $type == Transaction::TYPE_TRANSFER ? -$amount : $amount);
+            $this->addDaily($receiverId, $dateStr, $column, $amount);
+        }
     }
 
     protected function addDaily($id, $date, $col, $amt)
@@ -333,6 +376,62 @@ class MigrateLegacyTransactions extends Command
 
     protected function finalizeMigration()
     {
-        // This method will be run separately
+        $this->info('Finalizing migration (Saving aggregated states)...');
+
+        DB::transaction(function () {
+            // 1. Save Addrbook Stats
+            $this->info('Saving addrbook balances...');
+            foreach ($this->balances as $id => $balance) {
+                DB::table('addrbook_stats')->updateOrInsert(
+                    ['addrbook_id' => $id],
+                    ['balance' => $balance, 'updated_at' => now()]
+                );
+            }
+
+            // 2. Save Item Global Qty
+            $this->info('Saving item global quantities...');
+            foreach ($this->itemGlobalQty as $id => $qty) {
+                DB::table('items')->where('id', $id)->update([
+                    'qty' => $qty,
+                    'updated_at' => now(),
+                ]);
+            }
+
+            // 3. Save Warehouse Items (Stock per Warehouse)
+            $this->info('Saving warehouse stocks...');
+            $wsBuffer = [];
+            $addrbookTypes = DB::table('addrbooks')->pluck('type', 'id')->toArray();
+            foreach ($this->stocks as $key => $qty) {
+                [$warehouseId, $itemId] = explode('.', $key);
+                $wsBuffer[] = [
+                    'warehouse_id' => (int) $warehouseId,
+                    'warehouse_type' => (int) ($addrbookTypes[$warehouseId] ?? 0),
+                    'item_id' => (int) $itemId,
+                    'quantity' => $qty,
+                    'updated_at' => now(),
+                ];
+            }
+            foreach (array_chunk($wsBuffer, 500) as $chunk) {
+                DB::table('warehouse_items')->upsert($chunk, ['warehouse_id', 'item_id', 'warehouse_type'], ['quantity', 'updated_at']);
+            }
+
+            // 4. Save Daily Reports
+            $this->info('Saving daily reports...');
+            $dailyBuffer = [];
+            foreach ($this->dailies as $key => $cols) {
+                [$addrbookId, $date] = explode('.', $key);
+                $dailyBuffer[] = array_merge([
+                    'addrbook_id' => (int) $addrbookId,
+                    'date' => $date,
+                    'type' => (int) ($addrbookTypes[$addrbookId] ?? 0),
+                    'updated_at' => now(),
+                ], $cols);
+            }
+            foreach (array_chunk($dailyBuffer, 500) as $chunk) {
+                DB::table('addrbook_dailies')->upsert($chunk, ['addrbook_id', 'date'], [
+                    'buy', 'sell', 'return', 'return_supplier', 'move', 'transfer', 'adjust', 'use', 'type', 'updated_at',
+                ]);
+            }
+        });
     }
 }

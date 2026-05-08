@@ -297,6 +297,20 @@ export function AppSidebar() {
                           },
                       ]
                     : []),
+                ...(hasPermission('contributors-list') || isSuperAdmin || true
+                    ? [
+                          {
+                              title: 'Contributors',
+                              href: '/contributors',
+                              isActive: isRouteActive('/contributors'),
+                          },
+                      ]
+                    : []),
+                {
+                    title: 'Restock',
+                    href: '/restock',
+                    isActive: isRouteActive('/restock'),
+                },
             ].filter(Boolean) as NavItem[],
         },
         // Journal Group

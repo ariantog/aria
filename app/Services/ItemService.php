@@ -137,6 +137,8 @@ class ItemService
         $item->description = $input->description ?? $item->description;
         $item->description2 = $input->description2 ?? $item->description2;
         $item->type = $itemType;
+        $item->size = $sizeId;
+        $item->genre = $typeId;
 
         if ($itemType === ItemType::ASSET_LANCAR) {
             // Generate Code: PCODE + SIZE_CODE + WARNA_CODE
@@ -284,6 +286,8 @@ class ItemService
         $item->description = $input->description ?? '';
         $item->description2 = $input->description2 ?? '';
         $item->type = $itemType;
+        $item->size = $sizeId;
+        $item->genre = $typeId;
 
         if ($itemType === ItemType::ASSET_LANCAR) {
             // Generate Code: PCODE + SIZE_CODE + WARNA_CODE

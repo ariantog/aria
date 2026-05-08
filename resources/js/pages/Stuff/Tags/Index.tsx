@@ -171,153 +171,168 @@ export default function TagsIndex({ tags, types, itemTypes }: Props) {
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Tags" />
 
-            <div className="p-4 sm:p-6 lg:p-8">
-                {/* Header */}
-                <div className="mb-8 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
-                    <div>
-                        <h2 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
-                            Tags Management
-                        </h2>
-                        <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-                            Manage tags for items.
-                        </p>
+            <div className="flex h-full flex-1 flex-col gap-4 p-4">
+                {/* Stat Cards - Dashboard Style */}
+                <div className="grid auto-rows-min gap-4 md:grid-cols-3">
+                    <div className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900/50">
+                        <div className="flex items-center gap-3">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-100 dark:bg-indigo-900/30">
+                                <TagIcon className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+                            </div>
+                            <div>
+                                <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Total Tags</p>
+                                <p className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">{tags.total}</p>
+                            </div>
+                        </div>
                     </div>
-                    <div className="flex w-full items-center gap-2 sm:w-auto">
-                        <Button
-                            onClick={handleOpenCreate}
-                            className="w-full gap-2 bg-blue-600 text-white shadow-sm hover:bg-blue-700 sm:w-auto"
-                        >
-                            <Plus className="h-4 w-4" />
-                            Add Tag
-                        </Button>
+                    <div className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900/50">
+                        <div className="flex items-center gap-3">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900/30">
+                                <Search className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                            </div>
+                            <div>
+                                <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Types</p>
+                                <p className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">{Object.keys(types).length}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900/50">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-100 dark:bg-emerald-900/30">
+                                    <Plus className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                                </div>
+                                <div>
+                                    <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Quick Action</p>
+                                    <p className="text-xs text-zinc-400">Create a new tag</p>
+                                </div>
+                            </div>
+                            <Button
+                                onClick={handleOpenCreate}
+                                size="sm"
+                                className="bg-blue-600 text-white hover:bg-blue-700"
+                            >
+                                Add Tag
+                            </Button>
+                        </div>
                     </div>
                 </div>
 
-                <div className="relative mb-4 max-w-sm">
-                    <form onSubmit={handleSearch}>
-                        <Search className="absolute top-2.5 left-2.5 h-4 w-4 text-zinc-500" />
-                        <Input
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                            placeholder="Search tags by name or code..."
-                            className="bg-zinc-50 pl-9 dark:bg-zinc-900"
-                        />
-                    </form>
-                </div>
+                {/* Main Content Area */}
+                <div className="flex flex-1 flex-col gap-4 rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900/50">
+                    <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
+                        <div>
+                            <h2 className="text-xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
+                                Tags Registry
+                            </h2>
+                            <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                                Detailed list of all categorized tags.
+                            </p>
+                        </div>
+                        <div className="relative w-full max-w-sm">
+                            <form onSubmit={handleSearch}>
+                                <Search className="absolute top-2.5 left-2.5 h-4 w-4 text-zinc-500" />
+                                <Input
+                                    value={search}
+                                    onChange={(e) => setSearch(e.target.value)}
+                                    placeholder="Search tags..."
+                                    className="bg-zinc-50 pl-9 dark:bg-zinc-900"
+                                />
+                            </form>
+                        </div>
+                    </div>
 
-                {/* Table Card */}
-                <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-                    <div className="overflow-x-auto">
-                        <table className="min-w-full divide-y divide-zinc-200 dark:divide-zinc-800">
-                            <thead className="bg-zinc-50/50 dark:bg-zinc-900/50">
-                                <tr>
-                                    <th className="px-6 py-4 text-left text-xs font-semibold tracking-wider text-zinc-500 uppercase dark:text-zinc-400">
-                                        Tag
-                                    </th>
-                                    <th className="px-6 py-4 text-left text-xs font-semibold tracking-wider text-zinc-500 uppercase dark:text-zinc-400">
-                                        Code
-                                    </th>
-                                    <th className="px-6 py-4 text-left text-xs font-semibold tracking-wider text-zinc-500 uppercase dark:text-zinc-400">
-                                        Type
-                                    </th>
-                                    <th className="px-6 py-4 text-left text-xs font-semibold tracking-wider text-zinc-500 uppercase dark:text-zinc-400">
-                                        Item Type
-                                    </th>
-                                    <th className="px-6 py-4 text-right text-xs font-semibold tracking-wider text-zinc-500 uppercase dark:text-zinc-400">
-                                        Actions
-                                    </th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-zinc-200 bg-white dark:divide-zinc-800 dark:bg-zinc-900">
-                                {tags.data.map((tag) => (
-                                    <tr
-                                        key={tag.id}
-                                        className="group transition-colors hover:bg-zinc-50/50 dark:hover:bg-zinc-800/50"
-                                    >
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <div className="flex items-center gap-3">
-                                                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-100 dark:bg-indigo-900/30">
-                                                    <TagIcon className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
-                                                </div>
-                                                <div>
+                    <div className="mt-4 overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-800">
+                        <div className="overflow-x-auto">
+                            <table className="min-w-full divide-y divide-zinc-200 dark:divide-zinc-800">
+                                <thead className="bg-zinc-50/50 dark:bg-zinc-900/50">
+                                    <tr>
+                                        <th className="px-6 py-3 text-left text-xs font-semibold tracking-wider text-zinc-500 uppercase dark:text-zinc-400">
+                                            Tag Name
+                                        </th>
+                                        <th className="px-6 py-3 text-left text-xs font-semibold tracking-wider text-zinc-500 uppercase dark:text-zinc-400">
+                                            Code
+                                        </th>
+                                        <th className="px-6 py-3 text-left text-xs font-semibold tracking-wider text-zinc-500 uppercase dark:text-zinc-400">
+                                            Type
+                                        </th>
+                                        <th className="px-6 py-3 text-left text-xs font-semibold tracking-wider text-zinc-500 uppercase dark:text-zinc-400">
+                                            Item Type
+                                        </th>
+                                        <th className="px-6 py-3 text-right text-xs font-semibold tracking-wider text-zinc-500 uppercase dark:text-zinc-400">
+                                            Actions
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-zinc-200 bg-transparent dark:divide-zinc-800">
+                                    {tags.data.map((tag) => (
+                                        <tr
+                                            key={tag.id}
+                                            className="group transition-colors hover:bg-zinc-50/50 dark:hover:bg-zinc-800/50"
+                                        >
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <div className="flex items-center gap-3">
                                                     <div className="text-sm font-bold text-zinc-900 dark:text-white">
                                                         {tag.name}
                                                     </div>
                                                 </div>
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <span className="rounded bg-zinc-100 px-2 py-1 font-mono text-sm text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
-                                                {tag.code || '-'}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <span
-                                                className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${getTypeColor(tag.type)}`}
-                                            >
-                                                {types[tag.type] || tag.type}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <span
-                                                className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${getItemTypeColor(tag.item_type)}`}
-                                            >
-                                                {getItemTypeLabel(
-                                                    tag.item_type,
-                                                )}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4 text-right text-sm font-medium whitespace-nowrap">
-                                            <div className="flex justify-end gap-2">
-                                                <Button
-                                                    onClick={() =>
-                                                        handleOpenEdit(tag)
-                                                    }
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    className="h-8 w-8 text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100"
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <span className="rounded bg-zinc-100 px-2 py-1 font-mono text-xs text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+                                                    {tag.code || '-'}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <span
+                                                    className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase ${getTypeColor(tag.type)}`}
                                                 >
-                                                    <FilePen className="h-4 w-4" />
-                                                </Button>
-                                                <Button
-                                                    onClick={() =>
-                                                        handleDelete(tag.id)
-                                                    }
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    className="h-8 w-8 text-zinc-400 hover:text-red-600 dark:hover:text-red-400"
+                                                    {types[tag.type] || tag.type}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <span
+                                                    className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase ${getItemTypeColor(tag.item_type)}`}
                                                 >
-                                                    <Trash2 className="h-4 w-4" />
-                                                </Button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))}
-                                {tags.data.length === 0 && (
-                                    <tr>
-                                        <td
-                                            colSpan={4}
-                                            className="px-6 py-12 text-center text-sm text-zinc-500 dark:text-zinc-400"
-                                        >
-                                            No tags found.
-                                        </td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-                    {/* Pagination */}
-                    {tags.links && tags.links.length > 3 && (
-                        <div className="border-t border-zinc-200 bg-zinc-50/30 px-6 py-4 dark:border-zinc-800 dark:bg-zinc-900/30">
-                            <Pagination
-                                links={tags.links}
-                                from={tags.from}
-                                to={tags.to}
-                                total={tags.total}
-                                label="tags"
-                            />
+                                                    {getItemTypeLabel(tag.item_type)}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4 text-right text-sm font-medium whitespace-nowrap">
+                                                <div className="flex justify-end gap-1">
+                                                    <Button
+                                                        onClick={() => handleOpenEdit(tag)}
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="h-8 w-8 text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100"
+                                                    >
+                                                        <FilePen className="h-4 w-4" />
+                                                    </Button>
+                                                    <Button
+                                                        onClick={() => handleDelete(tag.id)}
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="h-8 w-8 text-zinc-400 hover:text-red-600 dark:hover:text-red-400"
+                                                    >
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </Button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
                         </div>
-                    )}
+                        {tags.links && tags.links.length > 3 && (
+                            <div className="border-t border-zinc-200 bg-zinc-50/30 px-6 py-4 dark:border-zinc-800 dark:bg-zinc-900/30">
+                                <Pagination
+                                    links={tags.links}
+                                    from={tags.from}
+                                    to={tags.to}
+                                    total={tags.total}
+                                    label="tags"
+                                />
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
 
