@@ -95,7 +95,7 @@ class ItemsController extends Controller
             return $query->with('warehouseItems')->limit(20)->get(['id', 'code', 'name', 'price', 'cost']); // optimized select
         }
 
-        $items = $query->latest()->paginate(50)->withQueryString();
+        $items = $query->orderBy('id', 'desc')->paginate(50)->withQueryString();
 
         return Inertia::render('Items/Index', [
             'items' => $items,
