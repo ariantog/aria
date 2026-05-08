@@ -261,207 +261,207 @@ export default function Index({
 
                 {/* Data Table */}
                 <div className="overflow-hidden rounded-xl border bg-white text-sm shadow-sm dark:bg-zinc-900">
-                    <div className="relative max-h-[calc(100vh-theme(spacing.80))] overflow-auto">
-                        <Table className="border-separate border-spacing-0">
-                            <TableHeader className="bg-zinc-50 dark:bg-zinc-900">
+                    <Table
+                        wrapperClassName="max-h-[60vh] md:max-h-[calc(100vh-320px)] overflow-auto"
+                        className="border-separate border-spacing-0"
+                    >
+                        <TableHeader className="bg-zinc-50 dark:bg-zinc-900">
+                            <TableRow>
+                                <TableHead
+                                    onClick={() => handleSort('invoice_number')}
+                                    className="sticky top-0 left-0 z-30 w-[120px] cursor-pointer border-b border-r bg-zinc-50 transition-colors hover:bg-zinc-100 dark:bg-zinc-900 dark:hover:bg-zinc-800"
+                                >
+                                    <div className="flex items-center">
+                                        Invoice{' '}
+                                        <SortIcon column="invoice_number" />
+                                    </div>
+                                </TableHead>
+                                <TableHead
+                                    onClick={() => handleSort('date')}
+                                    className="sticky top-0 z-20 cursor-pointer whitespace-nowrap border-b bg-zinc-50 transition-colors hover:bg-zinc-100 dark:bg-zinc-900 dark:hover:bg-zinc-800"
+                                >
+                                    <div className="flex items-center">
+                                        Date <SortIcon column="date" />
+                                    </div>
+                                </TableHead>
+                                <TableHead
+                                    onClick={() => handleSort('type')}
+                                    className="sticky top-0 z-20 w-[80px] cursor-pointer border-b bg-zinc-50 transition-colors hover:bg-zinc-100 dark:bg-zinc-900 dark:hover:bg-zinc-800"
+                                >
+                                    <div className="flex items-center">
+                                        Type <SortIcon column="type" />
+                                    </div>
+                                </TableHead>
+                                <TableHead className="sticky top-0 z-20 bg-zinc-50 dark:bg-zinc-900 max-w-[150px] border-b">
+                                    Description
+                                </TableHead>
+                                <TableHead
+                                    onClick={() => handleSort('grand_total')}
+                                    className="sticky top-0 z-20 cursor-pointer bg-zinc-50 text-right transition-colors hover:bg-zinc-100 dark:bg-zinc-900 dark:hover:bg-zinc-800 border-b"
+                                >
+                                    <div className="flex items-center justify-end whitespace-nowrap">
+                                        Grand Total{' '}
+                                        <SortIcon column="grand_total" />
+                                    </div>
+                                </TableHead>
+                                <TableHead className="sticky top-0 z-20 bg-zinc-50 dark:bg-zinc-900 text-right border-b">
+                                    Total Items
+                                </TableHead>
+                                <TableHead className="sticky top-0 z-20 bg-zinc-50 dark:bg-zinc-900 border-b">Sender</TableHead>
+                                <TableHead className="sticky top-0 z-20 bg-zinc-50 dark:bg-zinc-900 text-right border-b">
+                                    Sender Bal
+                                </TableHead>
+                                <TableHead className="sticky top-0 z-20 bg-zinc-50 dark:bg-zinc-900 border-b">Receiver</TableHead>
+                                <TableHead className="sticky top-0 z-20 bg-zinc-50 dark:bg-zinc-900 border-r text-right border-b">
+                                    Receiver Bal
+                                </TableHead>
+                                <TableHead className="sticky top-0 z-20 bg-zinc-50 dark:bg-zinc-900 w-[50px] border-b"></TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {paginatedTransactions.data.length === 0 ? (
                                 <TableRow>
-                                    <TableHead
-                                        onClick={() => handleSort('invoice_number')}
-                                        className="sticky top-0 left-0 z-30 w-[120px] cursor-pointer border-b border-r bg-zinc-50 transition-colors hover:bg-zinc-100 dark:bg-zinc-900 dark:hover:bg-zinc-800"
+                                    <TableCell
+                                        colSpan={11}
+                                        className="h-48 text-center text-muted-foreground"
                                     >
-                                        <div className="flex items-center">
-                                            Invoice{' '}
-                                            <SortIcon column="invoice_number" />
-                                        </div>
-                                    </TableHead>
-                                    <TableHead
-                                        onClick={() => handleSort('date')}
-                                        className="sticky top-0 z-20 cursor-pointer whitespace-nowrap border-b bg-zinc-50 transition-colors hover:bg-zinc-100 dark:bg-zinc-900 dark:hover:bg-zinc-800"
-                                    >
-                                        <div className="flex items-center">
-                                            Date <SortIcon column="date" />
-                                        </div>
-                                    </TableHead>
-                                    <TableHead
-                                        onClick={() => handleSort('type')}
-                                        className="sticky top-0 z-20 w-[80px] cursor-pointer border-b bg-zinc-50 transition-colors hover:bg-zinc-100 dark:bg-zinc-900 dark:hover:bg-zinc-800"
-                                    >
-                                        <div className="flex items-center">
-                                            Type <SortIcon column="type" />
-                                        </div>
-                                    </TableHead>
-                                    <TableHead className="sticky top-0 z-20 bg-zinc-50 dark:bg-zinc-900 max-w-[150px] border-b">
-                                        Description
-                                    </TableHead>
-                                    <TableHead
-                                        onClick={() => handleSort('grand_total')}
-                                        className="sticky top-0 z-20 cursor-pointer bg-zinc-50 text-right transition-colors hover:bg-zinc-100 dark:bg-zinc-900 dark:hover:bg-zinc-800 border-b"
-                                    >
-                                        <div className="flex items-center justify-end whitespace-nowrap">
-                                            Grand Total{' '}
-                                            <SortIcon column="grand_total" />
-                                        </div>
-                                    </TableHead>
-                                    <TableHead className="sticky top-0 z-20 bg-zinc-50 dark:bg-zinc-900 text-right border-b">
-                                        Total Items
-                                    </TableHead>
-                                    <TableHead className="sticky top-0 z-20 bg-zinc-50 dark:bg-zinc-900 border-b">Sender</TableHead>
-                                    <TableHead className="sticky top-0 z-20 bg-zinc-50 dark:bg-zinc-900 text-right border-b">
-                                        Sender Bal
-                                    </TableHead>
-                                    <TableHead className="sticky top-0 z-20 bg-zinc-50 dark:bg-zinc-900 border-b">Receiver</TableHead>
-                                    <TableHead className="sticky top-0 z-20 bg-zinc-50 dark:bg-zinc-900 border-r text-right border-b">
-                                        Receiver Bal
-                                    </TableHead>
-                                    <TableHead className="sticky top-0 z-20 bg-zinc-50 dark:bg-zinc-900 w-[50px] border-b"></TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {paginatedTransactions.data.length === 0 ? (
-                                    <TableRow>
-                                        <TableCell
-                                            colSpan={11}
-                                            className="h-48 text-center text-muted-foreground"
-                                        >
-                                            <div className="flex flex-col items-center gap-2">
-                                                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-zinc-100">
-                                                    <Search className="h-5 w-5 text-zinc-400" />
-                                                </div>
-                                                <p>No transactions found.</p>
+                                        <div className="flex flex-col items-center gap-2">
+                                            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-zinc-100">
+                                                <Search className="h-5 w-5 text-zinc-400" />
                                             </div>
-                                        </TableCell>
-                                    </TableRow>
-                                ) : (
-                                    paginatedTransactions.data.map(
-                                        (transaction) => (
-                                            <TableRow
-                                                key={transaction.id}
-                                                className="transition-colors hover:bg-zinc-50/50 dark:hover:bg-zinc-900/50"
-                                            >
-                                                <TableCell className="sticky left-0 z-10 border-r bg-white min-w-[120px] py-1 font-mono text-[10px] break-words whitespace-normal dark:bg-zinc-900">
-                                                    <Link
-                                                        href={transactionsRoutes.show.url(
-                                                            {
-                                                                transaction:
-                                                                    transaction.id,
-                                                            },
-                                                        )}
-                                                        className="text-blue-600 hover:underline"
+                                            <p>No transactions found.</p>
+                                        </div>
+                                    </TableCell>
+                                </TableRow>
+                            ) : (
+                                paginatedTransactions.data.map(
+                                    (transaction) => (
+                                        <TableRow
+                                            key={transaction.id}
+                                            className="transition-colors hover:bg-zinc-50/50 dark:hover:bg-zinc-900/50"
+                                        >
+                                            <TableCell className="sticky left-0 z-10 border-r bg-white min-w-[120px] py-1 font-mono text-[10px] break-words whitespace-normal dark:bg-zinc-900">
+                                                <Link
+                                                    href={transactionsRoutes.show.url(
+                                                        {
+                                                            transaction:
+                                                                transaction.id,
+                                                        },
+                                                    )}
+                                                    className="text-blue-600 hover:underline"
+                                                >
+                                                    {transaction.invoice_number}
+                                                </Link>
+                                            </TableCell>
+                                            <TableCell className="whitespace-nowrap text-zinc-500 tabular-nums">
+                                                {formatDate(transaction.date)}
+                                            </TableCell>
+                                            <TableCell className="min-w-[80px] py-1 break-words whitespace-normal">
+                                                {getTypeLabel(transaction.type)}
+                                            </TableCell>
+                                            <TableCell className="max-w-[150px] py-1 text-[10px] break-words whitespace-normal text-zinc-500">
+                                                {transaction.description ||
+                                                    transaction.notes ||
+                                                    '-'}
+                                            </TableCell>
+                                            <TableCell className="text-right font-bold text-zinc-900 tabular-nums dark:text-zinc-100">
+                                                {Number(
+                                                    transaction.grand_total,
+                                                ).toLocaleString()}
+                                            </TableCell>
+                                            <TableCell className="text-right text-zinc-500 tabular-nums">
+                                                {Number(
+                                                    transaction.total_items,
+                                                ).toLocaleString()}
+                                            </TableCell>
+                                            <TableCell className="max-w-[120px] truncate text-zinc-700 dark:text-zinc-300">
+                                                {transaction.sender?.name ||
+                                                    '-'}
+                                            </TableCell>
+                                            <TableCell className="text-right text-zinc-500 italic tabular-nums">
+                                                {Number(
+                                                    transaction.sender_balance ||
+                                                        0,
+                                                ).toLocaleString()}
+                                            </TableCell>
+                                            <TableCell className="max-w-[120px] truncate text-zinc-700 dark:text-zinc-300">
+                                                {transaction.receiver?.name ||
+                                                    '-'}
+                                            </TableCell>
+                                            <TableCell className="border-r text-right text-zinc-500 italic tabular-nums">
+                                                {Number(
+                                                    transaction.receiver_balance ||
+                                                        0,
+                                                ).toLocaleString()}
+                                            </TableCell>
+                                            <TableCell>
+                                                <DropdownMenu>
+                                                    <DropdownMenuTrigger
+                                                        asChild
                                                     >
-                                                        {transaction.invoice_number}
-                                                    </Link>
-                                                </TableCell>
-                                                <TableCell className="whitespace-nowrap text-zinc-500 tabular-nums">
-                                                    {formatDate(transaction.date)}
-                                                </TableCell>
-                                                <TableCell className="min-w-[80px] py-1 break-words whitespace-normal">
-                                                    {getTypeLabel(transaction.type)}
-                                                </TableCell>
-                                                <TableCell className="max-w-[150px] py-1 text-[10px] break-words whitespace-normal text-zinc-500">
-                                                    {transaction.description ||
-                                                        transaction.notes ||
-                                                        '-'}
-                                                </TableCell>
-                                                <TableCell className="text-right font-bold text-zinc-900 tabular-nums dark:text-zinc-100">
-                                                    {Number(
-                                                        transaction.grand_total,
-                                                    ).toLocaleString()}
-                                                </TableCell>
-                                                <TableCell className="text-right text-zinc-500 tabular-nums">
-                                                    {Number(
-                                                        transaction.total_items,
-                                                    ).toLocaleString()}
-                                                </TableCell>
-                                                <TableCell className="max-w-[120px] truncate text-zinc-700 dark:text-zinc-300">
-                                                    {transaction.sender?.name ||
-                                                        '-'}
-                                                </TableCell>
-                                                <TableCell className="text-right text-zinc-500 italic tabular-nums">
-                                                    {Number(
-                                                        transaction.sender_balance ||
-                                                            0,
-                                                    ).toLocaleString()}
-                                                </TableCell>
-                                                <TableCell className="max-w-[120px] truncate text-zinc-700 dark:text-zinc-300">
-                                                    {transaction.receiver?.name ||
-                                                        '-'}
-                                                </TableCell>
-                                                <TableCell className="border-r text-right text-zinc-500 italic tabular-nums">
-                                                    {Number(
-                                                        transaction.receiver_balance ||
-                                                            0,
-                                                    ).toLocaleString()}
-                                                </TableCell>
-                                                <TableCell>
-                                                    <DropdownMenu>
-                                                        <DropdownMenuTrigger
-                                                            asChild
+                                                        <Button
+                                                            variant="ghost"
+                                                            className="h-8 w-8 p-0"
                                                         >
-                                                            <Button
-                                                                variant="ghost"
-                                                                className="h-8 w-8 p-0"
-                                                            >
-                                                                <span className="sr-only">
-                                                                    Open menu
-                                                                </span>
-                                                                <MoreHorizontal className="h-4 w-4" />
-                                                            </Button>
-                                                        </DropdownMenuTrigger>
-                                                        <DropdownMenuContent align="end">
-                                                            <DropdownMenuLabel>
-                                                                Actions
-                                                            </DropdownMenuLabel>
-                                                            <DropdownMenuItem
-                                                                onClick={() =>
-                                                                    router.visit(
-                                                                        transactionsRoutes.show.url(
-                                                                            {
-                                                                                transaction:
-                                                                                    transaction.id,
-                                                                            },
-                                                                        ),
+                                                            <span className="sr-only">
+                                                                Open menu
+                                                            </span>
+                                                            <MoreHorizontal className="h-4 w-4" />
+                                                        </Button>
+                                                    </DropdownMenuTrigger>
+                                                    <DropdownMenuContent align="end">
+                                                        <DropdownMenuLabel>
+                                                            Actions
+                                                        </DropdownMenuLabel>
+                                                        <DropdownMenuItem
+                                                            onClick={() =>
+                                                                router.visit(
+                                                                    transactionsRoutes.show.url(
+                                                                        {
+                                                                            transaction:
+                                                                                transaction.id,
+                                                                        },
+                                                                    ),
+                                                                )
+                                                            }
+                                                        >
+                                                            <Eye className="mr-2 h-4 w-4" />{' '}
+                                                            View Details
+                                                        </DropdownMenuItem>
+                                                        <DropdownMenuSeparator />
+                                                        {can.delete_transaction && (
+                                                            <ConfirmDialog
+                                                                onConfirm={() =>
+                                                                    handleDelete(
+                                                                        transaction.id,
                                                                     )
                                                                 }
-                                                            >
-                                                                <Eye className="mr-2 h-4 w-4" />{' '}
-                                                                View Details
-                                                            </DropdownMenuItem>
-                                                            <DropdownMenuSeparator />
-                                                            {can.delete_transaction && (
-                                                                <ConfirmDialog
-                                                                    onConfirm={() =>
-                                                                        handleDelete(
-                                                                            transaction.id,
-                                                                        )
-                                                                    }
-                                                                    title="Hapus Transaksi"
-                                                                    description="Apakah Anda yakin ingin menghapus transaksi ini? Transaksi akan dipindahkan ke daftar hapus dan dampak stok/saldo akan dibatalkan."
-                                                                    trigger={
-                                                                        <DropdownMenuItem
-                                                                            className="text-rose-600 focus:bg-rose-50 focus:text-rose-700 dark:text-rose-400 dark:focus:bg-rose-900/20"
-                                                                            onSelect={(
-                                                                                e,
-                                                                            ) =>
-                                                                                e.preventDefault()
-                                                                            }
-                                                                        >
-                                                                            <Trash2 className="mr-2 h-4 w-4" />{' '}
-                                                                            Delete
-                                                                        </DropdownMenuItem>
-                                                                    }
-                                                                />
-                                                            )}
-                                                        </DropdownMenuContent>
-                                                    </DropdownMenu>
-                                                </TableCell>
-                                                </TableRow>
-                                                ),
-                                                )
-                                                )}
-                                                </TableBody>
-                                                </Table>
-                                                </div>
-                    {/* Pagination */}
+                                                                title="Hapus Transaksi"
+                                                                description="Apakah Anda yakin ingin menghapus transaksi ini? Transaksi akan dipindahkan ke daftar hapus dan dampak stok/saldo akan dibatalkan."
+                                                                trigger={
+                                                                    <DropdownMenuItem
+                                                                        className="text-rose-600 focus:bg-rose-50 focus:text-rose-700 dark:text-rose-400 dark:focus:bg-rose-900/20"
+                                                                        onSelect={(
+                                                                            e,
+                                                                        ) =>
+                                                                            e.preventDefault()
+                                                                        }
+                                                                    >
+                                                                        <Trash2 className="mr-2 h-4 w-4" />{' '}
+                                                                        Delete
+                                                                    </DropdownMenuItem>
+                                                                }
+                                                            />
+                                                        )}
+                                                    </DropdownMenuContent>
+                                                </DropdownMenu>
+                                            </TableCell>
+                                        </TableRow>
+                                    ),
+                                )
+                            )}
+                        </TableBody>
+                    </Table>                    {/* Pagination */}
                     <div className="border-t bg-zinc-50/50 p-4 dark:bg-zinc-900/50">
                         {paginatedTransactions.links && (
                             <Pagination
