@@ -177,7 +177,7 @@ export default function Create({ type, config, ppn_rate, min_date }: Props) {
             const response = await axios.get('/items', {
                 params: {
                     json: true,
-                    code: code,
+                    id: code, // Search specifically by ID as requested
                     type: '1,2'
                 }
             });
@@ -202,7 +202,7 @@ export default function Create({ type, config, ppn_rate, min_date }: Props) {
                     subtotal: config.price_source === 'cost' ? Number(item.cost || 0) : Number(item.price || 0),
                 });
             } else {
-                toast.error(`Item with code "${code}" not found.`);
+                toast.error(`Item with ID "${code}" not found.`);
             }
         } catch (err) {
             console.error('Barcode scan error:', err);

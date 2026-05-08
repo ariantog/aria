@@ -43,6 +43,10 @@ class ItemsController extends Controller
             $query->search($request->search);
         }
 
+        if ($request->filled('id')) {
+            $query->where('id', $request->id);
+        }
+
         if ($request->filled('brand')) {
             $query->where('brand', $request->brand);
         }
