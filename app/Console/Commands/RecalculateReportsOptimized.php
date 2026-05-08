@@ -51,22 +51,24 @@ class RecalculateReportsOptimized extends Command
                 $this->info('Recalculating Warehouse Stock...');
                 // Inbound (+)
                 DB::statement('
-                    INSERT INTO warehouse_items (warehouse_id, item_id, quantity, created_at, updated_at)
-                    SELECT t.receiver_id, td.item_id, SUM(td.quantity), NOW(), NOW()
+                    INSERT INTO warehouse_items (warehouse_id, item_id, warehouse_type, quantity, created_at, updated_at)
+                    SELECT t.receiver_id, td.item_id, a.type, SUM(td.quantity), NOW(), NOW()
                     FROM transaction_details td
                     JOIN transactions t ON td.transaction_id = t.id
+                    JOIN addrbooks a ON t.receiver_id = a.id
                     WHERE t.receiver_id IS NOT NULL
-                    GROUP BY t.receiver_id, td.item_id
+                    GROUP BY t.receiver_id, td.item_id, a.type
                     ON DUPLICATE KEY UPDATE quantity = quantity + VALUES(quantity)
                 ');
                 // Outbound (-)
                 DB::statement('
-                    INSERT INTO warehouse_items (warehouse_id, item_id, quantity, created_at, updated_at)
-                    SELECT t.sender_id, td.item_id, SUM(-td.quantity), NOW(), NOW()
+                    INSERT INTO warehouse_items (warehouse_id, item_id, warehouse_type, quantity, created_at, updated_at)
+                    SELECT t.sender_id, td.item_id, a.type, SUM(-td.quantity), NOW(), NOW()
                     FROM transaction_details td
                     JOIN transactions t ON td.transaction_id = t.id
+                    JOIN addrbooks a ON t.sender_id = a.id
                     WHERE t.sender_id IS NOT NULL
-                    GROUP BY t.sender_id, td.item_id
+                    GROUP BY t.sender_id, td.item_id, a.type
                     ON DUPLICATE KEY UPDATE quantity = quantity + VALUES(quantity)
                 ');
             });

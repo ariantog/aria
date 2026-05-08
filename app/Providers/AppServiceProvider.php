@@ -42,6 +42,10 @@ class AppServiceProvider extends ServiceProvider
             (string) Addrbook::TYPE_RESELLER => Addrbook::class,
             (string) Addrbook::TYPE_ACCOUNT => Addrbook::class,
             (string) Addrbook::TYPE_OTHER => Addrbook::class,
+
+            // Safeguards for literal class name matches
+            'App\Models\Addrbook' => Addrbook::class,
+            'AppModelsAddrbook' => Addrbook::class,
         ]);
 
         Gate::before(function ($user, $ability) {

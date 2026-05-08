@@ -15,7 +15,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('item_id')->constrained('items')->cascadeOnDelete();
             $table->foreignId('warehouse_id')->constrained('addrbooks')->cascadeOnDelete();
-            $table->string('warehouse_type')->default('App\Models\Addrbook');
+            $table->string('warehouse_type')->default('2'); // Default to Addrbook::TYPE_WAREHOUSE
             $table->decimal('quantity', 15, 2)->default(0);
             $table->timestamps();
 
