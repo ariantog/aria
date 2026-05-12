@@ -14,62 +14,93 @@ class RecalculateReportsOptimized extends Command
 
     public function handle()
     {
-        $this->info('Starting Precise Optimized Recalculation...');
+        $this->info('Starting Precise Recalculation from Legacy...');
         $start = microtime(true);
+
+        $legacyDb = DB::connection('core_legacy');
 
         Schema::disableForeignKeyConstraints();
 
         try {
-            DB::transaction(function () {
+            DB::transaction(function () use ($legacyDb) {
                 // 1. Reset
-                $this->info('Resetting old stock stats...');
+                $this->info('Clearing warehouse_items table (allowed for recalculation)...');
                 DB::table('warehouse_items')->delete();
+
+                $this->info('Resetting items quantities to zero (no rows deleted)...');
                 DB::table('items')->update(['qty' => 0]);
 
-                // 2. Global Stock (items.qty)
-                // 1:BUY(+), 2:SELL(-), 15:RETURN(+), 17:RET_SUPPLIER(-)
-                $this->info('Recalculating Global Stock...');
+                // 2. Load existing local references for note generation
+                $this->info('Loading local references...');
+                $existingItemIds = DB::table('items')->pluck('id')->flip()->toArray();
+                $existingAddrbooks = DB::table('addrbooks')->get(['id', 'type'])->keyBy('id');
+
+                // 3. Fetch and Batch Insert from Legacy
+                $this->info('Fetching data from legacy and syncing...');
+
+                $total = $legacyDb->table('warehouse_item')->count();
+                $bar = $this->output->createProgressBar($total);
+                $bar->start();
+
+                $batchSize = 1000;
+                $insertBatch = [];
+
+                $legacyDb->table('warehouse_item as wi')
+                    ->leftJoin('customers as c', 'wi.warehouse_id', '=', 'c.id')
+                    ->select('wi.item_id', 'wi.warehouse_id', 'wi.quantity', 'c.type as legacy_type')
+                    ->orderBy('wi.id')
+                    ->chunk($batchSize, function ($records) use (&$insertBatch, $existingItemIds, $existingAddrbooks, $bar) {
+                        foreach ($records as $record) {
+                            $notes = [];
+                            $isItemFound = isset($existingItemIds[$record->item_id]);
+                            $localAddrbook = $existingAddrbooks->get($record->warehouse_id);
+                            $isWarehouseFound = ! is_null($localAddrbook);
+
+                            if (! $isItemFound) {
+                                $notes[] = 'Item not found in current project';
+                            }
+                            if (! $isWarehouseFound) {
+                                $notes[] = 'Warehouse/Addrbook not found in current project';
+                            }
+
+                            $note = implode(', ', $notes);
+                            $warehouseType = $isWarehouseFound ? $localAddrbook->type : ($record->legacy_type ?? 99);
+
+                            $insertBatch[] = [
+                                'item_id' => $record->item_id,
+                                'warehouse_id' => $record->warehouse_id,
+                                'warehouse_type' => $warehouseType,
+                                'quantity' => $record->quantity,
+                                'note' => $note ?: null,
+                                'created_at' => now(),
+                                'updated_at' => now(),
+                            ];
+                            $bar->advance();
+                        }
+
+                        if (count($insertBatch) >= 1000) {
+                            DB::table('warehouse_items')->insert($insertBatch);
+                            $insertBatch = [];
+                        }
+                    });
+
+                // Final batch
+                if (! empty($insertBatch)) {
+                    DB::table('warehouse_items')->insert($insertBatch);
+                }
+
+                $bar->finish();
+                $this->newLine();
+
+                // 4. Update Global Stock (items.qty) based on synced warehouse_items
+                $this->info('Updating Global Stock in items table...');
                 DB::statement('
                     UPDATE items i 
                     SET i.qty = (
-                        SELECT COALESCE(SUM(
-                            CASE 
-                                WHEN t.type = 1 THEN td.quantity 
-                                WHEN t.type = 2 THEN -td.quantity
-                                WHEN t.type = 15 THEN td.quantity
-                                WHEN t.type = 17 THEN -td.quantity
-                                ELSE 0 
-                            END
-                        ), 0)
-                        FROM transaction_details td
-                        JOIN transactions t ON td.transaction_id = t.id
-                        WHERE td.item_id = i.id
+                        SELECT COALESCE(SUM(quantity), 0)
+                        FROM warehouse_items wi
+                        WHERE wi.item_id = i.id
                     )
-                ');
-
-                // 3. Warehouse Stock
-                $this->info('Recalculating Warehouse Stock...');
-                // Inbound (+)
-                DB::statement('
-                    INSERT INTO warehouse_items (warehouse_id, item_id, warehouse_type, quantity, created_at, updated_at)
-                    SELECT t.receiver_id, td.item_id, a.type, SUM(td.quantity), NOW(), NOW()
-                    FROM transaction_details td
-                    JOIN transactions t ON td.transaction_id = t.id
-                    JOIN addrbooks a ON t.receiver_id = a.id
-                    WHERE t.receiver_id IS NOT NULL
-                    GROUP BY t.receiver_id, td.item_id, a.type
-                    ON DUPLICATE KEY UPDATE quantity = quantity + VALUES(quantity)
-                ');
-                // Outbound (-)
-                DB::statement('
-                    INSERT INTO warehouse_items (warehouse_id, item_id, warehouse_type, quantity, created_at, updated_at)
-                    SELECT t.sender_id, td.item_id, a.type, SUM(-td.quantity), NOW(), NOW()
-                    FROM transaction_details td
-                    JOIN transactions t ON td.transaction_id = t.id
-                    JOIN addrbooks a ON t.sender_id = a.id
-                    WHERE t.sender_id IS NOT NULL
-                    GROUP BY t.sender_id, td.item_id, a.type
-                    ON DUPLICATE KEY UPDATE quantity = quantity + VALUES(quantity)
                 ');
             });
 
