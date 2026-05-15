@@ -254,6 +254,7 @@ export default function Create({ type, config, ppn_rate, min_date }: Props) {
     const closeDrawer = () => {
         setIsAddItemDrawerOpen(false);
         setEditIndex(null);
+        setScannedItem(null);
     };
 
     const removeItem = (index: number) => {

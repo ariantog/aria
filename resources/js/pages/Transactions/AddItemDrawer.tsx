@@ -113,7 +113,14 @@ export default function AddItemModal({
 
                 // Focus quantity input when editing
                 setTimeout(() => qtyInputRef.current?.focus(), 100);
+            } else if (initialItem) {
+                // Pre-fill for scanned item (Add mode)
+                handleItemSelect(initialItem);
+                const defaultWh =
+                    type === 'buy' || type === 'return' ? receiverId : senderId;
+                setSelectedWarehouseId(defaultWh || '');
             } else {
+                // Normal add mode (from button)
                 resetForm();
                 const defaultWh =
                     type === 'buy' || type === 'return' ? receiverId : senderId;
