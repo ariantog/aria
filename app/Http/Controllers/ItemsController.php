@@ -96,7 +96,7 @@ class ItemsController extends Controller
 
         // JSON Response for Async Select
         if ($request->wantsJson() || $request->has('json')) {
-            return $query->with('warehouseItems')->limit(20)->get(['id', 'code', 'name', 'price', 'cost']); // optimized select
+            return $query->with('warehouseItems')->limit(50)->get();
         }
 
         $items = $query->orderBy('id', 'desc')->paginate(50)->withQueryString();

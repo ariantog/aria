@@ -130,13 +130,14 @@ export default function AddItemModal({
     }, [isOpen, type, senderId, receiverId, initialItem, isEdit]);
 
     const getStock = () => {
-        if (
-            !selectedItem ||
-            !selectedItem.warehouse_items ||
-            !selectedWarehouseId
-        )
-            return 0;
-        const stock = selectedItem.warehouse_items.find(
+        if (!selectedItem || !selectedWarehouseId) return 0;
+
+        const warehouseItems =
+            selectedItem.warehouse_items || selectedItem.warehouseItems;
+
+        if (!warehouseItems || !Array.isArray(warehouseItems)) return 0;
+
+        const stock = warehouseItems.find(
             (wi: any) =>
                 String(wi.warehouse_id) === String(selectedWarehouseId),
         );
@@ -261,11 +262,25 @@ export default function AddItemModal({
                                     </span>
                                     <span className="text-muted-foreground">
                                         {item.code} | Stock:{' '}
-                                        {item.warehouse_items?.find(
-                                            (wi: any) =>
-                                                String(wi.warehouse_id) ===
-                                                String(selectedWarehouseId),
-                                        )?.quantity || 0}
+                                        {(() => {
+                                            const whItems =
+                                                item.warehouse_items ||
+                                                item.warehouseItems;
+                                            const stock = Array.isArray(whItems)
+                                                ? whItems.find(
+                                                      (wi: any) =>
+                                                          String(
+                                                              wi.warehouse_id,
+                                                          ) ===
+                                                          String(
+                                                              selectedWarehouseId,
+                                                          ),
+                                                  )
+                                                : null;
+                                            return stock
+                                                ? Number(stock.quantity)
+                                                : 0;
+                                        })()}
                                     </span>
                                 </div>
                             )}
