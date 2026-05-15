@@ -37,9 +37,11 @@ class TransactionsController extends Controller
         $validSorts = ['date', 'invoice_number', 'type', 'grand_total'];
 
         if (in_array($sort, $validSorts)) {
-            $transactions->orderBy($sort, $direction);
+            $transactions->orderBy($sort, $direction)
+                ->orderBy('id', 'desc');
         } else {
-            $transactions->latest();
+            $transactions->orderBy('date', 'desc')
+                ->orderBy('id', 'desc');
         }
 
         $transactions = $transactions->paginate(50)
