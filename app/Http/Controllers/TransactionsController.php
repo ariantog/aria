@@ -256,7 +256,7 @@ class TransactionsController extends Controller
             return $trx;
         });
 
-        return redirect()->route('transactions.index')->with('success', 'Transaction created.');
+        return redirect()->route('transactions.show', $transaction)->with('success', 'Transaction created.');
     }
 
     public function show(\App\Models\Transaction $transaction)
@@ -407,7 +407,7 @@ class TransactionsController extends Controller
             }
         });
 
-        return redirect()->route('transactions.index')->with('success', 'Cash In records created: #'.implode(', #', $createdIds));
+        return redirect()->route('transactions.show', end($createdIds))->with('success', 'Cash In records created: #'.implode(', #', $createdIds));
     }
 
     public function cashOut(\App\Services\BookClosingService $bookClosingService)
@@ -478,7 +478,7 @@ class TransactionsController extends Controller
             }
         });
 
-        return redirect()->route('transactions.index')->with('success', 'Cash Out records created: #'.implode(', #', $createdIds));
+        return redirect()->route('transactions.show', end($createdIds))->with('success', 'Cash Out records created: #'.implode(', #', $createdIds));
     }
 
     public function transfer(\App\Services\BookClosingService $bookClosingService)
@@ -538,7 +538,7 @@ class TransactionsController extends Controller
             return $trx;
         });
 
-        return redirect()->route('transactions.index')->with('success', 'Transfer record created: #'.$trx->id);
+        return redirect()->route('transactions.show', $trx)->with('success', 'Transfer record created: #'.$trx->id);
     }
 
     public function adjust(\App\Services\BookClosingService $bookClosingService)
@@ -610,7 +610,7 @@ class TransactionsController extends Controller
             return $trx;
         });
 
-        return redirect()->route('transactions.index')->with('success', 'Adjust record created: #'.$trx->id);
+        return redirect()->route('transactions.show', $trx)->with('success', 'Adjust record created: #'.$trx->id);
     }
 
     public function destroy(\App\Models\Transaction $transaction, \App\Services\TransactionService $service)
