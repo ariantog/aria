@@ -512,142 +512,230 @@ export default function Show({ transaction, config, auth, can }: Props) {
                     </CardHeader>
 
                     <CardContent className="p-0">
-                        <div className="overflow-x-auto">
-                            <table className="w-full border-collapse text-left text-sm">
-                                <thead className="border-y bg-muted/50 text-xs text-muted-foreground uppercase tabular-nums">
-                                    <tr>
-                                        {showImage && (
-                                            <th className="w-20 px-4 py-3 text-center font-black">
-                                                Img
-                                            </th>
-                                        )}
-                                        {showBarcode && (
-                                            <th className="px-4 py-3 font-black">
-                                                Barcode
-                                            </th>
-                                        )}
-                                        {showSku && (
-                                            <th className="px-4 py-3 font-black">
-                                                SKU
-                                            </th>
-                                        )}
-                                        <th className="px-4 py-3 font-black">
-                                            Item Name
-                                        </th>
-                                        <th className="px-4 py-3 text-center font-black">
-                                            Qty
-                                        </th>
-                                        <th className="px-4 py-3 text-right font-black">
-                                            Price
-                                        </th>
-                                        <th className="px-4 py-3 text-center font-black">
-                                            Disc(%)
-                                        </th>
-                                        <th className="px-4 py-3 text-right font-black">
-                                            Subtotal
-                                        </th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {transaction.details.map(
-                                        (detail: any, idx: number) => (
-                                            <tr
-                                                key={idx}
-                                                className="group border-b tabular-nums transition-colors hover:bg-muted/20"
-                                            >
-                                                {showImage && (
-                                                    <td className="px-4 py-3 text-center">
-                                                        <div className="relative mx-auto flex h-12 w-12 items-center justify-center overflow-hidden rounded border bg-white shadow-sm transition-transform duration-200 group-hover:scale-105">
-                                                            {detail.item
-                                                                ?.image_url ? (
-                                                                <img
-                                                                    src={
-                                                                        detail
-                                                                            .item
-                                                                            .image_url
-                                                                    }
-                                                                    alt={
-                                                                        detail
-                                                                            .item
-                                                                            ?.name
-                                                                    }
-                                                                    className="h-full w-full object-cover"
-                                                                />
-                                                            ) : (
-                                                                <Package className="h-6 w-6 text-muted-foreground/30" />
-                                                            )}
-                                                        </div>
-                                                    </td>
-                                                )}
-                                                {showBarcode && (
-                                                    <td className="px-4 py-3 font-mono text-xs">
-                                                        <Link
-                                                            href={items.show.url(
-                                                                {
-                                                                    item: detail
-                                                                        .item
-                                                                        ?.id,
-                                                                },
-                                                            )}
-                                                            className="text-blue-600 hover:underline"
-                                                        >
-                                                            {detail.item?.id}
-                                                        </Link>
-                                                    </td>
-                                                )}
-                                                {showSku && (
-                                                    <td className="px-4 py-3 font-mono text-xs text-muted-foreground italic">
-                                                        {detail.item?.code ||
-                                                            '-'}
-                                                    </td>
-                                                )}
-                                                <td className="px-4 py-3">
-                                                    <div className="flex flex-col">
-                                                        <span className="font-bold text-gray-900 dark:text-gray-100">
-                                                            {detail.item?.name}
-                                                        </span>
-                                                        <span className="mt-0.5 line-clamp-1 text-[10px] leading-tight text-muted-foreground italic">
-                                                            {detail.notes ||
-                                                                detail.item
-                                                                    ?.description}
-                                                        </span>
-                                                    </div>
-                                                </td>
-                                                <td className="px-4 py-3 text-center">
-                                                    <span className="inline-flex items-center justify-center rounded bg-muted px-2 py-1 text-xs font-black">
-                                                        {detail.quantity}
-                                                    </span>
-                                                </td>
-                                                <td className="px-4 py-3 text-right font-medium">
-                                                    {formatNumber(detail.price)}
-                                                </td>
-                                                <td className="px-4 py-3 text-center">
-                                                    {detail.discount > 0 ? (
-                                                        <Badge
-                                                            variant="outline"
-                                                            className="h-5 border-dashed border-red-300 bg-red-50 py-0 text-[10px] font-bold text-red-600"
-                                                        >
-                                                            -
-                                                            {formatNumber(
-                                                                detail.discount,
-                                                            )}
-                                                        </Badge>
-                                                    ) : (
-                                                        '-'
-                                                    )}
-                                                </td>
-                                                <td className="px-4 py-3 text-right">
-                                                    <span className="font-black text-blue-700 dark:text-blue-300">
-                                                        {formatNumber(
-                                                            detail.total,
-                                                        )}
-                                                    </span>
-                                                </td>
-                                            </tr>
-                                        ),
+                        <div className="flex flex-col print:block">
+                            {/* Header - Hidden on Mobile */}
+                            <div className="hidden grid-cols-12 gap-4 border-y bg-muted/50 p-3 text-[10px] font-bold tracking-wider text-muted-foreground uppercase sm:grid print:grid">
+                                {showImage && (
+                                    <div className="col-span-1 text-center font-black">
+                                        Img
+                                    </div>
+                                )}
+                                {showBarcode && (
+                                    <div className="col-span-1 font-black">
+                                        Barcode
+                                    </div>
+                                )}
+                                {showSku && (
+                                    <div className="col-span-1 font-black">
+                                        SKU
+                                    </div>
+                                )}
+                                <div
+                                    className={cn(
+                                        'font-black',
+                                        showImage && showBarcode && showSku
+                                            ? 'col-span-3'
+                                            : 'col-span-6', // Simplistic adjustment
                                     )}
-                                </tbody>
-                            </table>
+                                >
+                                    Item Name
+                                </div>
+                                <div className="col-span-1 text-center font-black">
+                                    Qty
+                                </div>
+                                <div className="col-span-2 text-right font-black">
+                                    Price
+                                </div>
+                                <div className="col-span-1 text-center font-black">
+                                    Disc(%)
+                                </div>
+                                <div className="col-span-2 text-right font-black">
+                                    Subtotal
+                                </div>
+                            </div>
+
+                            {/* Rows - Cards on Mobile, Grid on Desktop */}
+                            <div className="divide-y print:block print:divide-y">
+                                {transaction.details.map(
+                                    (detail: any, idx: number) => (
+                                        <div
+                                            key={idx}
+                                            className="group flex flex-col gap-4 p-4 transition-colors hover:bg-muted/20 sm:grid sm:grid-cols-12 sm:items-center sm:gap-4 sm:p-3 sm:text-sm print:grid print:grid-cols-12 print:items-center print:gap-4 print:p-3"
+                                        >
+                                            {/* Mobile: Image & Name Header */}
+                                            <div className="flex items-start gap-3 sm:hidden">
+                                                {showImage && (
+                                                    <div className="relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded border bg-white shadow-sm">
+                                                        {detail.item
+                                                            ?.image_url ? (
+                                                            <img
+                                                                src={
+                                                                    detail.item
+                                                                        .image_url
+                                                                }
+                                                                alt={
+                                                                    detail.item
+                                                                        ?.name
+                                                                }
+                                                                className="h-full w-full object-cover"
+                                                            />
+                                                        ) : (
+                                                            <Package className="h-7 w-7 text-muted-foreground/30" />
+                                                        )}
+                                                    </div>
+                                                )}
+                                                <div className="flex flex-col">
+                                                    <div className="font-bold text-gray-900 dark:text-gray-100">
+                                                        {detail.item?.name}
+                                                    </div>
+                                                    <div className="flex flex-wrap gap-2 pt-1">
+                                                        {showBarcode && (
+                                                            <span className="font-mono text-[10px] font-medium text-blue-600 dark:text-blue-400">
+                                                                #{detail.item?.id}
+                                                            </span>
+                                                        )}
+                                                        {showSku &&
+                                                            detail.item
+                                                                ?.code && (
+                                                                <span className="font-mono text-[10px] text-muted-foreground italic">
+                                                                    SKU:{' '}
+                                                                    {
+                                                                        detail
+                                                                            .item
+                                                                            ?.code
+                                                                    }
+                                                                </span>
+                                                            )}
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Desktop: Image */}
+                                            {showImage && (
+                                                <div className="hidden col-span-1 text-center sm:block print:block">
+                                                    <div className="relative mx-auto flex h-12 w-12 items-center justify-center overflow-hidden rounded border bg-white shadow-sm transition-transform duration-200 group-hover:scale-105">
+                                                        {detail.item
+                                                            ?.image_url ? (
+                                                            <img
+                                                                src={
+                                                                    detail.item
+                                                                        .image_url
+                                                                }
+                                                                alt={
+                                                                    detail.item
+                                                                        ?.name
+                                                                }
+                                                                className="h-full w-full object-cover"
+                                                            />
+                                                        ) : (
+                                                            <Package className="h-6 w-6 text-muted-foreground/30" />
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Desktop: Barcode */}
+                                            {showBarcode && (
+                                                <div className="hidden col-span-1 font-mono text-xs sm:block print:block">
+                                                    <Link
+                                                        href={items.show.url({
+                                                            item: detail.item
+                                                                ?.id,
+                                                        })}
+                                                        className="text-blue-600 hover:underline"
+                                                    >
+                                                        {detail.item?.id}
+                                                    </Link>
+                                                </div>
+                                            )}
+
+                                            {/* Desktop: SKU */}
+                                            {showSku && (
+                                                <div className="hidden col-span-1 font-mono text-xs text-muted-foreground italic sm:block print:block">
+                                                    {detail.item?.code || '-'}
+                                                </div>
+                                            )}
+
+                                            {/* Desktop: Name */}
+                                            <div
+                                                className={cn(
+                                                    'hidden sm:flex flex-col print:flex',
+                                                    showImage &&
+                                                        showBarcode &&
+                                                        showSku
+                                                        ? 'col-span-3'
+                                                        : 'col-span-6',
+                                                )}
+                                            >
+                                                <span className="font-bold text-gray-900 dark:text-gray-100">
+                                                    {detail.item?.name}
+                                                </span>
+                                                <span className="mt-0.5 line-clamp-1 text-[10px] leading-tight text-muted-foreground italic">
+                                                    {detail.notes ||
+                                                        detail.item
+                                                            ?.description}
+                                                </span>
+                                            </div>
+
+                                            {/* Mobile fields / Desktop cells */}
+                                            <div className="flex items-center justify-between sm:col-span-1 sm:block sm:text-center print:block print:text-center">
+                                                <span className="text-[10px] font-bold text-muted-foreground uppercase sm:hidden print:hidden">
+                                                    Qty
+                                                </span>
+                                                <span className="inline-flex items-center justify-center rounded bg-muted px-2 py-1 text-xs font-black sm:bg-transparent sm:p-0">
+                                                    {detail.quantity}
+                                                </span>
+                                            </div>
+
+                                            <div className="flex items-center justify-between sm:col-span-2 sm:block sm:text-right print:block print:text-right">
+                                                <span className="text-[10px] font-bold text-muted-foreground uppercase sm:hidden print:hidden">
+                                                    Price
+                                                </span>
+                                                <span className="font-medium">
+                                                    {formatNumber(detail.price)}
+                                                </span>
+                                            </div>
+
+                                            <div className="flex items-center justify-between sm:col-span-1 sm:block sm:text-center print:block print:text-center">
+                                                <span className="text-[10px] font-bold text-muted-foreground uppercase sm:hidden print:hidden">
+                                                    Disc
+                                                </span>
+                                                {detail.discount > 0 ? (
+                                                    <Badge
+                                                        variant="outline"
+                                                        className="h-5 border-dashed border-red-300 bg-red-50 py-0 text-[10px] font-bold text-red-600"
+                                                    >
+                                                        -
+                                                        {formatNumber(
+                                                            detail.discount,
+                                                        )}
+                                                    </Badge>
+                                                ) : (
+                                                    <span className="text-zinc-400">
+                                                        -
+                                                    </span>
+                                                )}
+                                            </div>
+
+                                            <div className="flex items-center justify-between border-t pt-3 sm:col-span-2 sm:block sm:border-0 sm:pt-0 sm:text-right print:block print:text-right">
+                                                <span className="text-[10px] font-bold text-zinc-900 uppercase sm:hidden dark:text-zinc-100 print:hidden">
+                                                    Subtotal
+                                                </span>
+                                                <span className="text-lg font-black text-blue-700 sm:text-sm dark:text-blue-300">
+                                                    {formatNumber(detail.total)}
+                                                </span>
+                                            </div>
+
+                                            {/* Mobile: Note (if exists) */}
+                                            {detail.notes && (
+                                                <div className="mt-1 rounded bg-muted/30 p-2 text-xs text-muted-foreground italic sm:hidden">
+                                                    📝 {detail.notes}
+                                                </div>
+                                            )}
+                                        </div>
+                                    ),
+                                )}
+                            </div>
                         </div>
                     </CardContent>
                 </Card>

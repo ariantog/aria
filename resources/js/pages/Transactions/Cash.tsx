@@ -305,219 +305,228 @@ export default function Cash({ bankList, ppn_rate, type }: Props) {
                             </Button>
                         </CardHeader>
                         <CardContent className="p-0">
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-left text-sm">
-                                    <thead className="bg-zinc-50 text-xs font-medium tracking-wider text-zinc-500 uppercase dark:bg-zinc-900/50">
-                                        <tr>
-                                            <th className="min-w-[300px] px-4 py-3">
-                                                {config.sourceLabel}
-                                            </th>
-                                            <th className="min-w-[200px] px-4 py-3">
-                                                Invoice (Opt)
-                                            </th>
-                                            <th className="min-w-[250px] px-4 py-3">
-                                                Note
-                                            </th>
-                                            <th className="min-w-[150px] px-4 py-3 text-right">
-                                                Total Amount
-                                            </th>
-                                            <th className="w-[80px] px-4 py-3 text-center">
-                                                Action
-                                            </th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y">
-                                        {data.items.map((item, index) => (
-                                            <tr
-                                                key={item.id}
-                                                className="transition-colors hover:bg-zinc-50/50 dark:hover:bg-zinc-900/50"
-                                            >
-                                                <td className="px-4 py-3">
-                                                    <AsyncCombobox
-                                                        ref={(el) =>
-                                                            setRef(
-                                                                item.id,
-                                                                'customer',
-                                                                el,
-                                                            )
-                                                        }
-                                                        endpoint={transactions.lookup.url(
-                                                            {
-                                                                type: config.lookupType,
-                                                                role: config.lookupRole,
-                                                            },
-                                                        )}
-                                                        value={item.customer}
-                                                        onChange={(val) =>
-                                                            updateItem(
-                                                                item.id,
-                                                                'customer',
-                                                                val,
-                                                            )
-                                                        }
-                                                        excludedIds={getExcludedCustomerIds(
+                            <div className="flex flex-col">
+                                {/* Header - Hidden on Mobile */}
+                                <div className="hidden grid-cols-12 gap-4 border-b bg-zinc-50 p-3 text-[10px] font-bold tracking-wider text-zinc-500 uppercase sm:grid dark:bg-zinc-900/50">
+                                    <div className="col-span-4">{config.sourceLabel}</div>
+                                    <div className="col-span-2">Invoice (Opt)</div>
+                                    <div className="col-span-3">Note</div>
+                                    <div className="col-span-2 text-right">Total Amount</div>
+                                    <div className="col-span-1 text-center">Action</div>
+                                </div>
+
+                                {/* Rows - Cards on Mobile, Grid on Desktop */}
+                                <div className="divide-y">
+                                    {data.items.map((item, index) => (
+                                        <div
+                                            key={item.id}
+                                            className="flex flex-col gap-4 p-4 transition-colors hover:bg-zinc-50/50 sm:grid sm:grid-cols-12 sm:items-center sm:gap-4 sm:p-3 dark:hover:bg-zinc-900/50"
+                                        >
+                                            {/* Source / Name */}
+                                            <div className="col-span-4 space-y-1.5">
+                                                <Label className="text-[10px] font-bold text-zinc-500 uppercase sm:hidden">
+                                                    {config.sourceLabel}
+                                                </Label>
+                                                <AsyncCombobox
+                                                    ref={(el) =>
+                                                        setRef(
                                                             item.id,
-                                                        )}
-                                                        placeholder={
-                                                            config.sourcePlaceholder
-                                                        }
-                                                        className="w-full"
-                                                        onKeyDown={(e) =>
-                                                            handleKeyDown(
-                                                                e,
-                                                                item.id,
-                                                                'customer',
-                                                            )
-                                                        }
-                                                        onSelect={() =>
-                                                            focusField(
-                                                                item.id,
-                                                                'invoice_number',
-                                                            )
-                                                        }
-                                                    />
-                                                    {errors[
-                                                        `items.${index}.customer_id`
-                                                    ] && (
-                                                        <p className="mt-1 text-[10px] text-red-500">
-                                                            {
-                                                                errors[
-                                                                    `items.${index}.customer_id`
-                                                                ]
-                                                            }
-                                                        </p>
+                                                            'customer',
+                                                            el,
+                                                        )
+                                                    }
+                                                    endpoint={transactions.lookup.url(
+                                                        {
+                                                            type: config.lookupType,
+                                                            role: config.lookupRole,
+                                                        },
                                                     )}
-                                                </td>
-                                                <td className="px-4 py-3">
+                                                    value={item.customer}
+                                                    onChange={(val) =>
+                                                        updateItem(
+                                                            item.id,
+                                                            'customer',
+                                                            val,
+                                                        )
+                                                    }
+                                                    excludedIds={getExcludedCustomerIds(
+                                                        item.id,
+                                                    )}
+                                                    placeholder={
+                                                        config.sourcePlaceholder
+                                                    }
+                                                    className="w-full"
+                                                    onKeyDown={(e) =>
+                                                        handleKeyDown(
+                                                            e,
+                                                            item.id,
+                                                            'customer',
+                                                        )
+                                                    }
+                                                    onSelect={() =>
+                                                        focusField(
+                                                            item.id,
+                                                            'invoice_number',
+                                                        )
+                                                    }
+                                                />
+                                                {errors[
+                                                    `items.${index}.customer_id`
+                                                ] && (
+                                                    <p className="mt-1 text-[10px] text-red-500">
+                                                        {
+                                                            errors[
+                                                                `items.${index}.customer_id`
+                                                            ]
+                                                        }
+                                                    </p>
+                                                )}
+                                            </div>
+
+                                            {/* Invoice Number */}
+                                            <div className="col-span-2 space-y-1.5">
+                                                <Label className="text-[10px] font-bold text-zinc-500 uppercase sm:hidden">
+                                                    Invoice (Opt)
+                                                </Label>
+                                                <Input
+                                                    ref={(el) =>
+                                                        setRef(
+                                                            item.id,
+                                                            'invoice_number',
+                                                            el,
+                                                        )
+                                                    }
+                                                    value={
+                                                        item.invoice_number
+                                                    }
+                                                    onChange={(e) =>
+                                                        updateItem(
+                                                            item.id,
+                                                            'invoice_number',
+                                                            e.target.value,
+                                                        )
+                                                    }
+                                                    onKeyDown={(e) =>
+                                                        handleKeyDown(
+                                                            e,
+                                                            item.id,
+                                                            'invoice_number',
+                                                        )
+                                                    }
+                                                    placeholder="Ref. Invoice"
+                                                    className="h-9"
+                                                />
+                                            </div>
+
+                                            {/* Note */}
+                                            <div className="col-span-3 space-y-1.5">
+                                                <Label className="text-[10px] font-bold text-zinc-500 uppercase sm:hidden">
+                                                    Note
+                                                </Label>
+                                                <Input
+                                                    ref={(el) =>
+                                                        setRef(
+                                                            item.id,
+                                                            'note',
+                                                            el,
+                                                        )
+                                                    }
+                                                    value={item.note}
+                                                    onChange={(e) =>
+                                                        updateItem(
+                                                            item.id,
+                                                            'note',
+                                                            e.target.value,
+                                                        )
+                                                    }
+                                                    onKeyDown={(e) =>
+                                                        handleKeyDown(
+                                                            e,
+                                                            item.id,
+                                                            'note',
+                                                        )
+                                                    }
+                                                    placeholder="Add note..."
+                                                    className="h-9"
+                                                />
+                                            </div>
+
+                                            {/* Total Amount */}
+                                            <div className="col-span-2 space-y-1.5">
+                                                <Label className="text-[10px] font-bold text-zinc-500 uppercase sm:hidden">
+                                                    Total Amount
+                                                </Label>
+                                                <div className="relative">
+                                                    <span className="absolute top-1/2 left-3 -translate-y-1/2 text-xs text-zinc-400">
+                                                        Rp
+                                                    </span>
                                                     <Input
                                                         ref={(el) =>
                                                             setRef(
                                                                 item.id,
-                                                                'invoice_number',
+                                                                'total',
                                                                 el,
                                                             )
                                                         }
-                                                        value={
-                                                            item.invoice_number
-                                                        }
+                                                        type="number"
+                                                        value={item.total}
                                                         onChange={(e) =>
                                                             updateItem(
                                                                 item.id,
-                                                                'invoice_number',
-                                                                e.target.value,
+                                                                'total',
+                                                                Number(
+                                                                    e.target
+                                                                        .value,
+                                                                ),
                                                             )
                                                         }
                                                         onKeyDown={(e) =>
                                                             handleKeyDown(
                                                                 e,
                                                                 item.id,
-                                                                'invoice_number',
+                                                                'total',
                                                             )
                                                         }
-                                                        placeholder="Ref. Invoice"
-                                                        className="h-9"
+                                                        className="h-9 pl-9 text-right font-medium"
                                                     />
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    <Input
-                                                        ref={(el) =>
-                                                            setRef(
-                                                                item.id,
-                                                                'note',
-                                                                el,
-                                                            )
-                                                        }
-                                                        value={item.note}
-                                                        onChange={(e) =>
-                                                            updateItem(
-                                                                item.id,
-                                                                'note',
-                                                                e.target.value,
-                                                            )
-                                                        }
-                                                        onKeyDown={(e) =>
-                                                            handleKeyDown(
-                                                                e,
-                                                                item.id,
-                                                                'note',
-                                                            )
-                                                        }
-                                                        placeholder="Add note..."
-                                                        className="h-9"
-                                                    />
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    <div className="relative">
-                                                        <span className="absolute top-1/2 left-3 -translate-y-1/2 text-xs text-zinc-400">
-                                                            Rp
-                                                        </span>
-                                                        <Input
-                                                            ref={(el) =>
-                                                                setRef(
-                                                                    item.id,
-                                                                    'total',
-                                                                    el,
-                                                                )
-                                                            }
-                                                            type="number"
-                                                            value={item.total}
-                                                            onChange={(e) =>
-                                                                updateItem(
-                                                                    item.id,
-                                                                    'total',
-                                                                    Number(
-                                                                        e.target
-                                                                            .value,
-                                                                    ),
-                                                                )
-                                                            }
-                                                            onKeyDown={(e) =>
-                                                                handleKeyDown(
-                                                                    e,
-                                                                    item.id,
-                                                                    'total',
-                                                                )
-                                                            }
-                                                            className="h-9 pl-9 text-right font-medium"
-                                                        />
-                                                    </div>
-                                                </td>
-                                                <td className="px-4 py-3 text-center">
-                                                    <Button
-                                                        type="button"
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        onClick={() =>
-                                                            removeItem(item.id)
-                                                        }
-                                                        disabled={
-                                                            data.items
-                                                                .length === 1
-                                                        }
-                                                        className="h-8 w-8 text-zinc-400 hover:text-red-500"
-                                                    >
-                                                        <Trash2 className="h-4 w-4" />
-                                                    </Button>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                    <tfoot className="border-t bg-zinc-50 font-bold dark:bg-zinc-900/50">
-                                        <tr>
-                                            <td
-                                                colSpan={3}
-                                                className="px-4 py-4 text-right font-medium text-zinc-500"
-                                            >
-                                                GRAND TOTAL
-                                            </td>
-                                            <td className="px-4 py-4 text-right text-lg text-blue-700 dark:text-blue-400">
-                                                IDR{' '}
-                                                {grandTotal.toLocaleString()}
-                                            </td>
-                                            <td></td>
-                                        </tr>
-                                    </tfoot>
-                                </table>
+                                                </div>
+                                            </div>
+
+                                            {/* Action */}
+                                            <div className="col-span-1 flex items-center justify-end sm:justify-center">
+                                                <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    onClick={() =>
+                                                        removeItem(item.id)
+                                                    }
+                                                    disabled={
+                                                        data.items
+                                                            .length === 1
+                                                    }
+                                                    className="h-8 w-8 text-zinc-400 hover:text-red-500"
+                                                >
+                                                    <Trash2 className="h-4 w-4" />
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {/* Footer / Grand Total */}
+                                <div className="border-t bg-zinc-50 p-4 sm:flex sm:items-center sm:justify-between sm:p-6 dark:bg-zinc-900/50">
+                                    <div className="hidden sm:block"></div>
+                                    <div className="flex items-center justify-between sm:gap-8">
+                                        <span className="text-sm font-bold tracking-tight text-zinc-500 uppercase sm:text-base">
+                                            Grand Total
+                                        </span>
+                                        <span className="text-xl font-black text-blue-700 sm:text-2xl dark:text-blue-400">
+                                            IDR{' '}
+                                            {grandTotal.toLocaleString()}
+                                        </span>
+                                    </div>
+                                </div>
                             </div>
                         </CardContent>
                     </Card>

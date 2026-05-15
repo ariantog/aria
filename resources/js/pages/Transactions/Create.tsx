@@ -499,8 +499,8 @@ export default function Create({ type, config, ppn_rate, min_date }: Props) {
                                 )}
 
                                 {/* Items Table */}
-                                <div className="mb-4 rounded-md border">
-                                    <div className="grid grid-cols-12 gap-4 border-b bg-zinc-50 p-3 text-xs font-medium text-zinc-500 dark:bg-zinc-900/50">
+                                <div className="mb-4 space-y-4 sm:space-y-0 sm:rounded-md sm:border">
+                                    <div className="hidden grid-cols-12 gap-4 border-b bg-zinc-50 p-3 text-xs font-medium text-zinc-500 sm:grid dark:bg-zinc-900/50">
                                         <div
                                             className={
                                                 type === 'move'
@@ -527,9 +527,9 @@ export default function Create({ type, config, ppn_rate, min_date }: Props) {
                                     </div>
 
                                     {/* Rows */}
-                                    <div className="divide-y">
+                                    <div className="flex flex-col gap-4 sm:block sm:divide-y">
                                         {data.items.length === 0 && (
-                                            <div className="p-8 text-center text-sm text-zinc-500">
+                                            <div className="p-8 text-center text-sm text-zinc-500 sm:rounded-b-md sm:bg-white dark:sm:bg-zinc-950">
                                                 No items added. Scan a barcode or press{' '}
                                                 <span className="rounded bg-zinc-100 px-1 font-mono">
                                                     Ctrl+I
@@ -540,8 +540,24 @@ export default function Create({ type, config, ppn_rate, min_date }: Props) {
                                         {data.items.map((item, index) => (
                                             <div
                                                 key={index}
-                                                className="group relative grid grid-cols-12 items-center gap-4 p-3 text-sm transition-colors hover:bg-zinc-50/50"
+                                                className="group relative flex flex-col gap-3 rounded-lg border bg-white p-4 shadow-sm sm:grid sm:grid-cols-12 sm:items-center sm:gap-4 sm:rounded-none sm:border-0 sm:bg-transparent sm:p-3 sm:text-sm sm:shadow-none sm:transition-colors sm:hover:bg-zinc-50/50 dark:bg-zinc-900 dark:sm:bg-transparent"
                                             >
+                                                {/* Mobile Header: Code & Action */}
+                                                <div className="flex items-center justify-between sm:hidden">
+                                                    <span className="font-mono text-xs font-medium text-blue-600 dark:text-blue-400">
+                                                        #{item.code}
+                                                    </span>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() =>
+                                                            removeItem(index)
+                                                        }
+                                                        className="text-zinc-400 hover:text-red-500"
+                                                    >
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </button>
+                                                </div>
+
                                                 <div
                                                     className={
                                                         type === 'move'
@@ -549,60 +565,84 @@ export default function Create({ type, config, ppn_rate, min_date }: Props) {
                                                             : 'col-span-5'
                                                     }
                                                 >
-                                                    <div className="font-mono text-xs text-zinc-500">
+                                                    <div className="hidden font-mono text-xs text-zinc-500 sm:block">
                                                         {item.code}
                                                     </div>
-                                                    <div className="font-medium">
+                                                    <div className="font-bold sm:font-medium">
                                                         {item.name}
                                                     </div>
                                                     {item.note && (
                                                         <div
-                                                            className="mt-0.5 max-w-[300px] truncate text-xs text-zinc-400"
+                                                            className="mt-1 max-w-[300px] truncate text-xs text-zinc-400 sm:mt-0.5"
                                                             title={item.note}
                                                         >
                                                             📝 {item.note}
                                                         </div>
                                                     )}
                                                 </div>
-                                                <div className="col-span-2 text-center">
-                                                    <span className="font-bold">
-                                                        {item.quantity}
+
+                                                <div className="flex items-center justify-between sm:col-span-2 sm:block sm:text-center">
+                                                    <span className="text-xs font-medium text-zinc-500 uppercase sm:hidden">
+                                                        Qty / Stock
                                                     </span>
-                                                    <span className="mx-1 text-zinc-400">
-                                                        /
-                                                    </span>
-                                                    <span className="text-zinc-500">
-                                                        {item.warehouse_stock}
-                                                    </span>
+                                                    <div className="flex items-center gap-1 sm:justify-center">
+                                                        <span className="font-bold">
+                                                            {item.quantity}
+                                                        </span>
+                                                        <span className="text-zinc-400">
+                                                            /
+                                                        </span>
+                                                        <span className="text-zinc-500">
+                                                            {item.warehouse_stock}
+                                                        </span>
+                                                    </div>
                                                 </div>
-                                                <div className="col-span-2 text-right">
-                                                    {item.price.toLocaleString()}
+
+                                                <div className="flex items-center justify-between sm:col-span-2 sm:block sm:text-right">
+                                                    <span className="text-xs font-medium text-zinc-500 uppercase sm:hidden">
+                                                        Price
+                                                    </span>
+                                                    <div className="font-medium sm:font-normal">
+                                                        {item.price.toLocaleString()}
+                                                    </div>
                                                 </div>
+
                                                 {type !== 'move' && (
-                                                    <div className="col-span-1 text-right">
-                                                        {item.discount > 0 ? (
-                                                            <span className="text-red-500">
-                                                                -
-                                                                {item.discount.toLocaleString()}
-                                                            </span>
-                                                        ) : (
-                                                            '-'
-                                                        )}
+                                                    <div className="flex items-center justify-between sm:col-span-1 sm:block sm:text-right">
+                                                        <span className="text-xs font-medium text-zinc-500 uppercase sm:hidden">
+                                                            Disc
+                                                        </span>
+                                                        <div className="font-medium sm:font-normal">
+                                                            {item.discount > 0 ? (
+                                                                <span className="text-red-500">
+                                                                    -
+                                                                    {item.discount.toLocaleString()}
+                                                                </span>
+                                                            ) : (
+                                                                '-'
+                                                            )}
+                                                        </div>
                                                     </div>
                                                 )}
-                                                <div className="col-span-2 flex items-center justify-end gap-2">
-                                                    <span className="font-semibold">
-                                                        {item.subtotal.toLocaleString()}
+
+                                                <div className="flex items-center justify-between border-t pt-3 sm:col-span-2 sm:block sm:border-0 sm:pt-0 sm:text-right">
+                                                    <span className="text-xs font-bold text-zinc-900 uppercase sm:hidden dark:text-zinc-100">
+                                                        Subtotal
                                                     </span>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() =>
-                                                            removeItem(index)
-                                                        }
-                                                        className="ml-2 text-zinc-400 opacity-0 transition-opacity group-hover:opacity-100 hover:text-red-500"
-                                                    >
-                                                        <Trash2 className="h-4 w-4" />
-                                                    </button>
+                                                    <div className="flex items-center justify-end gap-2">
+                                                        <span className="text-lg font-bold text-blue-700 sm:text-sm sm:font-semibold dark:text-blue-400">
+                                                            {item.subtotal.toLocaleString()}
+                                                        </span>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() =>
+                                                                removeItem(index)
+                                                            }
+                                                            className="ml-2 hidden text-zinc-400 opacity-0 transition-opacity group-hover:opacity-100 hover:text-red-500 sm:block"
+                                                        >
+                                                            <Trash2 className="h-4 w-4" />
+                                                        </button>
+                                                    </div>
                                                 </div>
                                             </div>
                                         ))}
