@@ -51,6 +51,7 @@ interface TransactionItem {
 export default function Create({ type, config, ppn_rate, min_date }: Props) {
     const isBuy = type === 'buy';
     const [isAddItemDrawerOpen, setIsAddItemDrawerOpen] = useState(false);
+    const [editIndex, setEditIndex] = useState<number | null>(null);
     const [isCameraScannerOpen, setIsCameraScannerOpen] = useState(false);
     const [isScanning, setIsScanning] = useState(false);
     const [scannedItem, setScannedItem] = useState<any>(null);
@@ -206,7 +207,7 @@ export default function Create({ type, config, ppn_rate, min_date }: Props) {
             (i) => String(i.item_id) === String(itemData.id),
         );
 
-        if (existingIndex > -1) {
+        if (existingIndex > -1 && editIndex === null) {
             const newItems = [...data.items];
             const item = { ...newItems[existingIndex] };
             item.quantity += Number(itemData.quantity || 1);
@@ -219,9 +220,11 @@ export default function Create({ type, config, ppn_rate, min_date }: Props) {
                 ...data.items,
                 {
                     item_id: String(itemData.id),
+                    id: String(itemData.id), // For edit modal
                     code: itemData.code,
                     name: itemData.name,
                     quantity: Number(itemData.quantity || 1),
+                    warehouse_id: itemData.warehouse_id,
                     warehouse_name: itemData.warehouse_name || 'Central',
                     warehouse_stock: itemData.warehouse_stock,
                     price: Number(itemData.price),
@@ -232,6 +235,25 @@ export default function Create({ type, config, ppn_rate, min_date }: Props) {
             ]);
             toast.success(`${itemData.name} added to list`);
         }
+    };
+
+    const handleUpdateItem = (updatedItem: any, index: number) => {
+        const newItems = [...data.items];
+        newItems[index] = {
+            ...updatedItem,
+            item_id: String(updatedItem.id),
+        };
+        setData('items', newItems);
+    };
+
+    const openEditDrawer = (index: number) => {
+        setEditIndex(index);
+        setIsAddItemDrawerOpen(true);
+    };
+
+    const closeDrawer = () => {
+        setIsAddItemDrawerOpen(false);
+        setEditIndex(null);
     };
 
     const removeItem = (index: number) => {
@@ -547,15 +569,30 @@ export default function Create({ type, config, ppn_rate, min_date }: Props) {
                                                     <span className="font-mono text-xs font-medium text-blue-600 dark:text-blue-400">
                                                         #{item.code}
                                                     </span>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() =>
-                                                            removeItem(index)
-                                                        }
-                                                        className="text-zinc-400 hover:text-red-500"
-                                                    >
-                                                        <Trash2 className="h-4 w-4" />
-                                                    </button>
+                                                    <div className="flex items-center gap-4">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() =>
+                                                                openEditDrawer(
+                                                                    index,
+                                                                )
+                                                            }
+                                                            className="text-xs font-bold text-blue-600 dark:text-blue-400"
+                                                        >
+                                                            EDIT
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() =>
+                                                                removeItem(
+                                                                    index,
+                                                                )
+                                                            }
+                                                            className="text-zinc-400 hover:text-red-500"
+                                                        >
+                                                            <Trash2 className="h-4 w-4" />
+                                                        </button>
+                                                    </div>
                                                 </div>
 
                                                 <div
@@ -633,15 +670,30 @@ export default function Create({ type, config, ppn_rate, min_date }: Props) {
                                                         <span className="text-lg font-bold text-blue-700 sm:text-sm sm:font-semibold dark:text-blue-400">
                                                             {item.subtotal.toLocaleString()}
                                                         </span>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() =>
-                                                                removeItem(index)
-                                                            }
-                                                            className="ml-2 hidden text-zinc-400 opacity-0 transition-opacity group-hover:opacity-100 hover:text-red-500 sm:block"
-                                                        >
-                                                            <Trash2 className="h-4 w-4" />
-                                                        </button>
+                                                        <div className="ml-2 hidden items-center gap-2 opacity-0 transition-opacity group-hover:opacity-100 sm:flex">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() =>
+                                                                    openEditDrawer(
+                                                                        index,
+                                                                    )
+                                                                }
+                                                                className="text-xs font-bold text-blue-600 hover:underline"
+                                                            >
+                                                                EDIT
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() =>
+                                                                    removeItem(
+                                                                        index,
+                                                                    )
+                                                                }
+                                                                className="text-zinc-400 hover:text-red-500"
+                                                            >
+                                                                <Trash2 className="h-4 w-4" />
+                                                            </button>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             </div>
@@ -802,11 +854,9 @@ export default function Create({ type, config, ppn_rate, min_date }: Props) {
 
                 <AddItemDrawer
                     isOpen={isAddItemDrawerOpen}
-                    onClose={() => {
-                        setIsAddItemDrawerOpen(false);
-                        setScannedItem(null);
-                    }}
+                    onClose={closeDrawer}
                     onAdd={addItem}
+                    onUpdate={handleUpdateItem}
                     isBuy={isBuy}
                     senderId={data.sender_id}
                     receiverId={data.receiver_id}
@@ -817,7 +867,10 @@ export default function Create({ type, config, ppn_rate, min_date }: Props) {
                             : String(config.sender_type) === '2'
                     }
                     type={type}
-                    initialItem={scannedItem}
+                    initialItem={
+                        editIndex !== null ? data.items[editIndex] : scannedItem
+                    }
+                    editIndex={editIndex}
                 />
 
                 <CameraScanner 

@@ -19,6 +19,7 @@ interface Props {
     isOpen: boolean;
     onClose: () => void;
     onAdd: (item: any) => void;
+    onUpdate?: (item: any, index: number) => void;
     isBuy: boolean;
     warehouses?: any[];
     senderId?: string;
@@ -27,12 +28,14 @@ interface Props {
     checkStock?: boolean;
     type?: string;
     initialItem?: any;
+    editIndex?: number | null;
 }
 
 export default function AddItemModal({
     isOpen,
     onClose,
     onAdd,
+    onUpdate,
     isBuy,
     senderId,
     receiverId,
@@ -40,7 +43,9 @@ export default function AddItemModal({
     checkStock = false,
     type,
     initialItem,
+    editIndex = null,
 }: Props) {
+    const isEdit = editIndex !== null;
     const [selectedItem, setSelectedItem] = useState<any>(null);
     const [quantity, setQuantity] = useState('');
     const [selectedWarehouseId, setSelectedWarehouseId] = useState<string>('');
@@ -86,16 +91,36 @@ export default function AddItemModal({
     // Reset state when opening
     useEffect(() => {
         if (isOpen) {
-            resetForm();
-            const defaultWh =
-                type === 'buy' || type === 'return' ? receiverId : senderId;
-            setSelectedWarehouseId(defaultWh || '');
+            if (isEdit && initialItem) {
+                // Pre-fill for edit
+                setSelectedItem({
+                    id: initialItem.id,
+                    code: initialItem.code,
+                    name: initialItem.name,
+                    warehouse_items: [
+                        {
+                            warehouse_id: initialItem.warehouse_id,
+                            quantity: initialItem.warehouse_stock,
+                        },
+                    ],
+                });
+                setQuantity(String(initialItem.quantity));
+                setPrice(String(initialItem.price));
+                setDiscount(String(initialItem.discount || 0));
+                setSubtotal(String(initialItem.subtotal));
+                setSelectedWarehouseId(String(initialItem.warehouse_id));
+                setError(null);
 
-            if (initialItem) {
-                handleItemSelect(initialItem);
+                // Focus quantity input when editing
+                setTimeout(() => qtyInputRef.current?.focus(), 100);
+            } else {
+                resetForm();
+                const defaultWh =
+                    type === 'buy' || type === 'return' ? receiverId : senderId;
+                setSelectedWarehouseId(defaultWh || '');
             }
         }
-    }, [isOpen, type, senderId, receiverId, initialItem]);
+    }, [isOpen, type, senderId, receiverId, initialItem, isEdit]);
 
     const getStock = () => {
         if (
@@ -135,8 +160,9 @@ export default function AddItemModal({
         }
 
         setError(null);
-        onAdd({
+        const itemData = {
             id: selectedItem.id,
+            item_id: selectedItem.id, // Ensure item_id is present for store
             code: selectedItem.code,
             name: selectedItem.name,
             quantity: Number(quantity),
@@ -147,14 +173,20 @@ export default function AddItemModal({
             discount: Number(discount),
             subtotal: Number(subtotal),
             note: '',
-        });
+        };
 
-        toast.success(`${selectedItem.name} added to list`);
-
-        if (keepOpen) {
-            resetForm();
-        } else {
+        if (isEdit && onUpdate && editIndex !== null) {
+            onUpdate(itemData, editIndex);
+            toast.success(`${selectedItem.name} updated`);
             onClose();
+        } else {
+            onAdd(itemData);
+            toast.success(`${selectedItem.name} added to list`);
+            if (keepOpen) {
+                resetForm();
+            } else {
+                onClose();
+            }
         }
     };
 
@@ -186,18 +218,22 @@ export default function AddItemModal({
                 <SheetHeader className="border-b bg-zinc-50/80 px-4 py-2.5 backdrop-blur-sm dark:bg-zinc-900/80">
                     <SheetTitle className="flex items-center gap-2 text-sm font-black tracking-tight uppercase">
                         <div className="flex items-center justify-center rounded-full bg-blue-600 p-1 text-white">
-                            <Plus className="h-3 w-3" strokeWidth={4} />
+                            {isEdit ? (
+                                <Check className="h-3 w-3" strokeWidth={4} />
+                            ) : (
+                                <Plus className="h-3 w-3" strokeWidth={4} />
+                            )}
                         </div>
-                        Add Item
+                        {isEdit ? 'Edit Item' : 'Add Item'}
                     </SheetTitle>
                 </SheetHeader>
 
                 <div className="flex-1 space-y-4 overflow-y-auto px-4 py-4">
                     {/* Item Search */}
-                    <div className="space-y-1">
+                    <div className={cn('space-y-1', isEdit && 'opacity-60')}>
                         <div className="flex items-end justify-between">
                             <Label className="text-[10px] font-black tracking-widest text-zinc-400 uppercase">
-                                Search Item
+                                {isEdit ? 'Selected Item' : 'Search Item'}
                             </Label>
                             {selectedItem && (
                                 <div className="rounded bg-blue-50 px-1.5 py-0.5 font-mono text-[9px] leading-none text-blue-600 dark:bg-blue-900/30 dark:text-blue-400">
@@ -210,6 +246,7 @@ export default function AddItemModal({
                             placeholder="Scan barcode or type item name..."
                             onChange={handleItemSelect}
                             value={selectedItem}
+                            disabled={isEdit}
                             renderItem={(item: any) => (
                                 <div className="flex flex-col py-0.5 text-xs">
                                     <span className="text-sm font-bold tracking-tight">
@@ -338,17 +375,22 @@ export default function AddItemModal({
                         >
                             Cancel
                         </Button>
-                        <Button
-                            onClick={() => handleAdd(false)}
-                            className="h-9 bg-zinc-200 text-[10px] font-black text-zinc-900 uppercase hover:bg-zinc-300 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:bg-zinc-700"
-                        >
-                            Add & Close
-                        </Button>
+                        {!isEdit && (
+                            <Button
+                                onClick={() => handleAdd(false)}
+                                className="h-9 bg-zinc-200 text-[10px] font-black text-zinc-900 uppercase hover:bg-zinc-300 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:bg-zinc-700"
+                            >
+                                Add & Close
+                            </Button>
+                        )}
                         <Button
                             onClick={() => handleAdd(true)}
-                            className="h-9 border-b-2 border-blue-900 bg-blue-700 text-[10px] font-black text-white uppercase shadow-md hover:bg-blue-800"
+                            className={cn(
+                                'h-9 border-b-2 border-blue-900 bg-blue-700 text-[10px] font-black text-white uppercase shadow-md hover:bg-blue-800',
+                                isEdit && 'col-span-2',
+                            )}
                         >
-                            Save Line (Enter)
+                            {isEdit ? 'Save Changes' : 'Save Line (Enter)'}
                         </Button>
                     </SheetFooter>
                 </div>
