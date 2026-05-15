@@ -1,6 +1,6 @@
 import { Head, Link, useForm } from '@inertiajs/react';
 import axios from 'axios';
-import { Plus, Trash2, ArrowLeft, Loader2, Info, Scan, Camera } from 'lucide-react';
+import { Plus, Trash2, ArrowLeft, Loader2, Info, Scan, Camera, Pencil } from 'lucide-react';
 import { TriangleAlert } from 'lucide-react';
 import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
@@ -527,8 +527,8 @@ export default function Create({ type, config, ppn_rate, min_date }: Props) {
                                         <div
                                             className={
                                                 type === 'move'
-                                                    ? 'col-span-6'
-                                                    : 'col-span-5'
+                                                    ? 'col-span-5'
+                                                    : 'col-span-4'
                                             }
                                         >
                                             ITEM
@@ -546,6 +546,9 @@ export default function Create({ type, config, ppn_rate, min_date }: Props) {
                                         )}
                                         <div className="col-span-2 text-right">
                                             SUBTOTAL
+                                        </div>
+                                        <div className="col-span-1 text-center">
+                                            ACTION
                                         </div>
                                     </div>
 
@@ -599,8 +602,8 @@ export default function Create({ type, config, ppn_rate, min_date }: Props) {
                                                 <div
                                                     className={
                                                         type === 'move'
-                                                            ? 'col-span-6'
-                                                            : 'col-span-5'
+                                                            ? 'col-span-5'
+                                                            : 'col-span-4'
                                                     }
                                                 >
                                                     <div className="hidden font-mono text-xs text-zinc-500 sm:block">
@@ -671,31 +674,32 @@ export default function Create({ type, config, ppn_rate, min_date }: Props) {
                                                         <span className="text-lg font-bold text-blue-700 sm:text-sm sm:font-semibold dark:text-blue-400">
                                                             {item.subtotal.toLocaleString()}
                                                         </span>
-                                                        <div className="ml-2 hidden items-center gap-2 opacity-0 transition-opacity group-hover:opacity-100 sm:flex">
-                                                            <button
-                                                                type="button"
-                                                                onClick={() =>
-                                                                    openEditDrawer(
-                                                                        index,
-                                                                    )
-                                                                }
-                                                                className="text-xs font-bold text-blue-600 hover:underline"
-                                                            >
-                                                                EDIT
-                                                            </button>
-                                                            <button
-                                                                type="button"
-                                                                onClick={() =>
-                                                                    removeItem(
-                                                                        index,
-                                                                    )
-                                                                }
-                                                                className="text-zinc-400 hover:text-red-500"
-                                                            >
-                                                                <Trash2 className="h-4 w-4" />
-                                                            </button>
-                                                        </div>
                                                     </div>
+                                                </div>
+
+                                                <div className="hidden sm:col-span-1 sm:flex sm:items-center sm:justify-center sm:gap-2">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() =>
+                                                            openEditDrawer(
+                                                                index,
+                                                            )
+                                                        }
+                                                        className="text-zinc-400 hover:text-blue-600 transition-colors"
+                                                        title="Edit item"
+                                                    >
+                                                        <Pencil className="h-4 w-4" />
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() =>
+                                                            removeItem(index)
+                                                        }
+                                                        className="text-zinc-400 hover:text-red-500 transition-colors"
+                                                        title="Remove item"
+                                                    >
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </button>
                                                 </div>
                                             </div>
                                         ))}
