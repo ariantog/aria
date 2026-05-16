@@ -1,0 +1,1 @@
+import{a as o}from"./button-9MJBzSj2.js";const r=[["path",{d:"M12 5v14",key:"s699le"}],["path",{d:"m19 12-7 7-7-7",key:"1idqje"}]],t=o("ArrowDown",r);const e=[["path",{d:"m5 12 7-7 7 7",key:"hav0vg"}],["path",{d:"M12 19V5",key:"x0mq9r"}]],c=o("ArrowUp",e);export{c as A,t as a};

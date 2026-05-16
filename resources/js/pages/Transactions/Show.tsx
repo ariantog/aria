@@ -81,6 +81,17 @@ export default function Show({ transaction, config, auth, can }: Props) {
     const [showBarcode, setShowBarcode] = useState(true);
     const [showSku, setShowSku] = useState(false);
 
+    const nameColSpanClass =
+        showImage && showBarcode && showSku
+            ? 'col-span-3'
+            : (showImage && showBarcode) ||
+                (showImage && showSku) ||
+                (showBarcode && showSku)
+              ? 'col-span-4'
+              : showImage || showBarcode || showSku
+                ? 'col-span-5'
+                : 'col-span-6';
+
     const handleDelete = () => {
         destroy(transactions.destroy.url({ transaction: transaction.id }));
     };
@@ -533,9 +544,7 @@ export default function Show({ transaction, config, auth, can }: Props) {
                                 <div
                                     className={cn(
                                         'font-black',
-                                        showImage && showBarcode && showSku
-                                            ? 'col-span-3'
-                                            : 'col-span-6', // Simplistic adjustment
+                                        nameColSpanClass,
                                     )}
                                 >
                                     Item Name
@@ -546,7 +555,7 @@ export default function Show({ transaction, config, auth, can }: Props) {
                                 <div className="col-span-2 text-right font-black">
                                     Price
                                 </div>
-                                <div className="col-span-1 text-center font-black">
+                                <div className="col-span-1 text-right font-black">
                                     Disc(%)
                                 </div>
                                 <div className="col-span-2 text-right font-black">
@@ -660,11 +669,7 @@ export default function Show({ transaction, config, auth, can }: Props) {
                                             <div
                                                 className={cn(
                                                     'hidden sm:flex flex-col print:flex',
-                                                    showImage &&
-                                                        showBarcode &&
-                                                        showSku
-                                                        ? 'col-span-3'
-                                                        : 'col-span-6',
+                                                    nameColSpanClass,
                                                 )}
                                             >
                                                 <span className="font-bold text-gray-900 dark:text-gray-100">
@@ -696,7 +701,7 @@ export default function Show({ transaction, config, auth, can }: Props) {
                                                 </span>
                                             </div>
 
-                                            <div className="flex items-center justify-between sm:col-span-1 sm:block sm:text-center print:block print:text-center">
+                                            <div className="flex items-center justify-between sm:col-span-1 sm:block sm:text-right print:block print:text-right">
                                                 <span className="text-[10px] font-bold text-muted-foreground uppercase sm:hidden print:hidden">
                                                     Disc
                                                 </span>

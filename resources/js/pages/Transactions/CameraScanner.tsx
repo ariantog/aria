@@ -1,6 +1,7 @@
-import { useZxing } from 'react-zxing';
 import { X, Camera, RefreshCcw, AlertCircle, Loader2, Info } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import { useZxing } from 'react-zxing';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -9,7 +10,6 @@ import {
     DialogTitle,
     DialogFooter,
 } from '@/components/ui/dialog';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 interface Props {
     isOpen: boolean;
