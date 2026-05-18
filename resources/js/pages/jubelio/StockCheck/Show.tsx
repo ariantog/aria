@@ -154,9 +154,17 @@ export default function Show({ stockCheck }: Props) {
                                                 {item.jubelio_qty}
                                             </td>
                                             <td className="px-4 py-3 text-center">
-                                                <Badge variant="destructive">
-                                                    {(item.aria_qty - item.jubelio_qty).toFixed(2)}
-                                                </Badge>
+                                                {(() => {
+                                                    const diff = item.aria_qty - item.jubelio_qty;
+                                                    return (
+                                                        <Badge 
+                                                            variant={diff < 0 ? "destructive" : "default"}
+                                                            className={diff > 0 ? "bg-yellow-500 hover:bg-yellow-600 text-white border-transparent" : ""}
+                                                        >
+                                                            {diff > 0 ? `+${diff.toFixed(2)}` : diff.toFixed(2)}
+                                                        </Badge>
+                                                    );
+                                                })()}
                                             </td>
                                         </tr>
                                     ))}

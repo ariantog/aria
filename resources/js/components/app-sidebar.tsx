@@ -232,6 +232,11 @@ export function AppSidebar() {
                     href: '/jubelio-sync',
                     isActive: isRouteActive('/jubelio-sync'),
                 },
+                {
+                    title: 'Stock Check',
+                    href: '/jubelio-stock-checks',
+                    isActive: isRouteActive('/jubelio-stock-checks'),
+                },
             ],
         },
         // Address Book Group
