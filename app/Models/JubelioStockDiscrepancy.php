@@ -12,8 +12,10 @@ class JubelioStockDiscrepancy extends Model
 
     protected $fillable = [
         'jubelio_stock_check_id',
+        'item_id',
         'jubelio_item_id',
         'jubelio_location_id',
+        'jubelio_location_name',
         'warehouse_id',
         'aria_qty',
         'jubelio_qty',
@@ -22,6 +24,11 @@ class JubelioStockDiscrepancy extends Model
     public function stockCheck(): BelongsTo
     {
         return $this->belongsTo(JubelioStockCheck::class);
+    }
+
+    public function item(): BelongsTo
+    {
+        return $this->belongsTo(Item::class);
     }
 
     public function warehouse(): BelongsTo

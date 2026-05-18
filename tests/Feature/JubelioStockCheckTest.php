@@ -34,7 +34,7 @@ it('detects stock discrepancies between Aria and Jubelio', function () {
     $this->mock(JubelioService::class, function (MockInterface $mock) {
         $mock->shouldReceive('fetchInventory')
             ->once()
-            ->with(1, 200)
+            ->with(1, 50)
             ->andReturn([
                 'data' => [
                     [
@@ -53,16 +53,18 @@ it('detects stock discrepancies between Aria and Jubelio', function () {
     // 3. Run Command
     $this->artisan('app:jubelio-stock-check')
         ->expectsOutput('Memulai pengecekan stok Jubelio...')
-        ->expectsOutput('Memproses halaman: 1...')
+        ->expectsOutput('Menghubungi Jubelio API (Halaman: 1)...')
         ->assertExitCode(0);
 
     // 4. Assertions
     $job = JubelioStockCheck::latest()->first();
-    expect($job->status)->toBe('completed');
+    expect($job->status)->toBe('processing');
     expect($job->page_tracking)->toBe(2);
 
     $discrepancy = $job->discrepancies()->first();
     expect($discrepancy->jubelio_item_id)->toBe(123);
+    expect($discrepancy->item_id)->toBe($item->id); // New assertion
+    expect($discrepancy->jubelio_location_name)->toBe('Gudang Pusat'); // New assertion
     expect((float) $discrepancy->aria_qty)->toBe(50.0);
     expect((float) $discrepancy->jubelio_qty)->toBe(45.0);
 });

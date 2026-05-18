@@ -8,11 +8,18 @@ import type { BreadcrumbItem } from '@/types';
 
 interface Discrepancy {
     id: number;
+    item_id: number | null;
     jubelio_item_id: number;
     jubelio_location_id: number;
+    jubelio_location_name: string | null;
     warehouse_id: number;
     aria_qty: number;
     jubelio_qty: number;
+    item: {
+        id: number;
+        name: string;
+        code: string;
+    } | null;
     warehouse: {
         name: string;
     } | null;
@@ -103,8 +110,10 @@ export default function Show({ stockCheck }: Props) {
                             <table className="w-full text-left text-sm">
                                 <thead className="bg-muted font-semibold uppercase">
                                     <tr>
+                                        <th className="px-4 py-3">Item (Aria)</th>
                                         <th className="px-4 py-3">Jubelio Item ID</th>
                                         <th className="px-4 py-3">Warehouse (Aria)</th>
+                                        <th className="px-4 py-3">Location (Jubelio)</th>
                                         <th className="px-4 py-3 text-center">Qty Aria</th>
                                         <th className="px-4 py-3 text-center">Qty Jubelio</th>
                                         <th className="px-4 py-3 text-center">Selisih</th>
@@ -113,6 +122,16 @@ export default function Show({ stockCheck }: Props) {
                                 <tbody className="divide-y divide-border">
                                     {stockCheck.discrepancies.map((item) => (
                                         <tr key={item.id} className="hover:bg-muted/50">
+                                            <td className="px-4 py-3">
+                                                {item.item ? (
+                                                    <div className="flex flex-col">
+                                                        <span className="font-bold">{item.item.name}</span>
+                                                        <span className="text-xs text-muted-foreground font-mono">{item.item.code}</span>
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-muted-foreground italic">Item tidak ditemukan</span>
+                                                )}
+                                            </td>
                                             <td className="px-4 py-3 font-mono">
                                                 {item.jubelio_item_id}
                                             </td>
@@ -120,6 +139,12 @@ export default function Show({ stockCheck }: Props) {
                                                 <div className="flex items-center gap-2">
                                                     <Warehouse className="h-4 w-4 opacity-50" />
                                                     <span>{item.warehouse?.name || `ID: ${item.warehouse_id}`}</span>
+                                                </div>
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                <div className="flex flex-col">
+                                                    <span>{item.jubelio_location_name || '-'}</span>
+                                                    <span className="text-xs text-muted-foreground font-mono">ID: {item.jubelio_location_id}</span>
                                                 </div>
                                             </td>
                                             <td className="px-4 py-3 text-center font-bold">
@@ -137,7 +162,7 @@ export default function Show({ stockCheck }: Props) {
                                     ))}
                                     {stockCheck.discrepancies.length === 0 && (
                                         <tr>
-                                            <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground italic">
+                                            <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground italic">
                                                 Tidak ada ketidakcocokan ditemukan pada pengecekan ini.
                                             </td>
                                         </tr>

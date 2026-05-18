@@ -60,7 +60,7 @@ class JubelioStockCheckController extends Controller
     public function show(JubelioStockCheck $jubelioStockCheck): Response
     {
         return Inertia::render('jubelio/StockCheck/Show', [
-            'stockCheck' => $jubelioStockCheck->load('discrepancies.warehouse'),
+            'stockCheck' => $jubelioStockCheck->load('discrepancies.warehouse', 'discrepancies.item'),
         ]);
     }
 

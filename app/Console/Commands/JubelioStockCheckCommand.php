@@ -133,8 +133,10 @@ class JubelioStockCheckCommand extends Command
                 if ((float) $ariaQty != (float) $jubelioQty) {
                     JubelioStockDiscrepancy::create([
                         'jubelio_stock_check_id' => $job->id,
+                        'item_id' => $ariaItem->id,
                         'jubelio_item_id' => $jubelioItemId,
                         'jubelio_location_id' => $jubelioLocId,
+                        'jubelio_location_name' => $sync->jubelio_location_name,
                         'warehouse_id' => $warehouseId,
                         'aria_qty' => $ariaQty,
                         'jubelio_qty' => $jubelioQty,
