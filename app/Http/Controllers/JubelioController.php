@@ -438,7 +438,7 @@ class JubelioController extends Controller
             $response = Http::withHeaders([
                 'Content-Type' => 'application/json',
                 'Authorization' => $token,
-            ])->post('https://api2.jubelio.com/inventory/adjustments/warehouse', $payload);
+            ])->post('https://api2.jubelio.com/inventory/adjustments/', $payload);
 
             if ($response->successful()) {
                 $result = $response->json();

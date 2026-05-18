@@ -265,4 +265,58 @@ Route::get('/jubelio-test-connection', function (App\Services\JubelioService $ju
     return response()->json($response->json());
 });
 
+Route::get('/jubelio-test-adjustment', function (App\Services\JubelioService $jubelioService) {
+    config(['services.jubelio.active' => true]);
+    config(['services.jubelio.verify_ssl' => false]);
+
+    $token = $jubelioService->authenticate()['token'] ?? null;
+
+    if (!$token) {
+        return response()->json(['error' => 'Authentication failed'], 401);
+    }
+
+    // Using dummy data from the plan for testing
+    $payload = [
+        "item_adj_id" => 0,
+        "item_adj_no" => "[auto]",
+        "transaction_date" => now()->toIso8601ZuluString(),
+        "note" => "test connection from aria",
+        "location_id" => 4,
+        "is_opening_balance" => false,
+        "items" => [
+            [
+                "amount" => 0,
+                "account_id" => 75,
+                "unit" => "Buah",
+                "cost" => 0,
+                "qty_in_base" => 0, // Set to 0 to avoid actual stock changes during test
+                "item_adj_detail_id" => 0,
+                "item_id" => 17320, // Using a valid item ID from previous test
+                "bin_id" => null,
+                "description" => "test connection",
+                "serial_no" => null,
+                "batch_no" => null,
+                "original_item_adj_detail_id" => 0,
+                "location_id" => 4,
+                "expired_date" => null
+            ]
+        ]
+    ];
+
+    $response = Illuminate\Support\Facades\Http::withoutVerifying()
+        ->withToken($token)
+        ->withHeaders([
+            'Content-Type' => 'application/json',
+            'Accept' => 'application/json',
+        ])
+        ->post('https://api2.jubelio.com/inventory/adjustments/', $payload);
+
+    return response()->json([
+        'status' => $response->status(),
+        'successful' => $response->successful(),
+        'response' => $response->json(),
+        'payload_sent' => $payload
+    ]);
+});
+
 require __DIR__.'/settings.php';

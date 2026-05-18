@@ -1,0 +1,50 @@
+<?php
+
+$curl = curl_init();
+
+curl_setopt_array($curl, array(
+  CURLOPT_URL => 'https://api2.jubelio.com/inventory/adjustments/',
+  CURLOPT_RETURNTRANSFER => true,
+  CURLOPT_ENCODING => '',
+  CURLOPT_MAXREDIRS => 10,
+  CURLOPT_TIMEOUT => 0,
+  CURLOPT_FOLLOWLOCATION => true,
+  CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+  CURLOPT_CUSTOMREQUEST => 'POST',
+  CURLOPT_POSTFIELDS =>'{
+    "item_adj_id": 0,
+    "item_adj_no": "[auto]",
+    "transaction_date": "2026-05-04T06:19:49.000Z",
+    "note": "test postman ",
+    "location_id": 4,
+    "is_opening_balance": false,
+    "items": [
+        {
+            "amount": 499000.00,
+            "account_id": 75,
+            "unit": "Buah",
+            "cost": 0,
+            "qty_in_base": -5,
+            "item_adj_detail_id": 0,
+            "item_id": 95889,
+            "bin_id": null,
+            "description": "test postman",
+            "serial_no": null,
+            "batch_no": null,
+            "original_item_adj_detail_id": 0,
+            "location_id": 4,
+            "expired_date": null
+        }
+    ]
+}',
+  CURLOPT_HTTPHEADER => array(
+    'Content-Type: application/json',
+    'Accept: application/json',
+    'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6ImNvcmUifQ.eyJpZCI6IlVTRVI6YXJpQGNvcmVuYXRpb25hY3RpdmUuY29tOjE5Mi4xNjguMTkuMTcxIiwiZXhwIjoxNzc3OTE4NzkwNjA0LCJpc193bXNfbWlncmF0ZWQiOnRydWUsImlzcyI6Imp1YmVsaW86b21uaTpsb2dpbiIsImF1ZCI6WyJqdWJlbGlvLW9tbmljaGFubmVsIl0sInR5cGUiOiJhdCIsImlhdCI6MTc3Nzg3NTU5MCwianRpIjoiODFjMTA4MDgtZjg3Ni00ZWNkLWJiZTAtZmE2NTc0MjZkMGFmIn0.kph6tNnyJgnnmiRj_bLogOBF9LhEYNOFFdMO8hqaHtY'
+  ),
+));
+
+$response = curl_exec($curl);
+
+curl_close($curl);
+echo $response;
