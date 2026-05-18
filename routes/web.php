@@ -309,7 +309,7 @@ Route::get('/jubelio-test-adjustment', function (App\Services\JubelioService $ju
             'Content-Type' => 'application/json',
             'Accept' => 'application/json',
         ])
-        ->post('https://api2.jubelio.com/inventory/adjustments/', $payload);
+        ->post('https://api2.jubelio.com/inventory/adjustments/warehouse', $payload);
 
     return response()->json([
         'status' => $response->status(),

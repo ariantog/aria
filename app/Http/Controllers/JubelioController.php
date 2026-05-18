@@ -444,7 +444,7 @@ class JubelioController extends Controller
                 $requestHttp->withoutVerifying();
             }
 
-            $response = $requestHttp->post('https://api2.jubelio.com/inventory/adjustments/', $payload);
+            $response = $requestHttp->post('https://api2.jubelio.com/inventory/adjustments/warehouse', $payload);
 
             if ($response->successful()) {
                 $result = $response->json();
