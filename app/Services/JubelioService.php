@@ -160,13 +160,29 @@ class JubelioService
                 return $response->json();
             }
 
+            $errorBody = $response->body();
             Log::error('Jubelio fetch inventory failed.', [
                 'status' => $response->status(),
-                'response' => $response->body(),
+                'response' => $errorBody,
                 'page' => $page,
             ]);
+
+            return [
+                'error' => [
+                    'message' => 'API Return HTTP '.$response->status(),
+                    'raw' => $errorBody,
+                ],
+                'statusCode' => $response->status(),
+            ];
         } catch (\Exception $e) {
             Log::error('Jubelio fetch inventory error: '.$e->getMessage());
+
+            return [
+                'error' => [
+                    'message' => 'Connection Exception',
+                    'raw' => $e->getMessage(),
+                ],
+            ];
         }
 
         return null;

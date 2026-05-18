@@ -74,7 +74,10 @@ class JubelioStockCheckCommand extends Command
             }
 
             if (isset($response['error'])) {
-                $this->error('Gagal dari Jubelio: '.($response['error']['message'] ?? json_encode($response['error'])));
+                $this->error('Gagal dari Jubelio: '.($response['error']['message'] ?? 'Unknown Error'));
+                if (isset($response['error']['raw'])) {
+                    $this->warn('Raw Error Message: '.$response['error']['raw']);
+                }
                 if (isset($response['statusCode'])) {
                     $this->error('Status Code: '.$response['statusCode']);
                 }
