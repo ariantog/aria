@@ -1,12 +1,14 @@
 import { Head, Link, router } from '@inertiajs/react';
+import axios from 'axios';
 import {
+    AlertTriangle,
     ArrowLeft,
     Box,
     CheckCircle2,
-    AlertTriangle,
     Send,
     X,
 } from 'lucide-react';
+import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import AppLayout from '@/layouts/app-layout';
@@ -72,6 +74,9 @@ export default function DetailSync({
     whAName,
     whBName,
 }: Props) {
+    const [syncResponse, setSyncResponse] = useState<any>(null);
+    const [isSyncing, setIsSyncing] = useState(false);
+
     const breadcrumbs: BreadcrumbItem[] = [
         {
             title: 'Transaction Sync',
@@ -83,7 +88,11 @@ export default function DetailSync({
         },
     ];
 
-    const handleAdjust = (side: number, whType: number, adjustType: number) => {
+    const handleAdjust = async (
+        side: number,
+        whType: number,
+        adjustType: number,
+    ) => {
         if (
             !confirm(
                 `Are you sure you want to adjust stock for ${side === 1 ? whAName : whBName}?`,
@@ -91,11 +100,30 @@ export default function DetailSync({
         )
             return;
 
-        router.post(`/jubelio-transaction/${data.id}/adjust-stok`, {
-            side,
-            whType,
-            adjustType,
-        });
+        setIsSyncing(true);
+        setSyncResponse(null);
+
+        try {
+            const response = await axios.post(
+                `/jubelio-transaction/${data.id}/adjust-stok`,
+                {
+                    side,
+                    whType,
+                    adjustType,
+                },
+            );
+            setSyncResponse(response.data);
+            if (response.data.success) {
+                // Refresh the page data after success to update UI
+                router.reload();
+            }
+        } catch (error: any) {
+            setSyncResponse(
+                error.response?.data || { error: 'Unknown error occurred' },
+            );
+        } finally {
+            setIsSyncing(false);
+        }
     };
 
     return (
@@ -115,6 +143,25 @@ export default function DetailSync({
                         </h1>
                     </div>
                 </div>
+
+                {syncResponse && (
+                    <div className="relative rounded-xl border border-blue-500/30 bg-blue-500/5 p-6 shadow-sm">
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="absolute top-2 right-2 h-6 w-6"
+                            onClick={() => setSyncResponse(null)}
+                        >
+                            <X className="h-4 w-4" />
+                        </Button>
+                        <h3 className="mb-2 text-xs font-bold uppercase text-blue-500">
+                            Jubelio Response
+                        </h3>
+                        <pre className="max-h-60 overflow-auto rounded bg-black/10 p-4 font-mono text-xs">
+                            {JSON.stringify(syncResponse, null, 2)}
+                        </pre>
+                    </div>
+                )}
 
                 {!can_sync && (
                     <div className="flex items-center gap-3 rounded-xl border border-blue-500/20 bg-blue-500/5 p-6 text-blue-600 shadow-sm">
