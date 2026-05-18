@@ -40,6 +40,7 @@ return [
         'url' => env('JUBELIO_URL'),
         'email' => env('JUBELIO_EMAIL'),
         'password' => env('JUBELIO_PASSWORD'),
+        'verify_ssl' => env('JUBELIO_VERIFY_SSL', true),
     ],
 
 ];

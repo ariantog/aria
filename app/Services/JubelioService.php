@@ -24,9 +24,15 @@ class JubelioService
         }
 
         try {
-            $response = Http::withHeaders([
+            $request = Http::withHeaders([
                 'Content-Type' => 'application/json',
-            ])->post($config['url'], [
+            ]);
+
+            if (! ($config['verify_ssl'] ?? true)) {
+                $request->withoutVerifying();
+            }
+
+            $response = $request->post($config['url'], [
                 'email' => $config['email'],
                 'password' => $config['password'],
             ]);

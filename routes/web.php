@@ -244,4 +244,25 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     });
 });
 
+Route::get('/jubelio-test-connection', function (App\Services\JubelioService $jubelioService) {
+    config(['services.jubelio.active' => true]);
+    config(['services.jubelio.verify_ssl' => false]);
+
+    $token = $jubelioService->authenticate()['token'] ?? null;
+
+    if (!$token) {
+        return response()->json(['error' => 'Authentication failed'], 401);
+    }
+
+    $response = Illuminate\Support\Facades\Http::withoutVerifying()
+        ->withToken($token)
+        ->withHeaders(['Accept' => 'application/json'])
+        ->get('https://api2.jubelio.com/inventory/', [
+            'page' => 1,
+            'pageSize' => 5,
+        ]);
+
+    return response()->json($response->json());
+});
+
 require __DIR__.'/settings.php';
