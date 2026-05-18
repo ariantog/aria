@@ -56,8 +56,9 @@ export default function Create({ type, config, ppn_rate, min_date }: Props) {
     const [isScanning, setIsScanning] = useState(false);
     const [scannedItem, setScannedItem] = useState<any>(null);
 
+    const today = new Date().toISOString().split('T')[0];
     const { data, setData, post, processing, errors, transform } = useForm({
-        date: min_date || new Date().toISOString().split('T')[0],
+        date: (min_date && today < min_date) ? min_date : today,
         due_date: '',
         type: type,
         sender_id: '',

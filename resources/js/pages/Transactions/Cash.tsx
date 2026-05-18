@@ -33,7 +33,7 @@ interface CashItem {
     total: number;
 }
 
-export default function Cash({ bankList, ppn_rate, type }: Props) {
+export default function Cash({ bankList, ppn_rate, type, min_date }: Props) {
     const isCashIn = type === 'in';
     const config = {
         title: isCashIn ? 'New Cash In' : 'New Cash Out',
@@ -54,8 +54,9 @@ export default function Cash({ bankList, ppn_rate, type }: Props) {
         submitColor: 'bg-blue-700 hover:bg-blue-800',
     };
 
+    const today = new Date().toISOString().split('T')[0];
     const { data, setData, post, processing, errors } = useForm({
-        date: min_date || new Date().toISOString().split('T')[0],
+        date: (min_date && today < min_date) ? min_date : today,
         account_id: '',
         account: null as Bank | null,
         items: [

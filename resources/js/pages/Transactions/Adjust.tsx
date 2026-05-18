@@ -21,8 +21,9 @@ export default function Adjust({ min_date }: Props) {
         { title: 'New Adjust', href: '/transactions/adjust' },
     ];
 
+    const today = new Date().toISOString().split('T')[0];
     const { data, setData, post, processing, errors } = useForm({
-        date: min_date || new Date().toISOString().split('T')[0],
+        date: (min_date && today < min_date) ? min_date : today,
         invoice: '',
         sender: '', // Debit(+)
         receiver: '', // Credit(+)

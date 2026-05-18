@@ -32,8 +32,9 @@ export default function Transfer({ bankList, min_date }: Props) {
         { title: 'Transfer', href: '/transactions/transfer' },
     ];
 
+    const today = new Date().toISOString().split('T')[0];
     const { data, setData, post, processing, errors } = useForm({
-        date: min_date || new Date().toISOString().split('T')[0],
+        date: (min_date && today < min_date) ? min_date : today,
         sender: '',
         receiver: '',
         invoice: '',
