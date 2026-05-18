@@ -53,7 +53,7 @@ class JubelioStockCheckCommand extends Command
             $job->update(['status' => 'processing']);
         }
 
-        $pageSize = 200;
+        $pageSize = 50;
         $totalDiscrepancies = $job->discrepancies()->count();
 
         if ($totalDiscrepancies >= 200) {
