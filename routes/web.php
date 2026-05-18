@@ -42,6 +42,9 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::post('jubelio-transaction/{id}/adjust-stok', [App\Http\Controllers\JubelioController::class, 'adjustStok'])->name('jubelio.adjustStok');
     Route::post('jubelio/webhook/order', [App\Http\Controllers\JubelioController::class, 'webhookOrder'])->name('jubelio.webhook.order');
 
+    // Jubelio Stock Check Routes
+    Route::resource('jubelio-stock-checks', App\Http\Controllers\JubelioStockCheckController::class)->only(['index', 'create', 'store', 'show', 'destroy']);
+
     // Jubelio Sync Mappings
     Route::get('jubelio-sync', [App\Http\Controllers\JubelioSyncController::class, 'index'])->name('jubelio.sync.index');
     Route::get('jubelio-sync/create', [App\Http\Controllers\JubelioSyncController::class, 'create'])->name('jubelio.sync.create');

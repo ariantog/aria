@@ -116,4 +116,47 @@ class JubelioService
 
         return $value['token'] ?? null;
     }
+
+    /**
+     * Fetch inventory from Jubelio API.
+     */
+    public function fetchInventory(int $page = 1, int $pageSize = 200): ?array
+    {
+        $token = $this->getToken();
+
+        if (! $token) {
+            return null;
+        }
+
+        $config = config('services.jubelio');
+
+        try {
+            $request = Http::withToken($token)
+                ->withHeaders(['Accept' => 'application/json']);
+
+            if (! ($config['verify_ssl'] ?? true)) {
+                $request->withoutVerifying();
+            }
+
+            $response = $request->get('https://api2.jubelio.com/inventory/', [
+                'page' => $page,
+                'pageSize' => $pageSize,
+                'sortDirection' => 'ASC',
+                'sortBy' => 'name',
+            ]);
+
+            if ($response->successful()) {
+                return $response->json();
+            }
+
+            Log::error('Jubelio fetch inventory failed.', [
+                'status' => $response->status(),
+                'response' => $response->body(),
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Jubelio fetch inventory error: '.$e->getMessage());
+        }
+
+        return null;
+    }
 }
