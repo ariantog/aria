@@ -158,7 +158,7 @@ class JubelioStockCheckCommand extends Command
         // Update page tracking untuk dijalankan cron berikutnya
         $job->increment('page_tracking');
 
-        $this->info("Halaman {$job->page_tracking-1} selesai diproses. Page tracking sekarang: {$job->page_tracking}");
+        $this->info('Halaman '.($job->page_tracking - 1).' selesai diproses. Page tracking sekarang: '.$job->page_tracking);
         $this->info("Total ketidakcocokan saat ini: {$totalDiscrepancies}");
 
         return 0;
