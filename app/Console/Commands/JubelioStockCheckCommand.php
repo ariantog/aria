@@ -57,108 +57,109 @@ class JubelioStockCheckCommand extends Command
         $totalDiscrepancies = $job->discrepancies()->count();
 
         if ($totalDiscrepancies >= 200) {
-            $this->warn('Job sudah memiliki lebih dari 200 ketidakcocokan. Menghentikan.');
+            $this->warn('Job sudah memiliki 200 atau lebih ketidakcocokan. Menghentikan.');
             $job->update(['status' => 'stopped']);
 
             return 0;
         }
 
-        while ($totalDiscrepancies < 200) {
-            $this->info("Menghubungi Jubelio API (Halaman: {$job->page_tracking})...");
+        // PROSES HANYA SATU HALAMAN (UNTUK CRON)
+        $this->info("Menghubungi Jubelio API (Halaman: {$job->page_tracking})...");
 
-            $response = $jubelioService->fetchInventory($job->page_tracking, $pageSize);
+        $response = $jubelioService->fetchInventory($job->page_tracking, $pageSize);
 
-            if (! $response) {
-                $this->error('Gagal: Koneksi ke Jubelio API tidak mengembalikan respon (null). Periksa kredensial atau status server.');
-                break;
+        if (! $response) {
+            $this->error('Gagal: Koneksi ke Jubelio API tidak mengembalikan respon (null).');
+
+            return 1;
+        }
+
+        if (isset($response['error'])) {
+            $this->error('Gagal dari Jubelio: '.($response['error']['message'] ?? 'Unknown Error'));
+            if (isset($response['error']['raw'])) {
+                $this->warn('Raw Error Message: '.$response['error']['raw']);
+            }
+            if (isset($response['statusCode'])) {
+                $this->error('Status Code: '.$response['statusCode']);
             }
 
-            if (isset($response['error'])) {
-                $this->error('Gagal dari Jubelio: '.($response['error']['message'] ?? 'Unknown Error'));
-                if (isset($response['error']['raw'])) {
-                    $this->warn('Raw Error Message: '.$response['error']['raw']);
-                }
-                if (isset($response['statusCode'])) {
-                    $this->error('Status Code: '.$response['statusCode']);
-                }
-                break;
+            return 1;
+        }
+
+        if (! isset($response['data'])) {
+            $this->warn('Koneksi Berhasil, tapi format data tidak sesuai: '.json_encode($response));
+
+            return 1;
+        }
+
+        $itemCount = count($response['data']);
+        $this->info("Koneksi Berhasil! Diterima {$itemCount} item dari Jubelio.");
+
+        if ($itemCount === 0) {
+            $this->info('Pengecekan selesai: Tidak ada data lagi untuk diproses dari Jubelio.');
+            $job->update(['status' => 'completed']);
+
+            return 0;
+        }
+
+        foreach ($response['data'] as $jubelioItem) {
+            $jubelioItemId = $jubelioItem['item_id'];
+
+            // Cari item di Aria berdasarkan jubelio_item_id
+            $ariaItem = Item::where('jubelio_item_id', $jubelioItemId)->first();
+
+            if (! $ariaItem) {
+                continue;
             }
 
-            if (! isset($response['data'])) {
-                $this->warn('Koneksi Berhasil, tapi format data tidak sesuai: '.json_encode($response));
-                break;
-            }
+            foreach ($jubelioItem['location_stocks'] as $locStock) {
+                $jubelioLocId = $locStock['location_id'];
+                $jubelioQty = $locStock['on_hand'];
 
-            $itemCount = count($response['data']);
-            $this->info("Koneksi Berhasil! Diterima {$itemCount} item dari Jubelio.");
+                // Cari pemetaan warehouse di Jubeliosync
+                $sync = Jubeliosync::where('jubelio_location_id', $jubelioLocId)->first();
 
-            if ($itemCount === 0) {
-                $this->info('Pengecekan selesai: Tidak ada data lagi untuk diproses dari Jubelio.');
-                $job->update(['status' => 'completed']);
-                break;
-            }
-
-            foreach ($response['data'] as $jubelioItem) {
-                $jubelioItemId = $jubelioItem['item_id'];
-
-                // Cari item di Aria berdasarkan jubelio_item_id
-                $ariaItem = Item::where('jubelio_item_id', $jubelioItemId)->first();
-
-                if (! $ariaItem) {
+                if (! $sync) {
                     continue;
                 }
 
-                foreach ($jubelioItem['location_stocks'] as $locStock) {
-                    $jubelioLocId = $locStock['location_id'];
-                    $jubelioQty = $locStock['on_hand'];
+                $warehouseId = $sync->warehouse_id;
 
-                    // Cari pemetaan warehouse di Jubeliosync
-                    $sync = Jubeliosync::where('jubelio_location_id', $jubelioLocId)->first();
+                // Ambil qty di Aria
+                $ariaQty = WarehouseItem::where('item_id', $ariaItem->id)
+                    ->where('warehouse_id', $warehouseId)
+                    ->first()?->quantity ?? 0;
 
-                    if (! $sync) {
-                        continue;
-                    }
+                if ((float) $ariaQty != (float) $jubelioQty) {
+                    JubelioStockDiscrepancy::create([
+                        'jubelio_stock_check_id' => $job->id,
+                        'jubelio_item_id' => $jubelioItemId,
+                        'jubelio_location_id' => $jubelioLocId,
+                        'warehouse_id' => $warehouseId,
+                        'aria_qty' => $ariaQty,
+                        'jubelio_qty' => $jubelioQty,
+                    ]);
 
-                    $warehouseId = $sync->warehouse_id;
+                    $totalDiscrepancies++;
 
-                    // Ambil qty di Aria
-                    $ariaQty = WarehouseItem::where('item_id', $ariaItem->id)
-                        ->where('warehouse_id', $warehouseId)
-                        ->first()?->quantity ?? 0;
-
-                    if ((float) $ariaQty != (float) $jubelioQty) {
-                        JubelioStockDiscrepancy::create([
-                            'jubelio_stock_check_id' => $job->id,
-                            'jubelio_item_id' => $jubelioItemId,
-                            'jubelio_location_id' => $jubelioLocId,
-                            'warehouse_id' => $warehouseId,
-                            'aria_qty' => $ariaQty,
-                            'jubelio_qty' => $jubelioQty,
+                    if ($totalDiscrepancies >= 200) {
+                        $this->warn('Mencapai batas 200 ketidakcocokan. Menghentikan.');
+                        $job->update([
+                            'status' => 'stopped',
+                            'page_tracking' => $job->page_tracking + 1, // Tetap simpan progress halaman terakhir
                         ]);
 
-                        $totalDiscrepancies++;
-
-                        if ($totalDiscrepancies >= 200) {
-                            $this->warn('Mencapai batas 200 ketidakcocokan. Menghentikan.');
-                            $job->update(['status' => 'stopped']);
-                            break 2; // Keluar dari item loop dan page loop
-                        }
+                        return 0;
                     }
                 }
             }
-
-            // Update page tracking
-            $job->increment('page_tracking');
-
-            // Jika data yang diterima kurang dari pageSize, berarti ini halaman terakhir
-            if (count($response['data']) < $pageSize) {
-                $this->info('Semua halaman telah diproses.');
-                $job->update(['status' => 'completed']);
-                break;
-            }
         }
 
-        $this->info("Pengecekan selesai. Total ketidakcocokan saat ini: {$totalDiscrepancies}");
+        // Update page tracking untuk dijalankan cron berikutnya
+        $job->increment('page_tracking');
+
+        $this->info("Halaman {$job->page_tracking-1} selesai diproses. Page tracking sekarang: {$job->page_tracking}");
+        $this->info("Total ketidakcocokan saat ini: {$totalDiscrepancies}");
 
         return 0;
     }
