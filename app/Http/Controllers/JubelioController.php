@@ -392,6 +392,10 @@ class JubelioController extends Controller
                 throw new \Exception('Jubelio mapping not found for this warehouse.');
             }
 
+            // Force active and disable SSL verification for local/test environment
+            config(['services.jubelio.active' => true]);
+            config(['services.jubelio.verify_ssl' => false]);
+
             $service = app(\App\Services\JubelioService::class);
             $token = $service->getToken();
 
@@ -431,10 +435,16 @@ class JubelioController extends Controller
                 'items' => $detailItems,
             ];
 
-            $response = Http::withHeaders([
+            $requestHttp = Http::withHeaders([
                 'Content-Type' => 'application/json',
                 'Authorization' => $token,
-            ])->post('https://api2.jubelio.com/inventory/adjustments/', $payload);
+            ]);
+
+            if (! config('services.jubelio.verify_ssl', true)) {
+                $requestHttp->withoutVerifying();
+            }
+
+            $response = $requestHttp->post('https://api2.jubelio.com/inventory/adjustments/', $payload);
 
             if ($response->successful()) {
                 $result = $response->json();
