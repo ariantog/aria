@@ -361,19 +361,19 @@ class JubelioController extends Controller
     /**
      * Adjust stock in Jubelio.
      */
-    public function adjustStok(Request $request, $id): JsonResponse
+    public function adjustStok(Request $request, $id): RedirectResponse
     {
         $transaction = Transaction::with(['details.item'])->findOrFail($id);
 
         // Warning/Limit checks
         if ($request->side == 1) {
             if ($transaction->submit_a_count > 0) {
-                return response()->json(['error' => 'Side A has already been attempted.'], 422);
+                return back()->with('errorMessage', 'Side A has already been attempted.');
             }
             $transaction->increment('submit_a_count');
         } elseif ($request->side == 2) {
             if ($transaction->submit_b_count > 0) {
-                return response()->json(['error' => 'Side B has already been attempted.'], 422);
+                return back()->with('errorMessage', 'Side B has already been attempted.');
             }
             $transaction->increment('submit_b_count');
         }
@@ -458,29 +458,18 @@ class JubelioController extends Controller
                 $transaction->save();
                 DB::commit();
 
-                return response()->json([
-                    'success' => true,
-                    'message' => 'Jubelio adjustment successful.',
-                    'response' => $result,
-                ]);
+                return back()->with('success', 'Jubelio adjustment successful.');
             } else {
                 DB::rollBack();
                 $error = $response->json();
                 $message = $error['message'] ?? 'Jubelio API Error: '.$response->status();
 
-                return response()->json([
-                    'success' => false,
-                    'message' => $message,
-                    'error' => $error,
-                ], $response->status());
+                return back()->with('errorMessage', $message);
             }
         } catch (\Exception $e) {
             DB::rollBack();
 
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage(),
-            ], 500);
+            return back()->with('errorMessage', $e->getMessage());
         }
     }
 }

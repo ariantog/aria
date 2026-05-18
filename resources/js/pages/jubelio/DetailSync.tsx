@@ -1,14 +1,22 @@
 import { Head, Link, router } from '@inertiajs/react';
-import axios from 'axios';
 import {
     AlertTriangle,
     ArrowLeft,
     Box,
     CheckCircle2,
     Send,
-    X,
 } from 'lucide-react';
 import { useState } from 'react';
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import AppLayout from '@/layouts/app-layout';
@@ -74,8 +82,13 @@ export default function DetailSync({
     whAName,
     whBName,
 }: Props) {
-    const [syncResponse, setSyncResponse] = useState<any>(null);
-    const [isSyncing, setIsSyncing] = useState(false);
+    const [confirmOpen, setConfirmOpen] = useState(false);
+    const [currentAdjust, setCurrentAdjust] = useState<{
+        side: number;
+        whType: number;
+        adjustType: number;
+        whName: string;
+    } | null>(null);
 
     const breadcrumbs: BreadcrumbItem[] = [
         {
@@ -88,42 +101,26 @@ export default function DetailSync({
         },
     ];
 
-    const handleAdjust = async (
+    const openConfirm = (
         side: number,
         whType: number,
         adjustType: number,
+        whName: string,
     ) => {
-        if (
-            !confirm(
-                `Are you sure you want to adjust stock for ${side === 1 ? whAName : whBName}?`,
-            )
-        )
-            return;
+        setCurrentAdjust({ side, whType, adjustType, whName });
+        setConfirmOpen(true);
+    };
 
-        setIsSyncing(true);
-        setSyncResponse(null);
+    const handleAdjust = () => {
+        if (!currentAdjust) return;
 
-        try {
-            const response = await axios.post(
-                `/jubelio-transaction/${data.id}/adjust-stok`,
-                {
-                    side,
-                    whType,
-                    adjustType,
-                },
-            );
-            setSyncResponse(response.data);
-            if (response.data.success) {
-                // Refresh the page data after success to update UI
-                router.reload();
-            }
-        } catch (error: any) {
-            setSyncResponse(
-                error.response?.data || { error: 'Unknown error occurred' },
-            );
-        } finally {
-            setIsSyncing(false);
-        }
+        router.post(`/jubelio-transaction/${data.id}/adjust-stok`, {
+            side: currentAdjust.side,
+            whType: currentAdjust.whType,
+            adjustType: currentAdjust.adjustType,
+        });
+
+        setConfirmOpen(false);
     };
 
     return (
@@ -144,24 +141,23 @@ export default function DetailSync({
                     </div>
                 </div>
 
-                {syncResponse && (
-                    <div className="relative rounded-xl border border-blue-500/30 bg-blue-500/5 p-6 shadow-sm">
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            className="absolute top-2 right-2 h-6 w-6"
-                            onClick={() => setSyncResponse(null)}
-                        >
-                            <X className="h-4 w-4" />
-                        </Button>
-                        <h3 className="mb-2 text-xs font-bold uppercase text-blue-500">
-                            Jubelio Response
-                        </h3>
-                        <pre className="max-h-60 overflow-auto rounded bg-black/10 p-4 font-mono text-xs">
-                            {JSON.stringify(syncResponse, null, 2)}
-                        </pre>
-                    </div>
-                )}
+                <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>Push to Jubelio?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                                Are you sure you want to adjust stock for <strong>{currentAdjust?.whName}</strong> in Jubelio?
+                                This action will create a stock adjustment in your Jubelio account.
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={handleAdjust}>
+                                Confirm & Push
+                            </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
 
                 {!can_sync && (
                     <div className="flex items-center gap-3 rounded-xl border border-blue-500/20 bg-blue-500/5 p-6 text-blue-600 shadow-sm">
@@ -256,7 +252,7 @@ export default function DetailSync({
                                     submittedBy={data.submit_by_a?.username}
                                     referenceId={data.a_reference_id}
                                     onSync={() =>
-                                        handleAdjust(1, whA, adJustTypeA)
+                                        openConfirm(1, whA, adJustTypeA, whAName || data.sender?.name || '-')
                                     }
                                     needsSync={adJustTypeA > 0}
                                     disabled={data.item_with_jubelio_count > 0}
@@ -273,7 +269,7 @@ export default function DetailSync({
                                     submittedBy={data.submit_by_b?.username}
                                     referenceId={data.b_reference_id}
                                     onSync={() =>
-                                        handleAdjust(2, whB, adJustTypeB)
+                                        openConfirm(2, whB, adJustTypeB, whBName || data.receiver?.name || '-')
                                     }
                                     needsSync={adJustTypeB > 0}
                                     disabled={data.item_with_jubelio_count > 0}
