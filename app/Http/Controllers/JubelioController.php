@@ -392,15 +392,11 @@ class JubelioController extends Controller
                 throw new \Exception('Jubelio mapping not found for this warehouse.');
             }
 
-            $token = Cache::get('jubelio_data')['token'] ?? null;
-            if (! $token) {
-                // Try to get from JubelioService if available
-                $service = app(\App\Services\JubelioService::class);
-                $token = $service->getToken();
-            }
+            $service = app(\App\Services\JubelioService::class);
+            $token = $service->getToken();
 
             if (! $token) {
-                throw new \Exception('Jubelio token not found.');
+                throw new \Exception('Jubelio token not found or authentication failed.');
             }
 
             $detailItems = [];

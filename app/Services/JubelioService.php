@@ -98,8 +98,6 @@ class JubelioService
             $authData = $this->authenticate();
 
             if (! $authData || ! isset($authData['token'])) {
-                // Return old token if re-auth fails, or null?
-                // Helper returned $data->key (old token).
                 return $value['token'] ?? null;
             }
 
