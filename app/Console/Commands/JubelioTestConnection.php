@@ -29,22 +29,23 @@ class JubelioTestConnection extends Command
     {
         // Ensure service is active for this test command
         config(['services.jubelio.active' => true]);
-        
-        if (!$this->option('verify-ssl')) {
+
+        if (! $this->option('verify-ssl')) {
             config(['services.jubelio.verify_ssl' => false]);
         }
 
         $token = $jubelioService->authenticate()['token'] ?? null;
 
-        if (!$token) {
+        if (! $token) {
             $this->line(json_encode(['error' => 'Authentication failed']));
+
             return 1;
         }
 
         $request = Http::withToken($token)
             ->withHeaders(['Accept' => 'application/json']);
 
-        if (!$this->option('verify-ssl')) {
+        if (! $this->option('verify-ssl')) {
             $request->withoutVerifying();
         }
 
@@ -54,18 +55,19 @@ class JubelioTestConnection extends Command
             'sortDirection' => 'ASC',
             'sortBy' => 'name',
             'csv' => 'true',
-            'q' => 'string'
+            'q' => 'string',
         ]);
 
         if ($response->successful()) {
             $this->line(json_encode($response->json()));
+
             return 0;
         }
 
         $this->line(json_encode([
             'error' => 'API request failed',
             'status' => $response->status(),
-            'body' => $response->json()
+            'body' => $response->json(),
         ]));
 
         return 1;

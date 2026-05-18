@@ -33,6 +33,10 @@ class JubelioStockCheckCommand extends Command
     {
         $this->info('Memulai pengecekan stok Jubelio...');
 
+        // Force enable service and disable SSL verification for this command
+        config(['services.jubelio.active' => true]);
+        config(['services.jubelio.verify_ssl' => false]);
+
         // 1. Dapatkan atau buat job master
         $job = JubelioStockCheck::whereIn('status', ['created', 'processing'])->orderBy('created_at', 'desc')->first();
 
@@ -60,12 +64,33 @@ class JubelioStockCheckCommand extends Command
         }
 
         while ($totalDiscrepancies < 200) {
-            $this->info("Memproses halaman: {$job->page_tracking}...");
+            $this->info("Menghubungi Jubelio API (Halaman: {$job->page_tracking})...");
 
             $response = $jubelioService->fetchInventory($job->page_tracking, $pageSize);
 
-            if (! $response || ! isset($response['data']) || empty($response['data'])) {
-                $this->info('Tidak ada data lagi untuk diproses.');
+            if (! $response) {
+                $this->error('Gagal: Koneksi ke Jubelio API tidak mengembalikan respon (null). Periksa kredensial atau status server.');
+                break;
+            }
+
+            if (isset($response['error'])) {
+                $this->error('Gagal dari Jubelio: '.($response['error']['message'] ?? json_encode($response['error'])));
+                if (isset($response['statusCode'])) {
+                    $this->error('Status Code: '.$response['statusCode']);
+                }
+                break;
+            }
+
+            if (! isset($response['data'])) {
+                $this->warn('Koneksi Berhasil, tapi format data tidak sesuai: '.json_encode($response));
+                break;
+            }
+
+            $itemCount = count($response['data']);
+            $this->info("Koneksi Berhasil! Diterima {$itemCount} item dari Jubelio.");
+
+            if ($itemCount === 0) {
+                $this->info('Pengecekan selesai: Tidak ada data lagi untuk diproses dari Jubelio.');
                 $job->update(['status' => 'completed']);
                 break;
             }

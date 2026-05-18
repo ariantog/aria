@@ -72,9 +72,12 @@ class JubelioService
         $setting = Setting::where('slug', $slug)->first();
 
         if (! $setting) {
+            Log::info('No jubelio_token setting found. Authenticating...');
             $authData = $this->authenticate();
 
             if (! $authData || ! isset($authData['token'])) {
+                Log::error('Authentication failed during getToken.');
+
                 return null;
             }
 
@@ -95,9 +98,12 @@ class JubelioService
         $expiresAt = isset($value['expires_at']) ? Carbon::parse($value['expires_at']) : null;
 
         if (! $expiresAt || $expiresAt->isPast()) {
+            Log::info('Jubelio token expired or invalid. Re-authenticating...');
             $authData = $this->authenticate();
 
             if (! $authData || ! isset($authData['token'])) {
+                Log::error('Re-authentication failed during getToken.', ['old_token_exists' => isset($value['token'])]);
+
                 return $value['token'] ?? null;
             }
 
@@ -122,9 +128,12 @@ class JubelioService
      */
     public function fetchInventory(int $page = 1, int $pageSize = 200): ?array
     {
+        Log::info("Fetching inventory for page {$page}...");
         $token = $this->getToken();
 
         if (! $token) {
+            Log::error('Failed to get token for fetchInventory.');
+
             return null;
         }
 
@@ -145,6 +154,8 @@ class JubelioService
                 'sortBy' => 'name',
             ]);
 
+            Log::info("Jubelio API Response Status: {$response->status()}");
+
             if ($response->successful()) {
                 return $response->json();
             }
@@ -152,6 +163,7 @@ class JubelioService
             Log::error('Jubelio fetch inventory failed.', [
                 'status' => $response->status(),
                 'response' => $response->body(),
+                'page' => $page,
             ]);
         } catch (\Exception $e) {
             Log::error('Jubelio fetch inventory error: '.$e->getMessage());
