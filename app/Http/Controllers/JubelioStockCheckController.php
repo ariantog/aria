@@ -15,7 +15,7 @@ class JubelioStockCheckController extends Controller
      */
     public function index(): Response
     {
-        return Inertia::render('Jubelio/StockCheck/Index', [
+        return Inertia::render('jubelio/StockCheck/Index', [
             'stockChecks' => JubelioStockCheck::withCount('discrepancies')
                 ->orderBy('created_at', 'desc')
                 ->paginate(10),
@@ -28,7 +28,7 @@ class JubelioStockCheckController extends Controller
      */
     public function create(): Response
     {
-        return Inertia::render('Jubelio/StockCheck/Create', [
+        return Inertia::render('jubelio/StockCheck/Create', [
             'activeJob' => JubelioStockCheck::whereIn('status', ['created', 'processing'])->first(),
         ]);
     }
@@ -59,7 +59,7 @@ class JubelioStockCheckController extends Controller
      */
     public function show(JubelioStockCheck $jubelioStockCheck): Response
     {
-        return Inertia::render('Jubelio/StockCheck/Show', [
+        return Inertia::render('jubelio/StockCheck/Show', [
             'stockCheck' => $jubelioStockCheck->load('discrepancies.warehouse'),
         ]);
     }
