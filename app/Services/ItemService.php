@@ -31,8 +31,8 @@ class ItemService
         $inputType = ItemType::tryFrom($input->type ?? 1) ?? ItemType::ITEM;
 
         if ($inputType === ItemType::ITEM) {
-            if (! preg_match("/([a-zA-Z]{2})([0-9]{5})\/([0-9]{2})/", $input->pcode)) {
-                throw new Exception('pcode format invalid (Expected XX00000/00)');
+            if (! preg_match("/^[A-Z0-9]+-[0-9]+$/i", $input->pcode)) {
+                throw new Exception('pcode format invalid (Expected STRING-00)');
             }
         }
 
@@ -141,19 +141,19 @@ class ItemService
         $item->genre = $typeId;
 
         if ($itemType === ItemType::ASSET_LANCAR) {
-            // Generate Code: PCODE + SIZE_CODE + WARNA_CODE
+            // Generate Code: PCODE-WARNA_CODE-SIZE_CODE
             $sizeTag = Tag::find($sizeId);
             $warnaId = $tags['warna'][0] ?? null;
             $warnaTag = $warnaId ? Tag::find($warnaId) : null;
 
-            $pcodeClean = str_replace(['/', '-', ' '], '', $item->pcode);
             $sizeCode = $sizeTag?->code ?? '';
             $warnaCode = $warnaTag?->code ?? '';
 
-            $item->code = strtoupper($pcodeClean.$sizeCode.$warnaCode);
+            $item->code = strtoupper($item->pcode.'-'.$warnaCode.'-'.$sizeCode);
 
-            // Generate Name: PCODE-WARNA_CODE-SIZE_CODE
-            $item->name = strtoupper($item->pcode.'-'.$warnaCode.'-'.$sizeCode);
+            // Generate Name: ALIAS - WARNA_CODE - SIZE_CODE
+            $alias = $input->alias ?? ($group?->alias ?? '');
+            $item->name = strtoupper($alias.' - '.$warnaCode.' - '.$sizeCode);
         }
 
         $item->save();
@@ -179,13 +179,18 @@ class ItemService
         if ($itemType === ItemType::ITEM) {
             $typeTag = Tag::find($typeId);
             $sizeTag = Tag::find($sizeId);
+            $warnaId = $tags['warna'][0] ?? null;
+            $warnaTag = $warnaId ? Tag::find($warnaId) : null;
 
-            $typeCode = $typeTag?->code ?? '';
             $sizeCode = $sizeTag?->code ?? '';
-            $sizeName = $sizeTag?->name ?? '';
+            $warnaCode = $warnaTag?->code ?? '';
 
-            $item->code = strtoupper($typeCode.str_replace('/', '', $item->pcode).$sizeCode);
-            $item->name = $typeCode.' '.$item->pcode.' '.$sizeName;
+            // Generate Code: PCODE-WARNA_CODE-SIZE_CODE
+            $item->code = strtoupper($item->pcode.'-'.$warnaCode.'-'.$sizeCode);
+            
+            // Generate Name: ALIAS - WARNA_CODE - SIZE_CODE
+            $alias = $input->alias ?? ($group?->alias ?? '');
+            $item->name = strtoupper($alias.' - '.$warnaCode.' - '.$sizeCode);
         }
 
         // Brand logic
@@ -218,8 +223,8 @@ class ItemService
         $inputType = ItemType::tryFrom($input->type ?? 1) ?? ItemType::ITEM;
 
         if ($inputType === ItemType::ITEM) {
-            if (! preg_match("/([a-zA-Z]{2})([0-9]{5})\/([0-9]{2})/", $input->pcode)) {
-                throw new Exception('pcode format invalid (Expected XX00000/00)');
+            if (! preg_match("/^[A-Z0-9]+-[0-9]+$/i", $input->pcode)) {
+                throw new Exception('pcode format invalid (Expected STRING-00)');
             }
         }
 
@@ -294,30 +299,35 @@ class ItemService
         $item->genre = $typeId;
 
         if ($itemType === ItemType::ASSET_LANCAR) {
-            // Generate Code: PCODE + SIZE_CODE + WARNA_CODE
+            // Generate Code: PCODE-WARNA_CODE-SIZE_CODE
             $sizeTag = Tag::find($sizeId);
             $warnaTag = $warnaId ? Tag::find($warnaId) : null;
 
-            $pcodeClean = str_replace(['/', '-', ' '], '', $item->pcode); // Clean special chars from PCode
             $sizeCode = $sizeTag?->code ?? '';
             $warnaCode = $warnaTag?->code ?? '';
 
-            $item->code = strtoupper($pcodeClean.$sizeCode.$warnaCode);
+            $item->code = strtoupper($item->pcode.'-'.$warnaCode.'-'.$sizeCode);
 
-            // Generate Name: PCODE-WARNA_CODE-SIZE_CODE
-            $item->name = strtoupper($item->pcode.'-'.$warnaCode.'-'.$sizeCode);
+            // Generate Name: ALIAS - WARNA_CODE - SIZE_CODE
+            $alias = $input->alias ?? ($group?->alias ?? '');
+            $item->name = strtoupper($alias.' - '.$warnaCode.' - '.$sizeCode);
         }
 
         if ($itemType === ItemType::ITEM) {
-            $typeTag = Tag::find($typeId);
             $sizeTag = Tag::find($sizeId);
+            $warnaIdFromTags = $tags['warna'][0] ?? null;
+            $finalWarnaIdForCode = $warnaId ?? $warnaIdFromTags;
+            $warnaTag = $finalWarnaIdForCode ? Tag::find($finalWarnaIdForCode) : null;
 
-            $typeCode = $typeTag?->code ?? '';
             $sizeCode = $sizeTag?->code ?? '';
-            $sizeName = $sizeTag?->name ?? '';
+            $warnaCode = $warnaTag?->code ?? '';
 
-            $item->code = strtoupper($typeCode.str_replace('/', '', $item->pcode).$sizeCode);
-            $item->name = $typeCode.' '.$item->pcode.' '.$sizeName;
+            // Generate Code: PCODE-WARNA_CODE-SIZE_CODE
+            $item->code = strtoupper($item->pcode.'-'.$warnaCode.'-'.$sizeCode);
+
+            // Generate Name: ALIAS - WARNA_CODE - SIZE_CODE
+            $alias = $input->alias ?? ($group?->alias ?? '');
+            $item->name = strtoupper($alias.' - '.$warnaCode.' - '.$sizeCode);
         }
 
         $brandStr = strtoupper(substr($item->pcode, 0, 2));

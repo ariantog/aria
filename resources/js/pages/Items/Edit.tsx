@@ -1,9 +1,9 @@
 import { Head, useForm, Link, router } from '@inertiajs/react';
-import { Info, FileText, Tag, Image as ImageIcon } from 'lucide-react';
+import { Info, FileText, Tag, Image as ImageIcon, Box, Package } from 'lucide-react';
 import FormInput from '@/components/Partial/Form/FormInput';
 import FormTextarea from '@/components/Partial/Form/FormTextarea';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import AppLayout from '@/layouts/app-layout';
 import itemRoutes from '@/routes/items';
 import type { BreadcrumbItem } from '@/types';
@@ -108,6 +108,30 @@ export default function ItemsEdit({ item, brands, types, tags }: Props) {
     const jahitOptions =
         tags[TYPE_JAHIT]?.map((t) => ({ value: t.id, label: t.name })) || [];
 
+    // Generate Preview Logic
+    const getPreview = () => {
+        const pcode = data.pcode.toUpperCase().trim();
+        const alias = data.alias.toUpperCase().trim() || '???';
+        if (!pcode) return null;
+
+        const selectedSize = tags[TYPE_SIZE]?.find(
+            (t) => t.id.toString() === (data.tags.sizes[0] || ''),
+        );
+        const selectedWarna = tags[TYPE_WARNA]?.find(
+            (t) => t.id.toString() === (data.tags.warna as string),
+        );
+
+        const sizeCode = selectedSize?.code || '???';
+        const warnaCode = selectedWarna?.code || '???';
+
+        return {
+            sku: `${pcode}-${warnaCode}-${sizeCode}`.toUpperCase(),
+            name: `${alias} - ${warnaCode} - ${sizeCode}`.toUpperCase(),
+        };
+    };
+
+    const preview = getPreview();
+
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title={pageTitle} />
@@ -141,7 +165,7 @@ export default function ItemsEdit({ item, brands, types, tags }: Props) {
                     )}
 
                     <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
-                        {/* Left Column: Basic Info & Details */}
+                        {/* Left Column: Basic Info, Details & Preview */}
                         <div className="space-y-6 lg:col-span-2">
                             {/* Card: Basic & Financial */}
                             <Card className="border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
@@ -164,7 +188,7 @@ export default function ItemsEdit({ item, brands, types, tags }: Props) {
                                             setData('pcode', e.target.value)
                                         }
                                         error={errors.pcode}
-                                        placeholder="e.g. T-SHIRT-001"
+                                        placeholder="e.g. BOXING-01"
                                         required
                                     />
 
@@ -266,7 +290,56 @@ export default function ItemsEdit({ item, brands, types, tags }: Props) {
                                     />
                                 </CardContent>
                             </Card>
+
+                            {/* Card: Item Preview */}
+                            <Card className="border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+                                <CardHeader>
+                                    <div className="flex items-center gap-3">
+                                        <div className="rounded-lg bg-green-500/10 p-2">
+                                            <Box className="h-5 w-5 text-green-500" />
+                                        </div>
+                                        <div>
+                                            <CardTitle className="text-xl text-zinc-900 dark:text-zinc-50">
+                                                Item Preview
+                                            </CardTitle>
+                                            <CardDescription>
+                                                Preview of updated SKU and Name
+                                            </CardDescription>
+                                        </div>
+                                    </div>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="space-y-2">
+                                        {preview ? (
+                                            <div className="space-y-1">
+                                                {/* Table Header */}
+                                                <div className="grid grid-cols-5 gap-4 px-3 py-2 text-xs font-bold tracking-wider text-zinc-500 uppercase">
+                                                    <div className="col-span-2">SKU / Code</div>
+                                                    <div className="col-span-3">Generated Name</div>
+                                                </div>
+                                                {/* Table Body */}
+                                                <div className="grid grid-cols-5 items-center gap-4 rounded-lg border border-zinc-100 bg-zinc-50/50 p-3 dark:border-zinc-800 dark:bg-zinc-950/30">
+                                                    <div className="col-span-2 font-mono text-sm font-semibold text-blue-600 dark:text-blue-400 break-all">
+                                                        {preview.sku}
+                                                    </div>
+                                                    <div className="col-span-3 text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                                                        {preview.name}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="flex flex-col items-center justify-center py-8 text-center text-zinc-500">
+                                                <Package className="mb-2 h-10 w-10 opacity-20" />
+                                                <p className="text-sm">
+                                                    Enter PCode to see preview.
+                                                </p>
+                                            </div>
+                                        )}
+                                    </div>
+                                </CardContent>
+                            </Card>
                         </div>
+
 
                         {/* Right Column: Attributes & Image */}
                         <div className="space-y-6">

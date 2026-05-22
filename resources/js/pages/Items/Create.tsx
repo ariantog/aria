@@ -6,6 +6,7 @@ import {
     Tag,
     Image as ImageIcon,
     Info,
+    Box,
 } from 'lucide-react';
 import FormInput from '@/components/Partial/Form/FormInput';
 import FormTextarea from '@/components/Partial/Form/FormTextarea';
@@ -82,6 +83,48 @@ export default function ItemsCreate({
     const sizeOptions = sizeTags.map((t) => ({ value: t.id, label: t.name }));
     const warnaOptions = warnaTags.map((t) => ({ value: t.id, label: t.name }));
 
+    // Generate Preview Items
+    const getPreviewItems = () => {
+        const pcode = data.pcode.toUpperCase().trim();
+        const alias = data.alias.toUpperCase().trim() || '???';
+        if (!pcode) return [];
+
+        const selectedSizes = sizeTags.filter((t) =>
+            data.tags.sizes.includes(t.id.toString()),
+        );
+
+        let selectedWarnas: any[] = [];
+        if (isAsset) {
+            if (Array.isArray(data.tags.warna)) {
+                selectedWarnas = warnaTags.filter((t) =>
+                    (data.tags.warna as string[]).includes(t.id.toString()),
+                );
+            }
+        } else {
+            // For ITEM, try to get the single warna code
+            const warnaId = data.tags.warna as string;
+            const warna = warnaTags.find((t) => t.id.toString() === warnaId);
+            selectedWarnas = [warna || null];
+        }
+
+        const items: { sku: string; name: string }[] = [];
+
+        selectedSizes.forEach((size) => {
+            const sizeCode = size?.code || '???';
+            selectedWarnas.forEach((warna) => {
+                const warnaCode = warna?.code || '???';
+                items.push({
+                    sku: `${pcode}-${warnaCode}-${sizeCode}`.toUpperCase(),
+                    name: `${alias} - ${warnaCode} - ${sizeCode}`.toUpperCase(),
+                });
+            });
+        });
+
+        return items;
+    };
+
+    const previewItems = getPreviewItems();
+
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title={pageTitle} />
@@ -94,7 +137,7 @@ export default function ItemsCreate({
                     </h2>
                     <p className="text-zinc-500 dark:text-zinc-400">
                         Add a new {isAsset ? 'asset' : 'item'} to the inventory
-                        system with detailed attributes.
+                        system with STRING-NUMBER format (e.g. BOXING-01).
                     </p>
                 </div>
 
@@ -116,7 +159,7 @@ export default function ItemsCreate({
                     )}
 
                     <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
-                        {/* Left Column: Basic Info & Details */}
+                        {/* Left Column: Basic Info, Details & Preview */}
                         <div className="space-y-6 lg:col-span-2">
                             {/* Card: Basic & Financial */}
                             <Card className="border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
@@ -139,7 +182,7 @@ export default function ItemsCreate({
                                             setData('pcode', e.target.value)
                                         }
                                         error={errors.pcode}
-                                        placeholder="e.g. T-SHIRT-001"
+                                        placeholder="e.g. BOXING-01"
                                         required
                                     />
 
@@ -239,6 +282,72 @@ export default function ItemsCreate({
                                         placeholder="Additional notes..."
                                         rows={3}
                                     />
+                                </CardContent>
+                            </Card>
+
+                            {/* Card: Item Summary Preview */}
+                            <Card className="border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+                                <CardHeader>
+                                    <div className="flex items-center gap-3">
+                                        <div className="rounded-lg bg-green-500/10 p-2">
+                                            <Box className="h-5 w-5 text-green-500" />
+                                        </div>
+                                        <div>
+                                            <CardTitle className="text-xl text-zinc-900 dark:text-zinc-50">
+                                                Item Summary Preview
+                                            </CardTitle>
+                                            <CardDescription>
+                                                Summary of items to be generated
+                                            </CardDescription>
+                                        </div>
+                                    </div>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="custom-scrollbar max-h-[400px] space-y-2 overflow-y-auto pr-2">
+                                        {previewItems.length > 0 ? (
+                                            <div className="space-y-1">
+                                                {/* Table Header */}
+                                                <div className="grid grid-cols-5 gap-4 px-3 py-2 text-xs font-bold tracking-wider text-zinc-500 uppercase">
+                                                    <div className="col-span-2">SKU / Code</div>
+                                                    <div className="col-span-3">Generated Name</div>
+                                                </div>
+                                                {/* Table Body */}
+                                                <div className="space-y-1">
+                                                    {previewItems.map((item, idx) => (
+                                                        <div
+                                                            key={idx}
+                                                            className="grid grid-cols-5 items-center gap-4 rounded-lg border border-zinc-100 bg-zinc-50/50 p-3 dark:border-zinc-800 dark:bg-zinc-950/30"
+                                                        >
+                                                            <div className="col-span-2 font-mono text-sm font-semibold text-blue-600 dark:text-blue-400 break-all">
+                                                                {item.sku}
+                                                            </div>
+                                                            <div className="col-span-3 text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                                                                {item.name}
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="flex flex-col items-center justify-center py-8 text-center text-zinc-500">
+                                                <Package className="mb-2 h-10 w-10 opacity-20" />
+                                                <p className="text-sm">
+                                                    Enter PCode and select Type/Size
+                                                    to see preview.
+                                                </p>
+                                            </div>
+                                        )}
+                                    </div>
+                                    {previewItems.length > 0 && (
+                                        <div className="mt-4 border-t border-zinc-100 pt-4 dark:border-zinc-800">
+                                            <p className="text-xs text-zinc-500">
+                                                Total Items to Create:{' '}
+                                                <span className="font-bold text-zinc-900 dark:text-zinc-100">
+                                                    {previewItems.length}
+                                                </span>
+                                            </p>
+                                        </div>
+                                    )}
                                 </CardContent>
                             </Card>
                         </div>
