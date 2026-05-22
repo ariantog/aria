@@ -63,12 +63,13 @@ Digunakan untuk material pendukung seperti kancing, benang, atau bahan kain. Fok
 
 | Data Input | Tipe: ITEM | Tipe: ASSET LANCAR |
 | :--- | :--- | :--- |
-| **PCode** | `CX12345/01` | `BENANG-01` |
-| **Tag Type** | `TS` (T-Shirt) | `MT` (Material) |
-| **Tag Size** | `L` (Large) | `10` (10 Meter) |
-| **Tag Warna** | `RED` (Merah) | `WH` (White) |
-| **Hasil SKU** | **`TSCX1234501L`** | **`BENANG0110WH`** |
-| **Hasil Nama**| `TS CX12345/01 L` | `BENANG-01-WH-10` |
+| **PCode** | `CX12345/01` | `BOXING-01` |
+| **Tag Type** | `AJD` (T-Shirt) | `BOXING` (Type aset lancar di tag) |
+| **ALIAS** | `ESSENTIAL SHIRT` (nama) | `APEX BOXING GLOVE` (nama) |
+| **Tag Size** | `L` (Large) | `10OZ` (10 oz) |
+| **Tag Warna** | `RED` (Merah) | `WHITE` (White) |
+| **Hasil SKU** | **`AJD CX12345/01 L`** | **`BOXING-01-WHITE-10OZ`** |
+| **Hasil Nama**| `ESSENTIAL SHIRT - RED - L` | `APEX BOXING GLOVE - WHITE - 10OZ` |
 
 ---
 
