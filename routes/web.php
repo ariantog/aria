@@ -125,6 +125,7 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::post('transactions/deleted/{id}/restore', [App\Http\Controllers\DeletedTransactionsController::class, 'restore'])->name('transactions.deleted.restore');
     Route::get('transactions', [App\Http\Controllers\TransactionsController::class, 'index'])->name('transactions.index');
     Route::post('transactions', [App\Http\Controllers\TransactionsController::class, 'store'])->name('transactions.store');
+    Route::post('transactions/batch-parse', [App\Http\Controllers\TransactionsController::class, 'batchParse'])->name('transactions.batch-parse');
 
     Route::get('transactions/cash-in', [App\Http\Controllers\TransactionsController::class, 'cashIn'])->name('transactions.cash-in');
     Route::post('transactions/cash-in', [App\Http\Controllers\TransactionsController::class, 'storeCashIn'])->name('transactions.cash-in.store');

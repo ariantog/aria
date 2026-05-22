@@ -180,7 +180,8 @@ class ItemsController extends Controller
         if ($request->input('type') == \App\Enums\ItemType::ASSET_LANCAR->value) {
             $rules['name'] = 'required|string';
             $rules['cost'] = 'required|numeric';
-            $rules['tags.warna'] = 'required'; // Asset needs Warna
+            $rules['tags.warna'] = 'required|array'; // Asset needs Warna as array
+            $rules['tags.warna.*'] = 'required';
             $rules['tags.jahit'] = 'nullable';
         } else {
             // Default ITEM

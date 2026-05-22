@@ -64,7 +64,7 @@ export default function ItemsCreate({
         tags: {
             types: '', // Single (Radio)
             sizes: [] as string[], // Multi (Checkbox)
-            warna: '', // Single (Select)
+            warna: (isAsset ? [] : '') as string | string[], // Multi if Asset
             jahit: '', // Single (Radio)
         },
     });
@@ -266,12 +266,13 @@ export default function ItemsCreate({
                                         onSelect={(val) =>
                                             setData('tags', {
                                                 ...data.tags,
-                                                warna: val as string,
+                                                warna: val,
                                             })
                                         }
                                         modalTitle="Pilih Warna"
                                         searchPlaceholder="Cari warna..."
                                         required={isAsset}
+                                        multiple={isAsset}
                                         error={errors['tags.warna'] as string}
                                     />
 

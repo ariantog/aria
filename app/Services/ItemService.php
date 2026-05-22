@@ -249,35 +249,39 @@ class ItemService
             $tags = $this->sortTags($tags);
             $totalCreated = 0;
 
-            // Loop types and sizes
+            // Loop types, sizes and colors
             $firstItemWithImage = null;
 
             foreach ($tags['types'] as $typeId) {
                 foreach ($tags['sizes'] as $sizeId) {
-                    $item = $this->createSingleItem($group, $input, $tags, $typeId, $sizeId, $inputType);
+                    $warnaIds = ($inputType === ItemType::ASSET_LANCAR) ? $tags['warna'] : [null];
 
-                    if ($file) {
-                        if (! $firstItemWithImage) {
-                            $this->imageService->saveItemImage($item, $file);
-                            $firstItemWithImage = $item;
-                        } else {
-                            $this->imageService->copyItemImage($firstItemWithImage, $item);
+                    foreach ($warnaIds as $warnaId) {
+                        $item = $this->createSingleItem($group, $input, $tags, $typeId, $sizeId, $inputType, $warnaId);
+
+                        if ($file) {
+                            if (! $firstItemWithImage) {
+                                $this->imageService->saveItemImage($item, $file);
+                                $firstItemWithImage = $item;
+                            } else {
+                                $this->imageService->copyItemImage($firstItemWithImage, $item);
+                            }
                         }
-                    }
 
-                    $totalCreated++;
+                        $totalCreated++;
+                    }
                 }
             }
 
             if ($totalCreated < 1) {
-                throw new Exception('Must have at least one TYPE and SIZE tag.');
+                throw new Exception('Must have at least one TYPE, SIZE and WARNA tag.');
             }
 
             return true;
         });
     }
 
-    protected function createSingleItem(?ItemGroup $group, object $input, array $tags, int $typeId, int $sizeId, ItemType $itemType): Item
+    protected function createSingleItem(?ItemGroup $group, object $input, array $tags, int $typeId, int $sizeId, ItemType $itemType, ?int $warnaId = null): Item
     {
         $item = new Item;
         $item->pcode = strtoupper(trim($input->pcode));
@@ -292,7 +296,6 @@ class ItemService
         if ($itemType === ItemType::ASSET_LANCAR) {
             // Generate Code: PCODE + SIZE_CODE + WARNA_CODE
             $sizeTag = Tag::find($sizeId);
-            $warnaId = $tags['warna'][0] ?? null;
             $warnaTag = $warnaId ? Tag::find($warnaId) : null;
 
             $pcodeClean = str_replace(['/', '-', ' '], '', $item->pcode); // Clean special chars from PCode
@@ -337,9 +340,12 @@ class ItemService
             $jahitTags = $jahitTags ? [$jahitTags] : [];
         }
 
+        // Use the passed warnaId instead of taking it from tags array if provided
+        $finalWarnaId = $warnaId ?? ($tags['warna'][0] ?? null);
+
         $tagIds = array_merge(
             $jahitTags,
-            [$typeId, $sizeId, $tags['warna'][0] ?? null]
+            [$typeId, $sizeId, $finalWarnaId]
         );
 
         $tagIds = array_filter($tagIds);

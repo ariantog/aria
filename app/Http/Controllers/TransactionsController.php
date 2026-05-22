@@ -642,4 +642,101 @@ class TransactionsController extends Controller
 
         return redirect()->route('transactions.index')->with('success', 'Transaction moved to deleted.');
     }
+
+    public function batchParse(\Illuminate\Http\Request $request)
+    {
+        $request->validate([
+            'csv_file' => 'required|mimes:csv,txt|max:5120',
+            'warehouse_id' => 'nullable|integer'
+        ]);
+
+        $file = $request->file('csv_file');
+        $filePath = $file->getRealPath();
+
+        $array = [];
+        if (($handle = fopen($filePath, 'r')) !== false) {
+            // Read first line to detect delimiter
+            $firstLine = fgets($handle);
+            rewind($handle);
+
+            // Count occurrences of , and ;
+            $commas = substr_count($firstLine, ',');
+            $semicolons = substr_count($firstLine, ';');
+            $delimiter = $semicolons > $commas ? ';' : ',';
+
+            $first = true;
+            while (($data = fgetcsv($handle, 1000, $delimiter)) !== false) {
+                if (count($data) >= 3) {
+                    // Header detection: if first line's 2nd column (quantity) is not numeric, skip it.
+                    if ($first && !is_numeric(trim($data[1]))) {
+                        $first = false;
+                        continue;
+                    }
+                    $first = false;
+                    $array[] = [
+                        'code' => trim($data[0]),
+                        'qty' => trim($data[1]),
+                        'price' => trim($data[2])
+                    ];
+                }
+            }
+            fclose($handle);
+        }
+
+        if (empty($array)) {
+            return response()->json([
+                'error' => 'Failed to parse CSV or file is empty. Expected format: code,qty,price. Make sure to use comma (,) or semicolon (;) as delimiter.'
+            ], 422);
+        }
+
+        $codes = collect($array)->pluck('code')->unique();
+        $whid = $request->warehouse_id;
+
+        $itemsQuery = \App\Models\Item::whereIn('code', $codes);
+
+        if ($whid) {
+            $itemsQuery->with(['warehouseItems' => function ($query) use ($whid) {
+                $query->where('warehouse_id', $whid);
+            }]);
+        }
+
+        $items = $itemsQuery->get()->keyBy('code');
+
+        $dataList = [];
+        foreach ($array as $row) {
+            $code = $row['code'];
+            $qty = (float) $row['qty'];
+            $price = (float) $row['price'];
+
+            $item = $items[$code] ?? null;
+
+            if ($item) {
+                $warehouseQuantity = 0;
+                if ($whid && $item->relationLoaded('warehouseItems')) {
+                    $whItem = $item->warehouseItems->first();
+                    $warehouseQuantity = $whItem ? (float) $whItem->quantity : 0;
+                }
+
+                $dataList[] = [
+                    'id' => (string) $item->id,
+                    'item_id' => (string) $item->id,
+                    'code' => $item->code,
+                    'name' => $item->name,
+                    'quantity' => $qty,
+                    'warehouse_stock' => $warehouseQuantity,
+                    'warehouse_id' => $whid,
+                    'price' => $price,
+                    'discount' => 0,
+                    'subtotal' => $qty * $price,
+                    'note' => ''
+                ];
+            }
+        }
+
+        return response()->json([
+            'data' => $dataList,
+            'totalQty' => collect($dataList)->sum('quantity'),
+            'totalPrice' => collect($dataList)->sum('subtotal')
+        ]);
+    }
 }

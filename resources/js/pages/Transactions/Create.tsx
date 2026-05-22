@@ -1,8 +1,8 @@
 import { Head, Link, useForm } from '@inertiajs/react';
 import axios from 'axios';
-import { Plus, Trash2, ArrowLeft, Loader2, Info, Scan, Camera, Pencil } from 'lucide-react';
+import { Plus, Trash2, ArrowLeft, Loader2, Info, Scan, Camera, Pencil, Upload } from 'lucide-react';
 import { TriangleAlert } from 'lucide-react';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { toast } from 'sonner';
 import { AsyncCombobox } from '@/components/AsyncCombobox';
 import FormAsyncCombobox from '@/components/Partial/Form/FormAsyncCombobox';
@@ -127,6 +127,49 @@ export default function Create({ type, config, ppn_rate, min_date }: Props) {
         data.sender,
         data.receiver,
     ]);
+
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const [isUploading, setIsUploading] = useState(false);
+
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        // Ensure warehouse is selected for sell/move where sender is warehouse,
+        // or for buy/return where receiver is warehouse.
+        const warehouseId = type === 'buy' || type === 'return' ? data.receiver_id : data.sender_id;
+        
+        if (!warehouseId) {
+            toast.error('Please select the warehouse contact first before uploading batch items.');
+            if (fileInputRef.current) fileInputRef.current.value = '';
+            return;
+        }
+
+        setIsUploading(true);
+        const formData = new FormData();
+        formData.append('csv_file', file);
+        formData.append('warehouse_id', warehouseId);
+
+        try {
+            const response = await axios.post('/transactions/batch-parse', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+
+            if (response.data.data && response.data.data.length > 0) {
+                // Determine whether to append or replace. Append for now.
+                setData('items', [...data.items, ...response.data.data]);
+                toast.success(`Successfully added ${response.data.data.length} items from CSV.`);
+            } else {
+                toast.error('No valid items found in the CSV.');
+            }
+        } catch (error: any) {
+            console.error('CSV Upload Error:', error);
+            toast.error(error.response?.data?.error || 'Failed to process CSV file.');
+        } finally {
+            setIsUploading(false);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+        }
+    };
 
     const handleBarcodeScan = useCallback(async (code: string) => {
         if (isScanning) return;
@@ -496,6 +539,26 @@ export default function Create({ type, config, ppn_rate, min_date }: Props) {
                                     Line Items
                                 </CardTitle>
                                 <div className="flex gap-2">
+                                    <input 
+                                        type="file" 
+                                        accept=".csv,.txt" 
+                                        className="hidden" 
+                                        ref={fileInputRef} 
+                                        onChange={handleFileUpload} 
+                                    />
+                                    {(type === 'sell' || type === 'move' || type === 'buy') && (
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            type="button"
+                                            onClick={() => fileInputRef.current?.click()}
+                                            disabled={isUploading}
+                                            className="h-8 gap-1.5 text-xs font-bold"
+                                        >
+                                            {isUploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+                                            Batch CSV
+                                        </Button>
+                                    )}
                                     <Button
                                         variant="outline"
                                         size="sm"
@@ -518,6 +581,17 @@ export default function Create({ type, config, ppn_rate, min_date }: Props) {
                                         <AlertTitle>Error</AlertTitle>
                                         <AlertDescription>
                                             {errors.items}
+                                        </AlertDescription>
+                                    </Alert>
+                                )}
+
+                                {((type === 'sell' || type === 'move' || type === 'return_supplier') && 
+                                    data.items.some(item => item.quantity > (item.warehouse_stock || 0))) && (
+                                    <Alert variant="destructive" className="mb-4 bg-red-50 border-red-200 text-red-800 dark:bg-red-900/20 dark:border-red-900 dark:text-red-400">
+                                        <TriangleAlert className="h-4 w-4" />
+                                        <AlertTitle className="font-bold">Insufficient Stock Alert</AlertTitle>
+                                        <AlertDescription>
+                                            One or more items in your list exceed the available warehouse stock. Please review the items marked in red.
                                         </AlertDescription>
                                     </Alert>
                                 )}
@@ -627,7 +701,12 @@ export default function Create({ type, config, ppn_rate, min_date }: Props) {
                                                     <span className="text-xs font-medium text-zinc-500 uppercase sm:hidden">
                                                         Qty / Stock
                                                     </span>
-                                                    <div className="flex items-center gap-1 sm:justify-center">
+                                                    <div className={cn(
+                                                        "flex items-center gap-1 sm:justify-center",
+                                                        (type === 'sell' || type === 'move' || type === 'return_supplier') && item.quantity > (item.warehouse_stock || 0) 
+                                                            ? "text-red-600 dark:text-red-400" 
+                                                            : ""
+                                                    )}>
                                                         <span className="font-bold">
                                                             {item.quantity}
                                                         </span>
@@ -637,6 +716,9 @@ export default function Create({ type, config, ppn_rate, min_date }: Props) {
                                                         <span className="text-zinc-500">
                                                             {item.warehouse_stock}
                                                         </span>
+                                                        {(type === 'sell' || type === 'move' || type === 'return_supplier') && item.quantity > (item.warehouse_stock || 0) && (
+                                                            <TriangleAlert className="h-3 w-3" title="Insufficient stock in selected warehouse" />
+                                                        )}
                                                     </div>
                                                 </div>
 
