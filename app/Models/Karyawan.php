@@ -12,6 +12,31 @@ class Karyawan extends Model
 
     protected $guarded = ['id'];
 
+    public static function getPermissions(): array
+    {
+        return [
+            // Karyawan permissions
+            'view' => 'karyawan-view',
+            'list' => 'karyawan-list',
+            'create' => 'karyawan-create',
+            'edit' => 'karyawan-edit',
+            'delete' => 'karyawan-delete',
+
+            // Gaji (Salary) permissions
+            // Gaji
+            'gaji-list' => 'karyawan-gaji-list',
+            'gaji-create' => 'karyawan-gaji-create',
+            'gaji-edit' => 'karyawan-gaji-edit',
+            'gaji-delete' => 'karyawan-gaji-delete',
+
+            // Cuti
+            'cuti-list' => 'karyawan-cuti-list',
+            'cuti-create' => 'karyawan-cuti-create',
+            'cuti-edit' => 'karyawan-cuti-edit',
+            'cuti-delete' => 'karyawan-cuti-delete',
+        ];
+    }
+
     public function gaji()
     {
         return $this->hasMany(Gaji::class);

@@ -4,7 +4,7 @@ namespace App\Http\Controllers\Reports;
 
 use App\Http\Controllers\Controller;
 use App\Models\Addrbook;
-use App\Models\AddrbookDaily;
+use App\Models\Report;
 use App\Models\Transaction;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -15,7 +15,7 @@ class NettCashController extends Controller
 {
     public function __invoke(Request $request)
     {
-        Gate::authorize(AddrbookDaily::getPermissions()['view_nett_cash']);
+        Gate::authorize(Report::getPermissions()['view_nett_cash']);
 
         $datesNow = Carbon::now();
         $month = $request->month;

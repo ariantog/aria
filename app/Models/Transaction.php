@@ -164,15 +164,16 @@ class Transaction extends Model
             'show' => 'transactions-show',
 
             // Granular Types
-            'type_buy' => 'transactions-type-buy',
-            'type_sell' => 'transactions-type-sell',
-            'type_move' => 'transactions-type-move',
-            'type_cash_in' => 'transactions-type-cash-in',
-            'type_cash_out' => 'transactions-type-cash-out',
-            'type_transfer' => 'transactions-type-transfer',
-            'type_adjust' => 'transactions-type-adjust',
-            'type_return' => 'transactions-type-return',
-            'type_return_supplier' => 'transactions-type-return-supplier',
+            'type-buy' => 'transactions-type-buy',
+            'type-sell' => 'transactions-type-sell',
+            'type-move' => 'transactions-type-move',
+            'type-cash-in' => 'transactions-type-cash-in',
+            'type-cash-out' => 'transactions-type-cash-out',
+            'type-transfer' => 'transactions-type-transfer',
+            'type-adjust' => 'transactions-type-adjust',
+            'type-return' => 'transactions-type-return',
+            'type-return-supplier' => 'transactions-type-return-supplier',
+            'transaction-sync' => 'transactions-transaction-sync',
         ];
     }
 }

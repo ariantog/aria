@@ -4,7 +4,7 @@ namespace App\Http\Controllers\Reports;
 
 use App\Http\Controllers\Controller;
 use App\Models\Addrbook;
-use App\Models\AddrbookDaily;
+use App\Models\Report;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -14,7 +14,7 @@ class WarehouseItemReportController extends Controller
 {
     public function index(Request $request)
     {
-        Gate::authorize(AddrbookDaily::getPermissions()['view_inventory_health']);
+        Gate::authorize(Report::getPermissions()['view_warehouse_item']);
 
         // 1. AGGREGATE warehouse_items
         $wi = DB::table('warehouse_items')

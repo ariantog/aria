@@ -12,6 +12,8 @@ class CutiController extends Controller
 {
     public function create(Karyawan $karyawan)
     {
+        Gate::authorize(Karyawan::getPermissions()['cuti-create']);
+
         return Inertia::render('Cuti/Create', [
             'karyawan' => $karyawan,
         ]);
@@ -19,6 +21,8 @@ class CutiController extends Controller
 
     public function store(Request $request, Karyawan $karyawan)
     {
+        Gate::authorize(Karyawan::getPermissions()['cuti-create']);
+
         $validated = $request->validate([
             'tgl_mulai' => 'required|date',
             'tgl_akhir' => 'required|date|after_or_equal:tgl_mulai',

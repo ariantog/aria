@@ -13,7 +13,7 @@ class RoleController extends Controller
 {
     public function index()
     {
-        Gate::authorize(User::getPermissions()['roles_view']);
+        Gate::authorize(User::getPermissions()['roles-view']);
 
         return Inertia::render('Roles/Index', [
             'roles' => Role::with('permissions')->latest()->paginate(50),
@@ -22,7 +22,7 @@ class RoleController extends Controller
 
     public function create()
     {
-        Gate::authorize(User::getPermissions()['roles_create']);
+        Gate::authorize(User::getPermissions()['roles-create']);
 
         return Inertia::render('Roles/Create', [
             'permissions' => $this->getGroupedPermissions(),
@@ -31,7 +31,7 @@ class RoleController extends Controller
 
     public function store(Request $request)
     {
-        Gate::authorize(User::getPermissions()['roles_create']);
+        Gate::authorize(User::getPermissions()['roles-create']);
 
         $request->validate([
             'name' => 'required|string|unique:roles,name',
@@ -49,7 +49,7 @@ class RoleController extends Controller
 
     public function edit(Role $role)
     {
-        Gate::authorize(User::getPermissions()['roles_edit']);
+        Gate::authorize(User::getPermissions()['roles-edit']);
 
         $role->load('permissions');
 
@@ -62,7 +62,7 @@ class RoleController extends Controller
 
     public function update(Request $request, Role $role)
     {
-        Gate::authorize(User::getPermissions()['roles_edit']);
+        Gate::authorize(User::getPermissions()['roles-edit']);
 
         $request->validate([
             'name' => 'required|string|unique:roles,name,'.$role->id,
@@ -80,7 +80,7 @@ class RoleController extends Controller
 
     public function destroy(Role $role)
     {
-        Gate::authorize(User::getPermissions()['roles_delete']);
+        Gate::authorize(User::getPermissions()['roles-delete']);
 
         $role->delete();
 
@@ -93,8 +93,18 @@ class RoleController extends Controller
         $grouped = [];
 
         foreach ($permissions as $permission) {
-            $parts = explode('-', $permission->name);
-            $module = $parts[0];
+            $name = $permission->name;
+
+            // Priority 1: Underscore (assetLancar_view -> assetLancar)
+            if (str_contains($name, '_')) {
+                $module = explode('_', $name)[0];
+            }
+            // Priority 2: Hyphen (asset-lancar-create -> asset)
+            elseif (str_contains($name, '-')) {
+                $module = explode('-', $name)[0];
+            } else {
+                $module = 'general';
+            }
 
             if (! isset($grouped[$module])) {
                 $grouped[$module] = [];

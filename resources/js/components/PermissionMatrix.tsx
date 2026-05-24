@@ -1,5 +1,9 @@
+import { Search } from 'lucide-react';
+import { useState, useMemo, useEffect } from 'react';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { cn } from '@/lib/utils';
 
 interface Props {
     permissions: Record<string, { id: number; name: string }[]>;
@@ -12,26 +16,83 @@ export default function PermissionMatrix({
     selectedPermissions,
     onChange,
 }: Props) {
-    // Check if all permissions in a group are selected
+    const modules = useMemo(
+        () => Object.keys(permissions).sort((a, b) => a.localeCompare(b)),
+        [permissions],
+    );
+    const [activeGroup, setActiveGroup] = useState('');
+    const [searchTerm, setSearchTerm] = useState('');
+
+    // Sync activeGroup when permissions load or current activeGroup disappears
+    useEffect(() => {
+        if (modules.length > 0) {
+            if (!activeGroup || !modules.includes(activeGroup)) {
+                setActiveGroup(modules[0]);
+            }
+        } else {
+            setActiveGroup('');
+        }
+    }, [modules, activeGroup]);
+
+    const formatModuleName = (name: string) => {
+        const withSpaces = name.replace(/([A-Z])/g, ' $1');
+        return withSpaces
+            .split(/[_-]/)
+            .filter(Boolean)
+            .map(
+                (word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase(),
+            )
+            .join(' ')
+            .trim();
+    };
+
+    const filteredModules = useMemo(() => {
+        if (!searchTerm) return modules;
+        return modules.filter((module) =>
+            formatModuleName(module)
+                .toLowerCase()
+                .includes(searchTerm.toLowerCase()),
+        );
+    }, [modules, searchTerm]);
+
+    const getActionLabel = (permissionName: string, moduleKey: string) => {
+        if (permissionName.startsWith(moduleKey)) {
+            const action = permissionName
+                .substring(moduleKey.length)
+                .replace(/^[_-]/, '');
+            return action.replace(/[_-]/g, ' ');
+        }
+        return permissionName;
+    };
+
+    const getGroupCounts = (moduleKey: string) => {
+        const groupPermissions = permissions[moduleKey] || [];
+        const total = groupPermissions.length;
+        const selected = groupPermissions.filter((p) =>
+            selectedPermissions.includes(p.name),
+        ).length;
+        return { total, selected };
+    };
+
     const isGroupSelected = (groupPermissions: { name: string }[]) => {
+        if (!groupPermissions || groupPermissions.length === 0) return false;
         return groupPermissions.every((p) =>
             selectedPermissions.includes(p.name),
         );
     };
 
     const handleGroupToggle = (groupPermissions: { name: string }[]) => {
+        if (!groupPermissions) return;
         const allSelected = isGroupSelected(groupPermissions);
         const groupNames = groupPermissions.map((p) => p.name);
 
         if (allSelected) {
-            // Deselect all
             onChange(
                 selectedPermissions.filter(
                     (name) => !groupNames.includes(name),
                 ),
             );
         } else {
-            // Select all (merge)
             const newSelected = [...selectedPermissions];
             groupNames.forEach((name) => {
                 if (!newSelected.includes(name)) newSelected.push(name);
@@ -49,70 +110,154 @@ export default function PermissionMatrix({
     };
 
     return (
-        <div className="space-y-6">
-            {Object.entries(permissions).map(([module, modulePermissions]) => (
-                <div
-                    key={module}
-                    className="rounded-lg border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900/50"
-                >
-                    <div className="mb-4 flex items-center justify-between border-b border-zinc-100 pb-3 dark:border-zinc-800">
-                        <Label className="text-base font-semibold tracking-tight text-zinc-900 capitalize dark:text-zinc-100">
-                            {module}
-                        </Label>
-                        <div className="flex items-center space-x-2">
-                            <Checkbox
-                                id={`select-all-${module}`}
-                                checked={isGroupSelected(modulePermissions)}
-                                onCheckedChange={() =>
-                                    handleGroupToggle(modulePermissions)
-                                }
-                                className="border-zinc-300 data-[state=checked]:bg-zinc-900 data-[state=checked]:text-zinc-50 dark:border-zinc-600 dark:data-[state=checked]:bg-zinc-50 dark:data-[state=checked]:text-zinc-900"
-                            />
-                            <Label
-                                htmlFor={`select-all-${module}`}
-                                className="cursor-pointer text-sm text-zinc-500 transition-colors hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200"
-                            >
-                                Select All
-                            </Label>
-                        </div>
+        <div className="flex flex-col gap-6 lg:flex-row">
+            {/* Sidebar: Group List */}
+            <div className="w-full shrink-0 lg:w-80">
+                <div className="flex flex-col gap-3 rounded-xl border border-zinc-800 bg-zinc-950/50 p-3">
+                    {/* Search Input */}
+                    <div className="relative">
+                        <Search className="absolute top-2.5 left-3 h-4 w-4 text-zinc-500" />
+                        <Input
+                            type="text"
+                            placeholder="Search groups..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="h-9 border-zinc-800 bg-zinc-900 pl-9 text-sm text-zinc-200 placeholder:text-zinc-600 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                        />
                     </div>
-                    <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-                        {modulePermissions.map((permission) => {
-                            // Permission name format usually "module-action"
-                            const action = permission.name
-                                .split('-')
-                                .slice(1)
-                                .join('-');
 
-                            return (
-                                <div
-                                    key={permission.id}
-                                    className="group flex items-center space-x-2"
-                                >
-                                    <Checkbox
-                                        id={`perm-${permission.id}`}
-                                        checked={selectedPermissions.includes(
-                                            permission.name,
+                    {/* Scrollable Group List */}
+                    <div className="max-h-[500px] space-y-1 overflow-y-auto pr-1 scrollbar-thin scrollbar-track-zinc-900 scrollbar-thumb-zinc-700">
+                        {filteredModules.length > 0 ? (
+                            filteredModules.map((module) => {
+                                const { total, selected } =
+                                    getGroupCounts(module);
+                                const isActive = activeGroup === module;
+
+                                return (
+                                    <button
+                                        key={module}
+                                        type="button"
+                                        onClick={() => setActiveGroup(module)}
+                                        className={cn(
+                                            'flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left transition-all',
+                                            isActive
+                                                ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20'
+                                                : 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200',
                                         )}
-                                        onCheckedChange={() =>
-                                            handlePermissionToggle(
-                                                permission.name,
-                                            )
-                                        }
-                                        className="border-zinc-300 data-[state=checked]:bg-zinc-900 data-[state=checked]:text-zinc-50 dark:border-zinc-600 dark:data-[state=checked]:bg-zinc-50 dark:data-[state=checked]:text-zinc-900"
-                                    />
-                                    <Label
-                                        htmlFor={`perm-${permission.id}`}
-                                        className="cursor-pointer text-zinc-600 capitalize transition-colors group-hover:text-zinc-900 dark:text-zinc-400 dark:group-hover:text-zinc-200"
                                     >
-                                        {action || permission.name}
-                                    </Label>
-                                </div>
-                            );
-                        })}
+                                        <span className="truncate text-sm font-medium">
+                                            {formatModuleName(module)}
+                                        </span>
+                                        <span
+                                            className={cn(
+                                                'ml-2 shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider',
+                                                isActive
+                                                    ? 'bg-blue-500 text-white'
+                                                    : selected === total &&
+                                                        total > 0
+                                                      ? 'bg-green-500/10 text-green-500'
+                                                      : selected > 0
+                                                        ? 'bg-blue-500/10 text-blue-500'
+                                                        : 'bg-zinc-800 text-zinc-500',
+                                            )}
+                                        >
+                                            {selected} / {total}
+                                        </span>
+                                    </button>
+                                );
+                            })
+                        ) : (
+                            <div className="py-8 text-center text-xs text-zinc-600">
+                                No groups found
+                            </div>
+                        )}
                     </div>
                 </div>
-            ))}
+            </div>
+
+            {/* Content: Permission List */}
+            <div className="min-w-0 flex-1">
+                {activeGroup && permissions[activeGroup] ? (
+                    <div className="h-full rounded-xl border border-zinc-800 bg-zinc-900/50 p-6">
+                        <div className="mb-6 flex items-center justify-between border-b border-zinc-800 pb-4">
+                            <div>
+                                <h4 className="text-xl font-bold text-white">
+                                    {formatModuleName(activeGroup)}
+                                </h4>
+                                <p className="text-sm text-zinc-500">
+                                    Manage permissions for this module.
+                                </p>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                                <Checkbox
+                                    id={`select-all-${activeGroup}`}
+                                    checked={isGroupSelected(
+                                        permissions[activeGroup],
+                                    )}
+                                    onCheckedChange={() =>
+                                        handleGroupToggle(
+                                            permissions[activeGroup],
+                                        )
+                                    }
+                                    className="border-zinc-700 data-[state=checked]:bg-blue-600 data-[state=checked]:text-white"
+                                />
+                                <Label
+                                    htmlFor={`select-all-${activeGroup}`}
+                                    className="cursor-pointer text-sm font-medium text-zinc-400 transition-colors hover:text-zinc-200"
+                                >
+                                    Select All
+                                </Label>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                            {permissions[activeGroup].map((permission) => {
+                                const action = getActionLabel(
+                                    permission.name,
+                                    activeGroup,
+                                );
+                                const isSelected = selectedPermissions.includes(
+                                    permission.name,
+                                );
+
+                                return (
+                                    <div
+                                        key={permission.id}
+                                        className={cn(
+                                            'group flex items-center space-x-3 rounded-lg border border-zinc-800 p-4 transition-all hover:border-zinc-700',
+                                            isSelected
+                                                ? 'bg-blue-500/5 border-blue-500/30'
+                                                : 'bg-zinc-950/30',
+                                        )}
+                                    >
+                                        <Checkbox
+                                            id={`perm-${permission.id}`}
+                                            checked={isSelected}
+                                            onCheckedChange={() =>
+                                                handlePermissionToggle(
+                                                    permission.name,
+                                                )
+                                            }
+                                            className="border-zinc-700 data-[state=checked]:bg-blue-600 data-[state=checked]:text-white"
+                                        />
+                                        <Label
+                                            htmlFor={`perm-${permission.id}`}
+                                            className="flex-1 cursor-pointer text-sm font-medium text-zinc-300 capitalize transition-colors group-hover:text-white"
+                                        >
+                                            {action}
+                                        </Label>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                ) : (
+                    <div className="flex h-full items-center justify-center rounded-xl border border-zinc-800 bg-zinc-900/50 p-6 text-zinc-500">
+                        Select a group from the sidebar to view permissions.
+                    </div>
+                )}
+            </div>
         </div>
     );
 }

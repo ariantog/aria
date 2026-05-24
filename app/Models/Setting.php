@@ -37,10 +37,14 @@ class Setting extends Model
     public static function getPermissions(): array
     {
         return [
-            'view' => 'setting-system-list',
-            'create' => 'setting-system-create',
-            'edit' => 'setting-system-edit',
-            'delete' => 'setting-system-delete',
+            'view' => 'setting-general-view',
+            'edit' => 'setting-general-edit',
+            'create' => 'setting-general-create',
+            'delete' => 'setting-general-delete',
+
+            // Cron Manager
+            'cron-view' => 'setting-cron-manager-view',
+            'cron-edit' => 'setting-cron-manager-edit',
         ];
     }
 

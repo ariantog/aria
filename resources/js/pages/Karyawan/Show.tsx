@@ -27,6 +27,10 @@ export default function Show({ karyawan, auth }: any) {
     ];
 
     const isSuperAdmin = auth?.roles?.includes('superadmin');
+    const permissions = auth?.permissions || [];
+
+    const hasPermission = (p: string) =>
+        permissions.includes(p) || permissions.includes('*');
 
     const formatCurrency = (value: number) => {
         return new Intl.NumberFormat('id-ID', {
@@ -78,32 +82,38 @@ export default function Show({ karyawan, auth }: any) {
                     </div>
                     <div className="flex items-center gap-2">
                         {/* Actions mapping based on permission */}
-                        {(isSuperAdmin || karyawan.flag !== 2) && (
-                            <>
-                                <Button variant="outline" asChild>
-                                    <Link
-                                        href={`/karyawan/${karyawan.id}/edit`}
-                                    >
-                                        <Edit className="mr-2 h-4 w-4" /> Edit
-                                    </Link>
-                                </Button>
-                                <Button asChild>
-                                    <Link
-                                        href={`/karyawan/${karyawan.id}/gaji/create`}
-                                    >
-                                        <DollarSign className="mr-2 h-4 w-4" />{' '}
-                                        Bikin Gaji
-                                    </Link>
-                                </Button>
-                                <Button variant="secondary" asChild>
-                                    <Link
-                                        href={`/karyawan/${karyawan.id}/cuti/create`}
-                                    >
-                                        <Calendar className="mr-2 h-4 w-4" />{' '}
-                                        Tambah Cuti
-                                    </Link>
-                                </Button>
-                            </>
+                        {(isSuperAdmin ||
+                            (hasPermission('karyawan-edit') &&
+                                karyawan.flag !== 2)) && (
+                            <Button variant="outline" asChild>
+                                <Link href={`/karyawan/${karyawan.id}/edit`}>
+                                    <Edit className="mr-2 h-4 w-4" /> Edit
+                                </Link>
+                            </Button>
+                        )}
+                        {(isSuperAdmin ||
+                            (hasPermission('karyawan-gaji-create') &&
+                                (isSuperAdmin || karyawan.flag !== 2))) && (
+                            <Button asChild>
+                                <Link
+                                    href={`/karyawan/${karyawan.id}/gaji/create`}
+                                >
+                                    <DollarSign className="mr-2 h-4 w-4" /> Bikin
+                                    Gaji
+                                </Link>
+                            </Button>
+                        )}
+                        {(isSuperAdmin ||
+                            (hasPermission('karyawan-cuti-create') &&
+                                (isSuperAdmin || karyawan.flag !== 2))) && (
+                            <Button variant="secondary" asChild>
+                                <Link
+                                    href={`/karyawan/${karyawan.id}/cuti/create`}
+                                >
+                                    <Calendar className="mr-2 h-4 w-4" /> Tambah
+                                    Cuti
+                                </Link>
+                            </Button>
                         )}
                     </div>
                 </div>

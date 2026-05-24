@@ -36,17 +36,7 @@ class Addrbook extends Model
 
     public static function getPermissions(?string $type = null): array
     {
-        if ($type) {
-            $type = str_replace('-', '', $type);
-
-            return [
-                'view' => "{$type}-addrbook-list",
-                'create' => "{$type}-addrbook-create",
-                'edit' => "{$type}-addrbook-edit",
-                'delete' => "{$type}-addrbook-delete",
-            ];
-        }
-
+        // 1. Initial shared permissions
         $permissions = [
             'view' => 'addrbook-list',
             'create' => 'addrbook-create',
@@ -54,12 +44,30 @@ class Addrbook extends Model
             'delete' => 'addrbook-delete',
         ];
 
+        // 2. Generate per-type permissions
         foreach (self::getTypes() as $t) {
-            $slug = str_replace('-', '', $t['slug']);
-            $permissions["{$slug}_view"] = "{$slug}-addrbook-list";
-            $permissions["{$slug}_create"] = "{$slug}-addrbook-create";
-            $permissions["{$slug}_edit"] = "{$slug}-addrbook-edit";
-            $permissions["{$slug}_delete"] = "{$slug}-addrbook-delete";
+            // Reconstruct Group Name (prefix + kebab-case Name)
+            $cleanName = str_replace(['(', ')', '.', '-', '_'], ' ', $t['name']);
+            $kebabName = \Illuminate\Support\Str::kebab(str_replace(' ', '', $cleanName));
+            $group = 'addrbook-'.$kebabName;
+
+            $typePermissions = [
+                'view' => "{$group}-list",
+                'create' => "{$group}-create",
+                'edit' => "{$group}-edit",
+                'delete' => "{$group}-delete",
+            ];
+
+            // If a specific type slug was requested, return its group permissions
+            if ($type === $t['slug']) {
+                return $typePermissions;
+            }
+
+            // Otherwise, add them to the main map using slug-based keys
+            $permissions["{$t['slug']}-view"] = $typePermissions['view'];
+            $permissions["{$t['slug']}-create"] = $typePermissions['create'];
+            $permissions["{$t['slug']}-edit"] = $typePermissions['edit'];
+            $permissions["{$t['slug']}-delete"] = $typePermissions['delete'];
         }
 
         return $permissions;

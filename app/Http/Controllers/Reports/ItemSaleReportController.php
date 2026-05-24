@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Reports;
 
 use App\Http\Controllers\Controller;
-use App\Models\AddrbookDaily;
+use App\Models\Report;
 use App\Models\StatSell;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -13,7 +13,7 @@ class ItemSaleReportController extends Controller
 {
     public function __invoke(Request $request)
     {
-        Gate::authorize(AddrbookDaily::getPermissions()['view_inventory_health']);
+        Gate::authorize(Report::getPermissions()['view_item_sales']);
 
         $bulan = $request->bulan;
         $tahun = $request->tahun ?? now()->year;

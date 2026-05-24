@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Addrbook;
-use App\Models\AddrbookDaily;
+use App\Models\Report;
 use App\Models\Transaction;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -14,7 +14,7 @@ class CashFlowController extends Controller
 {
     public function __invoke(Request $request)
     {
-        Gate::authorize(AddrbookDaily::getPermissions()['view_cash_flow']);
+        Gate::authorize(Report::getPermissions()['view_cash_flow']);
         $currentYear = $request->tahun ?? $request->year ?? now()->year;
         $month = $request->bulan ?? $request->month;
         if ($month === '0' || $month === 'all') {

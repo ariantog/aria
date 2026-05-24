@@ -16,13 +16,13 @@ class Post extends Model
         return $this->belongsTo(User::class);
     }
 
-    public static function getPermissions(): array
-    {
-        return [
-            'view' => 'posts-list',
-            'create' => 'posts-create',
-            'edit' => 'posts-edit',
-            'delete' => 'posts-delete',
-        ];
-    }
+    // public static function getPermissions(): array
+    // {
+    //     return [
+    //         'view' => 'posts-list',
+    //         'create' => 'posts-create',
+    //         'edit' => 'posts-edit',
+    //         'delete' => 'posts-delete',
+    //     ];
+    // }
 }

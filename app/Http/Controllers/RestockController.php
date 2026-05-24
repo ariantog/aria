@@ -12,6 +12,7 @@ use App\Services\TransactionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 use Maatwebsite\Excel\Facades\Excel;
 
@@ -19,6 +20,8 @@ class RestockController extends Controller
 {
     public function index(Request $request)
     {
+        Gate::authorize(Restock::getPermissions()['view']);
+
         $columnMap = [
             'restock' => 'restocked_quantity',
             'production' => 'in_production_quantity',
@@ -60,6 +63,8 @@ class RestockController extends Controller
 
     public function create()
     {
+        Gate::authorize(Restock::getPermissions()['create']);
+
         $userId = auth()->id();
         $cacheKey = "cart_items_user_{$userId}";
         $items = Cache::get($cacheKey, []);
@@ -71,6 +76,8 @@ class RestockController extends Controller
 
     public function addItem(Request $request)
     {
+        Gate::authorize(Restock::getPermissions()['create']);
+
         $request->validate([
             'code' => 'required|string',
             'qty' => 'required|integer|min:1',
@@ -107,6 +114,8 @@ class RestockController extends Controller
 
     public function removeItem($code)
     {
+        Gate::authorize(Restock::getPermissions()['create']);
+
         $userId = auth()->id();
         $cacheKey = "cart_items_user_{$userId}";
         $items = Cache::get($cacheKey, []);
@@ -122,6 +131,8 @@ class RestockController extends Controller
 
     public function store(Request $request)
     {
+        Gate::authorize(Restock::getPermissions()['create']);
+
         $request->validate([
             'date' => 'required|date',
         ]);
@@ -182,6 +193,8 @@ class RestockController extends Controller
 
     public function update($id)
     {
+        Gate::authorize(Restock::getPermissions()['edit']);
+
         $restock = Restock::with('item')->findOrFail($id);
 
         return Inertia::render('Restock/Update', [
@@ -191,6 +204,8 @@ class RestockController extends Controller
 
     public function updateQty(Request $request, $id)
     {
+        Gate::authorize(Restock::getPermissions()['edit']);
+
         $request->validate([
             'type' => 'required|in:restocked,production,shipped,missing',
             'qty' => 'required|integer|min:1',
@@ -259,6 +274,8 @@ class RestockController extends Controller
 
     public function received()
     {
+        Gate::authorize(Restock::getPermissions()['view']);
+
         $cacheKey = 'gudang_cart_user_'.auth()->id();
         $items = Cache::get($cacheKey, []);
 
@@ -269,6 +286,8 @@ class RestockController extends Controller
 
     public function removeCartItem($code)
     {
+        Gate::authorize(Restock::getPermissions()['edit']);
+
         $userId = auth()->id();
         $cacheKey = "gudang_cart_user_{$userId}";
         $items = Cache::get($cacheKey, []);
@@ -284,6 +303,8 @@ class RestockController extends Controller
 
     public function receiveStore(Request $request, TransactionService $transactionService)
     {
+        Gate::authorize(Restock::getPermissions()['edit']);
+
         $request->validate([
             'date' => 'required|date',
             'invoice' => 'nullable|string',
@@ -372,6 +393,8 @@ class RestockController extends Controller
 
     public function addToGudangCart($id, Request $request)
     {
+        Gate::authorize(Restock::getPermissions()['edit']);
+
         $restock = Restock::with('item')->findOrFail($id);
 
         $request->validate([
@@ -403,6 +426,8 @@ class RestockController extends Controller
 
     public function history($restockId)
     {
+        Gate::authorize(Restock::getPermissions()['history']);
+
         $restock = Restock::with('item')->findOrFail($restockId);
         $histories = RestockHistory::with('user')
             ->where('restock_id', $restockId)
@@ -417,6 +442,8 @@ class RestockController extends Controller
 
     public function resetSingleQty($id, Request $request)
     {
+        Gate::authorize(Restock::getPermissions()['edit']);
+
         $request->validate([
             'type' => 'required|in:restocked,production,shipped',
         ]);
@@ -457,11 +484,15 @@ class RestockController extends Controller
 
     public function uploadExcel()
     {
+        Gate::authorize(Restock::getPermissions()['view']);
+
         return Inertia::render('Restock/UploadExcel');
     }
 
     public function importExcel(Request $request)
     {
+        Gate::authorize(Restock::getPermissions()['create']);
+
         $request->validate([
             'file' => 'required|mimes:xlsx,csv',
             'date' => 'required|date',

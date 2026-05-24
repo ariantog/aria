@@ -12,6 +12,8 @@ class LocationController extends Controller
 {
     public function index()
     {
+        Gate::authorize(Location::getPermissions()['view']);
+
         $query = Location::query();
 
         if ($search = request('search')) {

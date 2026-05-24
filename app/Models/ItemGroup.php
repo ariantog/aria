@@ -21,6 +21,16 @@ class ItemGroup extends Model
         'variant',
     ];
 
+    public static function getPermissions(): array
+    {
+        return [
+            'view' => 'stuff-group-list',
+            'create' => 'stuff-group-create',
+            'edit' => 'stuff-group-edit',
+            'delete' => 'stuff-group-delete',
+        ];
+    }
+
     public function items(): HasMany
     {
         return $this->hasMany(Item::class, 'group_id');

@@ -13,6 +13,11 @@ const breadcrumbs: BreadcrumbItem[] = [
 
 export default function Index({ karyawans, filters, auth }: any) {
     const isSuperAdmin = auth?.roles?.includes('superadmin');
+    const permissions = auth?.permissions || [];
+
+    const hasPermission = (p: string) =>
+        permissions.includes(p) || permissions.includes('*');
+
     const now = new Date();
     const currentMonth = now.getMonth() + 1;
     const currentYear = now.getFullYear();
@@ -47,11 +52,13 @@ export default function Index({ karyawans, filters, auth }: any) {
                         </p>
                     </div>
                     <div className="flex items-center gap-3">
-                        <Link href="/karyawan/create">
-                            <Button className="bg-blue-600 text-white hover:bg-blue-700">
-                                <Plus className="mr-2 h-4 w-4" /> Add Baru
-                            </Button>
-                        </Link>
+                        {(isSuperAdmin || hasPermission('karyawan-create')) && (
+                            <Link href="/karyawan/create">
+                                <Button className="bg-blue-600 text-white hover:bg-blue-700">
+                                    <Plus className="mr-2 h-4 w-4" /> Add Baru
+                                </Button>
+                            </Link>
+                        )}
                     </div>
                 </div>
 
@@ -208,22 +215,35 @@ export default function Index({ karyawans, filters, auth }: any) {
                                                 </td>
                                                 <td className="px-6 py-4 text-right">
                                                     <div className="flex justify-end gap-2 text-xs">
-                                                        <Link
-                                                            href={`/karyawan/${item.id}/cuti/create`}
-                                                            className="inline-flex items-center justify-center rounded-md px-2 py-1.5 font-medium text-blue-600 transition-colors hover:bg-blue-50 focus:outline-none dark:text-blue-400 dark:hover:bg-blue-900/20"
-                                                        >
-                                                            + Cuti
-                                                        </Link>
-                                                        <Link
-                                                            href={`/karyawan/${item.id}/gaji/create`}
-                                                            className="inline-flex items-center justify-center rounded-md px-2 py-1.5 font-medium text-emerald-600 transition-colors hover:bg-emerald-50 focus:outline-none dark:text-emerald-400 dark:hover:bg-emerald-900/20"
-                                                        >
-                                                            + Gaji
-                                                        </Link>
+                                                        {(isSuperAdmin ||
+                                                            hasPermission(
+                                                                'karyawan-cuti-create',
+                                                            )) && (
+                                                            <Link
+                                                                href={`/karyawan/${item.id}/cuti/create`}
+                                                                className="inline-flex items-center justify-center rounded-md px-2 py-1.5 font-medium text-blue-600 transition-colors hover:bg-blue-50 focus:outline-none dark:text-blue-400 dark:hover:bg-blue-900/20"
+                                                            >
+                                                                + Cuti
+                                                            </Link>
+                                                        )}
+                                                        {(isSuperAdmin ||
+                                                            hasPermission(
+                                                                'karyawan-gaji-create',
+                                                            )) && (
+                                                            <Link
+                                                                href={`/karyawan/${item.id}/gaji/create`}
+                                                                className="inline-flex items-center justify-center rounded-md px-2 py-1.5 font-medium text-emerald-600 transition-colors hover:bg-emerald-50 focus:outline-none dark:text-emerald-400 dark:hover:bg-emerald-900/20"
+                                                            >
+                                                                + Gaji
+                                                            </Link>
+                                                        )}
 
                                                         {(isSuperAdmin ||
-                                                            item.flag !==
-                                                                2) && (
+                                                            (hasPermission(
+                                                                'karyawan-edit',
+                                                            ) &&
+                                                                item.flag !==
+                                                                    2)) && (
                                                             <Link
                                                                 href={`/karyawan/${item.id}/edit`}
                                                                 className="inline-flex items-center justify-center rounded-md p-2 text-zinc-400 hover:bg-blue-50 hover:text-blue-500 dark:hover:bg-blue-900/20"
@@ -232,16 +252,21 @@ export default function Index({ karyawans, filters, auth }: any) {
                                                             </Link>
                                                         )}
 
-                                                        <button
-                                                            onClick={() =>
-                                                                handleDelete(
-                                                                    item.id,
-                                                                )
-                                                            }
-                                                            className="inline-flex items-center justify-center rounded-md p-2 text-zinc-400 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/20"
-                                                        >
-                                                            <Trash2 className="h-4 w-4" />
-                                                        </button>
+                                                        {(isSuperAdmin ||
+                                                            hasPermission(
+                                                                'karyawan-delete',
+                                                            )) && (
+                                                            <button
+                                                                onClick={() =>
+                                                                    handleDelete(
+                                                                        item.id,
+                                                                    )
+                                                                }
+                                                                className="inline-flex items-center justify-center rounded-md p-2 text-zinc-400 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/20"
+                                                            >
+                                                                <Trash2 className="h-4 w-4" />
+                                                            </button>
+                                                        )}
                                                     </div>
                                                 </td>
                                             </tr>

@@ -5,12 +5,15 @@ namespace App\Http\Controllers;
 use App\Models\Addrbook;
 use App\Models\Karyawan;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 
 class KaryawanController extends Controller
 {
     public function index(Request $request)
     {
+        Gate::authorize(Karyawan::getPermissions()['list']);
+
         $now = now();
         $query = Karyawan::with(['gajiSingle', 'bank'])
             ->withSum(['gaji as total_cuti_sakit' => fn ($q) => $q->where('tahun', $now->year)], 'cuti_sakit')
@@ -36,6 +39,8 @@ class KaryawanController extends Controller
 
     public function create()
     {
+        Gate::authorize(Karyawan::getPermissions()['create']);
+
         $banks = Addrbook::where('type', Addrbook::TYPE_BANK)->get(['id', 'name']);
 
         return Inertia::render('Karyawan/Form', [
@@ -45,6 +50,8 @@ class KaryawanController extends Controller
 
     public function store(Request $request)
     {
+        Gate::authorize(Karyawan::getPermissions()['create']);
+
         $validated = $request->validate([
             'nama' => 'required|string|max:255',
             'alamat' => 'required|string',
@@ -72,6 +79,8 @@ class KaryawanController extends Controller
 
     public function edit(Karyawan $karyawan)
     {
+        Gate::authorize(Karyawan::getPermissions()['edit']);
+
         if (auth()->user() && ! auth()->user()->hasRole('superadmin')) {
             if ($karyawan->flag == 2) {
                 abort(404);
@@ -88,6 +97,8 @@ class KaryawanController extends Controller
 
     public function update(Request $request, Karyawan $karyawan)
     {
+        Gate::authorize(Karyawan::getPermissions()['edit']);
+
         $validated = $request->validate([
             'nama' => 'required|string|max:255',
             'alamat' => 'required|string',
@@ -106,6 +117,8 @@ class KaryawanController extends Controller
 
     public function show(Karyawan $karyawan)
     {
+        Gate::authorize(Karyawan::getPermissions()['list']);
+
         if (auth()->user() && ! auth()->user()->hasRole('superadmin') && $karyawan->flag == 2) {
             abort(404);
         }
@@ -123,6 +136,8 @@ class KaryawanController extends Controller
 
     public function destroy(Karyawan $karyawan)
     {
+        Gate::authorize(Karyawan::getPermissions()['delete']);
+
         $karyawan->delete();
 
         return redirect()->route('karyawan.index')->with('success', 'Karyawan '.$karyawan->nama.' deleted.');

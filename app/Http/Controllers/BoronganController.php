@@ -47,7 +47,7 @@ class BoronganController extends Controller
             'filters' => $request->only(['from', 'to', 'jahit_id']),
             'can' => [
                 'create_borongan' => auth()->user()->can(Borongan::getPermissions()['create']),
-                'view_borongan' => auth()->user()->can(Borongan::getPermissions()['view_details']),
+                'view_borongan' => auth()->user()->can(Borongan::getPermissions()['view-details']),
                 'delete_borongan' => auth()->user()->can(Borongan::getPermissions()['delete']),
             ],
         ]);
@@ -152,7 +152,7 @@ class BoronganController extends Controller
      */
     public function show(Borongan $borongan)
     {
-        Gate::authorize(Borongan::getPermissions()['view_details']);
+        Gate::authorize(Borongan::getPermissions()['view-details']);
 
         $borongan->load(['jahit', 'user']);
         $details = $borongan->details()->with(['item', 'produksi'])->get();

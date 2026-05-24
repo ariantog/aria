@@ -43,7 +43,11 @@ class HandleInertiaRequests extends Middleware
                 'permissions' => $request->user() ? $request->user()->getAllPermissions()->pluck('name')->toArray() : [],
                 'roles' => $request->user() ? $request->user()->getRoleNames()->toArray() : [],
             ],
-            'addrbook_types' => \App\Models\Addrbook::getTypes(),
+            'addrbook_types' => collect(\App\Models\Addrbook::getTypes())->map(function ($type) {
+                $type['permission'] = \App\Models\Addrbook::getPermissions($type['slug'])['view'];
+
+                return $type;
+            })->toArray(),
             'flash' => [
                 'success' => fn () => $request->session()->get('success'),
                 'error' => fn () => $request->session()->get('error'),

@@ -3,8 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Addrbook;
-use App\Models\AddrbookDaily;
 use App\Models\Item;
+use App\Models\Report;
 use App\Models\Transaction;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
@@ -15,7 +15,7 @@ class ReportController extends Controller
 {
     public function inventoryHealth(Request $request)
     {
-        Gate::authorize(AddrbookDaily::getPermissions()['view_inventory_health']);
+        Gate::authorize(Report::getPermissions()['view_inventory_health']);
         $warehouseId = $request->input('warehouse_id');
         $search = $request->input('search');
         $query = Item::query();
@@ -32,7 +32,7 @@ class ReportController extends Controller
 
     public function stockIntelligence(Request $request)
     {
-        Gate::authorize(AddrbookDaily::getPermissions()['view_inventory_health']);
+        Gate::authorize(Report::getPermissions()['view_inventory_health']);
 
         $reportId = $request->query('report_id');
         $reportHistory = \App\Models\StokReport::latest('generet_at')
@@ -151,7 +151,7 @@ class ReportController extends Controller
 
     public function rebalanceDetail(Request $request)
     {
-        Gate::authorize(AddrbookDaily::getPermissions()['view_inventory_health']);
+        Gate::authorize(Report::getPermissions()['view_inventory_health']);
 
         return Inertia::render('Reports/RebalanceDetail');
     }

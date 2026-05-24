@@ -53,15 +53,15 @@ class TransactionsController extends Controller
             'can' => [
                 'create_transaction' => Auth::user()->can(\App\Models\Transaction::getPermissions()['create']),
                 'delete_transaction' => Auth::user()->can(\App\Models\Transaction::getPermissions()['delete']),
-                'type_buy' => Auth::user()->can(\App\Models\Transaction::getPermissions()['type_buy']),
-                'type_sell' => Auth::user()->can(\App\Models\Transaction::getPermissions()['type_sell']),
-                'type_move' => Auth::user()->can(\App\Models\Transaction::getPermissions()['type_move']),
-                'cash_in' => Auth::user()->can(\App\Models\Transaction::getPermissions()['type_cash_in']),
-                'cash_out' => Auth::user()->can(\App\Models\Transaction::getPermissions()['type_cash_out']),
-                'transfer' => Auth::user()->can(\App\Models\Transaction::getPermissions()['type_transfer']),
-                'adjust' => Auth::user()->can(\App\Models\Transaction::getPermissions()['type_adjust']),
-                'return' => Auth::user()->can(\App\Models\Transaction::getPermissions()['type_return']),
-                'return_supplier' => Auth::user()->can(\App\Models\Transaction::getPermissions()['type_return_supplier']),
+                'type_buy' => Auth::user()->can(\App\Models\Transaction::getPermissions()['type-buy']),
+                'type_sell' => Auth::user()->can(\App\Models\Transaction::getPermissions()['type-sell']),
+                'type_move' => Auth::user()->can(\App\Models\Transaction::getPermissions()['type-move']),
+                'cash_in' => Auth::user()->can(\App\Models\Transaction::getPermissions()['type-cash-in']),
+                'cash_out' => Auth::user()->can(\App\Models\Transaction::getPermissions()['type-cash-out']),
+                'transfer' => Auth::user()->can(\App\Models\Transaction::getPermissions()['type-transfer']),
+                'adjust' => Auth::user()->can(\App\Models\Transaction::getPermissions()['type-adjust']),
+                'return' => Auth::user()->can(\App\Models\Transaction::getPermissions()['type-return']),
+                'return_supplier' => Auth::user()->can(\App\Models\Transaction::getPermissions()['type-return-supplier']),
             ],
         ]);
     }
@@ -343,7 +343,7 @@ class TransactionsController extends Controller
 
     public function cashIn(\App\Services\BookClosingService $bookClosingService)
     {
-        \Illuminate\Support\Facades\Gate::authorize(\App\Models\Transaction::getPermissions()['type_cash_in']);
+        \Illuminate\Support\Facades\Gate::authorize(\App\Models\Transaction::getPermissions()['type-cash-in']);
         $bankList = \App\Models\Addrbook::where('type', \App\Models\Addrbook::TYPE_BANK)->orderBy('name', 'asc')->get();
 
         return inertia('Transactions/Cash', [
@@ -356,7 +356,7 @@ class TransactionsController extends Controller
 
     public function storeCashIn(Request $request, \App\Services\TransactionService $service, \App\Services\BookClosingService $bookClosingService)
     {
-        \Illuminate\Support\Facades\Gate::authorize(\App\Models\Transaction::getPermissions()['type_cash_in']);
+        \Illuminate\Support\Facades\Gate::authorize(\App\Models\Transaction::getPermissions()['type-cash-in']);
         $validated = $request->validate([
             'date' => 'required|date',
             'account_id' => 'required|exists:addrbooks,id', // Bank Account
@@ -414,7 +414,7 @@ class TransactionsController extends Controller
 
     public function cashOut(\App\Services\BookClosingService $bookClosingService)
     {
-        \Illuminate\Support\Facades\Gate::authorize(\App\Models\Transaction::getPermissions()['type_cash_out']);
+        \Illuminate\Support\Facades\Gate::authorize(\App\Models\Transaction::getPermissions()['type-cash-out']);
         $bankList = \App\Models\Addrbook::where('type', \App\Models\Addrbook::TYPE_BANK)->orderBy('name', 'asc')->get();
 
         return inertia('Transactions/Cash', [
@@ -427,7 +427,7 @@ class TransactionsController extends Controller
 
     public function storeCashOut(Request $request, \App\Services\TransactionService $service, \App\Services\BookClosingService $bookClosingService)
     {
-        \Illuminate\Support\Facades\Gate::authorize(\App\Models\Transaction::getPermissions()['type_cash_out']);
+        \Illuminate\Support\Facades\Gate::authorize(\App\Models\Transaction::getPermissions()['type-cash-out']);
         $validated = $request->validate([
             'date' => 'required|date',
             'account_id' => 'required|exists:addrbooks,id', // Bank Account
@@ -485,7 +485,7 @@ class TransactionsController extends Controller
 
     public function transfer(\App\Services\BookClosingService $bookClosingService)
     {
-        \Illuminate\Support\Facades\Gate::authorize(\App\Models\Transaction::getPermissions()['type_transfer']);
+        \Illuminate\Support\Facades\Gate::authorize(\App\Models\Transaction::getPermissions()['type-transfer']);
         $bankList = \App\Models\Addrbook::where('type', \App\Models\Addrbook::TYPE_BANK)->orderBy('name', 'asc')->get();
 
         return inertia('Transactions/Transfer', [
@@ -496,7 +496,7 @@ class TransactionsController extends Controller
 
     public function storeTransfer(\Illuminate\Http\Request $request, \App\Services\TransactionService $service, \App\Services\BookClosingService $bookClosingService)
     {
-        \Illuminate\Support\Facades\Gate::authorize(\App\Models\Transaction::getPermissions()['type_transfer']);
+        \Illuminate\Support\Facades\Gate::authorize(\App\Models\Transaction::getPermissions()['type-transfer']);
         $validated = $request->validate([
             'date' => 'required|date',
             'sender' => 'required|exists:addrbooks,id',
@@ -545,7 +545,7 @@ class TransactionsController extends Controller
 
     public function adjust(\App\Services\BookClosingService $bookClosingService)
     {
-        \Illuminate\Support\Facades\Gate::authorize(\App\Models\Transaction::getPermissions()['type_adjust']);
+        \Illuminate\Support\Facades\Gate::authorize(\App\Models\Transaction::getPermissions()['type-adjust']);
 
         return inertia('Transactions/Adjust', [
             'min_date' => $bookClosingService->getMinAllowedDate()->toDateString(),
@@ -554,7 +554,7 @@ class TransactionsController extends Controller
 
     public function storeAdjust(\Illuminate\Http\Request $request, \App\Services\TransactionService $service, \App\Services\BookClosingService $bookClosingService)
     {
-        \Illuminate\Support\Facades\Gate::authorize(\App\Models\Transaction::getPermissions()['type_adjust']);
+        \Illuminate\Support\Facades\Gate::authorize(\App\Models\Transaction::getPermissions()['type-adjust']);
         $validated = $request->validate([
             'date' => 'required|date',
             'invoice' => 'nullable|string',

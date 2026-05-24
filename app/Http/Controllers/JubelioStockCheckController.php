@@ -3,8 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreJubelioStockCheckRequest;
+use App\Models\Jubelio;
 use App\Models\JubelioStockCheck;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -15,6 +17,8 @@ class JubelioStockCheckController extends Controller
      */
     public function index(): Response
     {
+        Gate::authorize(Jubelio::getPermissions()['stock-check']);
+
         return Inertia::render('jubelio/StockCheck/Index', [
             'stockChecks' => JubelioStockCheck::withCount('discrepancies')
                 ->orderBy('created_at', 'desc')
@@ -28,6 +32,8 @@ class JubelioStockCheckController extends Controller
      */
     public function create(): Response
     {
+        Gate::authorize(Jubelio::getPermissions()['stock-check']);
+
         return Inertia::render('jubelio/StockCheck/Create', [
             'activeJob' => JubelioStockCheck::whereIn('status', ['created', 'processing'])->first(),
         ]);
@@ -38,6 +44,8 @@ class JubelioStockCheckController extends Controller
      */
     public function store(StoreJubelioStockCheckRequest $request): RedirectResponse
     {
+        Gate::authorize(Jubelio::getPermissions()['stock-check']);
+
         // Check if there is already an active job
         $activeJob = JubelioStockCheck::whereIn('status', ['created', 'processing'])->first();
 
@@ -59,6 +67,8 @@ class JubelioStockCheckController extends Controller
      */
     public function show(JubelioStockCheck $jubelioStockCheck): Response
     {
+        Gate::authorize(Jubelio::getPermissions()['stock-check']);
+
         return Inertia::render('jubelio/StockCheck/Show', [
             'stockCheck' => $jubelioStockCheck->load('discrepancies.warehouse', 'discrepancies.item'),
         ]);
@@ -69,6 +79,8 @@ class JubelioStockCheckController extends Controller
      */
     public function destroy(JubelioStockCheck $jubelioStockCheck): RedirectResponse
     {
+        Gate::authorize(Jubelio::getPermissions()['stock-check']);
+
         $jubelioStockCheck->delete();
 
         return redirect()->route('jubelio-stock-checks.index')

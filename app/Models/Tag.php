@@ -50,6 +50,16 @@ class Tag extends Model
         self::TYPE_WARNA => 'Warna',
     ];
 
+    public static function getPermissions(): array
+    {
+        return [
+            'view' => 'stuff-tag-list',
+            'create' => 'stuff-tag-create',
+            'edit' => 'stuff-tag-edit',
+            'delete' => 'stuff-tag-delete',
+        ];
+    }
+
     public function items(): BelongsToMany
     {
         return $this->belongsToMany(Item::class, 'item_tag');

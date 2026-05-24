@@ -6,6 +6,7 @@ use App\Enums\ItemType;
 use App\Http\Controllers\Controller;
 use App\Models\Tag;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 
 class TagController extends Controller
@@ -15,6 +16,8 @@ class TagController extends Controller
      */
     public function index(Request $request)
     {
+        Gate::authorize(Tag::getPermissions()['view']);
+
         $query = Tag::query();
 
         if ($search = $request->search) {
@@ -40,6 +43,8 @@ class TagController extends Controller
      */
     public function store(Request $request)
     {
+        Gate::authorize(Tag::getPermissions()['create']);
+
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'code' => 'nullable|string|max:255',
@@ -59,6 +64,8 @@ class TagController extends Controller
      */
     public function update(Request $request, Tag $tag)
     {
+        Gate::authorize(Tag::getPermissions()['edit']);
+
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'code' => 'nullable|string|max:255',
@@ -78,6 +85,8 @@ class TagController extends Controller
      */
     public function destroy(Tag $tag)
     {
+        Gate::authorize(Tag::getPermissions()['delete']);
+
         $tag->delete();
 
         return redirect()->back()->with('success', 'Tag deleted successfully.');

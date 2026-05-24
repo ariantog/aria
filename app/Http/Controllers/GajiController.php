@@ -8,12 +8,15 @@ use App\Models\Karyawan;
 use App\Models\Setting;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 
 class GajiController extends Controller
 {
     public function index(Request $request)
     {
+        Gate::authorize(Karyawan::getPermissions()['gaji-list']);
+
         $now = Carbon::now();
         $bulanSelect = $request->bulan ?: $now->month;
         $yearSelect = $request->tahun ?: $now->year;
@@ -56,6 +59,8 @@ class GajiController extends Controller
 
     public function create(Karyawan $karyawan)
     {
+        Gate::authorize(Karyawan::getPermissions()['gaji-create']);
+
         if (auth()->user() && ! auth()->user()->hasRole('superadmin') && $karyawan->flag == 2) {
             abort(404);
         }
@@ -134,6 +139,8 @@ class GajiController extends Controller
 
     public function store(Request $request, Karyawan $karyawan)
     {
+        Gate::authorize(Karyawan::getPermissions()['gaji-create']);
+
         if (auth()->user() && ! auth()->user()->hasRole('superadmin') && $karyawan->flag == 2) {
             abort(404);
         }
@@ -185,6 +192,8 @@ class GajiController extends Controller
 
     public function destroy(Gaji $gaji)
     {
+        Gate::authorize(Karyawan::getPermissions()['gaji-delete']);
+
         $gaji->delete();
 
         return redirect()->route('gaji.index')->with('success', 'Gaji deleted');

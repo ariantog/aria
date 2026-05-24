@@ -10,12 +10,15 @@ use App\Models\Transaction;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 
 class AccountListController extends Controller
 {
     public function index(Request $request)
     {
+        Gate::authorize(Operation::getPermissions()['account-list']);
+
         $query = Addrbook::account()->with('operation');
 
         if ($search = $request->search) {
@@ -34,6 +37,8 @@ class AccountListController extends Controller
 
     public function store(Request $request)
     {
+        Gate::authorize(Operation::getPermissions()['account-create']);
+
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
@@ -57,6 +62,8 @@ class AccountListController extends Controller
 
     public function update(Request $request, Addrbook $account_list)
     {
+        Gate::authorize(Operation::getPermissions()['account-edit']);
+
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
@@ -70,6 +77,8 @@ class AccountListController extends Controller
 
     public function destroy(Addrbook $account_list)
     {
+        Gate::authorize(Operation::getPermissions()['account-delete']);
+
         $account_list->delete();
 
         return redirect()->back()->with('success', 'Account deleted successfully.');
@@ -77,6 +86,8 @@ class AccountListController extends Controller
 
     public function ledger(Request $request, Addrbook $account_list)
     {
+        Gate::authorize(Operation::getPermissions()['account-list']);
+
         $accountId = $account_list->id;
 
         $from = $request->from;

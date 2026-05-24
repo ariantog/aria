@@ -23,10 +23,10 @@ class Location extends Model
     public static function getPermissions(): array
     {
         return [
-            'view' => 'locations-list',
-            'create' => 'locations-create',
-            'edit' => 'locations-edit',
-            'delete' => 'locations-delete',
+            'view' => 'users-locations-list',
+            'create' => 'users-locations-create',
+            'edit' => 'users-locations-edit',
+            'delete' => 'users-locations-delete',
         ];
     }
 }

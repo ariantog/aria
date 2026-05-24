@@ -2,27 +2,19 @@
 
 namespace App\Services;
 
-use Illuminate\Support\Str;
 use Spatie\Permission\Models\Permission;
 
 class PermissionGenerator
 {
     /**
      * Generate standard permissions for a module.
-     *
-     * @param  string  $moduleName
      */
     public function generateForModule(string $modelName, string $guardName = 'web'): array
     {
-        $className = 'App\\Models\\'.$modelName;
+        $className = str_starts_with($modelName, 'App\\Models\\') ? $modelName : 'App\\Models\\'.$modelName;
 
-        // Attempt to resolve custom class path if not found in App\Models
         if (! class_exists($className)) {
-            if (class_exists($modelName)) {
-                $className = $modelName;
-            } else {
-                throw new \Exception("Model '{$className}' not found.");
-            }
+            throw new \Exception("Model '{$className}' not found.");
         }
 
         if (method_exists($className, 'getPermissions')) {
@@ -30,7 +22,6 @@ class PermissionGenerator
             $createdPermissions = [];
 
             foreach ($permissions as $permissionName) {
-                // firstOrCreate handles skipping existing ones gracefully (idempotency)
                 $permission = Permission::firstOrCreate([
                     'name' => $permissionName,
                     'guard_name' => $guardName,
@@ -41,26 +32,28 @@ class PermissionGenerator
             return $createdPermissions;
         }
 
-        throw new \Exception("Model '{$className}' does not have a 'getPermissions' method.");
+        return [];
     }
 
-    private function generateFromString(string $moduleName, string $guardName): array
+    /**
+     * Generate permissions for all models that have getPermissions method.
+     */
+    public function generateAll(string $guardName = 'web'): array
     {
-        $slug = Str::slug($moduleName);
-        $actions = ['list', 'create', 'edit', 'delete'];
-        $createdPermissions = [];
+        $modelPath = app_path('Models');
+        $files = array_diff(scandir($modelPath), ['.', '..']);
+        $allCreated = [];
 
-        foreach ($actions as $action) {
-            $permissionName = "{$slug}-{$action}";
+        foreach ($files as $file) {
+            $modelName = pathinfo($file, PATHINFO_FILENAME);
+            $className = 'App\\Models\\'.$modelName;
 
-            $permission = Permission::firstOrCreate([
-                'name' => $permissionName,
-                'guard_name' => $guardName,
-            ]);
-
-            $createdPermissions[] = $permission;
+            if (class_exists($className) && method_exists($className, 'getPermissions')) {
+                $created = $this->generateForModule($modelName, $guardName);
+                $allCreated = array_merge($allCreated, $created);
+            }
         }
 
-        return $createdPermissions;
+        return $allCreated;
     }
 }

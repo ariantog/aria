@@ -4,8 +4,8 @@ namespace App\Http\Controllers\Reports;
 
 use App\Http\Controllers\Controller;
 use App\Models\Addrbook;
-use App\Models\AddrbookDaily;
 use App\Models\Item;
+use App\Models\Report;
 use App\Models\WarehouseCompare;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -18,7 +18,7 @@ class CompareReportController extends Controller
 {
     public function index(Request $request)
     {
-        Gate::authorize(AddrbookDaily::getPermissions()['view_compare']);
+        Gate::authorize(Report::getPermissions()['view-compare']);
 
         // 1. Get warehouses the user is currently comparing
         $selectedWarehouses = WarehouseCompare::where('user_id', Auth::id())
@@ -126,7 +126,7 @@ class CompareReportController extends Controller
 
     public function store(Request $request)
     {
-        Gate::authorize(AddrbookDaily::getPermissions()['view_compare']);
+        Gate::authorize(Report::getPermissions()['view-compare']);
 
         $request->validate([
             'warehouse_id' => [
@@ -147,7 +147,7 @@ class CompareReportController extends Controller
 
     public function destroy(WarehouseCompare $compare)
     {
-        Gate::authorize(AddrbookDaily::getPermissions()['view_compare']);
+        Gate::authorize(Report::getPermissions()['view-compare']);
 
         if ($compare->user_id !== Auth::id()) {
             abort(403);

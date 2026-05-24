@@ -8,6 +8,17 @@ class Restock extends Model
 {
     protected $guarded = ['id'];
 
+    public static function getPermissions(): array
+    {
+        return [
+            'view' => 'restock-list',
+            'create' => 'restock-create',
+            'edit' => 'restock-edit',
+            'delete' => 'restock-delete',
+            'history' => 'restock-history',
+        ];
+    }
+
     public function casts(): array
     {
         return [

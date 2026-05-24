@@ -68,14 +68,14 @@ class User extends Authenticatable
             'delete' => 'users-delete',
 
             // Roles
-            'roles_view' => 'users-roles-list',
-            'roles_create' => 'users-roles-create',
-            'roles_edit' => 'users-roles-edit',
-            'roles_delete' => 'users-roles-delete',
+            'roles-view' => 'users-roles-list',
+            'roles-create' => 'users-roles-create',
+            'roles-edit' => 'users-roles-edit',
+            'roles-delete' => 'users-roles-delete',
 
             // Permissions
-            'permissions_view' => 'users-permissions-list',
-            'permissions_generate' => 'users-permissions-generate',
+            'permissions-view' => 'users-permissions-list',
+            'permissions-generate' => 'users-permissions-generate',
         ];
     }
 }

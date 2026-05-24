@@ -12,6 +12,23 @@ class Operation extends Model
 
     protected $fillable = ['name', 'description'];
 
+    public static function getPermissions(): array
+    {
+        return [
+            // Operations
+            'operation-list' => 'journal-operation-list',
+            'operation-create' => 'journal-operation-create',
+            'operation-edit' => 'journal-operation-edit',
+            'operation-delete' => 'journal-operation-delete',
+
+            // Account List
+            'account-list' => 'journal-account-list',
+            'account-create' => 'journal-account-create',
+            'account-edit' => 'journal-account-edit',
+            'account-delete' => 'journal-account-delete',
+        ];
+    }
+
     public function accounts()
     {
         return $this->hasMany(Addrbook::class, 'operation_id');

@@ -23,7 +23,7 @@ class ItemsController extends Controller
     {
         $permissions = Item::getPermissions();
         if ($type === ItemType::ASSET_LANCAR) {
-            Gate::authorize($permissions['asset_lancar_view']);
+            Gate::authorize($permissions['assetLancar_view']);
         } else {
             Gate::authorize($permissions['view']);
         }
@@ -109,11 +109,11 @@ class ItemsController extends Controller
             'tags' => \App\Models\Tag::all()->groupBy('type'),
             'can' => [
                 'create' => auth()->user()->can($permissions['create']),
-                'create_asset' => auth()->user()->can($permissions['asset_lancar_create']),
+                'create_asset' => auth()->user()->can($permissions['assetLancar_create']),
                 'edit' => auth()->user()->can($permissions['edit']),
-                'edit_asset' => auth()->user()->can($permissions['asset_lancar_edit']),
+                'edit_asset' => auth()->user()->can($permissions['assetLancar_edit']),
                 'delete' => auth()->user()->can($permissions['delete']),
-                'delete_asset' => auth()->user()->can($permissions['asset_lancar_delete']),
+                'delete_asset' => auth()->user()->can($permissions['assetLancar_delete']),
             ],
         ]);
     }
@@ -142,7 +142,7 @@ class ItemsController extends Controller
 
     public function createAsset()
     {
-        Gate::authorize(Item::getPermissions()['asset_lancar_create']);
+        Gate::authorize(Item::getPermissions()['asset-lancar-create']);
 
         return Inertia::render('Items/Create', [
             'brands' => collect(ItemBrand::cases())->map(fn ($b) => ['value' => $b->value, 'label' => $b->label()]),
@@ -259,7 +259,7 @@ class ItemsController extends Controller
     {
         $permissions = Item::getPermissions();
         if ($item->type === ItemType::ASSET_LANCAR) {
-            Gate::authorize($permissions['asset_lancar_edit']);
+            Gate::authorize($permissions['assetLancar_edit']);
         } else {
             Gate::authorize($permissions['edit']);
         }
@@ -288,7 +288,7 @@ class ItemsController extends Controller
     {
         $permissions = Item::getPermissions();
         if ($item->type === ItemType::ASSET_LANCAR) {
-            Gate::authorize($permissions['asset_lancar_delete']);
+            Gate::authorize($permissions['assetLancar_delete']);
         } else {
             Gate::authorize($permissions['delete']);
         }
@@ -398,7 +398,7 @@ class ItemsController extends Controller
 
     public function group(Request $request)
     {
-        Gate::authorize(Item::getPermissions()['view']);
+        Gate::authorize(ItemGroup::getPermissions()['view']);
 
         $query = ItemGroup::query();
 
@@ -424,7 +424,7 @@ class ItemsController extends Controller
 
     public function groupDetail(ItemGroup $group)
     {
-        Gate::authorize(Item::getPermissions()['view']);
+        Gate::authorize(ItemGroup::getPermissions()['view']);
 
         $group->load([
             'items.warehouseItems' => function ($query) {
@@ -441,7 +441,7 @@ class ItemsController extends Controller
 
     public function groupStats(Request $request, ItemGroup $group)
     {
-        Gate::authorize(Item::getPermissions()['view']);
+        Gate::authorize(ItemGroup::getPermissions()['view']);
 
         $from = $request->input('from', now()->subMonths(11)->startOfMonth()->toDateString());
         $to = $request->input('to', now()->endOfMonth()->toDateString());

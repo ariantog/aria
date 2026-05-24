@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Jubelio;
 use App\Models\Jubelioorder;
 use App\Models\Jubelioreturn;
 use App\Models\Jubeliosync;
@@ -12,6 +13,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Http;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -23,6 +25,8 @@ class JubelioController extends Controller
      */
     public function index(Request $request): Response
     {
+        Gate::authorize(Jubelio::getPermissions()['view']);
+
         $query = Jubelioorder::query()
             ->with('user')
             ->orderBy('updated_at', 'desc');
@@ -68,6 +72,8 @@ class JubelioController extends Controller
      */
     public function show(Jubelioorder $jubelio): Response
     {
+        Gate::authorize(Jubelio::getPermissions()['view']);
+
         return Inertia::render('jubelio/Show', [
             'order' => $jubelio->load(['user', 'trx']),
         ]);
@@ -173,6 +179,8 @@ class JubelioController extends Controller
      */
     public function transactionSync(Request $request): Response
     {
+        Gate::authorize(Jubelio::getPermissions()['sync']);
+
         $types = [
             Transaction::TYPE_SELL => 'SELL',
             Transaction::TYPE_RETURN_SUPPLIER => 'RETURN SUPPLIER',
@@ -293,6 +301,8 @@ class JubelioController extends Controller
      */
     public function detailJubelioSync(Transaction $transaction): Response
     {
+        Gate::authorize(Jubelio::getPermissions()['sync']);
+
         $data = $transaction->load(['receiver', 'sender', 'user', 'submitByA', 'submitByB', 'details.item.group'])
             ->loadCount([
                 'details as item_with_jubelio_count' => function ($query) {
@@ -351,6 +361,8 @@ class JubelioController extends Controller
      */
     public function transactionSyncDisplay(Transaction $transaction): RedirectResponse
     {
+        Gate::authorize(Jubelio::getPermissions()['sync']);
+
         $transaction->sync_hide = ($transaction->sync_hide == 'N') ? 'Y' : 'N';
         $transaction->save();
 
@@ -362,6 +374,8 @@ class JubelioController extends Controller
      */
     public function adjustStok(Request $request, $id): RedirectResponse
     {
+        Gate::authorize(Jubelio::getPermissions()['sync']);
+
         $transaction = Transaction::with(['details.item'])->findOrFail($id);
 
         // Warning/Limit checks

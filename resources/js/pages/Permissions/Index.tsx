@@ -1,7 +1,6 @@
 import { Head, useForm, usePage } from '@inertiajs/react';
 import { Link } from '@inertiajs/react';
-import { Lock, Search, Plus, Zap, Box } from 'lucide-react';
-import FormInput from '@/components/Partial/Form/FormInput';
+import { Lock, Search, Plus, Zap } from 'lucide-react';
 import Pagination from '@/components/Partial/Pagination';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -35,9 +34,7 @@ interface Props {
 }
 
 export default function PermissionsIndex({ permissions }: Props) {
-    const { data, setData, post, processing, errors, reset } = useForm({
-        module_name: '',
-    });
+    const { post, processing, reset } = useForm();
 
     const submit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -74,67 +71,30 @@ export default function PermissionsIndex({ permissions }: Props) {
                                 Permission Generator
                             </h3>
                             <p className="mb-4 text-sm text-zinc-400">
-                                Automatically generate standard CRUD permissions
-                                (list, create, edit, delete) for a new model.
+                                Automatically generate permissions defined in
+                                your models.
                             </p>
 
                             <form
                                 onSubmit={submit}
-                                className="flex flex-col items-start gap-4 sm:flex-row"
+                                className="flex flex-col items-end gap-4 sm:flex-row sm:items-start"
                             >
-                                <div className="w-full sm:max-w-md">
-                                    <FormInput
-                                        id="module_name"
-                                        label="Model Name"
-                                        value={data.module_name}
-                                        onChange={(e) =>
-                                            setData(
-                                                'module_name',
-                                                e.target.value,
-                                            )
-                                        }
-                                        error={errors.module_name}
-                                        icon={Box}
-                                        placeholder="e.g. Post"
-                                    />
+                                <div className="flex gap-2">
+                                    <Button
+                                        type="submit"
+                                        loading={processing}
+                                        className="bg-blue-600 whitespace-nowrap text-white shadow-sm hover:bg-blue-700"
+                                    >
+                                        <Plus className="mr-2 h-4 w-4" />
+                                        Generate All Permissions
+                                    </Button>
                                 </div>
-                                <Button
-                                    type="submit"
-                                    loading={processing}
-                                    className="mt-8 bg-blue-600 whitespace-nowrap text-white shadow-sm hover:bg-blue-700"
-                                >
-                                    <Plus className="mr-2 h-4 w-4" />
-                                    Generate Permissions
-                                </Button>
                             </form>
-                            <div className="mt-4 flex flex-wrap gap-2">
+                            <div className="mt-4 flex flex-wrap gap-2 text-zinc-400">
                                 <span className="text-xs text-zinc-500">
-                                    Will generate:
+                                    This will scan models for a
+                                    <code>getPermissions()</code> method.
                                 </span>
-                                <Badge
-                                    variant="outline"
-                                    className="border-zinc-700 text-xs text-zinc-400"
-                                >
-                                    *-list
-                                </Badge>
-                                <Badge
-                                    variant="outline"
-                                    className="border-zinc-700 text-xs text-zinc-400"
-                                >
-                                    *-create
-                                </Badge>
-                                <Badge
-                                    variant="outline"
-                                    className="border-zinc-700 text-xs text-zinc-400"
-                                >
-                                    *-edit
-                                </Badge>
-                                <Badge
-                                    variant="outline"
-                                    className="border-zinc-700 text-xs text-zinc-400"
-                                >
-                                    *-delete
-                                </Badge>
                             </div>
                         </div>
                     </div>

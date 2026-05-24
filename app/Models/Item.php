@@ -63,12 +63,13 @@ class Item extends Model
             'create' => 'items-create',
             'edit' => 'items-edit',
             'delete' => 'items-delete',
+            'contributor' => 'items-contributor',
 
             // Asset Lancar
-            'asset_lancar_view' => 'asset-lancar-list',
-            'asset_lancar_create' => 'asset-lancar-create',
-            'asset_lancar_edit' => 'asset-lancar-edit',
-            'asset_lancar_delete' => 'asset-lancar-delete',
+            'asset-lancar-view' => 'assetLancar-list',
+            'asset-lancar-create' => 'assetLancar-create',
+            'asset-lancar-edit' => 'assetLancar-edit',
+            'asset-lancar-delete' => 'assetLancar-delete',
         ];
     }
 

@@ -5,9 +5,11 @@ namespace App\Http\Controllers\Stuff;
 use App\Enums\ItemBrand;
 use App\Http\Controllers\Controller;
 use App\Models\Addrbook;
+use App\Models\Item;
 use App\Models\Transaction;
 use App\Models\TransactionDetail;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -18,6 +20,8 @@ class ContributorController extends Controller
      */
     public function index(Request $request): Response
     {
+        Gate::authorize(Item::getPermissions()['contributor']);
+
         $from = $request->from ?: now()->startOfMonth()->toDateString();
         $to = $request->to ?: now()->endOfMonth()->toDateString();
         $customerId = $request->customer_id;

@@ -102,6 +102,10 @@ export default function Index({
     const [tahun, setTahun] = useState(yearSelect.toString());
 
     const isSuperAdmin = auth?.roles?.includes('superadmin');
+    const permissions = auth?.permissions || [];
+
+    const hasPermission = (p: string) =>
+        permissions.includes(p) || permissions.includes('*');
 
     const breadcrumbs: BreadcrumbItem[] = [
         { title: 'Payroll', href: '/gaji' },
@@ -321,7 +325,8 @@ export default function Index({
                                 <TableHead className="font-bold uppercase tracking-wider">
                                     Account Bank
                                 </TableHead>
-                                {isSuperAdmin && (
+                                {(isSuperAdmin ||
+                                    hasPermission('karyawan-gaji-delete')) && (
                                     <TableHead className="w-[100px] text-center font-bold uppercase tracking-wider">
                                         Actions
                                     </TableHead>
@@ -384,7 +389,10 @@ export default function Index({
                                                     'Kas Tunai'}
                                             </Badge>
                                         </TableCell>
-                                        {isSuperAdmin && (
+                                        {(isSuperAdmin ||
+                                            hasPermission(
+                                                'karyawan-gaji-delete',
+                                            )) && (
                                             <TableCell>
                                                 <div className="flex items-center justify-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
                                                     <Button
@@ -416,13 +424,17 @@ export default function Index({
                                                     </Button>
                                                 </div>
                                             </TableCell>
-                                        )}
-                                    </TableRow>
+                                        )}                                    </TableRow>
                                 ))
                             ) : (
                                 <TableRow>
                                     <TableCell
-                                        colSpan={isSuperAdmin ? 7 : 6}
+                                        colSpan={
+                                            isSuperAdmin ||
+                                            hasPermission('karyawan-gaji-delete')
+                                                ? 11
+                                                : 10
+                                        }
                                         className="h-32 text-center text-muted-foreground"
                                     >
                                         <div className="flex flex-col items-center gap-2">

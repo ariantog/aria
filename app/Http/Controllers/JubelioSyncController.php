@@ -3,12 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Models\Addrbook;
+use App\Models\Jubelio;
 use App\Models\Jubeliosync;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Http;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -20,6 +22,8 @@ class JubelioSyncController extends Controller
      */
     public function index(Request $request): Response
     {
+        Gate::authorize(Jubelio::getPermissions()['sync']);
+
         $query = Jubeliosync::with(['warehouse', 'customer']);
 
         if ($request->name) {
@@ -40,6 +44,8 @@ class JubelioSyncController extends Controller
      */
     public function create(): Response
     {
+        Gate::authorize(Jubelio::getPermissions()['sync']);
+
         $token = Cache::get('jubelio_data')['token'] ?? null;
 
         $dataList = ['data' => []];
@@ -70,6 +76,8 @@ class JubelioSyncController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
+        Gate::authorize(Jubelio::getPermissions()['sync']);
+
         $request->validate([
             'location_id' => 'required',
             'location_name' => 'required',
@@ -121,6 +129,8 @@ class JubelioSyncController extends Controller
      */
     public function edit(Jubeliosync $sync): Response
     {
+        Gate::authorize(Jubelio::getPermissions()['sync']);
+
         return Inertia::render('jubelio/sync/Edit', [
             'sync' => $sync->load(['warehouse', 'customer']),
             'addrbookTypes' => [
@@ -135,6 +145,8 @@ class JubelioSyncController extends Controller
      */
     public function update(Request $request, Jubeliosync $sync): RedirectResponse
     {
+        Gate::authorize(Jubelio::getPermissions()['sync']);
+
         $request->validate([
             'warehouse_id' => 'required|exists:addrbooks,id',
             'customer_id' => 'nullable|exists:addrbooks,id',
@@ -153,6 +165,8 @@ class JubelioSyncController extends Controller
      */
     public function destroy(Jubeliosync $sync): RedirectResponse
     {
+        Gate::authorize(Jubelio::getPermissions()['sync']);
+
         $sync->delete();
 
         return redirect()->route('jubelio.sync.index')->with('success', 'Jubelio sync deleted.');
@@ -163,6 +177,8 @@ class JubelioSyncController extends Controller
      */
     public function getBin(Jubeliosync $sync): RedirectResponse
     {
+        Gate::authorize(Jubelio::getPermissions()['sync']);
+
         $token = Cache::get('jubelio_data')['token'] ?? null;
         if (! $token) {
             return back()->with('errorMessage', 'Jubelio token not found.');
