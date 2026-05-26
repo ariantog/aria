@@ -6,6 +6,7 @@ import {
     FileEdit,
     ArrowLeft,
     Info,
+    ShoppingCart,
 } from 'lucide-react';
 import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
@@ -174,6 +175,13 @@ export default function GroupShow({ group }: Props) {
                                     </div>
                                     <Button
                                         variant="outline"
+                                        className="border-blue-800 text-blue-500 hover:bg-blue-900/20"
+                                        onClick={() => router.post('/restock/add-item', { code: String(group.id), qty: 1 }, { preserveScroll: true })}
+                                    >
+                                        <ShoppingCart className="mr-2 h-4 w-4" /> Add Group to Restock
+                                    </Button>
+                                    <Button
+                                        variant="outline"
                                         className="border-green-800 text-green-500 hover:bg-green-900/20"
                                     >
                                         <BarChart2 className="mr-2 h-4 w-4" />{' '}
@@ -233,6 +241,14 @@ export default function GroupShow({ group }: Props) {
                                         </p>
                                     </div>
                                     <div className="flex gap-2">
+                                        <Button
+                                            size="sm"
+                                            variant="ghost"
+                                            className="text-blue-400 hover:text-white"
+                                            onClick={() => router.post('/restock/add-item', { code: item.code, qty: 1 }, { preserveScroll: true })}
+                                        >
+                                            <ShoppingCart className="mr-2 h-4 w-4" /> Restock
+                                        </Button>
                                         <Button
                                             size="sm"
                                             variant="ghost"

@@ -5,9 +5,9 @@ use App\Models\Addrbook; // Addrbook extends Location
 use App\Models\Item; // Updated
 use App\Models\Location;
 use App\Services\InventoryService;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 
-uses(Tests\TestCase::class, RefreshDatabase::class);
+uses(Tests\TestCase::class, DatabaseTransactions::class);
 
 beforeEach(function () {
     $this->inventoryService = new InventoryService;

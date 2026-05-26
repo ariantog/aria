@@ -13,7 +13,7 @@ class ItemSaleReportController extends Controller
 {
     public function __invoke(Request $request)
     {
-        Gate::authorize(Report::getPermissions()['view_item_sales']);
+        Gate::authorize(Report::getPermissions()['view-item-sales']);
 
         $bulan = $request->bulan;
         $tahun = $request->tahun ?? now()->year;

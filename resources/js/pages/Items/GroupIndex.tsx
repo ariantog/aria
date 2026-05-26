@@ -5,6 +5,7 @@ import {
     Search as SearchIcon,
     X,
     Filter,
+    ShoppingCart,
 } from 'lucide-react';
 import { useState } from 'react';
 import Pagination from '@/components/Partial/Pagination';
@@ -207,6 +208,9 @@ export default function GroupIndex({ groups, filters }: Props) {
                                     <th className="px-6 py-4 font-bold tracking-wider">
                                         In Warehouse
                                     </th>
+                                    <th className="px-6 py-4 font-bold tracking-wider text-right">
+                                        Actions
+                                    </th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-zinc-800/50">
@@ -264,12 +268,25 @@ export default function GroupIndex({ groups, filters }: Props) {
                                             <td className="px-6 py-4 font-bold text-green-500">
                                                 {item.in_warehouse_qty}
                                             </td>
+                                            <td className="px-6 py-4 text-right">
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    className="border-blue-800 text-blue-500 hover:bg-blue-900/20"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        router.post('/restock/add-item', { code: String(item.id), qty: 1 }, { preserveScroll: true });
+                                                    }}
+                                                >
+                                                    <ShoppingCart className="mr-2 h-4 w-4" /> Restock
+                                                </Button>
+                                            </td>
                                         </tr>
                                     ))
                                 ) : (
                                     <tr>
                                         <td
-                                            colSpan={showImage ? 7 : 6}
+                                            colSpan={showImage ? 8 : 7}
                                             className="px-6 py-12 text-center text-zinc-500"
                                         >
                                             No groups found matching your

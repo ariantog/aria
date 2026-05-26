@@ -6,12 +6,12 @@ use App\Models\Addrbook;
 use App\Models\Item;
 use App\Models\User;
 use App\Models\WarehouseItem;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Tests\TestCase;
 
 class TransactionStockTest extends TestCase
 {
-    use RefreshDatabase;
+    use DatabaseTransactions;
 
     public function test_buy_transaction_adjusts_stock_correctly()
     {

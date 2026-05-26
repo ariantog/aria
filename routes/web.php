@@ -230,9 +230,12 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
 
     // Restock Module
     Route::prefix('restock')->name('restock.')->group(function () {
+        Route::post('/bulk-update', [App\Http\Controllers\RestockController::class, 'bulkUpdate'])->name('bulkUpdate');
         Route::get('/', [App\Http\Controllers\RestockController::class, 'index'])->name('index');
         Route::get('/create', [App\Http\Controllers\RestockController::class, 'create'])->name('create');
         Route::post('/add-item', [App\Http\Controllers\RestockController::class, 'addItem'])->name('addItem');
+        Route::post('/update-item-qty/{code}', [App\Http\Controllers\RestockController::class, 'updateItemQty'])->name('updateItemQty');
+        Route::post('/clear-items', [App\Http\Controllers\RestockController::class, 'clearItems'])->name('clearItems');
         Route::post('/remove-item/{code}', [App\Http\Controllers\RestockController::class, 'removeItem'])->name('removeItem');
         Route::post('/', [App\Http\Controllers\RestockController::class, 'store'])->name('store');
         Route::get('/{id}/update', [App\Http\Controllers\RestockController::class, 'update'])->name('update');

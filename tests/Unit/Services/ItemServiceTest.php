@@ -7,11 +7,11 @@ use App\Models\Tag;
 use App\Services\ImageService;
 use App\Services\InventoryService;
 use App\Services\ItemService;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 
-uses(Tests\TestCase::class, RefreshDatabase::class);
+uses(Tests\TestCase::class, DatabaseTransactions::class);
 
 beforeEach(function () {
     $this->imageService = new ImageService;

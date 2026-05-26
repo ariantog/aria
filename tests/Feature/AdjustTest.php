@@ -3,9 +3,9 @@
 use App\Models\Addrbook;
 use App\Models\Transaction;
 use App\Models\User;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 
-uses(RefreshDatabase::class);
+uses(DatabaseTransactions::class);
 
 test('adjust transaction can be stored and updates balances', function () {
     $user = User::factory()->create();

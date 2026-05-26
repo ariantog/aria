@@ -7,11 +7,11 @@ use App\Models\Item;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Models\WarehouseItem;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Foundation\Testing\WithoutMiddleware;
 use Illuminate\Support\Facades\Gate;
 
-uses(RefreshDatabase::class, WithoutMiddleware::class);
+uses(DatabaseTransactions::class, WithoutMiddleware::class);
 
 beforeEach(function () {
     Gate::before(fn () => true);

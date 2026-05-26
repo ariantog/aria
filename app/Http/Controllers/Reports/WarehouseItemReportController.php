@@ -14,7 +14,7 @@ class WarehouseItemReportController extends Controller
 {
     public function index(Request $request)
     {
-        Gate::authorize(Report::getPermissions()['view_warehouse_item']);
+        Gate::authorize(Report::getPermissions()['view-warehouse-item']);
 
         // 1. AGGREGATE warehouse_items
         $wi = DB::table('warehouse_items')

@@ -15,7 +15,7 @@ class ReportController extends Controller
 {
     public function inventoryHealth(Request $request)
     {
-        Gate::authorize(Report::getPermissions()['view_inventory_health']);
+        Gate::authorize(Report::getPermissions()['view-inventory-health']);
         $warehouseId = $request->input('warehouse_id');
         $search = $request->input('search');
         $query = Item::query();
@@ -32,7 +32,7 @@ class ReportController extends Controller
 
     public function stockIntelligence(Request $request)
     {
-        Gate::authorize(Report::getPermissions()['view_inventory_health']);
+        Gate::authorize(Report::getPermissions()['view-inventory-health']);
 
         $reportId = $request->query('report_id');
         $reportHistory = \App\Models\StokReport::latest('generet_at')
@@ -151,7 +151,7 @@ class ReportController extends Controller
 
     public function rebalanceDetail(Request $request)
     {
-        Gate::authorize(Report::getPermissions()['view_inventory_health']);
+        Gate::authorize(Report::getPermissions()['view-inventory-health']);
 
         return Inertia::render('Reports/RebalanceDetail');
     }

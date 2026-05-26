@@ -15,7 +15,7 @@ class NettCashController extends Controller
 {
     public function __invoke(Request $request)
     {
-        Gate::authorize(Report::getPermissions()['view_nett_cash']);
+        Gate::authorize(Report::getPermissions()['view-nett-cash']);
 
         $datesNow = Carbon::now();
         $month = $request->month;

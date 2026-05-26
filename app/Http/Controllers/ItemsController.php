@@ -23,7 +23,7 @@ class ItemsController extends Controller
     {
         $permissions = Item::getPermissions();
         if ($type === ItemType::ASSET_LANCAR) {
-            Gate::authorize($permissions['assetLancar_view']);
+            Gate::authorize($permissions['asset-lancar-view']);
         } else {
             Gate::authorize($permissions['view']);
         }
@@ -109,11 +109,11 @@ class ItemsController extends Controller
             'tags' => \App\Models\Tag::all()->groupBy('type'),
             'can' => [
                 'create' => auth()->user()->can($permissions['create']),
-                'create_asset' => auth()->user()->can($permissions['assetLancar_create']),
+                'create_asset' => auth()->user()->can($permissions['asset-lancar-create']),
                 'edit' => auth()->user()->can($permissions['edit']),
-                'edit_asset' => auth()->user()->can($permissions['assetLancar_edit']),
+                'edit_asset' => auth()->user()->can($permissions['asset-lancar-edit']),
                 'delete' => auth()->user()->can($permissions['delete']),
-                'delete_asset' => auth()->user()->can($permissions['assetLancar_delete']),
+                'delete_asset' => auth()->user()->can($permissions['asset-lancar-delete']),
             ],
         ]);
     }
@@ -160,7 +160,7 @@ class ItemsController extends Controller
     public function store(Request $request)
     {
         if ($request->input('type') == \App\Enums\ItemType::ASSET_LANCAR->value) {
-            Gate::authorize(Item::getPermissions()['asset_lancar_create']);
+            Gate::authorize(Item::getPermissions()['asset-lancar-create']);
         } else {
             Gate::authorize(Item::getPermissions()['create']);
         }
@@ -259,7 +259,7 @@ class ItemsController extends Controller
     {
         $permissions = Item::getPermissions();
         if ($item->type === ItemType::ASSET_LANCAR) {
-            Gate::authorize($permissions['assetLancar_edit']);
+            Gate::authorize($permissions['asset-lancar-edit']);
         } else {
             Gate::authorize($permissions['edit']);
         }
@@ -288,7 +288,7 @@ class ItemsController extends Controller
     {
         $permissions = Item::getPermissions();
         if ($item->type === ItemType::ASSET_LANCAR) {
-            Gate::authorize($permissions['assetLancar_delete']);
+            Gate::authorize($permissions['asset-lancar-delete']);
         } else {
             Gate::authorize($permissions['delete']);
         }

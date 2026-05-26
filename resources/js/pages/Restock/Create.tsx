@@ -1,10 +1,12 @@
-import { Head, Link, useForm } from '@inertiajs/react';
-import { Trash2, Plus, Save } from 'lucide-react';
+import { Head, Link, useForm, router } from '@inertiajs/react';
+import { Trash2, Plus, Save, Check } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import AppLayout from '@/layouts/app-layout';
 import type { BreadcrumbItem } from '@/types';
+import { useState } from 'react';
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Stuff', href: '#' },
@@ -22,10 +24,30 @@ export default function RestockCreate({ items }: any) {
         date: new Date().toISOString().split('T')[0],
     });
 
+    const [editingQty, setEditingQty] = useState<Record<string, number>>({});
+    const [updatingKey, setUpdatingKey] = useState<string | null>(null);
+
     const handleAddItem = (e: React.FormEvent) => {
         e.preventDefault();
         post('/restock/add-item', {
             onSuccess: () => reset('code', 'qty'),
+        });
+    };
+
+    const handleUpdateQty = (uniqueKey: string) => {
+        const qty = editingQty[uniqueKey];
+        if (qty === undefined) return;
+
+        setUpdatingKey(uniqueKey);
+        router.post(`/restock/update-item-qty/${uniqueKey}`, { qty }, {
+            onSuccess: () => {
+                setUpdatingKey(null);
+                const newEditing = { ...editingQty };
+                delete newEditing[uniqueKey];
+                setEditingQty(newEditing);
+            },
+            onFinish: () => setUpdatingKey(null),
+            preserveScroll: true
         });
     };
 
@@ -43,7 +65,7 @@ export default function RestockCreate({ items }: any) {
                         New Restock
                     </h1>
                     <p className="text-zinc-500 dark:text-zinc-400">
-                        Add items to the restock list and save them to the database.
+                        Enter an Item SKU or Group Code to add items to the restock list.
                     </p>
                 </div>
 
@@ -53,12 +75,12 @@ export default function RestockCreate({ items }: any) {
                             <h2 className="mb-4 text-lg font-semibold">Add Item</h2>
                             <form onSubmit={handleAddItem} className="space-y-4">
                                 <div>
-                                    <Label htmlFor="code">Item ID or Code</Label>
+                                    <Label htmlFor="code">ID, SKU, or Group Code</Label>
                                     <Input
                                         id="code"
                                         value={data.code}
                                         onChange={(e) => setData('code', e.target.value)}
-                                        placeholder="Enter ID or Code..."
+                                        placeholder="Enter code..."
                                         autoFocus
                                     />
                                     {errors.code && <p className="mt-1 text-xs text-red-500">{errors.code}</p>}
@@ -77,6 +99,16 @@ export default function RestockCreate({ items }: any) {
                                 <Button type="submit" className="w-full" disabled={processing}>
                                     <Plus className="mr-2 h-4 w-4" /> Add to List
                                 </Button>
+                                {items.length > 0 && (
+                                    <Button 
+                                        type="button" 
+                                        variant="outline" 
+                                        className="w-full border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 dark:border-red-900/30 dark:text-red-400 dark:hover:bg-red-900/20"
+                                        onClick={() => router.post('/restock/clear-items')}
+                                    >
+                                        <Trash2 className="mr-2 h-4 w-4" /> Clear Entire List
+                                    </Button>
+                                )}
                             </form>
                         </div>
                     </div>
@@ -90,36 +122,80 @@ export default function RestockCreate({ items }: any) {
                                 <table className="w-full text-left text-sm">
                                     <thead className="bg-zinc-50 text-xs text-zinc-500 uppercase dark:bg-zinc-900/50">
                                         <tr>
-                                            <th className="px-6 py-4 font-bold">Item</th>
+                                            <th className="px-6 py-4 font-bold">Group / Item</th>
+                                            <th className="px-6 py-4 font-bold">Color</th>
+                                            <th className="px-6 py-4 font-bold">Size / Type</th>
                                             <th className="px-6 py-4 font-bold">Quantity</th>
                                             <th className="px-6 py-4 text-right font-bold">Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800/50">
                                         {items.length > 0 ? (
-                                            items.map((item: any, index: number) => (
-                                                <tr key={index} className="transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/40">
-                                                    <td className="px-6 py-4">
-                                                        <div className="font-medium text-zinc-900 dark:text-zinc-100">{item.name}</div>
-                                                        <div className="text-xs text-zinc-500">{item.code}</div>
-                                                    </td>
-                                                    <td className="px-6 py-4 font-mono">{item.qty}</td>
-                                                    <td className="px-6 py-4 text-right">
-                                                        <Link
-                                                            href={`/restock/remove-item/${item.code}`}
-                                                            method="post"
-                                                            as="button"
-                                                            className="rounded-lg p-2 text-zinc-400 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400"
-                                                        >
-                                                            <Trash2 className="h-4 w-4" />
-                                                        </Link>
-                                                    </td>
-                                                </tr>
-                                            ))
+                                            items.map((item: any, index: number) => {
+                                                const uniqueKey = item.unique_key || item.code;
+                                                const isEditing = editingQty[uniqueKey] !== undefined;
+                                                const currentQty = isEditing ? editingQty[uniqueKey] : item.qty;
+
+                                                return (
+                                                    <tr key={index} className="transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/40">
+                                                        <td className="px-6 py-4">
+                                                            <div className="font-medium text-zinc-900 dark:text-zinc-100">
+                                                                {item.group_name || item.name}
+                                                            </div>
+                                                            <div className="text-xs text-zinc-500">{item.code}</div>
+                                                        </td>
+                                                        <td className="px-6 py-4">
+                                                            {item.color_name ? <Badge variant="outline">{item.color_name}</Badge> : '-'}
+                                                        </td>
+                                                        <td className="px-6 py-4">
+                                                            <div className="font-semibold">
+                                                                {item.size_name || (item.size_id === 'all' ? 'All Sizes' : '-')}
+                                                            </div>
+                                                            <div className="text-[10px] text-zinc-400 uppercase tracking-tighter">
+                                                                {item.size_type?.replace('-', ' ')}
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-6 py-4 font-mono">
+                                                            <div className="flex items-center gap-2">
+                                                                <Input 
+                                                                    type="number"
+                                                                    className="h-8 w-20 text-center"
+                                                                    value={currentQty}
+                                                                    onChange={(e) => setEditingQty({
+                                                                        ...editingQty,
+                                                                        [uniqueKey]: parseInt(e.target.value) || 0
+                                                                    })}
+                                                                    min="1"
+                                                                />
+                                                                {isEditing && (
+                                                                    <Button 
+                                                                        size="icon" 
+                                                                        className="h-8 w-8 bg-emerald-600 hover:bg-emerald-700"
+                                                                        onClick={() => handleUpdateQty(uniqueKey)}
+                                                                        disabled={updatingKey === uniqueKey}
+                                                                    >
+                                                                        <Check className="h-4 w-4" />
+                                                                    </Button>
+                                                                )}
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-6 py-4 text-right">
+                                                            <Link
+                                                                href={`/restock/remove-item/${uniqueKey}`}
+                                                                method="post"
+                                                                as="button"
+                                                                className="rounded-lg p-2 text-zinc-400 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400"
+                                                            >
+                                                                <Trash2 className="h-4 w-4" />
+                                                            </Link>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })
                                         ) : (
                                             <tr>
-                                                <td colSpan={3} className="px-6 py-12 text-center text-zinc-400 italic">
-                                                    No items added yet. Start by adding an item on the left.
+                                                <td colSpan={5} className="px-6 py-12 text-center text-zinc-400 italic">
+                                                    No items added yet.
                                                 </td>
                                             </tr>
                                         )}

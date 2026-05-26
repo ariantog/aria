@@ -14,7 +14,7 @@ class CashFlowController extends Controller
 {
     public function __invoke(Request $request)
     {
-        Gate::authorize(Report::getPermissions()['view_cash_flow']);
+        Gate::authorize(Report::getPermissions()['view-cash-flow']);
         $currentYear = $request->tahun ?? $request->year ?? now()->year;
         $month = $request->bulan ?? $request->month;
         if ($month === '0' || $month === 'all') {
