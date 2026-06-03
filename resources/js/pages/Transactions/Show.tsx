@@ -131,7 +131,7 @@ export default function Show({ transaction, config, auth, can }: Props) {
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title={`Transaction #${transaction.invoice_number}`} />
 
-            <div className="space-y-6 p-6">
+            <div className="flex h-full flex-1 flex-col gap-4 overflow-x-auto rounded-xl p-4">
                 {/* Top Action Bar */}
                 <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
                     <div className="flex items-center gap-3">

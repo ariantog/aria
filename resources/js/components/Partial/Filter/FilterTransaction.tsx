@@ -120,6 +120,17 @@ export default function FilterTransaction({
     return (
         <div className="mb-6 flex flex-col gap-4 rounded-xl border bg-white p-4 shadow-sm dark:bg-zinc-900">
             <div className="flex flex-wrap items-center gap-4">
+                {/* Search Invoice */}
+                <div className="relative w-full sm:w-56">
+                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-zinc-500" />
+                    <Input
+                        placeholder="Search invoice..."
+                        className="h-9 w-full bg-zinc-50 pl-9 text-xs dark:bg-zinc-800/50"
+                        value={invoice}
+                        onChange={(e) => setInvoice(e.target.value)}
+                    />
+                </div>
+
                 {/* Type Select */}
                 <div className="w-full sm:w-48">
                     <Select value={type} onValueChange={handleTypeChange}>
@@ -187,17 +198,6 @@ export default function FilterTransaction({
                         </DropdownMenuLabel>
                         <DropdownMenuSeparator className="my-2" />
                         <div className="space-y-4">
-                            <div className="space-y-1.5">
-                                <label className="text-xs font-medium text-zinc-500">
-                                    Invoice Number
-                                </label>
-                                <Input
-                                    placeholder="INV-..."
-                                    className="h-8 text-xs"
-                                    value={invoice}
-                                    onChange={(e) => setInvoice(e.target.value)}
-                                />
-                            </div>
                             <div className="grid grid-cols-2 gap-2">
                                 <div className="space-y-1.5">
                                     <label className="text-xs font-medium text-zinc-500">

@@ -42,7 +42,7 @@ export default function SettingCreate() {
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Create Setting" />
 
-            <div className="p-4 sm:p-6 lg:p-8">
+            <div className="flex h-full flex-1 flex-col gap-4 overflow-x-auto rounded-xl p-4">
                 <div className="mx-auto max-w-3xl">
                     <div className="mb-8 flex items-center justify-between">
                         <div>

@@ -357,7 +357,7 @@ export default function Create({ type, config, ppn_rate, min_date }: Props) {
 
             <form
                 onSubmit={submit}
-                className="mx-auto max-w-[1600px] p-4 sm:p-6 lg:p-8"
+                className="flex h-full flex-1 flex-col gap-4 overflow-x-auto rounded-xl p-4"
             >
                 {/* Header */}
                 <div className="mb-8 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">

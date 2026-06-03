@@ -43,7 +43,7 @@ export default function RolesEdit({
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title={`Edit Role: ${role.name}`} />
 
-            <div className="p-4 sm:p-6 lg:p-8">
+            <div className="flex h-full flex-1 flex-col gap-4 overflow-x-auto rounded-xl p-4">
                 {/* Header */}
                 <div className="mb-8">
                     <div className="mb-1 flex items-center gap-2 text-sm text-zinc-500">

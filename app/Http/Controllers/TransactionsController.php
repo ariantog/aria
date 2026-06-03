@@ -647,7 +647,7 @@ class TransactionsController extends Controller
     {
         $request->validate([
             'csv_file' => 'required|mimes:csv,txt|max:5120',
-            'warehouse_id' => 'nullable|integer'
+            'warehouse_id' => 'nullable|integer',
         ]);
 
         $file = $request->file('csv_file');
@@ -668,15 +668,16 @@ class TransactionsController extends Controller
             while (($data = fgetcsv($handle, 1000, $delimiter)) !== false) {
                 if (count($data) >= 3) {
                     // Header detection: if first line's 2nd column (quantity) is not numeric, skip it.
-                    if ($first && !is_numeric(trim($data[1]))) {
+                    if ($first && ! is_numeric(trim($data[1]))) {
                         $first = false;
+
                         continue;
                     }
                     $first = false;
                     $array[] = [
                         'code' => trim($data[0]),
                         'qty' => trim($data[1]),
-                        'price' => trim($data[2])
+                        'price' => trim($data[2]),
                     ];
                 }
             }
@@ -685,7 +686,7 @@ class TransactionsController extends Controller
 
         if (empty($array)) {
             return response()->json([
-                'error' => 'Failed to parse CSV or file is empty. Expected format: code,qty,price. Make sure to use comma (,) or semicolon (;) as delimiter.'
+                'error' => 'Failed to parse CSV or file is empty. Expected format: code,qty,price. Make sure to use comma (,) or semicolon (;) as delimiter.',
             ], 422);
         }
 
@@ -728,7 +729,7 @@ class TransactionsController extends Controller
                     'price' => $price,
                     'discount' => 0,
                     'subtotal' => $qty * $price,
-                    'note' => ''
+                    'note' => '',
                 ];
             }
         }
@@ -736,7 +737,7 @@ class TransactionsController extends Controller
         return response()->json([
             'data' => $dataList,
             'totalQty' => collect($dataList)->sum('quantity'),
-            'totalPrice' => collect($dataList)->sum('subtotal')
+            'totalPrice' => collect($dataList)->sum('subtotal'),
         ]);
     }
 }

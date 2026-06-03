@@ -129,7 +129,7 @@ export default function ItemsCreate({
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title={pageTitle} />
 
-            <div className="p-4 sm:p-6 lg:p-8">
+            <div className="flex h-full flex-1 flex-col gap-4 overflow-x-auto rounded-xl p-4">
                 {/* Header */}
                 <div className="mb-8">
                     <h2 className="mb-2 text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">

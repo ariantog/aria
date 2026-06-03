@@ -51,7 +51,7 @@ export default function Transfer({ bankList, min_date }: Props) {
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Transfer Money" />
 
-            <div className="p-4 sm:p-6 lg:p-8">
+            <div className="flex h-full flex-1 flex-col gap-4 overflow-x-auto rounded-xl p-4">
                 <div className="mb-8">
                     <h2 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
                         Transfer Money

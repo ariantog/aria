@@ -35,7 +35,7 @@ export default function RestockUpdate({ restock }: any) {
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title={`Update ${restock.item?.name}`} />
-            <div className="p-4 sm:p-6 lg:p-8">
+            <div className="flex h-full flex-1 flex-col gap-4 overflow-x-auto rounded-xl p-4">
                 <div className="mb-8">
                     <h1 className="mb-1 text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
                         Update {restock.item?.name}

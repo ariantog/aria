@@ -110,9 +110,9 @@ export default function ProduksiIndex({
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Production" />
 
-            <div className="p-4">
+            <div className="flex h-full flex-1 flex-col gap-2 overflow-x-auto rounded-xl p-2 sm:p-4">
                 {/* Header */}
-                <div className="mb-8 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
+                <div className="mb-4 flex flex-col items-start justify-between gap-2 sm:flex-row sm:items-center">
                     <div>
                         <h2 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
                             Produksi
@@ -139,70 +139,70 @@ export default function ProduksiIndex({
                 <ProduksiFilter filters={filters} />
 
                 {/* Table Card */}
-                <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-                    <div className="overflow-x-auto">
-                        <table className="min-w-full divide-y divide-zinc-200 dark:divide-zinc-800">
-                            <thead className="bg-zinc-50/50 dark:bg-zinc-900/50">
+                <div className="overflow-hidden border bg-white text-[11px] shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+                    <div className="max-h-[60vh] overflow-auto md:max-h-[calc(100vh-280px)]">
+                        <table className="w-full border-separate border-spacing-0 text-left">
+                            <thead className="bg-zinc-50 dark:bg-zinc-900">
                                 <tr>
-                                    <th className="px-6 py-4 text-left text-xs font-semibold tracking-wider text-zinc-500 uppercase dark:text-zinc-400">
+                                    <th className="sticky top-0 z-20 border-b bg-zinc-50 px-2 py-3 text-[11px] font-bold tracking-wider text-zinc-500 uppercase whitespace-nowrap dark:bg-zinc-900">
                                         Kitir
                                     </th>
-                                    <th className="px-6 py-4 text-left text-xs font-semibold tracking-wider text-zinc-500 uppercase dark:text-zinc-400">
+                                    <th className="sticky top-0 z-20 border-b bg-zinc-50 px-2 py-3 text-[11px] font-bold tracking-wider text-zinc-500 uppercase whitespace-nowrap dark:bg-zinc-900">
                                         Kode
                                     </th>
-                                    <th className="px-6 py-4 text-left text-xs font-semibold tracking-wider text-zinc-500 uppercase dark:text-zinc-400">
+                                    <th className="sticky top-0 z-20 border-b bg-zinc-50 px-2 py-3 text-[11px] font-bold tracking-wider text-zinc-500 uppercase whitespace-nowrap dark:bg-zinc-900">
                                         Jumlah
                                     </th>
-                                    <th className="px-6 py-4 text-left text-xs font-semibold tracking-wider text-zinc-500 uppercase dark:text-zinc-400">
+                                    <th className="sticky top-0 z-20 border-b bg-zinc-50 px-2 py-3 text-[11px] font-bold tracking-wider text-zinc-500 uppercase whitespace-nowrap dark:bg-zinc-900">
                                         SJP
                                     </th>
-                                    <th className="px-6 py-4 text-left text-xs font-semibold tracking-wider text-zinc-500 uppercase dark:text-zinc-400">
+                                    <th className="sticky top-0 z-20 border-b bg-zinc-50 px-2 py-3 text-[11px] font-bold tracking-wider text-zinc-500 uppercase whitespace-nowrap dark:bg-zinc-900">
                                         Potong
                                     </th>
-                                    <th className="px-6 py-4 text-left text-xs font-semibold tracking-wider text-zinc-500 uppercase dark:text-zinc-400">
+                                    <th className="sticky top-0 z-20 border-b bg-zinc-50 px-2 py-3 text-[11px] font-bold tracking-wider text-zinc-500 uppercase whitespace-nowrap dark:bg-zinc-900">
                                         Size
                                     </th>
-                                    <th className="px-6 py-4 text-left text-xs font-semibold tracking-wider text-zinc-500 uppercase dark:text-zinc-400">
+                                    <th className="sticky top-0 z-20 border-b bg-zinc-50 px-2 py-3 text-[11px] font-bold tracking-wider text-zinc-500 uppercase whitespace-nowrap dark:bg-zinc-900">
                                         Warna
                                     </th>
-                                    <th className="px-6 py-4 text-left text-xs font-semibold tracking-wider text-zinc-500 uppercase dark:text-zinc-400">
+                                    <th className="sticky top-0 z-20 border-b bg-zinc-50 px-2 py-3 text-[11px] font-bold tracking-wider text-zinc-500 uppercase whitespace-nowrap dark:bg-zinc-900">
                                         Customer
                                     </th>
-                                    <th className="px-6 py-4 text-center text-left text-xs font-semibold tracking-wider text-zinc-500 uppercase dark:text-zinc-400">
+                                    <th className="sticky top-0 z-20 border-b bg-zinc-50 px-2 py-3 text-center text-[11px] font-bold tracking-wider text-zinc-500 uppercase whitespace-nowrap dark:bg-zinc-900">
                                         Jahit
                                     </th>
-                                    <th className="px-6 py-4 text-center text-left text-xs font-semibold tracking-wider text-zinc-500 uppercase dark:text-zinc-400">
+                                    <th className="sticky top-0 z-20 border-b bg-zinc-50 px-2 py-3 text-center text-[11px] font-bold tracking-wider text-zinc-500 uppercase whitespace-nowrap dark:bg-zinc-900">
                                         Action
                                     </th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-zinc-200 bg-white dark:divide-zinc-800 dark:bg-zinc-900">
+                            <tbody className="divide-y divide-zinc-800/50">
                                 {produksis.data.map((p) => (
                                     <tr
                                         key={p.id}
                                         className="group transition-colors hover:bg-zinc-50/50 dark:hover:bg-zinc-800/50"
                                     >
-                                        <td className="px-6 py-4 text-sm font-medium whitespace-nowrap text-blue-600 dark:text-blue-400">
+                                        <td className="sticky left-0 z-10 border-r bg-white px-2 py-1 font-mono text-[11px] whitespace-nowrap text-blue-600 dark:bg-zinc-900 dark:text-blue-400">
                                             {p.serial}
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
+                                        <td className="px-2 py-1 whitespace-nowrap">
                                             <div className="flex items-center gap-3">
-                                                <div className="inline-flex items-center gap-1.5 rounded-md border border-blue-200 bg-blue-100 px-2.5 py-1 text-xs font-semibold text-blue-700 dark:border-blue-800/50 dark:bg-blue-900/40 dark:text-blue-300">
+                                                <div className="inline-flex items-center gap-1.5 rounded-md border border-blue-200 bg-blue-100 px-2.5 py-0.5 text-[10px] font-semibold text-blue-700 dark:border-blue-800/50 dark:bg-blue-900/40 dark:text-blue-300">
                                                     {p.temp_name}
                                                 </div>
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <div className="flex items-center gap-1.5 text-sm font-bold text-zinc-900 dark:text-zinc-100">
+                                        <td className="px-2 py-1 whitespace-nowrap">
+                                            <div className="flex items-center gap-1.5 text-[11px] font-bold text-zinc-900 tabular-nums dark:text-zinc-100">
                                                 {p.quantity}
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4 text-sm whitespace-nowrap text-zinc-600 dark:text-zinc-400">
+                                        <td className="px-2 py-1 text-[11px] whitespace-nowrap text-zinc-600 dark:text-zinc-400">
                                             {p.surat_jalan_potong || '-'}
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <div className="flex flex-col items-center justify-center rounded-md border border-zinc-200 bg-zinc-50 p-1.5 dark:border-zinc-800 dark:bg-zinc-800/50">
-                                                <span className="mb-0.5 text-[11px] font-medium whitespace-nowrap text-zinc-500 dark:text-zinc-400">
+                                        <td className="px-2 py-1 whitespace-nowrap">
+                                            <div className="flex flex-col items-center justify-center rounded-md border border-zinc-200 bg-zinc-50 p-1 dark:border-zinc-800 dark:bg-zinc-800/50">
+                                                <span className="mb-0.5 text-[9px] font-medium whitespace-nowrap text-zinc-500 dark:text-zinc-400">
                                                     {p.potong_date
                                                         ? new Date(
                                                               p.potong_date,
@@ -218,7 +218,7 @@ export default function ProduksiIndex({
                                                 </span>
                                                 {p.potong && (
                                                     <span
-                                                        className="w-full max-w-[100px] truncate rounded border border-zinc-100 bg-white px-1.5 py-0.5 text-center text-xs font-bold text-zinc-900 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100"
+                                                        className="w-full max-w-[100px] truncate rounded border border-zinc-100 bg-white px-1.5 py-0.5 text-center text-[9px] font-bold text-zinc-900 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100"
                                                         title={p.potong.name}
                                                     >
                                                         {p.potong.name}
@@ -226,24 +226,24 @@ export default function ProduksiIndex({
                                                 )}
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
+                                        <td className="px-2 py-1 whitespace-nowrap">
                                             <Badge
                                                 variant="outline"
-                                                className="bg-zinc-50 font-mono dark:bg-zinc-800/50"
+                                                className="bg-zinc-50 font-mono text-[9px] px-1 py-0 dark:bg-zinc-800/50"
                                             >
                                                 {p.size?.name || '-'}
                                             </Badge>
                                         </td>
-                                        <td className="px-6 py-4 text-sm font-bold whitespace-nowrap text-zinc-600 dark:text-zinc-400">
+                                        <td className="px-2 py-1 text-[11px] font-bold whitespace-nowrap text-zinc-600 dark:text-zinc-400">
                                             {p.warna || '-'}
                                         </td>
-                                        <td className="px-6 py-4 text-sm font-bold whitespace-nowrap text-zinc-600 dark:text-zinc-100">
+                                        <td className="px-2 py-1 text-[11px] font-bold whitespace-normal break-words max-w-[150px] leading-tight text-zinc-600 dark:text-zinc-100">
                                             {p.customer || '-'}
                                         </td>
-                                        <td className="px-6 py-4 text-center whitespace-nowrap">
+                                        <td className="px-2 py-1 text-center whitespace-nowrap">
                                             {p.jahit_date ? (
-                                                <div className="flex flex-col items-center justify-center rounded-md border border-zinc-200 bg-zinc-50 p-1.5 dark:border-zinc-800 dark:bg-zinc-800/50">
-                                                    <span className="mb-0.5 text-[11px] font-medium whitespace-nowrap text-zinc-500 dark:text-zinc-400">
+                                                <div className="flex flex-col items-center justify-center rounded-md border border-zinc-200 bg-zinc-50 p-1 dark:border-zinc-800 dark:bg-zinc-800/50">
+                                                    <span className="mb-0.5 text-[9px] font-medium whitespace-nowrap text-zinc-500 dark:text-zinc-400">
                                                         {new Date(
                                                             p.jahit_date,
                                                         ).toLocaleDateString(
@@ -257,7 +257,7 @@ export default function ProduksiIndex({
                                                     </span>
                                                     {p.jahit && (
                                                         <span
-                                                            className="w-full max-w-[100px] truncate rounded border border-zinc-100 bg-white px-1.5 py-0.5 text-center text-xs font-bold text-zinc-900 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100"
+                                                            className="w-full max-w-[100px] truncate rounded border border-zinc-100 bg-white px-1.5 py-0.5 text-center text-[9px] font-bold text-zinc-900 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100"
                                                             title={p.jahit.name}
                                                         >
                                                             {p.jahit.name}
@@ -268,34 +268,34 @@ export default function ProduksiIndex({
                                                 <Button
                                                     size="sm"
                                                     variant="outline"
-                                                    className="h-8 gap-1.5 border-emerald-200 px-4 font-bold text-emerald-700 shadow-sm hover:bg-emerald-50 dark:border-emerald-900 dark:text-emerald-400 dark:hover:bg-emerald-900/20"
+                                                    className="h-6 gap-1 border-emerald-200 px-2 text-[9px] font-bold text-emerald-700 shadow-sm hover:bg-emerald-50 dark:border-emerald-900 dark:text-emerald-400 dark:hover:bg-emerald-900/20"
                                                     onClick={() =>
                                                         handleAssignClick(p)
                                                     }
                                                 >
-                                                    <Scissors className="h-3.5 w-3.5" />
+                                                    <Scissors className="h-3 w-3" />
                                                     Assign
                                                 </Button>
                                             ) : (
-                                                <span className="text-xs text-muted-foreground">
+                                                <span className="text-[11px] text-muted-foreground">
                                                     -
                                                 </span>
                                             )}
                                         </td>
-                                        <td className="px-6 py-4 text-center whitespace-nowrap">
-                                            <div className="flex items-center justify-center gap-1.5">
+                                        <td className="px-2 py-1 text-center whitespace-nowrap">
+                                            <div className="flex items-center justify-center gap-1">
                                                 {can.edit_produksi && (
                                                     <Button
                                                         size="icon"
                                                         variant="outline"
                                                         asChild
                                                         title="Edit"
-                                                        className="h-8 w-8 rounded-md border-zinc-200 text-zinc-600 hover:bg-zinc-50 dark:border-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-800"
+                                                        className="h-6 w-6 rounded-md border-zinc-200 text-zinc-600 hover:bg-zinc-50 dark:border-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-800"
                                                     >
                                                         <Link
                                                             href={`/produksi/${p.id}/edit`}
                                                         >
-                                                            <Pencil className="h-4 w-4" />
+                                                            <Pencil className="h-3 w-3" />
                                                         </Link>
                                                     </Button>
                                                 )}
@@ -305,14 +305,14 @@ export default function ProduksiIndex({
                                                             size="icon"
                                                             variant="destructive"
                                                             title="Setor ke Jahit"
-                                                            className="h-8 w-8 rounded-md bg-emerald-600 text-white shadow-sm hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-700"
+                                                            className="h-6 w-6 rounded-md bg-emerald-600 text-white shadow-sm hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-700"
                                                             onClick={() =>
                                                                 router.patch(
                                                                     `/produksi/${p.id}/setor`,
                                                                 )
                                                             }
                                                         >
-                                                            <Send className="h-4 w-4" />
+                                                            <Send className="h-3 w-3" />
                                                         </Button>
                                                     )}
                                             </div>

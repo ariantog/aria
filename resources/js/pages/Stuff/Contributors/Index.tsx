@@ -92,7 +92,7 @@ export default function ContributorsIndex({ stats, filters, brandList, customers
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Contributors Report" />
 
-            <div className="mx-auto w-full max-w-7xl flex flex-col gap-6 p-4 sm:p-6 lg:p-8">
+            <div className="flex h-full flex-1 flex-col gap-4 overflow-x-auto rounded-xl p-4">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
                         Contributors from {formatDate(filters.from)} - {formatDate(filters.to)}

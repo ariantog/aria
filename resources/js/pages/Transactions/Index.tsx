@@ -107,76 +107,36 @@ export default function Index({
     };
 
     const getTypeLabel = (type: number) => {
+        const getBadge = (label: string, colorClass: string, dotColor: string) => (
+            <Badge variant="outline" className={`gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-medium shadow-sm whitespace-nowrap ${colorClass}`}>
+                <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${dotColor}`} />
+                {label}
+            </Badge>
+        );
+
         switch (type) {
             case 1:
-                return (
-                    <Badge className="border-emerald-200 bg-emerald-100 text-center whitespace-normal text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400">
-                        Buy
-                    </Badge>
-                );
+                return getBadge('Buy', 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800/50 dark:bg-emerald-900/20 dark:text-emerald-400', 'bg-emerald-500');
             case 2:
-                return (
-                    <Badge className="border-blue-200 bg-blue-100 text-center whitespace-normal text-blue-700 dark:bg-blue-500/10 dark:text-blue-400">
-                        Sell
-                    </Badge>
-                );
+                return getBadge('Sell', 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-800/50 dark:bg-blue-900/20 dark:text-blue-400', 'bg-blue-500');
             case 3:
-                return (
-                    <Badge className="border-amber-200 bg-amber-100 text-center whitespace-normal text-amber-700 dark:bg-amber-500/10 dark:text-amber-400">
-                        Move
-                    </Badge>
-                );
+                return getBadge('Move', 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800/50 dark:bg-amber-900/20 dark:text-amber-400', 'bg-amber-500');
             case 6:
-                return (
-                    <Badge className="border-cyan-200 bg-cyan-100 text-center text-[10px] whitespace-normal text-cyan-700 uppercase dark:bg-cyan-500/10 dark:text-cyan-400">
-                        Transfer
-                    </Badge>
-                );
+                return getBadge('Transfer', 'border-cyan-200 bg-cyan-50 text-cyan-700 dark:border-cyan-800/50 dark:bg-cyan-900/20 dark:text-cyan-400', 'bg-cyan-500');
             case 12:
-                return (
-                    <Badge className="border-indigo-200 bg-indigo-100 text-center text-[10px] whitespace-normal text-indigo-700 uppercase dark:bg-indigo-500/10 dark:text-indigo-400">
-                        Adjust
-                    </Badge>
-                );
+                return getBadge('Adjust', 'border-indigo-200 bg-indigo-50 text-indigo-700 dark:border-indigo-800/50 dark:bg-indigo-900/20 dark:text-indigo-400', 'bg-indigo-500');
             case 15:
-                return (
-                    <Badge className="border-rose-200 bg-rose-100 text-center whitespace-normal text-rose-700 dark:bg-rose-500/10 dark:text-rose-400">
-                        Return
-                    </Badge>
-                );
+                return getBadge('Return', 'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-800/50 dark:bg-rose-900/20 dark:text-rose-400', 'bg-rose-500');
             case 16:
-                return (
-                    <Badge className="border-slate-200 bg-slate-100 text-center text-[10px] whitespace-normal text-slate-700 uppercase dark:bg-slate-500/10 dark:text-slate-400">
-                        Production
-                    </Badge>
-                );
+                return getBadge('Production', 'border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-800/50 dark:bg-slate-900/20 dark:text-slate-400', 'bg-slate-500');
             case 17:
-                return (
-                    <Badge className="border-orange-200 bg-orange-100 text-center text-[10px] whitespace-normal text-orange-700 uppercase dark:bg-orange-500/10 dark:text-orange-400">
-                        Ret. Supplier
-                    </Badge>
-                );
+                return getBadge('Ret. Supplier', 'border-orange-200 bg-orange-50 text-orange-700 dark:border-orange-800/50 dark:bg-orange-900/20 dark:text-orange-400', 'bg-orange-500');
             case 9:
-                return (
-                    <Badge className="border-purple-200 bg-purple-100 text-center text-[10px] whitespace-normal text-purple-700 uppercase dark:bg-purple-500/10 dark:text-purple-400">
-                        Cash In
-                    </Badge>
-                );
+                return getBadge('Cash In', 'border-purple-200 bg-purple-50 text-purple-700 dark:border-purple-800/50 dark:bg-purple-900/20 dark:text-purple-400', 'bg-purple-500');
             case 10:
-                return (
-                    <Badge className="border-rose-200 bg-rose-100 text-center text-[10px] whitespace-normal text-rose-700 uppercase dark:bg-rose-500/10 dark:text-rose-400">
-                        Cash Out
-                    </Badge>
-                );
+                return getBadge('Cash Out', 'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-800/50 dark:bg-rose-900/20 dark:text-rose-400', 'bg-rose-500');
             default:
-                return (
-                    <Badge
-                        variant="outline"
-                        className="text-center whitespace-normal"
-                    >
-                        Unknown
-                    </Badge>
-                );
+                return getBadge('Unknown', 'border-zinc-200 bg-zinc-50 text-zinc-700 dark:border-zinc-800/50 dark:bg-zinc-900/20 dark:text-zinc-400', 'bg-zinc-500');
         }
     };
 
@@ -225,9 +185,9 @@ export default function Index({
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Transactions" />
-            <div className="p-4 sm:p-6 lg:p-8">
+            <div className="flex h-full flex-1 flex-col gap-2 overflow-x-auto rounded-xl p-2 sm:p-4">
                 {/* Header */}
-                <div className="mb-8 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
+                <div className="mb-4 flex flex-col items-start justify-between gap-2 sm:flex-row sm:items-center">
                     <div>
                         <h2 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
                             Transactions
@@ -260,16 +220,16 @@ export default function Index({
                 />
 
                 {/* Data Table */}
-                <div className="overflow-hidden rounded-xl border bg-white text-sm shadow-sm dark:bg-zinc-900">
+                <div className="overflow-hidden border bg-white text-[11px] shadow-sm dark:bg-zinc-900">
                     <Table
-                        wrapperClassName="max-h-[60vh] md:max-h-[calc(100vh-320px)] overflow-auto"
+                        wrapperClassName="max-h-[60vh] md:max-h-[calc(100vh-280px)] overflow-auto"
                         className="border-separate border-spacing-0"
                     >
                         <TableHeader className="bg-zinc-50 dark:bg-zinc-900">
                             <TableRow>
                                 <TableHead
                                     onClick={() => handleSort('invoice_number')}
-                                    className="sticky top-0 left-0 z-30 w-[120px] cursor-pointer border-b border-r bg-zinc-50 transition-colors hover:bg-zinc-100 dark:bg-zinc-900 dark:hover:bg-zinc-800"
+                                    className="sticky top-0 left-0 z-30 w-[110px] cursor-pointer border-b border-r bg-zinc-50 px-2 py-1.5 text-[11px] uppercase transition-colors hover:bg-zinc-100 dark:bg-zinc-900 dark:hover:bg-zinc-800"
                                 >
                                     <div className="flex items-center">
                                         Invoice{' '}
@@ -278,7 +238,7 @@ export default function Index({
                                 </TableHead>
                                 <TableHead
                                     onClick={() => handleSort('date')}
-                                    className="sticky top-0 z-20 cursor-pointer whitespace-nowrap border-b bg-zinc-50 transition-colors hover:bg-zinc-100 dark:bg-zinc-900 dark:hover:bg-zinc-800"
+                                    className="sticky top-0 z-20 cursor-pointer whitespace-nowrap border-b bg-zinc-50 px-2 py-1.5 text-[11px] uppercase transition-colors hover:bg-zinc-100 dark:bg-zinc-900 dark:hover:bg-zinc-800"
                                 >
                                     <div className="flex items-center">
                                         Date <SortIcon column="date" />
@@ -286,36 +246,36 @@ export default function Index({
                                 </TableHead>
                                 <TableHead
                                     onClick={() => handleSort('type')}
-                                    className="sticky top-0 z-20 w-[80px] cursor-pointer border-b bg-zinc-50 transition-colors hover:bg-zinc-100 dark:bg-zinc-900 dark:hover:bg-zinc-800"
+                                    className="sticky top-0 z-20 w-[70px] cursor-pointer border-b bg-zinc-50 px-2 py-1.5 text-[11px] uppercase transition-colors hover:bg-zinc-100 dark:bg-zinc-900 dark:hover:bg-zinc-800"
                                 >
                                     <div className="flex items-center">
                                         Type <SortIcon column="type" />
                                     </div>
                                 </TableHead>
-                                <TableHead className="sticky top-0 z-20 bg-zinc-50 dark:bg-zinc-900 max-w-[150px] border-b">
+                                <TableHead className="sticky top-0 z-20 max-w-[150px] border-b bg-zinc-50 px-2 py-1.5 text-[11px] uppercase dark:bg-zinc-900">
                                     Description
                                 </TableHead>
                                 <TableHead
                                     onClick={() => handleSort('grand_total')}
-                                    className="sticky top-0 z-20 cursor-pointer bg-zinc-50 text-right transition-colors hover:bg-zinc-100 dark:bg-zinc-900 dark:hover:bg-zinc-800 border-b"
+                                    className="sticky top-0 z-20 cursor-pointer border-b bg-zinc-50 px-2 py-1.5 text-right text-[11px] uppercase transition-colors hover:bg-zinc-100 dark:bg-zinc-900 dark:hover:bg-zinc-800"
                                 >
                                     <div className="flex items-center justify-end whitespace-nowrap">
                                         Grand Total{' '}
                                         <SortIcon column="grand_total" />
                                     </div>
                                 </TableHead>
-                                <TableHead className="sticky top-0 z-20 bg-zinc-50 dark:bg-zinc-900 text-right border-b">
-                                    Total Items
+                                <TableHead className="sticky top-0 z-20 border-b bg-zinc-50 px-2 py-1.5 text-right text-[11px] uppercase dark:bg-zinc-900">
+                                    Items
                                 </TableHead>
-                                <TableHead className="sticky top-0 z-20 bg-zinc-50 dark:bg-zinc-900 border-b">Sender</TableHead>
-                                <TableHead className="sticky top-0 z-20 bg-zinc-50 dark:bg-zinc-900 text-right border-b">
+                                <TableHead className="sticky top-0 z-20 border-b bg-zinc-50 px-2 py-1.5 text-[11px] uppercase dark:bg-zinc-900">Sender</TableHead>
+                                <TableHead className="sticky top-0 z-20 border-b bg-zinc-50 px-2 py-1.5 text-right text-[11px] uppercase dark:bg-zinc-900">
                                     Sender Bal
                                 </TableHead>
-                                <TableHead className="sticky top-0 z-20 bg-zinc-50 dark:bg-zinc-900 border-b">Receiver</TableHead>
-                                <TableHead className="sticky top-0 z-20 bg-zinc-50 dark:bg-zinc-900 border-r text-right border-b">
+                                <TableHead className="sticky top-0 z-20 border-b bg-zinc-50 px-2 py-1.5 text-[11px] uppercase dark:bg-zinc-900">Receiver</TableHead>
+                                <TableHead className="sticky top-0 z-20 border-b bg-zinc-50 px-2 py-1.5 text-right text-[11px] uppercase dark:bg-zinc-900">
                                     Receiver Bal
                                 </TableHead>
-                                <TableHead className="sticky top-0 z-20 bg-zinc-50 dark:bg-zinc-900 w-[50px] border-b"></TableHead>
+                                <TableHead className="sticky top-0 z-20 w-[40px] border-b bg-zinc-50 px-2 py-1.5 text-[11px] uppercase dark:bg-zinc-900"></TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -323,11 +283,11 @@ export default function Index({
                                 <TableRow>
                                     <TableCell
                                         colSpan={11}
-                                        className="h-48 text-center text-muted-foreground"
+                                        className="h-32 text-center text-muted-foreground"
                                     >
                                         <div className="flex flex-col items-center gap-2">
-                                            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-zinc-100">
-                                                <Search className="h-5 w-5 text-zinc-400" />
+                                            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-100">
+                                                <Search className="h-4 w-4 text-zinc-400" />
                                             </div>
                                             <p>No transactions found.</p>
                                         </div>
@@ -340,7 +300,7 @@ export default function Index({
                                             key={transaction.id}
                                             className="transition-colors hover:bg-zinc-50/50 dark:hover:bg-zinc-900/50"
                                         >
-                                            <TableCell className="sticky left-0 z-10 border-r bg-white min-w-[120px] py-1 font-mono text-[10px] break-words whitespace-normal dark:bg-zinc-900">
+                                            <TableCell className="sticky left-0 z-10 min-w-[110px] border-r bg-white px-2 py-1 font-mono text-[11px] whitespace-normal break-words dark:bg-zinc-900">
                                                 <Link
                                                     href={transactionsRoutes.show.url(
                                                         {
@@ -353,60 +313,60 @@ export default function Index({
                                                     {transaction.invoice_number}
                                                 </Link>
                                             </TableCell>
-                                            <TableCell className="whitespace-nowrap text-zinc-500 tabular-nums">
+                                            <TableCell className="whitespace-nowrap px-2 py-1 text-[11px] text-zinc-500 tabular-nums">
                                                 {formatDate(transaction.date)}
                                             </TableCell>
-                                            <TableCell className="min-w-[80px] py-1 break-words whitespace-normal">
+                                            <TableCell className="min-w-[70px] px-2 py-1 text-[11px] whitespace-normal break-words">
                                                 {getTypeLabel(transaction.type)}
                                             </TableCell>
-                                            <TableCell className="max-w-[150px] py-1 text-[10px] break-words whitespace-normal text-zinc-500">
+                                            <TableCell className="max-w-[150px] px-2 py-1 text-[11px] text-zinc-500 whitespace-normal break-words leading-tight">
                                                 {transaction.description ||
                                                     transaction.notes ||
                                                     '-'}
                                             </TableCell>
-                                            <TableCell className="text-right font-bold text-zinc-900 tabular-nums dark:text-zinc-100">
+                                            <TableCell className="px-2 py-1 text-right text-[11px] font-bold text-zinc-900 tabular-nums dark:text-zinc-100">
                                                 {Number(
                                                     transaction.grand_total,
                                                 ).toLocaleString()}
                                             </TableCell>
-                                            <TableCell className="text-right text-zinc-500 tabular-nums">
+                                            <TableCell className="px-2 py-1 text-right text-[11px] text-zinc-500 tabular-nums">
                                                 {Number(
                                                     transaction.total_items,
                                                 ).toLocaleString()}
                                             </TableCell>
-                                            <TableCell className="max-w-[120px] truncate text-zinc-700 dark:text-zinc-300">
+                                            <TableCell className="min-w-[100px] max-w-[150px] whitespace-normal break-words px-2 py-1 text-[11px] text-zinc-700 leading-tight dark:text-zinc-300">
                                                 {transaction.sender?.name ||
                                                     '-'}
                                             </TableCell>
-                                            <TableCell className="text-right text-zinc-500 italic tabular-nums">
+                                            <TableCell className="px-2 py-1 text-right text-[11px] font-medium text-zinc-900 tabular-nums dark:text-zinc-100">
                                                 {Number(
                                                     transaction.sender_balance ||
                                                         0,
                                                 ).toLocaleString()}
                                             </TableCell>
-                                            <TableCell className="max-w-[120px] truncate text-zinc-700 dark:text-zinc-300">
+                                            <TableCell className="min-w-[100px] max-w-[150px] whitespace-normal break-words px-2 py-1 text-[11px] text-zinc-700 leading-tight dark:text-zinc-300">
                                                 {transaction.receiver?.name ||
                                                     '-'}
                                             </TableCell>
-                                            <TableCell className="border-r text-right text-zinc-500 italic tabular-nums">
+                                            <TableCell className="px-2 py-1 text-right text-[11px] font-medium text-zinc-900 tabular-nums dark:text-zinc-100">
                                                 {Number(
                                                     transaction.receiver_balance ||
                                                         0,
                                                 ).toLocaleString()}
                                             </TableCell>
-                                            <TableCell>
+                                            <TableCell className="px-2 py-1">
                                                 <DropdownMenu>
                                                     <DropdownMenuTrigger
                                                         asChild
                                                     >
                                                         <Button
                                                             variant="ghost"
-                                                            className="h-8 w-8 p-0"
+                                                            className="h-6 w-6 p-0"
                                                         >
                                                             <span className="sr-only">
                                                                 Open menu
                                                             </span>
-                                                            <MoreHorizontal className="h-4 w-4" />
+                                                            <MoreHorizontal className="h-3 w-3" />
                                                         </Button>
                                                     </DropdownMenuTrigger>
                                                     <DropdownMenuContent align="end">

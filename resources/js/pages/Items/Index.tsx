@@ -124,7 +124,7 @@ export default function ItemsIndex({
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title={isAsset ? 'Asset Lancar' : 'Item List'} />
 
-            <div className="min-h-screen bg-black p-4 text-zinc-100 sm:p-6 lg:p-8">
+            <div className="flex h-full flex-1 flex-col gap-4 overflow-x-auto rounded-xl p-4 min-h-screen bg-black text-zinc-100">
                 {/* Header Section */}
                 <div className="mb-8 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
                     <div>
@@ -172,72 +172,57 @@ export default function ItemsIndex({
                     isAsset={isAsset}
                 />
                 {/* Table Section */}
-                <div className="overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900/50 shadow-sm">
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left text-sm">
-                            <thead className="border-b border-zinc-800 bg-zinc-900/50 text-xs text-zinc-500 uppercase">
+                <div className="overflow-hidden border bg-white text-[11px] shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+                    <div className="max-h-[60vh] overflow-auto md:max-h-[calc(100vh-280px)]">
+                        <table className="w-full border-separate border-spacing-0 text-left">
+                            <thead className="bg-zinc-50 dark:bg-zinc-900">
                                 <tr>
                                     {showImage && (
-                                        <th className="px-6 py-4 font-bold tracking-wider">
+                                        <th className="sticky top-0 left-0 z-30 border-b border-r bg-zinc-50 px-2 py-3 text-[11px] font-bold tracking-wider text-zinc-500 uppercase whitespace-nowrap dark:bg-zinc-900">
                                             Image
                                         </th>
                                     )}
-                                    <th className="px-6 py-4 font-bold tracking-wider">
+                                    <th className={`sticky top-0 z-20 border-b bg-zinc-50 px-2 py-3 text-[11px] font-bold tracking-wider text-zinc-500 uppercase whitespace-nowrap dark:bg-zinc-900 ${!showImage && 'left-0 z-30 border-r'}`}>
                                         Barcode
                                     </th>
                                     {isAsset ? (
                                         <>
-                                            <th
-                                                scope="col"
-                                                className="px-6 py-3"
-                                            >
+                                            <th className="sticky top-0 z-20 border-b bg-zinc-50 px-2 py-3 text-[11px] font-bold tracking-wider text-zinc-500 uppercase whitespace-nowrap dark:bg-zinc-900">
                                                 Name
                                             </th>
-                                            <th
-                                                scope="col"
-                                                className="px-6 py-3"
-                                            >
+                                            <th className="sticky top-0 z-20 border-b bg-zinc-50 px-2 py-3 text-[11px] font-bold tracking-wider text-zinc-500 uppercase whitespace-nowrap dark:bg-zinc-900">
                                                 SKU
                                             </th>
                                         </>
                                     ) : (
                                         <>
-                                            <th
-                                                scope="col"
-                                                className="px-6 py-3"
-                                            >
+                                            <th className="sticky top-0 z-20 border-b bg-zinc-50 px-2 py-3 text-[11px] font-bold tracking-wider text-zinc-500 uppercase whitespace-nowrap dark:bg-zinc-900">
                                                 SKU
                                             </th>
-                                            <th
-                                                scope="col"
-                                                className="px-6 py-3"
-                                            >
+                                            <th className="sticky top-0 z-20 border-b bg-zinc-50 px-2 py-3 text-[11px] font-bold tracking-wider text-zinc-500 uppercase whitespace-nowrap dark:bg-zinc-900">
                                                 Kode Produksi
                                             </th>
-                                            <th
-                                                scope="col"
-                                                className="px-6 py-3"
-                                            >
+                                            <th className="sticky top-0 z-20 min-w-[120px] border-b bg-zinc-50 px-2 py-3 text-[11px] font-bold tracking-wider text-zinc-500 uppercase dark:bg-zinc-900">
                                                 Alias
                                             </th>
                                         </>
                                     )}
-                                    <th className="px-6 py-4 font-bold tracking-wider">
+                                    <th className="sticky top-0 z-20 border-b bg-zinc-50 px-2 py-3 text-[11px] font-bold tracking-wider text-zinc-500 uppercase whitespace-nowrap dark:bg-zinc-900">
                                         Description
                                     </th>
-                                    <th className="px-6 py-4 font-bold tracking-wider">
+                                    <th className="sticky top-0 z-20 border-b bg-zinc-50 px-2 py-3 text-[11px] font-bold tracking-wider text-zinc-500 uppercase whitespace-nowrap dark:bg-zinc-900">
                                         Price
                                     </th>
-                                    <th className="px-6 py-4 font-bold tracking-wider">
+                                    <th className="sticky top-0 z-20 min-w-[150px] border-b bg-zinc-50 px-2 py-3 text-[11px] font-bold tracking-wider text-zinc-500 uppercase dark:bg-zinc-900">
                                         NB
                                     </th>
-                                    <th className="px-6 py-4 font-bold tracking-wider">
+                                    <th className="sticky top-0 z-20 border-b bg-zinc-50 px-2 py-3 text-[11px] font-bold tracking-wider text-zinc-500 uppercase whitespace-nowrap dark:bg-zinc-900">
                                         Qty
                                     </th>
-                                    <th className="px-6 py-4 font-bold tracking-wider">
+                                    <th className="sticky top-0 z-20 border-b bg-zinc-50 px-2 py-3 text-[11px] font-bold tracking-wider text-zinc-500 uppercase whitespace-nowrap dark:bg-zinc-900">
                                         Jubelio
                                     </th>
-                                    <th className="px-6 py-4 text-right font-bold tracking-wider">
+                                    <th className="sticky top-0 z-20 border-b border-r bg-zinc-50 px-2 py-3 text-right text-[11px] font-bold tracking-wider text-zinc-500 uppercase whitespace-nowrap dark:bg-zinc-900">
                                         Actions
                                     </th>
                                 </tr>
@@ -247,7 +232,7 @@ export default function ItemsIndex({
                                     items.data.map((item) => (
                                         <tr
                                             key={item.id}
-                                            className="group cursor-pointer transition-colors hover:bg-zinc-800/40"
+                                            className="group cursor-pointer transition-colors hover:bg-zinc-50/50 dark:hover:bg-zinc-900/50"
                                             onClick={() =>
                                                 router.get(
                                                     isAsset
@@ -259,8 +244,8 @@ export default function ItemsIndex({
                                             }
                                         >
                                             {showImage && (
-                                                <td className="px-6 py-4">
-                                                    <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-md border border-zinc-700 bg-white">
+                                                <td className="sticky left-0 z-10 border-r bg-white px-2 py-1 dark:bg-zinc-900">
+                                                    <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-md border border-zinc-200 bg-white dark:border-zinc-700">
                                                         {item.image_url ? (
                                                             <img
                                                                 src={
@@ -270,12 +255,12 @@ export default function ItemsIndex({
                                                                 className="h-full w-full object-cover"
                                                             />
                                                         ) : (
-                                                            <Package className="h-5 w-5 text-zinc-500" />
+                                                            <Package className="h-8 w-8 text-zinc-500" />
                                                         )}
                                                     </div>
                                                 </td>
                                             )}
-                                            <td className="px-6 py-4 font-medium">
+                                            <td className={`px-2 py-1 font-medium whitespace-nowrap ${!showImage && 'sticky left-0 z-10 border-r bg-white dark:bg-zinc-900'}`}>
                                                 <Link
                                                     href={
                                                         isAsset
@@ -286,7 +271,7 @@ export default function ItemsIndex({
                                                                   },
                                                               )
                                                     }
-                                                    className="text-blue-500 hover:text-blue-400 hover:underline"
+                                                    className="text-blue-600 hover:text-blue-500 hover:underline dark:text-blue-500"
                                                     onClick={(e) =>
                                                         e.stopPropagation()
                                                     }
@@ -302,24 +287,24 @@ export default function ItemsIndex({
 
                                             {isAsset ? (
                                                 <>
-                                                    <td className="px-6 py-4 text-zinc-300 italic">
+                                                    <td className="min-w-[120px] px-2 py-1 italic text-zinc-700 dark:text-zinc-300">
                                                         {item.group?.alias ||
                                                             item.name ||
                                                             '-'}
                                                     </td>
-                                                    <td className="px-6 py-4 text-zinc-400">
+                                                    <td className="whitespace-nowrap px-2 py-1 text-zinc-500 dark:text-zinc-400">
                                                         {item.code || '-'}
                                                     </td>
                                                 </>
                                             ) : (
                                                 <>
-                                                    <td className="px-6 py-4 text-zinc-400">
+                                                    <td className="whitespace-nowrap px-2 py-1 text-zinc-500 dark:text-zinc-400">
                                                         {item.code || '-'}
                                                     </td>
-                                                    <td className="px-6 py-4 text-zinc-400">
+                                                    <td className="whitespace-nowrap px-2 py-1 text-zinc-500 dark:text-zinc-400">
                                                         {item.pcode || '-'}
                                                     </td>
-                                                    <td className="px-6 py-4 text-zinc-300 italic">
+                                                    <td className="min-w-[120px] px-2 py-1 italic text-zinc-700 dark:text-zinc-300">
                                                         {item.group?.alias ||
                                                             item.name ||
                                                             '-'}
@@ -327,15 +312,15 @@ export default function ItemsIndex({
                                                 </>
                                             )}
 
-                                            <td className="max-w-xs truncate px-6 py-4">
-                                                <span className="text-zinc-300">
+                                            <td className="max-w-[200px] truncate px-2 py-1 leading-tight">
+                                                <span className="text-zinc-700 dark:text-zinc-300">
                                                     {item.group?.description ||
                                                         item.description ||
                                                         '-'}
                                                 </span>
                                             </td>
 
-                                            <td className="px-6 py-4 font-bold text-white">
+                                            <td className="whitespace-nowrap px-2 py-1 font-bold text-zinc-900 tabular-nums dark:text-zinc-100">
                                                 {new Intl.NumberFormat(
                                                     'id-ID',
                                                     {
@@ -346,37 +331,37 @@ export default function ItemsIndex({
                                                 ).format(item.price)}
                                             </td>
 
-                                            <td className="px-6 py-4 text-zinc-500">
+                                            <td className="min-w-[150px] px-2 py-1 text-zinc-500 leading-tight">
                                                 {item.group?.description2 ||
                                                     item.description2 ||
                                                     '--'}
                                             </td>
-                                            <td className="px-6 py-4 font-bold text-green-500">
+                                            <td className="whitespace-nowrap px-2 py-1 font-bold text-emerald-600 dark:text-green-500 tabular-nums">
                                                 {item.qty}
                                             </td>
 
-                                            <td className="px-6 py-4 text-zinc-400">
+                                            <td className="whitespace-nowrap px-2 py-1 text-zinc-400">
                                                 {item.jubelio_item_id ? (
                                                     <Badge
                                                         variant="outline"
-                                                        className="border-blue-800 bg-blue-900/20 text-blue-500"
+                                                        className="border-blue-200 bg-blue-100 px-1 py-0 text-[9px] text-blue-700 dark:border-blue-800 dark:bg-blue-900/20 dark:text-blue-500"
                                                     >
                                                         {item.jubelio_item_id}
                                                     </Badge>
                                                 ) : (
-                                                    <span className="text-zinc-600">
+                                                    <span className="text-[9px] text-zinc-500">
                                                         no sync
                                                     </span>
                                                 )}
                                             </td>
 
                                             <td
-                                                className="px-6 py-4 text-right"
+                                                className="border-r px-2 py-1 text-right"
                                                 onClick={(e) =>
                                                     e.stopPropagation()
                                                 }
                                             >
-                                                <div className="flex justify-end gap-2">
+                                                <div className="flex justify-end gap-1">
                                                     <Link
                                                         href={
                                                             isAsset
@@ -387,9 +372,9 @@ export default function ItemsIndex({
                                                                       },
                                                                   )
                                                         }
-                                                        className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-zinc-800 bg-zinc-900 text-sm font-medium text-zinc-400 ring-offset-background transition-colors hover:bg-zinc-800 hover:text-zinc-50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
+                                                        className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-zinc-200 bg-white text-[11px] font-medium text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-50"
                                                     >
-                                                        <FilePen className="h-4 w-4" />
+                                                        <FilePen className="h-3 w-3" />
                                                     </Link>
                                                 </div>
                                             </td>
@@ -399,10 +384,14 @@ export default function ItemsIndex({
                                     <tr>
                                         <td
                                             colSpan={10}
-                                            className="px-6 py-12 text-center text-zinc-500"
+                                            className="h-32 px-3 py-8 text-center text-zinc-500"
                                         >
-                                            No items found matching your
-                                            filters.
+                                            <div className="flex flex-col items-center gap-2">
+                                                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-100 dark:bg-zinc-800">
+                                                    <Search className="h-4 w-4 text-zinc-400" />
+                                                </div>
+                                                <p>No items found matching your filters.</p>
+                                            </div>
                                         </td>
                                     </tr>
                                 )}
@@ -410,7 +399,7 @@ export default function ItemsIndex({
                         </table>
                     </div>
                     {/* Pagination */}
-                    <div className="border-t border-zinc-800 px-6 py-4">
+                    <div className="border-t bg-zinc-50/50 p-4 dark:border-zinc-800 dark:bg-zinc-900/50">
                         <Pagination
                             links={items.links}
                             from={items.from}

@@ -31,7 +31,7 @@ class ItemService
         $inputType = ItemType::tryFrom($input->type ?? 1) ?? ItemType::ITEM;
 
         if ($inputType === ItemType::ITEM) {
-            if (! preg_match("/^[A-Z0-9]+-[0-9]+$/i", $input->pcode)) {
+            if (! preg_match('/^[A-Z0-9]+-[0-9]+$/i', $input->pcode)) {
                 throw new Exception('pcode format invalid (Expected STRING-00)');
             }
         }
@@ -187,7 +187,7 @@ class ItemService
 
             // Generate Code: PCODE-WARNA_CODE-SIZE_CODE
             $item->code = strtoupper($item->pcode.'-'.$warnaCode.'-'.$sizeCode);
-            
+
             // Generate Name: ALIAS - WARNA_CODE - SIZE_CODE
             $alias = $input->alias ?? ($group?->alias ?? '');
             $item->name = strtoupper($alias.' - '.$warnaCode.' - '.$sizeCode);
@@ -223,7 +223,7 @@ class ItemService
         $inputType = ItemType::tryFrom($input->type ?? 1) ?? ItemType::ITEM;
 
         if ($inputType === ItemType::ITEM) {
-            if (! preg_match("/^[A-Z0-9]+-[0-9]+$/i", $input->pcode)) {
+            if (! preg_match('/^[A-Z0-9]+-[0-9]+$/i', $input->pcode)) {
                 throw new Exception('pcode format invalid (Expected STRING-00)');
             }
         }

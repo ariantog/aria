@@ -106,7 +106,7 @@ export default function ItemSales({ dataList, filters, yearList }: Props) {
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Item Sales Report" />
 
-            <div className="flex flex-col gap-6 p-4 sm:p-6 lg:p-8">
+            <div className="flex h-full flex-1 flex-col gap-4 overflow-x-auto rounded-xl p-4">
                 <div>
                     <h1 className="text-2xl font-bold tracking-tight">
                         Item Sales

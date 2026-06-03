@@ -138,7 +138,7 @@ export default function CronManager({ tasks }: Props) {
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Cron Manager" />
 
-            <div className="p-4 sm:p-6 lg:p-8">
+            <div className="flex h-full flex-1 flex-col gap-4 overflow-x-auto rounded-xl p-4">
                 <div className="space-y-6">
                     <Heading
                         title="Cron Manager"

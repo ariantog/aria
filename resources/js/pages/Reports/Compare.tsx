@@ -167,7 +167,7 @@ export default function Compare({
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Compare Warehouse" />
 
-            <div className="flex flex-col gap-6 p-4 sm:p-6 lg:p-8">
+            <div className="flex h-full flex-1 flex-col gap-4 overflow-x-auto rounded-xl p-4">
                 <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
                     <div>
                         <h1 className="text-2xl font-bold tracking-tight">

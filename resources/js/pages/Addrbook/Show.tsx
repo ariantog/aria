@@ -146,7 +146,7 @@ export default function AddrbookShow({ addrbook, ppn_rate }: Props) {
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title={`${addrbook.name} - Detail`} />
 
-            <div className="p-4 sm:p-6 lg:p-8">
+            <div className="flex h-full flex-1 flex-col gap-4 overflow-x-auto rounded-xl p-4">
                 {/* Header Card */}
                 <div className="mb-8 flex flex-col items-start justify-between gap-6 md:flex-row md:items-center">
                     <div className="flex items-start gap-5">

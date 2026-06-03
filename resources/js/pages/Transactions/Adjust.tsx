@@ -47,7 +47,7 @@ export default function Adjust({ min_date }: Props) {
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="New Adjust" />
 
-            <div className="p-4 sm:p-6 lg:p-8">
+            <div className="flex h-full flex-1 flex-col gap-4 overflow-x-auto rounded-xl p-4">
                 <div className="mb-8">
                     <h2 className="text-2xl font-bold tracking-tight text-indigo-600 text-zinc-900 dark:text-zinc-50">
                         New Adjust

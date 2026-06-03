@@ -73,7 +73,7 @@ export default function RebalanceDetail({
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title={`Rebalance: ${item.name}`} />
 
-            <div className="flex flex-col gap-6 p-4 sm:p-6 lg:p-8">
+            <div className="flex h-full flex-1 flex-col gap-4 overflow-x-auto rounded-xl p-4">
                 <div className="flex items-center gap-4">
                     <Button
                         variant="outline"

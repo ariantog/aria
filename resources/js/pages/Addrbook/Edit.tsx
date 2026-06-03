@@ -78,7 +78,7 @@ export default function AddrbookEdit({ addrbook, types, ppn_rate }: Props) {
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title={`Edit ${addrbook.name}`} />
 
-            <div className="p-4 sm:p-6 lg:p-8">
+            <div className="flex h-full flex-1 flex-col gap-4 overflow-x-auto rounded-xl p-4">
                 <form onSubmit={submit}>
                     <div className="mb-8 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
                         <div>

@@ -21,7 +21,7 @@ export default function Page() {
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Page Title" />
-            <div className="p-4 sm:p-6 lg:p-8">
+            <div className="flex h-full flex-1 flex-col gap-4 overflow-x-auto rounded-xl p-4">
                 {/* Header */}
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
                     <div>
