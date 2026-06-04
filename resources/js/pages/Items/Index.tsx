@@ -172,59 +172,57 @@ export default function ItemsIndex({
                     isAsset={isAsset}
                 />
                 {/* Table Section */}
-                <div className="overflow-hidden border bg-white text-[11px] shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+                <div className="overflow-hidden border bg-white text-[13px] shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
                     <div className="max-h-[60vh] overflow-auto md:max-h-[calc(100vh-280px)]">
                         <table className="w-full border-separate border-spacing-0 text-left">
                             <thead className="bg-zinc-50 dark:bg-zinc-900">
                                 <tr>
                                     {showImage && (
-                                        <th className="sticky top-0 left-0 z-30 border-b border-r bg-zinc-50 px-2 py-3 text-[11px] font-bold tracking-wider text-zinc-500 uppercase whitespace-nowrap dark:bg-zinc-900">
+                                        <th className="sticky top-0 left-0 z-30 border-b bg-zinc-50 py-3 px-2 text-[13px] font-bold tracking-wider text-zinc-500 uppercase whitespace-nowrap dark:bg-zinc-900">
                                             Image
                                         </th>
                                     )}
-                                    <th className={`sticky top-0 z-20 border-b bg-zinc-50 px-2 py-3 text-[11px] font-bold tracking-wider text-zinc-500 uppercase whitespace-nowrap dark:bg-zinc-900 ${!showImage && 'left-0 z-30 border-r'}`}>
+                                    <th className={`sticky top-0 z-20 border-b bg-zinc-50 py-3 px-2 text-[13px] font-bold tracking-wider text-zinc-500 uppercase whitespace-nowrap dark:bg-zinc-900 ${!showImage && 'left-0 z-30'}`}>
                                         Barcode
                                     </th>
                                     {isAsset ? (
                                         <>
-                                            <th className="sticky top-0 z-20 border-b bg-zinc-50 px-2 py-3 text-[11px] font-bold tracking-wider text-zinc-500 uppercase whitespace-nowrap dark:bg-zinc-900">
+                                            <th className="sticky top-0 z-20 border-b bg-zinc-50 py-3 px-2 text-[13px] font-bold tracking-wider text-zinc-500 uppercase whitespace-nowrap dark:bg-zinc-900">
                                                 Name
                                             </th>
-                                            <th className="sticky top-0 z-20 border-b bg-zinc-50 px-2 py-3 text-[11px] font-bold tracking-wider text-zinc-500 uppercase whitespace-nowrap dark:bg-zinc-900">
+                                            <th className="sticky top-0 z-20 border-b bg-zinc-50 py-3 px-2 text-[13px] font-bold tracking-wider text-zinc-500 uppercase whitespace-nowrap dark:bg-zinc-900">
                                                 SKU
                                             </th>
                                         </>
                                     ) : (
                                         <>
-                                            <th className="sticky top-0 z-20 border-b bg-zinc-50 px-2 py-3 text-[11px] font-bold tracking-wider text-zinc-500 uppercase whitespace-nowrap dark:bg-zinc-900">
+                                            <th className="sticky top-0 z-20 border-b bg-zinc-50 py-3 px-2 text-[13px] font-bold tracking-wider text-zinc-500 uppercase whitespace-nowrap dark:bg-zinc-900">
                                                 SKU
                                             </th>
-                                            <th className="sticky top-0 z-20 border-b bg-zinc-50 px-2 py-3 text-[11px] font-bold tracking-wider text-zinc-500 uppercase whitespace-nowrap dark:bg-zinc-900">
+                                            <th className="sticky top-0 z-20 border-b bg-zinc-50 py-3 px-2 text-[13px] font-bold tracking-wider text-zinc-500 uppercase whitespace-nowrap dark:bg-zinc-900">
                                                 Kode Produksi
                                             </th>
-                                            <th className="sticky top-0 z-20 min-w-[120px] border-b bg-zinc-50 px-2 py-3 text-[11px] font-bold tracking-wider text-zinc-500 uppercase dark:bg-zinc-900">
+                                            <th className="sticky top-0 z-20 min-w-[120px] border-b bg-zinc-50 py-3 px-2 text-[13px] font-bold tracking-wider text-zinc-500 uppercase dark:bg-zinc-900">
                                                 Alias
                                             </th>
                                         </>
                                     )}
-                                    <th className="sticky top-0 z-20 border-b bg-zinc-50 px-2 py-3 text-[11px] font-bold tracking-wider text-zinc-500 uppercase whitespace-nowrap dark:bg-zinc-900">
+                                    <th className="sticky top-0 z-20 border-b bg-zinc-50 py-3 px-2 text-[13px] font-bold tracking-wider text-zinc-500 uppercase whitespace-nowrap dark:bg-zinc-900">
                                         Description
                                     </th>
-                                    <th className="sticky top-0 z-20 border-b bg-zinc-50 px-2 py-3 text-[11px] font-bold tracking-wider text-zinc-500 uppercase whitespace-nowrap dark:bg-zinc-900">
+                                    <th className="sticky top-0 z-20 border-b bg-zinc-50 py-3 px-2 text-[13px] font-bold tracking-wider text-zinc-500 uppercase whitespace-nowrap dark:bg-zinc-900">
                                         Price
                                     </th>
-                                    <th className="sticky top-0 z-20 min-w-[150px] border-b bg-zinc-50 px-2 py-3 text-[11px] font-bold tracking-wider text-zinc-500 uppercase dark:bg-zinc-900">
+                                    <th className="sticky top-0 z-20 min-w-[150px] border-b bg-zinc-50 py-3 px-2 text-[13px] font-bold tracking-wider text-zinc-500 uppercase dark:bg-zinc-900">
                                         NB
                                     </th>
-                                    <th className="sticky top-0 z-20 border-b bg-zinc-50 px-2 py-3 text-[11px] font-bold tracking-wider text-zinc-500 uppercase whitespace-nowrap dark:bg-zinc-900">
+                                    <th className="sticky top-0 z-20 border-b bg-zinc-50 py-3 px-2 text-[13px] font-bold tracking-wider text-zinc-500 uppercase whitespace-nowrap dark:bg-zinc-900">
                                         Qty
                                     </th>
-                                    <th className="sticky top-0 z-20 border-b bg-zinc-50 px-2 py-3 text-[11px] font-bold tracking-wider text-zinc-500 uppercase whitespace-nowrap dark:bg-zinc-900">
+                                    <th className="sticky top-0 z-20 border-b bg-zinc-50 py-3 px-2 text-[13px] font-bold tracking-wider text-zinc-500 uppercase whitespace-nowrap dark:bg-zinc-900">
                                         Jubelio
                                     </th>
-                                    <th className="sticky top-0 z-20 border-b border-r bg-zinc-50 px-2 py-3 text-right text-[11px] font-bold tracking-wider text-zinc-500 uppercase whitespace-nowrap dark:bg-zinc-900">
-                                        Actions
-                                    </th>
+                                    <th className="sticky top-0 z-20 border-b bg-zinc-50 py-3 px-2 dark:bg-zinc-900"></th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-zinc-800/50">
@@ -232,7 +230,7 @@ export default function ItemsIndex({
                                     items.data.map((item) => (
                                         <tr
                                             key={item.id}
-                                            className="group cursor-pointer transition-colors hover:bg-zinc-50/50 dark:hover:bg-zinc-900/50"
+                                            className="group cursor-pointer transition-colors hover:bg-zinc-100/50 dark:hover:bg-zinc-800/50"
                                             onClick={() =>
                                                 router.get(
                                                     isAsset
@@ -244,7 +242,7 @@ export default function ItemsIndex({
                                             }
                                         >
                                             {showImage && (
-                                                <td className="sticky left-0 z-10 border-r bg-white px-2 py-1 dark:bg-zinc-900">
+                                                <td className="sticky left-0 z-10 bg-white py-3 px-2 text-[13px] transition-colors dark:bg-zinc-900 group-hover:bg-zinc-100/50 dark:group-hover:bg-zinc-800/50">
                                                     <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-md border border-zinc-200 bg-white dark:border-zinc-700">
                                                         {item.image_url ? (
                                                             <img
@@ -260,7 +258,7 @@ export default function ItemsIndex({
                                                     </div>
                                                 </td>
                                             )}
-                                            <td className={`px-2 py-1 font-medium whitespace-nowrap ${!showImage && 'sticky left-0 z-10 border-r bg-white dark:bg-zinc-900'}`}>
+                                            <td className={`py-3 px-2 text-[13px] font-medium whitespace-nowrap transition-colors ${!showImage && 'sticky left-0 z-10 bg-white dark:bg-zinc-900 group-hover:bg-zinc-100/50 dark:group-hover:bg-zinc-800/50'}`}>
                                                 <Link
                                                     href={
                                                         isAsset
@@ -287,24 +285,24 @@ export default function ItemsIndex({
 
                                             {isAsset ? (
                                                 <>
-                                                    <td className="min-w-[120px] px-2 py-1 italic text-zinc-700 dark:text-zinc-300">
+                                                    <td className="min-w-[120px] py-3 px-2 text-[13px] italic text-zinc-700 dark:text-zinc-300">
                                                         {item.group?.alias ||
                                                             item.name ||
                                                             '-'}
                                                     </td>
-                                                    <td className="whitespace-nowrap px-2 py-1 text-zinc-500 dark:text-zinc-400">
+                                                    <td className="whitespace-nowrap py-3 px-2 text-[13px] text-zinc-500 dark:text-zinc-400">
                                                         {item.code || '-'}
                                                     </td>
                                                 </>
                                             ) : (
                                                 <>
-                                                    <td className="whitespace-nowrap px-2 py-1 text-zinc-500 dark:text-zinc-400">
+                                                    <td className="whitespace-nowrap py-3 px-2 text-[13px] text-zinc-500 dark:text-zinc-400">
                                                         {item.code || '-'}
                                                     </td>
-                                                    <td className="whitespace-nowrap px-2 py-1 text-zinc-500 dark:text-zinc-400">
+                                                    <td className="whitespace-nowrap py-3 px-2 text-[13px] text-zinc-500 dark:text-zinc-400">
                                                         {item.pcode || '-'}
                                                     </td>
-                                                    <td className="min-w-[120px] px-2 py-1 italic text-zinc-700 dark:text-zinc-300">
+                                                    <td className="min-w-[120px] py-3 px-2 text-[13px] italic text-zinc-700 dark:text-zinc-300">
                                                         {item.group?.alias ||
                                                             item.name ||
                                                             '-'}
@@ -312,7 +310,7 @@ export default function ItemsIndex({
                                                 </>
                                             )}
 
-                                            <td className="max-w-[200px] truncate px-2 py-1 leading-tight">
+                                            <td className="max-w-[200px] truncate py-3 px-2 text-[13px] leading-tight">
                                                 <span className="text-zinc-700 dark:text-zinc-300">
                                                     {item.group?.description ||
                                                         item.description ||
@@ -320,7 +318,7 @@ export default function ItemsIndex({
                                                 </span>
                                             </td>
 
-                                            <td className="whitespace-nowrap px-2 py-1 font-bold text-zinc-900 tabular-nums dark:text-zinc-100">
+                                            <td className="whitespace-nowrap py-3 px-2 text-[13px] font-bold text-zinc-900 tabular-nums dark:text-zinc-100">
                                                 {new Intl.NumberFormat(
                                                     'id-ID',
                                                     {
@@ -331,37 +329,37 @@ export default function ItemsIndex({
                                                 ).format(item.price)}
                                             </td>
 
-                                            <td className="min-w-[150px] px-2 py-1 text-zinc-500 leading-tight">
+                                            <td className="min-w-[150px] py-3 px-2 text-[13px] text-zinc-500 leading-tight">
                                                 {item.group?.description2 ||
                                                     item.description2 ||
                                                     '--'}
                                             </td>
-                                            <td className="whitespace-nowrap px-2 py-1 font-bold text-emerald-600 dark:text-green-500 tabular-nums">
+                                            <td className="whitespace-nowrap py-3 px-2 text-[13px] font-bold text-emerald-600 dark:text-green-500 tabular-nums">
                                                 {item.qty}
                                             </td>
 
-                                            <td className="whitespace-nowrap px-2 py-1 text-zinc-400">
+                                            <td className="whitespace-nowrap py-3 px-2 text-[13px] text-zinc-400">
                                                 {item.jubelio_item_id ? (
                                                     <Badge
                                                         variant="outline"
-                                                        className="border-blue-200 bg-blue-100 px-1 py-0 text-[9px] text-blue-700 dark:border-blue-800 dark:bg-blue-900/20 dark:text-blue-500"
+                                                        className="border-blue-200 bg-blue-100 px-1 py-0 text-[13px] text-blue-700 dark:border-blue-800 dark:bg-blue-900/20 dark:text-blue-500"
                                                     >
                                                         {item.jubelio_item_id}
                                                     </Badge>
                                                 ) : (
-                                                    <span className="text-[9px] text-zinc-500">
+                                                    <span className="text-[13px] text-zinc-500">
                                                         no sync
                                                     </span>
                                                 )}
                                             </td>
 
                                             <td
-                                                className="border-r px-2 py-1 text-right"
+                                                className="py-3 px-2 text-right"
                                                 onClick={(e) =>
                                                     e.stopPropagation()
                                                 }
                                             >
-                                                <div className="flex justify-end gap-1">
+                                                <div className="flex justify-end pr-1">
                                                     <Link
                                                         href={
                                                             isAsset
@@ -372,9 +370,17 @@ export default function ItemsIndex({
                                                                       },
                                                                   )
                                                         }
-                                                        className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-zinc-200 bg-white text-[11px] font-medium text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-50"
                                                     >
-                                                        <FilePen className="h-3 w-3" />
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            className="h-8 w-8 text-zinc-500 hover:bg-zinc-200 hover:text-blue-600 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-blue-400"
+                                                        >
+                                                            <FilePen className="h-4 w-4" />
+                                                            <span className="sr-only">
+                                                                Edit
+                                                            </span>
+                                                        </Button>
                                                     </Link>
                                                 </div>
                                             </td>

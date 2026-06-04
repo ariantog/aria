@@ -91,6 +91,9 @@ interface Addrbook {
 interface Props {
     addrbook: Addrbook;
     ppn_rate: number;
+    can: {
+        bank_hidden_balance?: boolean;
+    };
 }
 
 const breadcrumbs: BreadcrumbItem[] = [

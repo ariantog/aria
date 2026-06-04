@@ -20,7 +20,7 @@ class LocationController extends Controller
             $query->where('name', 'like', "%{$search}%");
         }
 
-        if (request()->wantsJson() || request()->has('json')) {
+        if ((request()->wantsJson() || request()->has('json')) && ! request()->header('X-Inertia')) {
             return $query->limit(20)->get(['id', 'name']);
         }
 

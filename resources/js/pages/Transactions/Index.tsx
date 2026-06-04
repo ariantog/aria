@@ -48,8 +48,16 @@ interface Transaction {
     sender_balance: number;
     receiver_balance: number;
     status: number;
-    sender?: { name: string };
-    receiver?: { name: string };
+    sender?: {
+        id: number;
+        name: string;
+        type_slug: string;
+    };
+    receiver?: {
+        id: number;
+        name: string;
+        type_slug: string;
+    };
 }
 
 interface Props {
@@ -85,12 +93,14 @@ const typeOptions = [
     { id: 2, name: 'Sell' },
     { id: 3, name: 'Move' },
     { id: 6, name: 'Transfer' },
+    { id: 7, name: 'Cash Out' },
+    { id: 8, name: 'Use' },
     { id: 9, name: 'Cash In' },
-    { id: 10, name: 'Cash Out' },
     { id: 12, name: 'Adjust' },
     { id: 15, name: 'Return' },
     { id: 16, name: 'Production' },
     { id: 17, name: 'Ret. Supplier' },
+    { id: 18, name: 'Depreciation' },
 ];
 
 export default function Index({
@@ -108,35 +118,39 @@ export default function Index({
 
     const getTypeLabel = (type: number) => {
         const getBadge = (label: string, colorClass: string, dotColor: string) => (
-            <Badge variant="outline" className={`gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-medium shadow-sm whitespace-nowrap ${colorClass}`}>
+            <div className={`flex items-center gap-1.5 text-[13px] font-medium whitespace-nowrap ${colorClass}`}>
                 <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${dotColor}`} />
                 {label}
-            </Badge>
+            </div>
         );
 
         switch (type) {
             case 1:
-                return getBadge('Buy', 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800/50 dark:bg-emerald-900/20 dark:text-emerald-400', 'bg-emerald-500');
+                return getBadge('Buy', 'text-emerald-600 dark:text-emerald-400', 'bg-emerald-500');
             case 2:
-                return getBadge('Sell', 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-800/50 dark:bg-blue-900/20 dark:text-blue-400', 'bg-blue-500');
+                return getBadge('Sell', 'text-blue-600 dark:text-blue-400', 'bg-blue-500');
             case 3:
-                return getBadge('Move', 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800/50 dark:bg-amber-900/20 dark:text-amber-400', 'bg-amber-500');
+                return getBadge('Move', 'text-amber-600 dark:text-amber-400', 'bg-amber-500');
             case 6:
-                return getBadge('Transfer', 'border-cyan-200 bg-cyan-50 text-cyan-700 dark:border-cyan-800/50 dark:bg-cyan-900/20 dark:text-cyan-400', 'bg-cyan-500');
-            case 12:
-                return getBadge('Adjust', 'border-indigo-200 bg-indigo-50 text-indigo-700 dark:border-indigo-800/50 dark:bg-indigo-900/20 dark:text-indigo-400', 'bg-indigo-500');
-            case 15:
-                return getBadge('Return', 'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-800/50 dark:bg-rose-900/20 dark:text-rose-400', 'bg-rose-500');
-            case 16:
-                return getBadge('Production', 'border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-800/50 dark:bg-slate-900/20 dark:text-slate-400', 'bg-slate-500');
-            case 17:
-                return getBadge('Ret. Supplier', 'border-orange-200 bg-orange-50 text-orange-700 dark:border-orange-800/50 dark:bg-orange-900/20 dark:text-orange-400', 'bg-orange-500');
+                return getBadge('Transfer', 'text-cyan-600 dark:text-cyan-400', 'bg-cyan-500');
+            case 7:
+                return getBadge('Cash Out', 'text-rose-600 dark:text-rose-400', 'bg-rose-500');
+            case 8:
+                return getBadge('Use', 'text-yellow-600 dark:text-yellow-400', 'bg-yellow-500');
             case 9:
-                return getBadge('Cash In', 'border-purple-200 bg-purple-50 text-purple-700 dark:border-purple-800/50 dark:bg-purple-900/20 dark:text-purple-400', 'bg-purple-500');
-            case 10:
-                return getBadge('Cash Out', 'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-800/50 dark:bg-rose-900/20 dark:text-rose-400', 'bg-rose-500');
+                return getBadge('Cash In', 'text-purple-600 dark:text-purple-400', 'bg-purple-500');
+            case 12:
+                return getBadge('Adjust', 'text-indigo-600 dark:text-indigo-400', 'bg-indigo-500');
+            case 15:
+                return getBadge('Return', 'text-rose-600 dark:text-rose-400', 'bg-rose-500');
+            case 16:
+                return getBadge('Production', 'text-slate-600 dark:text-slate-400', 'bg-slate-500');
+            case 17:
+                return getBadge('Ret. Supplier', 'text-orange-600 dark:text-orange-400', 'bg-orange-500');
+            case 18:
+                return getBadge('Depreciation', 'text-zinc-600 dark:text-zinc-400', 'bg-zinc-500');
             default:
-                return getBadge('Unknown', 'border-zinc-200 bg-zinc-50 text-zinc-700 dark:border-zinc-800/50 dark:bg-zinc-900/20 dark:text-zinc-400', 'bg-zinc-500');
+                return getBadge('Unknown', 'text-zinc-600 dark:text-zinc-400', 'bg-zinc-500');
         }
     };
 
@@ -220,7 +234,7 @@ export default function Index({
                 />
 
                 {/* Data Table */}
-                <div className="overflow-hidden border bg-white text-[11px] shadow-sm dark:bg-zinc-900">
+                <div className="overflow-hidden border bg-white text-[13px] shadow-sm dark:bg-zinc-900">
                     <Table
                         wrapperClassName="max-h-[60vh] md:max-h-[calc(100vh-280px)] overflow-auto"
                         className="border-separate border-spacing-0"
@@ -228,8 +242,16 @@ export default function Index({
                         <TableHeader className="bg-zinc-50 dark:bg-zinc-900">
                             <TableRow>
                                 <TableHead
+                                    onClick={() => handleSort('date')}
+                                    className="sticky top-0 z-20 cursor-pointer whitespace-nowrap border-b bg-zinc-50 py-3 px-2 text-[13px] uppercase transition-colors hover:bg-zinc-100 dark:bg-zinc-900 dark:hover:bg-zinc-800"
+                                >
+                                    <div className="flex items-center">
+                                        Date <SortIcon column="date" />
+                                    </div>
+                                </TableHead>
+                                <TableHead
                                     onClick={() => handleSort('invoice_number')}
-                                    className="sticky top-0 left-0 z-30 w-[110px] cursor-pointer border-b border-r bg-zinc-50 px-2 py-1.5 text-[11px] uppercase transition-colors hover:bg-zinc-100 dark:bg-zinc-900 dark:hover:bg-zinc-800"
+                                    className="sticky top-0 z-20 w-[110px] cursor-pointer border-b bg-zinc-50 py-3 px-2 text-[13px] uppercase transition-colors hover:bg-zinc-100 dark:bg-zinc-900 dark:hover:bg-zinc-800"
                                 >
                                     <div className="flex items-center">
                                         Invoice{' '}
@@ -237,45 +259,37 @@ export default function Index({
                                     </div>
                                 </TableHead>
                                 <TableHead
-                                    onClick={() => handleSort('date')}
-                                    className="sticky top-0 z-20 cursor-pointer whitespace-nowrap border-b bg-zinc-50 px-2 py-1.5 text-[11px] uppercase transition-colors hover:bg-zinc-100 dark:bg-zinc-900 dark:hover:bg-zinc-800"
-                                >
-                                    <div className="flex items-center">
-                                        Date <SortIcon column="date" />
-                                    </div>
-                                </TableHead>
-                                <TableHead
                                     onClick={() => handleSort('type')}
-                                    className="sticky top-0 z-20 w-[70px] cursor-pointer border-b bg-zinc-50 px-2 py-1.5 text-[11px] uppercase transition-colors hover:bg-zinc-100 dark:bg-zinc-900 dark:hover:bg-zinc-800"
+                                    className="sticky top-0 z-20 w-[60px] cursor-pointer border-b bg-zinc-50 py-3 px-2 text-[13px] uppercase transition-colors hover:bg-zinc-100 dark:bg-zinc-900 dark:hover:bg-zinc-800"
                                 >
                                     <div className="flex items-center">
                                         Type <SortIcon column="type" />
                                     </div>
                                 </TableHead>
-                                <TableHead className="sticky top-0 z-20 max-w-[150px] border-b bg-zinc-50 px-2 py-1.5 text-[11px] uppercase dark:bg-zinc-900">
+                                <TableHead className="sticky top-0 z-20 max-w-[150px] border-b bg-zinc-50 py-3 px-2 text-[13px] uppercase dark:bg-zinc-900">
                                     Description
                                 </TableHead>
                                 <TableHead
                                     onClick={() => handleSort('grand_total')}
-                                    className="sticky top-0 z-20 cursor-pointer border-b bg-zinc-50 px-2 py-1.5 text-right text-[11px] uppercase transition-colors hover:bg-zinc-100 dark:bg-zinc-900 dark:hover:bg-zinc-800"
+                                    className="sticky top-0 z-20 cursor-pointer border-b bg-zinc-50 py-3 px-2 text-right text-[13px] uppercase transition-colors hover:bg-zinc-100 dark:bg-zinc-900 dark:hover:bg-zinc-800"
                                 >
                                     <div className="flex items-center justify-end whitespace-nowrap">
                                         Grand Total{' '}
                                         <SortIcon column="grand_total" />
                                     </div>
                                 </TableHead>
-                                <TableHead className="sticky top-0 z-20 border-b bg-zinc-50 px-2 py-1.5 text-right text-[11px] uppercase dark:bg-zinc-900">
+                                <TableHead className="sticky top-0 z-20 border-b bg-zinc-50 py-3 px-2 text-right text-[13px] uppercase dark:bg-zinc-900">
                                     Items
                                 </TableHead>
-                                <TableHead className="sticky top-0 z-20 border-b bg-zinc-50 px-2 py-1.5 text-[11px] uppercase dark:bg-zinc-900">Sender</TableHead>
-                                <TableHead className="sticky top-0 z-20 border-b bg-zinc-50 px-2 py-1.5 text-right text-[11px] uppercase dark:bg-zinc-900">
+                                <TableHead className="sticky top-0 z-20 border-b bg-zinc-50 py-3 px-2 text-[13px] uppercase dark:bg-zinc-900">Sender</TableHead>
+                                <TableHead className="sticky top-0 z-20 border-b bg-zinc-50 py-3 px-2 text-right text-[13px] uppercase dark:bg-zinc-900">
                                     Sender Bal
                                 </TableHead>
-                                <TableHead className="sticky top-0 z-20 border-b bg-zinc-50 px-2 py-1.5 text-[11px] uppercase dark:bg-zinc-900">Receiver</TableHead>
-                                <TableHead className="sticky top-0 z-20 border-b bg-zinc-50 px-2 py-1.5 text-right text-[11px] uppercase dark:bg-zinc-900">
+                                <TableHead className="sticky top-0 z-20 border-b bg-zinc-50 py-3 px-2 text-[13px] uppercase dark:bg-zinc-900">Receiver</TableHead>
+                                <TableHead className="sticky top-0 z-20 border-b bg-zinc-50 py-3 px-2 text-right text-[13px] uppercase dark:bg-zinc-900">
                                     Receiver Bal
                                 </TableHead>
-                                <TableHead className="sticky top-0 z-20 w-[40px] border-b bg-zinc-50 px-2 py-1.5 text-[11px] uppercase dark:bg-zinc-900"></TableHead>
+                                <TableHead className="sticky top-0 z-20 w-[40px] border-b bg-zinc-50 py-3 px-2 text-[13px] uppercase dark:bg-zinc-900"></TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -298,9 +312,12 @@ export default function Index({
                                     (transaction) => (
                                         <TableRow
                                             key={transaction.id}
-                                            className="transition-colors hover:bg-zinc-50/50 dark:hover:bg-zinc-900/50"
+                                            className="transition-colors hover:bg-zinc-100/50 dark:hover:bg-zinc-800/50"
                                         >
-                                            <TableCell className="sticky left-0 z-10 min-w-[110px] border-r bg-white px-2 py-1 font-mono text-[11px] whitespace-normal break-words dark:bg-zinc-900">
+                                            <TableCell className="whitespace-nowrap py-3 px-2 text-[13px] text-zinc-500 tabular-nums">
+                                                {formatDate(transaction.date)}
+                                            </TableCell>
+                                            <TableCell className="min-w-[110px] py-3 px-2 font-mono text-[13px] whitespace-normal break-words">
                                                 <Link
                                                     href={transactionsRoutes.show.url(
                                                         {
@@ -313,48 +330,63 @@ export default function Index({
                                                     {transaction.invoice_number}
                                                 </Link>
                                             </TableCell>
-                                            <TableCell className="whitespace-nowrap px-2 py-1 text-[11px] text-zinc-500 tabular-nums">
-                                                {formatDate(transaction.date)}
-                                            </TableCell>
-                                            <TableCell className="min-w-[70px] px-2 py-1 text-[11px] whitespace-normal break-words">
+                                            <TableCell className="min-w-[60px] py-3 px-2 text-[13px] whitespace-normal break-words">
                                                 {getTypeLabel(transaction.type)}
                                             </TableCell>
-                                            <TableCell className="max-w-[150px] px-2 py-1 text-[11px] text-zinc-500 whitespace-normal break-words leading-tight">
+                                            <TableCell className="max-w-[150px] py-3 px-2 text-[13px] text-zinc-500 whitespace-normal break-words leading-tight">
                                                 {transaction.description ||
                                                     transaction.notes ||
                                                     '-'}
                                             </TableCell>
-                                            <TableCell className="px-2 py-1 text-right text-[11px] font-bold text-zinc-900 tabular-nums dark:text-zinc-100">
+                                            <TableCell className="py-3 px-2 text-right text-[13px] font-bold text-zinc-900 tabular-nums dark:text-zinc-100">
                                                 {Number(
                                                     transaction.grand_total,
                                                 ).toLocaleString()}
                                             </TableCell>
-                                            <TableCell className="px-2 py-1 text-right text-[11px] text-zinc-500 tabular-nums">
+                                            <TableCell className="py-3 px-2 text-right text-[13px] text-zinc-500 tabular-nums">
                                                 {Number(
                                                     transaction.total_items,
                                                 ).toLocaleString()}
                                             </TableCell>
-                                            <TableCell className="min-w-[100px] max-w-[150px] whitespace-normal break-words px-2 py-1 text-[11px] text-zinc-700 leading-tight dark:text-zinc-300">
-                                                {transaction.sender?.name ||
-                                                    '-'}
+                                            <TableCell className="min-w-[100px] max-w-[150px] whitespace-normal break-words py-3 px-2 text-[13px] leading-tight">
+                                                {transaction.sender ? (
+                                                    <Link
+                                                        href={`/${transaction.sender.type_slug}/${transaction.sender.id}`}
+                                                        className="text-blue-600 hover:underline dark:text-blue-500"
+                                                    >
+                                                        {transaction.sender.name}
+                                                    </Link>
+                                                ) : (
+                                                    '-'
+                                                )}
                                             </TableCell>
-                                            <TableCell className="px-2 py-1 text-right text-[11px] font-medium text-zinc-900 tabular-nums dark:text-zinc-100">
-                                                {Number(
-                                                    transaction.sender_balance ||
-                                                        0,
-                                                ).toLocaleString()}
+                                            <TableCell className="py-3 px-2 text-right text-[13px] font-medium text-zinc-900 tabular-nums dark:text-zinc-100">
+                                                {can.bank_hidden_balance && transaction.sender?.type_slug === 'bank'
+                                                    ? '0'
+                                                    : Number(
+                                                        transaction.sender_balance || 0,
+                                                    ).toLocaleString()}
                                             </TableCell>
-                                            <TableCell className="min-w-[100px] max-w-[150px] whitespace-normal break-words px-2 py-1 text-[11px] text-zinc-700 leading-tight dark:text-zinc-300">
-                                                {transaction.receiver?.name ||
-                                                    '-'}
+                                            <TableCell className="min-w-[100px] max-w-[150px] whitespace-normal break-words py-3 px-2 text-[13px] leading-tight">
+                                                {transaction.receiver ? (
+                                                    <Link
+                                                        href={`/${transaction.receiver.type_slug}/${transaction.receiver.id}`}
+                                                        className="text-blue-600 hover:underline dark:text-blue-500"
+                                                    >
+                                                        {transaction.receiver.name}
+                                                    </Link>
+                                                ) : (
+                                                    '-'
+                                                )}
                                             </TableCell>
-                                            <TableCell className="px-2 py-1 text-right text-[11px] font-medium text-zinc-900 tabular-nums dark:text-zinc-100">
-                                                {Number(
-                                                    transaction.receiver_balance ||
-                                                        0,
-                                                ).toLocaleString()}
+                                            <TableCell className="py-3 px-2 text-right text-[13px] font-medium text-zinc-900 tabular-nums dark:text-zinc-100">
+                                                {can.bank_hidden_balance && transaction.receiver?.type_slug === 'bank'
+                                                    ? '0'
+                                                    : Number(
+                                                        transaction.receiver_balance || 0,
+                                                    ).toLocaleString()}
                                             </TableCell>
-                                            <TableCell className="px-2 py-1">
+                                            <TableCell className="py-3 px-2">
                                                 <DropdownMenu>
                                                     <DropdownMenuTrigger
                                                         asChild
@@ -421,7 +453,8 @@ export default function Index({
                                 )
                             )}
                         </TableBody>
-                    </Table>                    {/* Pagination */}
+                    </Table>
+                    {/* Pagination */}
                     <div className="border-t bg-zinc-50/50 p-4 dark:bg-zinc-900/50">
                         {paginatedTransactions.links && (
                             <Pagination

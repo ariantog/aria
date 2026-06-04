@@ -31,7 +31,7 @@ class ItemsController extends Controller
         $query = Item::with('group');
 
         // If JSON request and type is provided specifically as query param (e.g., type=1,2)
-        if ($request->filled('type') && ($request->wantsJson() || $request->has('json'))) {
+        if ($request->filled('type') && ($request->wantsJson() || $request->has('json')) && ! $request->header('X-Inertia')) {
             $types = explode(',', $request->input('type'));
             $query->whereIn('type', $types);
         } else {
@@ -95,7 +95,7 @@ class ItemsController extends Controller
         }
 
         // JSON Response for Async Select
-        if ($request->wantsJson() || $request->has('json')) {
+        if (($request->wantsJson() || $request->has('json')) && ! $request->header('X-Inertia')) {
             return $query->with('warehouseItems')->limit(50)->get();
         }
 

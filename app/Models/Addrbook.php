@@ -58,6 +58,11 @@ class Addrbook extends Model
                 'delete' => "{$group}-delete",
             ];
 
+            // Add hidden balance permission specifically for bank type
+            if ($t['slug'] === 'bank') {
+                $typePermissions['hidden-balance'] = "{$group}-hidden-balance";
+            }
+
             // If a specific type slug was requested, return its group permissions
             if ($type === $t['slug']) {
                 return $typePermissions;
@@ -68,6 +73,10 @@ class Addrbook extends Model
             $permissions["{$t['slug']}-create"] = $typePermissions['create'];
             $permissions["{$t['slug']}-edit"] = $typePermissions['edit'];
             $permissions["{$t['slug']}-delete"] = $typePermissions['delete'];
+
+            if (isset($typePermissions['hidden-balance'])) {
+                $permissions["{$t['slug']}-hidden-balance"] = $typePermissions['hidden-balance'];
+            }
         }
 
         return $permissions;

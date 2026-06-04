@@ -64,7 +64,7 @@ class AddrbookController extends Controller
         $query->latest();
 
         // 4. JSON Response logic...
-        if (request()->wantsJson() || request()->has('json')) {
+        if ((request()->wantsJson() || request()->has('json')) && ! request()->header('X-Inertia')) {
             return $query->limit(20)->get(['id', 'code', 'name', 'alias', 'ppn']);
         }
 
@@ -259,6 +259,9 @@ class AddrbookController extends Controller
             'transactions' => $transactions,
             'transactionTypes' => \App\Models\Transaction::getTypes(),
             'filters' => request()->all(['from', 'to', 'type', 'order_date']),
+            'can' => [
+                'bank_hidden_balance' => request()->user()?->can('addrbook-bank-account-hidden-balance') ?? false,
+            ],
         ]);
     }
 
@@ -317,6 +320,9 @@ class AddrbookController extends Controller
             'addrbook' => $addrbook,
             'items' => $items,
             'filters' => request()->all(['name', 'sort', 'show0']),
+            'can' => [
+                'bank_hidden_balance' => request()->user()?->can('addrbook-bank-account-hidden-balance') ?? false,
+            ],
         ]);
     }
 
@@ -368,6 +374,9 @@ class AddrbookController extends Controller
             ],
             'years' => range(date('Y'), date('Y') - 5),
             'transactionTypes' => \App\Models\Transaction::getTypes(),
+            'can' => [
+                'bank_hidden_balance' => request()->user()?->can('addrbook-bank-account-hidden-balance') ?? false,
+            ],
         ]);
     }
 
@@ -447,6 +456,9 @@ class AddrbookController extends Controller
                 'year' => (int) $year,
             ],
             'years' => range(date('Y'), date('Y') - 5),
+            'can' => [
+                'bank_hidden_balance' => request()->user()?->can('addrbook-bank-account-hidden-balance') ?? false,
+            ],
         ]);
     }
 

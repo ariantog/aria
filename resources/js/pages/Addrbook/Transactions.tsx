@@ -436,13 +436,15 @@ export default function AddrbookTransactions({
                                                             ),
                                                         )}
                                                     >
-                                                        {new Intl.NumberFormat(
-                                                            'id-ID',
-                                                        ).format(
-                                                            Number(
-                                                                t.sender_balance,
-                                                            ),
-                                                        )}
+                                                        {can.bank_hidden_balance && t.sender?.type_slug === 'bank'
+                                                            ? '0'
+                                                            : new Intl.NumberFormat(
+                                                                'id-ID',
+                                                            ).format(
+                                                                Number(
+                                                                    t.sender_balance,
+                                                                ),
+                                                            )}
                                                     </span>
                                                 </td>
                                                 <td className="px-6 py-4">
@@ -468,13 +470,15 @@ export default function AddrbookTransactions({
                                                             ),
                                                         )}
                                                     >
-                                                        {new Intl.NumberFormat(
-                                                            'id-ID',
-                                                        ).format(
-                                                            Number(
-                                                                t.receiver_balance,
-                                                            ),
-                                                        )}
+                                                        {can.bank_hidden_balance && t.receiver?.type_slug === 'bank'
+                                                            ? '0'
+                                                            : new Intl.NumberFormat(
+                                                                'id-ID',
+                                                            ).format(
+                                                                Number(
+                                                                    t.receiver_balance,
+                                                                ),
+                                                            )}
                                                     </span>
                                                 </td>
                                                 <td className="px-6 py-4 text-right whitespace-nowrap">

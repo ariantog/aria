@@ -61,9 +61,17 @@ interface Props {
         sort?: string;
         show0?: boolean;
     };
+    can: {
+        bank_hidden_balance?: boolean;
+    };
 }
 
-export default function AddrbookItems({ addrbook, items, filters }: Props) {
+export default function AddrbookItems({
+    addrbook,
+    items,
+    filters,
+    can,
+}: Props) {
     const [name, setName] = useState(filters.name || '');
     const [sort, setSort] = useState(filters.sort || 'qtydesc');
     const [show0, setShow0] = useState(filters.show0 || false);

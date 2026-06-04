@@ -78,11 +78,23 @@ export default function AddrbookStats({
         router.get(`/${addrbook.type_slug}/${addrbook.id}/stats`);
     };
 
-    const formatNumber = (value: number) => {
+    const formatNumber = (value: number, categoryKey?: keyof StatMetric) => {
+        if (can.bank_hidden_balance) {
+            if (addrbook.type_slug === 'bank' || categoryKey === 'bank') {
+                return '0';
+            }
+        }
         if (value === 0) return '-';
         return new Intl.NumberFormat('id-ID', {
             maximumFractionDigits: 0,
         }).format(value);
+    };
+
+    const formatTotal = (value: number) => {
+        if (can.bank_hidden_balance && addrbook.type_slug === 'bank') {
+            return '0';
+        }
+        return formatNumber(value);
     };
 
     const categories = [

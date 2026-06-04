@@ -50,6 +50,9 @@ interface Props {
         type?: number | null;
     };
     years: number[];
+    can: {
+        bank_hidden_balance?: boolean;
+    };
 }
 
 const MONTHS = [

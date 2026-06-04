@@ -62,6 +62,7 @@ interface Props {
     filters: Filter;
     can: {
         create_addrbook: boolean;
+        bank_hidden_balance?: boolean;
     };
     current_type?: string;
     ppn_rate: number;
@@ -236,15 +237,17 @@ export default function AddrbookIndex({
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4 text-right font-medium text-zinc-900 dark:text-zinc-100">
-                                                {new Intl.NumberFormat(
-                                                    'id-ID',
-                                                    {
-                                                        style: 'currency',
-                                                        currency: 'IDR',
-                                                    },
-                                                ).format(
-                                                    addrbook.stat?.balance || 0,
-                                                )}
+                                                {can.bank_hidden_balance && addrbook.type_slug === 'bank'
+                                                    ? 'IDR 0'
+                                                    : new Intl.NumberFormat(
+                                                        'id-ID',
+                                                        {
+                                                            style: 'currency',
+                                                            currency: 'IDR',
+                                                        },
+                                                    ).format(
+                                                        addrbook.stat?.balance || 0,
+                                                    )}
                                             </td>
                                             <td className="px-6 py-4 text-right">
                                                 <div className="flex justify-end gap-2">

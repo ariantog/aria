@@ -337,6 +337,7 @@ class TransactionsController extends Controller
             'can' => [
                 'delete_transaction' => Auth::user()->can(\App\Models\Transaction::getPermissions()['delete']),
                 'edit_transaction' => Auth::user()->can(\App\Models\Transaction::getPermissions()['edit']),
+                'bank_hidden_balance' => Auth::user()->can('addrbook-bank-account-hidden-balance'),
             ],
         ]);
     }
