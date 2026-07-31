@@ -21,9 +21,7 @@ class AddrbookController extends Controller
         $typeId = null;
         if ($type) {
             $d = collect(Addrbook::getTypes())->firstWhere('slug', $type);
-            if (! $d) {
-                abort(404);
-            }
+            if (! $d) abort(404);
             $typeId = $d['id'];
         }
 
@@ -43,7 +41,7 @@ class AddrbookController extends Controller
             ))
             ->latest();
 
-        if ((request()->wantsJson() || request()->has('json')) && ! request()->header('X-Inertia')) {
+        if ($this->isJsonRequest()) {
             return $q->limit(20)->get(['id', 'code', 'name', 'alias', 'ppn']);
         }
 
@@ -90,24 +88,24 @@ class AddrbookController extends Controller
 
     public function show(Addrbook $a)
     {
-        $slug = $a->type_slug;
+        $slug = $this->addrbookTypeSlug($a);
         Gate::authorize(Addrbook::getPermissions($slug)['view']);
 
         $load = ['stat', 'dailies' => fn ($q) => $q->latest('date')->limit(50)];
 
-        if ($a->type === AddrbookType::Warehouse) {
+        if ($this->addrbookIsWarehouse($a)) {
             $load[] = 'items';
         }
 
         $a->load($load);
 
-        if ($a->type === AddrbookType::Warehouse) {
+        if ($this->addrbookIsWarehouse($a) && $a->relationLoaded('items')) {
             $a->items->each(function ($i) {
-                $c = $i->type === ItemType::ASSET_LANCAR
+                $c = ($i->type instanceof ItemType && $i->type === ItemType::ASSET_LANCAR)
                     ? (float) $i->cost
                     : (float) $i->price * 0.3;
                 $i->calculated_cost = $c;
-                $i->total_calculated_cost = $c * (float) $i->pivot->quantity;
+                $i->total_calculated_cost = $c * (float) ($i->pivot->quantity ?? 0);
             });
         }
 
@@ -125,7 +123,7 @@ class AddrbookController extends Controller
 
     public function edit(Addrbook $a)
     {
-        Gate::authorize(Addrbook::getPermissions($a->type_slug)['edit']);
+        Gate::authorize(Addrbook::getPermissions($this->addrbookTypeSlug($a))['edit']);
 
         return Inertia::render('Addrbook/Edit', [
             'addrbook' => $a->load('stat'),
@@ -138,7 +136,7 @@ class AddrbookController extends Controller
 
     public function update(UpdateAddrbookRequest $r, Addrbook $a)
     {
-        Gate::authorize(Addrbook::getPermissions($a->type_slug)['edit']);
+        Gate::authorize(Addrbook::getPermissions($this->addrbookTypeSlug($a))['edit']);
         $a->update($r->validated());
 
         return redirect()->route('addrbook.index')->with('success', 'Updated.');
@@ -147,7 +145,7 @@ class AddrbookController extends Controller
     public function transactions($id)
     {
         $a = Addrbook::withTrashed()->findOrFail($id);
-        Gate::authorize(Addrbook::getPermissions($a->type_slug)['view']);
+        Gate::authorize(Addrbook::getPermissions($this->addrbookTypeSlug($a))['view']);
 
         $q = \App\Models\Transaction::where(fn ($q) => $q
             ->where('sender_id', $a->id)
@@ -178,7 +176,7 @@ class AddrbookController extends Controller
     public function items($id)
     {
         $a = Addrbook::withTrashed()->findOrFail($id);
-        Gate::authorize(Addrbook::getPermissions($a->type_slug)['view']);
+        Gate::authorize(Addrbook::getPermissions($this->addrbookTypeSlug($a))['view']);
 
         $q = $a->items()->with('group')
             ->when(request('name'), fn ($q) => $q->where(fn ($sq) => $sq
@@ -212,7 +210,7 @@ class AddrbookController extends Controller
     public function itemSales($id)
     {
         $a = Addrbook::withTrashed()->findOrFail($id);
-        Gate::authorize(Addrbook::getPermissions($a->type_slug)['view']);
+        Gate::authorize(Addrbook::getPermissions($this->addrbookTypeSlug($a))['view']);
 
         $q = StatSell::where('sender_id', $a->id)->with('group')
             ->when(request('bulan'), fn ($q) => $q->where('bulan', request('bulan')))
@@ -244,7 +242,7 @@ class AddrbookController extends Controller
     public function stat($id)
     {
         $a = Addrbook::withTrashed()->findOrFail($id);
-        Gate::authorize(Addrbook::getPermissions($a->type_slug)['view']);
+        Gate::authorize(Addrbook::getPermissions($this->addrbookTypeSlug($a))['view']);
 
         $mo = request('month');
         $yr = request('year', date('Y'));
@@ -268,27 +266,22 @@ class AddrbookController extends Controller
 
         foreach ($tx as $t) {
             $op = ($t->sender_id == $a->id) ? $t->receiver : $t->sender;
-            $cat = match ($op->type instanceof AddrbookType ? $op->type : AddrbookType::tryFrom($op->type ?? 99) ?? AddrbookType::Other) {
-                AddrbookType::Customer => 'customer',
-                AddrbookType::Reseller => 'reseller',
-                AddrbookType::Account => 'journal',
-                AddrbookType::Bank => 'bank',
-                AddrbookType::Warehouse => 'warehouse',
-                default => 'other',
-            };
+            if (! $op) continue;
 
+            $cat = $this->categorizeAddrbook($op);
             $amt = (float) $t->grand_total;
+            $txType = $t->type instanceof TransactionType ? $t->type->value : $t->type;
 
-            if ($t->type == TransactionType::CashIn->value) {
+            if ($txType == TransactionType::CashIn->value) {
                 $ds['cash_in'][$cat] += $amt;
                 $ds['cash_in']['total'] += $amt;
-            } elseif ($t->type == TransactionType::CashOut->value) {
+            } elseif ($txType == TransactionType::CashOut->value) {
                 $ds['cash_out'][$cat] += $amt;
                 $ds['cash_out']['total'] += $amt;
-            } elseif ($t->type == TransactionType::Sell->value) {
+            } elseif ($txType == TransactionType::Sell->value) {
                 $ds['sell'][$cat] += $amt;
                 $ds['sell']['total'] += $amt;
-            } elseif ($t->type == TransactionType::Return->value) {
+            } elseif ($txType == TransactionType::Return->value) {
                 $ds['return'][$cat] += $amt;
                 $ds['return']['total'] += $amt;
             }
@@ -307,9 +300,49 @@ class AddrbookController extends Controller
 
     public function destroy(Addrbook $a)
     {
-        Gate::authorize(Addrbook::getPermissions($a->type_slug)['delete']);
+        Gate::authorize(Addrbook::getPermissions($this->addrbookTypeSlug($a))['delete']);
         $a->delete();
 
         return redirect()->route('addrbook.index')->with('success', 'Deleted.');
+    }
+
+    private function isJsonRequest(): bool
+    {
+        return (request()->wantsJson() || request()->has('json')) && ! request()->header('X-Inertia');
+    }
+
+    private function addrbookTypeSlug(Addrbook $a): ?string
+    {
+        return $a->type instanceof AddrbookType ? $a->type->slug() : null;
+    }
+
+    private function addrbookIsWarehouse(Addrbook $a): bool
+    {
+        return $a->type instanceof AddrbookType && $a->type->isWarehouse();
+    }
+
+    private function categorizeAddrbook($addrbook): string
+    {
+        $type = $addrbook->type;
+        if ($type instanceof AddrbookType) {
+            return match ($type) {
+                AddrbookType::Customer => 'customer',
+                AddrbookType::Reseller => 'reseller',
+                AddrbookType::Account => 'journal',
+                AddrbookType::Bank => 'bank',
+                AddrbookType::Warehouse, AddrbookType::VirtualWarehouse => 'warehouse',
+                default => 'other',
+            };
+        }
+
+        // Fallback for uncast integer types
+        return match ((int) $type) {
+            AddrbookType::Customer->value => 'customer',
+            AddrbookType::Reseller->value => 'reseller',
+            AddrbookType::Account->value => 'journal',
+            AddrbookType::Bank->value => 'bank',
+            AddrbookType::Warehouse->value, AddrbookType::VirtualWarehouse->value => 'warehouse',
+            default => 'other',
+        };
     }
 }
