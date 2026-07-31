@@ -255,7 +255,6 @@ class ItemsController extends Controller
 
         $transactions = TransactionDetail::with(['transaction.sender', 'transaction.receiver'])
             ->where('item_id', $item->id)
-            ->orderBy('date', 'desc')
             ->orderBy('transaction_id', 'desc')
             ->paginate(50)
             ->withQueryString();
@@ -274,7 +273,7 @@ class ItemsController extends Controller
         $to = $request->input('to');
         $addrId = $request->input('addr');
 
-        $query = \App\Models\TransactionDetail::select([
+        $query = TransactionDetail::select([
             'transaction_type',
             \DB::raw("DATE_FORMAT(date,'%M %Y') AS showdate"),
             \DB::raw("DATE_FORMAT(date,'%m') AS bulan"),

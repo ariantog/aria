@@ -90,12 +90,15 @@ class AddrbookController extends Controller
 
     public function show(Addrbook $a)
     {
-        Gate::authorize(Addrbook::getPermissions($a->type_slug)['view']);
+        $slug = $a->type_slug;
+        Gate::authorize(Addrbook::getPermissions($slug)['view']);
 
         $load = ['stat', 'dailies' => fn ($q) => $q->latest('date')->limit(50)];
+
         if ($a->type === AddrbookType::Warehouse) {
             $load[] = 'items';
         }
+
         $a->load($load);
 
         if ($a->type === AddrbookType::Warehouse) {
@@ -265,7 +268,7 @@ class AddrbookController extends Controller
 
         foreach ($tx as $t) {
             $op = ($t->sender_id == $a->id) ? $t->receiver : $t->sender;
-            $cat = match ($op->type) {
+            $cat = match ($op->type instanceof AddrbookType ? $op->type : AddrbookType::tryFrom($op->type ?? 99) ?? AddrbookType::Other) {
                 AddrbookType::Customer => 'customer',
                 AddrbookType::Reseller => 'reseller',
                 AddrbookType::Account => 'journal',

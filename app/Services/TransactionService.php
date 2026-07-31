@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Enums\AddrbookType;
+use App\Enums\TransactionType;
 use App\Models\Addrbook;
 use App\Models\AddrbookDaily;
 use App\Models\AddrbookStat;
@@ -11,9 +13,6 @@ use Illuminate\Support\Facades\DB;
 
 class TransactionService
 {
-    /**
-     * Create a new class instance.
-     */
     public function handleTransaction(Transaction $transaction)
     {
         DB::transaction(function () use ($transaction) {
@@ -35,17 +34,14 @@ class TransactionService
         foreach ($transaction->details as $detail) {
             $qty = $revert ? -$detail->quantity : $detail->quantity;
 
-            // Update Sender (Stock Out)
             if ($transaction->sender_id) {
                 $this->adjustStock($transaction->sender_id, $transaction->sender_type, $detail->item_id, -$qty);
             }
 
-            // Update Receiver (Stock In)
             if ($transaction->receiver_id) {
                 $this->adjustStock($transaction->receiver_id, $transaction->receiver_type, $detail->item_id, $qty);
             }
 
-            // Update Global Item Stock
             $this->updateGlobalStock($transaction, $detail, $revert);
         }
     }
@@ -59,26 +55,24 @@ class TransactionService
 
         $qty = $revert ? -$detail->quantity : $detail->quantity;
 
-        if ($transaction->type === Transaction::TYPE_BUY) {
+        if ($transaction->type === TransactionType::Buy) {
             $item->increment('qty', $qty);
-        } elseif ($transaction->type === Transaction::TYPE_SELL) {
+        } elseif ($transaction->type === TransactionType::Sell) {
             $item->decrement('qty', $qty);
-        } elseif ($transaction->type === Transaction::TYPE_RETURN) {
+        } elseif ($transaction->type === TransactionType::Return) {
             $item->increment('qty', $qty);
-        } elseif ($transaction->type === Transaction::TYPE_RETURN_SUPPLIER) {
+        } elseif ($transaction->type === TransactionType::ReturnSupplier) {
             $item->decrement('qty', $qty);
         }
     }
 
     protected function adjustStock($warehouseId, $warehouseType, $itemId, $quantity)
     {
-        // Find by unique constraint (warehouse_id, item_id) to avoid duplicate entry errors
         $wi = WarehouseItem::firstOrNew([
             'warehouse_id' => $warehouseId,
             'item_id' => $itemId,
         ]);
 
-        // Update warehouse_type ensuring it's set correctly
         if ($warehouseType) {
             $wi->warehouse_type = $warehouseType;
         }
@@ -91,38 +85,33 @@ class TransactionService
     {
         $amount = $revert ? -$transaction->grand_total : $transaction->grand_total;
 
-        if ($transaction->type === Transaction::TYPE_BUY && $transaction->sender_id) {
-            // BUY: Sender (Supplier) balance increases (+)
+        // Use enum comparisons (not old integer constants) since type is now cast to TransactionType
+        if ($transaction->type === TransactionType::Buy && $transaction->sender_id) {
             $this->updateEntityBalance($transaction, 'sender', $amount);
             $this->updateDailyReports($transaction, 'sender', $amount);
-        } elseif ($transaction->type === Transaction::TYPE_SELL && $transaction->receiver_id) {
-            // SELL: Receiver (Customer) balance decreases (-)
-            // grand_total is already negative from controller for SELL
+        } elseif ($transaction->type === TransactionType::Sell && $transaction->receiver_id) {
             $this->updateEntityBalance($transaction, 'receiver', $amount);
             $this->updateDailyReports($transaction, 'receiver', $amount);
-        } elseif ($transaction->type === Transaction::TYPE_RETURN && $transaction->sender_id) {
-            // RETURN: Sender (Customer) balance increases (+)
-            $this->updateEntityBalance($transaction, 'sender', $amount);
-            $this->updateDailyReports($transaction, 'sender', $amount);
-            // RETURN_SUPPLIER: Receiver balance decreases (-)
-            // grand_total is already negative from controller
-            $this->updateEntityBalance($transaction, 'receiver', $amount);
-            $this->updateDailyReports($transaction, 'receiver', $amount);
-        } elseif ($transaction->type === Transaction::TYPE_CASH_IN) {
-            // CASH_IN: Increase balance for both sides (Sender: Source of funds, Receiver: Bank account)
-            $this->updateEntityBalance($transaction, 'sender', $amount);
-            $this->updateDailyReports($transaction, 'sender', $amount);
-            $this->updateEntityBalance($transaction, 'receiver', $amount);
-            $this->updateDailyReports($transaction, 'receiver', $amount);
-        } elseif ($transaction->type === Transaction::TYPE_CASH_OUT) {
-            // CASH_OUT: Decrease balance for both sides
-            // amount is negative for Cash Out from controller
+        } elseif ($transaction->type === TransactionType::Return) {
+            if ($transaction->sender_id) {
+                $this->updateEntityBalance($transaction, 'sender', $amount);
+                $this->updateDailyReports($transaction, 'sender', $amount);
+            }
+            if ($transaction->receiver_id) {
+                $this->updateEntityBalance($transaction, 'receiver', $amount);
+                $this->updateDailyReports($transaction, 'receiver', $amount);
+            }
+        } elseif ($transaction->type === TransactionType::CashIn) {
             $this->updateEntityBalance($transaction, 'sender', $amount);
             $this->updateDailyReports($transaction, 'sender', $amount);
             $this->updateEntityBalance($transaction, 'receiver', $amount);
             $this->updateDailyReports($transaction, 'receiver', $amount);
-        } elseif ($transaction->type === Transaction::TYPE_TRANSFER || $transaction->type === Transaction::TYPE_ADJUST) {
-            // TRANSFER & ADJUST: Sender (Debit+) balance decreases (-), Receiver (Credit+) balance increases (+)
+        } elseif ($transaction->type === TransactionType::CashOut) {
+            $this->updateEntityBalance($transaction, 'sender', $amount);
+            $this->updateDailyReports($transaction, 'sender', $amount);
+            $this->updateEntityBalance($transaction, 'receiver', $amount);
+            $this->updateDailyReports($transaction, 'receiver', $amount);
+        } elseif ($transaction->type === TransactionType::Transfer || $transaction->type === TransactionType::Adjust) {
             $this->updateEntityBalance($transaction, 'sender', -$amount);
             $this->updateDailyReports($transaction, 'sender', -$amount);
             $this->updateEntityBalance($transaction, 'receiver', $amount);
@@ -155,35 +144,35 @@ class TransactionService
             'addrbook_id' => $addrbookId,
             'date' => $dateStr,
         ], [
-            'type' => $type,
+            'type' => $type instanceof AddrbookType ? $type->value : $type,
         ]);
 
         if ($daily->type === null && $type !== null) {
-            $daily->type = $type;
+            $daily->type = $type instanceof AddrbookType ? $type->value : $type;
             $daily->save();
         }
 
         $daily->increment($column, $amount);
     }
 
-    protected function getDailyReportColumn($type)
+    protected function getDailyReportColumn(TransactionType $type): ?string
     {
         return match ($type) {
-            Transaction::TYPE_BUY => 'buy',
-            Transaction::TYPE_SELL => 'sell',
-            Transaction::TYPE_RETURN => 'return',
-            Transaction::TYPE_RETURN_SUPPLIER => 'return_supplier',
-            Transaction::TYPE_MOVE => 'move',
-            Transaction::TYPE_TRANSFER => 'transfer',
-            Transaction::TYPE_ADJUST => 'adjust',
-            Transaction::TYPE_PRODUCTION => 'use', // Assuming production "uses" items
-            Transaction::TYPE_CASH_IN => 'sell', // Map to matching column if specific one doesn't exist, legacy uses CCManager update with type
-            Transaction::TYPE_CASH_OUT => 'buy', // Map to matching column (expense)
+            TransactionType::Buy => 'buy',
+            TransactionType::Sell => 'sell',
+            TransactionType::Return => 'return',
+            TransactionType::ReturnSupplier => 'return_supplier',
+            TransactionType::Move => 'move',
+            TransactionType::Transfer => 'transfer',
+            TransactionType::Adjust => 'adjust',
+            TransactionType::Production => 'use',
+            TransactionType::CashIn => 'sell',
+            TransactionType::CashOut => 'buy',
             default => null,
         };
     }
 
-    protected function updateEntityBalance(Transaction $transaction, string $side, $amount) // $side = 'sender' or 'receiver'
+    protected function updateEntityBalance(Transaction $transaction, string $side, $amount)
     {
         $entity = $transaction->$side;
         if (! $entity) {
@@ -192,14 +181,11 @@ class TransactionService
 
         $balanceCol = $side.'_balance';
 
-        // Update Stat Table (Overall current balance)
         $this->updateStat($entity, $amount, $transaction->date);
 
-        // Update Transaction Snapshots
         $transaction->$balanceCol = $this->getLastBalance($entity, $transaction->date, $transaction->id) + $amount;
         $transaction->saveQuietly();
 
-        // Update Future Transactions
         $this->updateFutureBalances($entity, $transaction->date, $amount, $side, $transaction->id);
     }
 
@@ -218,16 +204,15 @@ class TransactionService
             return 0;
         }
 
-        // Find the most recent transaction for this entity before this date,
-        // or on this date but with a lower ID.
-        // We look at both sender and receiver roles.
-        $query = Transaction::where(function ($q) use ($entity) {
-            $q->where(function ($q2) use ($entity) {
+        $entityType = $entity->type instanceof AddrbookType ? $entity->type->value : $entity->type;
+
+        $query = Transaction::where(function ($q) use ($entity, $entityType) {
+            $q->where(function ($q2) use ($entity, $entityType) {
                 $q2->where('sender_id', $entity->id)
-                    ->where('sender_type', $entity->type);
-            })->orWhere(function ($q2) use ($entity) {
+                    ->where('sender_type', $entityType);
+            })->orWhere(function ($q2) use ($entity, $entityType) {
                 $q2->where('receiver_id', $entity->id)
-                    ->where('receiver_type', $entity->type);
+                    ->where('receiver_type', $entityType);
             });
         })
             ->where('date', '<=', $date);
@@ -249,8 +234,7 @@ class TransactionService
             return 0;
         }
 
-        // Return the balance corresponding to the role the entity played in that last transaction
-        if ($lastTransaction->sender_id === $entity->id && $lastTransaction->sender_type == $entity->type) {
+        if ($lastTransaction->sender_id === $entity->id && $lastTransaction->sender_type == $entityType) {
             return $lastTransaction->sender_balance;
         }
 
@@ -263,13 +247,15 @@ class TransactionService
             return;
         }
 
-        $query = Transaction::where(function ($q) use ($entity) {
-            $q->where(function ($q2) use ($entity) {
+        $entityType = $entity->type instanceof AddrbookType ? $entity->type->value : $entity->type;
+
+        $query = Transaction::where(function ($q) use ($entity, $entityType) {
+            $q->where(function ($q2) use ($entity, $entityType) {
                 $q2->where('sender_id', $entity->id)
-                    ->where('sender_type', $entity->type);
-            })->orWhere(function ($q2) use ($entity) {
+                    ->where('sender_type', $entityType);
+            })->orWhere(function ($q2) use ($entity, $entityType) {
                 $q2->where('receiver_id', $entity->id)
-                    ->where('receiver_type', $entity->type);
+                    ->where('receiver_type', $entityType);
             });
         })
             ->where('date', '>=', $date);
@@ -290,10 +276,10 @@ class TransactionService
             ->get();
 
         foreach ($futureTransactions as $ft) {
-            if ($ft->sender_id === $entity->id && $ft->sender_type == $entity->type) {
+            if ($ft->sender_id === $entity->id && $ft->sender_type == $entityType) {
                 $ft->sender_balance += $amount;
             }
-            if ($ft->receiver_id === $entity->id && $ft->receiver_type == $entity->type) {
+            if ($ft->receiver_id === $entity->id && $ft->receiver_type == $entityType) {
                 $ft->receiver_balance += $amount;
             }
             $ft->saveQuietly();
