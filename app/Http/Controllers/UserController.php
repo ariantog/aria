@@ -2,137 +2,65 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Addrbook;
 use App\Models\Location;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
-use Illuminate\Support\Str;
-use Inertia\Inertia;
-use Spatie\Permission\Models\Role;
 
 class UserController extends Controller
 {
     public function index()
     {
         Gate::authorize(User::getPermissions()['view']);
-
-        return Inertia::render('Users/Index', [
-            'users' => User::with('roles', 'location')->latest()->paginate(50),
-            'can' => [
-                'create_user' => auth()->user()->can(User::getPermissions()['create']),
-            ],
-        ]);
+        $query = User::with('location')->when(Auth::user()->is_superadmin, fn ($q) => $q->withTrashed());
+        return inertia('Users/Index', ['users' => $query->latest()->paginate(10)->withQueryString()]);
     }
 
     public function create()
     {
         Gate::authorize(User::getPermissions()['create']);
-
-        return Inertia::render('Users/Create', [
-            'roles' => Role::all(),
-            'locations' => Location::all(),
-        ]);
+        return inertia('Users/Create', ['locations' => Location::all(), 'roles' => \Spatie\Permission\Models\Role::all()]);
     }
 
     public function store(Request $request)
     {
         Gate::authorize(User::getPermissions()['create']);
-
-        $request->validate([
-            'name' => 'required|string|max:255',
-            'username' => 'required|string|max:255|unique:users',
-            'email' => 'nullable|email|unique:users,email',
-            // 'password' => 'required|string|min:8|confirmed', // Password is now optional/auto-generated
-            'roles' => 'required|array|min:1',
-            'location_id' => 'nullable|exists:locations,id',
-            'is_active' => 'boolean',
+        $data = $request->validate([
+            'name' => 'required|string|max:255', 'username' => 'required|string|max:255|unique:users',
+            'password' => 'required|string|min:8|confirmed', 'role' => 'required|exists:roles,name',
+            'location_id' => 'nullable|exists:locations,id', 'is_active' => 'boolean',
         ]);
-
-        // Generate a random password if not provided (or always, based on request)
-        // User requested: "genere password di backend laravel"
-        $password = Str::random(10);
-
-        $user = User::create([
-            'name' => $request->name,
-            'username' => $request->username,
-            'email' => $request->email,
-            'password' => bcrypt($password),
-            'is_active' => $request->boolean('is_active', true),
-            'location_id' => $request->location_id,
-        ]);
-
-        if ($request->has('roles')) {
-            $user->syncRoles($request->roles);
-        }
-
-        return redirect()->route('users.index')->with('success', 'User created successfully. Password: '.$password);
+        $user = User::create(['name' => $data['name'], 'username' => $data['username'], 'password' => bcrypt($data['password']), 'location_id' => $data['location_id'] ?? null, 'is_active' => $data['is_active'] ?? true]);
+        $user->syncRoles([$data['role']]);
+        return redirect()->route('users.index')->with('success', 'User created.');
     }
 
     public function edit(User $user)
     {
         Gate::authorize(User::getPermissions()['edit']);
-
-        return Inertia::render('Users/Edit', [
-            'user' => $user->load('roles', 'location'),
-            'roles' => Role::all(),
-            'userRoles' => $user->roles->pluck('name'),
-            'locations' => Location::all(),
-        ]);
+        return inertia('Users/Edit', ['editUser' => $user->load('roles'), 'locations' => Location::all(), 'roles' => \Spatie\Permission\Models\Role::all()]);
     }
 
     public function update(Request $request, User $user)
     {
         Gate::authorize(User::getPermissions()['edit']);
-
-        $request->validate([
-            'name' => 'required|string|max:255',
-            'username' => 'required|string|max:255|unique:users,username,'.$user->id,
-            'email' => 'required|email|unique:users,email,'.$user->id,
-            'roles' => 'array',
-            'location_id' => 'nullable|exists:locations,id',
-            'is_active' => 'boolean',
-            'update_password' => 'boolean',
+        $data = $request->validate([
+            'name' => 'required|string|max:255', 'username' => 'required|string|max:255|unique:users,username,'.$user->id,
+            'password' => 'nullable|string|min:8|confirmed', 'role' => 'required|exists:roles,name',
+            'location_id' => 'nullable|exists:locations,id', 'is_active' => 'boolean',
         ]);
-
-        $data = [
-            'name' => $request->name,
-            'username' => $request->username,
-            'email' => $request->email,
-            'is_active' => $request->boolean('is_active'),
-            'location_id' => $request->location_id,
-        ];
-
-        $password = null;
-        if ($request->boolean('update_password')) {
-            $password = Str::random(10);
-            $data['password'] = bcrypt($password);
-        }
-
-        $user->update($data);
-
-        if ($request->has('roles')) {
-            $user->syncRoles($request->roles);
-        }
-
-        $message = 'User updated successfully.';
-        if ($password) {
-            $message .= ' New Password: '.$password;
-        }
-
-        return redirect()->route('users.index')->with('success', $message);
+        $user->update(['name' => $data['name'], 'username' => $data['username'], 'location_id' => $data['location_id'] ?? null, 'is_active' => $data['is_active'] ?? true]);
+        if ($data['password']) $user->update(['password' => bcrypt($data['password'])]);
+        $user->syncRoles([$data['role']]);
+        return redirect()->route('users.index')->with('success', 'User updated.');
     }
 
     public function destroy(User $user)
     {
         Gate::authorize(User::getPermissions()['delete']);
-
-        // Prevent deleting self or Super Admin if needed
-        if ($user->id === auth()->id()) {
-            return back()->with('error', 'Cannot delete yourself.');
-        }
-
         $user->delete();
-
-        return back()->with('success', 'User deleted successfully.');
+        return redirect()->route('users.index')->with('success', 'User deleted.');
     }
 }
