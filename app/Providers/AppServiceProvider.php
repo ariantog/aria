@@ -15,17 +15,11 @@ use Illuminate\Validation\Rules\Password;
 
 class AppServiceProvider extends ServiceProvider
 {
-    /**
-     * Register any application services.
-     */
     public function register(): void
     {
         //
     }
 
-    /**
-     * Bootstrap any application services.
-     */
     public function boot(): void
     {
         $this->configureDefaults();
@@ -43,19 +37,25 @@ class AppServiceProvider extends ServiceProvider
             (string) Addrbook::TYPE_ACCOUNT => Addrbook::class,
             (string) Addrbook::TYPE_OTHER => Addrbook::class,
 
-            // Safeguards for literal class name matches
             'App\Models\Addrbook' => Addrbook::class,
             'AppModelsAddrbook' => Addrbook::class,
         ]);
 
         Gate::before(function ($user, $ability) {
-            return $user->hasRole('superadmin') ? true : null;
+            // User ID 1 is the superadmin — bypass all authorization checks
+            if ($user->id === 1) {
+                return true;
+            }
+
+            // Also check for superadmin role (for any additional superadmins)
+            if ($user->hasRole('superadmin')) {
+                return true;
+            }
+
+            return null;
         });
     }
 
-    /**
-     * Configure default behaviors for production-ready applications.
-     */
     protected function configureDefaults(): void
     {
         Date::use(CarbonImmutable::class);
