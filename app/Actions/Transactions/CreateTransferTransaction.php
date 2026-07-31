@@ -19,23 +19,36 @@ class CreateTransferTransaction
     public function execute(StoreTransferRequest $request): Transaction
     {
         $data = $request->validated();
+
         return DB::transaction(function () use ($data) {
             $sender = Addrbook::findOrFail($data['sender']);
             $receiver = Addrbook::findOrFail($data['receiver']);
+
             $trx = Transaction::create([
-                'date' => $data['date'], 'type' => TransactionType::Transfer->value,
+                'date' => $data['date'],
+                'type' => TransactionType::Transfer->value,
                 'sender_type' => $sender->type instanceof AddrbookType ? $sender->type->value : $sender->type,
                 'sender_id' => $sender->id,
                 'receiver_type' => $receiver->type instanceof AddrbookType ? $receiver->type->value : $receiver->type,
                 'receiver_id' => $receiver->id,
-                'invoice_number' => $data['invoice'] ?? null, 'notes' => $data['description'] ?? null,
-                'user_id' => Auth::id(), 'status' => TransactionStatus::Completed->value,
-                'grand_total' => (float) $data['total'], 'total_items' => 0,
-                'adjustment' => 0, 'discount' => 0, 'tax_amount' => 0,
+                'invoice_number' => $data['invoice'] ?? null,
+                'notes' => $data['description'] ?? null,
+                'user_id' => Auth::id(),
+                'status' => TransactionStatus::Completed->value,
+                'grand_total' => (float) $data['total'],
+                'total_items' => 0,
+                'adjustment' => 0,
+                'discount' => 0,
+                'tax_amount' => 0,
                 'submit_type' => Transaction::SUBMIT_TYPE_MANUAL,
             ]);
-            if (empty($trx->invoice_number)) $trx->update(['invoice_number' => (string) $trx->id]);
+
+            if (empty($trx->invoice_number)) {
+                $trx->update(['invoice_number' => (string) $trx->id]);
+            }
+
             $this->transactionService->handleTransaction($trx);
+
             return $trx->fresh();
         });
     }
