@@ -1,17 +1,35 @@
 <?php
 
+use App\Models\Addrbook;
+use App\Models\Transaction;
 use App\Models\User;
 
 /**
- * Smoke tests: every Blade-migrated page must render for a superadmin
- * without throwing (no 500s, no missing view/variable errors).
+ * Smoke tests: every Blade-migrated page must render without throwing.
+ *
+ * These catch missing view variables, enum/array handling mistakes and layout regressions
+ * that manual clicking tends to miss. The first user created gets id 1, which this app
+ * treats as the one and only superadmin, so it bypasses every Gate check.
  */
 beforeEach(function () {
-    $this->user = User::where('username', 'superadmin')->first();
+    $this->user = User::factory()->create();
 
-    if (! $this->user) {
-        $this->markTestSkipped('superadmin user not seeded.');
-    }
+    expect($this->user->is_superadmin)->toBeTrue();
+
+    $supplier  = Addrbook::factory()->supplier()->create(['name' => 'Test Supplier']);
+    $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'Test Warehouse']);
+
+    Transaction::factory()->create([
+        'type'           => Transaction::TYPE_BUY,
+        'invoice_number' => 'INV-SMOKE-1',
+        'sender_type'    => (string) Addrbook::TYPE_SUPPLIER,
+        'sender_id'      => $supplier->id,
+        'receiver_type'  => (string) Addrbook::TYPE_WAREHOUSE,
+        'receiver_id'    => $warehouse->id,
+        'grand_total'    => 1_000_000,
+        'total_items'    => 5,
+        'user_id'        => $this->user->id,
+    ]);
 });
 
 it('renders the dashboard', function () {
@@ -21,19 +39,27 @@ it('renders the dashboard', function () {
         ->assertSee('Dashboard', false);
 });
 
-it('renders the transactions index with seeded rows', function () {
+it('renders the transactions index with its rows', function () {
     $this->actingAs($this->user)
         ->get('/transactions')
         ->assertOk()
-        ->assertSee('Transactions', false)
-        ->assertSee('Grand Total', false);
+        ->assertSee('Grand Total', false)
+        ->assertSee('INV-SMOKE-1', false)
+        ->assertSee('Test Supplier', false);
 });
 
 it('sorts and filters the transactions index', function () {
     $this->actingAs($this->user)
-        ->get('/transactions?sort=grand_total&direction=asc&type=2')
+        ->get('/transactions?sort=grand_total&direction=asc&type='.Transaction::TYPE_BUY)
         ->assertOk()
-        ->assertSee('Grand Total', false);
+        ->assertSee('INV-SMOKE-1', false);
+});
+
+it('applies a filter that excludes every row without erroring', function () {
+    $this->actingAs($this->user)
+        ->get('/transactions?invoice_number=NOPE-DOES-NOT-EXIST')
+        ->assertOk()
+        ->assertDontSee('INV-SMOKE-1', false);
 });
 
 it('renders the create form for each item transaction type', function (string $type) {

@@ -2,3 +2,6 @@
 - [Aria transaction domain](aria-transaction-domain.md) — transaction type/status are backed enums, contacts are all one polymorphic `addrbooks` table; affects every view and query.
 - [Composer version pins](composer-php-version-pins.md) — two packages must stay downgraded because the environment runs PHP < 8.3/8.4.
 - [Auth & testing constraints](auth-testing-setup.md) — Gate::before bypass for user id 1/superadmin; RefreshDatabase required; Fortify logs in by username; @json() for values embedded in inline JS.
+- [Never point tests at the dev DB](laravel-test-db-safety.md) — RefreshDatabase is global on Feature tests, so overriding DB_DATABASE drops all seeded dev data.
+- [Don't rewrite existing providers](editing-existing-providers.md) — editing bootstrap files by full rewrite silently deletes observers, gates and prod guards; edit in place.
+- [Plain tables, not data grids](no-tabulator-decision.md) — owner rejected Tabulator on the transactions index; a merge reverted it once, so re-check after merges.

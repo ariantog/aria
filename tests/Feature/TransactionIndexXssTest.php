@@ -1,31 +1,52 @@
 <?php
 
 use App\Models\Addrbook;
+use App\Models\Transaction;
 use App\Models\User;
 
-it('escapes untrusted values in the Tabulator formatters', function () {
-    $this->actingAs(User::factory()->create());
+/**
+ * The transactions index is a plain server-rendered table, so every user-controlled value
+ * goes through Blade's `{{ }}` escaping. These tests pin that behaviour down: a stored
+ * payload in a contact name, invoice number or description must never reach the browser
+ * as live markup.
+ */
+it('escapes stored payloads in contact names, invoice numbers and descriptions', function () {
+    $user = User::factory()->create();
 
-    $response = $this->get(route('transactions.index'));
+    $payload = '<img src=x onerror=alert(1)>';
+
+    $sender = Addrbook::factory()->supplier()->create(['name' => $payload]);
+    $receiver = Addrbook::factory()->warehouse()->create(['name' => 'Safe Warehouse']);
+
+    Transaction::factory()->create([
+        'type'           => Transaction::TYPE_BUY,
+        'invoice_number' => $payload,
+        'description'    => $payload,
+        'sender_type'    => (string) Addrbook::TYPE_SUPPLIER,
+        'sender_id'      => $sender->id,
+        'receiver_type'  => (string) Addrbook::TYPE_WAREHOUSE,
+        'receiver_id'    => $receiver->id,
+        'user_id'        => $user->id,
+    ]);
+
+    $response = $this->actingAs($user)->get(route('transactions.index'));
     $response->assertOk();
 
-    // The escaping helper must exist and be applied to every user-controlled
-    // field interpolated into Tabulator HTML formatter strings.
-    $response->assertSee('function esc(v)', false);
-    $response->assertSee('${esc(v) || "-"}', false);       // invoice number
-    $response->assertSee('${esc(v)}</span>', false);        // description/notes
-    $response->assertSee('${esc(s.name)}', false);          // sender name
-    $response->assertSee('${esc(r.name)}', false);          // receiver name
+    $html = $response->getContent();
+
+    // The raw tag must never appear; only its escaped form.
+    expect($html)->not->toContain('<img src=x onerror=alert(1)>');
+    expect($html)->toContain('&lt;img src=x onerror=alert(1)&gt;');
 });
 
-it('returns raw JSON data leaving escaping to the client helper', function () {
+it('escapes a payload echoed back through the filter inputs', function () {
     $user = User::factory()->create();
-    $this->actingAs($user);
 
-    Addrbook::create(['name' => '<img src=x onerror=alert(1)>', 'type' => Addrbook::TYPE_CUSTOMER]);
+    $response = $this->actingAs($user)->get(route('transactions.index', [
+        'invoice_number' => '"><script>alert(1)</script>',
+    ]));
 
-    // JSON API returns data as-is (JSON-encoded, not HTML); the Blade view is
-    // responsible for escaping before inserting into the DOM — covered above.
-    $response = $this->getJson(route('transactions.index'));
-    $response->assertOk()->assertJsonStructure(['data', 'last_page', 'total']);
+    $response->assertOk();
+
+    expect($response->getContent())->not->toContain('<script>alert(1)</script>');
 });

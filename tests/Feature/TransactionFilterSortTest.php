@@ -7,6 +7,10 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
+/**
+ * The transactions index is a plain server-rendered table (no client-side data grid), so
+ * filtering and sorting are asserted against the rendered HTML rather than a JSON endpoint.
+ */
 class TransactionFilterSortTest extends TestCase
 {
     use RefreshDatabase;
@@ -17,23 +21,40 @@ class TransactionFilterSortTest extends TestCase
         $this->actingAs(User::factory()->create());
     }
 
+    /** Fetch the index page HTML for the given query string. */
+    private function indexHtml(array $query = []): string
+    {
+        $response = $this->get(route('transactions.index', $query));
+        $response->assertOk();
+
+        return $response->getContent();
+    }
+
+    /** Assert $first appears before $second in the rendered table. */
+    private function assertOrder(string $html, string $first, string $second): void
+    {
+        $posFirst = strpos($html, $first);
+        $posSecond = strpos($html, $second);
+
+        $this->assertNotFalse($posFirst, "Expected to find {$first} in the table.");
+        $this->assertNotFalse($posSecond, "Expected to find {$second} in the table.");
+        $this->assertLessThan($posSecond, $posFirst, "Expected {$first} to be listed before {$second}.");
+    }
+
     public function test_it_filters_by_date_range(): void
     {
         Transaction::factory()->create(['date' => '2023-01-01', 'invoice_number' => 'INV-001']);
         Transaction::factory()->create(['date' => '2023-01-15', 'invoice_number' => 'INV-002']);
         Transaction::factory()->create(['date' => '2023-02-01', 'invoice_number' => 'INV-003']);
 
-        $response = $this->getJson(route('transactions.index', [
-            'from' => '2023-01-01',
-            'to' => '2023-01-31',
-        ]));
+        $html = $this->indexHtml(['from' => '2023-01-01', 'to' => '2023-01-31']);
 
-        $response->assertStatus(200);
-        $data = $response->json('data');
+        $this->assertStringContainsString('INV-001', $html);
+        $this->assertStringContainsString('INV-002', $html);
+        $this->assertStringNotContainsString('INV-003', $html);
 
-        $this->assertCount(2, $data);
-        $this->assertEquals('INV-002', $data[0]['invoice_number']);
-        $this->assertEquals('INV-001', $data[1]['invoice_number']);
+        // Default ordering is newest first.
+        $this->assertOrder($html, 'INV-002', 'INV-001');
     }
 
     public function test_it_filters_by_type(): void
@@ -41,27 +62,23 @@ class TransactionFilterSortTest extends TestCase
         Transaction::factory()->create(['type' => Transaction::TYPE_BUY, 'invoice_number' => 'BUY-1']);
         Transaction::factory()->create(['type' => Transaction::TYPE_SELL, 'invoice_number' => 'SELL-1']);
 
-        $response = $this->getJson(route('transactions.index', ['type' => Transaction::TYPE_BUY]));
+        $html = $this->indexHtml(['type' => Transaction::TYPE_BUY]);
 
-        $data = $response->json('data');
-        $this->assertCount(1, $data);
-        $this->assertEquals('BUY-1', $data[0]['invoice_number']);
+        $this->assertStringContainsString('BUY-1', $html);
+        $this->assertStringNotContainsString('SELL-1', $html);
     }
 
     public function test_it_filters_by_grand_total_range(): void
     {
-        Transaction::factory()->create(['grand_total' => 50000]);
-        Transaction::factory()->create(['grand_total' => 150000]);
-        Transaction::factory()->create(['grand_total' => 250000]);
+        Transaction::factory()->create(['grand_total' => 50000, 'invoice_number' => 'LOW']);
+        Transaction::factory()->create(['grand_total' => 150000, 'invoice_number' => 'MID']);
+        Transaction::factory()->create(['grand_total' => 250000, 'invoice_number' => 'HIGH']);
 
-        $response = $this->getJson(route('transactions.index', [
-            'min_total' => 100000,
-            'max_total' => 200000,
-        ]));
+        $html = $this->indexHtml(['min_total' => 100000, 'max_total' => 200000]);
 
-        $data = $response->json('data');
-        $this->assertCount(1, $data);
-        $this->assertEquals(150000, $data[0]['grand_total']);
+        $this->assertStringContainsString('MID', $html);
+        $this->assertStringNotContainsString('>LOW<', $html);
+        $this->assertStringNotContainsString('>HIGH<', $html);
     }
 
     public function test_it_filters_by_specific_invoice_number(): void
@@ -69,24 +86,30 @@ class TransactionFilterSortTest extends TestCase
         Transaction::factory()->create(['invoice_number' => 'TRX-999']);
         Transaction::factory()->create(['invoice_number' => 'TRX-000']);
 
-        $response = $this->getJson(route('transactions.index', ['invoice_number' => '999']));
+        $html = $this->indexHtml(['invoice_number' => '999']);
 
-        $data = $response->json('data');
-        $this->assertCount(1, $data);
-        $this->assertEquals('TRX-999', $data[0]['invoice_number']);
+        $this->assertStringContainsString('TRX-999', $html);
+        $this->assertStringNotContainsString('TRX-000', $html);
     }
 
     public function test_it_sorts_by_column(): void
     {
-        Transaction::factory()->create(['grand_total' => 100, 'invoice_number' => 'INV-1']);
-        Transaction::factory()->create(['grand_total' => 200, 'invoice_number' => 'INV-2']);
+        Transaction::factory()->create(['grand_total' => 100, 'invoice_number' => 'INV-CHEAP']);
+        Transaction::factory()->create(['grand_total' => 200, 'invoice_number' => 'INV-PRICEY']);
 
-        $response = $this->getJson(route('transactions.index', [
-            'sort' => 'grand_total',
-            'direction' => 'asc',
-        ]));
+        $ascending = $this->indexHtml(['sort' => 'grand_total', 'direction' => 'asc']);
+        $this->assertOrder($ascending, 'INV-CHEAP', 'INV-PRICEY');
 
-        $data = $response->json('data');
-        $this->assertEquals(100, $data[0]['grand_total']);
+        $descending = $this->indexHtml(['sort' => 'grand_total', 'direction' => 'desc']);
+        $this->assertOrder($descending, 'INV-PRICEY', 'INV-CHEAP');
+    }
+
+    public function test_it_shows_an_empty_state_when_nothing_matches(): void
+    {
+        Transaction::factory()->create(['invoice_number' => 'TRX-001']);
+
+        $html = $this->indexHtml(['invoice_number' => 'NO-SUCH-INVOICE']);
+
+        $this->assertStringNotContainsString('TRX-001', $html);
     }
 }
