@@ -93,10 +93,18 @@ class UpdateTransactionSummaries implements ShouldQueue
     private function updateStatSell(Transaction $transaction): void
     {
         if (! in_array($transaction->type, [TransactionType::Sell, TransactionType::Return], true)) return;
+        $driver = DB::connection()->getDriverName();
+        if ($driver === 'sqlite') {
+            $monthExpr = "CAST(strftime('%m', transaction_details.date) AS INTEGER)";
+            $yearExpr = "CAST(strftime('%Y', transaction_details.date) AS INTEGER)";
+        } else {
+            $monthExpr = 'MONTH(transaction_details.date)';
+            $yearExpr = 'YEAR(transaction_details.date)';
+        }
         $result = DB::table('transaction_details')->where('transaction_details.transaction_id', $transaction->id)
             ->join('items', 'transaction_details.item_id', '=', 'items.id')
-            ->selectRaw('items.group_id, MONTH(transaction_details.date) as bulan, YEAR(transaction_details.date) as tahun, transaction_details.sender_id, transaction_details.transaction_type as type, SUM(transaction_details.quantity) as sum_qty, SUM(transaction_details.total) as sum_total')
-            ->groupBy('items.group_id', DB::raw('MONTH(transaction_details.date)'), DB::raw('YEAR(transaction_details.date)'), 'transaction_details.sender_id', 'transaction_details.transaction_type')->get();
+            ->selectRaw("items.group_id, {$monthExpr} as bulan, {$yearExpr} as tahun, transaction_details.sender_id, transaction_details.transaction_type as type, SUM(transaction_details.quantity) as sum_qty, SUM(transaction_details.total) as sum_total")
+            ->groupBy('items.group_id', DB::raw($monthExpr), DB::raw($yearExpr), 'transaction_details.sender_id', 'transaction_details.transaction_type')->get();
         foreach ($result as $row) {
             DB::table('stat_sells')->updateOrInsert(
                 ['group_id' => $row->group_id, 'bulan' => $row->bulan, 'tahun' => $row->tahun, 'sender_id' => $row->sender_id, 'type' => $row->type],

@@ -25,7 +25,7 @@ class GajiController extends Controller
             ->orderBy('tahun', 'desc')
             ->orderBy('bulan', 'desc');
 
-        if (auth()->user() && ! auth()->user()->hasRole('superadmin')) {
+        if (auth()->user() && ! auth()->user()->is_superadmin) {
             $query->whereHas('karyawan', function ($q) {
                 $q->where('flag', 1);
             });
@@ -61,7 +61,7 @@ class GajiController extends Controller
     {
         Gate::authorize(Karyawan::getPermissions()['gaji-create']);
 
-        if (auth()->user() && ! auth()->user()->hasRole('superadmin') && $karyawan->flag == 2) {
+        if (auth()->user() && ! auth()->user()->is_superadmin && $karyawan->flag == 2) {
             abort(404);
         }
 
@@ -141,7 +141,7 @@ class GajiController extends Controller
     {
         Gate::authorize(Karyawan::getPermissions()['gaji-create']);
 
-        if (auth()->user() && ! auth()->user()->hasRole('superadmin') && $karyawan->flag == 2) {
+        if (auth()->user() && ! auth()->user()->is_superadmin && $karyawan->flag == 2) {
             abort(404);
         }
 

@@ -6,12 +6,12 @@ use App\Models\Addrbook;
 use App\Models\Item;
 use App\Models\Transaction;
 use App\Models\User;
-use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class TransactionInvoiceNumberTest extends TestCase
 {
-    use DatabaseTransactions;
+    use RefreshDatabase;
 
     public function test_invoice_number_defaults_to_id_when_empty()
     {
@@ -51,9 +51,9 @@ class TransactionInvoiceNumberTest extends TestCase
             ],
         ]);
 
-        $response->assertRedirect(route('transactions.index'));
-
         $transaction = Transaction::first();
+        $response->assertRedirect(route('transactions.show', $transaction));
+
         $this->assertEquals($transaction->id, $transaction->invoice_number);
         $this->assertEquals('Test transaction note', $transaction->notes);
     }
@@ -126,9 +126,9 @@ class TransactionInvoiceNumberTest extends TestCase
             ],
         ]);
 
-        $response->assertRedirect(route('transactions.index'));
-
         $transaction = Transaction::latest('id')->first();
+
+        $response->assertRedirect(route('transactions.show', $transaction));
 
         // Assert it defaults to the IDs from config or fallback constants
         // In the test, we omitted type, so it uses default from config or whatever store logic does.

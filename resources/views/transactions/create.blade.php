@@ -79,7 +79,7 @@
                             {{ $config['sender_label'] }} <span class="text-red-500">*</span>
                         </label>
                         <div x-data="asyncCombobox({
-                            endpoint: '{{ $config['sender_route'] }}',
+                            endpoint: @json($config['sender_route']),
                             placeholder: 'Select {{ $config['sender_label'] }}...',
                             onSelect: (item) => { $root.form.sender_id = item ? String(item.id) : ''; $root.form.sender = item; $root.recalcTotals(); }
                         })" class="relative">
@@ -121,7 +121,7 @@
                             {{ $config['receiver_label'] }} <span class="text-red-500">*</span>
                         </label>
                         <div x-data="asyncCombobox({
-                            endpoint: '{{ $config['receiver_route'] }}',
+                            endpoint: @json($config['receiver_route']),
                             placeholder: 'Select {{ $config['receiver_label'] }}...',
                             onSelect: (item) => { $root.form.receiver_id = item ? String(item.id) : ''; $root.form.receiver = item; $root.recalcTotals(); }
                         })" class="relative">
@@ -338,7 +338,7 @@
                     queryParam: 'search',
                     additionalParams: { json: true, type: '1,2' },
                     placeholder: 'Search item by name or code…',
-                    onSelect: (item) => { if(item) $root.pendingItem = {...item, quantity: 1, price: item.price || 0, discount: 0 } }
+                    onSelect: (item) => { if(item) $root.pendingItem = {...item, quantity: 1, price: Number(item[_PriceSource] ?? item.price) || 0, discount: 0 } }
                 })" class="relative">
                     <label class="block text-sm font-medium text-gray-700 mb-1">Item</label>
                     <div class="relative flex h-10 overflow-hidden rounded-lg border border-gray-300 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500">
@@ -416,6 +416,7 @@
 const _PPNRate = {{ $ppn_rate }};
 const _TxType  = '{{ $type }}';
 const _MinDate = '{{ $min_date ?? '' }}';
+const _PriceSource = @json($config['price_source'] ?? 'price');
 
 function createTransaction() {
     const today = new Date().toISOString().split('T')[0];

@@ -5,7 +5,6 @@ use App\Models\Addrbook;
 use App\Models\Item;
 use App\Models\User;
 
-uses(\Illuminate\Foundation\Testing\DatabaseTransactions::class);
 
 beforeEach(function () { $this->user = User::factory()->create(); });
 

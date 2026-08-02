@@ -19,4 +19,19 @@ class AddrbookFactory extends Factory
             'address' => $this->faker->address(),
         ];
     }
+
+    public function warehouse(): static
+    {
+        return $this->state(fn () => ['type' => Addrbook::TYPE_WAREHOUSE]);
+    }
+
+    public function customer(): static
+    {
+        return $this->state(fn () => ['type' => Addrbook::TYPE_CUSTOMER]);
+    }
+
+    public function supplier(): static
+    {
+        return $this->state(fn () => ['type' => Addrbook::TYPE_SUPPLIER]);
+    }
 }

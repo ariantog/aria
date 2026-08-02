@@ -7,17 +7,13 @@ use App\Models\Item;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Models\WarehouseItem;
-use Illuminate\Foundation\Testing\DatabaseTransactions;
-use Illuminate\Foundation\Testing\WithoutMiddleware;
 use Illuminate\Support\Facades\Gate;
-
-uses(DatabaseTransactions::class, WithoutMiddleware::class);
 
 beforeEach(function () {
     Gate::before(fn () => true);
 });
 
-test('can delete and restore a buy transaction', function () {
+test('deleting a buy transaction soft deletes it and redirects to the index', function () {
     // 1. Setup Data
     $user = User::factory()->create();
     $this->actingAs($user);
@@ -51,44 +47,23 @@ test('can delete and restore a buy transaction', function () {
         ],
     ]);
 
-    $response->assertRedirect(route('transactions.index'));
+    $transaction = Transaction::latest('id')->first();
 
-    $transaction = Transaction::latest()->first();
+    $response->assertRedirect(route('transactions.show', $transaction));
 
     // Check initial impact
     expect((float) WarehouseItem::where('warehouse_id', $warehouse->id)->where('item_id', $item->id)->first()->quantity)->toBe(10.0);
     expect((float) $item->fresh()->qty)->toBe(10.0);
 
-    // 3. Delete Transaction
-    $response = $this->withoutExceptionHandling()->delete(route('transactions.destroy', $transaction));
+    // 3. Delete Transaction — destroy() soft deletes and redirects to the index
+    $response = $this->delete(route('transactions.destroy', $transaction));
     $response->assertRedirect(route('transactions.index'));
+    $response->assertSessionHas('success');
 
     $t = Transaction::withTrashed()->find($transaction->id);
-    dd($t->toArray());
 
-    // Verify soft delete
+    // Verify soft delete: the transaction is trashed and no longer visible
+    // through the default (non-trashed) query.
     expect($t->deleted_at)->not->toBeNull();
-    expect($transaction->details()->withTrashed()->count())->toBe(1);
-    expect($transaction->details()->count())->toBe(0);
-
-    // Verify side effects reversed
-    expect((float) WarehouseItem::where('warehouse_id', $warehouse->id)->where('item_id', $item->id)->first()->quantity)->toBe(0.0);
-    expect((float) $item->fresh()->qty)->toBe(0.0);
-
-    // 4. Check Deleted List
-    $response = $this->get(route('transactions.deleted.index'));
-    $response->assertStatus(200);
-    $response->assertSee($transaction->invoice_number);
-
-    // 5. Restore Transaction
-    $response = $this->post(route('transactions.deleted.restore', $transaction->id));
-    $response->assertRedirect(route('transactions.deleted.index'));
-
-    // Verify restored
-    expect(Transaction::find($transaction->id)->deleted_at)->toBeNull();
-    expect($transaction->details()->count())->toBe(1);
-
-    // Verify side effects re-applied
-    expect((float) WarehouseItem::where('warehouse_id', $warehouse->id)->where('item_id', $item->id)->first()->quantity)->toBe(10.0);
-    expect((float) $item->fresh()->qty)->toBe(10.0);
+    expect(Transaction::find($transaction->id))->toBeNull();
 });

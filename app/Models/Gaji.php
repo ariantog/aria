@@ -15,11 +15,10 @@ class Gaji extends Model
 
     public function karyawan()
     {
-        $role = Auth::user() && count(Auth::user()->getRoleNames()) > 0 ? Auth::user()->getRoleNames()[0] : null;
-
         $data = $this->belongsTo(Karyawan::class, 'karyawan_id', 'id');
 
-        if ($role != 'superadmin' && $role != null) {
+        // User ID 1 is the one and only superadmin; other users with a role only see active karyawan.
+        if (Auth::user() && ! Auth::user()->is_superadmin && count(Auth::user()->getRoleNames()) > 0) {
             $data = $data->where('flag', 1);
         }
 

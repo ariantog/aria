@@ -3,9 +3,7 @@
 use App\Models\Addrbook;
 use App\Models\Transaction;
 use App\Models\User;
-use Illuminate\Foundation\Testing\DatabaseTransactions;
 
-uses(DatabaseTransactions::class);
 
 test('cash in transaction can be stored', function () {
     $user = User::factory()->create();
@@ -25,7 +23,8 @@ test('cash in transaction can be stored', function () {
         ],
     ]);
 
-    $response->assertRedirect(route('transactions.index'));
+    $lastTransaction = Transaction::latest('id')->first();
+    $response->assertRedirect(route('transactions.show', $lastTransaction));
 
     $this->assertDatabaseHas('transactions', [
         'type' => Transaction::TYPE_CASH_IN,

@@ -3,10 +3,8 @@
 use App\Models\Addrbook;
 use App\Models\MonthlyCategorySummary;
 use App\Models\User;
-use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Spatie\Permission\Models\Permission;
 
-uses(DatabaseTransactions::class);
 
 test('cash flow report can be viewed', function () {
     // 1. Setup

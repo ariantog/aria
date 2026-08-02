@@ -27,7 +27,9 @@
         }
     </script>
 
+    {{-- Tabulator CSS (only loaded when @stack('tabulator-css') is pushed) --}}
     @stack('head-css')
+    <link rel="stylesheet" href="https://unpkg.com/tabulator-tables@6.3.1/dist/css/tabulator_simple.min.css">
     <style>
         :root {
             --sidebar-background: 0 0% 98%;
@@ -43,6 +45,21 @@
         /* Sidebar transition */
         #sidebar { transition: width 0.2s ease, transform 0.2s ease; }
         #main-content { transition: margin-left 0.2s ease; }
+
+        /* Tabulator overrides to match app style */
+        .tabulator { border: none; background: transparent; font-size: 13px; }
+        .tabulator .tabulator-header { background: #f9fafb; border-bottom: 1px solid #e5e7eb; }
+        .tabulator .tabulator-header .tabulator-col { background: #f9fafb; border-right: none; }
+        .tabulator .tabulator-header .tabulator-col .tabulator-col-content { padding: 10px 8px; }
+        .tabulator .tabulator-tableHolder .tabulator-table .tabulator-row { border-bottom: 1px solid #f3f4f6; }
+        .tabulator .tabulator-tableHolder .tabulator-table .tabulator-row .tabulator-cell { padding: 10px 8px; border-right: none; }
+        .tabulator .tabulator-tableHolder .tabulator-table .tabulator-row:hover { background: #f9fafb; }
+        .tabulator-footer { background: #f9fafb; border-top: 1px solid #e5e7eb; padding: 8px; }
+        .tabulator-footer .tabulator-paginator { display: flex; align-items: center; gap: 4px; }
+        .tabulator-footer .tabulator-page { padding: 4px 8px; border: 1px solid #e5e7eb; border-radius: 4px; font-size: 12px; cursor: pointer; background: white; }
+        .tabulator-footer .tabulator-page.active { background: #1e3a8a; color: white; border-color: #1e3a8a; }
+        .tabulator-footer .tabulator-page:disabled { opacity: 0.4; cursor: not-allowed; }
+        .tabulator-footer .tabulator-page-size { padding: 4px 6px; border: 1px solid #e5e7eb; border-radius: 4px; font-size: 12px; }
 
         /* Autocomplete dropdown */
         .combobox-options {
@@ -219,6 +236,8 @@
 
 {{-- Alpine.js CDN --}}
 <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+{{-- Tabulator --}}
+<script src="https://unpkg.com/tabulator-tables@6.3.1/dist/js/tabulator.min.js"></script>
 
 <script>
 function appShell() {
@@ -265,7 +284,8 @@ function asyncCombobox(config) {
             this.debounceTimer = setTimeout(async () => {
                 try {
                     const params = new URLSearchParams({ [this.queryParam]: q, json: true, ...this.additionalParams });
-                    const res = await fetch(`${this.endpoint}?${params}`, {
+                    const sep = this.endpoint.includes('?') ? '&' : '?';
+                    const res = await fetch(`${this.endpoint}${sep}${params}`, {
                         headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
                     });
                     const data = await res.json();

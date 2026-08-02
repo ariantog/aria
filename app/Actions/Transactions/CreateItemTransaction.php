@@ -42,6 +42,8 @@ class CreateItemTransaction
     {
         if (! $type->hasItems()) return;
         $senderType = $sender->type instanceof AddrbookType ? $sender->type : AddrbookType::from($sender->type);
+        // Stock can only be checked when the sender is a warehouse (buy senders are suppliers, etc.)
+        if (! $senderType->isWarehouse()) return;
         if ($senderType->allowsNegativeStock()) return;
 
         $insufficient = [];
@@ -60,6 +62,7 @@ class CreateItemTransaction
     {
         $trx = Transaction::create([
             'date' => $data['date'], 'type' => $type->value,
+            'due_date' => $data['due_date'] ?? null,
             'sender_type' => $sender->type instanceof AddrbookType ? $sender->type->value : $sender->type,
             'sender_id' => $sender->id,
             'receiver_type' => $receiver->type instanceof AddrbookType ? $receiver->type->value : $receiver->type,
@@ -69,6 +72,7 @@ class CreateItemTransaction
             'grand_total' => 0, 'total_items' => 0,
             'adjustment' => $data['adjustment'] ?? 0,
             'submit_type' => Transaction::SUBMIT_TYPE_MANUAL,
+            'invoice_number' => ! empty($data['invoice_number']) ? $data['invoice_number'] : null,
         ]);
         if (empty($trx->invoice_number)) $trx->update(['invoice_number' => (string) $trx->id]);
         return $trx;

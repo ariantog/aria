@@ -6,12 +6,12 @@ use App\Models\Addrbook;
 use App\Models\Item;
 use App\Models\Location;
 use App\Models\User;
-use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class ItemGlobalStockTest extends TestCase
 {
-    use DatabaseTransactions;
+    use RefreshDatabase;
 
     public function test_buy_transaction_increases_global_qty()
     {

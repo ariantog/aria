@@ -3,9 +3,7 @@
 use App\Models\Addrbook;
 use App\Models\Transaction;
 use App\Models\User;
-use Illuminate\Foundation\Testing\DatabaseTransactions;
 
-uses(DatabaseTransactions::class);
 
 test('adjust transaction can be stored and updates balances', function () {
     $user = User::factory()->create();
@@ -24,7 +22,8 @@ test('adjust transaction can be stored and updates balances', function () {
         'description' => 'Correction',
     ]);
 
-    $response->assertRedirect(route('transactions.index'));
+    $lastTransaction = Transaction::latest('id')->first();
+    $response->assertRedirect(route('transactions.show', $lastTransaction));
 
     $this->assertDatabaseHas('transactions', [
         'type' => Transaction::TYPE_ADJUST,
@@ -46,32 +45,27 @@ test('adjust transaction can be stored and updates balances', function () {
     ]);
 });
 
-test('adjust fails if both are accounts', function () {
+test('adjust fails if sender and receiver are the same', function () {
     $user = User::factory()->create();
-    $account1 = Addrbook::factory()->create(['type' => Addrbook::TYPE_ACCOUNT]);
-    $account2 = Addrbook::factory()->create(['type' => Addrbook::TYPE_ACCOUNT]);
+    $account = Addrbook::factory()->create(['type' => Addrbook::TYPE_ACCOUNT]);
 
     $response = $this->actingAs($user)->post(route('transactions.adjust.store'), [
         'date' => now()->format('Y-m-d'),
-        'sender' => $account1->id,
-        'receiver' => $account2->id,
+        'sender' => $account->id,
+        'receiver' => $account->id,
         'total' => 1000,
     ]);
 
     $response->assertSessionHasErrors(['receiver']);
 });
 
-test('adjust fails if neither is account', function () {
+test('adjust requires sender and receiver', function () {
     $user = User::factory()->create();
-    $customer = Addrbook::factory()->create(['type' => Addrbook::TYPE_CUSTOMER]);
-    $supplier = Addrbook::factory()->create(['type' => Addrbook::TYPE_SUPPLIER]);
 
     $response = $this->actingAs($user)->post(route('transactions.adjust.store'), [
         'date' => now()->format('Y-m-d'),
-        'sender' => $customer->id,
-        'receiver' => $supplier->id,
         'total' => 1000,
     ]);
 
-    $response->assertSessionHasErrors(['sender']);
+    $response->assertSessionHasErrors(['sender', 'receiver']);
 });

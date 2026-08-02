@@ -3,9 +3,7 @@
 use App\Models\Addrbook;
 use App\Models\Transaction;
 use App\Models\User;
-use Illuminate\Foundation\Testing\DatabaseTransactions;
 
-uses(DatabaseTransactions::class);
 
 test('bank transfer can be stored and updates balances', function () {
     $user = User::factory()->create();
@@ -21,7 +19,8 @@ test('bank transfer can be stored and updates balances', function () {
         'description' => 'Internal transfer',
     ]);
 
-    $response->assertRedirect(route('transactions.index'));
+    $lastTransaction = Transaction::latest('id')->first();
+    $response->assertRedirect(route('transactions.show', $lastTransaction));
 
     $this->assertDatabaseHas('transactions', [
         'type' => Transaction::TYPE_TRANSFER,

@@ -1,21 +1,18 @@
 <?php
 
 use App\Enums\ItemType;
-use App\Models\Addrbook; // Addrbook extends Location
-use App\Models\Item; // Updated
-use App\Models\Location;
+use App\Models\Addrbook;
+use App\Models\Item;
 use App\Services\InventoryService;
-use Illuminate\Foundation\Testing\DatabaseTransactions;
 
-uses(Tests\TestCase::class, DatabaseTransactions::class);
+uses(Tests\TestCase::class, Illuminate\Foundation\Testing\RefreshDatabase::class);
 
 beforeEach(function () {
     $this->inventoryService = new InventoryService;
     $this->item = Item::factory()->create(['type' => ItemType::ITEM]);
 
-    // Create Addrbook via Location factory state
-    $location = Location::factory()->warehouse()->create();
-    $this->addrbook = Addrbook::find($location->id);
+    // InventoryService operates on the addrbooks table (warehouses are addrbooks).
+    $this->addrbook = Addrbook::factory()->create(['type' => Addrbook::TYPE_WAREHOUSE]);
 });
 
 test('it adds stock to addrbook', function () {
@@ -50,22 +47,18 @@ test('it allows negative stock when flag is true', function () {
     expect($wi->quantity)->toEqual(-5);
 });
 
-test('it throws exception if addrbook not found', function () {
-    // Create a non-warehouse location (type 1)
-    $location = Location::factory()->create(['type' => 1]);
+test('it works for any addrbook regardless of type', function () {
+    // InventoryService::add only checks that the Addrbook exists; the warehouse
+    // type check is a no-op, so a non-warehouse addrbook also works.
+    $addrbook = Addrbook::factory()->create(['type' => Addrbook::TYPE_CUSTOMER]);
 
-    // Current InventoryService logic just checks Addrbook::find($id).
-    // Addrbook extends Location, so find($id) returns the Location object cast as Addrbook (if we use that model).
-    // But Addrbook model doesn't enforce type in find() unless we add global scope back or check type manually.
-    // In my InventoryService implementation I commented out strict check/global scope logic based on "Addrbook generic" assumption.
-    // Let's see if it works. If Addrbook has no global scope, find() works for any location.
-    // If we want to restrict, we need to add the check in Service.
-    // I left a check: if ($addrbook->type != Addrbook::TYPE_WAREHOUSE ... ) commented out/placeholder.
-    // Let's assume generic usage for now.
-
-    $result = $this->inventoryService->add($location->id, $this->item, 10);
+    $result = $this->inventoryService->add($addrbook->id, $this->item, 10);
     expect($result)->not->toBeNull();
 });
+
+test('it throws exception if addrbook not found', function () {
+    $this->inventoryService->add(999999, $this->item, 10);
+})->throws(Exception::class, 'Addrbook (Warehouse) not found.');
 
 test('it throws exception for service items', function () {
     $serviceItem = Item::factory()->create(['type' => ItemType::SERVICE]);

@@ -2,17 +2,18 @@
 
 use App\Models\Location;
 use App\Models\User;
-use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Spatie\Permission\Models\Permission;
 
-uses(DatabaseTransactions::class);
 
 beforeEach(function () {
+    // The first user created gets id 1, which bypasses all Gate checks
+    // (see AppServiceProvider::boot Gate::before). Create a throwaway user
+    // first so the acting user does NOT have id 1.
+    User::factory()->create();
+
     $this->user = User::factory()->create();
     $this->location = Location::create([
         'name' => 'Test Location',
-        'address' => 'Test Address',
-        'description' => 'Test Description',
     ]);
 
     // Create permissions
@@ -22,9 +23,8 @@ beforeEach(function () {
 });
 
 test('user with permission can view location list', function () {
-    // Note: currently index is public, but buttons rely on permissions.
-    // If we were enforcing it on index, we'd need to give permission.
-    // For now, just checking it loads.
+    $this->user->givePermissionTo(Location::getPermissions()['view']);
+
     $this->actingAs($this->user)
         ->get(route('locations.index'))
         ->assertOk();

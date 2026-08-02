@@ -25,7 +25,7 @@ class KaryawanController extends Controller
             $query->where('nama', 'LIKE', "%{$request->name}%");
         }
 
-        if (auth()->user() && ! auth()->user()->hasRole('superadmin')) {
+        if (auth()->user() && ! auth()->user()->is_superadmin) {
             $query->where('flag', 1);
         }
 
@@ -81,7 +81,7 @@ class KaryawanController extends Controller
     {
         Gate::authorize(Karyawan::getPermissions()['edit']);
 
-        if (auth()->user() && ! auth()->user()->hasRole('superadmin')) {
+        if (auth()->user() && ! auth()->user()->is_superadmin) {
             if ($karyawan->flag == 2) {
                 abort(404);
             }
@@ -119,7 +119,7 @@ class KaryawanController extends Controller
     {
         Gate::authorize(Karyawan::getPermissions()['list']);
 
-        if (auth()->user() && ! auth()->user()->hasRole('superadmin') && $karyawan->flag == 2) {
+        if (auth()->user() && ! auth()->user()->is_superadmin && $karyawan->flag == 2) {
             abort(404);
         }
 

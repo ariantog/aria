@@ -44,13 +44,8 @@ class AppServiceProvider extends ServiceProvider
         ]);
 
         Gate::before(function ($user, $ability) {
-            // User ID 1 is the superadmin — bypass all authorization checks
-            if ($user->id === 1) {
-                return true;
-            }
-
-            // Also check for superadmin role (for any additional superadmins)
-            if ($user->hasRole('superadmin')) {
+            // User ID 1 is the one and only superadmin — bypass all authorization checks
+            if ($user->is_superadmin) {
                 return true;
             }
 

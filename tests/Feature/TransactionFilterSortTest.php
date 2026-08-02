@@ -4,12 +4,12 @@ namespace Tests\Feature;
 
 use App\Models\Transaction;
 use App\Models\User;
-use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class TransactionFilterSortTest extends TestCase
 {
-    use DatabaseTransactions;
+    use RefreshDatabase;
 
     protected function setUp(): void
     {
@@ -23,13 +23,13 @@ class TransactionFilterSortTest extends TestCase
         Transaction::factory()->create(['date' => '2023-01-15', 'invoice_number' => 'INV-002']);
         Transaction::factory()->create(['date' => '2023-02-01', 'invoice_number' => 'INV-003']);
 
-        $response = $this->get(route('transactions.index', [
+        $response = $this->getJson(route('transactions.index', [
             'from' => '2023-01-01',
             'to' => '2023-01-31',
         ]));
 
         $response->assertStatus(200);
-        $data = $response->original->getData()['page']['props']['transactions']['data'];
+        $data = $response->json('data');
 
         $this->assertCount(2, $data);
         $this->assertEquals('INV-002', $data[0]['invoice_number']);
@@ -41,9 +41,9 @@ class TransactionFilterSortTest extends TestCase
         Transaction::factory()->create(['type' => Transaction::TYPE_BUY, 'invoice_number' => 'BUY-1']);
         Transaction::factory()->create(['type' => Transaction::TYPE_SELL, 'invoice_number' => 'SELL-1']);
 
-        $response = $this->get(route('transactions.index', ['type' => Transaction::TYPE_BUY]));
+        $response = $this->getJson(route('transactions.index', ['type' => Transaction::TYPE_BUY]));
 
-        $data = $response->original->getData()['page']['props']['transactions']['data'];
+        $data = $response->json('data');
         $this->assertCount(1, $data);
         $this->assertEquals('BUY-1', $data[0]['invoice_number']);
     }
@@ -54,12 +54,12 @@ class TransactionFilterSortTest extends TestCase
         Transaction::factory()->create(['grand_total' => 150000]);
         Transaction::factory()->create(['grand_total' => 250000]);
 
-        $response = $this->get(route('transactions.index', [
+        $response = $this->getJson(route('transactions.index', [
             'min_total' => 100000,
             'max_total' => 200000,
         ]));
 
-        $data = $response->original->getData()['page']['props']['transactions']['data'];
+        $data = $response->json('data');
         $this->assertCount(1, $data);
         $this->assertEquals(150000, $data[0]['grand_total']);
     }
@@ -69,9 +69,9 @@ class TransactionFilterSortTest extends TestCase
         Transaction::factory()->create(['invoice_number' => 'TRX-999']);
         Transaction::factory()->create(['invoice_number' => 'TRX-000']);
 
-        $response = $this->get(route('transactions.index', ['invoice_number' => '999']));
+        $response = $this->getJson(route('transactions.index', ['invoice_number' => '999']));
 
-        $data = $response->original->getData()['page']['props']['transactions']['data'];
+        $data = $response->json('data');
         $this->assertCount(1, $data);
         $this->assertEquals('TRX-999', $data[0]['invoice_number']);
     }
@@ -81,12 +81,12 @@ class TransactionFilterSortTest extends TestCase
         Transaction::factory()->create(['grand_total' => 100, 'invoice_number' => 'INV-1']);
         Transaction::factory()->create(['grand_total' => 200, 'invoice_number' => 'INV-2']);
 
-        $response = $this->get(route('transactions.index', [
+        $response = $this->getJson(route('transactions.index', [
             'sort' => 'grand_total',
             'direction' => 'asc',
         ]));
 
-        $data = $response->original->getData()['page']['props']['transactions']['data'];
+        $data = $response->json('data');
         $this->assertEquals(100, $data[0]['grand_total']);
     }
 }

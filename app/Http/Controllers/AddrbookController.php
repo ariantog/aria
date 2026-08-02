@@ -86,8 +86,9 @@ class AddrbookController extends Controller
         return redirect()->route('addrbook.index')->with('success', 'Created.');
     }
 
-    public function show(Addrbook $a)
+    public function show(Addrbook $addrbook)
     {
+        $a = $addrbook;
         $slug = $this->addrbookTypeSlug($a);
         Gate::authorize(Addrbook::getPermissions($slug)['view']);
 
@@ -115,14 +116,15 @@ class AddrbookController extends Controller
         ]);
     }
 
-    public function showType(string $t, Addrbook $a) { return $this->show($a); }
-    public function transactionsType(string $t, Addrbook $a) { return $this->transactions($a->id); }
-    public function itemsType(string $t, Addrbook $a) { return $this->items($a->id); }
-    public function statType(string $t, Addrbook $a) { return $this->stat($a->id); }
-    public function itemSalesType(string $t, Addrbook $a) { return $this->itemSales($a->id); }
+    public function showType(string $type, Addrbook $addrbook) { return $this->show($addrbook); }
+    public function transactionsType(string $type, Addrbook $addrbook) { return $this->transactions($addrbook->id); }
+    public function itemsType(string $type, Addrbook $addrbook) { return $this->items($addrbook->id); }
+    public function statType(string $type, Addrbook $addrbook) { return $this->stat($addrbook->id); }
+    public function itemSalesType(string $type, Addrbook $addrbook) { return $this->itemSales($addrbook->id); }
 
-    public function edit(Addrbook $a)
+    public function edit(Addrbook $addrbook)
     {
+        $a = $addrbook;
         Gate::authorize(Addrbook::getPermissions($this->addrbookTypeSlug($a))['edit']);
 
         return Inertia::render('Addrbook/Edit', [
@@ -132,10 +134,11 @@ class AddrbookController extends Controller
         ]);
     }
 
-    public function editType(string $t, Addrbook $a) { return $this->edit($a); }
+    public function editType(string $type, Addrbook $addrbook) { return $this->edit($addrbook); }
 
-    public function update(UpdateAddrbookRequest $r, Addrbook $a)
+    public function update(UpdateAddrbookRequest $r, Addrbook $addrbook)
     {
+        $a = $addrbook;
         Gate::authorize(Addrbook::getPermissions($this->addrbookTypeSlug($a))['edit']);
         $a->update($r->validated());
 
@@ -298,8 +301,9 @@ class AddrbookController extends Controller
         ]);
     }
 
-    public function destroy(Addrbook $a)
+    public function destroy(Addrbook $addrbook)
     {
+        $a = $addrbook;
         Gate::authorize(Addrbook::getPermissions($this->addrbookTypeSlug($a))['delete']);
         $a->delete();
 

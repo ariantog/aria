@@ -6,12 +6,12 @@ use App\Models\Addrbook;
 use App\Models\Item;
 use App\Models\User;
 use App\Models\WarehouseItem;
-use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class TransactionStockTest extends TestCase
 {
-    use DatabaseTransactions;
+    use RefreshDatabase;
 
     public function test_buy_transaction_adjusts_stock_correctly()
     {
@@ -43,9 +43,7 @@ class TransactionStockTest extends TestCase
             'date' => now()->toDateString(),
             'type' => 'buy',
             'sender_id' => $supplier->id,
-            'sender_type' => $supplier->type,
             'receiver_id' => $warehouse->id,
-            'receiver_type' => $warehouse->type,
             'items' => [
                 [
                     'item_id' => $item->id,
@@ -114,9 +112,7 @@ class TransactionStockTest extends TestCase
             'date' => now()->toDateString(),
             'type' => 'sell',
             'sender_id' => $warehouse->id,
-            'sender_type' => $warehouse->type,
             'receiver_id' => $customer->id,
-            'receiver_type' => $customer->type,
             'items' => [
                 [
                     'item_id' => $item->id,

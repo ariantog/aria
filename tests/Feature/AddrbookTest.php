@@ -4,7 +4,6 @@ use App\Models\Addrbook;
 use App\Models\User;
 use Spatie\Permission\Models\Permission;
 
-uses(Illuminate\Foundation\Testing\DatabaseTransactions::class);
 
 beforeEach(function () {
     $this->user = User::factory()->create();

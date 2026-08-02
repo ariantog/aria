@@ -25,7 +25,7 @@ class InventoryService
         }
 
         // Ensure it's a warehouse?
-        if ($addrbook->type != Addrbook::TYPE_WAREHOUSE && $addrbook->type != Addrbook::TYPE_VWAREHOUSE) {
+        if ($addrbook->type != Addrbook::TYPE_WAREHOUSE && $addrbook->type != Addrbook::TYPE_V_WAREHOUSE) {
             // Or strict check? Legacy checked checks 'customers.type' = Warehouse in findItemInWarehouse.
             // But add/deduct in helper didn't strictly check type of customer, it just used warehouse_id.
             // But we should probably check.

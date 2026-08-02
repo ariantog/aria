@@ -12,6 +12,8 @@ use Tests\TestCase;
 
 class ImagePathLogicTest extends TestCase
 {
+    private ?string $defaultImageBackup = null;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -20,11 +22,17 @@ class ImagePathLogicTest extends TestCase
         Config::set('core-nation.item_image_path', storage_path('framework/testing/images/'));
         Config::set('core-nation.item_image_url', 'http://localhost/asset/');
 
-        // Ensure default image exists for fallback test
+        // Ensure default image exists for fallback test — back up any real asset
+        // so the test never corrupts the committed file.
         if (! File::exists(public_path('images'))) {
             File::makeDirectory(public_path('images'), 0755, true);
         }
-        File::put(public_path('images/default-item.svg'), '<svg></svg>');
+        $this->defaultImageBackup = File::exists(public_path('images/default-item.png'))
+            ? File::get(public_path('images/default-item.png'))
+            : null;
+        if ($this->defaultImageBackup === null) {
+            File::put(public_path('images/default-item.png'), 'png');
+        }
 
         if (! File::exists(config('core-nation.item_image_path'))) {
             File::makeDirectory(config('core-nation.item_image_path'), 0755, true);
@@ -34,6 +42,11 @@ class ImagePathLogicTest extends TestCase
     protected function tearDown(): void
     {
         File::deleteDirectory(config('core-nation.item_image_path'));
+        if ($this->defaultImageBackup !== null) {
+            File::put(public_path('images/default-item.png'), $this->defaultImageBackup);
+        } else {
+            File::delete(public_path('images/default-item.png'));
+        }
         // Clean up default image if we created it just for test (optional, strictly speaking we should modify public_path mock but here we just touch the file)
         // File::delete(public_path('images/default-item.svg'));
         parent::tearDown();
@@ -118,10 +131,10 @@ class ImagePathLogicTest extends TestCase
 
         // Ensure no file exists at expected path (.../99/999.jpg)
 
-        // Route::fallback/asset() usually returns http://localhost/images/default-item.svg in test environment
-        // We check if it contains default-item.svg
+        // Item::image_url falls back to asset('images/default-item.png') when
+        // the file is missing.
 
-        $this->assertStringContainsString('default-item.svg', $item->image_url);
+        $this->assertStringContainsString('default-item.png', $item->image_url);
 
         // Now create file and check it returns real URL
         $folder = '99';

@@ -36,7 +36,13 @@ class TransactionsController extends Controller
         } else { $transactions->orderBy('date', 'desc')->orderBy('id', 'desc'); }
         $filters = $request->only(['from', 'to', 'sort', 'direction', 'type', 'invoice_number', 'min_total', 'max_total']);
         $can     = $this->transactionPermissions();
-        $rows    = $transactions->paginate(50)->withQueryString();
+
+        // Return JSON for Tabulator AJAX requests
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json($transactions->paginate(50)->withQueryString());
+        }
+
+        $rows = $transactions->paginate(50)->withQueryString();
 
         return view('transactions.index', compact('rows', 'filters', 'can', 'sort', 'direction'));
     }

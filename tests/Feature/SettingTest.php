@@ -4,9 +4,13 @@ use App\Models\Setting;
 use App\Models\User;
 use Spatie\Permission\Models\Permission;
 
-uses(Illuminate\Foundation\Testing\DatabaseTransactions::class);
 
 beforeEach(function () {
+    // The first user created gets id 1, which bypasses all Gate checks
+    // (see AppServiceProvider::boot Gate::before). Create a throwaway user
+    // first so the acting user does NOT have id 1.
+    User::factory()->create();
+
     $this->user = User::factory()->create();
 
     // Create permissions

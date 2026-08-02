@@ -7,11 +7,10 @@ use App\Models\Tag;
 use App\Services\ImageService;
 use App\Services\InventoryService;
 use App\Services\ItemService;
-use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 
-uses(Tests\TestCase::class, DatabaseTransactions::class);
+uses(Tests\TestCase::class, Illuminate\Foundation\Testing\RefreshDatabase::class);
 
 beforeEach(function () {
     $this->imageService = new ImageService;
@@ -21,6 +20,7 @@ beforeEach(function () {
     // Seed Tags
     $this->typeTag = Tag::factory()->create(['type' => Tag::TYPE_TYPE, 'code' => 'T1', 'name' => 'Type1']);
     $this->sizeTag = Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'S1', 'name' => 'Size1']);
+    $this->warnaTag = Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'W1', 'name' => 'Warna1']);
 });
 
 test('it throws exception for invalid pcode', function () {
@@ -30,7 +30,7 @@ test('it throws exception for invalid pcode', function () {
 
 test('it creates item group and item successfully', function () {
     $input = (object) [
-        'pcode' => 'CA12345/01',
+        'pcode' => 'CA12345-01',
         'type' => ItemType::ITEM->value,
         'price' => 100000,
         'description' => 'Test Item',
@@ -49,12 +49,12 @@ test('it creates item group and item successfully', function () {
     expect($result)->toBeTrue();
 
     // Check Group
-    $this->assertDatabaseHas('item_groups', ['name' => 'CA12345/01']);
+    $this->assertDatabaseHas('item_groups', ['name' => 'CA12345-01']);
 
-    // Check Item
+    // Check Item: code is PCODE-WARNA_CODE-SIZE_CODE (warna empty here)
     $this->assertDatabaseHas('items', [
-        'pcode' => 'CA12345/01',
-        'code' => 'T1CA1234501S1', // T1 + CA1234501 + S1
+        'pcode' => 'CA12345-01',
+        'code' => 'CA12345-01--S1',
     ]);
 });
 
@@ -63,7 +63,7 @@ test('it saves image when provided', function () {
     $file = UploadedFile::fake()->image('test.jpg');
 
     $input = (object) [
-        'pcode' => 'CA12345/02',
+        'pcode' => 'CA12345-02',
         'type' => ItemType::ITEM->value,
         'price' => 100000,
     ];
@@ -75,7 +75,7 @@ test('it saves image when provided', function () {
 
     $this->itemService->create($input, $tags, $file);
 
-    $group = ItemGroup::where('name', 'CA12345/02')->first();
+    $group = ItemGroup::where('name', 'CA12345-02')->first();
 
     // Check file existence logic (ImageService saves to public path, might need adjustment for test env if not mocking ImageService)
     // Since ImageService writes to config path, we should ideally verify file exists.
@@ -96,7 +96,7 @@ test('it creates asset lancar correctly with group', function () {
     $tags = [
         'types' => [$this->typeTag->id],
         'sizes' => [$this->sizeTag->id],
-        'warna' => [],
+        'warna' => [$this->warnaTag->id],
         'jahit' => [],
     ];
 

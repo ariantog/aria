@@ -9,6 +9,9 @@ use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Permission;
 
 it('can generate stock intelligence report', function () {
+    if (DB::connection()->getDriverName() === 'sqlite') {
+        $this->markTestSkipped('GenerateStockIntelligence uses MySQL-specific SQL (DATEDIFF) not supported on sqlite.');
+    }
     // 1. Setup Data
     $warehouse = Addrbook::factory()->create(['type' => Addrbook::TYPE_WAREHOUSE]);
     $item = Item::factory()->create();

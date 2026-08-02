@@ -4,9 +4,7 @@ use App\Models\Addrbook;
 use App\Models\AddrbookDaily;
 use App\Models\Transaction;
 use App\Services\TransactionService;
-use Illuminate\Foundation\Testing\DatabaseTransactions;
 
-uses(DatabaseTransactions::class);
 
 test('creating a transaction updates daily report for sender and receiver', function () {
     // 1. Setup
