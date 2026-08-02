@@ -74,13 +74,46 @@ $breadcrumbs = [
                 </div>
                 <div class="p-6">
                     @if($recommendation)
-                    {{-- recommendation rendering (currently controller provides null) --}}
-                    <div class="space-y-4 text-sm">
-                        <div class="flex items-center justify-between">
-                            <span class="font-medium">Qty Rekomendasi</span>
-                            <span class="text-2xl font-black text-blue-600">{{ $recommendation['suggested_qty'] }} <small class="text-xs text-zinc-400">Pcs</small></span>
+                    <div class="space-y-6">
+                        <div class="flex items-center justify-center gap-4 py-4">
+                            <div class="text-center">
+                                <div class="mb-1 text-[10px] font-bold uppercase text-zinc-400">Dari</div>
+                                <div class="inline-block rounded-full border-2 border-dashed border-zinc-300 bg-zinc-100 p-3">
+                                    <svg class="h-6 w-6 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5"/></svg>
+                                </div>
+                                <div class="mx-auto mt-2 max-w-[80px] truncate text-xs font-bold">{{ $recommendation['from_name'] }}</div>
+                            </div>
+                            <svg class="h-6 w-6 animate-pulse text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+                            <div class="text-center">
+                                <div class="mb-1 text-[10px] font-bold uppercase text-zinc-400">Ke</div>
+                                <div class="inline-block rounded-full border-2 border-emerald-500 bg-emerald-100 p-3">
+                                    <svg class="h-6 w-6 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5"/></svg>
+                                </div>
+                                <div class="mx-auto mt-2 max-w-[80px] truncate text-xs font-bold">{{ $recommendation['to_name'] }}</div>
+                            </div>
                         </div>
-                        <a href="{{ route('transactions.index') }}" class="block w-full rounded-lg bg-blue-600 py-4 text-center text-base font-bold text-white hover:bg-blue-700">Buat Transaksi Pemindahan</a>
+
+                        <div class="rounded-xl border border-zinc-100 bg-zinc-50 p-4">
+                            <div class="mb-4 flex items-center justify-between">
+                                <span class="text-sm font-medium">Qty Rekomendasi</span>
+                                <span class="text-2xl font-black text-blue-600">{{ $recommendation['suggested_qty'] }} <small class="text-xs text-zinc-400">Pcs</small></span>
+                            </div>
+                            <div class="space-y-2 text-xs italic leading-relaxed text-zinc-500">
+                                <p class="flex gap-2">
+                                    <svg class="h-3.5 w-3.5 shrink-0 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                    Item ini sangat laku di <b>{{ $recommendation['to_name'] }}</b> ({{ $recommendation['demand_30d'] }} unit dalam 30 hari).
+                                </p>
+                                <p class="flex gap-2">
+                                    <svg class="h-3.5 w-3.5 shrink-0 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                    Memindahkan stok akan memaksimalkan perputaran uang dan mengurangi risiko deadstock.
+                                </p>
+                            </div>
+                        </div>
+
+                        <a href="{{ route('transactions.create', ['type' => 'move', 'item_id' => $item['id'], 'from_id' => $recommendation['from_id'], 'to_id' => $recommendation['to_id'], 'quantity' => $recommendation['suggested_qty']]) }}"
+                           class="block w-full rounded-lg bg-blue-600 py-4 text-center text-base font-bold text-white shadow-xl shadow-blue-500/20 hover:bg-blue-700">
+                            Buat Transaksi Pemindahan
+                        </a>
                     </div>
                     @else
                     <div class="px-4 py-12 text-center">

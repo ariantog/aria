@@ -153,11 +153,87 @@ class ReportController extends Controller
     {
         Gate::authorize(Report::getPermissions()['view-inventory-health']);
 
+        $itemId = (int) $request->query('item_id');
+        $sourceWarehouseId = (int) $request->query('warehouse_id');
+
+        $item = Item::findOrFail($itemId);
+        $sourceWarehouse = Addrbook::where('type', Addrbook::TYPE_WAREHOUSE)->findOrFail($sourceWarehouseId);
+
+        $date30 = now()->subDays(30)->toDateString();
+        $sellType = Transaction::TYPE_SELL;
+
+        // Per-warehouse stock + 30d sales + last sale date.
+        // Include every warehouse that either holds stock OR has sold this item.
+        $rows = Addrbook::query()
+            ->where('addrbooks.type', Addrbook::TYPE_WAREHOUSE)
+            ->select('addrbooks.id', 'addrbooks.name')
+            ->selectSub(
+                fn ($q) => $q->from('warehouse_items')
+                    ->selectRaw('COALESCE(SUM(quantity), 0)')
+                    ->whereColumn('warehouse_items.warehouse_id', 'addrbooks.id')
+                    ->where('warehouse_items.item_id', $itemId),
+                'current_stock'
+            )
+            ->selectSub(
+                fn ($q) => $q->from('transaction_details')
+                    ->selectRaw('COALESCE(SUM(ABS(quantity)), 0)')
+                    ->whereColumn('transaction_details.sender_id', 'addrbooks.id')
+                    ->where('transaction_details.item_id', $itemId)
+                    ->where('transaction_details.transaction_type', $sellType)
+                    ->where('transaction_details.date', '>=', $date30),
+                'sold_30d'
+            )
+            ->selectSub(
+                fn ($q) => $q->from('transaction_details')
+                    ->selectRaw('MAX(date)')
+                    ->whereColumn('transaction_details.sender_id', 'addrbooks.id')
+                    ->where('transaction_details.item_id', $itemId)
+                    ->where('transaction_details.transaction_type', $sellType),
+                'last_sale_date'
+            )
+            ->orderByDesc('current_stock')
+            ->get()
+            // Keep warehouses that hold stock OR have ever sold this item.
+            ->filter(fn ($r) => (int) $r->current_stock > 0 || (int) $r->sold_30d > 0 || $r->last_sale_date !== null)
+            ->values();
+
+        $warehouseStocks = $rows->map(fn ($r) => [
+            'warehouse_id' => (int) $r->id,
+            'warehouse_name' => $r->name,
+            'current_stock' => (int) $r->current_stock,
+            'last_sale_date' => $r->last_sale_date ? \Illuminate\Support\Carbon::parse($r->last_sale_date)->translatedFormat('d M Y') : null,
+            'sold_30d' => (int) $r->sold_30d,
+        ])->values()->all();
+
+        // Recommendation: the warehouse (other than the source) with the highest
+        // 30-day demand. Suggest moving up to the source's available stock, capped
+        // by the destination's 30-day demand.
+        $sourceStock = (int) ($rows->firstWhere('id', $sourceWarehouseId)->current_stock ?? 0);
+
+        $target = $rows
+            ->reject(fn ($r) => (int) $r->id === $sourceWarehouseId)
+            ->filter(fn ($r) => (int) $r->sold_30d > 0)
+            ->sortByDesc(fn ($r) => (int) $r->sold_30d)
+            ->first();
+
+        $recommendation = null;
+        if ($target && $sourceStock > 0) {
+            $demand30 = (int) $target->sold_30d;
+            $recommendation = [
+                'from_id' => $sourceWarehouseId,
+                'from_name' => $sourceWarehouse->name,
+                'to_id' => (int) $target->id,
+                'to_name' => $target->name,
+                'demand_30d' => $demand30,
+                'suggested_qty' => max(1, min($sourceStock, $demand30)),
+            ];
+        }
+
         return view('reports.rebalance-detail', [
-            'item' => ['id' => (int) $request->query('item_id'), 'name' => 'Item #'.$request->query('item_id'), 'code' => ''],
-            'sourceWarehouse' => ['id' => (int) $request->query('warehouse_id'), 'name' => ''],
-            'warehouseStocks' => [],
-            'recommendation' => null,
+            'item' => ['id' => $item->id, 'name' => $item->name, 'code' => $item->code],
+            'sourceWarehouse' => ['id' => $sourceWarehouse->id, 'name' => $sourceWarehouse->name],
+            'warehouseStocks' => $warehouseStocks,
+            'recommendation' => $recommendation,
             'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
     }

@@ -2,7 +2,6 @@
 
 use App\Models\User;
 use Illuminate\Support\Facades\Cache;
-use Inertia\Testing\AssertableInertia as Assert;
 use Spatie\Permission\Models\Permission;
 
 beforeEach(function () {
@@ -25,11 +24,8 @@ test('restock index page receives restockCacheCount', function () {
         ->get('/restock');
 
     $response->assertStatus(200);
-    $response->assertInertia(fn (Assert $page) => $page
-        ->component('Restock/Index')
-        ->has('restockCacheCount')
-        ->where('restockCacheCount', 2)
-    );
+    $response->assertViewIs('restock.index');
+    $response->assertViewHas('restockCacheCount', 2);
 });
 
 test('restock index page receives restockCacheCount as zero when empty', function () {
@@ -37,9 +33,6 @@ test('restock index page receives restockCacheCount as zero when empty', functio
         ->get('/restock');
 
     $response->assertStatus(200);
-    $response->assertInertia(fn (Assert $page) => $page
-        ->component('Restock/Index')
-        ->has('restockCacheCount')
-        ->where('restockCacheCount', 0)
-    );
+    $response->assertViewIs('restock.index');
+    $response->assertViewHas('restockCacheCount', 0);
 });

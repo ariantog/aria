@@ -17,10 +17,8 @@ it('can list jahit workers', function () {
     $response = $this->actingAs($this->user)->get('/produksi/jahit/list');
 
     $response->assertStatus(200);
-    $response->assertInertia(fn ($page) => $page
-        ->component('Produksi/Workers/Index')
-        ->has('workers.data', 1)
-    );
+    $response->assertViewIs('produksi.workers.index');
+    $response->assertViewHas('workers', fn ($workers) => $workers->total() === 1);
 });
 
 it('can create jahit worker', function () {

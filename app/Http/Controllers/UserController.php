@@ -15,7 +15,11 @@ class UserController extends Controller
         Gate::authorize(User::getPermissions()['view']);
 
         $query = User::with(['location', 'roles'])
-            ->when(Auth::user()->is_superadmin, fn ($q) => $q->withTrashed());
+            ->when(
+                Auth::user()->is_superadmin
+                    && in_array(\Illuminate\Database\Eloquent\SoftDeletes::class, class_uses_recursive(User::class), true),
+                fn ($q) => $q->withTrashed()
+            );
 
         return view('users.index', [
             'users' => $query->latest()->paginate(10)->withQueryString(),

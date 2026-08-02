@@ -18,18 +18,14 @@ class LocationFactory extends Factory
     {
         return [
             'name' => $this->faker->city(),
-            'address' => $this->faker->address(),
-            'description' => $this->faker->sentence(),
-            'type' => 1, // Default type
         ];
     }
 
     public function warehouse(): Factory
     {
-        return $this->state(function (array $attributes) {
-            return [
-                'type' => \App\Models\Addrbook::TYPE_WAREHOUSE,
-            ];
-        });
+        // The locations table only stores a name; the "warehouse" concept
+        // lives on the Addrbook model. Kept as a no-op state so existing
+        // callers using ->warehouse() continue to work.
+        return $this->state(fn (array $attributes) => []);
     }
 }

@@ -96,3 +96,55 @@ it('renders the adjust page', function () {
         ->assertOk()
         ->assertSee('New Adjust', false);
 });
+
+it('renders the transaction show page', function () {
+    $transaction = Transaction::factory()->create(['user_id' => $this->user->id]);
+
+    $this->actingAs($this->user)
+        ->get(route('transactions.show', $transaction))
+        ->assertOk();
+});
+
+it('renders the deleted transactions index', function () {
+    $this->actingAs($this->user)
+        ->get(route('transactions.deleted.index'))
+        ->assertOk();
+});
+
+/**
+ * Data-driven GET-200 smoke coverage for the remaining migrated pages.
+ * Kept as a single iterating test to stay fast.
+ */
+it('renders migrated GET pages with a 200', function (string $route) {
+    $this->actingAs($this->user)
+        ->get($route)
+        ->assertOk();
+})->with([
+    // Settings
+    'settings profile' => 'settings/profile',
+    'settings password' => 'settings/password',
+    'settings appearance' => 'settings/appearance',
+
+    // Produksi
+    'produksi index' => 'produksi',
+    'produksi setoran' => 'produksi/setoran',
+
+    // Reports
+    'report warehouse-item' => 'reports/warehouse-item',
+    'report purchase' => 'reports/purchase',
+    'report expense' => 'reports/expense',
+    'report cash-flow' => 'reports/cash-flow',
+    'report nett-cash-sby' => 'reports/nett-cash-sby',
+    'report item-sales' => 'reports/item-sales',
+    'report compare' => 'reports/compare',
+    'report inventory-health' => 'reports/inventory-health',
+    'report stock-intelligence' => 'reports/stock-intelligence',
+
+    // Admin / misc index pages
+    'addrbook' => 'addrbook',
+    'items' => 'items',
+    'users' => 'users',
+    'roles' => 'roles',
+    'system-settings' => 'system-settings',
+    'jubelio index' => 'jubelio',
+]);

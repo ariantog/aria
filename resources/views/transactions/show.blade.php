@@ -10,11 +10,12 @@
     ];
 
     $statuses = [
-        1 => ['label' => 'Pending', 'color' => 'bg-yellow-100 text-yellow-800'],
-        2 => ['label' => 'Completed', 'color' => 'bg-green-100 text-green-800'],
-        3 => ['label' => 'Cancelled', 'color' => 'bg-red-100 text-red-800'],
+        \App\Models\Transaction::STATUS_PENDING => ['label' => 'Pending', 'color' => 'bg-yellow-100 text-yellow-800'],
+        \App\Models\Transaction::STATUS_COMPLETED => ['label' => 'Completed', 'color' => 'bg-green-100 text-green-800'],
+        \App\Models\Transaction::STATUS_CANCELLED => ['label' => 'Cancelled', 'color' => 'bg-red-100 text-red-800'],
     ];
-    $status = $statuses[$transaction->status] ?? ['label' => 'Unknown', 'color' => 'bg-gray-100 text-gray-800'];
+    $statusKey = $transaction->status instanceof \BackedEnum ? $transaction->status->value : $transaction->status;
+    $status = $statuses[$statusKey] ?? ['label' => 'Unknown', 'color' => 'bg-gray-100 text-gray-800'];
 
     $fmt = fn ($n) => number_format((float) $n, 0, ',', '.');
     $fmtDate = function ($d) {

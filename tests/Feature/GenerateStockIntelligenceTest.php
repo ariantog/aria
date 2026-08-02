@@ -93,10 +93,11 @@ it('can display stock intelligence from database', function () {
     $response = $this->get('/reports/stock-intelligence');
 
     $response->assertStatus(200);
-    $response->assertInertia(fn ($page) => $page
-        ->component('Reports/StockIntelligence')
-        ->has('data.data', 1)
-        ->where('data.data.0.item_name', 'Test Item')
-        ->where('stats.all', 1)
-    );
+    $response->assertViewIs('reports.stock-intelligence');
+    $response->assertViewHas('data', function ($data) {
+        $rows = collect($data->items());
+
+        return $rows->count() === 1 && data_get($rows->first(), 'item_name') === 'Test Item';
+    });
+    $response->assertViewHas('stats', fn ($stats) => data_get($stats, 'all') === 1);
 });

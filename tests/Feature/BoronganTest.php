@@ -29,7 +29,7 @@ it('allows access to list borongan for authorized user', function () {
 
     $response = $this->actingAs($this->user)->get('/borongan');
     $response->assertStatus(200);
-    $response->assertInertia(fn ($page) => $page->component('Borongan/Index'));
+    $response->assertViewIs('borongan.index');
 });
 
 it('denies access to create borongan for unauthorized user', function () {
@@ -42,7 +42,7 @@ it('allows access to create borongan for authorized user', function () {
 
     $response = $this->actingAs($this->user)->get('/borongan/create');
     $response->assertStatus(200);
-    $response->assertInertia(fn ($page) => $page->component('Borongan/Create'));
+    $response->assertViewIs('borongan.create');
 });
 
 it('denies access to view borongan details for unauthorized user', function () {
@@ -77,5 +77,5 @@ it('allows access to view borongan details for authorized user', function () {
 
     $response = $this->actingAs($this->user)->get("/borongan/{$borongan->id}");
     $response->assertStatus(200);
-    $response->assertInertia(fn ($page) => $page->component('Borongan/Show'));
+    $response->assertViewIs('borongan.show');
 });
