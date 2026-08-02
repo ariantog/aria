@@ -5,11 +5,13 @@ namespace App\Providers;
 use App\Models\Addrbook;
 use App\Models\Transaction;
 use App\Observers\TransactionObserver;
+use App\View\Composers\AppComposer;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
 
@@ -54,6 +56,9 @@ class AppServiceProvider extends ServiceProvider
 
             return null;
         });
+
+        // Share sidebar data (user, permissions, roles, addrbook types, flash) with the Blade layout.
+        View::composer('layouts.app', AppComposer::class);
     }
 
     protected function configureDefaults(): void

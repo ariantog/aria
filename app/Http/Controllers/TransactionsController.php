@@ -34,11 +34,11 @@ class TransactionsController extends Controller
         if (in_array($sort, ['date', 'invoice_number', 'type', 'grand_total'], true)) {
             $transactions->orderBy($sort, $direction)->orderBy('id', 'desc');
         } else { $transactions->orderBy('date', 'desc')->orderBy('id', 'desc'); }
-        return inertia('Transactions/Index', [
-            'transactions' => $transactions->paginate(50)->withQueryString(),
-            'filters' => $request->only(['from', 'to', 'sort', 'direction', 'type', 'invoice_number', 'min_total', 'max_total']),
-            'can' => $this->transactionPermissions(),
-        ]);
+        $filters = $request->only(['from', 'to', 'sort', 'direction', 'type', 'invoice_number', 'min_total', 'max_total']);
+        $can     = $this->transactionPermissions();
+        $rows    = $transactions->paginate(50)->withQueryString();
+
+        return view('transactions.index', compact('rows', 'filters', 'can', 'sort', 'direction'));
     }
 
     public function create(string $type, BookClosingService $bookClosingService)
@@ -61,11 +61,11 @@ class TransactionsController extends Controller
         };
         $config['sender_label'] = $getLabel('sender');
         $config['receiver_label'] = $getLabel('receiver');
-        return inertia('Transactions/Create', [
-            'type' => $type, 'config' => $config,
+        return view('transactions.create', [
+            'type'     => $type,
+            'config'   => $config,
             'ppn_rate' => (float) \App\Models\Setting::getValue('ppn_rate', 11),
             'min_date' => $bookClosingService->getMinAllowedDate()->toDateString(),
-            'suppliers' => [], 'customers' => [], 'warehouses' => [], 'items' => [],
         ]);
     }
 
@@ -80,7 +80,7 @@ class TransactionsController extends Controller
     public function cashIn(BookClosingService $bookClosingService)
     {
         Gate::authorize(Transaction::getPermissions()['type-cash-in']);
-        return inertia('Transactions/Cash', [
+        return view('transactions.cash', [
             'bankList' => \App\Models\Addrbook::where('type', \App\Enums\AddrbookType::Bank->value)->orderBy('name')->get(),
             'ppn_rate' => (float) \App\Models\Setting::getValue('ppn_rate', 11),
             'min_date' => $bookClosingService->getMinAllowedDate()->toDateString(), 'type' => 'in',
@@ -98,7 +98,7 @@ class TransactionsController extends Controller
     public function cashOut(BookClosingService $bookClosingService)
     {
         Gate::authorize(Transaction::getPermissions()['type-cash-out']);
-        return inertia('Transactions/Cash', [
+        return view('transactions.cash', [
             'bankList' => \App\Models\Addrbook::where('type', \App\Enums\AddrbookType::Bank->value)->orderBy('name')->get(),
             'ppn_rate' => (float) \App\Models\Setting::getValue('ppn_rate', 11),
             'min_date' => $bookClosingService->getMinAllowedDate()->toDateString(), 'type' => 'out',
@@ -116,7 +116,7 @@ class TransactionsController extends Controller
     public function transfer(BookClosingService $bookClosingService)
     {
         Gate::authorize(Transaction::getPermissions()['type-transfer']);
-        return inertia('Transactions/Transfer', [
+        return view('transactions.transfer', [
             'bankList' => \App\Models\Addrbook::where('type', \App\Enums\AddrbookType::Bank->value)->orderBy('name')->get(),
             'min_date' => $bookClosingService->getMinAllowedDate()->toDateString(),
         ]);
@@ -133,7 +133,7 @@ class TransactionsController extends Controller
     public function adjust(BookClosingService $bookClosingService)
     {
         Gate::authorize(Transaction::getPermissions()['type-adjust']);
-        return inertia('Transactions/Adjust', ['min_date' => $bookClosingService->getMinAllowedDate()->toDateString()]);
+        return view('transactions.adjust', ['min_date' => $bookClosingService->getMinAllowedDate()->toDateString()]);
     }
 
     public function storeAdjust(StoreAdjustRequest $request, CreateAdjustTransaction $action, BookClosingService $bookClosingService)

@@ -1,0 +1,3 @@
+- [Blade partial helper functions](blade-partial-closures.md) — never declare named PHP functions inside a Blade `@php` block; use closures or you get "Cannot redeclare" fatals.
+- [Aria transaction domain](aria-transaction-domain.md) — transaction type/status are backed enums, contacts are all one polymorphic `addrbooks` table; affects every view and query.
+- [Composer version pins](composer-php-version-pins.md) — two packages must stay downgraded because the environment runs PHP < 8.3/8.4.

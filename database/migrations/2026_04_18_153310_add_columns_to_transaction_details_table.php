@@ -13,24 +13,36 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('transaction_details', function (Blueprint $table) {
-            $table->date('date')->nullable()->after('transaction_id');
-            $table->unsignedTinyInteger('transaction_type')->nullable()->after('date');
-            $table->unsignedBigInteger('sender_id')->nullable()->after('transaction_type');
-            $table->unsignedBigInteger('receiver_id')->nullable()->after('sender_id');
-
-            $table->index(['item_id', 'sender_id', 'transaction_type', 'date'], 'td_audit_index');
-            $table->index('date');
+            if (!Schema::hasColumn('transaction_details', 'date')) {
+                $table->date('date')->nullable()->after('transaction_id');
+            }
+            if (!Schema::hasColumn('transaction_details', 'transaction_type')) {
+                $table->unsignedTinyInteger('transaction_type')->nullable()->after('date');
+            }
+            if (!Schema::hasColumn('transaction_details', 'sender_id')) {
+                $table->unsignedBigInteger('sender_id')->nullable()->after('transaction_type');
+            }
+            if (!Schema::hasColumn('transaction_details', 'receiver_id')) {
+                $table->unsignedBigInteger('receiver_id')->nullable()->after('sender_id');
+            }
         });
 
-        // Backfill data from transactions table
-        DB::statement('
-            UPDATE transaction_details td 
-            JOIN transactions t ON td.transaction_id = t.id 
-            SET td.date = t.date, 
-                td.transaction_type = t.type, 
-                td.sender_id = t.sender_id, 
-                td.receiver_id = t.receiver_id
-        ');
+        try {
+            Schema::table('transaction_details', function (Blueprint $table) {
+                $table->index(['item_id', 'sender_id', 'transaction_type', 'date'], 'td_audit_index');
+            });
+        } catch (\Exception $e) { /* index may already exist */ }
+        try {
+            Schema::table('transaction_details', function (Blueprint $table) {
+                $table->index('date');
+            });
+        } catch (\Exception $e) { /* index may already exist */ }
+
+        // Backfill data from transactions table (SQLite-compatible)
+        DB::statement('UPDATE transaction_details SET date = (SELECT date FROM transactions WHERE transactions.id = transaction_details.transaction_id)');
+        DB::statement('UPDATE transaction_details SET transaction_type = (SELECT type FROM transactions WHERE transactions.id = transaction_details.transaction_id)');
+        DB::statement('UPDATE transaction_details SET sender_id = (SELECT sender_id FROM transactions WHERE transactions.id = transaction_details.transaction_id)');
+        DB::statement('UPDATE transaction_details SET receiver_id = (SELECT receiver_id FROM transactions WHERE transactions.id = transaction_details.transaction_id)');
     }
 
     /**
