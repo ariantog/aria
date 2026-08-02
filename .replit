@@ -1,0 +1,7 @@
+modules = ["nodejs-20", "php-8.2", "web"]
+
+[nix]
+channel = "stable-25_05"
+
+[agent]
+expertMode = true
