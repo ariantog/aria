@@ -14,11 +14,17 @@ class UserController extends Controller
     {
         Gate::authorize(User::getPermissions()['view']);
 
-        $query = User::with('location')
+        $query = User::with(['location', 'roles'])
             ->when(Auth::user()->is_superadmin, fn ($q) => $q->withTrashed());
 
-        return inertia('Users/Index', [
+        return view('users.index', [
             'users' => $query->latest()->paginate(10)->withQueryString(),
+            'can' => [
+                'create_user' => request()->user()?->can(User::getPermissions()['create']) ?? false,
+                'edit_user' => request()->user()?->can(User::getPermissions()['edit']) ?? false,
+                'delete_user' => request()->user()?->can(User::getPermissions()['delete']) ?? false,
+            ],
+            'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
     }
 
@@ -26,7 +32,7 @@ class UserController extends Controller
     {
         Gate::authorize(User::getPermissions()['create']);
 
-        return inertia('Users/Create', [
+        return view('users.create', [
             'locations' => Location::all(),
             'roles' => \Spatie\Permission\Models\Role::all(),
         ]);
@@ -61,8 +67,9 @@ class UserController extends Controller
     {
         Gate::authorize(User::getPermissions()['edit']);
 
-        return inertia('Users/Edit', [
+        return view('users.edit', [
             'editUser' => $user->load('roles'),
+            'userRoles' => $user->roles->pluck('name'),
             'locations' => Location::all(),
             'roles' => \Spatie\Permission\Models\Role::all(),
         ]);

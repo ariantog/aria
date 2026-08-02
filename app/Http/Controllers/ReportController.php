@@ -9,7 +9,6 @@ use App\Models\Transaction;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Gate;
-use Inertia\Inertia;
 
 class ReportController extends Controller
 {
@@ -27,7 +26,7 @@ class ReportController extends Controller
         $items = $query->paginate(50)->withQueryString();
         $warehouses = Addrbook::where('type', Addrbook::TYPE_WAREHOUSE)->orderBy('name')->get();
 
-        return Inertia::render('Reports/InventoryHealth', ['items' => $items, 'warehouses' => $warehouses, 'filters' => $request->only(['warehouse_id', 'search'])]);
+        return view('reports.inventory-health', ['items' => $items, 'warehouses' => $warehouses, 'filters' => $request->only(['warehouse_id', 'search']), 'flash' => ['success' => session('success'), 'error' => session('error')]]);
     }
 
     public function stockIntelligence(Request $request)
@@ -125,7 +124,7 @@ class ReportController extends Controller
             'generate_days' => \App\Models\Setting::getValue('si_generate_days', ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']),
         ];
 
-        return Inertia::render('Reports/StockIntelligence', [
+        return view('reports.stock-intelligence', [
             'data' => $data,
             'stats' => $stats,
             'settings' => $settings,
@@ -136,6 +135,7 @@ class ReportController extends Controller
                 'performance' => $request->query('performance', 'all'),
                 'search' => $request->query('search', ''),
             ],
+            'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
     }
 
@@ -153,7 +153,13 @@ class ReportController extends Controller
     {
         Gate::authorize(Report::getPermissions()['view-inventory-health']);
 
-        return Inertia::render('Reports/RebalanceDetail');
+        return view('reports.rebalance-detail', [
+            'item' => ['id' => (int) $request->query('item_id'), 'name' => 'Item #'.$request->query('item_id'), 'code' => ''],
+            'sourceWarehouse' => ['id' => (int) $request->query('warehouse_id'), 'name' => ''],
+            'warehouseStocks' => [],
+            'recommendation' => null,
+            'flash' => ['success' => session('success'), 'error' => session('error')],
+        ]);
     }
 
     public function generateManual()

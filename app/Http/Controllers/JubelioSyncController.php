@@ -12,15 +12,14 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Http;
-use Inertia\Inertia;
-use Inertia\Response;
+use Illuminate\View\View;
 
 class JubelioSyncController extends Controller
 {
     /**
      * Display a listing of the resource.
      */
-    public function index(Request $request): Response
+    public function index(Request $request): View
     {
         Gate::authorize(Jubelio::getPermissions()['sync']);
 
@@ -33,16 +32,17 @@ class JubelioSyncController extends Controller
 
         $dataList = $query->orderBy('created_at', 'desc')->paginate(50)->withQueryString();
 
-        return Inertia::render('jubelio/sync/Index', [
+        return view('jubelio.sync.index', [
             'dataList' => $dataList,
             'filters' => $request->only(['name']),
+            'flash' => ['success' => session('success'), 'error' => session('fail') ?? session('errorMessage') ?? session('error')],
         ]);
     }
 
     /**
      * Show the form for creating a new resource.
      */
-    public function create(): Response
+    public function create(): View
     {
         Gate::authorize(Jubelio::getPermissions()['sync']);
 
@@ -62,12 +62,13 @@ class JubelioSyncController extends Controller
             }
         }
 
-        return Inertia::render('jubelio/sync/Create', [
+        return view('jubelio.sync.create', [
             'locations' => $dataList['data'] ?? [],
             'addrbookTypes' => [
                 'warehouse' => Addrbook::TYPE_WAREHOUSE,
                 'customer' => Addrbook::TYPE_CUSTOMER,
             ],
+            'flash' => ['success' => session('success'), 'error' => session('errorMessage') ?? session('error')],
         ]);
     }
 
@@ -127,16 +128,17 @@ class JubelioSyncController extends Controller
     /**
      * Show the form for editing the specified resource.
      */
-    public function edit(Jubeliosync $sync): Response
+    public function edit(Jubeliosync $sync): View
     {
         Gate::authorize(Jubelio::getPermissions()['sync']);
 
-        return Inertia::render('jubelio/sync/Edit', [
+        return view('jubelio.sync.edit', [
             'sync' => $sync->load(['warehouse', 'customer']),
             'addrbookTypes' => [
                 'warehouse' => Addrbook::TYPE_WAREHOUSE,
                 'customer' => Addrbook::TYPE_CUSTOMER,
             ],
+            'flash' => ['success' => session('success'), 'error' => session('errorMessage') ?? session('error')],
         ]);
     }
 

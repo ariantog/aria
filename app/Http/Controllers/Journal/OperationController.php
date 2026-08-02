@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Models\Operation;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
-use Inertia\Inertia;
 
 class OperationController extends Controller
 {
@@ -20,8 +19,10 @@ class OperationController extends Controller
             $query->where('name', 'like', "%{$search}%");
         }
 
-        return Inertia::render('Journals/Operations/Index', [
+        return view('journals.operations.index', [
             'operations' => $query->latest()->paginate(50)->withQueryString(),
+            'filters' => $request->only(['search']),
+            'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
     }
 
@@ -35,9 +36,11 @@ class OperationController extends Controller
             $query->where('name', 'like', "%{$search}%");
         }
 
-        return Inertia::render('Journals/Operations/Show', [
+        return view('journals.operations.show', [
             'operation' => $operation,
             'accounts' => $query->latest()->paginate(50)->withQueryString(),
+            'filters' => $request->only(['search']),
+            'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
     }
 

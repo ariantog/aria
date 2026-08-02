@@ -9,7 +9,6 @@ use App\Models\Transaction;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Gate;
-use Inertia\Inertia;
 
 class NettCashController extends Controller
 {
@@ -255,7 +254,7 @@ class NettCashController extends Controller
         // ================= YEAR LIST =================
         $yearList = range(date('Y'), 2019);
 
-        return Inertia::render('Reports/NettCashSby', [
+        return view('reports.nett-cash-sby', [
             'customerList' => $customerList,
             'resellerList' => $resellerList,
             'bankList' => $bankList,
@@ -265,6 +264,7 @@ class NettCashController extends Controller
             'filters' => ['month' => $month, 'year' => (int) $year],
             'yearList' => $yearList,
             'datesNow' => ['month' => $datesNow->month, 'year' => $datesNow->year],
+            'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
     }
 }

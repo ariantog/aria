@@ -14,7 +14,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
-use Inertia\Inertia;
 use Maatwebsite\Excel\Facades\Excel;
 
 class RestockController extends Controller
@@ -150,12 +149,13 @@ class RestockController extends Controller
         $restockCacheKey = 'cart_items_user_'.auth()->id();
         $restockCacheCount = count(Cache::get($restockCacheKey, []));
 
-        return Inertia::render('Restock/Index', [
+        return view('restock.index', [
             'restocks' => $restocks,
             'cartCount' => $cartCount,
             'restockCacheCount' => $restockCacheCount,
             'filters' => $request->only(['size_type', 'status', 'code']),
             'targetSizes' => $targetSizes,
+            'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
     }
 
@@ -417,8 +417,9 @@ class RestockController extends Controller
         $cacheKey = "cart_items_user_{$userId}";
         $items = Cache::get($cacheKey, []);
 
-        return Inertia::render('Restock/Create', [
+        return view('restock.create', [
             'items' => $items,
+            'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
     }
 
@@ -752,8 +753,9 @@ class RestockController extends Controller
 
         $restock = Restock::with('item')->findOrFail($id);
 
-        return Inertia::render('Restock/Update', [
+        return view('restock.update', [
             'restock' => $restock,
+            'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
     }
 
@@ -834,8 +836,9 @@ class RestockController extends Controller
         $cacheKey = 'gudang_cart_user_'.auth()->id();
         $items = Cache::get($cacheKey, []);
 
-        return Inertia::render('Restock/Received', [
+        return view('restock.received', [
             'items' => $items,
+            'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
     }
 
@@ -989,9 +992,10 @@ class RestockController extends Controller
             ->orderBy('id', 'desc')
             ->paginate(50);
 
-        return Inertia::render('Restock/History', [
+        return view('restock.history', [
             'restock' => $restock,
             'histories' => $histories,
+            'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
     }
 
@@ -1041,7 +1045,9 @@ class RestockController extends Controller
     {
         Gate::authorize(Restock::getPermissions()['view']);
 
-        return Inertia::render('Restock/UploadExcel');
+        return view('restock.upload-excel', [
+            'flash' => ['success' => session('success'), 'error' => session('error')],
+        ]);
     }
 
     public function importExcel(Request $request)

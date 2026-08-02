@@ -9,7 +9,6 @@ use App\Models\Setting;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
-use Inertia\Inertia;
 
 class GajiController extends Controller
 {
@@ -48,12 +47,13 @@ class GajiController extends Controller
             ->groupBy('bank_id')
             ->get();
 
-        return Inertia::render('Gaji/Index', [
+        return view('gaji.index', [
             'gajiList' => $gajiList,
             'bulanSelect' => $bulanSelect,
             'yearSelect' => $yearSelect,
             'gajiPerBank' => $gajiPerBank,
             'filters' => $request->only(['bulan', 'tahun', 'karyawan']),
+            'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
     }
 
@@ -119,7 +119,7 @@ class GajiController extends Controller
         $grandTotalDendaCuti = $dendaCutiTahunan + $dendaCutiSakit + $bulaniniMendadak;
         $grandTotalDendaCutiRupiah = $rupiahDendaTahunan + $rupiahDendaSakit + $rupiahDendaMendadak;
 
-        return Inertia::render('Gaji/Create', [
+        return view('gaji.create', [
             'karyawan' => $karyawan,
             'now' => ['month' => $now->month, 'year' => $now->year],
             'gajiData' => $gajiData,

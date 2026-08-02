@@ -10,7 +10,6 @@ use App\Http\Requests\UpdateAddrbookRequest;
 use App\Models\Addrbook;
 use App\Models\StatSell;
 use Illuminate\Support\Facades\Gate;
-use Inertia\Inertia;
 
 class AddrbookController extends Controller
 {
@@ -41,20 +40,29 @@ class AddrbookController extends Controller
             ))
             ->latest();
 
+        // Combobox / autocomplete requests (?json=1)
         if ($this->isJsonRequest()) {
             return $q->limit(20)->get(['id', 'code', 'name', 'alias', 'ppn']);
         }
 
-        return Inertia::render('Addrbook/Index', [
-            'addrbooks' => $q->paginate(10)->withQueryString(),
+        $can = [
+            'create' => request()->user()?->can(Addrbook::getPermissions($type)['create']) ?? false,
+            'edit' => request()->user()?->can(Addrbook::getPermissions($type)['edit']) ?? false,
+            'delete' => request()->user()?->can(Addrbook::getPermissions($type)['delete']) ?? false,
+            'bank_hidden_balance' => request()->user()?->can('addrbook-bank-account-hidden-balance') ?? false,
+        ];
+
+        // Tabulator AJAX requests
+        if (request()->expectsJson() || request()->ajax()) {
+            return response()->json($q->paginate((int) request('size', 50))->withQueryString());
+        }
+
+        return view('addrbook.index', [
             'filters' => request()->all(['search', 'type', 'trashed']),
-            'can' => [
-                'create' => request()->user()?->can(Addrbook::getPermissions($type)['create']) ?? false,
-                'edit' => request()->user()?->can(Addrbook::getPermissions($type)['edit']) ?? false,
-                'delete' => request()->user()?->can(Addrbook::getPermissions($type)['delete']) ?? false,
-            ],
+            'can' => $can,
             'current_type' => $type,
             'ppn_rate' => (float) \App\Models\Setting::getValue('ppn_rate', 11),
+            'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
     }
 
@@ -68,9 +76,10 @@ class AddrbookController extends Controller
             $pt = $d ? $d['id'] : null;
         }
 
-        return Inertia::render('Addrbook/Create', [
+        return view('addrbook.create', [
             'types' => Addrbook::getTypes(),
             'preselected_type_id' => $pt,
+            'current_type' => $type,
             'ppn_rate' => (float) \App\Models\Setting::getValue('ppn_rate', 11),
         ]);
     }
@@ -110,9 +119,10 @@ class AddrbookController extends Controller
             });
         }
 
-        return Inertia::render('Addrbook/Show', [
+        return view('addrbook.show', [
             'addrbook' => $a,
             'ppn_rate' => (float) \App\Models\Setting::getValue('ppn_rate', 11),
+            'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
     }
 
@@ -127,7 +137,7 @@ class AddrbookController extends Controller
         $a = $addrbook;
         Gate::authorize(Addrbook::getPermissions($this->addrbookTypeSlug($a))['edit']);
 
-        return Inertia::render('Addrbook/Edit', [
+        return view('addrbook.edit', [
             'addrbook' => $a->load('stat'),
             'types' => Addrbook::getTypes(),
             'ppn_rate' => (float) \App\Models\Setting::getValue('ppn_rate', 11),
@@ -165,14 +175,18 @@ class AddrbookController extends Controller
             $q->orderBy('date', 'desc')->orderBy('id', 'desc');
         }
 
-        return Inertia::render('Addrbook/Transactions', [
+        if (request()->expectsJson() || request()->ajax()) {
+            return response()->json($q->paginate((int) request('size', 50))->withQueryString());
+        }
+
+        return view('addrbook.transactions', [
             'addrbook' => $a,
-            'transactions' => $q->paginate(50)->withQueryString(),
             'transactionTypes' => \App\Models\Transaction::getTypes(),
             'filters' => request()->all(['from', 'to', 'type', 'order_date']),
             'can' => [
                 'bank_hidden_balance' => request()->user()?->can('addrbook-bank-account-hidden-balance') ?? false,
             ],
+            'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
     }
 
@@ -200,13 +214,17 @@ class AddrbookController extends Controller
             default => $q->orderByPivot('quantity', 'desc'),
         };
 
-        return Inertia::render('Addrbook/Items', [
+        if (request()->expectsJson() || request()->ajax()) {
+            return response()->json($q->paginate((int) request('size', 50))->withQueryString());
+        }
+
+        return view('addrbook.items', [
             'addrbook' => $a,
-            'items' => $q->paginate(50)->withQueryString(),
             'filters' => request()->all(['name', 'sort', 'show0']),
             'can' => [
                 'bank_hidden_balance' => request()->user()?->can('addrbook-bank-account-hidden-balance') ?? false,
             ],
+            'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
     }
 
@@ -225,7 +243,7 @@ class AddrbookController extends Controller
             ->when(request('type'), fn ($q) => $q->where('type', request('type')))
             ->orderBy('tahun', 'desc')->orderBy('bulan', 'desc');
 
-        return Inertia::render('Addrbook/ItemSales', [
+        return view('addrbook.item-sales', [
             'addrbook' => $a,
             'sales' => $q->paginate(50)->withQueryString(),
             'filters' => [
@@ -239,6 +257,7 @@ class AddrbookController extends Controller
             'can' => [
                 'bank_hidden_balance' => request()->user()?->can('addrbook-bank-account-hidden-balance') ?? false,
             ],
+            'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
     }
 
@@ -290,7 +309,7 @@ class AddrbookController extends Controller
             }
         }
 
-        return Inertia::render('Addrbook/Stats', [
+        return view('addrbook.stats', [
             'addrbook' => $a,
             'dataStat' => $ds,
             'filters' => ['month' => (int) $mo, 'year' => (int) $yr],
@@ -298,6 +317,7 @@ class AddrbookController extends Controller
             'can' => [
                 'bank_hidden_balance' => request()->user()?->can('addrbook-bank-account-hidden-balance') ?? false,
             ],
+            'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
     }
 

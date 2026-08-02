@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
-use Inertia\Inertia;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 
@@ -15,8 +14,13 @@ class RoleController extends Controller
     {
         Gate::authorize(User::getPermissions()['roles-view']);
 
-        return Inertia::render('Roles/Index', [
+        return view('roles.index', [
             'roles' => Role::with('permissions')->latest()->paginate(50),
+            'can' => [
+                'create_role' => request()->user()?->can(User::getPermissions()['roles-create']) ?? false,
+                'edit_role' => request()->user()?->can(User::getPermissions()['roles-edit']) ?? false,
+                'delete_role' => request()->user()?->can(User::getPermissions()['roles-delete']) ?? false,
+            ],
         ]);
     }
 
@@ -24,7 +28,7 @@ class RoleController extends Controller
     {
         Gate::authorize(User::getPermissions()['roles-create']);
 
-        return Inertia::render('Roles/Create', [
+        return view('roles.create', [
             'permissions' => $this->getGroupedPermissions(),
         ]);
     }
@@ -53,7 +57,7 @@ class RoleController extends Controller
 
         $role->load('permissions');
 
-        return Inertia::render('Roles/Edit', [
+        return view('roles.edit', [
             'role' => $role,
             'permissions' => $this->getGroupedPermissions(),
             'rolePermissions' => $role->permissions->pluck('name'),

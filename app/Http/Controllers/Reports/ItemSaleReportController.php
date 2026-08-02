@@ -7,7 +7,6 @@ use App\Models\Report;
 use App\Models\StatSell;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
-use Inertia\Inertia;
 
 class ItemSaleReportController extends Controller
 {
@@ -57,7 +56,7 @@ class ItemSaleReportController extends Controller
             ];
         });
 
-        return Inertia::render('Reports/ItemSales', [
+        return view('reports.item-sales', [
             'dataList' => $dataList,
             'filters' => [
                 'bulan' => $bulan ?? '0',
@@ -66,6 +65,7 @@ class ItemSaleReportController extends Controller
                 'search_group' => $request->search_group ?? '',
             ],
             'yearList' => range(date('Y'), 2019),
+            'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
     }
 }

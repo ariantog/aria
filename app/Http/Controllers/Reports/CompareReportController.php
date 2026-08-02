@@ -12,7 +12,6 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
-use Inertia\Inertia;
 
 class CompareReportController extends Controller
 {
@@ -112,7 +111,7 @@ class CompareReportController extends Controller
             ->orderBy('name')
             ->get(['id', 'name']);
 
-        return Inertia::render('Reports/Compare', [
+        return view('reports.compare', [
             'items' => $items,
             'selectedWarehouses' => $selectedWarehouses,
             'allWarehouses' => $allWarehouses,
@@ -121,6 +120,7 @@ class CompareReportController extends Controller
                 'sort' => $request->sort ?? 'name',
                 'direction' => $request->direction ?? 'asc',
             ],
+            'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
     }
 

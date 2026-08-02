@@ -20,8 +20,9 @@ class DeletedTransactionsController extends Controller
             ->paginate(10)
             ->withQueryString();
 
-        return inertia('Transactions/DeletedIndex', [
+        return view('transactions.deleted', [
             'transactions' => $transactions,
+            'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
     }
 
@@ -49,7 +50,7 @@ class DeletedTransactionsController extends Controller
             return 'Contact';
         };
 
-        return inertia('Transactions/DeletedShow', [
+        return view('transactions.deleted-show', [
             'transaction' => $transaction,
             'config' => [
                 'sender_label' => $getLabel('sender'),
@@ -59,6 +60,7 @@ class DeletedTransactionsController extends Controller
             'can' => [
                 'restore' => \Illuminate\Support\Facades\Gate::allows(Transaction::getPermissions()['delete']),
             ],
+            'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
     }
 

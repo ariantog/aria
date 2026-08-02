@@ -36,6 +36,10 @@ class TransactionsController extends Controller
         } else { $transactions->orderBy('date', 'desc')->orderBy('id', 'desc'); }
         $filters = $request->only(['from', 'to', 'sort', 'direction', 'type', 'invoice_number', 'min_total', 'max_total']);
         $can     = $this->transactionPermissions();
+        // Return JSON for AJAX requests
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json($transactions->paginate(50)->withQueryString());
+        }
 
         $rows = $transactions->paginate(50)->withQueryString();
 
@@ -160,10 +164,11 @@ class TransactionsController extends Controller
             return 'Contact';
         };
         $this->hydrateJubelioSyncData($transaction);
-        return inertia('Transactions/Show', [
+        return view('transactions.show', [
             'transaction' => $transaction,
             'config' => ['sender_label' => $getLabel('sender'), 'receiver_label' => $getLabel('receiver'), 'type_slug' => $typeSlug],
             'can' => ['delete_transaction' => Auth::user()->can(Transaction::getPermissions()['delete']), 'edit_transaction' => Auth::user()->can(Transaction::getPermissions()['edit']), 'bank_hidden_balance' => Auth::user()->can('addrbook-bank-account-hidden-balance')],
+            'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
     }
 

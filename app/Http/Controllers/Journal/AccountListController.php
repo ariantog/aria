@@ -11,7 +11,6 @@ use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
-use Inertia\Inertia;
 
 class AccountListController extends Controller
 {
@@ -29,9 +28,11 @@ class AccountListController extends Controller
             $query->where('operation_id', $operationId);
         }
 
-        return Inertia::render('Journals/AccountList/Index', [
+        return view('journals.account-list.index', [
             'accounts' => $query->latest()->paginate(50)->withQueryString(),
             'operations' => Operation::all(['id', 'name']),
+            'filters' => $request->only(['search', 'operation_id']),
+            'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
     }
 
@@ -109,13 +110,14 @@ class AccountListController extends Controller
 
         $transactions = $query->paginate(50)->withQueryString();
 
-        return Inertia::render('Journals/AccountList/Ledger', [
+        return view('journals.account-list.ledger', [
             'account' => $account_list->load('operation', 'stat'),
             'transactions' => $transactions,
             'filters' => [
                 'from' => $from,
                 'to' => $to,
             ],
+            'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
     }
 }

@@ -566,7 +566,9 @@ function createTransaction() {
                 due_date: this.form.due_date,
                 type: this.form.type,
                 sender_id: this.form.sender_id,
+                sender_type: '{{ is_array($config['sender_type'] ?? null) ? implode(',', $config['sender_type']) : ($config['sender_type'] ?? '') }}',
                 receiver_id: this.form.receiver_id,
+                receiver_type: '{{ is_array($config['receiver_type'] ?? null) ? implode(',', $config['receiver_type']) : ($config['receiver_type'] ?? '') }}',
                 invoice_number: this.form.invoice_number,
                 note: this.form.note,
                 items: this.form.items.map(i => ({

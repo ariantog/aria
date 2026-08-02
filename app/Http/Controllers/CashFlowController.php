@@ -8,7 +8,6 @@ use App\Models\Transaction;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
-use Inertia\Inertia;
 
 class CashFlowController extends Controller
 {
@@ -62,12 +61,13 @@ class CashFlowController extends Controller
                 return $item;
             });
 
-        return Inertia::render('Reports/CashFlow', [
+        return view('reports.cash-flow', [
             'groupBySender' => $groupBySender,
             'groupByReceiver' => $groupByReceiver,
             'filters' => ['month' => $month, 'year' => (int) $currentYear],
             'yearList' => range(date('Y'), 2019),
             'datesNow' => ['month' => now()->month, 'year' => now()->year],
+            'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
     }
 }

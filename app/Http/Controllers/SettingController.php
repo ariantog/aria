@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Models\Setting;
 use Illuminate\Support\Facades\Gate;
-use Inertia\Inertia;
 
 class SettingController extends Controller
 {
@@ -12,9 +11,14 @@ class SettingController extends Controller
     {
         Gate::authorize(Setting::getPermissions()['view']);
 
-        return Inertia::render('SystemSettings/Index', [
+        return view('system-settings.index', [
             'settings' => Setting::orderBy('group')->orderBy('name')->get(),
             'groups' => Setting::select('group')->distinct()->orderBy('group')->pluck('group'),
+            'can' => [
+                'create' => request()->user()?->can(Setting::getPermissions()['create']) ?? false,
+                'edit' => request()->user()?->can(Setting::getPermissions()['edit']) ?? false,
+                'delete' => request()->user()?->can(Setting::getPermissions()['delete']) ?? false,
+            ],
         ]);
     }
 
@@ -22,7 +26,7 @@ class SettingController extends Controller
     {
         Gate::authorize(Setting::getPermissions()['create']);
 
-        return Inertia::render('SystemSettings/Create');
+        return view('system-settings.create');
     }
 
     public function store(\App\Http\Requests\StoreSettingRequest $request)
@@ -38,7 +42,7 @@ class SettingController extends Controller
     {
         Gate::authorize(Setting::getPermissions()['edit']);
 
-        return Inertia::render('SystemSettings/Edit', [
+        return view('system-settings.edit', [
             'setting' => $system_setting,
         ]);
     }

@@ -5,19 +5,21 @@ namespace App\Http\Controllers;
 use App\Http\Requests\UpdateScheduledTaskRequest;
 use App\Models\ScheduledTask;
 use App\Models\Setting;
+use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Gate;
-use Inertia\Inertia;
-use Inertia\Response;
 
 class ScheduledTaskController extends Controller
 {
-    public function index(): Response
+    public function index(): View
     {
         Gate::authorize(Setting::getPermissions()['cron-view']);
 
-        return Inertia::render('SystemSettings/Cron', [
+        return view('system-settings.cron', [
             'tasks' => ScheduledTask::all(),
+            'can' => [
+                'edit' => request()->user()?->can(Setting::getPermissions()['cron-edit']) ?? false,
+            ],
         ]);
     }
 

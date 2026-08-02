@@ -13,6 +13,15 @@ class AppComposer
         $user = Auth::user();
         if (! $user) return;
 
+        // Share flash for the layout's flash block, unless a controller already
+        // passed its own $flash (do not override explicit values).
+        if (! array_key_exists('flash', $view->getData())) {
+            $view->with('flash', [
+                'success' => session('success'),
+                'error'   => session('error'),
+            ]);
+        }
+
         $view->with('_sidebar', [
             'user'          => $user,
             'permissions'   => $user->getAllPermissions()->pluck('name')->toArray(),

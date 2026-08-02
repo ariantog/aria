@@ -11,7 +11,6 @@ use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
-use Inertia\Inertia;
 
 class BoronganController extends Controller
 {
@@ -42,14 +41,16 @@ class BoronganController extends Controller
 
         $borongans = $query->latest('id')->paginate(30)->withQueryString();
 
-        return Inertia::render('Borongan/Index', [
+        return view('borongan.index', [
             'borongans' => $borongans,
             'filters' => $request->only(['from', 'to', 'jahit_id']),
+            'jahitList' => Worker::jahit()->get(),
             'can' => [
                 'create_borongan' => auth()->user()->can(Borongan::getPermissions()['create']),
                 'view_borongan' => auth()->user()->can(Borongan::getPermissions()['view-details']),
                 'delete_borongan' => auth()->user()->can(Borongan::getPermissions()['delete']),
             ],
+            'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
     }
 
@@ -64,10 +65,11 @@ class BoronganController extends Controller
         $to = Carbon::now()->toDateString();
         $jahitList = Worker::jahit()->get();
 
-        return Inertia::render('Borongan/Create', [
+        return view('borongan.create', [
             'jahitList' => $jahitList,
             'defaultFrom' => $from,
             'defaultTo' => $to,
+            'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
     }
 
@@ -157,9 +159,10 @@ class BoronganController extends Controller
         $borongan->load(['jahit', 'user']);
         $details = $borongan->details()->with(['item', 'produksi'])->get();
 
-        return Inertia::render('Borongan/Show', [
+        return view('borongan.show', [
             'borongan' => $borongan,
             'details' => $details,
+            'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
     }
 

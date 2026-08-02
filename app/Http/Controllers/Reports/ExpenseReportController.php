@@ -9,7 +9,6 @@ use App\Models\Transaction;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Gate;
-use Inertia\Inertia;
 
 class ExpenseReportController extends Controller
 {
@@ -146,7 +145,7 @@ class ExpenseReportController extends Controller
         // =========================
         $yearList = range(date('Y'), 2019);
 
-        return Inertia::render('Reports/ExpenseReport', [
+        return view('reports.expense', [
             'accountList' => $accountList,
             'accountReport' => $accountReport,
             'bankList' => $bankList,
@@ -160,6 +159,7 @@ class ExpenseReportController extends Controller
                 'month' => now()->month,
                 'year' => now()->year,
             ],
+            'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
     }
 }

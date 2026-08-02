@@ -14,7 +14,6 @@ use App\Services\ItemService;
 use App\Services\JubelioService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
-use Inertia\Inertia;
 
 class ItemsController extends Controller
 {
@@ -48,24 +47,60 @@ class ItemsController extends Controller
 
         $this->applyTagFilters($q, $request);
 
-        if ($this->isJson($request)) {
+        // Combobox / autocomplete JSON (unpaginated, limited) — used by asyncCombobox.
+        if ($this->isJson($request) && ! $request->boolean('table')) {
             return $q->with('warehouseItems')->limit(50)->get();
         }
 
-        return Inertia::render('Items/Index', [
-            'items' => $q->orderBy('id', 'desc')->paginate(50)->withQueryString(),
+        // Tabulator remote pagination JSON.
+        if ($request->expectsJson() || $request->ajax()) {
+            $sortField = $request->input('sort.0.field', 'id');
+            $sortDir = $request->input('sort.0.dir', 'desc');
+            $allowedSorts = ['id', 'code', 'pcode', 'name', 'price', 'qty'];
+            if (! in_array($sortField, $allowedSorts, true)) {
+                $sortField = 'id';
+            }
+
+            $perPage = (int) $request->input('size', 50);
+            $paginator = $q->with('group')
+                ->orderBy($sortField, $sortDir === 'asc' ? 'asc' : 'desc')
+                ->paginate($perPage);
+
+            return response()->json([
+                'data' => collect($paginator->items())->map(fn ($item) => [
+                    'id' => $item->id,
+                    'code' => $item->code,
+                    'pcode' => $item->pcode,
+                    'name' => $item->name,
+                    'price' => $item->price,
+                    'qty' => $item->qty,
+                    'image_url' => $item->image_url,
+                    'jubelio_item_id' => $item->jubelio_item_id,
+                    'alias' => $item->group?->alias ?? $item->name,
+                    'description' => $item->group?->description ?? $item->description,
+                    'description2' => $item->group?->description2 ?? $item->description2,
+                ])->all(),
+                'last_page' => $paginator->lastPage(),
+                'total' => $paginator->total(),
+            ]);
+        }
+
+        return view('items.index', [
             'filters' => $request->only(['search', 'brand', 'type', 'jahit', 'size', 'warna', 'item_type', 'code', 'name', 'alias', 'desc']),
             'brands' => $this->brandOptions(),
             'types' => $this->typeOptions(),
             'tags' => \App\Models\Tag::all()->groupBy('type'),
             'can' => $this->itemPermissions($type),
+            'isAsset' => $type === ItemType::ASSET_LANCAR,
+            'baseUrl' => $type === ItemType::ASSET_LANCAR ? '/assetlancar' : '/items',
+            'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
     }
 
     public function indexAsset(Request $request) { return $this->index($request, ItemType::ASSET_LANCAR); }
 
-    public function create() { Gate::authorize(Item::getPermissions()['create']); return Inertia::render('Items/Create', $this->formProps(ItemType::ITEM)); }
-    public function createAsset() { Gate::authorize(Item::getPermissions()['asset-lancar-create']); return Inertia::render('Items/Create', $this->formProps(ItemType::ASSET_LANCAR)); }
+    public function create() { Gate::authorize(Item::getPermissions()['create']); return view('items.create', $this->formProps(ItemType::ITEM)); }
+    public function createAsset() { Gate::authorize(Item::getPermissions()['asset-lancar-create']); return view('items.create', $this->formProps(ItemType::ASSET_LANCAR)); }
 
     public function store(StoreItemRequest $request)
     {
@@ -100,7 +135,10 @@ class ItemsController extends Controller
                 ->with('warehouse'),
         ]);
 
-        return Inertia::render('Items/Show', ['item' => $item]);
+        return view('items.show', [
+            'item' => $item,
+            'isAsset' => $item->type === ItemType::ASSET_LANCAR,
+        ]);
     }
 
     public function edit(Item $item)
@@ -108,11 +146,12 @@ class ItemsController extends Controller
         $p = Item::getPermissions();
         Gate::authorize($item->type === ItemType::ASSET_LANCAR ? $p['asset-lancar-edit'] : $p['edit']);
 
-        return Inertia::render('Items/Edit', [
+        return view('items.edit', [
             'item' => $item->load(['group', 'tags']),
             'brands' => $this->brandOptions(),
             'types' => $this->typeOptions(),
             'tags' => \App\Models\Tag::all()->groupBy('type'),
+            'isAsset' => $item->type === ItemType::ASSET_LANCAR,
         ]);
     }
 
@@ -151,7 +190,12 @@ class ItemsController extends Controller
         $item->load(['group', 'tags']);
         [$msg, $data] = $this->fetchJubelio($item, $s);
 
-        return Inertia::render('Items/Jubelio', ['item' => $item, 'dataJubelio' => $data, 'message' => $msg]);
+        return view('items.jubelio', [
+            'item' => $item,
+            'dataJubelio' => $data,
+            'message' => $msg,
+            'flash' => ['success' => session('success'), 'error' => session('error')],
+        ]);
     }
 
     public function getJubelioItems(Item $item, JubelioService $jubelioService, Request $request)
@@ -172,7 +216,7 @@ class ItemsController extends Controller
             ]);
 
             if ($response->successful()) {
-                return Inertia::render('Items/JubelioSearch', [
+                return view('items.jubelio-search', [
                     'item' => $item,
                     'jubelioItems' => $response->json()['data'] ?? [],
                     'query' => $request->input('q', $item->code),
@@ -203,9 +247,10 @@ class ItemsController extends Controller
             ->when($request->filled('alias'), fn ($q) => $q->where('alias', 'like', "%{$request->alias}%"))
             ->when($request->filled('desc'), fn ($q) => $q->where('description', 'like', "%{$request->desc}%"));
 
-        return Inertia::render('Items/GroupIndex', [
+        return view('items.group', [
             'groups' => $query->orderBy('id', 'desc')->paginate(20)->withQueryString(),
             'filters' => $request->only(['kode', 'alias', 'desc']),
+            'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
     }
 
@@ -218,7 +263,10 @@ class ItemsController extends Controller
             ->with('warehouse'),
         ]);
 
-        return Inertia::render('Items/GroupShow', ['group' => $group]);
+        return view('items.group-detail', [
+            'group' => $group,
+            'flash' => ['success' => session('success'), 'error' => session('error')],
+        ]);
     }
 
     public function groupStats(Request $request, ItemGroup $group)
@@ -242,7 +290,7 @@ class ItemsController extends Controller
             ->orderBy('bulan', 'desc')
             ->get();
 
-        return Inertia::render('Items/GroupStats', [
+        return view('items.group-stats', [
             'group' => $group,
             'data' => $data,
             'filters' => ['from' => $from, 'to' => $to],
@@ -260,9 +308,10 @@ class ItemsController extends Controller
             ->paginate(50)
             ->withQueryString();
 
-        return Inertia::render('Items/ItemTransactions', [
+        return view('items.item-transactions', [
             'item' => $item->load('group'),
             'transactions' => $transactions,
+            'isAsset' => $item->type === ItemType::ASSET_LANCAR,
         ]);
     }
 
@@ -304,11 +353,12 @@ class ItemsController extends Controller
             AddrbookType::Warehouse->value,
         ])->orderBy('name')->get(['id', 'name', 'type']);
 
-        return Inertia::render('Items/ItemStats', [
+        return view('items.item-stats', [
             'item' => $item->load('group'),
             'data' => $query->get(),
             'addrbooks' => $addrbooks,
             'filters' => compact('from', 'to') + ['addr' => $addrId],
+            'isAsset' => $item->type === ItemType::ASSET_LANCAR,
         ]);
     }
 

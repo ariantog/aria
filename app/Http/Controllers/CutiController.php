@@ -6,7 +6,7 @@ use App\Models\Cuti;
 use App\Models\Karyawan;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
-use Inertia\Inertia;
+use Illuminate\Support\Facades\Gate;
 
 class CutiController extends Controller
 {
@@ -14,7 +14,7 @@ class CutiController extends Controller
     {
         Gate::authorize(Karyawan::getPermissions()['cuti-create']);
 
-        return Inertia::render('Cuti/Create', [
+        return view('cuti.create', [
             'karyawan' => $karyawan,
         ]);
     }

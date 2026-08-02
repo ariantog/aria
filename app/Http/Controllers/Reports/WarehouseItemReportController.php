@@ -8,7 +8,6 @@ use App\Models\Report;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
-use Inertia\Inertia;
 
 class WarehouseItemReportController extends Controller
 {
@@ -55,9 +54,10 @@ class WarehouseItemReportController extends Controller
 
         $totalWarehouse = Addrbook::where('type', Addrbook::TYPE_WAREHOUSE)->count();
 
-        return Inertia::render('Reports/WarehouseItemReport', [
+        return view('reports.warehouse-item', [
             'data' => $data,
             'totalWarehouse' => $totalWarehouse,
+            'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
     }
 }

@@ -14,12 +14,11 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
-use Inertia\Inertia;
-use Inertia\Response;
+use Illuminate\View\View;
 
 class JubelioController extends Controller
 {
-    public function index(Request $request): Response
+    public function index(Request $request): View
     {
         Gate::authorize(Jubelio::getPermissions()['view']);
         $q = Jubelioorder::query()->with('user')->orderBy('updated_at', 'desc');
@@ -29,10 +28,10 @@ class JubelioController extends Controller
         elseif ($request->status == 'pending') $q->where('status', 0);
         $q->when($request->invoice, fn ($q) => $q->where('invoice', 'like', '%'.$request->invoice.'%'));
         $stats = Jubelioorder::selectRaw("COUNT(CASE WHEN status=0 THEN 1 END) as pending, COUNT(CASE WHEN status=2 AND error_type=10 THEN 1 END) as success, COUNT(CASE WHEN status=2 AND error_type=2 THEN 1 END) as warning, COUNT(CASE WHEN status=1 AND error_type=1 THEN 1 END) as error")->first();
-        return Inertia::render('jubelio/Index', ['orders' => $q->paginate(15)->withQueryString(), 'stats' => ['pending'=>(int)$stats->pending,'success'=>(int)$stats->success,'warning'=>(int)$stats->warning,'error'=>(int)$stats->error], 'filters' => $request->only(['status','invoice'])]);
+        return view('jubelio.index', ['orders' => $q->paginate(15)->withQueryString(), 'stats' => ['pending'=>(int)$stats->pending,'success'=>(int)$stats->success,'warning'=>(int)$stats->warning,'error'=>(int)$stats->error], 'filters' => $request->only(['status','invoice']), 'flash' => ['success' => session('success'), 'error' => session('error') ?? session('errorMessage')]]);
     }
 
-    public function show(Jubelioorder $jubelio): Response { Gate::authorize(Jubelio::getPermissions()['view']); return Inertia::render('jubelio/Show', ['order' => $jubelio->load(['user','trx'])]); }
+    public function show(Jubelioorder $jubelio): View { Gate::authorize(Jubelio::getPermissions()['view']); return view('jubelio.show', ['order' => $jubelio->load(['user','trx']), 'flash' => ['success' => session('success'), 'error' => session('error')]]); }
 
     public function webhookOrder(Request $request): JsonResponse
     {
@@ -44,7 +43,7 @@ class JubelioController extends Controller
         return response()->json(['status'=>'ok','message'=>'Status '.($d['status']??'unknown')]);
     }
 
-    public function transactionSync(Request $request): Response
+    public function transactionSync(Request $request): View
     {
         Gate::authorize(Jubelio::getPermissions()['sync']);
         $types = [TransactionType::Sell->value=>'SELL',TransactionType::ReturnSupplier->value=>'RETURN SUPPLIER',TransactionType::Buy->value=>'BUY',TransactionType::Return->value=>'RETURN',TransactionType::Move->value=>'MOVE'];
@@ -53,10 +52,10 @@ class JubelioController extends Controller
         $t = $q->orderBy('date','desc')->orderBy('id','desc')->paginate(200)->withQueryString();
         $sw = Jubeliosync::pluck('warehouse_id')->toArray();
         $t->getCollection()->transform(function($i)use($sw){$i->sync_cek=$this->syncCek($i,$sw);$i->type_name=$i->getTypeLabel();$i->description=$i->description??$i->notes??'';return $i;});
-        return Inertia::render('jubelio/TransactionSync',['transactions'=>$t,'types'=>$types,'filters'=>$request->only(['date','invoice','type','display'])]);
+        return view('jubelio.transaction-sync',['transactions'=>$t,'types'=>$types,'filters'=>$request->only(['date','invoice','type','display']),'flash'=>['success'=>session('success'),'error'=>session('error')]]);
     }
 
-    public function detailJubelioSync(Transaction $t): Response
+    public function detailJubelioSync(Transaction $t): View
     {
         Gate::authorize(Jubelio::getPermissions()['sync']);
         $t->load(['receiver','sender','user','submitByA','submitByB','details.item.group'])->loadCount(['details as item_with_jubelio_count'=>fn($q)=>$q->whereHas('item',fn($q)=>$q->where(fn($q)=>$q->whereNull('jubelio_item_id')->orWhere('jubelio_item_id','<',1)))]);
@@ -65,7 +64,7 @@ class JubelioController extends Controller
         $adA=0;$adB=0;$jA=null;$jB=null;
         if($syncA){$jsA=Jubeliosync::where('warehouse_id',$t->sender_id)->first();if($jsA){$adA=2;$jA=$jsA->jubelio_location_name;}}
         if($syncB){$jsB=Jubeliosync::where('warehouse_id',$t->receiver_id)->first();if($jsB){$adB=1;$jB=$jsB->jubelio_location_name;}}
-        return Inertia::render('jubelio/DetailSync',['data'=>$t,'can_sync'=>$t->submit_type===Transaction::SUBMIT_TYPE_MANUAL,'JubelioA'=>$jA,'JubelioB'=>$jB,'adJustTypeA'=>$adA,'adJustTypeB'=>$adB,'whA'=>2,'whB'=>1,'whAName'=>$t->sender->name??'','whBName'=>$t->receiver->name??'']);
+        return view('jubelio.detail-sync',['data'=>$t,'can_sync'=>$t->submit_type===Transaction::SUBMIT_TYPE_MANUAL,'JubelioA'=>$jA,'JubelioB'=>$jB,'adJustTypeA'=>$adA,'adJustTypeB'=>$adB,'whA'=>2,'whB'=>1,'whAName'=>$t->sender->name??'','whBName'=>$t->receiver->name??'','flash'=>['success'=>session('success'),'error'=>session('errorMessage')??session('error')]]);
     }
 
     public function transactionSyncDisplay(Transaction $t): RedirectResponse { Gate::authorize(Jubelio::getPermissions()['sync']); $t->update(['sync_hide'=>$t->sync_hide=='N'?'Y':'N']); return back()->with('success','Updated.'); }

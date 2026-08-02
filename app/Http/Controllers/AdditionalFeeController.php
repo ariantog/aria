@@ -6,7 +6,6 @@ use App\Http\Requests\StoreAdditionalFeeRequest;
 use App\Http\Requests\UpdateAdditionalFeeRequest;
 use App\Models\AdditionalFee;
 use Illuminate\Support\Facades\Gate;
-use Inertia\Inertia;
 
 class AdditionalFeeController extends Controller
 {
@@ -23,7 +22,7 @@ class AdditionalFeeController extends Controller
             $query->where('name', 'like', "%{$search}%");
         }
 
-        return Inertia::render('AdditionalFees/Index', [
+        return view('additional-fees.index', [
             'additional_fees' => $query->latest()->paginate(10)->withQueryString(),
             'filters' => request()->all(['search']),
             'can' => [
@@ -41,7 +40,7 @@ class AdditionalFeeController extends Controller
     {
         Gate::authorize(AdditionalFee::getPermissions()['create']);
 
-        return Inertia::render('AdditionalFees/Create');
+        return view('additional-fees.create');
     }
 
     /**
@@ -64,7 +63,7 @@ class AdditionalFeeController extends Controller
     {
         Gate::authorize(AdditionalFee::getPermissions()['edit']);
 
-        return Inertia::render('AdditionalFees/Edit', [
+        return view('additional-fees.edit', [
             'additional_fee' => $additionalFee,
         ]);
     }

@@ -8,17 +8,16 @@ use App\Models\Addrbook;
 use App\Models\Item;
 use App\Models\Transaction;
 use App\Models\TransactionDetail;
+use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
-use Inertia\Inertia;
-use Inertia\Response;
 
 class ContributorController extends Controller
 {
     /**
      * Display a listing of the resource.
      */
-    public function index(Request $request): Response
+    public function index(Request $request): View
     {
         Gate::authorize(Item::getPermissions()['contributor']);
 
@@ -134,7 +133,7 @@ class ContributorController extends Controller
                 ];
             });
 
-        return Inertia::render('Stuff/Contributors/Index', [
+        return view('stuff.contributors.index', [
             'stats' => [
                 'topItems' => $topItems,
                 'groupByBrand' => $groupByBrand,

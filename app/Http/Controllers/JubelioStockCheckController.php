@@ -7,35 +7,36 @@ use App\Models\Jubelio;
 use App\Models\JubelioStockCheck;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Gate;
-use Inertia\Inertia;
-use Inertia\Response;
+use Illuminate\View\View;
 
 class JubelioStockCheckController extends Controller
 {
     /**
      * Display a listing of the resource.
      */
-    public function index(): Response
+    public function index(): View
     {
         Gate::authorize(Jubelio::getPermissions()['stock-check']);
 
-        return Inertia::render('jubelio/StockCheck/Index', [
+        return view('jubelio.stock-check.index', [
             'stockChecks' => JubelioStockCheck::withCount('discrepancies')
                 ->orderBy('created_at', 'desc')
                 ->paginate(10),
             'activeJob' => JubelioStockCheck::whereIn('status', ['created', 'processing'])->first(),
+            'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
     }
 
     /**
      * Show the form for creating a new resource.
      */
-    public function create(): Response
+    public function create(): View
     {
         Gate::authorize(Jubelio::getPermissions()['stock-check']);
 
-        return Inertia::render('jubelio/StockCheck/Create', [
+        return view('jubelio.stock-check.create', [
             'activeJob' => JubelioStockCheck::whereIn('status', ['created', 'processing'])->first(),
+            'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
     }
 
@@ -65,12 +66,13 @@ class JubelioStockCheckController extends Controller
     /**
      * Display the specified resource.
      */
-    public function show(JubelioStockCheck $jubelioStockCheck): Response
+    public function show(JubelioStockCheck $jubelioStockCheck): View
     {
         Gate::authorize(Jubelio::getPermissions()['stock-check']);
 
-        return Inertia::render('jubelio/StockCheck/Show', [
+        return view('jubelio.stock-check.show', [
             'stockCheck' => $jubelioStockCheck->load('discrepancies.warehouse', 'discrepancies.item'),
+            'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
     }
 

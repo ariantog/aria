@@ -6,7 +6,6 @@ use App\Http\Requests\StorePostRequest;
 use App\Http\Requests\UpdatePostRequest;
 use App\Models\Post;
 use Illuminate\Support\Facades\Gate;
-use Inertia\Inertia;
 
 class PostController extends Controller
 {
@@ -15,7 +14,7 @@ class PostController extends Controller
         // Simple authorization check (or use middleware)
         // Gate::authorize(Post::getPermissions()['view']);
 
-        return Inertia::render('Posts/Index', [
+        return view('posts.index', [
             'posts' => Post::with('user')->latest()->get(),
             'can' => [
                 'create_post' => auth()->user()->can(Post::getPermissions()['create']),
@@ -27,7 +26,7 @@ class PostController extends Controller
     {
         Gate::authorize(Post::getPermissions()['create']);
 
-        return Inertia::render('Posts/Create');
+        return view('posts.create');
     }
 
     public function store(StorePostRequest $request)
@@ -43,7 +42,7 @@ class PostController extends Controller
     {
         Gate::authorize(Post::getPermissions()['edit']);
 
-        return Inertia::render('Posts/Edit', [
+        return view('posts.edit', [
             'post' => $post,
         ]);
     }

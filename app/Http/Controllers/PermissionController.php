@@ -6,7 +6,6 @@ use App\Models\User;
 use App\Services\PermissionGenerator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
-use Inertia\Inertia;
 use Spatie\Permission\Models\Permission;
 
 class PermissionController extends Controller
@@ -17,8 +16,11 @@ class PermissionController extends Controller
 
         $permissions = Permission::latest()->paginate(50);
 
-        return Inertia::render('Permissions/Index', [
+        return view('permissions.index', [
             'permissions' => $permissions,
+            'can' => [
+                'generate' => request()->user()?->can(User::getPermissions()['permissions-generate']) ?? false,
+            ],
         ]);
     }
 

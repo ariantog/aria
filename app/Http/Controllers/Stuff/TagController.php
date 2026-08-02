@@ -7,7 +7,6 @@ use App\Http\Controllers\Controller;
 use App\Models\Tag;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
-use Inertia\Inertia;
 
 class TagController extends Controller
 {
@@ -25,8 +24,9 @@ class TagController extends Controller
                 ->orWhere('code', 'like', "%{$search}%");
         }
 
-        return Inertia::render('Stuff/Tags/Index', [
+        return view('stuff.tags.index', [
             'tags' => $query->latest()->paginate(50)->withQueryString(),
+            'search' => $search ?? '',
             'types' => Tag::$types,
             'itemTypes' => [
                 'All' => 0,
@@ -34,6 +34,11 @@ class TagController extends Controller
                     array_map(fn ($t) => $t->label(), ItemType::cases()),
                     array_map(fn ($t) => $t->value, ItemType::cases())
                 ),
+            ],
+            'can' => [
+                'create' => request()->user()?->can(Tag::getPermissions()['create']) ?? false,
+                'edit' => request()->user()?->can(Tag::getPermissions()['edit']) ?? false,
+                'delete' => request()->user()?->can(Tag::getPermissions()['delete']) ?? false,
             ],
         ]);
     }

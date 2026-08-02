@@ -6,7 +6,6 @@ use App\Http\Requests\StoreLocationRequest;
 use App\Http\Requests\UpdateLocationRequest;
 use App\Models\Location;
 use Illuminate\Support\Facades\Gate;
-use Inertia\Inertia;
 
 class LocationController extends Controller
 {
@@ -20,11 +19,11 @@ class LocationController extends Controller
             $query->where('name', 'like', "%{$search}%");
         }
 
-        if ((request()->wantsJson() || request()->has('json')) && ! request()->header('X-Inertia')) {
+        if (request()->wantsJson() || request()->has('json') || request()->ajax()) {
             return $query->limit(20)->get(['id', 'name']);
         }
 
-        return Inertia::render('Locations/Index', [
+        return view('locations.index', [
             'locations' => $query->latest()->paginate(50)->withQueryString(),
             'can' => [
                 'create_location' => request()->user()?->can(Location::getPermissions()['create']) ?? false,
@@ -38,7 +37,7 @@ class LocationController extends Controller
     {
         Gate::authorize(Location::getPermissions()['create']);
 
-        return Inertia::render('Locations/Create');
+        return view('locations.create');
     }
 
     public function store(StoreLocationRequest $request)
@@ -54,7 +53,7 @@ class LocationController extends Controller
     {
         Gate::authorize(Location::getPermissions()['edit']);
 
-        return Inertia::render('Locations/Edit', [
+        return view('locations.edit', [
             'location' => $location,
         ]);
     }

@@ -1,11 +1,10 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-use Inertia\Inertia;
 use Laravel\Fortify\Features;
 
 Route::get('/', function () {
-    return Inertia::render('welcome', [
+    return view('welcome', [
         'canRegister' => Features::enabled(Features::registration()),
     ]);
 })->name('home');
@@ -19,7 +18,7 @@ Route::middleware(['auth', 'active'])->get('/banned', function () {
         return redirect('dashboard');
     }
 
-    return Inertia::render('auth/Banned');
+    return view('auth.banned');
 })->withoutMiddleware(['active'])->name('banned');
 
 Route::middleware(['auth', 'verified', 'active'])->group(function () {

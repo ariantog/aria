@@ -6,7 +6,6 @@ use App\Models\Addrbook;
 use App\Models\Karyawan;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
-use Inertia\Inertia;
 
 class KaryawanController extends Controller
 {
@@ -31,9 +30,10 @@ class KaryawanController extends Controller
 
         $karyawans = $query->paginate(50)->withQueryString();
 
-        return Inertia::render('Karyawan/Index', [
+        return view('karyawan.index', [
             'karyawans' => $karyawans,
             'filters' => $request->only('name'),
+            'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
     }
 
@@ -43,8 +43,9 @@ class KaryawanController extends Controller
 
         $banks = Addrbook::where('type', Addrbook::TYPE_BANK)->get(['id', 'name']);
 
-        return Inertia::render('Karyawan/Form', [
+        return view('karyawan.form', [
             'banks' => $banks,
+            'karyawan' => null,
         ]);
     }
 
@@ -89,7 +90,7 @@ class KaryawanController extends Controller
 
         $banks = Addrbook::where('type', Addrbook::TYPE_BANK)->get(['id', 'name']);
 
-        return Inertia::render('Karyawan/Form', [
+        return view('karyawan.form', [
             'karyawan' => $karyawan,
             'banks' => $banks,
         ]);
@@ -129,8 +130,9 @@ class KaryawanController extends Controller
             'cuti' => fn ($q) => $q->orderBy('tgl_mulai', 'desc'),
         ]);
 
-        return Inertia::render('Karyawan/Show', [
+        return view('karyawan.show', [
             'karyawan' => $karyawan,
+            'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
     }
 
