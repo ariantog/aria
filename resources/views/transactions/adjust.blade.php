@@ -63,8 +63,8 @@
                             endpoint: '{{ route('transactions.lookup', ['type' => 'adjust', 'role' => 'receiver']) }}',
                             placeholder: 'Search Account / Contact…',
                             onSelect: (item) => {
-                                $root.receiverId = item ? String(item.id) : '';
-                                $root.receiverBalance = item ? Number(item.balance || 0) : null;
+                                receiverId = item ? String(item.id) : '';
+                                receiverBalance = item ? Number(item.balance || 0) : null;
                             }
                         })" class="relative">
                             <div class="relative flex h-10 overflow-hidden rounded-lg border focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500 @error('receiver') border-red-500 @else border-gray-300 @enderror">
@@ -103,8 +103,8 @@
                             endpoint: '{{ route('transactions.lookup', ['type' => 'adjust', 'role' => 'sender']) }}',
                             placeholder: 'Search Account / Contact…',
                             onSelect: (item) => {
-                                $root.senderId = item ? String(item.id) : '';
-                                $root.senderBalance = item ? Number(item.balance || 0) : null;
+                                senderId = item ? String(item.id) : '';
+                                senderBalance = item ? Number(item.balance || 0) : null;
                             }
                         })" class="relative">
                             <div class="relative flex h-10 overflow-hidden rounded-lg border focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500 @error('sender') border-red-500 @else border-gray-300 @enderror">
