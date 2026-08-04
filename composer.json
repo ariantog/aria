@@ -1,8 +1,8 @@
 {
     "$schema": "https://getcomposer.org/schema.json",
-    "name": "ariantog/aria",
+    "name": "laravel/react-starter-kit",
     "type": "project",
-    "description": "Aria Core — Laravel inventory, accounting and transaction management (Blade + Alpine.js).",
+    "description": "The skeleton application for the Laravel framework.",
     "keywords": [
         "laravel",
         "framework"

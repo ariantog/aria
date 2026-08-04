@@ -19,7 +19,8 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        php-version: ['8.4', '8.5']
+        # phpoffice/phpspreadsheet (via maatwebsite/excel) requires php <8.5, so 8.5 is not supported yet.
+        php-version: ['8.3', '8.4']
 
     steps:
       - name: Checkout code
