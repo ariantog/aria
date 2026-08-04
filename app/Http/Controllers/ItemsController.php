@@ -85,7 +85,10 @@ class ItemsController extends Controller
             ]);
         }
 
+        $items = $q->with('group')->orderBy('id', 'desc')->paginate(50)->withQueryString();
+
         return view('items.index', [
+            'items' => $items,
             'filters' => $request->only(['search', 'brand', 'type', 'jahit', 'size', 'warna', 'item_type', 'code', 'name', 'alias', 'desc']),
             'brands' => $this->brandOptions(),
             'types' => $this->typeOptions(),
