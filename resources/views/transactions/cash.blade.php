@@ -67,9 +67,9 @@ $config = [
                             endpoint: '{{ route('transactions.lookup', ['type' => $config['lookupType'], 'role' => 'receiver']) }}',
                             additionalParams: { addrbook_type: 3 },
                             placeholder: 'Select bank account…',
-                            onSelect: (item) => { $root.form.account_id = item ? String(item.id) : '' }
+                            onSelect: (item) => { form.account_id = item ? String(item.id) : '' }
                         })" class="relative">
-                            <input type="hidden" name="account_id" :value="$root.form.account_id">
+                            <input type="hidden" name="account_id" :value="form.account_id">
                             <div class="relative flex h-10 overflow-hidden rounded-lg border border-gray-300 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500">
                                 <input type="text" x-model="query" @input="handleInput()" @focus="handleFocus()" @keydown="handleKeydown($event)"
                                        :placeholder="placeholder" class="flex-1 border-none bg-transparent px-3 text-sm outline-none" autocomplete="off">
@@ -123,7 +123,7 @@ $config = [
                     <template x-for="(row, idx) in form.items" :key="row.id">
                         <div class="grid grid-cols-1 items-start gap-3 px-5 py-3 md:grid-cols-12 md:items-center">
                             {{-- Source / recipient autocomplete --}}
-                            <div class="md:col-span-4"
+                            <div class="relative md:col-span-4"
                                  x-data="asyncCombobox({
                                      endpoint: '{{ route('transactions.lookup', ['type' => $config['lookupType'], 'role' => $config['lookupRole']]) }}',
                                      placeholder: '{{ $config['sourcePlaceholder'] }}',
@@ -272,7 +272,7 @@ function cashForm() {
                 add(`items[${i}][customer_id]`, item.customer_id);
                 add(`items[${i}][invoice_number]`, item.invoice_number);
                 add(`items[${i}][note]`, item.note);
-                add(`items[${i}][total]`, item.total);
+                add(`items[${i}][total]`, item.total || 0);
             });
 
             form.submit();
@@ -287,7 +287,7 @@ function newRow() {
         customer: null,
         invoice_number: '',
         note: '',
-        total: 0,
+        total: null,
     };
 }
 </script>
