@@ -131,6 +131,7 @@ $config = [
                                  })">
                                 <div class="relative flex h-9 overflow-hidden rounded-lg border border-gray-300 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500">
                                     <input type="text" x-model="query" @input="handleInput()" @focus="handleFocus()" @keydown="handleKeydown($event)"
+                                           :id="'source_' + idx"
                                            :placeholder="placeholder" class="flex-1 border-none bg-transparent px-2 text-sm outline-none" autocomplete="off">
                                     <span x-show="loading" class="flex items-center pr-1.5"><svg class="h-3.5 w-3.5 animate-spin text-gray-400" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg></span>
                                 </div>
@@ -230,11 +231,11 @@ function cashForm() {
             if (field === 'next') {
                 // Move to next row or add row
                 if (idx < this.form.items.length - 1) {
-                    id = 'invoice_' + (idx + 1);
+                    id = 'source_' + (idx + 1);
                 } else {
                     this.addRow();
                     this.$nextTick(() => {
-                        const el = document.getElementById('invoice_' + (idx + 1));
+                        const el = document.getElementById('source_' + (idx + 1));
                         if (el) el.focus();
                     });
                     return;
