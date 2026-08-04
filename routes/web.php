@@ -108,6 +108,8 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::get('assetlancar/{item}/edit', [App\Http\Controllers\ItemsController::class, 'edit'])->name('assetlancar.edit');
     Route::put('assetlancar/{item}', [App\Http\Controllers\ItemsController::class, 'update'])->name('assetlancar.update');
     Route::delete('assetlancar/{item}', [App\Http\Controllers\ItemsController::class, 'destroy'])->name('assetlancar.destroy');
+    Route::get('assetlancar/{item}/transactions', [App\Http\Controllers\ItemsController::class, 'itemTransactions'])->name('assetlancar.transactions');
+    Route::get('assetlancar/{item}/stats', [App\Http\Controllers\ItemsController::class, 'itemStats'])->name('assetlancar.stats');
 
     // Item Group Routes
     Route::get('items-group', [App\Http\Controllers\ItemsController::class, 'group'])->name('items.group');
