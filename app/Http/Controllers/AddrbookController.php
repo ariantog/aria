@@ -168,7 +168,9 @@ class AddrbookController extends Controller
             ->with(['sender', 'receiver', 'user'])
             ->when(request('from'), fn ($q) => $q->whereDate('date', '>=', request('from')))
             ->when(request('to'), fn ($q) => $q->whereDate('date', '<=', request('to')))
-            ->when(request('type'), fn ($q) => $q->where('type', request('type')));
+            // Use query() so the {type} route segment (customer/supplier/…) does not leak
+            // into request('type') and filter transactions by a non-numeric type.
+            ->when(request()->query('type'), fn ($q) => $q->where('type', request()->query('type')));
 
         if (request('order_date', 'date') === 'created_at') {
             $q->orderBy('created_at', 'desc');
@@ -202,7 +204,9 @@ class AddrbookController extends Controller
                 ->where('items.name', 'like', '%'.request('name').'%')
                 ->orWhere('items.code', 'like', '%'.request('name').'%')
             ))
-            ->when(request('show0') !== 'show', fn ($q) => $q->wherePivot('quantity', '>', 0));
+            // Qualified pivot column: inside a when() closure the callback receives the base
+            // query builder, where wherePivot() is unavailable and degrades to a broken where.
+            ->when(request('show0') !== 'show', fn ($q) => $q->where('warehouse_items.quantity', '>', 0));
 
         $sort = request('sort', 'qtydesc');
         match ($sort) {
