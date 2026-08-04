@@ -67,9 +67,9 @@ $config = [
                             endpoint: '{{ route('transactions.lookup', ['type' => $config['lookupType'], 'role' => 'receiver']) }}',
                             additionalParams: { addrbook_type: 3 },
                             placeholder: 'Select bank account…',
-                            onSelect: (item) => { $root.form.account_id = item ? String(item.id) : '' }
+                            onSelect: (item) => { form.account_id = item ? String(item.id) : '' }
                         })" class="relative">
-                            <input type="hidden" name="account_id" :value="$root.form.account_id">
+                            <input type="hidden" name="account_id" :value="form.account_id">
                             <div class="relative flex h-10 overflow-hidden rounded-lg border border-gray-300 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500">
                                 <input type="text" x-model="query" @input="handleInput()" @focus="handleFocus()" @keydown="handleKeydown($event)"
                                        :placeholder="placeholder" class="flex-1 border-none bg-transparent px-3 text-sm outline-none" autocomplete="off">
