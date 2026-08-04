@@ -179,21 +179,20 @@
             </div>
 
             {{-- Line Items --}}
+            @php $isMove = $type === 'move'; @endphp
             <div class="rounded-xl border border-gray-200 bg-white shadow-sm">
                 <div class="flex items-center justify-between border-b border-gray-100 px-5 py-4">
                     <h3 class="text-sm font-semibold text-gray-900">🛒 Line Items</h3>
                     <div class="flex gap-2">
-                        @if(in_array($type, ['sell','move','buy','return','return-supplier']))
                         <label class="flex cursor-pointer items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50">
                             <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
                             Batch CSV
                             <input type="file" accept=".csv,.txt" class="hidden" @change="uploadCSV($event)">
                         </label>
-                        @endif
-                        <button type="button" @click="openAddItemModal()"
+                        <button type="button" @click="addItemRow(true)"
                                 class="flex items-center gap-1.5 rounded-lg bg-blue-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-800">
                             <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-                            Add Item <span class="opacity-70">(Ctrl+I)</span>
+                            Add Row
                         </button>
                     </div>
                 </div>
@@ -208,55 +207,79 @@
                 <div x-show="errors.items" class="mx-5 mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800" x-text="errors.items"></div>
 
                 {{-- Table header --}}
-                <div class="hidden grid-cols-12 gap-2 border-b bg-gray-50 px-5 py-2.5 text-xs font-medium uppercase text-gray-500 sm:grid">
-                    <div class="{{ $type === 'move' ? 'col-span-5' : 'col-span-4' }}">Item</div>
-                    <div class="col-span-2 text-center">Qty / Stock</div>
+                <div class="hidden grid-cols-12 gap-2 border-b bg-gray-50 px-5 py-2.5 text-[10px] font-medium uppercase tracking-wide text-gray-500 sm:grid">
+                    <div class="col-span-2">Code / Barcode</div>
+                    <div class="col-span-3">Item Name</div>
+                    <div class="col-span-1 text-center">Qty</div>
+                    <div class="{{ $isMove ? 'col-span-2' : 'col-span-1' }} text-center">Whs. Stock</div>
+                    @unless($isMove)<div class="col-span-1 text-right">Disc %</div>@endunless
                     <div class="col-span-2 text-right">Price</div>
-                    @if($type !== 'move')<div class="col-span-1 text-right">Disc</div>@endif
-                    <div class="col-span-2 text-right">Subtotal</div>
+                    <div class="col-span-1 text-right">Subtotal</div>
                     <div class="col-span-1 text-center">×</div>
                 </div>
 
                 {{-- Item rows --}}
                 <div class="divide-y divide-gray-100 px-0">
-                    <div x-show="form.items.length === 0" class="py-12 text-center text-sm text-gray-400">
-                        No items. Press <kbd class="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-xs text-gray-600">Ctrl+I</kbd> to add items.
-                    </div>
-                    <template x-for="(item, idx) in form.items" :key="idx">
-                        <div class="grid grid-cols-12 items-center gap-2 px-5 py-3 text-sm transition-colors hover:bg-gray-50"
+                    <template x-for="(item, idx) in form.items" :key="item.uid">
+                        <div class="grid grid-cols-12 items-start gap-2 px-5 py-2.5 text-sm hover:bg-gray-50"
                              :class="isOverStock(item) ? 'bg-red-50' : ''">
-                            <div :class="{{ $type === 'move' ? '\'col-span-5\'' : '\'col-span-4\'' }}" class="min-w-0">
-                                <div class="font-medium text-gray-900 truncate" x-text="item.name"></div>
-                                <div class="text-xs text-gray-400" x-text="item.code + (item.warehouse_name ? ' · ' + item.warehouse_name : '')"></div>
-                                <div x-show="item.note" class="text-xs text-gray-400 italic" x-text="item.note"></div>
-                            </div>
-                            <div class="col-span-2 text-center">
-                                <input type="number" x-model.number="item.quantity"
-                                       @input="recalcItem(idx)"
-                                       min="0" step="1"
-                                       class="w-full rounded border border-gray-200 px-2 py-1 text-center text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                                       :class="isOverStock(item) ? 'border-red-400 text-red-700' : ''">
-                                <div x-show="item.warehouse_stock !== undefined"
-                                     class="text-xs mt-0.5"
-                                     :class="isOverStock(item) ? 'text-red-500 font-medium' : 'text-gray-400'"
-                                     x-text="'/ ' + (item.warehouse_stock || 0)"></div>
-                            </div>
+                            {{-- Code / barcode --}}
                             <div class="col-span-2">
-                                <input type="number" x-model.number="item.price"
-                                       @input="recalcItem(idx)"
-                                       min="0"
-                                       class="w-full rounded border border-gray-200 px-2 py-1 text-right text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                                <input type="text" x-model="item.code" :id="'code_' + idx"
+                                       @keydown.enter.prevent="lookupBarcode(idx)"
+                                       placeholder="ID / SKU"
+                                       class="w-full rounded border border-gray-200 px-2 py-1 font-mono text-xs focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
                             </div>
-                            @if($type !== 'move')
+                            {{-- Name autocomplete --}}
+                            <div class="relative col-span-3">
+                                <input type="text" x-model="item.name" :id="'name_' + idx"
+                                       @input="searchItems(idx)" @focus="item.showDropdown = true"
+                                       @keydown="nameKeydown(idx, $event)"
+                                       @click.away="item.showDropdown = false"
+                                       placeholder="Search name or code…" autocomplete="off"
+                                       class="w-full rounded border border-gray-200 px-2 py-1 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                                <div x-show="item.showDropdown && item.results.length" class="combobox-options" x-cloak>
+                                    <template x-for="(r, ri) in item.results" :key="r.id">
+                                        <div @mousedown.prevent="pickItem(idx, r)" @mouseenter="item.activeIndex = ri"
+                                             class="combobox-option" :class="{ 'active': item.activeIndex === ri }">
+                                            <span class="mr-2 font-mono text-xs text-gray-400" x-text="r.code"></span>
+                                            <span x-text="r.name"></span>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                            {{-- Qty --}}
                             <div class="col-span-1">
-                                <input type="number" x-model.number="item.discount"
-                                       @input="recalcItem(idx)"
+                                <input type="number" x-model.number="item.quantity" :id="'qty_' + idx"
+                                       @input="recalcItem(idx)" @keydown.enter.prevent="focusField(idx, '{{ $isMove ? 'price' : 'disc' }}')"
+                                       min="0" step="1"
+                                       class="w-full rounded border border-gray-200 px-1.5 py-1 text-center text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                                       :class="isOverStock(item) ? 'border-red-400 text-red-700' : ''">
+                            </div>
+                            {{-- Warehouse stock (read-only) --}}
+                            <div class="{{ $isMove ? 'col-span-2' : 'col-span-1' }} pt-1 text-center text-xs tabular-nums"
+                                 :class="isOverStock(item) ? 'font-semibold text-red-500' : 'text-gray-400'"
+                                 x-text="item.item_id ? (Number(item.warehouse_stock || 0)).toLocaleString('id-ID') : '—'"></div>
+                            {{-- Discount % --}}
+                            @unless($isMove)
+                            <div class="col-span-1">
+                                <input type="number" x-model.number="item.discount" :id="'disc_' + idx"
+                                       @input="recalcItem(idx)" @keydown.enter.prevent="focusField(idx, 'price')"
+                                       min="0" max="100" step="0.01"
+                                       class="w-full rounded border border-gray-200 px-1.5 py-1 text-right text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                            </div>
+                            @endunless
+                            {{-- Price --}}
+                            <div class="col-span-2">
+                                <input type="number" x-model.number="item.price" :id="'price_' + idx"
+                                       @input="recalcItem(idx)" @keydown.enter.prevent="priceEnter(idx)"
                                        min="0"
                                        class="w-full rounded border border-gray-200 px-2 py-1 text-right text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
                             </div>
-                            @endif
-                            <div class="col-span-2 text-right tabular-nums font-medium" x-text="Number(item.subtotal||0).toLocaleString('id-ID')"></div>
-                            <div class="col-span-1 text-center">
+                            {{-- Subtotal --}}
+                            <div class="col-span-1 pt-1 text-right text-sm font-medium tabular-nums" x-text="Number(item.subtotal || 0).toLocaleString('id-ID')"></div>
+                            {{-- Remove --}}
+                            <div class="col-span-1 pt-0.5 text-center">
                                 <button type="button" @click="removeItem(idx)"
                                         class="flex h-6 w-6 items-center justify-center rounded text-gray-400 hover:bg-red-50 hover:text-red-500 mx-auto">
                                     <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
@@ -280,8 +303,8 @@
                         <span class="font-medium tabular-nums" x-text="form.total_quantity.toLocaleString()"></span>
                     </div>
                     <div class="flex justify-between text-sm">
-                        <span class="text-gray-500">Subtotal</span>
-                        <span class="tabular-nums" x-text="'Rp ' + Number(form.total_before_discount).toLocaleString('id-ID')"></span>
+                        <span class="text-gray-500">Total before Disc</span>
+                        <span class="tabular-nums" x-text="'Rp ' + Number(form.gross_total).toLocaleString('id-ID')"></span>
                     </div>
                     @if($type !== 'move')
                     <div class="flex items-center justify-between text-sm">
@@ -297,7 +320,7 @@
                     </div>
                     @endif
                     <div class="flex justify-between text-sm">
-                        <span class="text-gray-500">After Disc.</span>
+                        <span class="text-gray-500">Total before PPN</span>
                         <span class="tabular-nums" x-text="'Rp ' + Number(form.total_before_ppn).toLocaleString('id-ID')"></span>
                     </div>
                     <div class="flex justify-between text-sm" x-show="form.ppn_amount > 0">
@@ -320,91 +343,6 @@
         </div>
     </div>
 
-    {{-- Add Item Modal --}}
-    <div x-show="addItemModal" x-cloak
-         class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-         @keydown.escape.window="addItemModal = false">
-        <div class="w-full max-w-lg rounded-xl border border-gray-200 bg-white shadow-xl" @click.stop>
-            <div class="flex items-center justify-between border-b border-gray-100 px-5 py-4">
-                <h3 class="font-semibold text-gray-900">Add Item</h3>
-                <button @click="addItemModal = false" class="text-gray-400 hover:text-gray-600">
-                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-                </button>
-            </div>
-            <div class="p-5 space-y-4">
-                {{-- Item search --}}
-                <div x-data="asyncCombobox({
-                    endpoint: '/items',
-                    queryParam: 'search',
-                    additionalParams: { json: true, type: '1,2' },
-                    placeholder: 'Search item by name or code…',
-                    onSelect: (item) => { if(item) pendingItem = {...item, quantity: 1, price: Number(item[_PriceSource] ?? item.price) || 0, discount: 0 } }
-                })" class="relative">
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Item</label>
-                    <div class="relative flex h-10 overflow-hidden rounded-lg border border-gray-300 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500">
-                        <input type="text" x-model="query"
-                               @input="handleInput()" @focus="handleFocus()" @keydown="handleKeydown($event)"
-                               :placeholder="placeholder"
-                               class="flex-1 border-none bg-transparent px-3 text-sm outline-none"
-                               autocomplete="off" x-ref="itemInput">
-                        <span x-show="loading" class="flex items-center pr-2">
-                            <svg class="h-4 w-4 animate-spin text-gray-400" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-                        </span>
-                    </div>
-                    <div x-show="open" @click.away="open = false" class="combobox-options" x-ref="optionsList">
-                        <div x-show="!loading && items.length === 0" class="px-3 py-2 text-sm text-gray-400">No items found.</div>
-                        <template x-for="(item, idx) in items" :key="item.id">
-                            <div @click="selectItem(item)" @mouseenter="activeIndex = idx"
-                                 class="combobox-option" :class="{ 'active': activeIndex === idx }">
-                                <span class="font-mono text-xs text-gray-400 mr-2" x-text="item.code"></span>
-                                <span x-text="item.name"></span>
-                            </div>
-                        </template>
-                    </div>
-                </div>
-
-                <template x-if="pendingItem">
-                    <div class="space-y-3 rounded-lg border border-gray-100 bg-gray-50 p-3">
-                        <div class="text-sm font-medium text-gray-900" x-text="pendingItem.name"></div>
-                        <div class="grid grid-cols-3 gap-3">
-                            <div>
-                                <label class="block text-xs font-medium text-gray-600 mb-1">Qty</label>
-                                <input type="number" x-model.number="pendingItem.quantity" min="1" step="1"
-                                       class="w-full rounded border border-gray-300 px-2 py-1.5 text-sm focus:border-blue-500">
-                                <div x-show="pendingItem.warehouse_stock !== undefined" class="text-xs text-gray-400 mt-0.5" x-text="'Stock: ' + (pendingItem.warehouse_stock || 0)"></div>
-                            </div>
-                            <div>
-                                <label class="block text-xs font-medium text-gray-600 mb-1">Price</label>
-                                <input type="number" x-model.number="pendingItem.price" min="0"
-                                       class="w-full rounded border border-gray-300 px-2 py-1.5 text-sm text-right focus:border-blue-500">
-                            </div>
-                            <div>
-                                <label class="block text-xs font-medium text-gray-600 mb-1">Disc (Rp)</label>
-                                <input type="number" x-model.number="pendingItem.discount" min="0"
-                                       class="w-full rounded border border-gray-300 px-2 py-1.5 text-sm text-right focus:border-blue-500">
-                            </div>
-                        </div>
-                        <div>
-                            <label class="block text-xs font-medium text-gray-600 mb-1">Note</label>
-                            <input type="text" x-model="pendingItem.note" placeholder="Optional…"
-                                   class="w-full rounded border border-gray-300 px-2 py-1.5 text-sm focus:border-blue-500">
-                        </div>
-                    </div>
-                </template>
-            </div>
-            <div class="flex justify-end gap-2 border-t border-gray-100 px-5 py-4">
-                <button @click="addItemModal = false" type="button"
-                        class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
-                    Cancel
-                </button>
-                <button @click="confirmAddItem()" type="button" :disabled="!pendingItem"
-                        class="rounded-lg bg-blue-700 px-4 py-2 text-sm font-medium text-white hover:bg-blue-800 disabled:opacity-40">
-                    Add to List
-                </button>
-            </div>
-        </div>
-    </div>
-
     {{-- Hidden real form (submitted programmatically) --}}
     <form id="tx-form" method="POST" action="{{ route('transactions.store') }}" style="display:none">
         @csrf
@@ -423,8 +361,6 @@ function createTransaction() {
     const startDate = (_MinDate && today < _MinDate) ? _MinDate : today;
     return {
         submitting: false,
-        addItemModal: false,
-        pendingItem: null,
         errors: {},
         form: {
             date: startDate,
@@ -440,6 +376,7 @@ function createTransaction() {
             discount_percent: 0,
             adjustment: 0,
             total_quantity: 0,
+            gross_total: 0,
             total_before_discount: 0,
             total_before_ppn: 0,
             ppn_amount: 0,
@@ -447,88 +384,161 @@ function createTransaction() {
         },
 
         init() {
-            document.addEventListener('keydown', (e) => {
-                if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'i') {
-                    e.preventDefault();
-                    this.openAddItemModal();
-                }
-            });
+            this.addItemRow(false);
+            // The warehouse side can change after items are added → refresh their stock.
+            this.$watch('form.sender_id', () => this.refreshStocks());
+            this.$watch('form.receiver_id', () => this.refreshStocks());
+            // PPN depends on the counterparty's ppn flag.
+            this.$watch('form.sender', () => this.recalcTotals());
+            this.$watch('form.receiver', () => this.recalcTotals());
         },
 
-        openAddItemModal() {
-            this.pendingItem = null;
-            this.addItemModal = true;
+        // Warehouse whose on-hand stock is relevant: receiver for buy/return, sender otherwise.
+        get warehouseId() {
+            return (_TxType === 'buy' || _TxType === 'return') ? this.form.receiver_id : this.form.sender_id;
         },
 
-        confirmAddItem() {
-            if (!this.pendingItem) return;
-            const item = this.pendingItem;
-            const qty = Number(item.quantity || 1);
-            const price = Number(item.price || 0);
-            const disc = Number(item.discount || 0);
-            const subtotal = qty * price - disc;
+        newItemRow() {
+            return {
+                uid: Math.random().toString(36).slice(2),
+                item_id: '', code: '', name: '',
+                quantity: 1, price: 0, discount: 0,
+                warehouse_stock: null, warehouse_items: [],
+                subtotal: 0, note: '',
+                results: [], showDropdown: false, activeIndex: -1, searchTimer: null,
+            };
+        },
 
-            const existing = this.form.items.findIndex(i => String(i.item_id) === String(item.id));
-            if (existing > -1) {
-                const ni = { ...this.form.items[existing] };
-                ni.quantity += qty;
-                ni.subtotal = ni.quantity * ni.price - ni.discount;
-                this.form.items[existing] = ni;
-            } else {
-                this.form.items.push({
-                    item_id: String(item.id),
-                    code: item.code,
-                    name: item.name,
-                    quantity: qty,
-                    warehouse_id: item.warehouse_id || '',
-                    warehouse_name: item.warehouse_name || 'Central',
-                    warehouse_stock: item.warehouse_stock,
-                    price,
-                    discount: disc,
-                    subtotal,
-                    note: item.note || '',
-                });
+        addItemRow(focus = true) {
+            this.form.items.push(this.newItemRow());
+            if (focus) {
+                const idx = this.form.items.length - 1;
+                this.$nextTick(() => document.getElementById('code_' + idx)?.focus());
             }
-            this.recalcTotals();
-            this.addItemModal = false;
-            this.pendingItem = null;
         },
 
         removeItem(idx) {
             this.form.items.splice(idx, 1);
+            if (this.form.items.length === 0) this.addItemRow(false);
             this.recalcTotals();
+        },
+
+        stockFor(row) {
+            const wid = String(this.warehouseId || '');
+            if (!wid) return 0;
+            const wi = (row.warehouse_items || []).find(w => String(w.warehouse_id) === wid);
+            return wi ? Number(wi.quantity || 0) : 0;
+        },
+
+        refreshStocks() {
+            this.form.items.forEach(row => { if (row.item_id) row.warehouse_stock = this.stockFor(row); });
+        },
+
+        applyItem(row, item) {
+            row.item_id = String(item.id);
+            row.code = item.code || '';
+            row.name = item.name || '';
+            row.price = Number(item[_PriceSource] ?? item.price) || 0;
+            row.warehouse_items = item.warehouse_items || [];
+            row.warehouse_stock = this.stockFor(row);
+            if (!row.quantity || row.quantity < 1) row.quantity = 1;
+            row.results = []; row.showDropdown = false; row.activeIndex = -1;
+        },
+
+        async lookupBarcode(idx) {
+            const row = this.form.items[idx];
+            const code = String(row.code || '').trim();
+            if (!code) return;
+            try {
+                const res = await fetch(`/items?id=${encodeURIComponent(code)}&json=1`, {
+                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                });
+                const data = await res.json();
+                const list = Array.isArray(data) ? data : (data.data || []);
+                if (list[0]) { this.applyItem(row, list[0]); this.recalcItem(idx); this.focusField(idx, 'qty'); }
+            } catch (e) { /* ignore */ }
+        },
+
+        searchItems(idx) {
+            const row = this.form.items[idx];
+            row.item_id = '';
+            const q = String(row.name || '').trim();
+            clearTimeout(row.searchTimer);
+            if (!q) { row.results = []; row.showDropdown = false; return; }
+            row.searchTimer = setTimeout(async () => {
+                try {
+                    const res = await fetch(`/items?search=${encodeURIComponent(q)}&json=1`, {
+                        headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                    });
+                    const data = await res.json();
+                    row.results = (Array.isArray(data) ? data : (data.data || [])).slice(0, 15);
+                    row.activeIndex = -1;
+                    row.showDropdown = row.results.length > 0;
+                } catch (e) { row.results = []; }
+            }, 250);
+        },
+
+        pickItem(idx, item) {
+            this.applyItem(this.form.items[idx], item);
+            this.recalcItem(idx);
+            this.focusField(idx, 'qty');
+        },
+
+        nameKeydown(idx, e) {
+            const row = this.form.items[idx];
+            const len = row.results.length;
+            if (e.key === 'ArrowDown') { e.preventDefault(); if (len) { row.showDropdown = true; row.activeIndex = (row.activeIndex + 1) % len; } }
+            else if (e.key === 'ArrowUp') { e.preventDefault(); if (len) row.activeIndex = row.activeIndex <= 0 ? len - 1 : row.activeIndex - 1; }
+            else if (e.key === 'Enter') {
+                e.preventDefault();
+                if (row.showDropdown && row.activeIndex >= 0 && row.results[row.activeIndex]) this.pickItem(idx, row.results[row.activeIndex]);
+                else if (len === 1) this.pickItem(idx, row.results[0]);
+                else this.focusField(idx, 'qty');
+            } else if (e.key === 'Escape') { row.showDropdown = false; }
+        },
+
+        focusField(idx, field) {
+            this.$nextTick(() => {
+                const el = document.getElementById(field + '_' + idx);
+                if (el) { el.focus(); if (el.select) el.select(); }
+            });
+        },
+
+        priceEnter(idx) {
+            if (idx === this.form.items.length - 1) this.addItemRow(true);
+            else this.focusField(idx + 1, 'code');
         },
 
         recalcItem(idx) {
             const item = this.form.items[idx];
-            const qty = Number(item.quantity || 0);
-            const price = Number(item.price || 0);
-            const disc = Number(item.discount || 0);
-            this.form.items[idx].subtotal = qty * price - disc;
+            const gross = Number(item.quantity || 0) * Number(item.price || 0);
+            item.subtotal = gross - (gross * Number(item.discount || 0) / 100);
+            if (item.item_id) item.warehouse_stock = this.stockFor(item);
             this.recalcTotals();
         },
 
         recalcTotals() {
             const items = this.form.items;
             const totalQty = items.reduce((s, i) => s + Number(i.quantity || 0), 0);
-            const totalLine = items.reduce((s, i) => s + Number(i.subtotal || 0), 0);
-            const discAmt = totalLine * (Number(this.form.discount_percent || 0) / 100);
-            const afterDisc = totalLine - discAmt;
-            const withAdj = afterDisc + Number(this.form.adjustment || 0);
+            const gross = items.reduce((s, i) => s + Number(i.quantity || 0) * Number(i.price || 0), 0);
+            const afterRowDisc = items.reduce((s, i) => s + Number(i.subtotal || 0), 0);
+            const headerDisc = afterRowDisc * (Number(this.form.discount_percent || 0) / 100);
+            const withAdj = (afterRowDisc - headerDisc) + Number(this.form.adjustment || 0);
             const contact = _TxType === 'buy' ? this.form.sender : this.form.receiver;
-            const isPpn = contact?.ppn || false;
-            const ppn = isPpn ? withAdj * (_PPNRate / 100) : 0;
+            const ppn = (contact?.ppn) ? withAdj * (_PPNRate / 100) : 0;
 
             this.form.total_quantity = totalQty;
-            this.form.total_before_discount = totalLine;
+            this.form.gross_total = gross;
+            this.form.total_before_discount = afterRowDisc;
             this.form.total_before_ppn = withAdj;
             this.form.ppn_amount = ppn;
             this.form.grand_total = withAdj + ppn;
         },
 
         isOverStock(item) {
-            if (!['sell','move','return_supplier'].includes(_TxType)) return false;
-            return item.warehouse_stock !== undefined && Number(item.quantity) > Number(item.warehouse_stock || 0);
+            if (!item.item_id) return false;
+            if (!['sell','move','return-supplier','return_supplier'].includes(_TxType)) return false;
+            return Number(item.quantity) > Number(item.warehouse_stock || 0);
         },
 
         hasStockWarning() {
@@ -551,7 +561,23 @@ function createTransaction() {
             });
             const data = await res.json();
             if (data.data && data.data.length > 0) {
-                this.form.items.push(...data.data);
+                this.form.items = this.form.items.filter(r => r.item_id);
+                data.data.forEach(ci => {
+                    const row = this.newItemRow();
+                    row.item_id = String(ci.item_id ?? ci.id ?? '');
+                    row.code = ci.code || '';
+                    row.name = ci.name || '';
+                    row.quantity = Number(ci.quantity || 1);
+                    row.price = Number(ci.price ?? ci[_PriceSource] ?? 0);
+                    const gross = row.quantity * row.price;
+                    row.discount = gross > 0 ? (Number(ci.discount || 0) / gross) * 100 : 0;
+                    row.warehouse_items = ci.warehouse_items || [];
+                    row.warehouse_stock = this.stockFor(row);
+                    row.note = ci.note || '';
+                    row.subtotal = gross - (gross * row.discount / 100);
+                    this.form.items.push(row);
+                });
+                if (this.form.items.length === 0) this.addItemRow(false);
                 this.recalcTotals();
             }
             event.target.value = '';
@@ -571,15 +597,18 @@ function createTransaction() {
                 receiver_type: '{{ is_array($config['receiver_type'] ?? null) ? implode(',', $config['receiver_type']) : ($config['receiver_type'] ?? '') }}',
                 invoice_number: this.form.invoice_number,
                 note: this.form.note,
-                items: this.form.items.map(i => ({
-                    item_id: i.item_id,
-                    quantity: i.quantity,
-                    price: i.price,
-                    discount: i.discount,
-                    subtotal: i.subtotal,
-                    warehouse_id: i.warehouse_id,
-                    note: i.note,
-                })),
+                items: this.form.items.filter(i => i.item_id).map(i => {
+                    const gross = Number(i.quantity || 0) * Number(i.price || 0);
+                    return {
+                        item_id: i.item_id,
+                        quantity: i.quantity,
+                        price: i.price,
+                        discount: gross * Number(i.discount || 0) / 100, // row discount % → Rp for the backend
+                        subtotal: i.subtotal,
+                        warehouse_id: this.warehouseId,
+                        note: i.note || '',
+                    };
+                }),
                 discount_percent: this.form.discount_percent,
                 adjustment: this.form.adjustment,
             };
