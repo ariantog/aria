@@ -4,7 +4,6 @@ use App\Models\Addrbook;
 use App\Models\User;
 use Spatie\Permission\Models\Permission;
 
-
 beforeEach(function () {
     $this->user = User::factory()->create();
 
@@ -110,14 +109,7 @@ test('can view addrbook through type-specific show route', function () {
     $this->actingAs($this->user)
         ->get("/customer/{$addrbook->id}")
         ->assertStatus(200)
-        ->assertInertia(fn ($page) => $page
-            ->component('Addrbook/Show')
-            ->has('addrbook', fn ($page) => $page
-                ->where('id', $addrbook->id)
-                ->where('name', 'Show Test')
-                ->etc()
-            )
-        );
+        ->assertSee('Show Test');
 });
 
 test('can view addrbook edit through type-specific route', function () {
@@ -129,12 +121,5 @@ test('can view addrbook edit through type-specific route', function () {
     $this->actingAs($this->user)
         ->get("/supplier/{$addrbook->id}/edit")
         ->assertStatus(200)
-        ->assertInertia(fn ($page) => $page
-            ->component('Addrbook/Edit')
-            ->has('addrbook', fn ($page) => $page
-                ->where('id', $addrbook->id)
-                ->where('name', 'Edit Test')
-                ->etc()
-            )
-        );
+        ->assertSee('Edit Test');
 });

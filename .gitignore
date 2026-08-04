@@ -1,14 +1,7 @@
 /.phpunit.cache
-/bootstrap/ssr
-/node_modules
-# /public/build
-/public/hot
 /public/storage
 /storage/*.key
 /storage/pail
-/resources/js/actions
-/resources/js/routes
-/resources/js/wayfinder
 /vendor
 .DS_Store
 .env
@@ -18,8 +11,6 @@
 .phpunit.result.cache
 Homestead.json
 Homestead.yaml
-npm-debug.log
-yarn-error.log
 /auth.json
 /.fleet
 /.idea

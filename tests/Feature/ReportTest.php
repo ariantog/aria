@@ -5,7 +5,6 @@ use App\Models\MonthlyCategorySummary;
 use App\Models\User;
 use Spatie\Permission\Models\Permission;
 
-
 test('cash flow report can be viewed', function () {
     // 1. Setup
     $user = User::factory()->create([
@@ -46,11 +45,6 @@ test('cash flow report can be viewed', function () {
     $response = $this->actingAs($user)
         ->get(route('reports.cash-flow', ['year' => 2026, 'month' => 4]));
 
-    // 3. Assertion
+    // 3. Assertion — the page is now server-rendered Blade.
     $response->assertSuccessful();
-    $response->assertInertia(fn ($page) => $page
-        ->component('Reports/CashFlow')
-        ->has('groupBySender')
-        ->has('groupByReceiver')
-    );
 });
