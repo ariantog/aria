@@ -79,12 +79,12 @@
                             {{ $config['sender_label'] }} <span class="text-red-500">*</span>
                         </label>
                         <div x-data="asyncCombobox({
-                            endpoint: @json($config['sender_route']),
+                            endpoint: @js($config['sender_route']),
                             placeholder: 'Select {{ $config['sender_label'] }}...',
-                            onSelect: (item) => { $root.form.sender_id = item ? String(item.id) : ''; $root.form.sender = item; $root.recalcTotals(); }
+                            onSelect: (item) => { form.sender_id = item ? String(item.id) : ''; form.sender = item; recalcTotals(); }
                         })" class="relative">
                             <div class="relative flex h-10 w-full overflow-hidden rounded-lg border focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500"
-                                 :class="$root.errors.sender_id ? 'border-red-500' : 'border-gray-300'">
+                                 :class="errors.sender_id ? 'border-red-500' : 'border-gray-300'">
                                 <input type="text"
                                        x-model="query"
                                        @input="handleInput()"
@@ -112,7 +112,7 @@
                                 </template>
                             </div>
                         </div>
-                        <p x-show="$root.errors.sender_id" x-text="$root.errors.sender_id" class="mt-1 text-xs text-red-500"></p>
+                        <p x-show="errors.sender_id" x-text="errors.sender_id" class="mt-1 text-xs text-red-500"></p>
                     </div>
 
                     {{-- Receiver combobox --}}
@@ -121,12 +121,12 @@
                             {{ $config['receiver_label'] }} <span class="text-red-500">*</span>
                         </label>
                         <div x-data="asyncCombobox({
-                            endpoint: @json($config['receiver_route']),
+                            endpoint: @js($config['receiver_route']),
                             placeholder: 'Select {{ $config['receiver_label'] }}...',
-                            onSelect: (item) => { $root.form.receiver_id = item ? String(item.id) : ''; $root.form.receiver = item; $root.recalcTotals(); }
+                            onSelect: (item) => { form.receiver_id = item ? String(item.id) : ''; form.receiver = item; recalcTotals(); }
                         })" class="relative">
                             <div class="relative flex h-10 w-full overflow-hidden rounded-lg border focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500"
-                                 :class="$root.errors.receiver_id ? 'border-red-500' : 'border-gray-300'">
+                                 :class="errors.receiver_id ? 'border-red-500' : 'border-gray-300'">
                                 <input type="text"
                                        x-model="query"
                                        @input="handleInput()"
@@ -154,7 +154,7 @@
                                 </template>
                             </div>
                         </div>
-                        <p x-show="$root.errors.receiver_id" x-text="$root.errors.receiver_id" class="mt-1 text-xs text-red-500"></p>
+                        <p x-show="errors.receiver_id" x-text="errors.receiver_id" class="mt-1 text-xs text-red-500"></p>
                     </div>
                 </div>
             </div>
@@ -338,7 +338,7 @@
                     queryParam: 'search',
                     additionalParams: { json: true, type: '1,2' },
                     placeholder: 'Search item by name or code…',
-                    onSelect: (item) => { if(item) $root.pendingItem = {...item, quantity: 1, price: Number(item[_PriceSource] ?? item.price) || 0, discount: 0 } }
+                    onSelect: (item) => { if(item) pendingItem = {...item, quantity: 1, price: Number(item[_PriceSource] ?? item.price) || 0, discount: 0 } }
                 })" class="relative">
                     <label class="block text-sm font-medium text-gray-700 mb-1">Item</label>
                     <div class="relative flex h-10 overflow-hidden rounded-lg border border-gray-300 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500">

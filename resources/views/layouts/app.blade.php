@@ -308,30 +308,43 @@ function asyncCombobox(config) {
         },
 
         handleKeydown(e) {
+            // Normalise key across browsers (older engines report "Down"/"Up"/"Esc").
+            const key = ({ Down: 'ArrowDown', Up: 'ArrowUp', Esc: 'Escape' })[e.key] || e.key;
             const len = this.items.length;
-            if (!this.open && (e.key === 'ArrowDown' || e.key === 'Enter')) {
+
+            if (key === 'ArrowDown') {
                 e.preventDefault();
-                this.open = true;
-                if (len === 0) this.doSearch(this.query);
-                return;
-            }
-            if (e.key === 'ArrowDown') {
-                e.preventDefault();
-                this.activeIndex = (this.activeIndex + 1) % Math.max(len, 1);
+                if (!this.open) {
+                    this.open = true;
+                    if (len === 0) { this.doSearch(this.query); return; }
+                }
+                if (len === 0) return;
+                this.activeIndex = this.activeIndex < len - 1 ? this.activeIndex + 1 : 0;
                 this.scrollActive();
-            } else if (e.key === 'ArrowUp') {
+            } else if (key === 'ArrowUp') {
                 e.preventDefault();
-                this.activeIndex = this.activeIndex <= 0 ? len - 1 : this.activeIndex - 1;
+                if (!this.open) {
+                    this.open = true;
+                    if (len === 0) { this.doSearch(this.query); return; }
+                }
+                if (len === 0) return;
+                this.activeIndex = this.activeIndex > 0 ? this.activeIndex - 1 : len - 1;
                 this.scrollActive();
-            } else if (e.key === 'Enter') {
+            } else if (key === 'Enter') {
+                // Always swallow Enter while focused so it never submits the surrounding form.
                 e.preventDefault();
-                if (this.open && this.activeIndex >= 0 && this.items[this.activeIndex]) {
+                if (!this.open) {
+                    this.open = true;
+                    if (len === 0) this.doSearch(this.query);
+                    return;
+                }
+                if (this.activeIndex >= 0 && this.items[this.activeIndex]) {
                     this.selectItem(this.items[this.activeIndex]);
                 }
-            } else if (e.key === 'Escape') {
+            } else if (key === 'Escape') {
                 this.open = false;
                 this.activeIndex = -1;
-            } else if (e.key === 'Tab') {
+            } else if (key === 'Tab') {
                 if (this.open && this.activeIndex >= 0 && this.items[this.activeIndex]) {
                     this.selectItem(this.items[this.activeIndex]);
                 }
@@ -342,10 +355,11 @@ function asyncCombobox(config) {
         scrollActive() {
             this.$nextTick(() => {
                 const list = this.$refs.optionsList;
-                if (list) {
-                    const item = list.children[this.activeIndex];
-                    if (item) item.scrollIntoView({ block: 'nearest' });
-                }
+                if (!list) return;
+                // Only the rendered option rows carry .combobox-option; the empty-state
+                // div and the x-for <template> node are skipped, so indexing stays aligned.
+                const el = list.querySelectorAll('.combobox-option')[this.activeIndex];
+                if (el) el.scrollIntoView({ block: 'nearest' });
             });
         },
 
