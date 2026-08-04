@@ -58,6 +58,7 @@ class AddrbookController extends Controller
         }
 
         return view('addrbook.index', [
+            'addrbooks' => $q->paginate(50)->withQueryString(),
             'filters' => request()->all(['search', 'type', 'trashed']),
             'can' => $can,
             'current_type' => $type,
@@ -181,6 +182,7 @@ class AddrbookController extends Controller
 
         return view('addrbook.transactions', [
             'addrbook' => $a,
+            'transactions' => $q->paginate(50)->withQueryString(),
             'transactionTypes' => \App\Models\Transaction::getTypes(),
             'filters' => request()->all(['from', 'to', 'type', 'order_date']),
             'can' => [
@@ -220,6 +222,7 @@ class AddrbookController extends Controller
 
         return view('addrbook.items', [
             'addrbook' => $a,
+            'items' => $q->paginate(50)->withQueryString(),
             'filters' => request()->all(['name', 'sort', 'show0']),
             'can' => [
                 'bank_hidden_balance' => request()->user()?->can('addrbook-bank-account-hidden-balance') ?? false,
