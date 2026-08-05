@@ -42,7 +42,9 @@
 
         /* Sidebar transition */
         #sidebar { transition: width 0.2s ease, transform 0.2s ease; }
-        #main-content { transition: margin-left 0.2s ease; }
+        /* Only animate the sidebar-driven margin AFTER first paint, so navigating to a
+           new page doesn't visibly slide the content in. */
+        #main-content.anim-ready { transition: margin-left 0.2s ease; }
 
         /* Autocomplete dropdown */
         .combobox-options {
@@ -177,6 +179,7 @@
 
     {{-- Main content --}}
     <div id="main-content"
+         x-init="$nextTick(() => $el.classList.add('anim-ready'))"
          :class="sidebarOpen ? (isMobile ? 'ml-0' : 'ml-64') : (isMobile ? 'ml-0' : 'ml-14')"
          class="flex flex-1 flex-col min-h-full min-w-0">
 
