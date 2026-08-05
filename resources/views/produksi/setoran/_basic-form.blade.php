@@ -1,7 +1,7 @@
 {{-- Basic Information Form (shared by produksi.edit and produksi.setoran.edit) --}}
-<div class="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
+<div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
     <h3 class="text-lg font-semibold">Basic Information</h3>
-    <p class="mt-1 text-sm text-zinc-500">Update color, customer, and surat jalan details.</p>
+    <p class="mt-1 text-sm text-gray-500">Update color, customer, and surat jalan details.</p>
     <form method="POST" action="{{ route('produksi.update', $produksi->id) }}" class="mt-4 space-y-4">
         @csrf
         @method('PATCH')

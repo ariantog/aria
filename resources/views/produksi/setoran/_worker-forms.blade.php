@@ -1,11 +1,11 @@
 {{-- Reassign Jahit + QC forms (shared) --}}
 {{-- Reassign Jahit --}}
-<div class="rounded-xl border border-l-4 border-zinc-200 border-l-emerald-500 bg-white p-6 shadow-sm">
+<div class="rounded-xl border border-l-4 border-gray-200 border-l-emerald-500 bg-white p-6 shadow-sm">
     <h3 class="flex items-center gap-2 text-lg font-semibold">
         <svg class="h-5 w-5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.121 14.121L19 19m-7-7l7-7m-7 7l-2.879 2.879M12 12L9.121 9.121m0 5.758a3 3 0 10-4.243 4.243 3 3 0 004.243-4.243zm0-5.758a3 3 0 10-4.243-4.243 3 3 0 004.243 4.243z"/></svg>
         Reassign Jahit
     </h3>
-    <p class="mt-1 text-sm text-zinc-500">Change the worker assigned to the sewing stage.</p>
+    <p class="mt-1 text-sm text-gray-500">Change the worker assigned to the sewing stage.</p>
     <form method="POST" action="{{ route('produksi.ganti-jahit', $produksi->id) }}" class="mt-4 flex flex-col items-end gap-4 sm:flex-row">
         @csrf
         @method('PATCH')
@@ -29,12 +29,12 @@
 </div>
 
 {{-- Reassign QC --}}
-<div class="rounded-xl border border-l-4 border-zinc-200 border-l-blue-500 bg-white p-6 shadow-sm">
+<div class="rounded-xl border border-l-4 border-gray-200 border-l-blue-500 bg-white p-6 shadow-sm">
     <h3 class="flex items-center gap-2 text-lg font-semibold">
         <svg class="h-5 w-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
         Reassign QC
     </h3>
-    <p class="mt-1 text-sm text-zinc-500">Change the worker assigned to the QC stage.</p>
+    <p class="mt-1 text-sm text-gray-500">Change the worker assigned to the QC stage.</p>
     <form method="POST" action="{{ route('produksi.assign-qc', $produksi->id) }}" class="mt-4 flex flex-col items-end gap-4 sm:flex-row">
         @csrf
         @method('PATCH')
