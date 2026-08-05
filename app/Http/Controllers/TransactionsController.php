@@ -10,12 +10,17 @@ use App\Http\Requests\StoreAdjustRequest;
 use App\Http\Requests\StoreCashTransactionRequest;
 use App\Http\Requests\StoreItemTransactionRequest;
 use App\Http\Requests\StoreTransferRequest;
+use App\Models\DeletedTransaction;
+use App\Models\DeletedTransactionDetail;
 use App\Models\Jubeliosync;
 use App\Models\Transaction;
 use App\Services\BookClosingService;
+use App\Services\TransactionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Schema;
 
 class TransactionsController extends Controller
 {
@@ -209,12 +214,35 @@ class TransactionsController extends Controller
         return response()->json(['data' => $dataList, 'totalQty' => collect($dataList)->sum('quantity'), 'totalPrice' => collect($dataList)->sum('subtotal')]);
     }
 
-    public function destroy(Transaction $transaction)
+    public function destroy(Transaction $transaction, TransactionService $service)
     {
         Gate::authorize(Transaction::getPermissions()['delete']);
-        if ($transaction->isFromJubelio()) return back()->with('error', 'Jubelio-synced transactions cannot be deleted.');
-        $transaction->delete();
-        return redirect()->route('transactions.index')->with('success', 'Transaction deleted.');
+        if ($transaction->isFromJubelio()) {
+            return back()->with('error', 'Jubelio-synced transactions cannot be deleted.');
+        }
+
+        $transaction->load('details');
+
+        DB::transaction(function () use ($transaction, $service) {
+            $service->revertTransaction($transaction);
+
+            $deletedColumns = array_flip(Schema::getColumnListing((new DeletedTransaction)->getTable()));
+            $transactionData = array_intersect_key($transaction->getAttributes(), $deletedColumns);
+            $transactionData['deleted_at'] = now();
+            DeletedTransaction::create($transactionData);
+
+            $deletedDetailColumns = array_flip(Schema::getColumnListing((new DeletedTransactionDetail)->getTable()));
+            foreach ($transaction->details as $detail) {
+                $detailData = array_intersect_key($detail->getAttributes(), $deletedDetailColumns);
+                $detailData['deleted_at'] = now();
+                DeletedTransactionDetail::create($detailData);
+            }
+
+            $transaction->details()->forceDelete();
+            $transaction->forceDelete();
+        });
+
+        return redirect()->route('transactions.index')->with('success', 'Transaction moved to deleted.');
     }
 
     private function authorizeTransactionType(string $type): void
