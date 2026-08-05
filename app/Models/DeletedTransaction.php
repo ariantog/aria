@@ -15,6 +15,7 @@ class DeletedTransaction extends Model
         'due_date' => 'date',
         'total' => 'decimal:2',
         'discount' => 'decimal:2',
+        'discount_percent' => 'decimal:2',
         'tax_amount' => 'decimal:2',
         'grand_total' => 'decimal:2',
         'total_items' => 'decimal:2',
