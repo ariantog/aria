@@ -13,8 +13,8 @@ $breadcrumbs = [
 <div class="flex flex-col gap-4 p-4" x-data="workersPage()">
     <div class="mb-4 flex items-center justify-between">
         <div>
-            <h2 class="text-2xl font-bold tracking-tight">{{ $title }}</h2>
-            <p class="mt-1 text-sm text-zinc-500">Total {{ $workers->total() }} workers found</p>
+            <h2 class="text-2xl font-bold tracking-tight text-gray-900">{{ $title }}</h2>
+            <p class="mt-1 text-sm text-gray-500">Total {{ $workers->total() }} workers found</p>
         </div>
         @if($can['create_worker'])
         <button @click="openCreate()" class="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
@@ -26,7 +26,7 @@ $breadcrumbs = [
 
     <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
         <table class="w-full text-left text-sm">
-            <thead class="bg-zinc-50/50 text-xs uppercase text-gray-500">
+            <thead class="bg-gray-50/50 text-xs uppercase text-gray-500">
                 <tr>
                     <th class="w-[100px] px-4 py-3 font-medium">ID</th>
                     <th class="px-4 py-3 font-medium">Name</th>
@@ -36,14 +36,14 @@ $breadcrumbs = [
             </thead>
             <tbody class="divide-y divide-gray-100">
                 @forelse($workers as $worker)
-                <tr class="hover:bg-zinc-50/50">
+                <tr class="hover:bg-gray-50/50">
                     <td class="px-4 py-3 font-medium">{{ $worker->id }}</td>
                     <td class="px-4 py-3">
                         <div class="flex items-center gap-3">
                             <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100">
                                 <svg class="h-4 w-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-1.13a4 4 0 100-8 4 4 0 000 8z"/></svg>
                             </div>
-                            <span class="font-bold text-zinc-900">{{ $worker->name }}</span>
+                            <span class="font-bold text-gray-900">{{ $worker->name }}</span>
                         </div>
                     </td>
                     <td class="px-4 py-3 text-gray-500">{{ $worker->created_at?->format('d/m/Y') }}</td>

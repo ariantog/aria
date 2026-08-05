@@ -10,16 +10,9 @@ $breadcrumbs = [
     ['title' => $addrbook->name, 'href' => '/' . $addrbook->type_slug . '/' . $addrbook->id],
     ['title' => 'Transactions', 'href' => $baseUrl],
 ];
-$typeNames = collect($transactionTypes)->keyBy('id');
-$typeColors = [
-    1 => 'text-emerald-700 bg-emerald-50', 2 => 'text-blue-700 bg-blue-50', 3 => 'text-amber-700 bg-amber-50',
-    15 => 'text-purple-700 bg-purple-50', 16 => 'text-indigo-700 bg-indigo-50', 17 => 'text-rose-700 bg-rose-50',
-];
-$idr = fn ($v) => number_format((float) $v, 0, ',', '.');
-$balCls = fn ($v) => $v > 0 ? 'text-emerald-600' : ($v < 0 ? 'text-rose-600' : 'text-gray-500');
 @endphp
 
-<div class="flex flex-col gap-4 p-3 sm:p-4">
+<div class="flex flex-col gap-3 p-3 sm:p-4">
     {{-- Header --}}
     <div class="flex flex-col justify-between gap-4 md:flex-row md:items-end">
         <div>
@@ -29,8 +22,8 @@ $balCls = fn ($v) => $v > 0 ? 'text-emerald-600' : ($v < 0 ? 'text-rose-600' : '
                 </a>
                 <span class="font-mono text-sm text-gray-400">#{{ $addrbook->id }}</span>
             </div>
-            <h1 class="text-2xl font-bold text-gray-900">Transaction History</h1>
-            <p class="text-sm text-gray-500">Full history for <span class="text-blue-600">{{ $addrbook->name }}</span></p>
+            <h2 class="text-2xl font-bold tracking-tight text-gray-900">Transaction History</h2>
+            <p class="mt-0.5 text-sm text-gray-500">Full history for <span class="text-blue-600">{{ $addrbook->name }}</span></p>
         </div>
     </div>
 
@@ -68,69 +61,11 @@ $balCls = fn ($v) => $v > 0 ? 'text-emerald-600' : ($v < 0 ? 'text-rose-600' : '
         </div>
     </form>
 
-    {{-- Table --}}
-    <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-        <table class="w-full table-fixed text-left text-xs">
-            <thead class="border-b border-gray-200 bg-gray-50 text-[10px] uppercase tracking-wider text-gray-500">
-                <tr>
-                    <th class="w-24 px-2 py-2.5 font-bold">Date</th>
-                    <th class="w-20 px-2 py-2.5 font-bold">Type</th>
-                    <th class="w-28 px-2 py-2.5 font-bold">Invoice</th>
-                    <th class="w-12 px-2 py-2.5 text-center font-bold">Items</th>
-                    <th class="px-2 py-2.5 font-bold">Sender</th>
-                    <th class="w-24 px-2 py-2.5 text-right font-bold">Sender Bal</th>
-                    <th class="px-2 py-2.5 font-bold">Receiver</th>
-                    <th class="w-24 px-2 py-2.5 text-right font-bold">Recv Bal</th>
-                    <th class="w-28 px-2 py-2.5 text-right font-bold">Total</th>
-                </tr>
-            </thead>
-            <tbody class="divide-y divide-gray-100">
-                @forelse($transactions as $t)
-                    @php
-                        $typeVal = $t->type instanceof \App\Enums\TransactionType ? $t->type->value : $t->type;
-                        $sBal = (float) $t->sender_balance;
-                        if (($can['bank_hidden_balance'] ?? false) && $t->sender?->type_slug === 'bank') $sBal = 0;
-                        $rBal = (float) $t->receiver_balance;
-                        if (($can['bank_hidden_balance'] ?? false) && $t->receiver?->type_slug === 'bank') $rBal = 0;
-                    @endphp
-                    <tr class="align-middle hover:bg-gray-50">
-                        <td class="px-2 py-2 whitespace-nowrap">
-                            <div class="font-medium text-gray-800">{{ \Illuminate\Support\Carbon::parse($t->date)->translatedFormat('d M Y') }}</div>
-                            <div class="text-[10px] text-gray-400">{{ $t->created_at?->format('H:i') }}</div>
-                        </td>
-                        <td class="px-2 py-2">
-                            <span class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold uppercase {{ $typeColors[$typeVal] ?? 'text-gray-700 bg-gray-50' }}">
-                                {{ $typeNames[$typeVal]['name'] ?? 'Other' }}
-                            </span>
-                        </td>
-                        <td class="truncate px-2 py-2">
-                            <a href="/transactions/{{ $t->id }}" class="font-mono text-blue-600 hover:underline" title="{{ $t->invoice_number }}">{{ $t->invoice_number ?: '-' }}</a>
-                        </td>
-                        <td class="px-2 py-2 text-center font-mono text-gray-500">{{ number_format((float) $t->total_items, 0, ',', '.') }}</td>
-                        <td class="truncate px-2 py-2">
-                            @if($t->sender)
-                                <a href="/{{ $t->sender->type_slug }}/{{ $t->sender->id }}" class="font-medium hover:underline {{ $t->sender->id === $addrbook->id ? 'font-bold text-blue-600' : 'text-gray-600' }}" title="{{ $t->sender->name }}">{{ $t->sender->name }}</a>
-                            @else
-                                <span class="text-gray-400">-</span>
-                            @endif
-                        </td>
-                        <td class="whitespace-nowrap px-2 py-2 text-right font-mono font-bold {{ $balCls($sBal) }}">{{ $idr($sBal) }}</td>
-                        <td class="truncate px-2 py-2">
-                            @if($t->receiver)
-                                <a href="/{{ $t->receiver->type_slug }}/{{ $t->receiver->id }}" class="font-medium hover:underline {{ $t->receiver->id === $addrbook->id ? 'font-bold text-blue-600' : 'text-gray-600' }}" title="{{ $t->receiver->name }}">{{ $t->receiver->name }}</a>
-                            @else
-                                <span class="text-gray-400">-</span>
-                            @endif
-                        </td>
-                        <td class="whitespace-nowrap px-2 py-2 text-right font-mono font-bold {{ $balCls($rBal) }}">{{ $idr($rBal) }}</td>
-                        <td class="whitespace-nowrap px-2 py-2 text-right font-mono font-bold text-gray-800">IDR {{ $idr($t->grand_total) }}</td>
-                    </tr>
-                @empty
-                    <tr><td colspan="9" class="px-4 py-12 text-center text-sm italic text-gray-500">No transactions found for this contact.</td></tr>
-                @endforelse
-            </tbody>
-        </table>
-        @include('partials.pagination', ['paginator' => $transactions, 'label' => 'transactions'])
-    </div>
+    {{-- Same table as the main /transactions list; this contact is bolded in sender/receiver --}}
+    @include('transactions.partials.list-table', [
+        'rows' => $transactions,
+        'can' => $can,
+        'highlightId' => $addrbook->id,
+    ])
 </div>
 @endsection

@@ -16,15 +16,15 @@ $breadcrumbs = [
             <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
         </a>
         <div>
-            <h2 class="text-2xl font-bold tracking-tight text-zinc-900">New Production Entry</h2>
-            <p class="text-sm text-zinc-500">Record a new batch of production at the Potong stage.</p>
+            <h2 class="text-2xl font-bold tracking-tight text-gray-900">New Production Entry</h2>
+            <p class="text-sm text-gray-500">Record a new batch of production at the Potong stage.</p>
         </div>
     </div>
 
     <form method="POST" action="{{ route('produksi.store') }}" class="space-y-8">
         @csrf
         {{-- General info --}}
-        <div class="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
+        <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
             <h3 class="mb-6 flex items-center gap-2 text-lg font-semibold">
                 <svg class="h-5 w-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
                 General Information
@@ -54,8 +54,8 @@ $breadcrumbs = [
         </div>
 
         {{-- Items table --}}
-        <div class="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm">
-            <div class="flex items-center justify-between border-b border-zinc-200 p-6">
+        <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+            <div class="flex items-center justify-between border-b border-gray-200 p-6">
                 <h3 class="flex items-center gap-2 text-lg font-semibold">
                     <svg class="h-5 w-5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
                     Production Items
@@ -66,20 +66,20 @@ $breadcrumbs = [
                 </button>
             </div>
             <div class="overflow-x-auto">
-                <table class="min-w-full divide-y divide-zinc-200">
-                    <thead class="bg-zinc-50/50">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50/50">
                         <tr>
-                            <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-zinc-500">Product Name</th>
-                            <th class="w-32 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-zinc-500">Size</th>
-                            <th class="w-24 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-zinc-500">Qty</th>
-                            <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-zinc-500">Customer</th>
-                            <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-zinc-500">Warna</th>
+                            <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Product Name</th>
+                            <th class="w-32 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Size</th>
+                            <th class="w-24 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Qty</th>
+                            <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Customer</th>
+                            <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Warna</th>
                             <th class="w-16 px-4 py-3"></th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-zinc-200 bg-white">
+                    <tbody class="divide-y divide-gray-200 bg-white">
                         <template x-for="(item, index) in items" :key="index">
-                            <tr class="hover:bg-zinc-50/30">
+                            <tr class="hover:bg-gray-50/30">
                                 <td class="px-4 py-3"><input :name="`items[${index}][name]`" x-model="item.name" placeholder="Item/Model name" required class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"></td>
                                 <td class="px-4 py-3">
                                     <select :name="`items[${index}][size_id]`" x-model="item.size_id" class="w-full rounded-md border border-gray-300 px-2 py-2 text-sm">
@@ -93,7 +93,7 @@ $breadcrumbs = [
                                 <td class="px-4 py-3"><input :name="`items[${index}][customer]`" x-model="item.customer" placeholder="Customer" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"></td>
                                 <td class="px-4 py-3"><input :name="`items[${index}][warna]`" x-model="item.warna" placeholder="Color" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"></td>
                                 <td class="px-4 py-3 text-center">
-                                    <button type="button" x-show="items.length > 1" @click="removeItem(index)" class="flex h-8 w-8 items-center justify-center rounded text-zinc-400 hover:text-red-500">
+                                    <button type="button" x-show="items.length > 1" @click="removeItem(index)" class="flex h-8 w-8 items-center justify-center rounded text-gray-400 hover:text-red-500">
                                         <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
                                     </button>
                                 </td>
@@ -105,7 +105,7 @@ $breadcrumbs = [
         </div>
 
         <div class="flex items-center justify-end gap-4">
-            <a href="{{ route('produksi.index') }}" class="rounded-md px-4 py-2 text-sm text-zinc-500 hover:bg-gray-100">Cancel</a>
+            <a href="{{ route('produksi.index') }}" class="rounded-md px-4 py-2 text-sm text-gray-500 hover:bg-gray-100">Cancel</a>
             <button type="submit" class="inline-flex min-w-[150px] items-center justify-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
                 <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"/></svg>
                 Save Production
