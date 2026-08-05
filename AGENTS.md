@@ -1,59 +1,61 @@
 # AGENTS.md
 
-## Cursor Cloud specific instructions
+Aria Core — a Laravel 12 inventory / accounting / transaction ERP, server-rendered with
+**Blade + Alpine.js** (Tailwind + Alpine load from CDN; the old React/Inertia SPA has been
+removed). Indonesian domain terms throughout.
 
-Aria Core is a Laravel 12 inventory/accounting ERP. The active UI is server-rendered
-**Blade + Alpine.js** (Tailwind + Alpine load from CDN); an older **Inertia + React** stack
-still lives in `resources/js` but no controller renders it anymore. See `replit.md` for the
-domain runbook and `docs/blade-migration-conventions.md` for Blade conventions.
+## Testing & workflow preferences (IMPORTANT)
 
-### Environment / dependencies
-- System tooling already provisioned in the VM image: **PHP 8.3 CLI** (with `sqlite3`,
-  `mbstring`, `xml`, `curl`, `zip`, `gd`, `bcmath`, `intl`, `mysql`), **Composer 2**, and
-  **Node 22 / npm**. The startup update script only refreshes project deps
-  (`composer install`, `npm install`).
-- App config lives in `.env` (copied from `.env.example`) with a generated `APP_KEY`, and the
-  database is SQLite at `database/database.sqlite`. Both are gitignored and persist in the VM
-  snapshot, so they do not need recreating each session.
+- **Do NOT record demo videos or screen recordings, and do NOT run computerUse "demo" walkthroughs.**
+  The maintainer tests manually. Just implement and **commit** the code for review. Avoid burning
+  tokens on GUI demos.
+- Lightweight functional checks are still fine and encouraged before committing: run `./vendor/bin/pest`,
+  and use `curl`/`php artisan tinker` to sanity‑check routes, queries, and JSON endpoints.
+- Commit each logical change separately with a clear message; push to the working branch.
 
-### Running the app (dev)
-- Serve: `php artisan serve --host=0.0.0.0 --port=5000`.
-- Queue worker: `php artisan queue:listen --tries=1`. Transaction create/update dispatches an
-  `UpdateTransactionSummaries` job; without a worker, summary/report figures lag until it runs.
-- `composer run dev` also starts `npm run dev` (Vite), but Vite is **not** required for the Blade
-  pages (they use CDN assets + prebuilt `public/build/`). See the build caveat below.
+## Efficient debugging notes
 
-### Database / login
-- Migrate + seed: `php artisan migrate` then seeders `SuperAdminSeeder`, `SettingSeeder`,
-  `DemoDataSeeder`. `DemoDataSeeder` regenerates a placeholder image at `public/asset/01/1.jpg`
-  (shows as a git diff — ignore/revert it).
-- The `superadmin` role has **no gate bypass by itself**; grant it permissions once via
-  `PermissionGenerator::generateAll()` + `syncPermissions(...)` (snippet in `replit.md`).
-- Preview login: username `superadmin` / password `password`. Fortify authenticates by
-  **username, not email** (`config/fortify.php`).
-- **User id 1 is the one and only superadmin** and bypasses all authorization
-  (`User::getIsSuperadminAttribute()` + `Gate::before` in `AppServiceProvider`). Do not rely on a
-  role for full access.
+- When probing the DOM, **target elements precisely** (by visible label, a scoped selector, or an
+  `id`/`data-testid`) and confirm identity before trusting a reading. Gotcha: the sidebar contains a
+  **"Log Out" `<button type="submit">`**, which is the *first* submit button on every page — a bare
+  `querySelector('button[type=submit]')` will match it, not a form's Save button.
+- Prefer adding stable `id` / `data-testid` hooks to key controls when editing a form.
+- Alpine: use **methods** (e.g. `canSubmit()`) rather than getters for `:disabled`/`:class` bindings —
+  getters have been unreliable here. Inside a nested `x-data` (e.g. the `asyncCombobox`), reference the
+  parent component with **bare, scope‑inherited names**, never `$root.*`. Inside a double‑quoted
+  `x-data="..."` attribute, build endpoints with **`@js(...)`**, never `@json(...)`.
 
-### Lint / test
-- Lint: `composer lint` (Pint). Note: `composer test:lint` / `pint --test` currently reports many
-  **pre-existing** style violations in `tests/` and seeders — not caused by your changes.
-- Tests: `./vendor/bin/pest`. Three tests fail on a clean checkout
-  (`AddrbookTest`, `ReportTest` assert Inertia responses for pages already migrated to Blade) —
-  known stale tests, unrelated to new work. `tests/Feature/BladePagesRenderTest.php` is the
-  fast smoke test for Blade pages; run it after touching any Blade view.
+## Environment / running
 
-### Known caveats
-- `npm run build` currently **fails** on a legacy React import (`@/components/pagination` vs the
-  case-sensitive file `Pagination.tsx`). This does not affect the Blade app, which is what runs.
-- `/addrbook/create` throws "Undefined variable $addrbook" on a clean checkout (the controller's
-  `create` doesn't pass `$addrbook` to the shared form partial) — a pre-existing bug in the
-  migrated view, unrelated to autocomplete work.
+- Tooling in the VM image: **PHP 8.3** (+ sqlite3, mbstring, xml, curl, zip, gd, bcmath, intl, mysql),
+  **Composer 2**, **Node 22**. The startup update script only refreshes deps (`composer install`).
+- Config in `.env` (from `.env.example`), DB is SQLite at `database/database.sqlite` (both gitignored,
+  persist in the VM snapshot). Migrate + seed: `php artisan migrate`, then `SuperAdminSeeder`,
+  `SettingSeeder`, `DemoDataSeeder`. Grant the superadmin role its permissions once via
+  `PermissionGenerator::generateAll()` + `syncPermissions(...)` (see `replit.md`).
+- Serve: `php artisan serve --host=0.0.0.0 --port=5000`. Run a queue worker
+  (`php artisan queue:listen`) so `UpdateTransactionSummaries` jobs process.
+- Preview login: `superadmin` / `password`. **Login is by username, not email** (`config/fortify.php`).
 
-### Alpine autocomplete gotchas (`asyncCombobox` in `layouts/app.blade.php`)
-- Comboboxes are nested `x-data` components. To read/write the parent form component, use **bare,
-  scope-inherited names** (`form.sender_id`, `errors`, `recalcTotals()`), **not** `$root.*` —
-  `$root` resolves to the combobox element itself, so `$root.form` is `undefined`.
-- Inside a double-quoted `x-data="..."` attribute, build endpoints with **`@js(...)`**, never
-  `@json(...)`: `@json` emits a double-quoted string that prematurely closes the attribute and
-  breaks the whole component.
+## Domain rules that affect code
+
+- **User id 1 is the only superadmin** — it bypasses all authorization (`Gate::before` +
+  `User::getIsSuperadminAttribute()`) and all ACL/location/hidden-balance restrictions. Every other user
+  is subject to ACL.
+- Balances use **signed values**, not debit/credit. Parties are sender/receiver; a positive value/balance
+  means the sender owes the receiver, negative means the receiver owes the sender. buy/return → total
+  positive; sell/return-supplier → total negative. The double-entry is handled in the background.
+- Transaction types (`App\Enums\TransactionType`): Buy=1, Sell=2, Move=3, Transfer=6, CashOut=7, Use=8,
+  CashIn=9, Adjust=12, Return=15, Production=16, ReturnSupplier=17, Depreciation=18. Legal sender/receiver
+  types per transaction live in `config/transaction_rules.php`.
+- Addrbook `type` is polymorphic: 1 customer, 2 warehouse, 3 bank, 4 supplier, 5 v_warehouse,
+  6 v_account, 7 reseller, 8 account, 99 other.
+- Connects to **Jubelio** (Indonesian omnichannel) for online stock; dormant while `JUBELIO_ACTIVE=false`.
+
+## Testing / known caveats
+
+- `pest`: `tests/Feature/BladePagesRenderTest.php` is the fast Blade smoke test — run it after touching
+  a Blade view.
+- Some reports/stats use MySQL `DATE_FORMAT`, which errors on the SQLite **dev** DB only (works on
+  production MySQL) — e.g. `items/{id}/stats`.
+- Tabulator.js is intended only for the restock page; other list tables are plain server-rendered HTML.

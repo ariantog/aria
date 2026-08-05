@@ -24,23 +24,21 @@
                 Discard
             </button>
             <button type="button" @click="submitForm()"
-                    :disabled="submitting"
-                    class="flex min-w-36 items-center justify-center gap-2 rounded-lg bg-blue-700 px-4 py-2 text-sm font-medium text-white hover:bg-blue-800 disabled:opacity-60">
+                    :disabled="submitting || !canSubmit()"
+                    class="flex min-w-36 items-center justify-center gap-2 rounded-lg bg-blue-700 px-4 py-2 text-sm font-medium text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500">
                 <svg x-show="submitting" class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
                 <span>Save Transaction</span>
             </button>
         </div>
     </div>
 
-    {{-- Validation errors from server --}}
-    @if($errors->any())
-    <div class="rounded-lg border border-red-200 bg-red-50 p-3">
-        <p class="text-sm font-medium text-red-800">Please fix the following errors:</p>
+    {{-- Validation errors — kept client-side so entries persist on failure --}}
+    <div x-show="serverErrors.length" x-cloak class="rounded-lg border border-red-200 bg-red-50 p-3">
+        <p class="text-sm font-medium text-red-800">Please fix the following:</p>
         <ul class="mt-1 list-disc pl-5 text-sm text-red-700">
-            @foreach($errors->all() as $e)<li>{{ $e }}</li>@endforeach
+            <template x-for="(e, i) in serverErrors" :key="i"><li x-text="e"></li></template>
         </ul>
     </div>
-    @endif
 
     <div class="grid grid-cols-1 gap-6 xl:grid-cols-3">
         {{-- Left column --}}
@@ -222,7 +220,7 @@
                 <div class="divide-y divide-gray-100 px-0">
                     <template x-for="(item, idx) in form.items" :key="item.uid">
                         <div class="grid grid-cols-12 items-start gap-2 px-5 py-2.5 text-sm hover:bg-gray-50"
-                             :class="isOverStock(item) ? 'bg-red-50' : ''">
+                             :class="(isOverStock(item) || itemInvalid(item)) ? 'bg-red-50' : ''">
                             {{-- Code / barcode --}}
                             <div class="col-span-2">
                                 <input type="text" x-model="item.code" :id="'code_' + idx"
@@ -333,8 +331,11 @@
                     </div>
                 </div>
                 <div class="border-t border-gray-100 p-5">
-                    <button type="button" @click="submitForm()" :disabled="submitting"
-                            class="w-full rounded-lg bg-blue-700 py-2.5 text-sm font-semibold text-white hover:bg-blue-800 disabled:opacity-60">
+                    <p x-show="!canSubmit()" x-cloak class="mb-2 text-center text-xs text-gray-400">
+                        Choose sender, receiver, a valid date, and at least one complete item to save.
+                    </p>
+                    <button type="button" @click="submitForm()" :disabled="submitting || !canSubmit()"
+                            class="w-full rounded-lg bg-blue-700 py-2.5 text-sm font-semibold text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500">
                         <span x-show="!submitting">Save {{ ucfirst($type) }} Transaction</span>
                         <span x-show="submitting">Saving…</span>
                     </button>
@@ -362,6 +363,7 @@ function createTransaction() {
     return {
         submitting: false,
         errors: {},
+        serverErrors: [],
         form: {
             date: startDate,
             due_date: '',
@@ -396,6 +398,24 @@ function createTransaction() {
         // Warehouse whose on-hand stock is relevant: receiver for buy/return, sender otherwise.
         get warehouseId() {
             return (_TxType === 'buy' || _TxType === 'return') ? this.form.receiver_id : this.form.sender_id;
+        },
+
+        // ---- validation (enable/disable submit, highlight rows) ----
+        dateValid() {
+            if (!this.form.date) return false;
+            if (_MinDate && this.form.date < _MinDate) return false;
+            return true;
+        },
+        senderValid() { return !!this.form.sender_id; },
+        receiverValid() { return !!this.form.receiver_id; },
+        itemStarted(i) { return !!(i.item_id || i.name || i.code); },
+        itemValid(i) { return !!i.item_id && Number(i.quantity) >= 0.01 && Number(i.price) >= 0; },
+        itemInvalid(i) { return this.itemStarted(i) && !this.itemValid(i); },
+        validItems() { return this.form.items.filter(i => this.itemValid(i)); },
+        canSubmit() {
+            return this.senderValid() && this.receiverValid() && this.dateValid()
+                && this.validItems().length >= 1
+                && !this.form.items.some(i => this.itemInvalid(i));
         },
 
         newItemRow() {
@@ -584,8 +604,10 @@ function createTransaction() {
         },
 
         async submitForm() {
+            if (!this.canSubmit() || this.submitting) return;
             this.submitting = true;
             this.errors = {};
+            this.serverErrors = [];
 
             const payload = {
                 date: this.form.date,
@@ -597,7 +619,7 @@ function createTransaction() {
                 receiver_type: '{{ is_array($config['receiver_type'] ?? null) ? implode(',', $config['receiver_type']) : ($config['receiver_type'] ?? '') }}',
                 invoice_number: this.form.invoice_number,
                 note: this.form.note,
-                items: this.form.items.filter(i => i.item_id).map(i => {
+                items: this.validItems().map(i => {
                     const gross = Number(i.quantity || 0) * Number(i.price || 0);
                     return {
                         item_id: i.item_id,
@@ -636,17 +658,21 @@ function createTransaction() {
                     return;
                 }
 
-                // Validation errors
+                // Validation errors — keep every input (no reload) and show what failed.
                 if (res.status === 422) {
-                    const err = await res.json();
+                    const err = await res.json().catch(() => ({}));
                     if (err.errors) {
                         Object.entries(err.errors).forEach(([k, v]) => {
                             this.errors[k] = Array.isArray(v) ? v[0] : v;
                         });
+                        this.serverErrors = Object.values(err.errors).flat();
+                    } else {
+                        this.serverErrors = [err.message || 'Please fix the highlighted fields.'];
                     }
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
                 } else {
-                    const err = await res.text();
-                    alert('Error: ' + res.status);
+                    this.serverErrors = ['Something went wrong (HTTP ' + res.status + '). Your entries are still here — please try again.'];
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
                 }
             } catch (e) {
                 console.error(e);
