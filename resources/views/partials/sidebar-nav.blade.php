@@ -170,6 +170,67 @@
 </div>
 @endif
 
+{{-- ── Journals ──────────────────────────────────────────────────────── --}}
+@if($hasPerm('journal-account-list') || $hasPerm('journal-operation-list') || $isSuperAdmin)
+@php $jrnActive = $isActive('/journals'); @endphp
+<div x-data="{ open: {{ $jrnActive ? 'true' : 'false' }} }" class="mb-1">
+    <button @click="open = !open"
+            class="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors
+                   {{ $jrnActive ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100' }}">
+        <svg class="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
+        <span x-show="sidebarOpen" x-cloak class="flex-1 text-left">Journals</span>
+        <svg x-show="sidebarOpen" x-cloak :class="open ? 'rotate-90' : ''" class="h-3.5 w-3.5 flex-shrink-0 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+    </button>
+    <div x-show="open && sidebarOpen" x-cloak class="ml-6 mt-1 space-y-0.5">
+        @if($hasPerm('journal-account-list') || $isSuperAdmin)
+        <a href="{{ route('account-list.index') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/journals/account-list') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Accounts</a>
+        @endif
+        @if($hasPerm('journal-operation-list') || $isSuperAdmin)
+        <a href="{{ route('operations.index') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/journals/operations') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Operations</a>
+        @endif
+    </div>
+</div>
+@endif
+
+{{-- ── Produksi ──────────────────────────────────────────────────────── --}}
+@if($hasPerm('production-list') || $hasPerm('production-worker-list') || $isSuperAdmin)
+@php $prdActive = $isActive('/produksi'); @endphp
+<div x-data="{ open: {{ $prdActive ? 'true' : 'false' }} }" class="mb-1">
+    <button @click="open = !open"
+            class="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors
+                   {{ $prdActive ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100' }}">
+        <svg class="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.121 15.536c-1.171 1.952-3.07 1.952-4.242 0-1.172-1.953-1.172-5.119 0-7.072 1.171-1.952 3.07-1.952 4.242 0M8 10.5h4m-4 3h4m9-1.5a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        <span x-show="sidebarOpen" x-cloak class="flex-1 text-left">Produksi</span>
+        <svg x-show="sidebarOpen" x-cloak :class="open ? 'rotate-90' : ''" class="h-3.5 w-3.5 flex-shrink-0 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+    </button>
+    <div x-show="open && sidebarOpen" x-cloak class="ml-6 mt-1 space-y-0.5">
+        @if($hasPerm('production-list') || $isSuperAdmin)
+        <a href="{{ route('produksi.index') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $currentUrl === 'produksi' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Production</a>
+        @endif
+        @if($hasPerm('production-setoran-list') || $isSuperAdmin)
+        <a href="{{ route('produksi.setoran.index') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/produksi/setoran') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Setoran</a>
+        @endif
+        @if($hasPerm('production-worker-list') || $isSuperAdmin)
+        <a href="{{ route('produksi.potong.index') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/produksi/potong') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Potong Workers</a>
+        <a href="{{ route('produksi.jahit.index') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/produksi/jahit') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Jahit Workers</a>
+        <a href="{{ route('produksi.qc.index') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/produksi/qc') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">QC Workers</a>
+        @endif
+    </div>
+</div>
+@endif
+
+{{-- ── Borongan ──────────────────────────────────────────────────────── --}}
+@if($hasPerm('borongan-list') || $isSuperAdmin)
+<div class="mb-1">
+    <a href="{{ route('borongan.index') }}"
+       class="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors
+              {{ $isActive('/borongan') ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100' }}">
+        <svg class="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+        <span x-show="sidebarOpen" x-cloak>Borongan</span>
+    </a>
+</div>
+@endif
+
 {{-- ── System Settings ───────────────────────────────────────────────── --}}
 @if($hasPerm('setting-general-view') || $hasPerm('setting-cron-manager-view') || $isSuperAdmin)
 <div class="mb-1">
