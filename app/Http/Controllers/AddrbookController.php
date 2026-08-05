@@ -49,7 +49,7 @@ class AddrbookController extends Controller
             'create' => request()->user()?->can(Addrbook::getPermissions($type)['create']) ?? false,
             'edit' => request()->user()?->can(Addrbook::getPermissions($type)['edit']) ?? false,
             'delete' => request()->user()?->can(Addrbook::getPermissions($type)['delete']) ?? false,
-            'bank_hidden_balance' => request()->user()?->can('addrbook-bank-account-hidden-balance') ?? false,
+            'bank_hidden_balance' => ! (request()->user()?->is_superadmin ?? false) && (request()->user()?->can('addrbook-bank-account-hidden-balance') ?? false),
         ];
 
         // Tabulator AJAX requests
@@ -188,7 +188,7 @@ class AddrbookController extends Controller
             'transactionTypes' => \App\Models\Transaction::getTypes(),
             'filters' => request()->all(['from', 'to', 'type', 'order_date']),
             'can' => [
-                'bank_hidden_balance' => request()->user()?->can('addrbook-bank-account-hidden-balance') ?? false,
+                'bank_hidden_balance' => ! (request()->user()?->is_superadmin ?? false) && (request()->user()?->can('addrbook-bank-account-hidden-balance') ?? false),
             ],
             'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
@@ -229,7 +229,7 @@ class AddrbookController extends Controller
             'items' => $q->paginate(50)->withQueryString(),
             'filters' => request()->all(['name', 'sort', 'show0']),
             'can' => [
-                'bank_hidden_balance' => request()->user()?->can('addrbook-bank-account-hidden-balance') ?? false,
+                'bank_hidden_balance' => ! (request()->user()?->is_superadmin ?? false) && (request()->user()?->can('addrbook-bank-account-hidden-balance') ?? false),
             ],
             'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
@@ -262,7 +262,7 @@ class AddrbookController extends Controller
             'years' => range(date('Y'), date('Y') - 5),
             'transactionTypes' => \App\Models\Transaction::getTypes(),
             'can' => [
-                'bank_hidden_balance' => request()->user()?->can('addrbook-bank-account-hidden-balance') ?? false,
+                'bank_hidden_balance' => ! (request()->user()?->is_superadmin ?? false) && (request()->user()?->can('addrbook-bank-account-hidden-balance') ?? false),
             ],
             'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
@@ -322,7 +322,7 @@ class AddrbookController extends Controller
             'filters' => ['month' => (int) $mo, 'year' => (int) $yr],
             'years' => range(date('Y'), date('Y') - 5),
             'can' => [
-                'bank_hidden_balance' => request()->user()?->can('addrbook-bank-account-hidden-balance') ?? false,
+                'bank_hidden_balance' => ! (request()->user()?->is_superadmin ?? false) && (request()->user()?->can('addrbook-bank-account-hidden-balance') ?? false),
             ],
             'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
