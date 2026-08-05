@@ -59,8 +59,8 @@ $config = [
                         <input type="date" name="date" x-model="form.date"
                                min="{{ $min_date ?? '' }}"
                                class="w-full rounded-lg border px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                               :class="touched && !dateValid ? 'border-red-400 bg-red-50' : 'border-gray-300'">
-                        <p x-show="touched && !dateValid" x-cloak class="mt-1 text-xs text-red-500">A valid date on/after the book-closing date is required.</p>
+                               :class="touched && !dateValid() ? 'border-red-400 bg-red-50' : 'border-gray-300'">
+                        <p x-show="touched && !dateValid()" x-cloak class="mt-1 text-xs text-red-500">A valid date on/after the book-closing date is required.</p>
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Bank Account <span class="text-red-500">*</span></label>
@@ -186,14 +186,14 @@ $config = [
             </div>
 
             <div class="flex items-center justify-end gap-3">
-                <span x-show="touched && !canSubmit" x-cloak class="text-xs text-red-500">
+                <span x-show="touched && !canSubmit()" x-cloak class="text-xs text-red-500">
                     Fill a valid date, bank account, and at least one complete entry.
                 </span>
                 <button type="button" onclick="window.history.back()"
                         class="rounded-lg border border-gray-300 bg-white px-5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
                     Discard
                 </button>
-                <button type="submit" :disabled="submitting || !canSubmit"
+                <button type="submit" :disabled="submitting || !canSubmit()"
                         class="rounded-lg bg-blue-700 px-6 py-2 text-sm font-semibold text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60">
                     <span x-show="!submitting">{{ $config['saveLabel'] }}</span>
                     <span x-show="submitting">Saving…</span>
@@ -240,12 +240,12 @@ function cashForm() {
         },
 
         // ---- validation (used to enable/disable submit and highlight fields) ----
-        get dateValid() {
+        dateValid() {
             if (!this.form.date) return false;
             if (_CashMinDate && this.form.date < _CashMinDate) return false;
             return true;
         },
-        get accountValid() { return !!this.form.account_id; },
+        accountValid() { return !!this.form.account_id; },
         rowEmpty(row) {
             return !row.customer_id && (row.total === null || row.total === '' || Number(row.total) === 0)
                 && !row.invoice_number && !row.note;
@@ -257,9 +257,9 @@ function cashForm() {
             return this.touched && !this.rowEmpty(row) && !this.rowValid(row);
         },
         filledRows() { return this.form.items.filter(r => !this.rowEmpty(r)); },
-        get canSubmit() {
+        canSubmit() {
             const rows = this.filledRows();
-            return this.dateValid && this.accountValid && rows.length >= 1 && rows.every(r => this.rowValid(r));
+            return this.dateValid() && this.accountValid() && rows.length >= 1 && rows.every(r => this.rowValid(r));
         },
 
         focusNext(idx, field) {
@@ -288,7 +288,7 @@ function cashForm() {
         async handleSubmit() {
             this.touched = true;
             this.serverErrors = [];
-            if (!this.canSubmit || this.submitting) return;
+            if (!this.canSubmit() || this.submitting) return;
 
             this.submitting = true;
             const payload = {
