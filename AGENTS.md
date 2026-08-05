@@ -4,6 +4,38 @@ Aria Core — a Laravel 12 inventory / accounting / transaction ERP, server-rend
 **Blade + Alpine.js** (Tailwind + Alpine load from CDN; the old React/Inertia SPA has been
 removed). Indonesian domain terms throughout.
 
+## Project state — already done (do NOT redo or worry about)
+
+The migration from the React/Inertia SPA to Blade+Alpine and a batch of UI/bug fixes are
+**complete and merged**. A new chat should build on this, not revisit it:
+
+- **React / Inertia / Vite / TypeScript stack is fully removed.** There is no `package.json`,
+  `vite.config.ts`, `resources/js`, or Node build; the frontend is pure Blade + Alpine + Tailwind
+  (CDN). CI (`.github/workflows/*`) no longer builds/lints JS. **Do not reintroduce a SPA or a JS
+  build step.**
+- **Blank list pages are fixed.** `items`, `assetlancar`, and `addrbook` index/transactions/items
+  pages used a never-loaded Tabulator.js and rendered empty — they are now plain server-rendered HTML
+  tables with Laravel pagination. Tabulator is reserved for the (not-yet-built) restock page only.
+- **Transactions list is shared.** The `/transactions` table lives in
+  `resources/views/transactions/partials/list-table.blade.php` and is reused by
+  `addrbook/{id}/transactions` (balance shown under sender/receiver; the viewed contact is bolded).
+- **Sidebar** (`resources/views/partials/sidebar-nav.blade.php`) has Journals / Produksi / Borongan
+  links restored, gated by `journal-*` / `production-*` / `borongan-*` permissions or superadmin.
+- **Superadmin (user 1) sees real balances** — it is exempt from the `bank_hidden_balance` check.
+- **Transaction entry forms are inline + keyboard-driven** (cash-in/out and buy/sell/return/
+  return-supplier): barcode/autocomplete lookup, discount in %, PPN 11%, AJAX submit that keeps
+  inputs + highlights invalid rows on validation error, and a submit button gated by client-side
+  validation (see `transactions/create.blade.php`, `transactions/cash.blade.php`).
+- **Palette normalized to `gray-*`** (journals/produksi were `zinc-*`); page-load slide-in animation
+  removed.
+
+Already-fixed gotchas — don't reintroduce them:
+- Read query params with `request()->query('x')`, **not** `request('x')`, on routes that also have a
+  route segment named `x` (e.g. `{type}`) — otherwise the segment leaks into the query.
+- Never call `->wherePivot(...)` inside a `when()` closure that receives the **base** builder; use the
+  qualified column instead (e.g. `where('warehouse_items.quantity', '>', 0)`).
+- PHP **8.5 is not supported** by `phpoffice/phpspreadsheet`; the CI matrix is `8.3`/`8.4`.
+
 ## Testing & workflow preferences (IMPORTANT)
 
 - **Do NOT record demo videos or screen recordings, and do NOT run computerUse "demo" walkthroughs.**
@@ -59,3 +91,64 @@ removed). Indonesian domain terms throughout.
 - Some reports/stats use MySQL `DATE_FORMAT`, which errors on the SQLite **dev** DB only (works on
   production MySQL) — e.g. `items/{id}/stats`.
 - Tabulator.js is intended only for the restock page; other list tables are plain server-rendered HTML.
+
+## Starting the next task (new chat + new branch)
+
+To keep chats short and reviews clean, do **one task (or a small related cluster) per chat**, on its
+own branch, with its own PR.
+
+- **Start a fresh chat for each new task.** Each cloud agent runs on a clean VM and re-reads this file,
+  so you don't need to re-explain the project — just give the task brief.
+- **Branch naming:** `cursor/<short-kebab-name>-e924` (lowercase; the `cursor/` prefix and `-e924`
+  suffix are required by this environment).
+- **Base each new branch off `main` _after_ the previous PR merges.** Do not stack new work on an
+  already-merged branch (it causes messy rebases). If task B truly depends on unmerged task A, say so
+  explicitly and I'll branch B off A.
+- **One PR per branch.** I'll commit each logical change separately, run `./vendor/bin/pest` (and the
+  `BladePagesRenderTest` smoke test after touching Blade), and open a draft PR. No demo videos.
+- **Kickoff prompt template** to paste into the new chat:
+  ```
+  Goal: <what to build / fix>
+  Where: <page / route / file, if known>
+  Acceptance: <how we'll know it's done>
+  Notes: <constraints, edge cases, anything unusual>
+  ```
+
+## Roadmap: the next two branches
+
+### 1. Transaction backend (`cursor/transaction-backend-e924`)
+
+How a transaction is written today (trace this flow before changing it):
+`Store*Request` (validation) → `TransactionsController@store*` → an action in
+`app/Actions/Transactions/` (`CreateItemTransaction`, `CreateCashTransaction`,
+`CreateTransferTransaction`, `CreateAdjustTransaction`; shared bits under `Concerns/`) which writes the
+`Transaction` + `TransactionDetail` rows inside a DB transaction. `app/Observers/TransactionObserver.php`
+and the `app/Jobs/UpdateTransactionSummaries.php` queued job keep balances/aggregates in sync (run
+`php artisan queue:listen`). Shared logic lives in `app/Services/TransactionService.php`;
+`BookClosingService` enforces the book-closing cutoff date; `InventoryService` adjusts
+`warehouse_items` stock. Batch recompute lives in `app/Console/Commands/Recalculate*`.
+- Balances are **signed** (not debit/credit): +total = sender owes receiver; buy/return are positive,
+  sell/return-supplier negative. Types are in `App\Enums\TransactionType`; legal sender/receiver types
+  per type are in `config/transaction_rules.php`.
+- Likely goals here: solidify signed double-entry posting; **recalculate balances when a back-dated
+  transaction is inserted/edited/deleted** (later rows must re-derive their running balance); wire up
+  **Jubelio stock-sync buttons** (`app/Services/JubelioService.php`,
+  `TransactionsController@hydrateJubelioSyncData`, dormant while `JUBELIO_ACTIVE=false`).
+- Key files: `app/Http/Controllers/TransactionsController.php`, `app/Actions/Transactions/*`,
+  `app/Services/{TransactionService,BookClosingService,InventoryService,JubelioService}.php`,
+  `app/Observers/TransactionObserver.php`, `app/Jobs/UpdateTransactionSummaries.php`,
+  `app/Models/{Transaction,TransactionDetail,WarehouseItem}.php`. Cover changes with Pest feature tests
+  (see existing `tests/Feature/*Transaction*`, `TransferTest`).
+
+### 2. Expand the items table (`cursor/expand-items-table-e924`)
+
+- Add columns with a **new dated migration** in `database/migrations/` (e.g.
+  `add_<cols>_to_items_table`) — do **not** edit the original `create_items_table` migration.
+- Then update `App\Models\Item` `$fillable` (and `$casts` if typed), surface the fields in the item
+  forms (`resources/views/items/*` — create/edit) and add validation in
+  `app/Http/Controllers/ItemsController.php`. Touch `app/Services/{ItemService,InventoryService}.php`
+  if a new column affects stock or pricing.
+- Current `items` columns: `id, group_id, name, code, pcode, brand, type, price, cost, qty, tag_ids,
+  description, description2, url, image_path, size, genre, jubelio_item_id, timestamps, deleted_at`.
+  Per-warehouse stock lives in `warehouse_items` (quantity + note), not on `items`.
+- Caveat: some item reports/stats use MySQL `DATE_FORMAT` and error on the SQLite dev DB only.
