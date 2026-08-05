@@ -80,7 +80,11 @@ test('deleting a buy transaction reverts stock and balances then moves it to del
     $response->assertSessionHas('success');
 
     expect(Transaction::find($transaction->id))->toBeNull();
-    expect(DeletedTransaction::find($transaction->id))->not->toBeNull();
+
+    $deleted = DeletedTransaction::find($transaction->id);
+    expect($deleted)->not->toBeNull();
+    expect((float) $deleted->sender_balance)->toBe(50000.0);
+    expect((float) $deleted->receiver_balance)->toBe(0.0);
 
     expect((float) WarehouseItem::where('warehouse_id', $warehouse->id)->where('item_id', $item->id)->first()->quantity)->toBe(5.0);
     expect((float) $item->fresh()->qty)->toBe(5.0);

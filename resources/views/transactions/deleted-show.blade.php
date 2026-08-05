@@ -1,21 +1,21 @@
 @extends('layouts.app')
 
-@section('title', 'Detail Transaksi Terhapus #' . $transaction->invoice_number)
+@section('title', 'Deleted Transaction #' . $transaction->invoice_number)
 
 @section('content')
 @php
     $breadcrumbs = [
-        ['title' => 'Transaksi', 'href' => route('transactions.index')],
-        ['title' => 'Transaksi Terhapus', 'href' => route('transactions.deleted.index')],
+        ['title' => 'Transactions', 'href' => route('transactions.index')],
+        ['title' => 'Deleted', 'href' => route('transactions.deleted.index')],
         ['title' => 'Invoice #' . $transaction->invoice_number, 'href' => route('transactions.deleted.show', $transaction->id)],
     ];
 
     $statuses = [
         1 => ['label' => 'Pending', 'color' => 'bg-yellow-100 text-yellow-800'],
-        2 => ['label' => 'Selesai', 'color' => 'bg-green-100 text-green-800'],
-        3 => ['label' => 'Dibatalkan', 'color' => 'bg-red-100 text-red-800'],
+        2 => ['label' => 'Completed', 'color' => 'bg-green-100 text-green-800'],
+        3 => ['label' => 'Cancelled', 'color' => 'bg-red-100 text-red-800'],
     ];
-    $status = $statuses[$transaction->status] ?? ['label' => 'Tidak Diketahui', 'color' => 'bg-gray-100 text-gray-800'];
+    $status = $statuses[$transaction->status] ?? ['label' => 'Unknown', 'color' => 'bg-gray-100 text-gray-800'];
 
     $fmt = fn ($n) => number_format((float) $n, 0, ',', '.');
     $fmtDate = fn ($d) => $d ? \Illuminate\Support\Carbon::parse($d)->format('d/m/Y') : '-';
@@ -35,8 +35,8 @@
             </a>
             <div>
                 <div class="flex items-center gap-2">
-                    <h1 class="text-2xl font-bold tracking-tight">Detail Transaksi Terhapus</h1>
-                    <span class="inline-flex items-center rounded-md bg-red-600 px-2 py-0.5 text-xs font-semibold text-white uppercase">Terhapus</span>
+                    <h1 class="text-2xl font-bold tracking-tight">Deleted Transaction</h1>
+                    <span class="inline-flex items-center rounded-md bg-red-600 px-2 py-0.5 text-xs font-semibold text-white uppercase">Deleted</span>
                 </div>
                 <p class="flex items-center gap-2 text-sm text-gray-500">
                     <svg class="h-3.5 w-3.5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
@@ -49,31 +49,8 @@
             <button type="button" onclick="window.print()"
                     class="inline-flex items-center gap-2 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
                 <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
-                Cetak
+                Print
             </button>
-
-            @if($can['restore'])
-            <div x-data="{ open: false }">
-                <button type="button" @click="open = true"
-                        class="inline-flex items-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-medium text-blue-600 hover:bg-blue-100">
-                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-                    Pulihkan Transaksi
-                </button>
-                <div x-show="open" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" @keydown.window.escape="open = false">
-                    <div @click.away="open = false" class="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
-                        <h3 class="text-lg font-semibold text-gray-900">Pulihkan Transaksi</h3>
-                        <p class="mt-2 text-sm text-gray-600">Apakah Anda yakin ingin memulihkan transaksi ini? Transaksi akan dikembalikan ke daftar aktif dan dampaknya terhadap stok serta saldo akan dihitung ulang.</p>
-                        <div class="mt-6 flex justify-end gap-2">
-                            <button type="button" @click="open = false" class="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Batal</button>
-                            <form method="POST" action="{{ route('transactions.deleted.restore', $transaction->id) }}">
-                                @csrf
-                                <button type="submit" class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Pulihkan</button>
-                            </form>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            @endif
         </div>
     </div>
 
@@ -81,8 +58,8 @@
     <div class="flex items-center gap-4 rounded-lg border border-red-200 bg-red-50 p-4 text-red-800">
         <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
         <div>
-            <p class="text-sm font-bold">Transaksi ini dihapus pada {{ $fmtDateTime($transaction->deleted_at) }}</p>
-            <p class="text-xs opacity-80">Penghapusan dapat dibatalkan. Memulihkan akan menghitung ulang inventaris dan saldo terkait.</p>
+            <p class="text-sm font-bold">This transaction was deleted on {{ $fmtDateTime($transaction->deleted_at) }}</p>
+            <p class="text-xs opacity-80">Stock and balance impacts were reversed when it was removed from the active list.</p>
         </div>
     </div>
 
@@ -92,7 +69,7 @@
         <div class="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm">
             <div class="h-2 w-full bg-zinc-500"></div>
             <div class="p-6 pb-2">
-                <div class="text-sm font-medium tracking-wider text-gray-500 uppercase">Total Akhir</div>
+                <div class="text-sm font-medium tracking-wider text-gray-500 uppercase">Grand Total</div>
                 <div class="mt-1 flex items-baseline gap-1">
                     <span class="text-3xl font-black text-zinc-500">IDR</span>
                     <span class="text-4xl font-black tracking-tighter text-zinc-900 tabular-nums">{{ $fmt(abs($transaction->grand_total)) }}</span>
@@ -106,13 +83,13 @@
                 <div class="space-y-2">
                     <div class="flex justify-between text-sm">
                         <span class="flex items-center gap-1.5 text-gray-500">
-                            <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg> Tanggal
+                            <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg> Date
                         </span>
                         <span class="font-semibold">{{ $fmtDate($transaction->date) }}</span>
                     </div>
                     <div class="flex justify-between text-sm">
                         <span class="flex items-center gap-1.5 text-gray-500">
-                            <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> Tipe
+                            <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> Type
                         </span>
                         <span class="inline-flex items-center rounded-md bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700 capitalize">{{ $config['type_slug'] }}</span>
                     </div>
@@ -124,20 +101,20 @@
         @include('transactions.partials.deleted-party', [
             'party' => $transaction->sender,
             'label' => $config['sender_label'],
-            'sub' => 'Asal barang-barang ini',
-            'direction' => 'Dari',
+            'sub' => 'Origin of these items',
+            'direction' => 'From',
             'iconArrow' => false,
-            'emptyText' => 'Tidak ada info pengirim',
+            'emptyText' => 'No sender info',
         ])
 
         {{-- Receiver Info --}}
         @include('transactions.partials.deleted-party', [
             'party' => $transaction->receiver,
             'label' => $config['receiver_label'],
-            'sub' => 'Tujuan barang-barang ini',
-            'direction' => 'Ke',
+            'sub' => 'Destination of these items',
+            'direction' => 'To',
             'iconArrow' => true,
-            'emptyText' => 'Tidak ada info penerima',
+            'emptyText' => 'No receiver info',
         ])
     </div>
 
@@ -147,15 +124,15 @@
             <div>
                 <div class="flex items-center gap-2 text-lg font-semibold">
                     <svg class="h-5 w-5 text-zinc-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
-                    Daftar Barang
+                    Items List
                 </div>
-                <p class="text-sm text-gray-500">Barang yang diminta dalam transaksi ini ({{ $transaction->total_items }})</p>
+                <p class="text-sm text-gray-500">Requested items in this transaction ({{ $transaction->total_items }})</p>
             </div>
 
             <div class="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-full border border-dashed bg-gray-50 px-4 py-2 print:hidden">
-                <span class="text-[10px] font-black tracking-widest text-gray-500 uppercase">Tampilan:</span>
+                <span class="text-[10px] font-black tracking-widest text-gray-500 uppercase">View:</span>
                 <label class="flex cursor-pointer items-center gap-2 text-xs font-bold">
-                    <input type="checkbox" x-model="showImage" class="h-4 w-4 rounded border-gray-300"> Gambar
+                    <input type="checkbox" x-model="showImage" class="h-4 w-4 rounded border-gray-300"> Image
                 </label>
                 <label class="flex cursor-pointer items-center gap-2 text-xs font-bold">
                     <input type="checkbox" x-model="showBarcode" class="h-4 w-4 rounded border-gray-300"> Barcode
@@ -169,13 +146,13 @@
         <div class="flex flex-col print:block">
             {{-- Header --}}
             <div class="hidden grid-cols-12 gap-4 border-y bg-gray-50 p-3 text-[10px] font-bold tracking-wider text-gray-500 uppercase sm:grid print:grid">
-                <div class="col-span-1 text-center font-black" x-show="showImage">Gbr</div>
+                <div class="col-span-1 text-center font-black" x-show="showImage">Img</div>
                 <div class="col-span-1 font-black" x-show="showBarcode">Barcode</div>
                 <div class="col-span-1 font-black" x-show="showSku">SKU</div>
-                <div class="font-black" :class="nameColSpan">Nama Barang</div>
+                <div class="font-black" :class="nameColSpan">Item Name</div>
                 <div class="col-span-1 text-center font-black">Qty</div>
-                <div class="col-span-2 text-right font-black">Harga</div>
-                <div class="col-span-1 text-center font-black">Diskon(%)</div>
+                <div class="col-span-2 text-right font-black">Price</div>
+                <div class="col-span-1 text-center font-black">Disc(%)</div>
                 <div class="col-span-2 text-right font-black">Subtotal</div>
             </div>
 
@@ -231,7 +208,7 @@
                     </div>
 
                     <div class="flex items-center justify-between sm:col-span-2 sm:block sm:text-right print:block print:text-right">
-                        <span class="text-[10px] font-bold text-gray-500 uppercase sm:hidden print:hidden">Harga</span>
+                        <span class="text-[10px] font-bold text-gray-500 uppercase sm:hidden print:hidden">Price</span>
                         <span class="font-medium">{{ $fmt($detail->price) }}</span>
                     </div>
 
@@ -264,7 +241,7 @@
             <div class="border-b bg-gray-50/50 p-6 py-4">
                 <div class="flex items-center gap-2 text-sm font-bold">
                     <svg class="h-4 w-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-                    Catatan Internal
+                    Internal Notes
                 </div>
             </div>
             <div class="flex-1 p-6 pt-4">
@@ -273,7 +250,7 @@
                 @else
                     <div class="flex h-full flex-col items-center justify-center py-4 text-gray-400 opacity-30">
                         <svg class="mb-1 h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                        <p class="text-xs italic">Tidak ada catatan</p>
+                        <p class="text-xs italic">No notes</p>
                     </div>
                 @endif
             </div>
@@ -286,23 +263,23 @@
                     <span class="font-bold">{{ $fmt($transaction->total) }}</span>
                 </div>
                 <div class="flex items-center justify-between text-sm">
-                    <span class="text-gray-500">Diskon Invoice ({{ $transaction->discount_percent ?? 0 }}%)</span>
+                    <span class="text-gray-500">Invoice Discount ({{ $transaction->discount_percent ?? 0 }}%)</span>
                     <span class="font-bold text-red-600">-{{ $fmt($transaction->discount) }}</span>
                 </div>
                 <hr class="border-dashed">
                 <div class="flex items-center justify-between text-sm">
-                    <span class="text-gray-500 italic underline decoration-dotted">Penyesuaian</span>
+                    <span class="text-gray-500 italic underline decoration-dotted">Adjustment</span>
                     <span class="font-bold {{ $transaction->adjustment < 0 ? 'text-red-500' : 'text-green-500' }}">{{ $transaction->adjustment > 0 ? '+' : '' }}{{ $fmt($transaction->adjustment) }}</span>
                 </div>
                 <div class="flex items-center justify-between text-sm">
-                    <span class="text-gray-500">PPN / Pajak</span>
+                    <span class="text-gray-500">Tax / VAT</span>
                     <span class="font-bold">{{ $fmt($transaction->tax_amount) }}</span>
                 </div>
                 <div class="pt-2">
                     <div class="flex items-center justify-between rounded-lg bg-zinc-800 p-4 text-white shadow-lg">
                         <div class="flex flex-col">
-                            <span class="text-[10px] font-black tracking-widest text-zinc-300 uppercase">Total Akhir</span>
-                            <span class="text-xs font-medium italic text-zinc-400">Jumlah Bersih</span>
+                            <span class="text-[10px] font-black tracking-widest text-zinc-300 uppercase">Grand Total</span>
+                            <span class="text-xs font-medium italic text-zinc-400">Net Amount</span>
                         </div>
                         <span class="text-2xl font-black">IDR {{ $fmt(abs($transaction->grand_total)) }}</span>
                     </div>

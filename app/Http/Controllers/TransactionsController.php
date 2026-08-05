@@ -224,17 +224,22 @@ class TransactionsController extends Controller
         $transaction->load('details');
 
         DB::transaction(function () use ($transaction, $service) {
-            $service->revertTransaction($transaction);
-
             $deletedColumns = array_flip(Schema::getColumnListing((new DeletedTransaction)->getTable()));
             $transactionData = array_intersect_key($transaction->getAttributes(), $deletedColumns);
             $transactionData['deleted_at'] = now();
-            DeletedTransaction::create($transactionData);
 
             $deletedDetailColumns = array_flip(Schema::getColumnListing((new DeletedTransactionDetail)->getTable()));
+            $detailRows = [];
             foreach ($transaction->details as $detail) {
                 $detailData = array_intersect_key($detail->getAttributes(), $deletedDetailColumns);
                 $detailData['deleted_at'] = now();
+                $detailRows[] = $detailData;
+            }
+
+            $service->revertTransaction($transaction);
+
+            DeletedTransaction::create($transactionData);
+            foreach ($detailRows as $detailData) {
                 DeletedTransactionDetail::create($detailData);
             }
 
