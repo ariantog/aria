@@ -32,13 +32,15 @@ $config = [
         </div>
     </div>
 
-    @if($errors->any())
-    <div class="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
-        <ul class="list-disc pl-5">@foreach($errors->all() as $e)<li>{{ $e }}</li>@endforeach</ul>
+    {{-- Validation errors (kept client-side so entries persist on failure) --}}
+    <div x-show="serverErrors.length" x-cloak class="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+        <p class="font-medium">Please fix the following:</p>
+        <ul class="mt-1 list-disc pl-5">
+            <template x-for="(e, i) in serverErrors" :key="i"><li x-text="e"></li></template>
+        </ul>
     </div>
-    @endif
 
-    <form method="POST" action="{{ $config['endpoint'] }}" @submit.prevent="handleSubmit($event)">
+    <form method="POST" action="{{ $config['endpoint'] }}" @submit.prevent="handleSubmit()">
         @csrf
 
         <div class="space-y-5 max-w-3xl">
@@ -56,8 +58,9 @@ $config = [
                         <label class="block text-sm font-medium text-gray-700 mb-1">Date <span class="text-red-500">*</span></label>
                         <input type="date" name="date" x-model="form.date"
                                min="{{ $min_date ?? '' }}"
-                               class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
-                        @error('date')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
+                               class="w-full rounded-lg border px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                               :class="touched && !dateValid ? 'border-red-400 bg-red-50' : 'border-gray-300'">
+                        <p x-show="touched && !dateValid" x-cloak class="mt-1 text-xs text-red-500">A valid date on/after the book-closing date is required.</p>
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Bank Account <span class="text-red-500">*</span></label>
@@ -129,7 +132,8 @@ $config = [
                                      placeholder: '{{ $config['sourcePlaceholder'] }}',
                                      onSelect: (item) => { row.customer_id = item ? String(item.id) : ''; row.customer = item; }
                                  })">
-                                <div class="relative flex h-9 overflow-hidden rounded-lg border border-gray-300 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500">
+                                <div class="relative flex h-9 overflow-hidden rounded-lg border focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500"
+                                     :class="rowInvalid(row) && !row.customer_id ? 'border-red-400 bg-red-50' : 'border-gray-300'">
                                     <input type="text" x-model="query" @input="handleInput()" @focus="handleFocus()" @keydown="handleKeydown($event)"
                                            :id="'source_' + idx"
                                            :placeholder="placeholder" class="flex-1 border-none bg-transparent px-2 text-sm outline-none" autocomplete="off">
@@ -160,7 +164,8 @@ $config = [
                                 <input type="number" x-model.number="row.total" placeholder="0" min="0"
                                        @keydown.enter.prevent="focusNext(idx, 'next')"
                                        :id="'total_' + idx"
-                                       class="w-full rounded-lg border border-gray-300 px-2 py-1.5 text-right text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                                       class="w-full rounded-lg border px-2 py-1.5 text-right text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                                       :class="rowInvalid(row) && !(Number(row.total) >= 0.01) ? 'border-red-400 bg-red-50' : 'border-gray-300'">
                             </div>
                             <div class="md:col-span-1 text-center">
                                 <button type="button" @click="removeRow(idx)" :disabled="form.items.length === 1"
@@ -180,13 +185,16 @@ $config = [
                 </div>
             </div>
 
-            <div class="flex justify-end gap-3">
+            <div class="flex items-center justify-end gap-3">
+                <span x-show="touched && !canSubmit" x-cloak class="text-xs text-red-500">
+                    Fill a valid date, bank account, and at least one complete entry.
+                </span>
                 <button type="button" onclick="window.history.back()"
                         class="rounded-lg border border-gray-300 bg-white px-5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
                     Discard
                 </button>
-                <button type="submit" :disabled="submitting"
-                        class="rounded-lg bg-blue-700 px-6 py-2 text-sm font-semibold text-white hover:bg-blue-800 disabled:opacity-60">
+                <button type="submit" :disabled="submitting || !canSubmit"
+                        class="rounded-lg bg-blue-700 px-6 py-2 text-sm font-semibold text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60">
                     <span x-show="!submitting">{{ $config['saveLabel'] }}</span>
                     <span x-show="submitting">Saving…</span>
                 </button>
@@ -198,12 +206,17 @@ $config = [
 @push('scripts')
 <script>
 const _CashMinDate = '{{ $min_date ?? '' }}';
+const _CashEndpoint = @js($config['endpoint']);
+const _CashCsrf = '{{ csrf_token() }}';
+const _TxIndex = '{{ route('transactions.index') }}';
 
 function cashForm() {
     const today = new Date().toISOString().split('T')[0];
     const startDate = (_CashMinDate && today < _CashMinDate) ? _CashMinDate : today;
     return {
         submitting: false,
+        touched: false,
+        serverErrors: [],
         form: {
             date: startDate,
             account_id: '',
@@ -218,12 +231,35 @@ function cashForm() {
         },
 
         removeRow(idx) {
-            if (this.form.items.length === 1) return;
+            if (this.form.items.length === 1) { this.form.items[0] = newRow(); return; }
             this.form.items.splice(idx, 1);
         },
 
         grandTotal() {
             return this.form.items.reduce((s, i) => s + Number(i.total || 0), 0);
+        },
+
+        // ---- validation (used to enable/disable submit and highlight fields) ----
+        get dateValid() {
+            if (!this.form.date) return false;
+            if (_CashMinDate && this.form.date < _CashMinDate) return false;
+            return true;
+        },
+        get accountValid() { return !!this.form.account_id; },
+        rowEmpty(row) {
+            return !row.customer_id && (row.total === null || row.total === '' || Number(row.total) === 0)
+                && !row.invoice_number && !row.note;
+        },
+        rowValid(row) {
+            return !!row.customer_id && Number(row.total) >= 0.01;
+        },
+        rowInvalid(row) {
+            return this.touched && !this.rowEmpty(row) && !this.rowValid(row);
+        },
+        filledRows() { return this.form.items.filter(r => !this.rowEmpty(r)); },
+        get canSubmit() {
+            const rows = this.filledRows();
+            return this.dateValid && this.accountValid && rows.length >= 1 && rows.every(r => this.rowValid(r));
         },
 
         focusNext(idx, field) {
@@ -249,34 +285,54 @@ function cashForm() {
             });
         },
 
-        handleSubmit(event) {
+        async handleSubmit() {
+            this.touched = true;
+            this.serverErrors = [];
+            if (!this.canSubmit || this.submitting) return;
+
             this.submitting = true;
-            // Build the real form data
-            const form = event.target;
-
-            // Remove any previously injected hidden fields
-            form.querySelectorAll('.dyn-field').forEach(el => el.remove());
-
-            const add = (name, value) => {
-                const input = document.createElement('input');
-                input.type = 'hidden';
-                input.name = name;
-                input.value = value;
-                input.className = 'dyn-field';
-                form.appendChild(input);
+            const payload = {
+                date: this.form.date,
+                account_id: this.form.account_id,
+                items: this.filledRows().map(r => ({
+                    customer_id: r.customer_id,
+                    invoice_number: r.invoice_number,
+                    note: r.note,
+                    total: Number(r.total || 0),
+                })),
             };
 
-            add('date', this.form.date);
-            add('account_id', this.form.account_id);
+            try {
+                const res = await fetch(_CashEndpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': _CashCsrf,
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    // Don't follow the server redirect; keep its flash and send the user to the list.
+                    redirect: 'manual',
+                    body: JSON.stringify(payload),
+                });
 
-            this.form.items.forEach((item, i) => {
-                add(`items[${i}][customer_id]`, item.customer_id);
-                add(`items[${i}][invoice_number]`, item.invoice_number);
-                add(`items[${i}][note]`, item.note);
-                add(`items[${i}][total]`, item.total || 0);
-            });
+                if (res.type === 'opaqueredirect' || res.status === 0 || (res.status >= 200 && res.status < 400)) {
+                    window.location.href = _TxIndex;
+                    return;
+                }
 
-            form.submit();
+                if (res.status === 422) {
+                    const data = await res.json().catch(() => ({}));
+                    this.serverErrors = data.errors ? Object.values(data.errors).flat() : [data.message || 'Please fix the highlighted fields.'];
+                } else {
+                    this.serverErrors = ['Something went wrong (HTTP ' + res.status + '). Your entries are still here — please try again.'];
+                }
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            } catch (e) {
+                this.serverErrors = ['Network error — your entries are still here. Please try again.'];
+            } finally {
+                this.submitting = false;
+            }
         }
     };
 }
