@@ -3,6 +3,8 @@
 namespace Tests\Feature;
 
 use App\Models\Addrbook;
+use App\Models\AddrbookStat;
+use App\Models\DeletedTransaction;
 use App\Models\Item;
 use App\Models\Transaction;
 use App\Models\User;
@@ -13,8 +15,7 @@ beforeEach(function () {
     Gate::before(fn () => true);
 });
 
-test('deleting a buy transaction soft deletes it and redirects to the index', function () {
-    // 1. Setup Data
+test('deleting a buy transaction reverts stock and balances then moves it to deleted', function () {
     $user = User::factory()->create();
     $this->actingAs($user);
 
@@ -32,9 +33,11 @@ test('deleting a buy transaction soft deletes it and redirects to the index', fu
         'qty' => 0,
     ]);
 
-    // 2. Create Transaction
+    $buyDate = now()->subDays(2)->toDateString();
+    $laterDate = now()->subDay()->toDateString();
+
     $response = $this->post(route('transactions.store'), [
-        'date' => now()->toDateString(),
+        'date' => $buyDate,
         'type' => 'buy',
         'sender_id' => $supplier->id,
         'receiver_id' => $warehouse->id,
@@ -48,22 +51,39 @@ test('deleting a buy transaction soft deletes it and redirects to the index', fu
     ]);
 
     $transaction = Transaction::latest('id')->first();
-
     $response->assertRedirect(route('transactions.show', $transaction));
 
-    // Check initial impact
     expect((float) WarehouseItem::where('warehouse_id', $warehouse->id)->where('item_id', $item->id)->first()->quantity)->toBe(10.0);
     expect((float) $item->fresh()->qty)->toBe(10.0);
+    expect((float) $transaction->fresh()->sender_balance)->toBe(50000.0);
 
-    // 3. Delete Transaction — destroy() soft deletes and redirects to the index
+    $laterBuy = $this->post(route('transactions.store'), [
+        'date' => $laterDate,
+        'type' => 'buy',
+        'sender_id' => $supplier->id,
+        'receiver_id' => $warehouse->id,
+        'items' => [
+            [
+                'item_id' => $item->id,
+                'quantity' => 5,
+                'price' => 2000,
+            ],
+        ],
+    ]);
+
+    $laterTransaction = Transaction::latest('id')->first();
+    $laterBuy->assertRedirect(route('transactions.show', $laterTransaction));
+    expect((float) $laterTransaction->fresh()->sender_balance)->toBe(60000.0);
+
     $response = $this->delete(route('transactions.destroy', $transaction));
     $response->assertRedirect(route('transactions.index'));
     $response->assertSessionHas('success');
 
-    $t = Transaction::withTrashed()->find($transaction->id);
-
-    // Verify soft delete: the transaction is trashed and no longer visible
-    // through the default (non-trashed) query.
-    expect($t->deleted_at)->not->toBeNull();
     expect(Transaction::find($transaction->id))->toBeNull();
+    expect(DeletedTransaction::find($transaction->id))->not->toBeNull();
+
+    expect((float) WarehouseItem::where('warehouse_id', $warehouse->id)->where('item_id', $item->id)->first()->quantity)->toBe(5.0);
+    expect((float) $item->fresh()->qty)->toBe(5.0);
+    expect((float) $laterTransaction->fresh()->sender_balance)->toBe(10000.0);
+    expect((float) AddrbookStat::where('addrbook_id', $supplier->id)->first()->balance)->toBe(10000.0);
 });
