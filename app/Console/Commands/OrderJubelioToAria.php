@@ -122,11 +122,9 @@ class OrderJubelioToAria extends Command
                 ->first();
 
             if ($jubelioSync) {
-                $itemCodes = collect($arrayItems)->pluck('item_code')->map(fn ($code) => strtoupper($code))->unique();
+                $itemCodes = collect($arrayItems)->pluck('item_code')->unique()->all();
 
-                $existingProducts = Item::whereIn(DB::raw('UPPER(code)'), $itemCodes)
-                    ->get(['id', 'code', 'name'])
-                    ->keyBy(fn ($item) => strtoupper($item->code));
+                $existingProducts = Item::findManyBySkus($itemCodes);
 
                 $groupedData = collect($arrayItems)->partition(fn ($item) => isset($existingProducts[strtoupper($item['item_code'])]));
 
@@ -210,11 +208,9 @@ class OrderJubelioToAria extends Command
                 ->first();
 
             if ($cekTransaksiSell) {
-                $itemCodes = collect($dataApi['items'])->pluck('item_code')->map(fn ($c) => strtoupper($c))->unique();
+                $itemCodes = collect($dataApi['items'])->pluck('item_code')->unique()->all();
 
-                $existingProducts = Item::whereIn(DB::raw('UPPER(code)'), $itemCodes)
-                    ->get(['id', 'code', 'name'])
-                    ->keyBy(fn ($item) => strtoupper($item->code));
+                $existingProducts = Item::findManyBySkus($itemCodes);
 
                 $groupedData = collect($dataApi['items'])->partition(fn ($item) => isset($existingProducts[strtoupper($item['item_code'])]));
 

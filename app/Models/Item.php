@@ -11,6 +11,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 class Item extends Model
 {
@@ -20,6 +22,7 @@ class Item extends Model
         'group_id',
         'name',
         'code',
+        'legacy_code',
         'pcode',
         'brand',
         'type',
@@ -93,7 +96,8 @@ class Item extends Model
     {
         $query->where(function ($q) use ($term) {
             $q->where('name', 'like', "%{$term}%")
-                ->orWhere('code', 'like', "{$term}%") // Optimised: prefix search uses index
+                ->orWhere('code', 'like', "{$term}%")
+                ->orWhere('legacy_code', 'like', "{$term}%")
                 ->orWhere('pcode', 'like', "{$term}%")
                 ->orWhere('id', $term);
         });
@@ -140,15 +144,79 @@ class Item extends Model
 
     public function getItemCode(): string
     {
-        if ($this->type === ItemType::ASSET_LANCAR) {
-            return $this->code ?? (string) $this->id;
-        }
-
-        return $this->name ?? (string) $this->id;
+        return $this->code ?? $this->legacy_code ?? (string) $this->id;
     }
 
     public function getItemCodeAttribute(): string
     {
         return $this->getItemCode();
+    }
+
+    /**
+     * Resolve an item by canonical code or preserved legacy SKU (Jubelio / imports).
+     */
+    public static function findBySku(string $sku): ?self
+    {
+        $normalized = strtoupper(trim($sku));
+
+        if ($normalized === '') {
+            return null;
+        }
+
+        return static::query()
+            ->where(function (Builder $query) use ($normalized) {
+                $query->whereRaw('UPPER(code) = ?', [$normalized])
+                    ->orWhereRaw('UPPER(legacy_code) = ?', [$normalized]);
+            })
+            ->first();
+    }
+
+    /**
+     * Batch-resolve items keyed by uppercase SKU (matches code or legacy_code).
+     *
+     * @param  array<int, string>  $skus
+     * @return Collection<string, self>
+     */
+    public static function findManyBySkus(array $skus): Collection
+    {
+        $normalized = collect($skus)
+            ->map(fn ($sku) => strtoupper(trim((string) $sku)))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        if ($normalized === []) {
+            return collect();
+        }
+
+        $items = static::query()
+            ->where(function (Builder $query) use ($normalized) {
+                $query->whereIn(DB::raw('UPPER(code)'), $normalized)
+                    ->orWhereIn(DB::raw('UPPER(legacy_code)'), $normalized);
+            })
+            ->get(['id', 'code', 'legacy_code', 'name']);
+
+        $keyed = collect();
+
+        foreach ($items as $item) {
+            $keyed[strtoupper($item->code)] = $item;
+
+            if ($item->legacy_code) {
+                $keyed[strtoupper($item->legacy_code)] = $item;
+            }
+        }
+
+        return $keyed;
+    }
+
+    public function scopeWhereSku(Builder $query, string $sku): Builder
+    {
+        $normalized = strtoupper(trim($sku));
+
+        return $query->where(function (Builder $inner) use ($normalized) {
+            $inner->whereRaw('UPPER(code) = ?', [$normalized])
+                ->orWhereRaw('UPPER(legacy_code) = ?', [$normalized]);
+        });
     }
 }

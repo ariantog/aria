@@ -9,7 +9,8 @@ class StoreItemRequest extends FormRequest
 {
     public function rules(): array
     {
-        $isAsset = $this->input('type') == ItemType::AssetLancar->value;
+        $isAsset = (int) $this->input('type') === ItemType::ASSET_LANCAR->value;
+
         return [
             'pcode' => ['required', 'string'],
             'type' => ['required', 'integer'],
@@ -27,5 +28,8 @@ class StoreItemRequest extends FormRequest
         ];
     }
 
-    public function authorize(): bool { return true; }
+    public function authorize(): bool
+    {
+        return true;
+    }
 }
