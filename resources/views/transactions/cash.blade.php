@@ -59,8 +59,8 @@ $config = [
                         <input type="date" name="date" x-model="form.date"
                                min="{{ $min_date ?? '' }}"
                                class="w-full rounded-lg border px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                               :class="touched && !dateValid() ? 'border-red-400 bg-red-50' : 'border-gray-300'">
-                        <p x-show="touched && !dateValid()" x-cloak class="mt-1 text-xs text-red-500">A valid date on/after the book-closing date is required.</p>
+                               :class="!dateValid() ? 'border-red-400 bg-red-50' : 'border-gray-300'">
+                        <p x-show="!dateValid()" x-cloak class="mt-1 text-xs text-red-500">A valid date on/after the book-closing date is required.</p>
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Bank Account <span class="text-red-500">*</span></label>
@@ -186,15 +186,15 @@ $config = [
             </div>
 
             <div class="flex items-center justify-end gap-3">
-                <span x-show="touched && !canSubmit()" x-cloak class="text-xs text-red-500">
-                    Fill a valid date, bank account, and at least one complete entry.
+                <span x-show="!canSubmit()" x-cloak class="text-xs text-gray-400">
+                    Add a valid date, bank account, and at least one complete entry to enable Save.
                 </span>
                 <button type="button" onclick="window.history.back()"
                         class="rounded-lg border border-gray-300 bg-white px-5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
                     Discard
                 </button>
                 <button type="submit" :disabled="submitting || !canSubmit()"
-                        class="rounded-lg bg-blue-700 px-6 py-2 text-sm font-semibold text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60">
+                        class="rounded-lg bg-blue-700 px-6 py-2 text-sm font-semibold text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500">
                     <span x-show="!submitting">{{ $config['saveLabel'] }}</span>
                     <span x-show="submitting">Saving…</span>
                 </button>
@@ -254,7 +254,7 @@ function cashForm() {
             return !!row.customer_id && Number(row.total) >= 0.01;
         },
         rowInvalid(row) {
-            return this.touched && !this.rowEmpty(row) && !this.rowValid(row);
+            return !this.rowEmpty(row) && !this.rowValid(row);
         },
         filledRows() { return this.form.items.filter(r => !this.rowEmpty(r)); },
         canSubmit() {
