@@ -6,6 +6,7 @@ use App\Models\Item;
 use App\Models\RestockCell;
 use App\Models\RestockSheet;
 use App\Services\Items\ItemIdentityBuilder;
+use App\Services\Restock\RestockSettingsService;
 use Illuminate\Support\Collection;
 
 class RestockGridBuilder
@@ -14,6 +15,7 @@ class RestockGridBuilder
 
     public function __construct(
         protected ItemIdentityBuilder $identityBuilder,
+        protected RestockSettingsService $settingsService,
     ) {}
 
     /**
@@ -130,7 +132,7 @@ class RestockGridBuilder
                         continue;
                     }
 
-                    $stock = (int) ($cell->item?->warehouseItems?->sum('quantity') ?? 0);
+                    $stock = $this->settingsService->stockQuantityForItem($cell->item);
                     $prefix = $this->fieldPrefix($sizeCode);
 
                     $row["{$prefix}restock"] = $cell->qty_restock;

@@ -54,7 +54,7 @@ $breadcrumbs = [
                 Production → Shipped
             </button>
             <button type="button" @click="openReceiveModal()" :disabled="receiving || !canEdit || !receiveReady || !hasSelection()"
-                    title="{{ $receiveReady ? 'Receive shipped qty into warehouse (Buy transaction)' : 'Configure restock default supplier and receiver in system settings' }}"
+                    title="{{ $receiveReady ? 'Receive shipped qty into warehouse (Buy transaction)' : 'Configure supplier and receiver in Restock settings' }}"
                     class="rounded-md border border-green-300 bg-green-50 px-3 py-1.5 text-sm font-medium text-green-900 hover:bg-green-100 disabled:opacity-50">
                 Receive → Warehouse
             </button>
@@ -82,7 +82,7 @@ $breadcrumbs = [
     <div class="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
         Select color row(s), then use move buttons to advance quantities through the pipeline, or <strong>Receive → Warehouse</strong> to post a Buy transaction for shipped qty. Edit cells directly and click <strong>Save sheet</strong> for manual adjustments.
         @unless($receiveReady)
-            <span class="mt-1 block text-amber-800">Receive is disabled until restock default supplier and receiver warehouse are configured in system settings.</span>
+            <span class="mt-1 block text-amber-800">Receive is disabled until defaults are configured in <a href="{{ route('restock.settings.edit') }}" class="font-medium underline">Restock settings</a>.</span>
         @endunless
     </div>
 

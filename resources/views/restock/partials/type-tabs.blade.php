@@ -13,6 +13,9 @@ $activeCode = $activeTypeTag?->code;
                 </option>
             @endforeach
         </select>
-        <p class="text-xs text-gray-500 sm:ml-auto">{{ $typeTags->count() }} types</p>
+        <p class="text-xs text-gray-500 sm:ml-auto flex items-center gap-3">
+            <a href="{{ route('restock.settings.edit') }}" class="text-blue-600 hover:underline">Settings</a>
+            <span>{{ $typeTags->count() }} types</span>
+        </p>
     </div>
 </div>
