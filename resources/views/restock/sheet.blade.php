@@ -7,6 +7,7 @@
     .tabulator .tabulator-header .tabulator-col.tabulator-col-group-restock { background: #dbeafe; }
     .tabulator .tabulator-header .tabulator-col.tabulator-col-group-production { background: #fde68a; }
     .tabulator .tabulator-header .tabulator-col.tabulator-col-group-shipped { background: #e5e7eb; }
+    .tabulator .tabulator-header .tabulator-col.tabulator-col-group-missing { background: #fee2e2; }
     .tabulator-cell.tabulator-editing { border: 2px solid #2563eb !important; }
     .restock-urgent-cell { background-color: #fef2f2 !important; color: #b91c1c; font-weight: 600; }
     .restock-grid-scroll { overflow-x: auto; }
@@ -58,6 +59,18 @@ $breadcrumbs = [
                     class="rounded-md border border-green-300 bg-green-50 px-3 py-1.5 text-sm font-medium text-green-900 hover:bg-green-100 disabled:opacity-50">
                 Receive → Warehouse
             </button>
+            <div class="flex items-center gap-1 rounded-md border border-red-200 bg-red-50 p-1">
+                <select x-model="missingSource" :disabled="!canEdit"
+                        class="rounded border-0 bg-transparent py-1 pl-2 pr-7 text-sm text-red-900 focus:ring-0 disabled:opacity-50">
+                    <option value="restock">From restock</option>
+                    <option value="production">From production</option>
+                    <option value="shipped">From shipped</option>
+                </select>
+                <button type="button" @click="move('to_missing')" :disabled="moving || !canEdit || !hasSelection()"
+                        class="rounded px-2 py-1 text-sm font-medium text-red-900 hover:bg-red-100 disabled:opacity-50">
+                    Mark missing
+                </button>
+            </div>
             <form method="POST" action="{{ route('restock.sheets.sync', $sheet) }}">
                 @csrf
                 <button type="submit" class="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
@@ -80,7 +93,7 @@ $breadcrumbs = [
     <div x-show="error" x-cloak class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" x-text="error"></div>
 
     <div class="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
-        Select color row(s), then use move buttons to advance quantities through the pipeline, or <strong>Receive → Warehouse</strong> to post a Buy transaction for shipped qty. Edit cells directly and click <strong>Save sheet</strong> for manual adjustments.
+        Select color row(s), then use move buttons to advance quantities through the pipeline, mark missing from any stage, or <strong>Receive → Warehouse</strong> for shipped qty. Edit cells directly and click <strong>Save sheet</strong> for manual adjustments.
         @unless($receiveReady)
             <span class="mt-1 block text-amber-800">Receive is disabled until defaults are configured in <a href="{{ route('restock.settings.edit') }}" class="font-medium underline">Restock settings</a>.</span>
         @endunless
@@ -146,6 +159,7 @@ function restockSheetPage() {
         saving: false,
         moving: false,
         receiving: false,
+        missingSource: 'restock',
         receiveModalOpen: false,
         receiveForm: {
             date: @json(now()->toDateString()),
@@ -187,6 +201,7 @@ function restockSheetPage() {
                 { key: 'restock', title: 'Restock', groupClass: 'tabulator-col-group-restock' },
                 { key: 'production', title: 'Production', groupClass: 'tabulator-col-group-production' },
                 { key: 'shipped', title: 'Shipped', groupClass: 'tabulator-col-group-shipped' },
+                { key: 'missing', title: 'Missing', groupClass: 'tabulator-col-group-missing' },
             ];
 
             for (const stage of stages) {
@@ -197,6 +212,7 @@ function restockSheetPage() {
                         title: size,
                         field,
                         ...qtyCol,
+                        editor: this.canEdit ? 'number' : false,
                         formatter: (cell) => {
                             const val = cell.getValue() ?? 0;
                             const row = cell.getRow().getData();
@@ -288,6 +304,11 @@ function restockSheetPage() {
             const cells = this.collectCellsFromRows(rows);
             if (!cells.length) return;
 
+            const payload = { direction, cells };
+            if (direction === 'to_missing') {
+                payload.from = this.missingSource;
+            }
+
             this.moving = true;
             this.flash = '';
             this.error = '';
@@ -300,7 +321,7 @@ function restockSheetPage() {
                         'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
                         'X-Requested-With': 'XMLHttpRequest',
                     },
-                    body: JSON.stringify({ direction, cells }),
+                    body: JSON.stringify(payload),
                 });
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.message || 'Move failed');
@@ -371,6 +392,7 @@ function restockSheetPage() {
                             qty_restock: Number(row[prefix + 'restock'] ?? 0),
                             qty_production: Number(row[prefix + 'production'] ?? 0),
                             qty_shipped: Number(row[prefix + 'shipped'] ?? 0),
+                            qty_missing: Number(row[prefix + 'missing'] ?? 0),
                         });
                     }
                 }

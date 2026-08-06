@@ -253,6 +253,87 @@ test('move transfers production qty to shipped', function () {
     expect($cell->qty_shipped)->toBe(40);
 });
 
+test('move marks shipped qty as missing', function () {
+    createAssetLancarSkus($this);
+    $sheet = app(RestockSheetService::class)->createSheet($this->typeTag, $this->user);
+
+    $cell = $sheet->cells()->first();
+    $cell->update(['qty_shipped' => 15, 'qty_missing' => 2]);
+
+    $this->actingAs($this->user)
+        ->postJson(route('restock.sheets.move', $sheet), [
+            'direction' => 'to_missing',
+            'from' => 'shipped',
+            'cells' => [['id' => $cell->id]],
+        ])
+        ->assertSuccessful()
+        ->assertJsonPath('moved', 15);
+
+    $cell->refresh();
+    expect($cell->qty_shipped)->toBe(0);
+    expect($cell->qty_missing)->toBe(17);
+
+    expect(RestockCellHistory::where('restock_cell_id', $cell->id)->where('action', 'missing')->count())->toBe(2);
+});
+
+test('move marks production qty as missing', function () {
+    createAssetLancarSkus($this);
+    $sheet = app(RestockSheetService::class)->createSheet($this->typeTag, $this->user);
+
+    $cell = $sheet->cells()->first();
+    $cell->update(['qty_production' => 8]);
+
+    $this->actingAs($this->user)
+        ->postJson(route('restock.sheets.move', $sheet), [
+            'direction' => 'to_missing',
+            'from' => 'production',
+            'cells' => [['id' => $cell->id]],
+        ])
+        ->assertSuccessful()
+        ->assertJsonPath('moved', 8);
+
+    $cell->refresh();
+    expect($cell->qty_production)->toBe(0);
+    expect($cell->qty_missing)->toBe(8);
+});
+
+test('sheet save persists missing qty edits', function () {
+    createAssetLancarSkus($this);
+    $sheet = app(RestockSheetService::class)->createSheet($this->typeTag, $this->user);
+    $cell = $sheet->cells()->first();
+
+    $this->actingAs($this->user)
+        ->putJson(route('restock.sheets.update', $sheet), [
+            'cells' => [
+                ['id' => $cell->id, 'qty_restock' => 0, 'qty_production' => 0, 'qty_shipped' => 0, 'qty_missing' => 5],
+            ],
+        ])
+        ->assertSuccessful();
+
+    expect($cell->fresh()->qty_missing)->toBe(5);
+});
+
+test('grid includes missing columns per size', function () {
+    createAssetLancarSkus($this);
+    $sheet = app(RestockSheetService::class)->createSheet($this->typeTag, $this->user);
+    $cell = $sheet->cells()->first();
+    $cell->update(['qty_missing' => 3]);
+
+    $grid = app(RestockGridBuilder::class)->build(RestockSheet::find($sheet->id));
+    $matched = false;
+
+    foreach ($grid['parents'][0]['rows'] as $row) {
+        foreach ($row['_meta'] as $prefix => $meta) {
+            if (($meta['cell_id'] ?? null) === $cell->id) {
+                expect($row[$prefix.'missing'])->toBe(3);
+                $matched = true;
+            }
+        }
+    }
+
+    expect($matched)->toBeTrue();
+});
+
 test('receive creates buy transaction and decrements shipped qty', function () {
     createAssetLancarSkus($this);
 
