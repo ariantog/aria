@@ -146,6 +146,18 @@ function restockSheetPage() {
                         },
                     };
                 });
+
+                if (stage.key === 'restock' && sizes.length > 1) {
+                    children.push({
+                        title: 'Total',
+                        field: 'restock_total',
+                        editor: false,
+                        minWidth: 64,
+                        hozAlign: 'right',
+                        formatter: (cell) => cell.getValue() ?? 0,
+                    });
+                }
+
                 cols.push({ title: stage.title, cssClass: stage.groupClass, columns: children });
             }
 
