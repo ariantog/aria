@@ -8,6 +8,28 @@ beforeEach(function () {
     $this->user = User::factory()->create();
 });
 
+it('allows manufactured item create without product name', function () {
+    $typeTag = Tag::factory()->create(['type' => Tag::TYPE_TYPE, 'code' => 'AJD', 'name' => 'Jacket']);
+    $sizeTag = Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'S', 'name' => 'S']);
+    $warnaTag = Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'BLUE', 'name' => 'BLUE']);
+    $jahitTag = Tag::factory()->create(['type' => Tag::TYPE_JAHIT, 'code' => 'J1', 'name' => 'J1']);
+
+    $this->actingAs($this->user)
+        ->post(route('items.store'), [
+            'type' => ItemType::ITEM->value,
+            'pcode' => 'CX93249-03',
+            'price' => 150000,
+            'tags' => [
+                'types' => [$typeTag->id],
+                'sizes' => [$sizeTag->id],
+                'warna' => $warnaTag->id,
+                'jahit' => $jahitTag->id,
+            ],
+        ])
+        ->assertRedirect(route('items.index'))
+        ->assertSessionHas('success');
+});
+
 it('repopulates item create form after validation errors', function () {
     $this->actingAs($this->user)
         ->from(route('items.create'))

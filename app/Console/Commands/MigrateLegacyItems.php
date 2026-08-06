@@ -52,15 +52,20 @@ class MigrateLegacyItems extends Command
             $barGroups = $this->output->createProgressBar($legacyGroups->count());
             $barGroups->start();
             foreach ($legacyGroups as $group) {
-                DB::table('item_groups')->insert([
+                $row = [
                     'id' => $group->id,
                     'master' => $group->master,
                     'name' => $group->name,
                     'variant' => $group->variant,
                     'description' => $group->description,
-                    'alias' => $group->alias,
                     'description2' => $group->description2,
-                ]);
+                ];
+
+                if (Schema::hasColumn('item_groups', 'alias')) {
+                    $row['alias'] = $group->alias;
+                }
+
+                DB::table('item_groups')->insert($row);
                 $barGroups->advance();
             }
             $barGroups->finish();

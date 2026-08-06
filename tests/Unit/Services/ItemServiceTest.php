@@ -41,6 +41,98 @@ test('it throws exception for invalid pcode', function () {
     ]);
 })->throws(Exception::class);
 
+test('it creates manufactured item without product name using pcode placeholder', function () {
+    $input = (object) [
+        'pcode' => 'CX93249-03',
+        'type' => ItemType::ITEM->value,
+        'price' => 100000,
+    ];
+
+    $tags = [
+        'types' => [$this->typeTag->id],
+        'sizes' => [$this->sizeTag->id],
+        'warna' => [$this->warnaTag->id],
+        'jahit' => [$this->jahitTag->id],
+    ];
+
+    expect($this->itemService->create($input, $tags))->toBeTrue();
+
+    $this->assertDatabaseHas('item_groups', [
+        'name' => 'CX93249-03',
+        'master' => 'CX93249',
+        'variant' => '03',
+    ]);
+
+    $this->assertDatabaseHas('items', [
+        'pcode' => 'CX93249-03',
+        'code' => 'AJD-CX93249-03-S',
+        'name' => 'CX93249-03 - BLUE - S',
+    ]);
+});
+
+test('it renames group product name and syncs all item display names', function () {
+    $mediumTag = Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'M', 'name' => 'Medium']);
+
+    $input = (object) [
+        'pcode' => 'CX90233-23',
+        'type' => ItemType::ITEM->value,
+        'price' => 100000,
+    ];
+
+    $tags = [
+        'types' => [$this->typeTag->id],
+        'sizes' => [$this->sizeTag->id, $mediumTag->id],
+        'warna' => [$this->warnaTag->id],
+        'jahit' => [$this->jahitTag->id],
+    ];
+
+    $this->itemService->create($input, $tags);
+
+    $group = ItemGroup::where('master', 'CX90233')->where('variant', '23')->firstOrFail();
+
+    $this->itemService->renameGroupProductName($group, 'Slash Running Shirt');
+
+    $this->assertDatabaseHas('item_groups', ['id' => $group->id, 'name' => 'SLASH RUNNING SHIRT']);
+    $this->assertDatabaseHas('items', ['code' => 'AJD-CX90233-23-S', 'name' => 'SLASH RUNNING SHIRT - BLUE - S']);
+    $this->assertDatabaseHas('items', ['code' => 'AJD-CX90233-23-M', 'name' => 'SLASH RUNNING SHIRT - BLUE - M']);
+});
+
+test('it propagates product name change from item update to all sizes in group', function () {
+    $mediumTag = Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'M', 'name' => 'Medium']);
+
+    $input = (object) [
+        'pcode' => 'CX90233-23',
+        'type' => ItemType::ITEM->value,
+        'price' => 100000,
+    ];
+
+    $tags = [
+        'types' => [$this->typeTag->id],
+        'sizes' => [$this->sizeTag->id, $mediumTag->id],
+        'warna' => [$this->warnaTag->id],
+        'jahit' => [$this->jahitTag->id],
+    ];
+
+    $this->itemService->create($input, $tags);
+
+    $item = Item::where('code', 'AJD-CX90233-23-S')->firstOrFail();
+
+    $this->itemService->update($item->id, (object) [
+        'pcode' => 'CX90233-23',
+        'type' => ItemType::ITEM->value,
+        'alias' => 'Slash Running Shirt',
+        'price' => 100000,
+    ], [
+        'types' => [$this->typeTag->id],
+        'sizes' => [$this->sizeTag->id],
+        'warna' => [$this->warnaTag->id],
+        'jahit' => [$this->jahitTag->id],
+    ]);
+
+    $this->assertDatabaseHas('items', ['code' => 'AJD-CX90233-23-S', 'name' => 'SLASH RUNNING SHIRT - BLUE - S']);
+    $this->assertDatabaseHas('items', ['code' => 'AJD-CX90233-23-M', 'name' => 'SLASH RUNNING SHIRT - BLUE - M']);
+});
+
 test('it creates manufactured item with unified code and display name', function () {
     $input = (object) [
         'pcode' => 'CX90233-23',
