@@ -51,7 +51,7 @@ $receiverInitial = $settings['receiver']
                     hiddenField: 'default_supplier_id',
                     placeholder: 'Select supplier...',
                     initial: @js($supplierInitial),
-                })" x-init="init()" class="relative">
+                })" x-init="init(); if (selected) { query = selected.name; }" class="relative">
                 <label class="mb-1 block text-sm font-medium text-gray-700">Default supplier <span class="text-red-500">*</span></label>
                 <p class="mb-2 text-xs text-gray-500">Sender on Buy transactions when receiving shipped stock.</p>
                 <input type="hidden" name="default_supplier_id" id="default_supplier_id" value="{{ old('default_supplier_id', $settings['default_supplier_id']) }}">
@@ -74,7 +74,7 @@ $receiverInitial = $settings['receiver']
                     hiddenField: 'default_receiver_id',
                     placeholder: 'Select warehouse...',
                     initial: @js($receiverInitial),
-                })" x-init="init()" class="relative">
+                })" x-init="init(); if (selected) { query = selected.name; }" class="relative">
                 <label class="mb-1 block text-sm font-medium text-gray-700">Default receiver warehouse <span class="text-red-500">*</span></label>
                 <p class="mb-2 text-xs text-gray-500">Warehouse that receives stock on Buy transactions from receive.</p>
                 <input type="hidden" name="default_receiver_id" id="default_receiver_id" value="{{ old('default_receiver_id', $settings['default_receiver_id']) }}">

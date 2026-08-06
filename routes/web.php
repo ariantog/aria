@@ -232,6 +232,9 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     // Restock Module
     Route::prefix('restock')->name('restock.')->group(function () {
         Route::get('/', [App\Http\Controllers\Restock\RestockTypeController::class, 'index'])->name('index');
+        Route::get('/missing', [App\Http\Controllers\Restock\RestockMissingController::class, 'index'])->name('missing.index');
+        Route::get('/type/{typeTag:code}/missing', [App\Http\Controllers\Restock\RestockMissingController::class, 'forType'])->name('type.missing');
+        Route::post('/missing/{cell}/found', [App\Http\Controllers\Restock\RestockMissingController::class, 'markFound'])->name('missing.found');
         Route::get('/settings', [App\Http\Controllers\Restock\RestockSettingsController::class, 'edit'])->name('settings.edit');
         Route::put('/settings', [App\Http\Controllers\Restock\RestockSettingsController::class, 'update'])->name('settings.update');
         Route::get('/settings/lookup/{type}', [App\Http\Controllers\Restock\RestockSettingsController::class, 'lookup'])->name('settings.lookup');

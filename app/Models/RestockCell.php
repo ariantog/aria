@@ -16,6 +16,7 @@ class RestockCell extends Model
             'is_urgent' => 'boolean',
             'urgent_manual' => 'boolean',
             'urgent_flagged_at' => 'datetime',
+            'missing_at' => 'datetime',
         ];
     }
 

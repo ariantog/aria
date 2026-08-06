@@ -138,11 +138,12 @@ class RestockGridBuilder
                     $row["{$prefix}restock"] = $cell->qty_restock;
                     $row["{$prefix}production"] = $cell->qty_production;
                     $row["{$prefix}shipped"] = $cell->qty_shipped;
-                    $row["{$prefix}missing"] = $cell->qty_missing;
                     $row["{$prefix}stock"] = $stock;
                     $row['_meta'][$prefix] = [
                         'cell_id' => $cell->id,
                         'is_urgent' => $cell->is_urgent,
+                        'item_code' => $cell->item?->code,
+                        'size_label' => $sizeCode,
                     ];
 
                     $restockTotal += (int) $cell->qty_restock;

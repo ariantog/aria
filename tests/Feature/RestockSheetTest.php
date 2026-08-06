@@ -253,85 +253,81 @@ test('move transfers production qty to shipped', function () {
     expect($cell->qty_shipped)->toBe(40);
 });
 
-test('move marks shipped qty as missing', function () {
+test('receive partial qty records shortfall as missing', function () {
     createAssetLancarSkus($this);
-    $sheet = app(RestockSheetService::class)->createSheet($this->typeTag, $this->user);
 
-    $cell = $sheet->cells()->first();
-    $cell->update(['qty_shipped' => 15, 'qty_missing' => 2]);
+    $supplier = Addrbook::factory()->supplier()->create();
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    seedRestockReceiveSettings($supplier, $warehouse);
+
+    $sheet = app(RestockSheetService::class)->createSheet($this->typeTag, $this->user);
+    $cell = $sheet->cells()->with('item')->first();
+    $cell->update(['qty_shipped' => 100]);
 
     $this->actingAs($this->user)
-        ->postJson(route('restock.sheets.move', $sheet), [
-            'direction' => 'to_missing',
-            'from' => 'shipped',
-            'cells' => [['id' => $cell->id]],
-        ])
-        ->assertSuccessful()
-        ->assertJsonPath('moved', 15);
-
-    $cell->refresh();
-    expect($cell->qty_shipped)->toBe(0);
-    expect($cell->qty_missing)->toBe(17);
-
-    expect(RestockCellHistory::where('restock_cell_id', $cell->id)->where('action', 'missing')->count())->toBe(2);
-});
-
-test('move marks production qty as missing', function () {
-    createAssetLancarSkus($this);
-    $sheet = app(RestockSheetService::class)->createSheet($this->typeTag, $this->user);
-
-    $cell = $sheet->cells()->first();
-    $cell->update(['qty_production' => 8]);
-
-    $this->actingAs($this->user)
-        ->postJson(route('restock.sheets.move', $sheet), [
-            'direction' => 'to_missing',
-            'from' => 'production',
-            'cells' => [['id' => $cell->id]],
-        ])
-        ->assertSuccessful()
-        ->assertJsonPath('moved', 8);
-
-    $cell->refresh();
-    expect($cell->qty_production)->toBe(0);
-    expect($cell->qty_missing)->toBe(8);
-});
-
-test('sheet save persists missing qty edits', function () {
-    createAssetLancarSkus($this);
-    $sheet = app(RestockSheetService::class)->createSheet($this->typeTag, $this->user);
-    $cell = $sheet->cells()->first();
-
-    $this->actingAs($this->user)
-        ->putJson(route('restock.sheets.update', $sheet), [
-            'cells' => [
-                ['id' => $cell->id, 'qty_restock' => 0, 'qty_production' => 0, 'qty_shipped' => 0, 'qty_missing' => 5],
-            ],
+        ->postJson(route('restock.sheets.receive', $sheet), [
+            'date' => now()->toDateString(),
+            'cells' => [['id' => $cell->id, 'qty' => 98]],
         ])
         ->assertSuccessful();
 
-    expect($cell->fresh()->qty_missing)->toBe(5);
+    $cell->refresh();
+    expect($cell->qty_shipped)->toBe(0);
+    expect($cell->qty_missing)->toBe(2);
+    expect($cell->missing_at)->not->toBeNull();
+
+    $transaction = Transaction::latest('id')->first();
+    expect((float) $transaction->details->first()->quantity)->toBe(98.0);
+
+    expect(RestockCellHistory::where('restock_cell_id', $cell->id)->where('action', 'missing')->count())->toBe(1);
 });
 
-test('grid includes missing columns per size', function () {
+test('missing page lists shortfall skus and mark found clears qty', function () {
     createAssetLancarSkus($this);
     $sheet = app(RestockSheetService::class)->createSheet($this->typeTag, $this->user);
-    $cell = $sheet->cells()->first();
-    $cell->update(['qty_missing' => 3]);
+    $cell = $sheet->cells()->with('item')->first();
+    $cell->update([
+        'qty_missing' => 3,
+        'missing_at' => now(),
+    ]);
 
-    $grid = app(RestockGridBuilder::class)->build(RestockSheet::find($sheet->id));
-    $matched = false;
+    $this->actingAs($this->user)
+        ->get(route('restock.type.missing', $this->typeTag))
+        ->assertOk()
+        ->assertSee($cell->item->code)
+        ->assertSee('Mark found');
 
-    foreach ($grid['parents'][0]['rows'] as $row) {
-        foreach ($row['_meta'] as $prefix => $meta) {
-            if (($meta['cell_id'] ?? null) === $cell->id) {
-                expect($row[$prefix.'missing'])->toBe(3);
-                $matched = true;
-            }
-        }
-    }
+    $this->actingAs($this->user)
+        ->post(route('restock.missing.found', $cell))
+        ->assertRedirect()
+        ->assertSessionHas('success');
 
-    expect($matched)->toBeTrue();
+    $cell->refresh();
+    expect($cell->qty_missing)->toBe(0);
+    expect($cell->missing_at)->toBeNull();
+    expect(RestockCellHistory::where('restock_cell_id', $cell->id)->where('action', 'found')->count())->toBe(1);
+});
+
+test('restock settings page shows saved supplier and receiver names', function () {
+    $supplier = Addrbook::factory()->supplier()->create(['name' => 'Supplier Tersimpan']);
+    $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'Gudang Tersimpan']);
+
+    Setting::updateOrCreate(['slug' => 'restock.default_supplier_id'], [
+        'group' => 'Restock',
+        'name' => 'Default Supplier',
+        'value' => $supplier->id,
+    ]);
+    Setting::updateOrCreate(['slug' => 'restock.default_receiver_id'], [
+        'group' => 'Restock',
+        'name' => 'Default Receiver (Warehouse)',
+        'value' => $warehouse->id,
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('restock.settings.edit'))
+        ->assertOk()
+        ->assertSee('Supplier Tersimpan', false)
+        ->assertSee('Gudang Tersimpan', false);
 });
 
 test('receive creates buy transaction and decrements shipped qty', function () {

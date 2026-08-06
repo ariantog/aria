@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Restock;
 use App\Http\Controllers\Controller;
 use App\Models\RestockSheet;
 use App\Models\Tag;
+use App\Services\Restock\RestockMissingService;
 use App\Services\Restock\RestockSheetService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Gate;
@@ -14,6 +15,7 @@ class RestockTypeController extends Controller
 {
   public function __construct(
     protected RestockSheetService $sheetService,
+    protected RestockMissingService $missingService,
   ) {}
 
   public function index(): RedirectResponse|View
@@ -47,8 +49,10 @@ class RestockTypeController extends Controller
       'activeTypeTag' => $typeTag,
       'parents' => $this->sheetService->parentsForType($typeTag),
       'sheet' => $this->sheetService->sheetForType($typeTag),
+      'missingCount' => $this->missingService->missingCountForType($typeTag),
       'canCreateSheet' => $this->sheetService->canCreateSheetForType($typeTag)
         && (request()->user()?->can(RestockSheet::getPermissions()['create']) ?? false),
+      'canEdit' => request()->user()?->can(RestockSheet::getPermissions()['edit']) ?? false,
     ]);
   }
 }

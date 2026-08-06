@@ -12,7 +12,7 @@ use InvalidArgumentException;
 class RestockCellService
 {
   /**
-   * @param  list<array{id: int, qty_restock?: int, qty_production?: int, qty_shipped?: int, qty_missing?: int}>  $cells
+   * @param  list<array{id: int, qty_restock?: int, qty_production?: int, qty_shipped?: int}>  $cells
    */
   public function saveQuantities(RestockSheet $sheet, array $cells, User $user): int
   {
@@ -45,7 +45,6 @@ class RestockCellService
           'qty_restock' => 'restock',
           'qty_production' => 'production',
           'qty_shipped' => 'shipped',
-          'qty_missing' => 'missing',
         ] as $column => $field) {
           if (! array_key_exists($column, $payload)) {
             continue;
