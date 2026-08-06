@@ -131,10 +131,10 @@ class ImagePathLogicTest extends TestCase
 
         // Ensure no file exists at expected path (.../99/999.jpg)
 
-        // Item::image_url falls back to asset('images/default-item.png') when
+        // Item::image_url falls back to asset('images/default-item.svg') when
         // the file is missing.
 
-        $this->assertStringContainsString('default-item.png', $item->image_url);
+        $this->assertStringContainsString('default-item.svg', $item->image_url);
 
         // Now create file and check it returns real URL
         $folder = '99';

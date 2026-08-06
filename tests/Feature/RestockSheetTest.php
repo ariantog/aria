@@ -218,14 +218,44 @@ test('grid includes warehouse stock from configured warehouses', function () {
     expect($matched)->toBeTrue();
 });
 
-test('sheet export returns xlsx download', function () {
+test('sheet export returns xlsx download with all parent sections', function () {
+    createAssetLancarSkus($this);
+    createAssetLancarSkus($this, 'ELBOW-07', 'Elbow Support v2');
+    $sheet = app(RestockSheetService::class)->createSheet($this->typeTag, $this->user);
+
+    $response = $this->actingAs($this->user)
+        ->get(route('restock.sheets.export', $sheet));
+
+    $response->assertOk()
+        ->assertHeader('content-type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+
+    $tempPath = tempnam(sys_get_temp_dir(), 'restock-export-').'.xlsx';
+    file_put_contents($tempPath, $response->streamedContent());
+
+    $worksheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($tempPath)->getActiveSheet();
+    $values = [];
+    foreach ($worksheet->getRowIterator() as $row) {
+        foreach ($row->getCellIterator() as $cell) {
+            $value = $cell->getValue();
+            if ($value !== null && $value !== '') {
+                $values[] = (string) $value;
+            }
+        }
+    }
+
+    expect($values)->toContain('ELBOW-03');
+    expect($values)->toContain('ELBOW-07');
+
+    @unlink($tempPath);
+});
+
+test('grid includes parent image url', function () {
     createAssetLancarSkus($this);
     $sheet = app(RestockSheetService::class)->createSheet($this->typeTag, $this->user);
 
-    $this->actingAs($this->user)
-        ->get(route('restock.sheets.export', $sheet))
-        ->assertOk()
-        ->assertHeader('content-type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    $grid = app(RestockGridBuilder::class)->build($sheet);
+
+    expect($grid['parents'][0]['image_url'])->toBeString()->not->toBeEmpty();
 });
 
 test('grid resolves parent from code when pcode stores the full sku', function () {

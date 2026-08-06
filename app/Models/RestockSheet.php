@@ -55,6 +55,6 @@ class RestockSheet extends Model
 
     public function getImageUrlAttribute(): string
     {
-        return $this->representativeGroup?->image_url ?? asset('images/default-item.png');
+        return $this->representativeGroup?->image_url ?? asset('images/default-item.svg');
     }
 }
