@@ -75,20 +75,31 @@
         </div>
         @endunless
 
-        {{-- Type tag (manufactured item only — becomes SKU prefix e.g. AJD) --}}
-        @unless($isAsset)
+        {{-- Type tag (SKU category / restock TYPE tab) --}}
         <div>
-            <label class="mb-1 block text-sm font-medium text-gray-700">Type (SKU prefix) <span class="text-red-500">*</span></label>
-            <select name="tags[types]" @change="onType($event)"
+            <label class="mb-1 block text-sm font-medium text-gray-700">
+                Type @if($isAsset)<span class="text-red-500">*</span>@endif
+            </label>
+            <select name="{{ $isAsset ? 'tags[types][]' : 'tags[types]' }}" @if(!$isAsset) @change="onType($event)" @endif
                     class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 @error('tags.types') border-red-500 @enderror">
                 <option value="">— Select Type —</option>
                 @foreach($typeTags as $t)
-                <option value="{{ $t->id }}" data-code="{{ $t->code }}" @selected((string)$curType === (string)$t->id)>{{ $t->name }} ({{ $t->code }})</option>
+                <option value="{{ $t->id }}" data-code="{{ $t->code }}"
+                    @if($isAsset)
+                        @selected(in_array((string)$t->id, array_map('strval', (array)($curType ?? [])), true) || (string)($curType ?? '') === (string)$t->id)
+                    @else
+                        @selected((string)$curType === (string)$t->id)
+                    @endif
+                >{{ $t->name }} ({{ $t->code }})</option>
                 @endforeach
             </select>
-            @error('tags.types')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
+            @error('tags.types')<p class="mt-1 text-xs text-red-500">{{ is_array($message) ? implode(', ', $message) : $message }}</p>@enderror
+            @if($isAsset)
+            <p class="mt-1 text-xs text-gray-500">Used for restock TYPE tabs (e.g. ELBOW, BANDS).</p>
+            @else
+            <p class="mt-1 text-xs text-gray-500">Becomes the SKU prefix (e.g. AJD).</p>
+            @endif
         </div>
-        @endunless
 
         {{-- Size --}}
         <div>

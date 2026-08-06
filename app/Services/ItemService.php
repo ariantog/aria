@@ -150,6 +150,10 @@ class ItemService
             throw new Exception('Asset lancar requires at least one WARNA tag.');
         }
 
+        if ($inputType === ItemType::ASSET_LANCAR && empty($tags['types'])) {
+            throw new Exception('Asset lancar requires a TYPE tag.');
+        }
+
         return DB::transaction(function () use ($input, $tags, $file, $inputType, $groupName, $pcode) {
             $totalCreated = 0;
             $firstItemWithImage = null;

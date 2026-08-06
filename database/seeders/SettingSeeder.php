@@ -48,6 +48,24 @@ class SettingSeeder extends Seeder
                 'slug' => 'batas_cuti_sakit',
                 'value' => '30',
             ],
+            [
+                'group' => 'Restock',
+                'name' => 'Default Supplier',
+                'slug' => 'restock.default_supplier_id',
+                'value' => null,
+            ],
+            [
+                'group' => 'Restock',
+                'name' => 'Default Receiver (Warehouse)',
+                'slug' => 'restock.default_receiver_id',
+                'value' => null,
+            ],
+            [
+                'group' => 'Restock',
+                'name' => 'Stock Display Warehouses',
+                'slug' => 'restock.default_warehouse_ids',
+                'value' => [],
+            ],
         ];
 
         foreach ($settings as $setting) {

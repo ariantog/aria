@@ -36,6 +36,7 @@ class Item extends Model
         'description2',
         'url',
         'jubelio_item_id',
+        'restock_urgent_threshold',
     ];
 
     protected function casts(): array

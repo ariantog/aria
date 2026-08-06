@@ -19,7 +19,7 @@ class StoreItemRequest extends FormRequest
             'description' => ['nullable', 'string'],
             'description2' => ['nullable', 'string'],
             'image' => ['nullable', 'image', 'max:2048'],
-            'tags.types' => $isAsset ? ['nullable'] : ['required'],
+            'tags.types' => $isAsset ? ['required', 'array', 'min:1'] : ['required'],
             'tags.sizes' => ['required', 'array', 'min:1'],
             'cost' => $isAsset ? ['required', 'numeric'] : ['nullable'],
             'tags.warna' => $isAsset ? ['required', 'array', 'min:1'] : ['required'],
@@ -36,6 +36,7 @@ class StoreItemRequest extends FormRequest
             'tags.sizes.required' => 'Please select at least one size.',
             'tags.sizes.min' => 'Please select at least one size.',
             'tags.types.required' => 'Please select a type (SKU prefix).',
+            'tags.types.min' => 'Please select a type for asset lancar.',
             'tags.jahit.required' => 'Please select a jahit tag.',
             'cost.required' => 'Cost price is required for asset lancar.',
         ];
