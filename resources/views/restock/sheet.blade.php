@@ -3,12 +3,13 @@
 @push('head-css')
 <link href="https://unpkg.com/tabulator-tables@6.3.1/dist/css/tabulator.min.css" rel="stylesheet">
 <style>
-    .tabulator { font-size: 13px; border-radius: 0.5rem; overflow: hidden; }
+    .tabulator { font-size: 13px; border-radius: 0.5rem; overflow: hidden; width: max-content; max-width: 100%; }
     .tabulator .tabulator-header .tabulator-col.tabulator-col-group-restock { background: #dbeafe; }
     .tabulator .tabulator-header .tabulator-col.tabulator-col-group-production { background: #fde68a; }
     .tabulator .tabulator-header .tabulator-col.tabulator-col-group-shipped { background: #e5e7eb; }
     .tabulator-cell.tabulator-editing { border: 2px solid #2563eb !important; }
     .restock-urgent-cell { background-color: #fef2f2 !important; color: #b91c1c; font-weight: 600; }
+    .restock-grid-scroll { overflow-x: auto; }
 </style>
 @endpush
 
@@ -44,6 +45,14 @@ $breadcrumbs = [
                     class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
                 <span x-text="saving ? 'Saving…' : 'Save sheet'"></span>
             </button>
+            <button type="button" @click="move('to_production')" :disabled="moving || !canEdit || !hasSelection()"
+                    class="rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-sm font-medium text-amber-900 hover:bg-amber-100 disabled:opacity-50">
+                Restock → Production
+            </button>
+            <button type="button" @click="move('to_shipped')" :disabled="moving || !canEdit || !hasSelection()"
+                    class="rounded-md border border-gray-300 bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-800 hover:bg-gray-200 disabled:opacity-50">
+                Production → Shipped
+            </button>
             <form method="POST" action="{{ route('restock.sheets.sync', $sheet) }}">
                 @csrf
                 <button type="submit" class="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
@@ -66,7 +75,7 @@ $breadcrumbs = [
     <div x-show="error" x-cloak class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" x-text="error"></div>
 
     <div class="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
-        Edit quantities in the grid, then click <strong>Save sheet</strong>. Hover a cell to see warehouse stock. Receive and move actions ship in a later PR.
+        Select color row(s), then use move buttons to advance quantities through the pipeline. Edit cells directly and click <strong>Save sheet</strong> for manual adjustments. Hover a cell to see warehouse stock.
     </div>
 
     @forelse($grid['parents'] as $parent)
@@ -75,7 +84,7 @@ $breadcrumbs = [
                 <h2 class="font-semibold text-gray-900">{{ $parent['name'] }}</h2>
                 <p class="font-mono text-xs text-gray-500">{{ $parent['pcode'] }}</p>
             </div>
-            <div class="p-2" data-parent-grid="{{ $parent['pcode'] }}"></div>
+            <div class="restock-grid-scroll p-2" data-parent-grid="{{ $parent['pcode'] }}"></div>
         </section>
     @empty
         <div class="rounded-xl border border-gray-200 bg-white p-8 text-center text-gray-500">
@@ -93,8 +102,10 @@ function restockSheetPage() {
         grid: @json($grid),
         canEdit: @json($canEdit),
         saveUrl: @json(route('restock.sheets.update', $sheet)),
+        moveUrl: @json(route('restock.sheets.move', $sheet)),
         tables: {},
         saving: false,
+        moving: false,
         flash: '',
         error: '',
 
@@ -105,9 +116,10 @@ function restockSheetPage() {
                     if (!el) continue;
                     this.tables[parent.pcode] = new Tabulator(el, {
                         data: parent.rows,
-                        layout: 'fitDataStretch',
+                        layout: 'fitData',
                         height: Math.max(120, (parent.rows.length + 1) * 38 + 20),
-                        columnDefaults: { headerHozAlign: 'center', hozAlign: 'right' },
+                        selectableRows: this.canEdit,
+                        columnDefaults: { headerHozAlign: 'center', hozAlign: 'right', widthGrow: 0 },
                         columns: this.buildColumns(parent.sizes),
                         rowFormatter: (row) => this.formatUrgentRow(row),
                     });
@@ -116,8 +128,14 @@ function restockSheetPage() {
         },
 
         buildColumns(sizes) {
+            const qtyCol = {
+                width: 58,
+                widthGrow: 0,
+                editor: this.canEdit ? 'number' : false,
+            };
+
             const cols = [
-                { title: 'Color', field: 'color_name', frozen: true, width: 130, hozAlign: 'left', headerHozAlign: 'left', editor: false },
+                { title: 'Color', field: 'color_name', frozen: true, width: 130, widthGrow: 0, hozAlign: 'left', headerHozAlign: 'left', editor: false },
             ];
 
             const stages = [
@@ -133,8 +151,7 @@ function restockSheetPage() {
                     return {
                         title: size,
                         field,
-                        editor: this.canEdit ? 'number' : false,
-                        minWidth: 58,
+                        ...qtyCol,
                         formatter: (cell) => {
                             const val = cell.getValue() ?? 0;
                             const row = cell.getRow().getData();
@@ -151,8 +168,9 @@ function restockSheetPage() {
                     children.push({
                         title: 'Total',
                         field: 'restock_total',
+                        width: 64,
+                        widthGrow: 0,
                         editor: false,
-                        minWidth: 64,
                         hozAlign: 'right',
                         formatter: (cell) => cell.getValue() ?? 0,
                     });
@@ -178,6 +196,76 @@ function restockSheetPage() {
                     if (cell) cell.getElement().classList.add('restock-urgent-cell');
                 });
             });
+        },
+
+        collectCellsFromRows(rows) {
+            const cells = [];
+            for (const row of rows) {
+                for (const meta of Object.values(row._meta || {})) {
+                    if (meta?.cell_id) cells.push({ id: meta.cell_id });
+                }
+            }
+            return cells;
+        },
+
+        selectedRows() {
+            const rows = [];
+            for (const parent of this.grid.parents) {
+                const table = this.tables[parent.pcode];
+                if (!table) continue;
+                rows.push(...table.getSelectedRows().map((row) => row.getData()));
+            }
+            return rows;
+        },
+
+        hasSelection() {
+            return this.selectedRows().length > 0;
+        },
+
+        applyGrid(grid) {
+            this.grid = grid;
+            for (const parent of grid.parents) {
+                const table = this.tables[parent.pcode];
+                if (!table) continue;
+                table.setData(parent.rows);
+                table.deselectRow();
+                for (const row of table.getRows()) {
+                    this.formatUrgentRow(row);
+                }
+            }
+        },
+
+        async move(direction) {
+            if (!this.canEdit) return;
+            const rows = this.selectedRows();
+            if (!rows.length) return;
+
+            const cells = this.collectCellsFromRows(rows);
+            if (!cells.length) return;
+
+            this.moving = true;
+            this.flash = '';
+            this.error = '';
+            try {
+                const res = await fetch(this.moveUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    body: JSON.stringify({ direction, cells }),
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.message || 'Move failed');
+                if (data.grid) this.applyGrid(data.grid);
+                this.flash = data.message || 'Moved.';
+            } catch (e) {
+                this.error = e.message || 'Move failed';
+            } finally {
+                this.moving = false;
+            }
         },
 
         collectCells() {
