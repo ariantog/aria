@@ -16,12 +16,23 @@
     </div>
     <div class="grid grid-cols-1 gap-6 p-5 md:grid-cols-2">
         <div>
-            <label class="mb-1 block text-sm font-medium text-gray-700">Product Name <span class="text-red-500">*</span></label>
-            <input type="text" name="alias" x-model="form.alias" value="{{ $fi['alias'] }}" required
-                   placeholder="e.g. Slash Running Shirt"
+            <label class="mb-1 block text-sm font-medium text-gray-700">
+                Product Name
+                @if($isAsset)<span class="text-red-500">*</span>@endif
+            </label>
+            <input type="text" name="alias" x-model="form.alias" value="{{ $fi['alias'] }}"
+                   @unless($isAsset) :placeholder="(form.pcode || '').toUpperCase() || 'CX90233-23'" @endunless
+                   placeholder="{{ $isAsset ? 'e.g. Boxing Gloves' : '' }}"
+                   @if($isAsset) required @endif
                    class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 @error('alias') border-red-500 @enderror">
             @error('alias')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
-            <p class="mt-1 text-xs text-gray-500">Stored on the item group; sizes/colors append to this in the display name.</p>
+            <p class="mt-1 text-xs text-gray-500">
+                @if($isAsset)
+                    Stored on the item group; sizes/colors append to this in the display name.
+                @else
+                    Optional until the product is named. Leave blank to use the pcode (e.g. CX93249-03) as a placeholder.
+                @endif
+            </p>
         </div>
         <div>
             <label class="mb-1 block text-sm font-medium text-gray-700">Production Code (PCode) <span class="text-red-500">*</span></label>

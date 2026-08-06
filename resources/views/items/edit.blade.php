@@ -24,7 +24,10 @@ $curSizes = $item->tags->where('type', \App\Models\Tag::TYPE_SIZE)->pluck('id')-
 $itemType = $item->type->value;
 $formItem = [
     'pcode' => old('pcode', $item->pcode),
-    'alias' => old('alias', optional($item->group)->name ?? optional($item->group)->alias ?? ''),
+    'alias' => old('alias', (
+        optional($item->group)->name
+        && strtoupper(optional($item->group)->name) !== strtoupper($item->pcode)
+    ) ? optional($item->group)->name : ''),
     'price' => old('price', $item->price),
     'cost' => old('cost', $item->cost),
     'description' => old('description', $item->description),

@@ -59,7 +59,8 @@ function itemForm() {
 
         get previewItems() {
             const pcode = (this.form.pcode || '').toUpperCase().trim();
-            const productName = (this.form.alias || '').toUpperCase().trim() || '???';
+            const productName = (this.form.alias || '').toUpperCase().trim()
+                || (this.isAsset ? '???' : pcode || '???');
             if (!pcode) {
                 return [];
             }

@@ -27,8 +27,8 @@ $breadcrumbs = [
             <input name="kode" value="{{ $filters['kode'] ?? '' }}" placeholder="Filter Kode..." class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
         </div>
         <div class="space-y-1">
-            <label class="text-xs font-semibold uppercase text-gray-500">Alias</label>
-            <input name="alias" value="{{ $filters['alias'] ?? '' }}" placeholder="Filter Alias..." class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
+            <label class="text-xs font-semibold uppercase text-gray-500">Product Name</label>
+            <input name="alias" value="{{ $filters['alias'] ?? '' }}" placeholder="Filter product name…" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
         </div>
         <div class="space-y-1">
             <label class="text-xs font-semibold uppercase text-gray-500">Description</label>
@@ -47,8 +47,7 @@ $breadcrumbs = [
                     <tr>
                         <th class="px-6 py-3 font-bold" :class="{'hidden': !showImage}">Image</th>
                         <th class="px-6 py-3 font-bold">Kode</th>
-                        <th class="px-6 py-3 font-bold">Master</th>
-                        <th class="px-6 py-3 font-bold">Alias</th>
+                        <th class="px-6 py-3 font-bold">Product</th>
                         <th class="px-6 py-3 font-bold">Variant</th>
                         <th class="px-6 py-3 font-bold">Description</th>
                         <th class="px-6 py-3 font-bold">In Warehouse</th>
@@ -70,8 +69,6 @@ $breadcrumbs = [
                         <td class="px-6 py-3 font-medium">
                             <a href="{{ route('items.group-detail', $g->id) }}" class="text-blue-600 hover:underline">{{ $g->name }}</a>
                         </td>
-                        <td class="px-6 py-3 text-gray-500">{{ $g->master ?: '-' }}</td>
-                        <td class="px-6 py-3 italic text-gray-600">{{ $g->alias ?: '-' }}</td>
                         <td class="px-6 py-3 text-gray-500">{{ $g->variant ?: '-' }}</td>
                         <td class="px-6 py-3 text-gray-600">{{ $g->description ?: '-' }}</td>
                         <td class="px-6 py-3 font-bold text-green-600">{{ number_format($g->in_warehouse_qty, 0, ',', '.') }}</td>
