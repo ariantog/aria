@@ -69,8 +69,11 @@ class ItemService
             $sizeTag = Tag::find($sizeId);
             $warnaTag = $warnaId ? Tag::find($warnaId) : null;
 
-            $groupName = $this->groupNameFromInput($input, $item->group);
-            $group = $this->resolveGroup($inputType, (string) $input->pcode, $groupName, $warnaTag, $input);
+            $pcode = strtoupper(trim((string) $input->pcode));
+            $previousGroupName = $item->group?->name ?? '';
+            $groupName = $this->groupNameFromInput($input, $inputType, $pcode, $item->group);
+            $nameChanged = strtoupper($previousGroupName) !== strtoupper($groupName);
+            $group = $this->resolveGroup($inputType, $pcode, $groupName, $warnaTag, $input);
 
             $this->applyItemIdentity(
                 $item,
@@ -89,11 +92,36 @@ class ItemService
             $item->save();
             $item->tags()->sync($tagIds);
 
+            if ($nameChanged) {
+                $this->syncItemNamesForGroup($group->fresh());
+            }
+
             if ($file) {
                 $this->imageService->saveImage($group, $file);
             }
 
             return $item->fresh(['group', 'tags']);
+        });
+    }
+
+    /**
+     * Rename the product name on a group and regenerate display names for every item in it.
+     */
+    public function renameGroupProductName(ItemGroup $group, string $productName): ItemGroup
+    {
+        $productName = strtoupper(trim($productName));
+
+        if ($productName === '') {
+            throw new Exception('Product name is required.');
+        }
+
+        return DB::transaction(function () use ($group, $productName) {
+            $group->name = $productName;
+            $group->save();
+
+            $this->syncItemNamesForGroup($group);
+
+            return $group->fresh();
         });
     }
 
@@ -111,7 +139,8 @@ class ItemService
         }
 
         $tags = $this->sortTags($tags, $inputType);
-        $groupName = $this->groupNameFromInput($input);
+        $pcode = strtoupper(trim((string) $input->pcode));
+        $groupName = $this->groupNameFromInput($input, $inputType, $pcode);
 
         if ($inputType === ItemType::ITEM && count($tags['warna']) !== 1) {
             throw new Exception('Manufactured items require exactly one WARNA tag.');
@@ -121,7 +150,7 @@ class ItemService
             throw new Exception('Asset lancar requires at least one WARNA tag.');
         }
 
-        return DB::transaction(function () use ($input, $tags, $file, $inputType, $groupName) {
+        return DB::transaction(function () use ($input, $tags, $file, $inputType, $groupName, $pcode) {
             $totalCreated = 0;
             $firstItemWithImage = null;
             $warnaIds = $tags['warna'];
@@ -136,7 +165,7 @@ class ItemService
 
                         $group = $this->resolveGroup(
                             $inputType,
-                            (string) $input->pcode,
+                            $pcode,
                             $groupName,
                             $warnaTag,
                             $input,
@@ -260,7 +289,6 @@ class ItemService
                 'name' => strtoupper($groupName),
                 'description' => isset($input->description) ? strtoupper($input->description) : null,
                 'description2' => isset($input->description2) ? strtoupper($input->description2) : null,
-                'alias' => strtoupper($groupName),
             ],
         );
 
@@ -274,21 +302,55 @@ class ItemService
             $group->description2 = strtoupper($input->description2);
         }
 
-        $group->alias = strtoupper($groupName);
         $group->save();
 
         return $group;
     }
 
-    protected function groupNameFromInput(object $input, ?ItemGroup $existing = null): string
-    {
-        $name = $input->alias ?? $input->name ?? $existing?->name ?? $existing?->alias ?? '';
+    protected function groupNameFromInput(
+        object $input,
+        ItemType $type,
+        string $pcode,
+        ?ItemGroup $existing = null,
+    ): string {
+        $name = trim((string) ($input->alias ?? $input->name ?? ''));
 
-        if (trim((string) $name) === '') {
-            throw new Exception('Product name is required.');
+        if ($name !== '') {
+            return $name;
         }
 
-        return (string) $name;
+        if ($type === ItemType::ITEM) {
+            return $pcode;
+        }
+
+        $fallback = trim((string) ($existing?->name ?? ''));
+
+        if ($fallback !== '') {
+            return $fallback;
+        }
+
+        throw new Exception('Product name is required.');
+    }
+
+    protected function syncItemNamesForGroup(ItemGroup $group): void
+    {
+        $items = Item::with('tags')->where('group_id', $group->id)->get();
+
+        foreach ($items as $item) {
+            $warnaTag = $item->tags->firstWhere('type', Tag::TYPE_WARNA);
+            $sizeTag = $item->tags->firstWhere('type', Tag::TYPE_SIZE);
+            $item->name = $this->identityBuilder->buildName($group->name, $warnaTag, $sizeTag);
+            $item->save();
+        }
+    }
+
+    public function isPlaceholderProductName(ItemType $type, string $groupName, string $pcode): bool
+    {
+        if ($type !== ItemType::ITEM) {
+            return false;
+        }
+
+        return strtoupper(trim($groupName)) === strtoupper(trim($pcode));
     }
 
     protected function collectTagIds(array $tags, int $typeId, int $sizeId, ?int $warnaId): array
