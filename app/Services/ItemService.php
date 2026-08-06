@@ -124,12 +124,13 @@ class ItemService
         return DB::transaction(function () use ($input, $tags, $file, $inputType, $groupName) {
             $totalCreated = 0;
             $firstItemWithImage = null;
-            $warnaIds = $inputType === ItemType::ASSET_LANCAR ? $tags['warna'] : $tags['warna'];
+            $warnaIds = $tags['warna'];
+            $typeLoops = ! empty($tags['types']) ? $tags['types'] : [0];
 
-            foreach ($tags['types'] as $typeId) {
+            foreach ($typeLoops as $typeId) {
                 foreach ($warnaIds as $warnaId) {
                     foreach ($tags['sizes'] as $sizeId) {
-                        $typeTag = Tag::find((int) $typeId);
+                        $typeTag = (int) $typeId > 0 ? Tag::find((int) $typeId) : null;
                         $sizeTag = Tag::find((int) $sizeId);
                         $warnaTag = $warnaId ? Tag::find((int) $warnaId) : null;
 

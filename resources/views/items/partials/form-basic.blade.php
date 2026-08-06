@@ -1,4 +1,12 @@
-@php $fi = $formItem ?? ['pcode'=>old('pcode'),'name'=>old('name'),'alias'=>old('alias'),'price'=>old('price'),'cost'=>old('cost')]; @endphp
+@php
+    $fi = $formItem ?? [
+        'pcode' => old('pcode'),
+        'alias' => old('alias'),
+        'price' => old('price'),
+        'cost' => old('cost'),
+    ];
+    $pcodePlaceholder = $isAsset ? 'GLOVE-01' : 'CX90233-23';
+@endphp
 <div class="rounded-xl border border-gray-200 bg-white shadow-sm">
     <div class="flex items-center gap-3 border-b border-gray-100 px-5 py-4">
         <div class="rounded-lg bg-blue-500/10 p-2">
@@ -8,29 +16,40 @@
     </div>
     <div class="grid grid-cols-1 gap-6 p-5 md:grid-cols-2">
         <div>
-            <label class="mb-1 block text-sm font-medium text-gray-700">Code (PCode) <span class="text-red-500">*</span></label>
-            <input type="text" name="pcode" x-model="form.pcode" value="{{ $fi['pcode'] }}" required placeholder="e.g. BOXING-01"
-                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 @error('pcode') border-red-500 @enderror">
+            <label class="mb-1 block text-sm font-medium text-gray-700">Product Name <span class="text-red-500">*</span></label>
+            <input type="text" name="alias" x-model="form.alias" value="{{ $fi['alias'] }}" required
+                   placeholder="e.g. Slash Running Shirt"
+                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 @error('alias') border-red-500 @enderror">
+            @error('alias')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
+            <p class="mt-1 text-xs text-gray-500">Stored on the item group; sizes/colors append to this in the display name.</p>
+        </div>
+        <div>
+            <label class="mb-1 block text-sm font-medium text-gray-700">Production Code (PCode) <span class="text-red-500">*</span></label>
+            <input type="text" name="pcode" x-model="form.pcode" value="{{ $fi['pcode'] }}" required
+                   placeholder="{{ $pcodePlaceholder }}" list="{{ $isAsset ? 'asset-pcode-suggestions' : '' }}"
+                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono focus:border-blue-500 focus:ring-1 focus:ring-blue-500 @error('pcode') border-red-500 @enderror">
+            @if($isAsset && !empty($assetPcodeSuggestions ?? []))
+            <datalist id="asset-pcode-suggestions">
+                @foreach($assetPcodeSuggestions as $suggestion)
+                <option value="{{ $suggestion }}">
+                @endforeach
+            </datalist>
+            @endif
             @error('pcode')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
+            <p class="mt-1 text-xs text-gray-500">
+                @if($isAsset)
+                    Format: <span class="font-mono">TYPE-VARIANT</span> (e.g. GLOVE-01). Type manually or pick a suggestion.
+                @else
+                    Format: <span class="font-mono">XX12345-23</span> — color number is in the pcode suffix.
+                @endif
+            </p>
         </div>
-        <div>
-            <label class="mb-1 block text-sm font-medium text-gray-700">Alias</label>
-            <input type="text" name="alias" x-model="form.alias" value="{{ $fi['alias'] }}" placeholder="Alternative Name"
-                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
-        </div>
-        @if($isAsset)
-        <div>
-            <label class="mb-1 block text-sm font-medium text-gray-700">Name <span class="text-red-500">*</span></label>
-            <input type="text" name="name" value="{{ $fi['name'] }}" required placeholder="Asset Name"
-                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 @error('name') border-red-500 @enderror">
-            @error('name')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
-        </div>
-        @endif
         <div>
             <label class="mb-1 block text-sm font-medium text-gray-700">Selling Price</label>
             <input type="number" step="any" name="price" value="{{ $fi['price'] }}" placeholder="0"
                    class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 @error('price') border-red-500 @enderror">
             @error('price')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
+            <p class="mt-1 text-xs text-gray-500">Applied to every SKU created in this batch (each row keeps its own price).</p>
         </div>
         @if($isAsset)
         <div>

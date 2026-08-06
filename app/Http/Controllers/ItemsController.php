@@ -19,7 +19,7 @@ class ItemsController extends Controller
 {
     public function __construct(protected ItemService $itemService) {}
 
-    public function index(Request $request, ItemType $type = null)
+    public function index(Request $request, ?ItemType $type = null)
     {
         $type = $type ?? ItemType::ITEM;
         $p = Item::getPermissions();
@@ -100,10 +100,24 @@ class ItemsController extends Controller
         ]);
     }
 
-    public function indexAsset(Request $request) { return $this->index($request, ItemType::ASSET_LANCAR); }
+    public function indexAsset(Request $request)
+    {
+        return $this->index($request, ItemType::ASSET_LANCAR);
+    }
 
-    public function create() { Gate::authorize(Item::getPermissions()['create']); return view('items.create', $this->formProps(ItemType::ITEM)); }
-    public function createAsset() { Gate::authorize(Item::getPermissions()['asset-lancar-create']); return view('items.create', $this->formProps(ItemType::ASSET_LANCAR)); }
+    public function create()
+    {
+        Gate::authorize(Item::getPermissions()['create']);
+
+        return view('items.create', $this->formProps(ItemType::ITEM));
+    }
+
+    public function createAsset()
+    {
+        Gate::authorize(Item::getPermissions()['asset-lancar-create']);
+
+        return view('items.create', $this->formProps(ItemType::ASSET_LANCAR));
+    }
 
     public function store(StoreItemRequest $request)
     {
@@ -162,7 +176,24 @@ class ItemsController extends Controller
     {
         $p = Item::getPermissions();
         Gate::authorize($item->type === ItemType::ASSET_LANCAR ? $p['asset-lancar-edit'] : $p['edit']);
-        $request->validate(['pcode' => 'required']);
+
+        $isAsset = $item->type === ItemType::ASSET_LANCAR;
+
+        $request->validate([
+            'pcode' => ['required', 'string'],
+            'alias' => ['required', 'string', 'max:255'],
+            'price' => ['nullable', 'numeric'],
+            'cost' => $isAsset ? ['required', 'numeric'] : ['nullable'],
+            'tags.types' => $isAsset ? ['nullable'] : ['required'],
+            'tags.sizes' => ['required'],
+            'tags.warna' => ['required'],
+            'tags.jahit' => $isAsset ? ['nullable'] : ['required'],
+        ], [
+            'alias.required' => 'Product name is required.',
+            'tags.warna.required' => 'Please select a color (warna).',
+            'tags.types.required' => 'Please select a type (SKU prefix).',
+            'tags.jahit.required' => 'Please select a jahit tag.',
+        ]);
 
         try {
             $this->itemService->update(
@@ -172,9 +203,11 @@ class ItemsController extends Controller
                 $request->file('image')
             );
 
-            return redirect()->route('items.index')->with('success', 'Item updated.');
+            $route = $isAsset ? 'assetlancar.index' : 'items.index';
+
+            return redirect()->route($route)->with('success', 'Item updated.');
         } catch (\Exception $e) {
-            return back()->withErrors(['message' => $e->getMessage()]);
+            return back()->withErrors(['message' => $e->getMessage()])->withInput();
         }
     }
 
@@ -391,6 +424,8 @@ class ItemsController extends Controller
 
     private function formProps(ItemType $t): array
     {
+        $isAsset = $t === ItemType::ASSET_LANCAR;
+
         return [
             'brands' => $this->brandOptions(),
             'jahitTags' => \App\Models\Tag::where('type', \App\Models\Tag::TYPE_JAHIT)->get(),
@@ -398,6 +433,16 @@ class ItemsController extends Controller
             'sizeTags' => \App\Models\Tag::where('type', \App\Models\Tag::TYPE_SIZE)->get(),
             'warnaTags' => \App\Models\Tag::where('type', \App\Models\Tag::TYPE_WARNA)->get(),
             'itemType' => $t->value,
+            'isAsset' => $isAsset,
+            'assetPcodeSuggestions' => $isAsset
+                ? Item::query()
+                    ->where('type', ItemType::ASSET_LANCAR)
+                    ->whereNotNull('pcode')
+                    ->distinct()
+                    ->orderBy('pcode')
+                    ->limit(100)
+                    ->pluck('pcode')
+                : collect(),
         ];
     }
 

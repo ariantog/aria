@@ -14,17 +14,30 @@ class StoreItemRequest extends FormRequest
         return [
             'pcode' => ['required', 'string'],
             'type' => ['required', 'integer'],
+            'alias' => ['required', 'string', 'max:255'],
             'price' => ['nullable', 'numeric'],
             'description' => ['nullable', 'string'],
             'description2' => ['nullable', 'string'],
             'image' => ['nullable', 'image', 'max:2048'],
-            'tags.types' => ['required'],
-            'tags.sizes' => ['required', 'array'],
-            'name' => $isAsset ? ['required', 'string'] : ['nullable'],
+            'tags.types' => $isAsset ? ['nullable'] : ['required'],
+            'tags.sizes' => ['required', 'array', 'min:1'],
             'cost' => $isAsset ? ['required', 'numeric'] : ['nullable'],
-            'tags.warna' => $isAsset ? ['required', 'array'] : ['required'],
+            'tags.warna' => $isAsset ? ['required', 'array', 'min:1'] : ['required'],
             'tags.jahit' => $isAsset ? ['nullable'] : ['required'],
-            'alias' => ['nullable', 'string'],
+        ];
+    }
+
+    public function messages(): array
+    {
+        return [
+            'alias.required' => 'Product name is required.',
+            'tags.warna.required' => 'Please select at least one color (warna).',
+            'tags.warna.min' => 'Please select at least one color (warna).',
+            'tags.sizes.required' => 'Please select at least one size.',
+            'tags.sizes.min' => 'Please select at least one size.',
+            'tags.types.required' => 'Please select a type (SKU prefix).',
+            'tags.jahit.required' => 'Please select a jahit tag.',
+            'cost.required' => 'Cost price is required for asset lancar.',
         ];
     }
 

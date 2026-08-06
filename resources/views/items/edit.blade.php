@@ -6,18 +6,16 @@
 @php
 $breadcrumbs = [
     ['title' => 'Dashboard', 'href' => route('dashboard')],
-    ['title' => 'Items', 'href' => route('items.index')],
+    ['title' => $isAsset ? 'Asset Lancar' : 'Items', 'href' => $isAsset ? route('assetlancar.index') : route('items.index')],
     ['title' => 'Edit', 'href' => '#'],
 ];
 $actionUrl = $isAsset ? route('assetlancar.update', $item->id) : route('items.update', $item->id);
 
-// Provide option collections to attribute partial from grouped tags
 $typeTags  = $tags[\App\Models\Tag::TYPE_TYPE]  ?? collect();
 $sizeTags  = $tags[\App\Models\Tag::TYPE_SIZE]  ?? collect();
 $warnaTags = $tags[\App\Models\Tag::TYPE_WARNA] ?? collect();
 $jahitTags = $tags[\App\Models\Tag::TYPE_JAHIT] ?? collect();
 
-// Current tag selections from item->tags
 $curType  = optional($item->tags->firstWhere('type', \App\Models\Tag::TYPE_TYPE))->id;
 $curJahit = optional($item->tags->firstWhere('type', \App\Models\Tag::TYPE_JAHIT))->id;
 $curWarna = optional($item->tags->firstWhere('type', \App\Models\Tag::TYPE_WARNA))->id;
@@ -26,8 +24,7 @@ $curSizes = $item->tags->where('type', \App\Models\Tag::TYPE_SIZE)->pluck('id')-
 $itemType = $item->type->value;
 $formItem = [
     'pcode' => old('pcode', $item->pcode),
-    'name' => old('name', $item->name),
-    'alias' => old('alias', $item->alias ?? optional($item->group)->alias ?? ''),
+    'alias' => old('alias', optional($item->group)->name ?? optional($item->group)->alias ?? ''),
     'price' => old('price', $item->price),
     'cost' => old('cost', $item->cost),
     'description' => old('description', $item->description),
@@ -38,8 +35,10 @@ $formItem = [
 <div class="flex flex-col gap-4 p-4" x-data="itemForm()" x-init="init()">
     <div class="mb-2">
         <h2 class="mb-1 text-3xl font-bold tracking-tight text-gray-900">{{ $isAsset ? 'Edit Asset' : 'Edit Item' }}</h2>
-        <p class="text-gray-500">Update details for {{ $item->name }}.</p>
+        <p class="text-gray-500">Update <span class="font-mono text-sm">{{ $item->code }}</span></p>
     </div>
+
+    @include('items.partials.form-errors')
 
     <form method="POST" action="{{ $actionUrl }}" enctype="multipart/form-data" class="space-y-8">
         @csrf
@@ -55,7 +54,10 @@ $formItem = [
             <div class="space-y-6">
                 @include('items.partials.form-attributes', [
                     'multiSize' => false,
-                    'curType' => $curType, 'curJahit' => $curJahit, 'curWarna' => $curWarna, 'curSizes' => $curSizes,
+                    'curType' => $curType,
+                    'curJahit' => $curJahit,
+                    'curWarna' => $curWarna,
+                    'curSizes' => $curSizes,
                 ])
                 @include('items.partials.form-image', ['imageUrl' => $item->image_url])
             </div>
@@ -68,5 +70,5 @@ $formItem = [
     </form>
 </div>
 
-@include('items.partials.form-scripts', ['multiSize' => false])
+@include('items.partials.form-scripts', ['multiSize' => false, 'isAsset' => $isAsset, 'formItem' => $formItem])
 @endsection
