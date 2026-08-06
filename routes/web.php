@@ -231,24 +231,11 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
 
     // Restock Module
     Route::prefix('restock')->name('restock.')->group(function () {
-        Route::post('/bulk-update', [App\Http\Controllers\RestockController::class, 'bulkUpdate'])->name('bulkUpdate');
-        Route::get('/', [App\Http\Controllers\RestockController::class, 'index'])->name('index');
-        Route::get('/create', [App\Http\Controllers\RestockController::class, 'create'])->name('create');
-        Route::post('/add-item', [App\Http\Controllers\RestockController::class, 'addItem'])->name('addItem');
-        Route::post('/update-item-qty/{code}', [App\Http\Controllers\RestockController::class, 'updateItemQty'])->name('updateItemQty');
-        Route::post('/clear-items', [App\Http\Controllers\RestockController::class, 'clearItems'])->name('clearItems');
-        Route::post('/remove-item/{code}', [App\Http\Controllers\RestockController::class, 'removeItem'])->name('removeItem');
-        Route::post('/', [App\Http\Controllers\RestockController::class, 'store'])->name('store');
-        Route::get('/{id}/update', [App\Http\Controllers\RestockController::class, 'update'])->name('update');
-        Route::post('/{id}/update-qty', [App\Http\Controllers\RestockController::class, 'updateQty'])->name('updateQty');
-        Route::get('/received', [App\Http\Controllers\RestockController::class, 'received'])->name('received');
-        Route::post('/received/store', [App\Http\Controllers\RestockController::class, 'receiveStore'])->name('receiveStore');
-        Route::post('/remove-cart-item/{code}', [App\Http\Controllers\RestockController::class, 'removeCartItem'])->name('removeCartItem');
-        Route::post('/{id}/add-to-gudang', [App\Http\Controllers\RestockController::class, 'addToGudangCart'])->name('addToGudangCart');
-        Route::get('/{id}/history', [App\Http\Controllers\RestockController::class, 'history'])->name('history');
-        Route::post('/{id}/reset', [App\Http\Controllers\RestockController::class, 'resetSingleQty'])->name('resetSingleQty');
-        Route::get('/upload', [App\Http\Controllers\RestockController::class, 'uploadExcel'])->name('uploadExcel');
-        Route::post('/import', [App\Http\Controllers\RestockController::class, 'importExcel'])->name('importExcel');
+        Route::get('/', [App\Http\Controllers\Restock\RestockTypeController::class, 'index'])->name('index');
+        Route::get('/type/{typeTag:code}', [App\Http\Controllers\Restock\RestockTypeController::class, 'show'])->name('type.show');
+        Route::post('/type/{typeTag:code}/sheets', [App\Http\Controllers\Restock\RestockSheetController::class, 'store'])->name('sheets.store');
+        Route::get('/sheets/{sheet}', [App\Http\Controllers\Restock\RestockSheetController::class, 'show'])->name('sheets.show');
+        Route::post('/sheets/{sheet}/sync', [App\Http\Controllers\Restock\RestockSheetController::class, 'sync'])->name('sheets.sync');
     });
 });
 
