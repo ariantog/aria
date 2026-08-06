@@ -80,6 +80,7 @@ class RestockSheetService
             'restock' => (int) $cells->sum('qty_restock'),
             'production' => (int) $cells->sum('qty_production'),
             'shipped' => (int) $cells->sum('qty_shipped'),
+            'missing' => (int) $cells->sum('qty_missing'),
           ],
           'urgent_count' => (int) $cells->where('is_urgent', true)->count(),
         ];

@@ -74,6 +74,7 @@ class RestockSheetController extends Controller
       'cells.*.qty_restock' => ['nullable', 'integer', 'min:0'],
       'cells.*.qty_production' => ['nullable', 'integer', 'min:0'],
       'cells.*.qty_shipped' => ['nullable', 'integer', 'min:0'],
+      'cells.*.qty_missing' => ['nullable', 'integer', 'min:0'],
     ]);
 
     try {
@@ -107,14 +108,21 @@ class RestockSheetController extends Controller
     Gate::authorize(RestockSheet::getPermissions()['edit']);
 
     $validated = $request->validate([
-      'direction' => ['required', 'string', 'in:to_production,to_shipped'],
+      'direction' => ['required', 'string', 'in:to_production,to_shipped,to_missing'],
+      'from' => ['required_if:direction,to_missing', 'nullable', 'string', 'in:restock,production,shipped'],
       'cells' => ['required', 'array', 'min:1'],
       'cells.*.id' => ['required', 'integer'],
       'cells.*.qty' => ['nullable', 'integer', 'min:1'],
     ]);
 
     try {
-      $moved = $this->moveService->move($sheet, $validated['direction'], $validated['cells'], $request->user());
+      $moved = $this->moveService->move(
+        $sheet,
+        $validated['direction'],
+        $validated['cells'],
+        $request->user(),
+        $validated['from'] ?? null,
+      );
     } catch (InvalidArgumentException $e) {
       return response()->json(['message' => $e->getMessage()], 422);
     }
