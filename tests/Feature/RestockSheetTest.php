@@ -193,6 +193,48 @@ test('grid resolves parent from code when pcode stores the full sku', function (
         ->toBe(['BLACK', 'GREEN']);
 });
 
+test('move transfers restock qty to production for selected cells', function () {
+    createAssetLancarSkus($this);
+    $sheet = app(RestockSheetService::class)->createSheet($this->typeTag, $this->user);
+
+    $cell = $sheet->cells()->first();
+    $cell->update(['qty_restock' => 40, 'qty_production' => 5]);
+
+    $this->actingAs($this->user)
+        ->postJson(route('restock.sheets.move', $sheet), [
+            'direction' => 'to_production',
+            'cells' => [['id' => $cell->id]],
+        ])
+        ->assertSuccessful()
+        ->assertJsonPath('moved', 40);
+
+    $cell->refresh();
+    expect($cell->qty_restock)->toBe(0);
+    expect($cell->qty_production)->toBe(45);
+
+    expect(RestockCellHistory::where('restock_cell_id', $cell->id)->where('action', 'move')->count())->toBe(2);
+});
+
+test('move transfers production qty to shipped', function () {
+    createAssetLancarSkus($this);
+    $sheet = app(RestockSheetService::class)->createSheet($this->typeTag, $this->user);
+
+    $cell = $sheet->cells()->first();
+    $cell->update(['qty_production' => 30, 'qty_shipped' => 10]);
+
+    $this->actingAs($this->user)
+        ->postJson(route('restock.sheets.move', $sheet), [
+            'direction' => 'to_shipped',
+            'cells' => [['id' => $cell->id]],
+        ])
+        ->assertSuccessful()
+        ->assertJsonPath('moved', 30);
+
+    $cell->refresh();
+    expect($cell->qty_production)->toBe(0);
+    expect($cell->qty_shipped)->toBe(40);
+});
+
 test('sheet show page includes tabulator grid payload', function () {
     createAssetLancarSkus($this);
     createAssetLancarSkus($this, 'ELBOW-07', 'Elbow Support v2');

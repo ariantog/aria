@@ -7,6 +7,7 @@ use App\Models\RestockSheet;
 use App\Models\Tag;
 use App\Services\Restock\RestockCellService;
 use App\Services\Restock\RestockGridBuilder;
+use App\Services\Restock\RestockMoveService;
 use App\Services\Restock\RestockSheetService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -21,6 +22,7 @@ class RestockSheetController extends Controller
     protected RestockSheetService $sheetService,
     protected RestockGridBuilder $gridBuilder,
     protected RestockCellService $cellService,
+    protected RestockMoveService $moveService,
   ) {}
 
   public function store(Request $request, Tag $typeTag): RedirectResponse
@@ -90,5 +92,29 @@ class RestockSheetController extends Controller
         ? "Added {$added} new SKU cell(s) from the item catalog."
         : 'Sheet is already up to date with the item catalog.',
     );
+  }
+
+  public function move(Request $request, RestockSheet $sheet): JsonResponse
+  {
+    Gate::authorize(RestockSheet::getPermissions()['edit']);
+
+    $validated = $request->validate([
+      'direction' => ['required', 'string', 'in:to_production,to_shipped'],
+      'cells' => ['required', 'array', 'min:1'],
+      'cells.*.id' => ['required', 'integer'],
+      'cells.*.qty' => ['nullable', 'integer', 'min:1'],
+    ]);
+
+    try {
+      $moved = $this->moveService->move($sheet, $validated['direction'], $validated['cells'], $request->user());
+    } catch (InvalidArgumentException $e) {
+      return response()->json(['message' => $e->getMessage()], 422);
+    }
+
+    return response()->json([
+      'message' => $moved > 0 ? "Moved {$moved} unit(s)." : 'Nothing to move.',
+      'moved' => $moved,
+      'grid' => $this->gridBuilder->build($sheet->fresh()),
+    ]);
   }
 }
