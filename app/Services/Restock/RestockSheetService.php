@@ -15,119 +15,93 @@ use InvalidArgumentException;
 
 class RestockSheetService
 {
+    /** Manufactured-item TYPE tags use item_type = 2 and are excluded from restock. */
+    public const EXCLUDED_TYPE_TAG_ITEM_TYPE = 2;
+
     public function __construct(
         protected ItemIdentityBuilder $identityBuilder,
     ) {}
 
     /**
+     * Asset-lancar TYPE tags only (excludes manufactured SKU-prefix tags).
+     *
      * @return Collection<int, Tag>
      */
     public function typeTags(): Collection
     {
         return Tag::query()
             ->where('type', Tag::TYPE_TYPE)
+            ->where('item_type', '!=', self::EXCLUDED_TYPE_TAG_ITEM_TYPE)
             ->orderBy('name')
             ->get();
     }
 
     /**
-     * @return Collection<int, array{pcode: string, name: string, representative_group_id: int|null, sheet: RestockSheet|null, totals: array<string, int>, urgent_count: int}>
+     * Summary for the TYPE landing page (one sheet per TYPE, e.g. BELT).
+     *
+     * @return array{
+     *     type_tag: Tag,
+     *     sheet: RestockSheet|null,
+     *     parent_pcode_count: int,
+     *     sku_count: int,
+     *     totals: array{restock: int, production: int, shipped: int},
+     *     urgent_count: int
+     * }
      */
-    public function parentsForType(Tag $typeTag): Collection
+    public function typeSheetSummary(Tag $typeTag): array
     {
-        $pcodes = $this->assetLancarItemsForType($typeTag)
-            ->select('items.pcode')
-            ->distinct()
-            ->pluck('pcode');
-
-        $sheets = RestockSheet::query()
+        $sheet = RestockSheet::query()
             ->where('type_tag_id', $typeTag->id)
-            ->whereIn('pcode', $pcodes)
             ->withSum('cells as total_restock', 'qty_restock')
             ->withSum('cells as total_production', 'qty_production')
             ->withSum('cells as total_shipped', 'qty_shipped')
             ->withCount(['cells as urgent_count' => fn ($q) => $q->where('is_urgent', true)])
-            ->get()
-            ->keyBy('pcode');
+            ->first();
 
-        return $pcodes->map(function (string $pcode) use ($typeTag, $sheets) {
-            $sampleItem = $this->assetLancarItemsForType($typeTag)
-                ->where('items.pcode', $pcode)
-                ->with('group')
-                ->first();
+        $itemsQuery = $this->assetLancarItemsForType($typeTag);
 
-            $sheet = $sheets->get($pcode);
-
-            return [
-                'pcode' => $pcode,
-                'name' => $sheet?->name ?? $sampleItem?->group?->name ?? $pcode,
-                'representative_group_id' => $sheet?->representative_group_id ?? $sampleItem?->group_id,
-                'sheet' => $sheet,
-                'totals' => [
-                    'restock' => (int) ($sheet?->total_restock ?? 0),
-                    'production' => (int) ($sheet?->total_production ?? 0),
-                    'shipped' => (int) ($sheet?->total_shipped ?? 0),
-                ],
-                'urgent_count' => (int) ($sheet?->urgent_count ?? 0),
-            ];
-        })->sortBy('pcode')->values();
+        return [
+            'type_tag' => $typeTag,
+            'sheet' => $sheet,
+            'parent_pcode_count' => (int) (clone $itemsQuery)->distinct('items.pcode')->count('items.pcode'),
+            'sku_count' => (int) (clone $itemsQuery)->count(),
+            'totals' => [
+                'restock' => (int) ($sheet?->total_restock ?? 0),
+                'production' => (int) ($sheet?->total_production ?? 0),
+                'shipped' => (int) ($sheet?->total_shipped ?? 0),
+            ],
+            'urgent_count' => (int) ($sheet?->urgent_count ?? 0),
+        ];
     }
 
-    /**
-     * @return Collection<int, array{pcode: string, name: string}>
-     */
-    public function availableParentsForType(Tag $typeTag): Collection
+    public function canCreateSheetForType(Tag $typeTag): bool
     {
-        $existingPcodes = RestockSheet::query()
-            ->where('type_tag_id', $typeTag->id)
-            ->pluck('pcode');
+        if (RestockSheet::where('type_tag_id', $typeTag->id)->exists()) {
+            return false;
+        }
 
-        return $this->assetLancarItemsForType($typeTag)
-            ->with('group')
-            ->get()
-            ->groupBy('pcode')
-            ->reject(fn ($items, string $pcode) => $existingPcodes->contains($pcode))
-            ->map(fn ($items, string $pcode) => [
-                'pcode' => $pcode,
-                'name' => $items->first()->group?->name ?? $pcode,
-            ])
-            ->sortBy('pcode')
-            ->values();
+        return $this->assetLancarItemsForType($typeTag)->exists();
     }
 
-    public function createSheet(Tag $typeTag, string $pcode, User $user): RestockSheet
+    public function createSheet(Tag $typeTag, User $user): RestockSheet
     {
-        $pcode = strtoupper(trim($pcode));
-
-        if (RestockSheet::where('pcode', $pcode)->exists()) {
-            throw new InvalidArgumentException("A restock sheet already exists for {$pcode}.");
+        if (RestockSheet::where('type_tag_id', $typeTag->id)->exists()) {
+            throw new InvalidArgumentException("A restock sheet already exists for {$typeTag->name}.");
         }
 
         $items = $this->assetLancarItemsForType($typeTag)
-            ->where('items.pcode', $pcode)
             ->with(['tags', 'group'])
             ->get();
 
         if ($items->isEmpty()) {
-            throw new InvalidArgumentException("No asset lancar items found for {$pcode} with TYPE {$typeTag->code}.");
+            throw new InvalidArgumentException("No asset lancar items found for TYPE {$typeTag->code}.");
         }
 
-        $untagged = $items->filter(fn (Item $item) => ! $this->itemHasTypeTag($item, $typeTag));
-
-        if ($untagged->isNotEmpty()) {
-            throw new InvalidArgumentException(
-                'All items must have the selected TYPE tag before creating a restock sheet.'
-            );
-        }
-
-        $name = $items->first()->group?->name ?? $pcode;
-
-        return DB::transaction(function () use ($typeTag, $pcode, $user, $items, $name) {
+        return DB::transaction(function () use ($typeTag, $user, $items) {
             $sheet = RestockSheet::create([
-                'pcode' => $pcode,
-                'name' => $name,
+                'name' => $typeTag->name,
                 'type_tag_id' => $typeTag->id,
-                'representative_group_id' => $items->first()->group_id,
+                'representative_group_id' => $this->resolveRepresentativeGroupId($items),
                 'created_by' => $user->id,
             ]);
 
@@ -143,7 +117,6 @@ class RestockSheetService
     public function syncSkus(RestockSheet $sheet): int
     {
         $items = $this->assetLancarItemsForType($sheet->typeTag)
-            ->where('items.pcode', $sheet->pcode)
             ->with('tags')
             ->get();
 
@@ -158,6 +131,24 @@ class RestockSheetService
         $this->seedCells($sheet, $newItems);
 
         return $newItems->count();
+    }
+
+    /**
+     * Cells grouped by parent pcode (BELT-01, BELT-02, …) for sheet display.
+     *
+     * @return Collection<string, Collection<int, RestockCell>>
+     */
+    public function cellsGroupedByParent(RestockSheet $sheet): Collection
+    {
+        $sheet->loadMissing(['cells.color', 'cells.size', 'cells.item']);
+
+        return $sheet->cells
+            ->sortBy([
+                fn (RestockCell $cell) => $cell->item?->pcode ?? '',
+                fn (RestockCell $cell) => $cell->color?->name ?? '',
+                fn (RestockCell $cell) => $cell->size?->name ?? '',
+            ])
+            ->groupBy(fn (RestockCell $cell) => $cell->item?->pcode ?? 'unknown');
     }
 
     /**
@@ -183,15 +174,20 @@ class RestockSheetService
         }
     }
 
+    /**
+     * @param  Collection<int, Item>  $items
+     */
+    protected function resolveRepresentativeGroupId(Collection $items): ?int
+    {
+        $groupId = $items->first(fn (Item $item) => $item->group_id > 0)?->group_id;
+
+        return $groupId > 0 ? $groupId : null;
+    }
+
     protected function assetLancarItemsForType(Tag $typeTag)
     {
         return Item::query()
             ->where('type', ItemType::ASSET_LANCAR)
             ->whereHas('tags', fn ($q) => $q->where('tags.id', $typeTag->id));
-    }
-
-    protected function itemHasTypeTag(Item $item, Tag $typeTag): bool
-    {
-        return $item->tags->contains('id', $typeTag->id);
     }
 }

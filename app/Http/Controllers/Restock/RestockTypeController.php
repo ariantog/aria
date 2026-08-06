@@ -7,7 +7,6 @@ use App\Models\RestockSheet;
 use App\Models\Tag;
 use App\Services\Restock\RestockSheetService;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\View\View;
 
@@ -27,8 +26,8 @@ class RestockTypeController extends Controller
             return view('restock.type-index', [
                 'typeTags' => $typeTags,
                 'activeTypeTag' => null,
-                'parents' => collect(),
-                'availableParents' => collect(),
+                'typeSheet' => null,
+                'canCreateSheet' => false,
             ]);
         }
 
@@ -40,13 +39,17 @@ class RestockTypeController extends Controller
         Gate::authorize(RestockSheet::getPermissions()['view']);
 
         abort_unless((int) $typeTag->type === Tag::TYPE_TYPE, 404);
+        abort_if(
+            (int) $typeTag->item_type === RestockSheetService::EXCLUDED_TYPE_TAG_ITEM_TYPE,
+            404,
+        );
 
         return view('restock.type-index', [
             'typeTags' => $this->sheetService->typeTags(),
             'activeTypeTag' => $typeTag,
-            'parents' => $this->sheetService->parentsForType($typeTag),
-            'availableParents' => $this->sheetService->availableParentsForType($typeTag),
-            'canCreate' => request()->user()?->can(RestockSheet::getPermissions()['create']) ?? false,
+            'typeSheet' => $this->sheetService->typeSheetSummary($typeTag),
+            'canCreateSheet' => $this->sheetService->canCreateSheetForType($typeTag)
+                && (request()->user()?->can(RestockSheet::getPermissions()['create']) ?? false),
         ]);
     }
 }

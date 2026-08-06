@@ -24,45 +24,26 @@ class RestockSheetController extends Controller
 
         abort_unless((int) $typeTag->type === Tag::TYPE_TYPE, 404);
 
-        $validated = $request->validate([
-            'pcode' => ['required', 'string', 'max:255'],
-        ]);
-
         try {
-            $sheet = $this->sheetService->createSheet(
-                $typeTag,
-                $validated['pcode'],
-                $request->user(),
-            );
+            $sheet = $this->sheetService->createSheet($typeTag, $request->user());
         } catch (InvalidArgumentException $e) {
             return back()->with('error', $e->getMessage());
         }
 
         return redirect()
             ->route('restock.sheets.show', $sheet)
-            ->with('success', "Restock sheet for {$sheet->pcode} created.");
+            ->with('success', "Restock sheet for {$sheet->name} created.");
     }
 
     public function show(RestockSheet $sheet): View
     {
         Gate::authorize(RestockSheet::getPermissions()['view']);
 
-        $sheet->load([
-            'typeTag',
-            'representativeGroup',
-            'cells.color',
-            'cells.size',
-            'cells.item.tags',
-        ]);
-
-        $cells = $sheet->cells->sortBy([
-            fn ($cell) => $cell->color?->name ?? '',
-            fn ($cell) => $cell->size?->name ?? '',
-        ]);
+        $sheet->load(['typeTag', 'representativeGroup']);
 
         return view('restock.sheet', [
             'sheet' => $sheet,
-            'cells' => $cells,
+            'parentGroups' => $this->sheetService->cellsGroupedByParent($sheet),
             'typeTags' => $this->sheetService->typeTags(),
         ]);
     }
