@@ -28,14 +28,17 @@ class ItemService
     {
         $inputType = ItemType::tryFrom($input->type ?? 1) ?? ItemType::ITEM;
 
-        try {
-            $this->identityBuilder->validatePcode($inputType, (string) ($input->pcode ?? ''));
-        } catch (InvalidArgumentException $e) {
-            throw new Exception($e->getMessage());
-        }
-
         return DB::transaction(function () use ($id, $input, $tags, $file, $inputType) {
-            $item = Item::with('group')->findOrFail($id);
+            $item = Item::with(['group', 'tags'])->findOrFail($id);
+            $pcode = $this->resolvePcodeForUpdate($item, $inputType, $input);
+
+            try {
+                $this->identityBuilder->validatePcode($inputType, $pcode);
+            } catch (InvalidArgumentException $e) {
+                throw new Exception($e->getMessage());
+            }
+
+            $input->pcode = $pcode;
             $currentTagIds = array_filter(explode(',', (string) $item->tag_ids));
 
             $tags = $this->sortTags($tags, $inputType);
@@ -71,19 +74,20 @@ class ItemService
 
             $pcode = strtoupper(trim((string) $input->pcode));
             $previousGroupName = $item->group?->name ?? '';
-            $groupName = $this->groupNameFromInput($input, $inputType, $pcode, $item->group);
+            $groupName = $this->groupNameFromInput($input, $inputType, $pcode, $item->group, $item);
             $nameChanged = strtoupper($previousGroupName) !== strtoupper($groupName);
             $group = $this->resolveGroup($inputType, $pcode, $groupName, $warnaTag, $input);
 
             $this->applyItemIdentity(
                 $item,
                 $inputType,
-                (string) $input->pcode,
+                $pcode,
                 $group,
                 $typeTag,
                 $warnaTag,
                 $sizeTag,
                 $input,
+                isUpdate: true,
             );
 
             $item->group_id = $group->id;
@@ -254,12 +258,17 @@ class ItemService
         ?Tag $warnaTag,
         ?Tag $sizeTag,
         object $input,
+        bool $isUpdate = false,
     ): void {
         $pcode = strtoupper(trim($pcode));
         $code = $this->identityBuilder->buildCode($itemType, $pcode, $typeTag, $warnaTag, $sizeTag);
 
         if (Item::query()->whereSku($code)->where('id', '!=', $item->id ?? 0)->exists()) {
             throw new Exception("SKU already exists: {$code}");
+        }
+
+        if ($isUpdate && $itemType === ItemType::ITEM) {
+            $this->preserveLegacyCode($item, $code);
         }
 
         $item->pcode = $pcode;
@@ -316,6 +325,7 @@ class ItemService
         ItemType $type,
         string $pcode,
         ?ItemGroup $existing = null,
+        ?Item $item = null,
     ): string {
         $name = trim((string) ($input->product_name ?? $input->alias ?? $input->name ?? ''));
 
@@ -333,7 +343,79 @@ class ItemService
             return $fallback;
         }
 
+        if ($item !== null) {
+            $derived = $this->deriveLegacyAssetProductName($item);
+
+            if ($derived !== '') {
+                return $derived;
+            }
+        }
+
         throw new Exception('Product name is required.');
+    }
+
+    /**
+     * Snapshot the pre-identity SKU for Jubelio before code changes on manufactured items.
+     * Never overwrites an existing legacy_code.
+     */
+    protected function preserveLegacyCode(Item $item, string $newCode): void
+    {
+        if (trim((string) ($item->legacy_code ?? '')) !== '') {
+            return;
+        }
+
+        $currentCode = strtoupper(trim((string) ($item->code ?? '')));
+        $newCode = strtoupper(trim($newCode));
+
+        if ($currentCode !== '' && $currentCode !== $newCode) {
+            $item->legacy_code = $currentCode;
+        }
+    }
+
+    /**
+     * Derive pcode for legacy rows on update (e.g. asset lancar SKU not yet normalized).
+     */
+    protected function resolvePcodeForUpdate(Item $item, ItemType $type, object $input): string
+    {
+        $pcode = strtoupper(trim((string) ($input->pcode ?? '')));
+
+        if ($pcode !== '') {
+            try {
+                $this->identityBuilder->validatePcode($type, $pcode);
+
+                return $pcode;
+            } catch (InvalidArgumentException) {
+                // Fall through for legacy asset lancar rows.
+            }
+        }
+
+        if ($type === ItemType::ASSET_LANCAR) {
+            $derived = $this->identityBuilder->assetLancarParentPcode($item);
+            $this->identityBuilder->validatePcode($type, $derived);
+
+            return $derived;
+        }
+
+        if ($pcode !== '') {
+            throw new Exception('pcode format invalid.');
+        }
+
+        throw new Exception('pcode is required');
+    }
+
+    protected function deriveLegacyAssetProductName(Item $item): string
+    {
+        $name = trim((string) $item->name);
+
+        if ($name === '') {
+            return $this->identityBuilder->assetLancarParentPcode($item);
+        }
+
+        if (str_contains($name, ' - ')) {
+            return trim(explode(' - ', $name, 2)[0]);
+        }
+
+        return $name;
     }
 
     protected function syncItemNamesForGroup(ItemGroup $group): void
