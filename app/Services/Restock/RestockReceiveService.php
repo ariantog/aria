@@ -68,19 +68,29 @@ class RestockReceiveService
                     throw new InvalidArgumentException('Each received cell must be linked to an item.');
                 }
 
-                $available = (int) $cell->qty_shipped;
-                $requested = $qtyById->get($cellId);
-                $qty = $requested === null ? $available : min(max(0, $requested), $available);
-
-                if ($qty <= 0) {
+                $shippedBefore = (int) $cell->qty_shipped;
+                if ($shippedBefore <= 0) {
                     continue;
                 }
+
+                $requested = $qtyById->get($cellId);
+                $receivedQty = $requested === null
+                    ? $shippedBefore
+                    : min(max(0, $requested), $shippedBefore);
+
+                if ($receivedQty <= 0) {
+                    continue;
+                }
+
+                $shortfall = $shippedBefore - $receivedQty;
 
                 $lineItems[] = [
                     'cell' => $cell,
                     'item_id' => $cell->item_id,
-                    'quantity' => $qty,
+                    'quantity' => $receivedQty,
                     'price' => (float) ($cell->item->cost ?: $cell->item->price ?: 0),
+                    'shipped_before' => $shippedBefore,
+                    'shortfall' => $shortfall,
                 ];
             }
 
@@ -114,9 +124,11 @@ class RestockReceiveService
             foreach ($lineItems as $line) {
                 /** @var RestockCell $cell */
                 $cell = $line['cell'];
-                $qty = (int) $line['quantity'];
+                $receivedQty = (int) $line['quantity'];
+                $shippedBefore = (int) $line['shipped_before'];
+                $shortfall = (int) $line['shortfall'];
                 $price = (float) $line['price'];
-                $total = $qty * $price;
+                $total = $receivedQty * $price;
 
                 $transaction->details()->create([
                     'item_id' => $line['item_id'],
@@ -124,30 +136,47 @@ class RestockReceiveService
                     'transaction_type' => TransactionType::Buy->value,
                     'sender_id' => $parties['supplier']->id,
                     'receiver_id' => $parties['receiver']->id,
-                    'quantity' => $qty,
+                    'quantity' => $receivedQty,
                     'price' => $price,
                     'discount' => 0,
                     'total' => $total,
                     'notes' => 'Restock receive',
                 ]);
 
-                $before = (int) $cell->qty_shipped;
-                $cell->qty_shipped = $before - $qty;
+                $missingBefore = (int) $cell->qty_missing;
+                $cell->qty_shipped = 0;
+                if ($shortfall > 0) {
+                    $cell->qty_missing = $missingBefore + $shortfall;
+                    $cell->missing_at = now();
+                }
                 $cell->save();
 
                 RestockCellHistory::create([
                     'restock_cell_id' => $cell->id,
                     'field' => 'shipped',
-                    'qty_before' => $before,
-                    'qty_after' => $before - $qty,
+                    'qty_before' => $shippedBefore,
+                    'qty_after' => 0,
                     'action' => 'receive',
                     'user_id' => $user->id,
                     'transaction_id' => $transaction->id,
                     'note' => $invoiceNumber,
                 ]);
 
+                if ($shortfall > 0) {
+                    RestockCellHistory::create([
+                        'restock_cell_id' => $cell->id,
+                        'field' => 'missing',
+                        'qty_before' => $missingBefore,
+                        'qty_after' => $missingBefore + $shortfall,
+                        'action' => 'missing',
+                        'user_id' => $user->id,
+                        'transaction_id' => $transaction->id,
+                        'note' => 'Receive shortfall',
+                    ]);
+                }
+
                 $itemsTotal += $total;
-                $totalItems += $qty;
+                $totalItems += $receivedQty;
             }
 
             $transaction->update([

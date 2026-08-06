@@ -7,7 +7,6 @@
     .tabulator .tabulator-header .tabulator-col.tabulator-col-group-restock { background: #dbeafe; }
     .tabulator .tabulator-header .tabulator-col.tabulator-col-group-production { background: #fde68a; }
     .tabulator .tabulator-header .tabulator-col.tabulator-col-group-shipped { background: #e5e7eb; }
-    .tabulator .tabulator-header .tabulator-col.tabulator-col-group-missing { background: #fee2e2; }
     .tabulator-cell.tabulator-editing { border: 2px solid #2563eb !important; }
     .restock-urgent-cell { background-color: #fef2f2 !important; color: #b91c1c; font-weight: 600; }
     .restock-grid-scroll { overflow-x: auto; }
@@ -59,18 +58,6 @@ $breadcrumbs = [
                     class="rounded-md border border-green-300 bg-green-50 px-3 py-1.5 text-sm font-medium text-green-900 hover:bg-green-100 disabled:opacity-50">
                 Receive → Warehouse
             </button>
-            <div class="flex items-center gap-1 rounded-md border border-red-200 bg-red-50 p-1">
-                <select x-model="missingSource" :disabled="!canEdit"
-                        class="rounded border-0 bg-transparent py-1 pl-2 pr-7 text-sm text-red-900 focus:ring-0 disabled:opacity-50">
-                    <option value="restock">From restock</option>
-                    <option value="production">From production</option>
-                    <option value="shipped">From shipped</option>
-                </select>
-                <button type="button" @click="move('to_missing')" :disabled="moving || !canEdit || !hasSelection()"
-                        class="rounded px-2 py-1 text-sm font-medium text-red-900 hover:bg-red-100 disabled:opacity-50">
-                    Mark missing
-                </button>
-            </div>
             <form method="POST" action="{{ route('restock.sheets.sync', $sheet) }}">
                 @csrf
                 <button type="submit" class="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
@@ -78,6 +65,10 @@ $breadcrumbs = [
                 </button>
             </form>
             @endcan
+            <a href="{{ route('restock.type.missing', $sheet->typeTag) }}"
+               class="rounded-md border border-red-200 bg-red-50 px-3 py-1.5 text-sm font-medium text-red-800 hover:bg-red-100">
+                Missing SKUs
+            </a>
             <a href="{{ route('restock.type.show', $sheet->typeTag) }}"
                class="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
                 Back to list
@@ -93,7 +84,7 @@ $breadcrumbs = [
     <div x-show="error" x-cloak class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" x-text="error"></div>
 
     <div class="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
-        Select color row(s), then use move buttons to advance quantities through the pipeline, mark missing from any stage, or <strong>Receive → Warehouse</strong> for shipped qty. Edit cells directly and click <strong>Save sheet</strong> for manual adjustments.
+        Select color row(s), then use move buttons to advance quantities through the pipeline, or <strong>Receive → Warehouse</strong> for shipped qty. Edit restock / production / shipped cells directly and click <strong>Save sheet</strong> for manual adjustments. Any receive shortfall is recorded automatically on the <a href="{{ route('restock.type.missing', $sheet->typeTag) }}" class="font-medium underline">Missing SKUs</a> page.
         @unless($receiveReady)
             <span class="mt-1 block text-amber-800">Receive is disabled until defaults are configured in <a href="{{ route('restock.settings.edit') }}" class="font-medium underline">Restock settings</a>.</span>
         @endunless
@@ -114,10 +105,10 @@ $breadcrumbs = [
     @endforelse
 
     <div x-show="receiveModalOpen" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" @click.self="receiveModalOpen = false">
-        <div class="w-full max-w-md rounded-xl border border-gray-200 bg-white p-5 shadow-xl">
+        <div class="w-full max-w-2xl rounded-xl border border-gray-200 bg-white p-5 shadow-xl">
             <h3 class="text-lg font-semibold text-gray-900">Receive into warehouse</h3>
-            <p class="mt-1 text-sm text-gray-500">Creates a Buy transaction for all shipped qty on the selected row(s).</p>
-            <div class="mt-4 space-y-3">
+            <p class="mt-1 text-sm text-gray-500">Adjust received qty per SKU. Any shortfall vs shipped is recorded as missing.</p>
+            <div class="mt-4 grid gap-3 sm:grid-cols-2">
                 <div>
                     <label for="receive-date" class="block text-sm font-medium text-gray-700">Date</label>
                     <input id="receive-date" type="date" x-model="receiveForm.date"
@@ -129,12 +120,38 @@ $breadcrumbs = [
                            class="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
                 </div>
             </div>
+            <div class="mt-4 max-h-72 overflow-y-auto rounded-lg border border-gray-200">
+                <table class="min-w-full divide-y divide-gray-200 text-sm">
+                    <thead class="sticky top-0 bg-gray-50">
+                        <tr>
+                            <th class="px-3 py-2 text-left font-medium text-gray-600">SKU</th>
+                            <th class="px-3 py-2 text-right font-medium text-gray-600">Shipped</th>
+                            <th class="px-3 py-2 text-right font-medium text-gray-600">Receive</th>
+                            <th class="px-3 py-2 text-right font-medium text-gray-600">Missing</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100">
+                        <template x-for="(line, idx) in receiveLines" :key="line.id">
+                            <tr>
+                                <td class="px-3 py-2 text-gray-900" x-text="line.label"></td>
+                                <td class="px-3 py-2 text-right tabular-nums text-gray-600" x-text="line.shipped"></td>
+                                <td class="px-3 py-2 text-right">
+                                    <input type="number" min="0" :max="line.shipped" x-model.number="receiveLines[idx].qty"
+                                           class="w-20 rounded border border-gray-300 px-2 py-1 text-right text-sm tabular-nums">
+                                </td>
+                                <td class="px-3 py-2 text-right tabular-nums text-red-700" x-text="receiveShortfall(line)"></td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+            </div>
+            <p x-show="receiveLines.length === 0" class="mt-4 text-sm text-gray-500">No shipped quantity on the selected row(s).</p>
             <div class="mt-5 flex justify-end gap-2">
                 <button type="button" @click="receiveModalOpen = false"
                         class="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
                     Cancel
                 </button>
-                <button type="button" @click="receive()" :disabled="receiving"
+                <button type="button" @click="receive()" :disabled="receiving || receiveLines.length === 0 || !hasReceiveQty()"
                         class="rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50">
                     <span x-text="receiving ? 'Receiving…' : 'Confirm receive'"></span>
                 </button>
@@ -159,8 +176,8 @@ function restockSheetPage() {
         saving: false,
         moving: false,
         receiving: false,
-        missingSource: 'restock',
         receiveModalOpen: false,
+        receiveLines: [],
         receiveForm: {
             date: @json(now()->toDateString()),
             invoice_number: '',
@@ -201,7 +218,6 @@ function restockSheetPage() {
                 { key: 'restock', title: 'Restock', groupClass: 'tabulator-col-group-restock' },
                 { key: 'production', title: 'Production', groupClass: 'tabulator-col-group-production' },
                 { key: 'shipped', title: 'Shipped', groupClass: 'tabulator-col-group-shipped' },
-                { key: 'missing', title: 'Missing', groupClass: 'tabulator-col-group-missing' },
             ];
 
             for (const stage of stages) {
@@ -304,11 +320,6 @@ function restockSheetPage() {
             const cells = this.collectCellsFromRows(rows);
             if (!cells.length) return;
 
-            const payload = { direction, cells };
-            if (direction === 'to_missing') {
-                payload.from = this.missingSource;
-            }
-
             this.moving = true;
             this.flash = '';
             this.error = '';
@@ -321,7 +332,7 @@ function restockSheetPage() {
                         'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
                         'X-Requested-With': 'XMLHttpRequest',
                     },
-                    body: JSON.stringify(payload),
+                    body: JSON.stringify({ direction, cells }),
                 });
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.message || 'Move failed');
@@ -334,18 +345,51 @@ function restockSheetPage() {
             }
         },
 
+        buildReceiveLines(rows) {
+            const lines = [];
+            for (const row of rows) {
+                for (const [prefix, meta] of Object.entries(row._meta || {})) {
+                    const shipped = Number(row[prefix + 'shipped'] ?? 0);
+                    if (!meta?.cell_id || shipped <= 0) continue;
+                    const code = meta.item_code || row.color_name;
+                    const size = meta.size_label && meta.size_label !== '—' ? ` · ${meta.size_label}` : '';
+                    lines.push({
+                        id: meta.cell_id,
+                        label: `${code}${size}`,
+                        shipped,
+                        qty: shipped,
+                    });
+                }
+            }
+            return lines;
+        },
+
+        receiveShortfall(line) {
+            const shipped = Number(line.shipped ?? 0);
+            const qty = Math.min(Math.max(0, Number(line.qty ?? 0)), shipped);
+            return Math.max(0, shipped - qty);
+        },
+
+        hasReceiveQty() {
+            return this.receiveLines.some((line) => Number(line.qty ?? 0) > 0);
+        },
+
         openReceiveModal() {
             if (!this.canEdit || !this.receiveReady || !this.hasSelection()) return;
+            this.receiveLines = this.buildReceiveLines(this.selectedRows());
             this.receiveModalOpen = true;
         },
 
         async receive() {
             if (!this.canEdit || !this.receiveReady) return;
-            const rows = this.selectedRows();
-            if (!rows.length) return;
+            if (!this.receiveLines.length || !this.hasReceiveQty()) return;
 
-            const cells = this.collectCellsFromRows(rows);
-            if (!cells.length) return;
+            const cells = this.receiveLines
+                .filter((line) => Number(line.qty ?? 0) > 0)
+                .map((line) => ({
+                    id: line.id,
+                    qty: Math.min(Number(line.qty), Number(line.shipped)),
+                }));
 
             this.receiving = true;
             this.flash = '';
@@ -369,6 +413,7 @@ function restockSheetPage() {
                 if (!res.ok) throw new Error(data.message || 'Receive failed');
                 if (data.grid) this.applyGrid(data.grid);
                 this.receiveModalOpen = false;
+                this.receiveLines = [];
                 this.flash = data.transaction_url
                     ? `${data.message} Transaction #${data.transaction_id}.`
                     : (data.message || 'Received.');
@@ -392,7 +437,6 @@ function restockSheetPage() {
                             qty_restock: Number(row[prefix + 'restock'] ?? 0),
                             qty_production: Number(row[prefix + 'production'] ?? 0),
                             qty_shipped: Number(row[prefix + 'shipped'] ?? 0),
-                            qty_missing: Number(row[prefix + 'missing'] ?? 0),
                         });
                     }
                 }
