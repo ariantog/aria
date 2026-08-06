@@ -118,7 +118,7 @@ class ItemIdentityBuilder
     }
 
     /**
-     * Display name: {group.name} - {warna name} - {size name}
+     * Display name: {group.name} - {warna code} - {size code}
      * e.g. SLASH RUNNING SHIRT - BLUE - S
      */
     public function buildName(string $groupName, ?Tag $warnaTag, ?Tag $sizeTag): string
@@ -126,7 +126,7 @@ class ItemIdentityBuilder
         $parts = [strtoupper(trim($groupName))];
 
         if ($warnaTag) {
-            $parts[] = strtoupper($warnaTag->name);
+            $parts[] = strtoupper($warnaTag->code);
         }
 
         if ($sizeTag && ! $this->isAllSize($sizeTag)) {
@@ -134,6 +134,11 @@ class ItemIdentityBuilder
         }
 
         return implode(' - ', array_filter($parts, fn ($p) => $p !== ''));
+    }
+
+    public function tagCode(?Tag $tag): string
+    {
+        return strtoupper($tag?->code ?? '');
     }
 
     public function isAllSize(?Tag $sizeTag): bool

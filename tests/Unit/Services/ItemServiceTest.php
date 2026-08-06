@@ -6,6 +6,7 @@ use App\Models\ItemGroup;
 use App\Models\Tag;
 use App\Services\ImageService;
 use App\Services\InventoryService;
+use App\Services\Items\ItemIdentityBuilder;
 use App\Services\ItemService;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -13,48 +14,61 @@ use Illuminate\Support\Facades\Storage;
 uses(Tests\TestCase::class, Illuminate\Foundation\Testing\RefreshDatabase::class);
 
 beforeEach(function () {
-    $this->imageService = new ImageService;
-    $this->inventoryService = new InventoryService;
-    $this->itemService = new ItemService($this->imageService, $this->inventoryService);
+    $this->itemService = new ItemService(
+        new ImageService,
+        new InventoryService,
+        new ItemIdentityBuilder,
+    );
 
-    // Seed Tags
-    $this->typeTag = Tag::factory()->create(['type' => Tag::TYPE_TYPE, 'code' => 'T1', 'name' => 'Type1']);
-    $this->sizeTag = Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'S1', 'name' => 'Size1']);
-    $this->warnaTag = Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'W1', 'name' => 'Warna1']);
+    $this->typeTag = Tag::factory()->create(['type' => Tag::TYPE_TYPE, 'code' => 'AJD', 'name' => 'Jacket']);
+    $this->sizeTag = Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'S', 'name' => 'Small']);
+    $this->warnaTag = Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'BLUE', 'name' => 'BLUE']);
+    $this->jahitTag = Tag::factory()->create(['type' => Tag::TYPE_JAHIT, 'code' => 'J1', 'name' => 'Jahit1']);
 });
 
 test('it throws exception for invalid pcode', function () {
-    $input = (object) ['pcode' => 'INVALID', 'type' => ItemType::ITEM->value];
-    $this->itemService->create($input, []);
+    $input = (object) [
+        'pcode' => 'INVALID',
+        'type' => ItemType::ITEM->value,
+        'alias' => 'Test Product',
+    ];
+
+    $this->itemService->create($input, [
+        'types' => [$this->typeTag->id],
+        'sizes' => [$this->sizeTag->id],
+        'warna' => [$this->warnaTag->id],
+        'jahit' => [$this->jahitTag->id],
+    ]);
 })->throws(Exception::class);
 
-test('it creates item group and item successfully', function () {
+test('it creates manufactured item with unified code and display name', function () {
     $input = (object) [
-        'pcode' => 'CA12345-01',
+        'pcode' => 'CX90233-23',
         'type' => ItemType::ITEM->value,
         'price' => 100000,
         'description' => 'Test Item',
-        'alias' => 'Test Alias',
+        'alias' => 'Slash Running Shirt',
     ];
 
     $tags = [
         'types' => [$this->typeTag->id],
         'sizes' => [$this->sizeTag->id],
-        'warna' => [],
-        'jahit' => [],
+        'warna' => [$this->warnaTag->id],
+        'jahit' => [$this->jahitTag->id],
     ];
 
-    $result = $this->itemService->create($input, $tags);
+    expect($this->itemService->create($input, $tags))->toBeTrue();
 
-    expect($result)->toBeTrue();
+    $this->assertDatabaseHas('item_groups', [
+        'name' => 'SLASH RUNNING SHIRT',
+        'master' => 'CX90233',
+        'variant' => '23',
+    ]);
 
-    // Check Group
-    $this->assertDatabaseHas('item_groups', ['name' => 'CA12345-01']);
-
-    // Check Item: code is PCODE-WARNA_CODE-SIZE_CODE (warna empty here)
     $this->assertDatabaseHas('items', [
-        'pcode' => 'CA12345-01',
-        'code' => 'CA12345-01--S1',
+        'pcode' => 'CX90233-23',
+        'code' => 'AJD-CX90233-23-S',
+        'name' => 'SLASH RUNNING SHIRT - BLUE - S',
     ]);
 });
 
@@ -63,56 +77,73 @@ test('it saves image when provided', function () {
     $file = UploadedFile::fake()->image('test.jpg');
 
     $input = (object) [
-        'pcode' => 'CA12345-02',
+        'pcode' => 'CX90233-24',
         'type' => ItemType::ITEM->value,
         'price' => 100000,
-    ];
-
-    $tags = [
-        'types' => [$this->typeTag->id],
-        'sizes' => [$this->sizeTag->id],
-    ];
-
-    $this->itemService->create($input, $tags, $file);
-
-    $group = ItemGroup::where('name', 'CA12345-02')->first();
-
-    // Check file existence logic (ImageService saves to public path, might need adjustment for test env if not mocking ImageService)
-    // Since ImageService writes to config path, we should ideally verify file exists.
-    // However, Intervention Image write might be hard to test without mocking.
-    // We check if it ran without error at least.
-    expect($group)->not->toBeNull();
-});
-
-test('it creates asset lancar correctly with group', function () {
-    $input = (object) [
-        'pcode' => 'ASSET001',
-        'type' => ItemType::ASSET_LANCAR->value,
-        'name' => 'Laptop',
-        'alias' => 'Office Laptop',
-        'price' => 5000000,
+        'alias' => 'Slash Running Shirt',
     ];
 
     $tags = [
         'types' => [$this->typeTag->id],
         'sizes' => [$this->sizeTag->id],
         'warna' => [$this->warnaTag->id],
+        'jahit' => [$this->jahitTag->id],
+    ];
+
+    $this->itemService->create($input, $tags, $file);
+
+    expect(ItemGroup::where('master', 'CX90233')->where('variant', '24')->exists())->toBeTrue();
+});
+
+test('it creates asset lancar variants with cartesian color and size', function () {
+    $pinkTag = Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'PINK', 'name' => 'PINK']);
+    $mediumTag = Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'M', 'name' => 'Medium']);
+
+    $input = (object) [
+        'pcode' => 'GLOVE-01',
+        'type' => ItemType::ASSET_LANCAR->value,
+        'alias' => 'Boxing Gloves',
+        'price' => 5000000,
+        'cost' => 3000000,
+    ];
+
+    $tags = [
+        'types' => [$this->typeTag->id],
+        'sizes' => [$this->sizeTag->id, $mediumTag->id],
+        'warna' => [$this->warnaTag->id, $pinkTag->id],
         'jahit' => [],
     ];
 
-    $result = $this->itemService->create($input, $tags);
+    expect($this->itemService->create($input, $tags))->toBeTrue();
 
-    expect($result)->toBeTrue();
-
-    // Check Item
     $this->assertDatabaseHas('items', [
-        'pcode' => 'ASSET001',
-        'type' => ItemType::ASSET_LANCAR->value,
+        'code' => 'GLOVE-01-BLUE-S',
+        'name' => 'BOXING GLOVES - BLUE - S',
     ]);
 
-    // Check Group (New behavior: Assets also have groups)
-    $this->assertDatabaseHas('item_groups', [
-        'name' => 'ASSET001',
-        'alias' => 'OFFICE LAPTOP',
+    $this->assertDatabaseHas('items', [
+        'code' => 'GLOVE-01-PINK-M',
+        'name' => 'BOXING GLOVES - PINK - M',
     ]);
+
+    expect(Item::where('code', 'like', 'GLOVE-01-%')->count())->toBe(4);
 });
+
+test('it rejects duplicate sku on create', function () {
+    Item::factory()->create(['code' => 'AJD-CX90233-23-S']);
+
+    $input = (object) [
+        'pcode' => 'CX90233-23',
+        'type' => ItemType::ITEM->value,
+        'alias' => 'Slash Running Shirt',
+    ];
+
+    $tags = [
+        'types' => [$this->typeTag->id],
+        'sizes' => [$this->sizeTag->id],
+        'warna' => [$this->warnaTag->id],
+        'jahit' => [$this->jahitTag->id],
+    ];
+
+    $this->itemService->create($input, $tags);
+})->throws(Exception::class, 'SKU already exists');
