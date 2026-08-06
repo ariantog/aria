@@ -87,7 +87,8 @@ if ($activeTypeTag) {
                                 <tr class="hover:bg-gray-50">
                                     <td class="px-4 py-3">
                                         <div class="flex items-center gap-3">
-                                            <img src="{{ $parent['image_url'] }}" alt="" class="h-10 w-10 rounded-md border border-gray-200 object-cover">
+                                            <img src="{{ $parent['image_url'] }}" alt="" class="h-10 w-10 rounded-md border border-gray-200 object-cover"
+                                                 onerror="this.onerror=null;this.src='{{ asset('images/default-item.svg') }}'">
                                             <span class="font-medium text-gray-900">{{ $parent['name'] }}</span>
                                         </div>
                                     </td>

@@ -132,7 +132,7 @@ class Item extends Model
             return config('core-nation.item_image_url').$folder.'/'.$filename;
         }
 
-        return asset('images/default-item.png');
+        return asset('images/default-item.svg');
     }
 
     public function getImagePathAttribute(): string

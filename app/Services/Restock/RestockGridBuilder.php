@@ -39,6 +39,7 @@ class RestockGridBuilder
                 return [
                     'pcode' => $parentPcode,
                     'name' => $this->parentDisplayName($cells, $parentPcode),
+                    'image_url' => $this->parentImageUrl($cells),
                     'sizes' => $sizes,
                     'rows' => $rows,
                 ];
@@ -79,6 +80,16 @@ class RestockGridBuilder
         );
 
         return $preferred ?? $names->first() ?? $parentPcode;
+    }
+
+    /**
+     * @param  Collection<int, RestockCell>  $cells
+     */
+    protected function parentImageUrl(Collection $cells): string
+    {
+        $item = $cells->first(fn (RestockCell $cell) => $cell->item !== null)?->item;
+
+        return $item?->image_url ?? asset('images/default-item.svg');
     }
 
     /**

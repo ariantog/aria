@@ -6,6 +6,7 @@ use App\Models\RestockSheet;
 use Illuminate\Support\Str;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -19,19 +20,19 @@ class RestockSheetExportService
     {
         $grid = $this->gridBuilder->build($sheet);
         $spreadsheet = new Spreadsheet;
-
-        foreach ($grid['parents'] as $index => $parent) {
-            $worksheet = $index === 0
-                ? $spreadsheet->getActiveSheet()
-                : $spreadsheet->createSheet($index);
-
-            $worksheet->setTitle($this->safeSheetTitle($parent['pcode']));
-            $this->writeParentSheet($worksheet, $parent);
-        }
+        $worksheet = $spreadsheet->getActiveSheet();
+        $worksheet->setTitle($this->safeSheetTitle($sheet->name ?: 'Restock'));
 
         if ($grid['parents'] === []) {
-            $spreadsheet->getActiveSheet()->setTitle('Empty');
-            $spreadsheet->getActiveSheet()->setCellValue('A1', 'No data to export.');
+            $worksheet->setCellValue('A1', 'No data to export.');
+        } else {
+            $rowNum = 1;
+            foreach ($grid['parents'] as $index => $parent) {
+                if ($index > 0) {
+                    $rowNum += 2;
+                }
+                $rowNum = $this->writeParentSection($worksheet, $parent, $rowNum);
+            }
         }
 
         $filename = sprintf(
@@ -52,11 +53,11 @@ class RestockSheetExportService
     /**
      * @param  array{pcode: string, name: string, sizes: list<string>, rows: list<array<string, mixed>>}  $parent
      */
-    protected function writeParentSheet(\PhpOffice\PhpSpreadsheet\Worksheet\Worksheet $worksheet, array $parent): void
+    protected function writeParentSection(Worksheet $worksheet, array $parent, int $startRow): int
     {
-        $worksheet->setCellValue('A1', $parent['name']);
-        $worksheet->setCellValue('A2', $parent['pcode']);
-        $worksheet->getStyle('A1')->getFont()->setBold(true);
+        $worksheet->setCellValue('A'.$startRow, $parent['name']);
+        $worksheet->setCellValue('A'.($startRow + 1), $parent['pcode']);
+        $worksheet->getStyle('A'.$startRow)->getFont()->setBold(true);
 
         $stages = [
             ['key' => 'restock', 'title' => 'Restock', 'color' => 'DBEAFE'],
@@ -66,7 +67,7 @@ class RestockSheetExportService
         ];
 
         $col = 2;
-        $headerRow = 4;
+        $headerRow = $startRow + 3;
         $worksheet->setCellValue('A'.$headerRow, 'Color');
         $worksheet->getStyle('A'.$headerRow)->getFont()->setBold(true);
 
@@ -110,6 +111,8 @@ class RestockSheetExportService
         foreach (range(1, $col - 1) as $columnIndex) {
             $worksheet->getColumnDimensionByColumn($columnIndex)->setAutoSize(true);
         }
+
+        return $rowNum;
     }
 
     protected function fieldPrefix(string $sizeCode): string
@@ -121,10 +124,10 @@ class RestockSheetExportService
         return str_replace(['.', ' '], '_', strtolower($sizeCode)).'_';
     }
 
-    protected function safeSheetTitle(string $pcode): string
+    protected function safeSheetTitle(string $title): string
     {
-        $title = preg_replace('/[\\\\\\/\\?\\*\\[\\]:]/', '-', $pcode) ?: 'Sheet';
+        $sanitized = preg_replace('/[\\\\\\/\\?\\*\\[\\]:]/', '-', $title) ?: 'Restock';
 
-        return Str::limit($title, 31, '');
+        return Str::limit($sanitized, 31, '');
     }
 }

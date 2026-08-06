@@ -34,7 +34,8 @@ $breadcrumbs = [
 
     <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div class="flex items-start gap-4">
-            <img src="{{ $sheet->image_url }}" alt="" class="h-16 w-16 rounded-lg border border-gray-200 object-cover">
+            <img src="{{ $sheet->image_url }}" alt="" class="h-16 w-16 rounded-lg border border-gray-200 object-cover"
+                 onerror="this.onerror=null;this.src='{{ asset('images/default-item.svg') }}'">
             <div>
                 <h1 class="text-2xl font-bold text-gray-900">{{ $sheet->name }}</h1>
                 <p class="text-sm text-gray-500">{{ count($grid['parents']) }} parent variant(s)</p>
@@ -98,8 +99,14 @@ $breadcrumbs = [
     @forelse($grid['parents'] as $parent)
         <section id="parent-{{ $parent['pcode'] }}" class="scroll-mt-4 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
             <div class="border-b border-gray-100 bg-gray-50 px-4 py-3">
-                <h2 class="font-semibold text-gray-900">{{ $parent['name'] }}</h2>
-                <p class="font-mono text-xs text-gray-500">{{ $parent['pcode'] }}</p>
+                <div class="flex items-center gap-3">
+                    <img src="{{ $parent['image_url'] }}" alt="" class="h-12 w-12 rounded-md border border-gray-200 object-cover"
+                         onerror="this.onerror=null;this.src='{{ asset('images/default-item.svg') }}'">
+                    <div>
+                        <h2 class="font-semibold text-gray-900">{{ $parent['name'] }}</h2>
+                        <p class="font-mono text-xs text-gray-500">{{ $parent['pcode'] }}</p>
+                    </div>
+                </div>
             </div>
             <div class="restock-grid-scroll p-2" data-parent-grid="{{ $parent['pcode'] }}"></div>
         </section>
