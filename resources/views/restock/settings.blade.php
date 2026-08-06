@@ -94,7 +94,7 @@ $receiverInitial = $settings['receiver']
 
             <div>
                 <label class="mb-1 block text-sm font-medium text-gray-700">Stock display warehouses</label>
-                <p class="mb-2 text-xs text-gray-500">Hover stock on the sheet grid sums qty from these warehouses only. Leave all unchecked to sum every warehouse.</p>
+                <p class="mb-2 text-xs text-gray-500">Stock column on the sheet grid sums qty from these warehouses only. Leave all unchecked to sum every warehouse.</p>
                 <div class="max-h-56 space-y-2 overflow-y-auto rounded-lg border border-gray-200 p-3">
                     @forelse($settings['warehouses'] as $warehouse)
                         <label class="flex items-center gap-2 text-sm text-gray-700">

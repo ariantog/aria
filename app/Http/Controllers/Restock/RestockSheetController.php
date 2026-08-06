@@ -10,6 +10,7 @@ use App\Services\Restock\RestockGridBuilder;
 use App\Services\Restock\RestockMoveService;
 use App\Services\Restock\RestockReceiveService;
 use App\Services\Restock\RestockSettingsService;
+use App\Services\Restock\RestockSheetExportService;
 use App\Services\Restock\RestockSheetService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -18,6 +19,7 @@ use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use InvalidArgumentException;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class RestockSheetController extends Controller
 {
@@ -28,6 +30,7 @@ class RestockSheetController extends Controller
     protected RestockMoveService $moveService,
     protected RestockReceiveService $receiveService,
     protected RestockSettingsService $settingsService,
+    protected RestockSheetExportService $exportService,
   ) {}
 
   public function store(Request $request, Tag $typeTag): RedirectResponse
@@ -61,7 +64,15 @@ class RestockSheetController extends Controller
       'typeTags' => $this->sheetService->typeTags(),
       'canEdit' => request()->user()?->can(RestockSheet::getPermissions()['edit']) ?? false,
       'receiveReady' => $receiveReady,
+      'stockWarehouseLabel' => $this->settingsService->stockDisplayLabel(),
     ]);
+  }
+
+  public function export(RestockSheet $sheet): StreamedResponse
+  {
+    Gate::authorize(RestockSheet::getPermissions()['view']);
+
+    return $this->exportService->download($sheet);
   }
 
   public function update(Request $request, RestockSheet $sheet): JsonResponse

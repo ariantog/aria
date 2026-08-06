@@ -124,6 +124,23 @@ class RestockSettingsService
         return (int) $warehouseItems->sum('quantity');
     }
 
+    public function stockDisplayLabel(): string
+    {
+        $warehouseIds = $this->stockDisplayWarehouseIds();
+
+        if ($warehouseIds === []) {
+            return 'All warehouses';
+        }
+
+        $names = Addrbook::query()
+            ->whereIn('id', $warehouseIds)
+            ->orderBy('name')
+            ->pluck('name')
+            ->all();
+
+        return $names !== [] ? implode(', ', $names) : 'Selected warehouses';
+    }
+
     protected function persistSetting(string $slug, string $name, mixed $value): void
     {
         Setting::updateOrCreate(

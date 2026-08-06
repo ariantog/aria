@@ -179,8 +179,53 @@ test('grid groups legacy full-sku pcodes into parent color rows and size columns
     expect($colors)->toBe(['BLUE', 'RED']);
 
     $blueRow = collect($grid['parents'][0]['rows'])->firstWhere('color_name', 'BLUE');
-    expect($blueRow)->toHaveKeys(['s_restock', 'm_restock', 's_production', 'm_production', 'restock_total']);
+    expect($blueRow)->toHaveKeys(['s_restock', 'm_restock', 's_production', 'm_production', 'restock_total', 'production_total', 'shipped_total', 'stock_total', 's_stock']);
     expect($blueRow['restock_total'])->toBe(0);
+});
+
+test('grid includes warehouse stock from configured warehouses', function () {
+    createAssetLancarSkus($this);
+
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    $sheet = app(RestockSheetService::class)->createSheet($this->typeTag, $this->user);
+    $cell = $sheet->cells()->with('item')->first();
+
+    WarehouseItem::create([
+        'warehouse_id' => $warehouse->id,
+        'warehouse_type' => $warehouse->type,
+        'item_id' => $cell->item_id,
+        'quantity' => 17,
+    ]);
+
+    Setting::updateOrCreate(['slug' => 'restock.default_warehouse_ids'], [
+        'group' => 'Restock',
+        'name' => 'Stock Display Warehouses',
+        'value' => [$warehouse->id],
+    ]);
+
+    $grid = app(RestockGridBuilder::class)->build($sheet->fresh());
+    $matched = false;
+
+    foreach ($grid['parents'][0]['rows'] as $row) {
+        foreach ($row['_meta'] as $prefix => $meta) {
+            if (($meta['cell_id'] ?? null) === $cell->id) {
+                expect($row[$prefix.'stock'])->toBe(17);
+                $matched = true;
+            }
+        }
+    }
+
+    expect($matched)->toBeTrue();
+});
+
+test('sheet export returns xlsx download', function () {
+    createAssetLancarSkus($this);
+    $sheet = app(RestockSheetService::class)->createSheet($this->typeTag, $this->user);
+
+    $this->actingAs($this->user)
+        ->get(route('restock.sheets.export', $sheet))
+        ->assertOk()
+        ->assertHeader('content-type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
 });
 
 test('grid resolves parent from code when pcode stores the full sku', function () {
@@ -392,7 +437,9 @@ test('sheet show page includes tabulator grid payload', function () {
         ->assertSee('parent-ELBOW-03', false)
         ->assertSee('parent-ELBOW-07', false)
         ->assertSee('tabulator-tables', false)
-        ->assertSee('Save sheet', false);
+        ->assertSee('Save sheet', false)
+        ->assertSee('Export Excel', false)
+        ->assertSee('Stock', false);
 });
 
 test('cannot create duplicate sheet for same type', function () {

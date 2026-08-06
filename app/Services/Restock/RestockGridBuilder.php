@@ -124,6 +124,9 @@ class RestockGridBuilder
                 ];
 
                 $restockTotal = 0;
+                $productionTotal = 0;
+                $shippedTotal = 0;
+                $stockTotal = 0;
 
                 foreach ($sizes as $sizeCode) {
                     $cell = $colorCells->first(fn (RestockCell $c) => $this->cellMatchesSize($c, $sizeCode));
@@ -147,10 +150,16 @@ class RestockGridBuilder
                     ];
 
                     $restockTotal += (int) $cell->qty_restock;
+                    $productionTotal += (int) $cell->qty_production;
+                    $shippedTotal += (int) $cell->qty_shipped;
+                    $stockTotal += $stock;
                 }
 
                 if (count($sizes) > 1) {
                     $row['restock_total'] = $restockTotal;
+                    $row['production_total'] = $productionTotal;
+                    $row['shipped_total'] = $shippedTotal;
+                    $row['stock_total'] = $stockTotal;
                 }
 
                 return $row;
