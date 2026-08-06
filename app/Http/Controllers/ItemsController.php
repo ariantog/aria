@@ -39,7 +39,7 @@ class ItemsController extends Controller
             ->when($request->filled('brand'), fn ($q) => $q->where('brand', $request->brand))
             ->when($request->filled('code'), fn ($q) => $q->where('code', 'like', "{$request->code}%"))
             ->when($request->filled('name'), fn ($q) => $q->where('name', 'like', "%{$request->name}%"))
-            ->when($request->filled('alias'), fn ($q) => $q->whereHas('group', fn ($s) => $s->where('alias', 'like', "%{$request->alias}%")))
+            ->when($request->filled('alias'), fn ($q) => $q->whereHas('group', fn ($s) => $s->where('name', 'like', "%{$request->alias}%")))
             ->when($request->filled('desc'), fn ($q) => $q->where(fn ($s) => $s
                 ->where('description', 'like', "%{$request->desc}%")
                 ->orWhereHas('group', fn ($g) => $g->where('description', 'like', "%{$request->desc}%"))
@@ -76,7 +76,7 @@ class ItemsController extends Controller
                     'qty' => $item->qty,
                     'image_url' => $item->image_url,
                     'jubelio_item_id' => $item->jubelio_item_id,
-                    'alias' => $item->group?->alias ?? $item->name,
+                    'alias' => $item->group?->name ?? $item->name,
                     'description' => $item->group?->description ?? $item->description,
                     'description2' => $item->group?->description2 ?? $item->description2,
                 ])->all(),
@@ -181,7 +181,7 @@ class ItemsController extends Controller
 
         $request->validate([
             'pcode' => ['required', 'string'],
-            'alias' => ['required', 'string', 'max:255'],
+            'alias' => $isAsset ? ['required', 'string', 'max:255'] : ['nullable', 'string', 'max:255'],
             'price' => ['nullable', 'numeric'],
             'cost' => $isAsset ? ['required', 'numeric'] : ['nullable'],
             'tags.types' => $isAsset ? ['nullable'] : ['required'],
@@ -280,7 +280,7 @@ class ItemsController extends Controller
 
         $query = ItemGroup::query()
             ->when($request->filled('kode'), fn ($q) => $q->where('name', 'like', "%{$request->kode}%"))
-            ->when($request->filled('alias'), fn ($q) => $q->where('alias', 'like', "%{$request->alias}%"))
+            ->when($request->filled('alias'), fn ($q) => $q->where('name', 'like', "%{$request->alias}%"))
             ->when($request->filled('desc'), fn ($q) => $q->where('description', 'like', "%{$request->desc}%"));
 
         return view('items.group', [
@@ -299,10 +299,41 @@ class ItemsController extends Controller
             ->with('warehouse'),
         ]);
 
+        $sampleItem = $group->items->first();
+        $isManufacturedGroup = $sampleItem && $sampleItem->type === ItemType::ITEM;
+        $pcode = $sampleItem?->pcode ?? '';
+        $usesPlaceholder = $isManufacturedGroup
+            && $pcode !== ''
+            && strtoupper($group->name) === strtoupper($pcode);
+
         return view('items.group-detail', [
             'group' => $group,
+            'pcode' => $pcode,
+            'usesPlaceholder' => $usesPlaceholder,
+            'canEditGroup' => auth()->user()->can(ItemGroup::getPermissions()['edit']),
             'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
+    }
+
+    public function updateGroup(Request $request, ItemGroup $group)
+    {
+        Gate::authorize(ItemGroup::getPermissions()['edit']);
+
+        $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+        ], [
+            'name.required' => 'Product name is required.',
+        ]);
+
+        try {
+            $this->itemService->renameGroupProductName($group, $request->input('name'));
+
+            return redirect()
+                ->route('items.group-detail', $group->id)
+                ->with('success', 'Product name updated for all items in this group.');
+        } catch (\Exception $e) {
+            return back()->withErrors(['message' => $e->getMessage()])->withInput();
+        }
     }
 
     public function groupStats(Request $request, ItemGroup $group)

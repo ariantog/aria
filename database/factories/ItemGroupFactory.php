@@ -19,7 +19,6 @@ class ItemGroupFactory extends Factory
         return [
             'name' => $this->faker->regexify('[A-Z]{2}[0-9]{5}'),
             'description' => $this->faker->sentence(),
-            'alias' => $this->faker->word(),
         ];
     }
 }

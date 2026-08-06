@@ -11,7 +11,7 @@ $breadcrumbs = [
 ];
 $warehouseItems = $item->warehouseItems ?? collect();
 $totalStock = $warehouseItems->sum('quantity');
-$groupAlias = optional($item->group)->alias ?? ($item->alias ?? '-');
+$groupProductName = optional($item->group)->name ?? '-';
 $desc = optional($item->group)->description ?? ($item->description ?? '-');
 $nb = optional($item->group)->description2 ?? ($item->description2 ?? '-');
 @endphp
@@ -76,7 +76,7 @@ $nb = optional($item->group)->description2 ?? ($item->description2 ?? '-');
                             <span class="min-w-[80px] font-medium text-gray-900">{{ $item->id }}</span>
                             <span class="h-4 w-px bg-gray-200"></span>
                             <div class="flex-1 rounded-md border border-gray-100 bg-gray-50 px-3 py-1.5">
-                                <span class="italic text-gray-500">{{ $groupAlias }}</span>
+                                <span class="italic text-gray-500">{{ $groupProductName }}</span>
                             </div>
                         </div>
                     </div>

@@ -20,6 +20,10 @@ $breadcrumbs = [
         </a>
     </div>
 
+    @if(session('success'))
+    <div class="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">{{ session('success') }}</div>
+    @endif
+
     {{-- Group info --}}
     <div class="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div class="overflow-hidden rounded-xl border border-gray-200 bg-white lg:col-span-1">
@@ -40,11 +44,45 @@ $breadcrumbs = [
             </div>
             <div class="p-6">
                 <div class="grid grid-cols-1 gap-x-12 gap-y-6 md:grid-cols-2">
-                    <div><p class="text-sm font-semibold uppercase tracking-wider text-gray-500">Group Name / PCode</p><p class="text-xl font-medium text-gray-900">{{ $group->name }}</p></div>
-                    <div><p class="text-sm font-semibold uppercase tracking-wider text-gray-500">Alias</p><p class="text-xl font-medium italic text-blue-600">{{ $group->alias ?: '-' }}</p></div>
+                    @if($pcode)
+                    <div>
+                        <p class="text-sm font-semibold uppercase tracking-wider text-gray-500">Production Code (PCode)</p>
+                        <p class="font-mono text-xl font-medium text-gray-900">{{ $pcode }}</p>
+                    </div>
+                    @endif
+                    <div>
+                        <p class="text-sm font-semibold uppercase tracking-wider text-gray-500">Product Name</p>
+                        <p class="text-xl font-medium text-gray-900">
+                            {{ $group->name }}
+                            @if($usesPlaceholder)
+                                <span class="ml-2 rounded bg-amber-100 px-2 py-0.5 text-xs font-normal text-amber-800">pcode placeholder</span>
+                            @endif
+                        </p>
+                    </div>
                     <div><p class="text-sm font-semibold uppercase tracking-wider text-gray-500">Master</p><p class="text-gray-700">{{ $group->master ?: '-' }}</p></div>
                     <div><p class="text-sm font-semibold uppercase tracking-wider text-gray-500">Variant</p><p class="text-gray-700">{{ $group->variant ?: '-' }}</p></div>
                     <div class="border-t border-gray-100 pt-4 md:col-span-2"><p class="text-sm font-semibold uppercase tracking-wider text-gray-500">Description</p><p class="leading-relaxed text-gray-700">{{ $group->description ?: 'No description available for this group.' }}</p></div>
+
+                    @if($canEditGroup)
+                    <div class="border-t border-gray-100 pt-4 md:col-span-2">
+                        <p class="mb-2 text-sm font-semibold uppercase tracking-wider text-gray-500">Rename Product</p>
+                        <p class="mb-3 text-sm text-gray-600">Updates the product name for every item in this group (all sizes with the same pcode).</p>
+                        <form method="POST" action="{{ route('items.group-update', $group->id) }}" class="flex flex-col gap-3 sm:flex-row sm:items-end">
+                            @csrf
+                            @method('PUT')
+                            <div class="flex-1">
+                                <label for="group-product-name" class="sr-only">Product name</label>
+                                <input id="group-product-name" type="text" name="name"
+                                       value="{{ old('name', $usesPlaceholder ? '' : $group->name) }}"
+                                       placeholder="{{ $pcode ?: 'Product name' }}"
+                                       class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 @error('name') border-red-500 @enderror">
+                                @error('name')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
+                            </div>
+                            <button type="submit" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Save Product Name</button>
+                        </form>
+                    </div>
+                    @endif
+
                     <div class="flex flex-wrap items-center gap-4 pt-4 md:col-span-2">
                         <label class="flex items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600">
                             <input type="checkbox" x-model="showZero" class="rounded border-gray-300"> Show 0 Quantity

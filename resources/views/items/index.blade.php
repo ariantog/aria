@@ -115,7 +115,7 @@ $idr = fn ($v) => 'Rp ' . number_format((float) $v, 0, ',', '.');
             <tbody class="divide-y divide-gray-100">
                 @forelse($items as $item)
                     @php
-                        $productName = $item->group?->name ?? $item->group?->alias ?? '-';
+                        $productName = $item->group?->name ?? '-';
                         $desc = $item->group?->description ?? $item->description;
                         $nb = $item->group?->description2 ?? $item->description2;
                     @endphp
