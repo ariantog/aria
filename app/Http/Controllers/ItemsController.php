@@ -181,7 +181,7 @@ class ItemsController extends Controller
 
         $request->validate([
             'pcode' => ['required', 'string'],
-            'product_name' => $isAsset ? ['required', 'string', 'max:255'] : ['nullable', 'string', 'max:255'],
+            'product_name' => ['nullable', 'string', 'max:255'],
             'price' => ['nullable', 'numeric'],
             'cost' => $isAsset ? ['required', 'numeric'] : ['nullable'],
             'tags.types' => $isAsset ? ['nullable'] : ['required'],

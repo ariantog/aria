@@ -239,3 +239,94 @@ test('it rejects duplicate sku on create', function () {
 
     $this->itemService->create($input, $tags);
 })->throws(Exception::class, 'SKU already exists');
+
+test('it preserves legacy_code when updating manufactured item to new sku format', function () {
+    $item = Item::factory()->create([
+        'type' => ItemType::ITEM,
+        'code' => 'OLD-JUBELIO-SKU',
+        'legacy_code' => 'OLD-JUBELIO-SKU',
+        'pcode' => 'CX90233-23',
+        'group_id' => null,
+    ]);
+    $item->tags()->sync([$this->typeTag->id, $this->sizeTag->id, $this->warnaTag->id]);
+
+    $this->itemService->update($item->id, (object) [
+        'pcode' => 'CX90233-23',
+        'type' => ItemType::ITEM->value,
+        'product_name' => 'Slash Running Shirt',
+        'price' => 100000,
+    ], [
+        'types' => [$this->typeTag->id],
+        'sizes' => [$this->sizeTag->id],
+        'warna' => $this->warnaTag->id,
+        'jahit' => [$this->jahitTag->id],
+    ]);
+
+    $item->refresh();
+
+    expect($item->code)->toBe('AJD-CX90233-23-S')
+        ->and($item->legacy_code)->toBe('OLD-JUBELIO-SKU');
+});
+
+test('it snapshots legacy_code from old code on first manufactured item identity update', function () {
+    $item = Item::factory()->create([
+        'type' => ItemType::ITEM,
+        'code' => 'LEGACY-SKU-BEFORE-MIGRATION',
+        'legacy_code' => null,
+        'pcode' => 'CX90233-23',
+        'group_id' => null,
+    ]);
+    $item->tags()->sync([$this->typeTag->id, $this->sizeTag->id, $this->warnaTag->id]);
+
+    $this->itemService->update($item->id, (object) [
+        'pcode' => 'CX90233-23',
+        'type' => ItemType::ITEM->value,
+        'product_name' => 'Slash Running Shirt',
+        'price' => 100000,
+    ], [
+        'types' => [$this->typeTag->id],
+        'sizes' => [$this->sizeTag->id],
+        'warna' => $this->warnaTag->id,
+        'jahit' => [$this->jahitTag->id],
+    ]);
+
+    $item->refresh();
+
+    expect($item->code)->toBe('AJD-CX90233-23-S')
+        ->and($item->legacy_code)->toBe('LEGACY-SKU-BEFORE-MIGRATION');
+});
+
+test('it auto creates parent group when updating legacy asset lancar without group', function () {
+    $item = Item::factory()->create([
+        'type' => ItemType::ASSET_LANCAR,
+        'group_id' => null,
+        'code' => 'GLOVE-01-BLUE-S',
+        'pcode' => 'GLOVE-01',
+        'name' => 'BOXING GLOVES - BLUE - S',
+        'price' => 500000,
+        'cost' => 300000,
+    ]);
+    $item->tags()->sync([$this->sizeTag->id, $this->warnaTag->id]);
+
+    $this->itemService->update($item->id, (object) [
+        'pcode' => 'GLOVE-01',
+        'type' => ItemType::ASSET_LANCAR->value,
+        'price' => 550000,
+        'cost' => 320000,
+    ], [
+        'sizes' => [$this->sizeTag->id],
+        'warna' => $this->warnaTag->id,
+    ]);
+
+    $item->refresh();
+
+    expect($item->group_id)->not->toBeNull();
+    $this->assertDatabaseHas('item_groups', [
+        'id' => $item->group_id,
+        'master' => 'GLOVE-01',
+        'variant' => 'BLUE',
+        'name' => 'BOXING GLOVES',
+    ]);
+    expect($item->code)->toBe('GLOVE-01-BLUE-S')
+        ->and($item->price)->toBe('550000.00');
+});
