@@ -1,14 +1,18 @@
 @php
 $activeCode = $activeTypeTag?->code;
 @endphp
-<div class="flex flex-wrap gap-1 border-b border-gray-200 pb-2">
-    @foreach($typeTags as $tag)
-        <a href="{{ route('restock.type.show', $tag) }}"
-           class="rounded-md px-3 py-1.5 text-sm font-medium {{ $activeCode === $tag->code ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200' }}">
-            {{ $tag->name }}
-            @if(isset($tag->sheet_count) && $tag->sheet_count > 0)
-                <span class="ml-1 text-xs opacity-80">({{ $tag->sheet_count }})</span>
-            @endif
-        </a>
-    @endforeach
+<div class="rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <label for="restock-type-select" class="shrink-0 text-sm font-medium text-gray-700">Product type</label>
+        <select id="restock-type-select"
+                class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 sm:max-w-md"
+                onchange="if (this.value) window.location.href = this.value">
+            @foreach($typeTags as $tag)
+                <option value="{{ route('restock.type.show', $tag) }}" @selected($activeCode === $tag->code)>
+                    {{ $tag->name }}
+                </option>
+            @endforeach
+        </select>
+        <p class="text-xs text-gray-500 sm:ml-auto">{{ $typeTags->count() }} types</p>
+    </div>
 </div>

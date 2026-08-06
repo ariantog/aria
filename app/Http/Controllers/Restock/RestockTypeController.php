@@ -12,44 +12,43 @@ use Illuminate\View\View;
 
 class RestockTypeController extends Controller
 {
-    public function __construct(
-        protected RestockSheetService $sheetService,
-    ) {}
+  public function __construct(
+    protected RestockSheetService $sheetService,
+  ) {}
 
-    public function index(): RedirectResponse|View
-    {
-        Gate::authorize(RestockSheet::getPermissions()['view']);
+  public function index(): RedirectResponse|View
+  {
+    Gate::authorize(RestockSheet::getPermissions()['view']);
 
-        $typeTags = $this->sheetService->typeTags();
+    $typeTags = $this->sheetService->typeTags();
 
-        if ($typeTags->isEmpty()) {
-            return view('restock.type-index', [
-                'typeTags' => $typeTags,
-                'activeTypeTag' => null,
-                'typeSheet' => null,
-                'canCreateSheet' => false,
-            ]);
-        }
-
-        return redirect()->route('restock.type.show', $typeTags->first());
+    if ($typeTags->isEmpty()) {
+      return view('restock.type-index', [
+        'typeTags' => $typeTags,
+        'activeTypeTag' => null,
+        'parents' => collect(),
+        'sheet' => null,
+        'canCreateSheet' => false,
+      ]);
     }
 
-    public function show(Tag $typeTag): View
-    {
-        Gate::authorize(RestockSheet::getPermissions()['view']);
+    return redirect()->route('restock.type.show', $typeTags->first());
+  }
 
-        abort_unless((int) $typeTag->type === Tag::TYPE_TYPE, 404);
-        abort_if(
-            (int) $typeTag->item_type === RestockSheetService::EXCLUDED_TYPE_TAG_ITEM_TYPE,
-            404,
-        );
+  public function show(Tag $typeTag): View
+  {
+    Gate::authorize(RestockSheet::getPermissions()['view']);
 
-        return view('restock.type-index', [
-            'typeTags' => $this->sheetService->typeTags(),
-            'activeTypeTag' => $typeTag,
-            'typeSheet' => $this->sheetService->typeSheetSummary($typeTag),
-            'canCreateSheet' => $this->sheetService->canCreateSheetForType($typeTag)
-                && (request()->user()?->can(RestockSheet::getPermissions()['create']) ?? false),
-        ]);
-    }
+    abort_unless((int) $typeTag->type === Tag::TYPE_TYPE, 404);
+    abort_unless(RestockSheetService::isAssetLancarTypeTag($typeTag), 404);
+
+    return view('restock.type-index', [
+      'typeTags' => $this->sheetService->typeTags(),
+      'activeTypeTag' => $typeTag,
+      'parents' => $this->sheetService->parentsForType($typeTag),
+      'sheet' => $this->sheetService->sheetForType($typeTag),
+      'canCreateSheet' => $this->sheetService->canCreateSheetForType($typeTag)
+        && (request()->user()?->can(RestockSheet::getPermissions()['create']) ?? false),
+    ]);
+  }
 }
