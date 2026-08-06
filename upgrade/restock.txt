@@ -1,0 +1,324 @@
+================================================================================
+RESTOCK FEATURE — CONTEXT FOR NEXT AGENT
+Items, Asset Lancar, and how they connect to Restock
+================================================================================
+
+Read this before working on the restock module. For item identity migration
+steps see upgrade/items.txt. For general project rules see AGENTS.md.
+
+--------------------------------------------------------------------------------
+1. TWO INVENTORY TYPES THAT USE RESTOCK
+--------------------------------------------------------------------------------
+
+Both manufactured items and asset lancar can be added to restock. They share
+the same Item model (table: items) but differ by items.type:
+
+  ItemType::ITEM          = 1   "Manufactured item"   UI: /items
+  ItemType::ASSET_LANCAR  = 2   "Asset lancar"        UI: /assetlancar
+
+Routes / pages:
+  /items          ItemsController@index          manufactured only
+  /assetlancar    ItemsController@indexAsset     asset lancar only
+  /items-group    group list + group detail
+
+RestockController@addItem explicitly allows both types when expanding a group:
+  ->whereIn('type', [ItemType::ITEM, ItemType::ASSET_LANCAR])
+
+Asset tetap (3) and service (5) are NOT part of restock today.
+
+
+--------------------------------------------------------------------------------
+2. ITEM IDENTITY (post PRs #1–#5) — WHAT RESTOCK MUST RESPECT
+--------------------------------------------------------------------------------
+
+### 2.1 SKU — items.code
+
+Manufactured item (type=1):
+  {TYPE tag code}-{pcode}-{size?}
+  Example: AJD-CX90324-05-S
+  TYPE tag = SKU prefix (Jacket, Dress, etc.) — tag type 3, code column
+  Color is NOT in SKU; color lives in pcode suffix and warna tag.
+
+Asset lancar (type=2):
+  {pcode}-{warna code}-{size?}
+  Example: GLOVE-01-BLACK-S
+  Warna IS in SKU.
+
+All-size (tag code AS): omit trailing -{size} segment.
+
+legacy_code column: old SKU preserved for Jubelio/barcode lookup during
+transition. Item::findBySku() and findManyBySkus() match code OR legacy_code.
+Restock add-by-code currently uses:
+  Item::where('id', $code)->orWhere('code', $code)
+  → should also check legacy_code when touching lookup logic.
+
+
+### 2.2 Production code — items.pcode
+
+Manufactured:  [2-3 letters][5 digits]-[2-3 digits]   e.g. CX90233-23
+Asset lancar:  [chars]-[chars]                        e.g. GLOVE-01
+
+The color variant number for manufactured items is the pcode suffix after the
+hyphen (23 in CX90233-23). One pcode = one color batch.
+
+
+### 2.3 Display name — items.name
+
+  {group.name} - {warna tag code} - {size tag code}
+  Example: SLASH RUNNING SHIRT - BLUE - S
+
+Manufactured items may use pcode as placeholder product name until market
+release: CX93249-03 - BLUE - S
+
+
+### 2.4 Item groups — item_groups
+
+Groups batch variants. Key columns:
+  master   — pcode master segment (CX90233) or full asset pcode (GLOVE-01)
+  variant  — manufactured: pcode color suffix (23); asset: warna tag code
+  name     — product name (was alias; alias column dropped in PR #5)
+
+One manufactured pcode (e.g. CX90233-23) = one group = all sizes same color.
+
+Group detail page: /items-group/{id} — rename product name propagates to all
+items in group.
+
+
+### 2.5 Tags (item_tag pivot + items.tag_ids legacy string)
+
+Relevant tag types for restock matrix:
+
+  TYPE_TYPE  = 3   SKU prefix for manufactured items only
+  TYPE_SIZE  = 7   S, M, L, XL, 8OZ, AS, etc.
+  TYPE_WARNA = 20  color; code = UPPER(name) after migration
+
+Restock rows store color_id and size_id referencing tags.id.
+size_id can also be the string 'all' for undifferentiated size pools.
+
+Size type tabs on restock index:
+  alpha-size  → S, M, L, XL
+  volum-size  → 8OZ, 10OZ, 12OZ, 14OZ
+  all         → everything else / non-matrix
+
+
+--------------------------------------------------------------------------------
+3. WAREHOUSE STOCK vs RESTOCK PIPELINE
+--------------------------------------------------------------------------------
+
+These are SEPARATE concepts:
+
+  warehouse_items.quantity  — actual stock per warehouse (updated by Buy/Sell/
+                              Move transactions via InventoryService)
+
+  restocks.*_quantity       — pipeline tracking BEFORE goods hit warehouse:
+                              ordered → production → shipped → received
+
+Restock does NOT directly increment warehouse_items until the "received" flow
+creates a Buy transaction (see section 5).
+
+
+--------------------------------------------------------------------------------
+4. RESTOCK DATA MODEL
+--------------------------------------------------------------------------------
+
+Table: restocks
+  item_id                 nullable FK → items (specific SKU row)
+  group_id                nullable FK → item_groups
+  color_id                nullable FK → tags (warna)
+  size_id                 tag id OR string 'all'
+  size_type               'alpha-size' | 'volum-size' | 'all'
+  date
+  status                  integer (legacy; mostly 1)
+  restocked_quantity      qty in "restocked" stage
+  in_production_quantity  qty sent to production
+  shipped_quantity        qty shipped from factory
+  missing_quantity        qty marked missing
+
+Table: restock_histories — audit log per quantity change
+  restock_id, item_id, group_id, color_id, size_id
+  step: restocked | production | shipped | missing | received
+  action: created | edited | reset
+  qty_before, qty_after, qty_changed, user_id, date, invoice
+
+A restock row can exist:
+  (a) per item_id — one SKU tracked precisely, OR
+  (b) per group_id + color_id + size_id — attribute pool before item row exists
+
+item_id was originally required; migration made it nullable to support (b).
+
+
+--------------------------------------------------------------------------------
+5. RESTOCK WORKFLOW (USER JOURNEY)
+--------------------------------------------------------------------------------
+
+Stage pipeline (quantities move forward, not created from nothing except restocked):
+
+  restocked  →  in_production  →  shipped  →  received (warehouse)
+                    ↘ missing (from restocked, production, or shipped)
+
+### 5.1 Register new restock — /restock/create
+
+Cache key: cart_items_user_{userId}  (1 hour TTL)
+
+Add methods (POST /restock/add-item):
+  1. By code: item id, items.code, or group id / group.master / group.name
+  2. By attributes: group_id + color_id + size_id (+ size_type)
+
+Group add: expands to all ITEM + ASSET_LANCAR items in group, each cart line
+carries group_id, color_id, size_id, size_type from item tags.
+
+Duplicate guards: won't add if already in cache OR already in restocks table.
+
+Submit (POST /restock): writes restocks + restock_histories, clears cache.
+
+Entry points elsewhere:
+  items/group-detail.blade.php — "Add Group to Restock" (posts group id)
+  items/group-detail item rows — "Restock" (posts item code)
+
+
+### 5.2 Matrix index — /restock
+
+Server-rendered HTML table + Alpine.js (NOT Tabulator yet — AGENTS.md reserves
+Tabulator for future restock enhancements).
+
+Filters:
+  size_type: alpha | volume | all
+  status: restocked | production | shipped | missing  (which qty column to show)
+  code: search pcode / group name
+
+Rows aggregated by: group + pcode + color (+ size when size_type=all).
+Columns pivot S/M/L/XL or 8OZ/10OZ/12OZ/14OZ for matrix tabs.
+
+Bulk actions (POST /restock/bulk-update, JSON):
+  add_stock, to_production, to_shipped, to_arrived, to_missing
+
+to_arrived: moves qty into gudang cart (separate cache), does NOT receive yet.
+
+
+### 5.3 Gudang (received) cart — /restock/received
+
+Cache key: gudang_cart_user_{userId}
+
+Items added from shipped restock rows. POST /restock/received/store:
+  - Validates shipped_quantity >= cart qty per item
+  - Creates Buy transaction (hardcoded parties):
+      sender_id   = 373   (Supplier Umum)
+      receiver_id = 2875  (Gudang - Online Sambisari)
+  - Creates transaction_details, calls TransactionService::handleTransaction
+  - Decrements shipped_quantity, writes history step=received
+  - Clears gudang cart
+
+This is how restock connects to real inventory.
+
+
+### 5.4 Excel import — /restock/upload
+
+RestockImport: columns [item code/id, qty]. Matches item by id or code only.
+Types: restocked | production | shipped | missing (movement rules like controller).
+
+
+--------------------------------------------------------------------------------
+6. KEY FILES
+--------------------------------------------------------------------------------
+
+Controller:   app/Http/Controllers/RestockController.php
+Models:       app/Models/Restock.php
+              app/Models/RestockHistory.php
+              app/Models/Item.php
+              app/Models/ItemGroup.php
+              app/Models/Tag.php
+Import:       app/Imports/RestockImport.php
+Views:        resources/views/restock/
+              index.blade.php    matrix + bulk actions
+              create.blade.php   registration cart
+              received.blade.php gudang cart → buy transaction
+              update.blade.php   single-row qty edit
+              history.blade.php  audit trail
+              upload-excel.blade.php
+Routes:       routes/web.php  prefix restock.*
+Tests:        tests/Feature/RestockTest.php
+              tests/Feature/RestockIndexTest.php
+Identity:     app/Services/Items/ItemIdentityBuilder.php
+              app/Services/ItemService.php
+
+
+--------------------------------------------------------------------------------
+7. PERMISSIONS (Spatie)
+--------------------------------------------------------------------------------
+
+  restock-list     view index, received, upload
+  restock-create   create cart, store, import
+  restock-edit     bulk update, qty changes, gudang cart
+  restock-delete   (defined; limited use in UI)
+  restock-history  view /restock/{id}/history
+
+
+--------------------------------------------------------------------------------
+8. MANUFACTURED vs ASSET LANCAR — RESTOCK IMPLICATIONS
+--------------------------------------------------------------------------------
+
+| Aspect              | Manufactured (type=1)        | Asset lancar (type=2)      |
+|---------------------|-----------------------------|----------------------------|
+| Typical restock use | Factory order by pcode/color| Gloves, equipment batches  |
+| Group key           | master + variant (pcode)    | master=pcode, variant=warna|
+| SKU lookup          | TYPE-pcode-size             | pcode-warna-size           |
+| Color in matrix     | color_id = warna tag        | same                       |
+| Product name        | optional (pcode placeholder)| required                   |
+| TYPE tag            | required on create          | not used in SKU            |
+
+Matrix "SKU/Code" column shows pcode (or group master), NOT full items.code.
+When resolving item for gudang receive, restock MUST have item_id linked.
+
+handleBulkArrived / addToGudangCart: if item_id missing, tries to find item by
+group_id + color tag + size tag — may fail if SKU doesn't exist yet.
+
+
+--------------------------------------------------------------------------------
+9. KNOWN GAPS / LIKELY RESTOCK WORK ITEMS
+--------------------------------------------------------------------------------
+
+[ ] Item lookup by legacy_code in addItem, RestockImport, search filter
+[ ] Index query bug risk: search uses item_groups.name but join alias may be
+    wrong (ig_direct / ig_item — verify after identity migration)
+[ ] Palette: restock views still use zinc-* ; rest of app uses gray-* (AGENTS.md)
+[ ] Tabulator.js: AGENTS.md says restock page is the intended Tabulator target;
+    current index is server-rendered + Alpine bulk edit
+[ ] Hardcoded addrbook ids (373, 2875) in receiveStore — may need settings
+[ ] Attribute-only restock rows (no item_id) cannot complete receive until
+    matching Item rows exist with correct tags
+[ ] size_id stored as string 'all' vs integer tag id — inconsistent typing
+[ ] Group add by master may not match new pcode format (CX90233 vs CX90233-23)
+[ ] No asset-lancar-specific restock UI; same flows as manufactured
+
+
+--------------------------------------------------------------------------------
+10. TESTING NOTES
+--------------------------------------------------------------------------------
+
+  ./vendor/bin/pest tests/Feature/RestockTest.php
+  ./vendor/bin/pest tests/Feature/RestockIndexTest.php
+
+Tests use Cache for carts; permission restock-create required.
+Factory items may not have tags attached — tag-dependent flows need explicit
+Tag::factory + item_tag sync in tests.
+
+Manual smoke path:
+  1. Create item(s) with warna + size tags
+  2. /restock/create → add by SKU → store
+  3. /restock → bulk to_production → to_shipped → to_arrived
+  4. /restock/received → receive store → verify Buy transaction + warehouse qty
+
+
+--------------------------------------------------------------------------------
+11. KICKOFF PROMPT TEMPLATE (for next chat)
+--------------------------------------------------------------------------------
+
+  Goal: <restock feature / fix>
+  Where: RestockController / restock/index / ...
+  Acceptance: <matrix behavior, receive flow, etc.>
+  Notes: Read upgrade/restock.txt + upgrade/items.txt. Manufactured vs asset
+         lancar SKU rules differ. Queue worker must run for transaction summaries.
+
+================================================================================
+END
+================================================================================
