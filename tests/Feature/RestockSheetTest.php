@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\ItemType;
+use App\Models\RestockCellHistory;
 use App\Models\RestockSheet;
 use App\Models\Tag;
 use App\Models\User;
@@ -19,13 +20,13 @@ beforeEach(function () {
         'type' => Tag::TYPE_TYPE,
         'code' => 'ELBOW',
         'name' => 'Elbow',
-        'item_type' => 0,
+        'item_type' => ItemType::ASSET_LANCAR->value,
     ]);
     $this->manufacturedTypeTag = Tag::factory()->create([
         'type' => Tag::TYPE_TYPE,
         'code' => 'AJD',
         'name' => 'Jacket',
-        'item_type' => 2,
+        'item_type' => ItemType::ITEM->value,
     ]);
     $this->warnaBlue = Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'BLUE', 'name' => 'BLUE']);
     $this->warnaRed = Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'RED', 'name' => 'RED']);
@@ -55,7 +56,7 @@ function createAssetLancarSkus(object $context, string $pcode = 'ELBOW-03', stri
     $itemService->create($input, $tags);
 }
 
-test('type tabs exclude manufactured tags with item_type 2', function () {
+test('type tabs only include asset lancar tags with item_type 2', function () {
     $tags = app(RestockSheetService::class)->typeTags();
 
     expect($tags->pluck('id'))->toContain($this->typeTag->id);
@@ -70,16 +71,16 @@ test('restock index redirects to first asset lancar type tab', function () {
         ->assertRedirect(route('restock.type.show', $this->typeTag));
 });
 
-test('type landing shows one sheet row per type', function () {
+test('type landing lists parent pcodes under the type', function () {
     createAssetLancarSkus($this);
     createAssetLancarSkus($this, 'ELBOW-07', 'Elbow Support v2');
 
     $this->actingAs($this->user)
         ->get(route('restock.type.show', $this->typeTag))
         ->assertOk()
-        ->assertSee('Elbow')
-        ->assertSee('Start tracking')
-        ->assertSee('2', false); // parent pcode count
+        ->assertSee('ELBOW-03')
+        ->assertSee('ELBOW-07')
+        ->assertSee('Start tracking Elbow');
 });
 
 test('creating a sheet seeds cells for every sku under the type', function () {
@@ -96,6 +97,23 @@ test('creating a sheet seeds cells for every sku under the type', function () {
     expect($sheet->cells)->toHaveCount(8);
 
     $response->assertRedirect(route('restock.sheets.show', $sheet));
+});
+
+test('sheet save writes cell histories', function () {
+    createAssetLancarSkus($this);
+    $sheet = app(RestockSheetService::class)->createSheet($this->typeTag, $this->user);
+    $cell = $sheet->cells()->first();
+
+    $this->actingAs($this->user)
+        ->putJson(route('restock.sheets.update', $sheet), [
+            'cells' => [
+                ['id' => $cell->id, 'qty_restock' => 25, 'qty_production' => 0, 'qty_shipped' => 0],
+            ],
+        ])
+        ->assertSuccessful();
+
+    expect($cell->fresh()->qty_restock)->toBe(25);
+    expect(RestockCellHistory::where('restock_cell_id', $cell->id)->count())->toBe(1);
 });
 
 test('sync skus adds cells when new variants are created', function () {
@@ -126,7 +144,7 @@ test('sync skus adds cells when new variants are created', function () {
     expect($sheet->fresh()->cells)->toHaveCount(5);
 });
 
-test('sheet show page groups cells by parent pcode', function () {
+test('sheet show page includes tabulator grid payload', function () {
     createAssetLancarSkus($this);
     createAssetLancarSkus($this, 'ELBOW-07', 'Elbow Support v2');
 
@@ -135,10 +153,10 @@ test('sheet show page groups cells by parent pcode', function () {
     $this->actingAs($this->user)
         ->get(route('restock.sheets.show', $sheet))
         ->assertOk()
-        ->assertSee('ELBOW-03')
-        ->assertSee('ELBOW-07')
-        ->assertSee('ELBOW-03-BLUE-S')
-        ->assertSee('ELBOW-07-RED-M');
+        ->assertSee('parent-ELBOW-03', false)
+        ->assertSee('parent-ELBOW-07', false)
+        ->assertSee('tabulator-tables', false)
+        ->assertSee('Save sheet', false);
 });
 
 test('cannot create duplicate sheet for same type', function () {

@@ -5,7 +5,10 @@ namespace App\Http\Controllers\Restock;
 use App\Http\Controllers\Controller;
 use App\Models\RestockSheet;
 use App\Models\Tag;
+use App\Services\Restock\RestockCellService;
+use App\Services\Restock\RestockGridBuilder;
 use App\Services\Restock\RestockSheetService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -14,51 +17,78 @@ use InvalidArgumentException;
 
 class RestockSheetController extends Controller
 {
-    public function __construct(
-        protected RestockSheetService $sheetService,
-    ) {}
+  public function __construct(
+    protected RestockSheetService $sheetService,
+    protected RestockGridBuilder $gridBuilder,
+    protected RestockCellService $cellService,
+  ) {}
 
-    public function store(Request $request, Tag $typeTag): RedirectResponse
-    {
-        Gate::authorize(RestockSheet::getPermissions()['create']);
+  public function store(Request $request, Tag $typeTag): RedirectResponse
+  {
+    Gate::authorize(RestockSheet::getPermissions()['create']);
 
-        abort_unless((int) $typeTag->type === Tag::TYPE_TYPE, 404);
+    abort_unless(RestockSheetService::isAssetLancarTypeTag($typeTag), 404);
 
-        try {
-            $sheet = $this->sheetService->createSheet($typeTag, $request->user());
-        } catch (InvalidArgumentException $e) {
-            return back()->with('error', $e->getMessage());
-        }
-
-        return redirect()
-            ->route('restock.sheets.show', $sheet)
-            ->with('success', "Restock sheet for {$sheet->name} created.");
+    try {
+      $sheet = $this->sheetService->createSheet($typeTag, $request->user());
+    } catch (InvalidArgumentException $e) {
+      return back()->with('error', $e->getMessage());
     }
 
-    public function show(RestockSheet $sheet): View
-    {
-        Gate::authorize(RestockSheet::getPermissions()['view']);
+    return redirect()
+      ->route('restock.sheets.show', $sheet)
+      ->with('success', "Restock sheet for {$sheet->name} created.");
+  }
 
-        $sheet->load(['typeTag', 'representativeGroup']);
+  public function show(RestockSheet $sheet): View
+  {
+    Gate::authorize(RestockSheet::getPermissions()['view']);
 
-        return view('restock.sheet', [
-            'sheet' => $sheet,
-            'parentGroups' => $this->sheetService->cellsGroupedByParent($sheet),
-            'typeTags' => $this->sheetService->typeTags(),
-        ]);
+    $sheet->load(['typeTag', 'representativeGroup']);
+
+    return view('restock.sheet', [
+      'sheet' => $sheet,
+      'grid' => $this->gridBuilder->build($sheet),
+      'typeTags' => $this->sheetService->typeTags(),
+      'canEdit' => request()->user()?->can(RestockSheet::getPermissions()['edit']) ?? false,
+    ]);
+  }
+
+  public function update(Request $request, RestockSheet $sheet): JsonResponse
+  {
+    Gate::authorize(RestockSheet::getPermissions()['edit']);
+
+    $validated = $request->validate([
+      'cells' => ['required', 'array'],
+      'cells.*.id' => ['required', 'integer'],
+      'cells.*.qty_restock' => ['nullable', 'integer', 'min:0'],
+      'cells.*.qty_production' => ['nullable', 'integer', 'min:0'],
+      'cells.*.qty_shipped' => ['nullable', 'integer', 'min:0'],
+    ]);
+
+    try {
+      $changes = $this->cellService->saveQuantities($sheet, $validated['cells'], $request->user());
+    } catch (InvalidArgumentException $e) {
+      return response()->json(['message' => $e->getMessage()], 422);
     }
 
-    public function sync(Request $request, RestockSheet $sheet): RedirectResponse
-    {
-        Gate::authorize(RestockSheet::getPermissions()['edit']);
+    return response()->json([
+      'message' => $changes > 0 ? "Saved {$changes} change(s)." : 'No changes to save.',
+      'changes' => $changes,
+    ]);
+  }
 
-        $added = $this->sheetService->syncSkus($sheet);
+  public function sync(Request $request, RestockSheet $sheet): RedirectResponse
+  {
+    Gate::authorize(RestockSheet::getPermissions()['edit']);
 
-        return back()->with(
-            'success',
-            $added > 0
-                ? "Added {$added} new SKU cell(s) from the item catalog."
-                : 'Sheet is already up to date with the item catalog.',
-        );
-    }
+    $added = $this->sheetService->syncSkus($sheet);
+
+    return back()->with(
+      'success',
+      $added > 0
+        ? "Added {$added} new SKU cell(s) from the item catalog."
+        : 'Sheet is already up to date with the item catalog.',
+    );
+  }
 }
