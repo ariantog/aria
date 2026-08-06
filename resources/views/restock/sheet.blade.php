@@ -7,6 +7,7 @@
     .tabulator .tabulator-header .tabulator-col.tabulator-col-group-restock { background: #dbeafe; }
     .tabulator .tabulator-header .tabulator-col.tabulator-col-group-production { background: #fde68a; }
     .tabulator .tabulator-header .tabulator-col.tabulator-col-group-shipped { background: #e5e7eb; }
+    .tabulator .tabulator-header .tabulator-col.tabulator-col-group-stock { background: #d1fae5; }
     .tabulator-cell.tabulator-editing { border: 2px solid #2563eb !important; }
     .restock-urgent-cell { background-color: #fef2f2 !important; color: #b91c1c; font-weight: 600; }
     .restock-grid-scroll { overflow-x: auto; }
@@ -65,6 +66,10 @@ $breadcrumbs = [
                 </button>
             </form>
             @endcan
+            <a href="{{ route('restock.sheets.export', $sheet) }}"
+               class="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                Export Excel
+            </a>
             <a href="{{ route('restock.type.missing', $sheet->typeTag) }}"
                class="rounded-md border border-red-200 bg-red-50 px-3 py-1.5 text-sm font-medium text-red-800 hover:bg-red-100">
                 Missing SKUs
@@ -84,7 +89,7 @@ $breadcrumbs = [
     <div x-show="error" x-cloak class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" x-text="error"></div>
 
     <div class="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
-        Select color row(s) with the checkboxes, then use move buttons to advance quantities through the pipeline, or <strong>Receive → Warehouse</strong> for shipped qty. Edit restock / production / shipped cells directly and click <strong>Save sheet</strong> for manual adjustments. Any receive shortfall is recorded automatically on the <a href="{{ route('restock.type.missing', $sheet->typeTag) }}" class="font-medium underline">Missing SKUs</a> page.
+        Select color row(s) with the checkboxes, then use move buttons to advance quantities through the pipeline, or <strong>Receive → Warehouse</strong> for shipped qty. Edit restock / production / shipped cells directly and click <strong>Save sheet</strong> for manual adjustments. <strong>Stock</strong> shows warehouse qty from settings ({{ $stockWarehouseLabel }}). Any receive shortfall is recorded on the <a href="{{ route('restock.type.missing', $sheet->typeTag) }}" class="font-medium underline">Missing SKUs</a> page.
         @unless($receiveReady)
             <span class="mt-1 block text-amber-800">Receive is disabled until defaults are configured in <a href="{{ route('restock.settings.edit') }}" class="font-medium underline">Restock settings</a>.</span>
         @endunless
@@ -213,20 +218,15 @@ function restockSheetPage() {
         },
 
         buildColumns(sizes) {
-            const qtyCol = {
-                width: 58,
-                widthGrow: 0,
-                editor: this.canEdit ? 'number' : false,
-            };
-
             const cols = [
                 { title: 'Color', field: 'color_name', frozen: true, width: 130, widthGrow: 0, hozAlign: 'left', headerHozAlign: 'left', editor: false },
             ];
 
             const stages = [
-                { key: 'restock', title: 'Restock', groupClass: 'tabulator-col-group-restock' },
-                { key: 'production', title: 'Production', groupClass: 'tabulator-col-group-production' },
-                { key: 'shipped', title: 'Shipped', groupClass: 'tabulator-col-group-shipped' },
+                { key: 'restock', title: 'Restock', groupClass: 'tabulator-col-group-restock', editable: true },
+                { key: 'production', title: 'Production', groupClass: 'tabulator-col-group-production', editable: true },
+                { key: 'shipped', title: 'Shipped', groupClass: 'tabulator-col-group-shipped', editable: true },
+                { key: 'stock', title: 'Stock', groupClass: 'tabulator-col-group-stock', editable: false },
             ];
 
             for (const stage of stages) {
@@ -236,24 +236,17 @@ function restockSheetPage() {
                     return {
                         title: size,
                         field,
-                        ...qtyCol,
-                        editor: this.canEdit ? 'number' : false,
-                        formatter: (cell) => {
-                            const val = cell.getValue() ?? 0;
-                            const row = cell.getRow().getData();
-                            const stock = row[prefix + 'stock'];
-                            if (stock != null) {
-                                cell.getElement().setAttribute('title', `Warehouse stock: ${stock}`);
-                            }
-                            return val;
-                        },
+                        width: 58,
+                        widthGrow: 0,
+                        editor: stage.editable && this.canEdit ? 'number' : false,
+                        formatter: (cell) => cell.getValue() ?? 0,
                     };
                 });
 
-                if (stage.key === 'restock' && sizes.length > 1) {
+                if (sizes.length > 1) {
                     children.push({
                         title: 'Total',
-                        field: 'restock_total',
+                        field: stage.key + '_total',
                         width: 64,
                         widthGrow: 0,
                         editor: false,
