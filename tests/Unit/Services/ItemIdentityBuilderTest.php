@@ -26,7 +26,7 @@ beforeEach(function () {
     $this->warnaTag = Tag::factory()->create([
         'type' => Tag::TYPE_WARNA,
         'code' => 'BLUE',
-        'name' => 'Blue',
+        'name' => 'BLUE',
     ]);
 
     $this->allSizeTag = Tag::factory()->create([

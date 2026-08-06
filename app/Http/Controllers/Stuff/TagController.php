@@ -58,6 +58,7 @@ class TagController extends Controller
         ]);
 
         $validated['item_type'] = $validated['item_type'] ?? 0;
+        $validated = Tag::normalizeWarnaAttributes($validated);
 
         Tag::create($validated);
 
@@ -79,6 +80,7 @@ class TagController extends Controller
         ]);
 
         $validated['item_type'] = $validated['item_type'] ?? 0;
+        $validated = Tag::normalizeWarnaAttributes($validated);
 
         $tag->update($validated);
 

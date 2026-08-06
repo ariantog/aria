@@ -64,4 +64,27 @@ class Tag extends Model
     {
         return $this->belongsToMany(Item::class, 'item_tag');
     }
+
+    /**
+     * Warna tags use code identical to name (uppercase) for universal SKU generation.
+     */
+    public static function normalizeWarnaAttributes(array $attributes): array
+    {
+        if ((int) ($attributes['type'] ?? 0) === self::TYPE_WARNA) {
+            $attributes['name'] = strtoupper(trim($attributes['name']));
+            $attributes['code'] = $attributes['name'];
+        }
+
+        return $attributes;
+    }
+
+    protected static function booted(): void
+    {
+        static::saving(function (Tag $tag) {
+            if ((int) $tag->type === self::TYPE_WARNA) {
+                $tag->name = strtoupper(trim($tag->name));
+                $tag->code = $tag->name;
+            }
+        });
+    }
 }
