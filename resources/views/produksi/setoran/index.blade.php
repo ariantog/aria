@@ -106,18 +106,19 @@ $hasFilters = collect($filters)->filter(fn($v) => $v !== null && $v !== '')->isN
                     @php
                         $isGudangOrBoth = $p->status === $statusGudang || $p->status === $statusBoth;
                         $rowColor = $p->status === $statusGudang ? 'bg-teal-100 hover:bg-teal-200' : ($p->status === $statusBoth ? 'bg-lime-200 hover:bg-lime-300' : 'hover:bg-gray-50/50');
+                        $canEditItem = $can['edit_setoran']
+                            && empty($p->invoice)
+                            && in_array($p->status, [\App\Models\Produksi::STATUS_PRODUKSI, \App\Models\Produksi::STATUS_SETOR], true);
                     @endphp
                     <tr class="transition-colors {{ $rowColor }}">
                         <td class="px-4 py-3 text-sm font-bold whitespace-nowrap text-blue-600">
                             <a href="{{ route('produksi.setoran.edit', $p->id) }}" class="hover:underline">{{ $p->serial }}</a>
                         </td>
                         <td class="px-4 py-3 whitespace-nowrap">
-                            @if($isGudangOrBoth)
+                            @if($canEditItem)
+                                <button @click="openUpdate({{ $p->id }}, '{{ $p->serial }}')" class="inline-flex items-center gap-1.5 rounded-md border border-blue-200 bg-blue-100 px-2.5 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-200">{{ $p->item->item_code ?? $p->temp_name }}</button>
+                            @elseif($isGudangOrBoth || $p->item_id)
                                 <div class="text-sm font-bold text-gray-900">{{ $p->item->item_code ?? $p->temp_name }}</div>
-                            @elseif($p->item_id)
-                                <div class="inline-block rounded-md bg-green-50 px-2 py-0.5 text-sm font-bold text-green-600">{{ $p->item->item_code ?? '' }}</div>
-                            @elseif($can['edit_setoran'])
-                                <button @click="openUpdate({{ $p->id }}, '{{ $p->serial }}')" class="inline-flex items-center gap-1.5 rounded-md border border-blue-200 bg-blue-100 px-2.5 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-200">{{ $p->temp_name }}</button>
                             @else
                                 <span class="text-xs italic text-gray-400">{{ $p->temp_name }}</span>
                             @endif

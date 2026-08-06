@@ -101,3 +101,36 @@ it('can store bulk production entries', function () {
         'potong_id' => $worker->id,
     ]);
 });
+
+it('retains production items when store validation fails', function () {
+    $size = Tag::create(['name' => 'M', 'type' => Tag::TYPE_SIZE, 'item_type' => 0]);
+
+    $response = $this->actingAs($this->user)->from('/produksi/create')->post('/produksi', [
+        'date' => now()->toDateString(),
+        'potong_id' => '',
+        'surat_jalan_potong' => 'SJ-KEEP',
+        'items' => [
+            [
+                'name' => 'Kept Item',
+                'size_id' => $size->id,
+                'qty' => 5,
+                'customer' => 'Client Keep',
+                'warna' => 'Navy',
+            ],
+        ],
+    ]);
+
+    $response->assertRedirect(route('produksi.create'));
+    $response->assertSessionHasErrors('potong_id');
+    expect(old('items.0.name'))->toBe('Kept Item');
+    expect(old('items.0.customer'))->toBe('Client Keep');
+    expect(old('surat_jalan_potong'))->toBe('SJ-KEEP');
+
+    $html = view('produksi.create', [
+        'workers' => Worker::potong()->get(),
+        'sizes' => Tag::where('type', Tag::TYPE_SIZE)->get(),
+    ])->render();
+
+    expect($html)->toContain('Kept Item');
+    expect($html)->toContain('Client Keep');
+});
