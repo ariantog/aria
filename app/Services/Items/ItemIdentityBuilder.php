@@ -3,6 +3,7 @@
 namespace App\Services\Items;
 
 use App\Enums\ItemType;
+use App\Models\Item;
 use App\Models\Tag;
 use InvalidArgumentException;
 
@@ -144,5 +145,79 @@ class ItemIdentityBuilder
     public function isAllSize(?Tag $sizeTag): bool
     {
         return $sizeTag && strtoupper($sizeTag->code) === self::ALL_SIZE_CODE;
+    }
+
+    /**
+     * Restock parent key (TYPE-VARIANT), e.g. LIFTINGBELT-17 from SKU LIFTINGBELT-17-GREEN-XL.
+     * Uses items.pcode when it matches the asset pattern; otherwise derives from items.code.
+     */
+    public function assetLancarParentPcode(Item $item): string
+    {
+        $pcode = strtoupper(trim($item->pcode ?? ''));
+
+        if ($pcode !== '' && preg_match(self::ASSET_PCODE_PATTERN, $pcode)) {
+            return $pcode;
+        }
+
+        $parts = explode('-', strtoupper(trim($item->code ?? '')));
+        if (count($parts) >= 2) {
+            return $parts[0].'-'.$parts[1];
+        }
+
+        return $pcode !== '' ? $pcode : strtoupper(trim($item->code ?? 'UNKNOWN'));
+    }
+
+    public function assetLancarColorLabel(Item $item): string
+    {
+        $warna = $item->relationLoaded('tags')
+            ? $item->tags->firstWhere('type', Tag::TYPE_WARNA)
+            : null;
+
+        if ($warna) {
+            return strtoupper($warna->code);
+        }
+
+        $parts = explode('-', strtoupper(trim($item->code ?? '')));
+        if (count($parts) >= 3) {
+            return $parts[2];
+        }
+
+        return '—';
+    }
+
+    public function assetLancarColorGroupKey(Item $item): string
+    {
+        $warna = $item->relationLoaded('tags')
+            ? $item->tags->firstWhere('type', Tag::TYPE_WARNA)
+            : null;
+
+        if ($warna) {
+            return 'tag:'.$warna->id;
+        }
+
+        $label = $this->assetLancarColorLabel($item);
+        if ($label !== '—') {
+            return 'code:'.$label;
+        }
+
+        return 'none';
+    }
+
+    public function assetLancarSizeCode(Item $item): ?string
+    {
+        $sizeTag = $item->relationLoaded('tags')
+            ? $item->tags->firstWhere('type', Tag::TYPE_SIZE)
+            : null;
+
+        if ($sizeTag) {
+            return $this->isAllSize($sizeTag) ? null : strtoupper($sizeTag->code);
+        }
+
+        $parts = explode('-', strtoupper(trim($item->code ?? '')));
+        if (count($parts) >= 4) {
+            return $parts[3];
+        }
+
+        return null;
     }
 }

@@ -2,155 +2,213 @@
 
 namespace App\Services\Restock;
 
+use App\Models\Item;
 use App\Models\RestockCell;
-use App\Models\RestockCellHistory;
 use App\Models\RestockSheet;
-use App\Models\Tag;
-use App\Models\User;
+use App\Services\Items\ItemIdentityBuilder;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\DB;
 
 class RestockGridBuilder
 {
-  private const SIZE_ORDER = ['S', 'M', 'L', 'XL', 'XXL'];
+    private const SIZE_ORDER = ['S', 'M', 'L', 'XL', 'XXL'];
 
-  /**
-   * @return array{sheet_id: int, parents: list<array{pcode: string, name: string, sizes: list<string>, rows: list<array<string, mixed>>}>}
-   */
-  public function build(RestockSheet $sheet): array
-  {
-    $sheet->loadMissing([
-      'cells.color',
-      'cells.size',
-      'cells.item.group',
-      'cells.item.warehouseItems',
-    ]);
+    public function __construct(
+        protected ItemIdentityBuilder $identityBuilder,
+    ) {}
 
-    $parents = $this->cellsGroupedByParent($sheet)
-      ->map(function (Collection $cells, string $pcode) {
-        $sizes = $this->orderedSizeCodes($cells);
-        $rows = $this->buildColorRows($cells, $sizes);
+    /**
+     * @return array{sheet_id: int, parents: list<array{pcode: string, name: string, sizes: list<string>, rows: list<array<string, mixed>>}>}
+     */
+    public function build(RestockSheet $sheet): array
+    {
+        $sheet->loadMissing([
+            'cells.color',
+            'cells.size',
+            'cells.item.group',
+            'cells.item.tags',
+            'cells.item.warehouseItems',
+        ]);
+
+        $parents = $this->cellsGroupedByParent($sheet)
+            ->map(function (Collection $cells, string $parentPcode) {
+                $sizes = $this->orderedSizeCodes($cells);
+                $rows = $this->buildColorRows($cells, $sizes);
+
+                return [
+                    'pcode' => $parentPcode,
+                    'name' => $this->parentDisplayName($cells, $parentPcode),
+                    'sizes' => $sizes,
+                    'rows' => $rows,
+                ];
+            })
+            ->sortBy('pcode')
+            ->values()
+            ->all();
 
         return [
-          'pcode' => $pcode,
-          'name' => $cells->first()?->item?->group?->name ?? $pcode,
-          'sizes' => $sizes,
-          'rows' => $rows,
+            'sheet_id' => $sheet->id,
+            'parents' => $parents,
         ];
-      })
-      ->values()
-      ->all();
-
-    return [
-      'sheet_id' => $sheet->id,
-      'parents' => $parents,
-    ];
-  }
-
-  /**
-   * @return Collection<string, Collection<int, RestockCell>>
-   */
-  protected function cellsGroupedByParent(RestockSheet $sheet): Collection
-  {
-    return $sheet->cells
-      ->sortBy([
-        fn (RestockCell $cell) => $cell->item?->pcode ?? '',
-        fn (RestockCell $cell) => $cell->color?->name ?? '',
-        fn (RestockCell $cell) => $cell->size?->name ?? '',
-      ])
-      ->groupBy(fn (RestockCell $cell) => $cell->item?->pcode ?? 'unknown');
-  }
-
-  /**
-   * @param  Collection<int, RestockCell>  $cells
-   * @return list<string>
-   */
-  protected function orderedSizeCodes(Collection $cells): array
-  {
-    $codes = $cells
-      ->map(fn (RestockCell $cell) => $cell->size?->code)
-      ->filter()
-      ->unique()
-      ->values();
-
-    if ($codes->isEmpty()) {
-      return ['—'];
     }
 
-    return $codes
-      ->sortBy(fn (string $code) => $this->sizeSortKey($code))
-      ->values()
-      ->all();
-  }
+    /**
+     * @return Collection<string, Collection<int, RestockCell>>
+     */
+    protected function cellsGroupedByParent(RestockSheet $sheet): Collection
+    {
+        return $sheet->cells
+            ->filter(fn (RestockCell $cell) => $cell->item !== null)
+            ->groupBy(fn (RestockCell $cell) => $this->identityBuilder->assetLancarParentPcode($cell->item));
+    }
 
-  /**
-   * @param  Collection<int, RestockCell>  $cells
-   * @param  list<string>  $sizes
-   * @return list<array<string, mixed>>
-   */
-  protected function buildColorRows(Collection $cells, array $sizes): array
-  {
-    return $cells
-      ->groupBy(fn (RestockCell $cell) => $cell->color_id ?? 0)
-      ->map(function (Collection $colorCells) use ($sizes) {
-        $first = $colorCells->first();
-        $row = [
-          'color_id' => $first->color_id,
-          'color_name' => $first->color?->name ?? '—',
-          'is_urgent' => $colorCells->contains(fn (RestockCell $c) => $c->is_urgent),
-          '_meta' => [],
-        ];
+    /**
+     * @param  Collection<int, RestockCell>  $cells
+     */
+    protected function parentDisplayName(Collection $cells, string $parentPcode): string
+    {
+        $names = $cells
+            ->map(fn (RestockCell $cell) => $cell->item?->group?->name)
+            ->filter()
+            ->unique()
+            ->values();
 
-        foreach ($sizes as $sizeCode) {
-          $cell = $colorCells->first(function (RestockCell $c) use ($sizeCode) {
-            if ($sizeCode === '—') {
-              return $c->size_id === null;
-            }
+        $preferred = $names->first(
+            fn (?string $name) => $name && strtoupper(trim($name)) !== strtoupper($parentPcode)
+        );
 
-            return strtoupper($c->size?->code ?? '') === strtoupper($sizeCode);
-          });
+        return $preferred ?? $names->first() ?? $parentPcode;
+    }
 
-          if (! $cell) {
-            continue;
-          }
+    /**
+     * @param  Collection<int, RestockCell>  $cells
+     * @return list<string>
+     */
+    protected function orderedSizeCodes(Collection $cells): array
+    {
+        $codes = $cells
+            ->map(fn (RestockCell $cell) => $this->cellSizeCode($cell))
+            ->filter()
+            ->unique()
+            ->values();
 
-          $stock = (int) $cell->item?->warehouseItems?->sum('quantity') ?? 0;
-          $prefix = $this->fieldPrefix($sizeCode);
-
-          $row["{$prefix}restock"] = $cell->qty_restock;
-          $row["{$prefix}production"] = $cell->qty_production;
-          $row["{$prefix}shipped"] = $cell->qty_shipped;
-          $row["{$prefix}stock"] = $stock;
-          $row['_meta'][$prefix] = [
-            'cell_id' => $cell->id,
-            'is_urgent' => $cell->is_urgent,
-          ];
+        if ($codes->isEmpty()) {
+            return ['—'];
         }
 
-        return $row;
-      })
-      ->values()
-      ->all();
-  }
-
-  protected function fieldPrefix(string $sizeCode): string
-  {
-    if ($sizeCode === '—') {
-      return '';
+        return $codes
+            ->sortBy(fn (string $code) => $this->sizeSortKey($code))
+            ->values()
+            ->all();
     }
 
-    return str_replace(['.', ' '], '_', strtolower($sizeCode)).'_';
-  }
+    /**
+     * @param  Collection<int, RestockCell>  $cells
+     * @param  list<string>  $sizes
+     * @return list<array<string, mixed>>
+     */
+    protected function buildColorRows(Collection $cells, array $sizes): array
+    {
+        return $cells
+            ->groupBy(fn (RestockCell $cell) => $this->colorGroupKey($cell))
+            ->map(function (Collection $colorCells) use ($sizes) {
+                $first = $colorCells->first();
+                $item = $first->item;
+                $row = [
+                    'color_id' => $first->color_id,
+                    'color_name' => $first->color?->name
+                        ?? ($item ? $this->identityBuilder->assetLancarColorLabel($item) : '—'),
+                    'is_urgent' => $colorCells->contains(fn (RestockCell $c) => $c->is_urgent),
+                    '_meta' => [],
+                ];
 
-  protected function sizeSortKey(string $code): string
-  {
-    $upper = strtoupper($code);
-    $index = array_search($upper, self::SIZE_ORDER, true);
+                $restockTotal = 0;
 
-    if ($index !== false) {
-      return '0_'.str_pad((string) $index, 2, '0', STR_PAD_LEFT).'_'.$upper;
+                foreach ($sizes as $sizeCode) {
+                    $cell = $colorCells->first(fn (RestockCell $c) => $this->cellMatchesSize($c, $sizeCode));
+
+                    if (! $cell) {
+                        continue;
+                    }
+
+                    $stock = (int) ($cell->item?->warehouseItems?->sum('quantity') ?? 0);
+                    $prefix = $this->fieldPrefix($sizeCode);
+
+                    $row["{$prefix}restock"] = $cell->qty_restock;
+                    $row["{$prefix}production"] = $cell->qty_production;
+                    $row["{$prefix}shipped"] = $cell->qty_shipped;
+                    $row["{$prefix}stock"] = $stock;
+                    $row['_meta'][$prefix] = [
+                        'cell_id' => $cell->id,
+                        'is_urgent' => $cell->is_urgent,
+                    ];
+
+                    $restockTotal += (int) $cell->qty_restock;
+                }
+
+                if (count($sizes) > 1) {
+                    $row['restock_total'] = $restockTotal;
+                }
+
+                return $row;
+            })
+            ->sortBy('color_name')
+            ->values()
+            ->all();
     }
 
-    return '1_'.$upper;
-  }
+    protected function colorGroupKey(RestockCell $cell): string
+    {
+        if ($cell->color_id) {
+            return 'tag:'.$cell->color_id;
+        }
+
+        if ($cell->item) {
+            return $this->identityBuilder->assetLancarColorGroupKey($cell->item);
+        }
+
+        return 'none';
+    }
+
+    protected function cellSizeCode(RestockCell $cell): ?string
+    {
+        if ($cell->size?->code) {
+            return strtoupper($cell->size->code);
+        }
+
+        if ($cell->item) {
+            return $this->identityBuilder->assetLancarSizeCode($cell->item);
+        }
+
+        return null;
+    }
+
+    protected function cellMatchesSize(RestockCell $cell, string $sizeCode): bool
+    {
+        if ($sizeCode === '—') {
+            return $this->cellSizeCode($cell) === null;
+        }
+
+        return strtoupper($sizeCode) === ($this->cellSizeCode($cell) ?? '');
+    }
+
+    protected function fieldPrefix(string $sizeCode): string
+    {
+        if ($sizeCode === '—') {
+            return '';
+        }
+
+        return str_replace(['.', ' '], '_', strtolower($sizeCode)).'_';
+    }
+
+    protected function sizeSortKey(string $code): string
+    {
+        $upper = strtoupper($code);
+        $index = array_search($upper, self::SIZE_ORDER, true);
+
+        if ($index !== false) {
+            return '0_'.str_pad((string) $index, 2, '0', STR_PAD_LEFT).'_'.$upper;
+        }
+
+        return '1_'.$upper;
+    }
 }

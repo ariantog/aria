@@ -52,23 +52,28 @@ class RestockSheetService
       ->with(['cells.item.group'])
       ->first();
 
-    $itemsByPcode = $this->assetLancarItemsForType($typeTag)
-      ->with('group')
+    $itemsByParent = $this->assetLancarItemsForType($typeTag)
+      ->with(['group', 'tags'])
       ->get()
-      ->groupBy('pcode');
+      ->groupBy(fn (Item $item) => $this->identityBuilder->assetLancarParentPcode($item));
 
-    $cellsByPcode = $sheet
-      ? $sheet->cells->groupBy(fn (RestockCell $cell) => $cell->item?->pcode ?? '')
+    $cellsByParent = $sheet
+      ? $sheet->cells
+        ->filter(fn (RestockCell $cell) => $cell->item !== null)
+        ->groupBy(fn (RestockCell $cell) => $this->identityBuilder->assetLancarParentPcode($cell->item))
       : collect();
 
-    return $itemsByPcode
-      ->map(function (Collection $items, string $pcode) use ($cellsByPcode) {
-        $cells = $cellsByPcode->get($pcode, collect());
+    return $itemsByParent
+      ->map(function (Collection $items, string $parentPcode) use ($cellsByParent) {
+        $cells = $cellsByParent->get($parentPcode, collect());
         $group = $items->first()?->group;
+        $name = $items->pluck('group.name')
+          ->filter(fn (?string $n) => $n && strtoupper(trim($n)) !== strtoupper($parentPcode))
+          ->first() ?? $group?->name ?? $parentPcode;
 
         return [
-          'pcode' => $pcode,
-          'name' => $group?->name ?? $pcode,
+          'pcode' => $parentPcode,
+          'name' => $name,
           'image_url' => $group?->image_url ?? asset('images/default-item.png'),
           'sku_count' => $items->count(),
           'totals' => [
@@ -157,12 +162,13 @@ class RestockSheetService
     $sheet->loadMissing(['cells.color', 'cells.size', 'cells.item']);
 
     return $sheet->cells
+      ->filter(fn (RestockCell $cell) => $cell->item !== null)
       ->sortBy([
-        fn (RestockCell $cell) => $cell->item?->pcode ?? '',
+        fn (RestockCell $cell) => $this->identityBuilder->assetLancarParentPcode($cell->item),
         fn (RestockCell $cell) => $cell->color?->name ?? '',
         fn (RestockCell $cell) => $cell->size?->name ?? '',
       ])
-      ->groupBy(fn (RestockCell $cell) => $cell->item?->pcode ?? 'unknown');
+      ->groupBy(fn (RestockCell $cell) => $this->identityBuilder->assetLancarParentPcode($cell->item));
   }
 
   /**
