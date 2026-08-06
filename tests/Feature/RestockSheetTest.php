@@ -1,11 +1,15 @@
 <?php
 
 use App\Enums\ItemType;
+use App\Models\Addrbook;
+use App\Models\Item;
 use App\Models\RestockCellHistory;
 use App\Models\RestockSheet;
+use App\Models\Setting;
 use App\Models\Tag;
+use App\Models\Transaction;
 use App\Models\User;
-use App\Models\Item;
+use App\Models\WarehouseItem;
 use App\Services\ItemService;
 use App\Services\Restock\RestockGridBuilder;
 use App\Services\Restock\RestockSheetService;
@@ -56,6 +60,20 @@ function createAssetLancarSkus(object $context, string $pcode = 'ELBOW-03', stri
     ];
 
     $itemService->create($input, $tags);
+}
+
+function seedRestockReceiveSettings(Addrbook $supplier, Addrbook $warehouse): void
+{
+    Setting::updateOrCreate(['slug' => 'restock.default_supplier_id'], [
+        'group' => 'Restock',
+        'name' => 'Default Supplier',
+        'value' => $supplier->id,
+    ]);
+    Setting::updateOrCreate(['slug' => 'restock.default_receiver_id'], [
+        'group' => 'Restock',
+        'name' => 'Default Receiver (Warehouse)',
+        'value' => $warehouse->id,
+    ]);
 }
 
 test('type tabs only include asset lancar tags with item_type 2', function () {
@@ -233,6 +251,56 @@ test('move transfers production qty to shipped', function () {
     $cell->refresh();
     expect($cell->qty_production)->toBe(0);
     expect($cell->qty_shipped)->toBe(40);
+});
+
+test('receive creates buy transaction and decrements shipped qty', function () {
+    createAssetLancarSkus($this);
+
+    $supplier = Addrbook::factory()->supplier()->create();
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    seedRestockReceiveSettings($supplier, $warehouse);
+
+    $sheet = app(RestockSheetService::class)->createSheet($this->typeTag, $this->user);
+    $cell = $sheet->cells()->with('item')->first();
+    $cell->update(['qty_shipped' => 12]);
+
+    $this->actingAs($this->user)
+        ->postJson(route('restock.sheets.receive', $sheet), [
+            'date' => now()->toDateString(),
+            'cells' => [['id' => $cell->id]],
+        ])
+        ->assertSuccessful()
+        ->assertJsonStructure(['transaction_id', 'transaction_url', 'grid']);
+
+    $cell->refresh();
+    expect($cell->qty_shipped)->toBe(0);
+
+    $transaction = Transaction::latest('id')->first();
+    expect($transaction)->not->toBeNull();
+    expect($transaction->type->value)->toBe(1);
+    expect($transaction->sender_id)->toBe($supplier->id);
+    expect($transaction->receiver_id)->toBe($warehouse->id);
+    expect($transaction->details)->toHaveCount(1);
+    expect((float) $transaction->details->first()->quantity)->toBe(12.0);
+
+    expect((float) WarehouseItem::where('warehouse_id', $warehouse->id)->where('item_id', $cell->item_id)->value('quantity'))
+        ->toBe(12.0);
+
+    expect(RestockCellHistory::where('restock_cell_id', $cell->id)->where('action', 'receive')->count())->toBe(1);
+});
+
+test('receive fails when restock settings are not configured', function () {
+    createAssetLancarSkus($this);
+    $sheet = app(RestockSheetService::class)->createSheet($this->typeTag, $this->user);
+    $cell = $sheet->cells()->first();
+    $cell->update(['qty_shipped' => 5]);
+
+    $this->actingAs($this->user)
+        ->postJson(route('restock.sheets.receive', $sheet), [
+            'date' => now()->toDateString(),
+            'cells' => [['id' => $cell->id]],
+        ])
+        ->assertStatus(422);
 });
 
 test('sheet show page includes tabulator grid payload', function () {

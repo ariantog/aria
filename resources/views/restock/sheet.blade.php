@@ -53,6 +53,11 @@ $breadcrumbs = [
                     class="rounded-md border border-gray-300 bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-800 hover:bg-gray-200 disabled:opacity-50">
                 Production → Shipped
             </button>
+            <button type="button" @click="openReceiveModal()" :disabled="receiving || !canEdit || !receiveReady || !hasSelection()"
+                    title="{{ $receiveReady ? 'Receive shipped qty into warehouse (Buy transaction)' : 'Configure restock default supplier and receiver in system settings' }}"
+                    class="rounded-md border border-green-300 bg-green-50 px-3 py-1.5 text-sm font-medium text-green-900 hover:bg-green-100 disabled:opacity-50">
+                Receive → Warehouse
+            </button>
             <form method="POST" action="{{ route('restock.sheets.sync', $sheet) }}">
                 @csrf
                 <button type="submit" class="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
@@ -75,7 +80,10 @@ $breadcrumbs = [
     <div x-show="error" x-cloak class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" x-text="error"></div>
 
     <div class="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
-        Select color row(s), then use move buttons to advance quantities through the pipeline. Edit cells directly and click <strong>Save sheet</strong> for manual adjustments. Hover a cell to see warehouse stock.
+        Select color row(s), then use move buttons to advance quantities through the pipeline, or <strong>Receive → Warehouse</strong> to post a Buy transaction for shipped qty. Edit cells directly and click <strong>Save sheet</strong> for manual adjustments.
+        @unless($receiveReady)
+            <span class="mt-1 block text-amber-800">Receive is disabled until restock default supplier and receiver warehouse are configured in system settings.</span>
+        @endunless
     </div>
 
     @forelse($grid['parents'] as $parent)
@@ -91,6 +99,35 @@ $breadcrumbs = [
             No cells seeded. Try Sync SKUs.
         </div>
     @endforelse
+
+    <div x-show="receiveModalOpen" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" @click.self="receiveModalOpen = false">
+        <div class="w-full max-w-md rounded-xl border border-gray-200 bg-white p-5 shadow-xl">
+            <h3 class="text-lg font-semibold text-gray-900">Receive into warehouse</h3>
+            <p class="mt-1 text-sm text-gray-500">Creates a Buy transaction for all shipped qty on the selected row(s).</p>
+            <div class="mt-4 space-y-3">
+                <div>
+                    <label for="receive-date" class="block text-sm font-medium text-gray-700">Date</label>
+                    <input id="receive-date" type="date" x-model="receiveForm.date"
+                           class="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
+                </div>
+                <div>
+                    <label for="receive-invoice" class="block text-sm font-medium text-gray-700">Invoice (optional)</label>
+                    <input id="receive-invoice" type="text" x-model="receiveForm.invoice_number" placeholder="Invoice number"
+                           class="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
+                </div>
+            </div>
+            <div class="mt-5 flex justify-end gap-2">
+                <button type="button" @click="receiveModalOpen = false"
+                        class="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                    Cancel
+                </button>
+                <button type="button" @click="receive()" :disabled="receiving"
+                        class="rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50">
+                    <span x-text="receiving ? 'Receiving…' : 'Confirm receive'"></span>
+                </button>
+            </div>
+        </div>
+    </div>
 </div>
 @endsection
 
@@ -101,11 +138,19 @@ function restockSheetPage() {
     return {
         grid: @json($grid),
         canEdit: @json($canEdit),
+        receiveReady: @json($receiveReady),
         saveUrl: @json(route('restock.sheets.update', $sheet)),
         moveUrl: @json(route('restock.sheets.move', $sheet)),
+        receiveUrl: @json(route('restock.sheets.receive', $sheet)),
         tables: {},
         saving: false,
         moving: false,
+        receiving: false,
+        receiveModalOpen: false,
+        receiveForm: {
+            date: @json(now()->toDateString()),
+            invoice_number: '',
+        },
         flash: '',
         error: '',
 
@@ -265,6 +310,51 @@ function restockSheetPage() {
                 this.error = e.message || 'Move failed';
             } finally {
                 this.moving = false;
+            }
+        },
+
+        openReceiveModal() {
+            if (!this.canEdit || !this.receiveReady || !this.hasSelection()) return;
+            this.receiveModalOpen = true;
+        },
+
+        async receive() {
+            if (!this.canEdit || !this.receiveReady) return;
+            const rows = this.selectedRows();
+            if (!rows.length) return;
+
+            const cells = this.collectCellsFromRows(rows);
+            if (!cells.length) return;
+
+            this.receiving = true;
+            this.flash = '';
+            this.error = '';
+            try {
+                const res = await fetch(this.receiveUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    body: JSON.stringify({
+                        date: this.receiveForm.date,
+                        invoice_number: this.receiveForm.invoice_number || null,
+                        cells,
+                    }),
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.message || 'Receive failed');
+                if (data.grid) this.applyGrid(data.grid);
+                this.receiveModalOpen = false;
+                this.flash = data.transaction_url
+                    ? `${data.message} Transaction #${data.transaction_id}.`
+                    : (data.message || 'Received.');
+            } catch (e) {
+                this.error = e.message || 'Receive failed';
+            } finally {
+                this.receiving = false;
             }
         },
 
