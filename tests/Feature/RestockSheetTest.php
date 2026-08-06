@@ -5,7 +5,9 @@ use App\Models\RestockCellHistory;
 use App\Models\RestockSheet;
 use App\Models\Tag;
 use App\Models\User;
+use App\Models\Item;
 use App\Services\ItemService;
+use App\Services\Restock\RestockGridBuilder;
 use App\Services\Restock\RestockSheetService;
 use Spatie\Permission\Models\Permission;
 
@@ -142,6 +144,53 @@ test('sync skus adds cells when new variants are created', function () {
         ->assertRedirect();
 
     expect($sheet->fresh()->cells)->toHaveCount(5);
+});
+
+test('grid groups legacy full-sku pcodes into parent color rows and size columns', function () {
+    createAssetLancarSkus($this);
+
+    $sheet = app(RestockSheetService::class)->createSheet($this->typeTag, $this->user);
+    $grid = app(RestockGridBuilder::class)->build($sheet);
+
+    expect($grid['parents'])->toHaveCount(1);
+    expect($grid['parents'][0]['pcode'])->toBe('ELBOW-03');
+    expect($grid['parents'][0]['sizes'])->toBe(['S', 'M']);
+    expect($grid['parents'][0]['rows'])->toHaveCount(2);
+
+    $colors = collect($grid['parents'][0]['rows'])->pluck('color_name')->sort()->values()->all();
+    expect($colors)->toBe(['BLUE', 'RED']);
+
+    $blueRow = collect($grid['parents'][0]['rows'])->firstWhere('color_name', 'BLUE');
+    expect($blueRow)->toHaveKeys(['s_restock', 'm_restock', 's_production', 'm_production', 'restock_total']);
+    expect($blueRow['restock_total'])->toBe(0);
+});
+
+test('grid resolves parent from code when pcode stores the full sku', function () {
+    $group = \App\Models\ItemGroup::factory()->create(['name' => 'Lifting Belt v17']);
+
+    foreach (['GREEN' => 'XL', 'BLACK' => 'S'] as $color => $size) {
+        $item = Item::factory()->create([
+            'group_id' => $group->id,
+            'type' => ItemType::ASSET_LANCAR,
+            'pcode' => "LIFTINGBELT-17-{$color}-{$size}",
+            'code' => "LIFTINGBELT-17-{$color}-{$size}",
+            'name' => "LIFTING BELT - {$color} - {$size}",
+        ]);
+        $item->tags()->sync([
+            $this->typeTag->id,
+            Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => $color, 'name' => $color])->id,
+            Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => $size, 'name' => $size])->id,
+        ]);
+    }
+
+    $sheet = app(RestockSheetService::class)->createSheet($this->typeTag, $this->user);
+    $grid = app(RestockGridBuilder::class)->build($sheet);
+
+    expect($grid['parents'])->toHaveCount(1);
+    expect($grid['parents'][0]['pcode'])->toBe('LIFTINGBELT-17');
+    expect($grid['parents'][0]['sizes'])->toBe(['S', 'XL']);
+    expect(collect($grid['parents'][0]['rows'])->pluck('color_name')->sort()->values()->all())
+        ->toBe(['BLACK', 'GREEN']);
 });
 
 test('sheet show page includes tabulator grid payload', function () {
