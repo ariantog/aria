@@ -45,15 +45,15 @@ $breadcrumbs = [
                     class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
                 <span x-text="saving ? 'Saving…' : 'Save sheet'"></span>
             </button>
-            <button type="button" @click="move('to_production')" :disabled="moving || !canEdit || !hasSelection()"
+            <button type="button" @click="move('to_production')" :disabled="moving || !canEdit || selectionCount === 0"
                     class="rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-sm font-medium text-amber-900 hover:bg-amber-100 disabled:opacity-50">
                 Restock → Production
             </button>
-            <button type="button" @click="move('to_shipped')" :disabled="moving || !canEdit || !hasSelection()"
+            <button type="button" @click="move('to_shipped')" :disabled="moving || !canEdit || selectionCount === 0"
                     class="rounded-md border border-gray-300 bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-800 hover:bg-gray-200 disabled:opacity-50">
                 Production → Shipped
             </button>
-            <button type="button" @click="openReceiveModal()" :disabled="receiving || !canEdit || !receiveReady || !hasSelection()"
+            <button type="button" @click="openReceiveModal()" :disabled="receiving || !canEdit || !receiveReady || selectionCount === 0"
                     title="{{ $receiveReady ? 'Receive shipped qty into warehouse (Buy transaction)' : 'Configure supplier and receiver in Restock settings' }}"
                     class="rounded-md border border-green-300 bg-green-50 px-3 py-1.5 text-sm font-medium text-green-900 hover:bg-green-100 disabled:opacity-50">
                 Receive → Warehouse
@@ -84,7 +84,7 @@ $breadcrumbs = [
     <div x-show="error" x-cloak class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" x-text="error"></div>
 
     <div class="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
-        Select color row(s), then use move buttons to advance quantities through the pipeline, or <strong>Receive → Warehouse</strong> for shipped qty. Edit restock / production / shipped cells directly and click <strong>Save sheet</strong> for manual adjustments. Any receive shortfall is recorded automatically on the <a href="{{ route('restock.type.missing', $sheet->typeTag) }}" class="font-medium underline">Missing SKUs</a> page.
+        Select color row(s) with the checkboxes, then use move buttons to advance quantities through the pipeline, or <strong>Receive → Warehouse</strong> for shipped qty. Edit restock / production / shipped cells directly and click <strong>Save sheet</strong> for manual adjustments. Any receive shortfall is recorded automatically on the <a href="{{ route('restock.type.missing', $sheet->typeTag) }}" class="font-medium underline">Missing SKUs</a> page.
         @unless($receiveReady)
             <span class="mt-1 block text-amber-800">Receive is disabled until defaults are configured in <a href="{{ route('restock.settings.edit') }}" class="font-medium underline">Restock settings</a>.</span>
         @endunless
@@ -173,6 +173,7 @@ function restockSheetPage() {
         moveUrl: @json(route('restock.sheets.move', $sheet)),
         receiveUrl: @json(route('restock.sheets.receive', $sheet)),
         tables: {},
+        selectionCount: 0,
         saving: false,
         moving: false,
         receiving: false,
@@ -195,10 +196,18 @@ function restockSheetPage() {
                         layout: 'fitData',
                         height: Math.max(120, (parent.rows.length + 1) * 38 + 20),
                         selectableRows: this.canEdit,
+                        rowHeader: this.canEdit ? {
+                            formatter: 'rowSelection',
+                            titleFormatter: 'rowSelection',
+                            headerSort: false,
+                            frozen: true,
+                            width: 40,
+                        } : false,
                         columnDefaults: { headerHozAlign: 'center', hozAlign: 'right', widthGrow: 0 },
                         columns: this.buildColumns(parent.sizes),
                         rowFormatter: (row) => this.formatUrgentRow(row),
                     });
+                    this.tables[parent.pcode].on('rowSelectionChanged', () => this.syncSelectionCount());
                 }
             });
         },
@@ -295,8 +304,12 @@ function restockSheetPage() {
             return rows;
         },
 
+        syncSelectionCount() {
+            this.selectionCount = this.selectedRows().length;
+        },
+
         hasSelection() {
-            return this.selectedRows().length > 0;
+            return this.selectionCount > 0;
         },
 
         applyGrid(grid) {
@@ -310,6 +323,7 @@ function restockSheetPage() {
                     this.formatUrgentRow(row);
                 }
             }
+            this.syncSelectionCount();
         },
 
         async move(direction) {
