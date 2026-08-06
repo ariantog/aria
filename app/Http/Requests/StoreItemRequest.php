@@ -22,7 +22,7 @@ class StoreItemRequest extends FormRequest
             'tags.sizes' => ['required', 'array'],
             'name' => $isAsset ? ['required', 'string'] : ['nullable'],
             'cost' => $isAsset ? ['required', 'numeric'] : ['nullable'],
-            'tags.warna' => $isAsset ? ['required', 'array'] : ['nullable'],
+            'tags.warna' => $isAsset ? ['required', 'array'] : ['required'],
             'tags.jahit' => $isAsset ? ['nullable'] : ['required'],
             'alias' => ['nullable', 'string'],
         ];
