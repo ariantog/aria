@@ -14,7 +14,7 @@ class StoreItemRequest extends FormRequest
         return [
             'pcode' => ['required', 'string'],
             'type' => ['required', 'integer'],
-            'alias' => $isAsset ? ['required', 'string', 'max:255'] : ['nullable', 'string', 'max:255'],
+            'product_name' => $isAsset ? ['required', 'string', 'max:255'] : ['nullable', 'string', 'max:255'],
             'price' => ['nullable', 'numeric'],
             'description' => ['nullable', 'string'],
             'description2' => ['nullable', 'string'],
@@ -30,7 +30,7 @@ class StoreItemRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'alias.required' => 'Product name is required.',
+            'product_name.required' => 'Product name is required.',
             'tags.warna.required' => 'Please select at least one color (warna).',
             'tags.warna.min' => 'Please select at least one color (warna).',
             'tags.sizes.required' => 'Please select at least one size.',

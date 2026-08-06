@@ -49,7 +49,7 @@ $idr = fn ($v) => 'Rp ' . number_format((float) $v, 0, ',', '.');
         </div>
         <div class="flex flex-col gap-1">
             <label class="text-xs font-medium text-gray-500 uppercase">Product</label>
-            <input type="text" name="alias" value="{{ $filters['alias'] ?? '' }}" placeholder="Product name…" class="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm">
+            <input type="text" name="product_name" value="{{ $filters['product_name'] ?? '' }}" placeholder="Product name…" class="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm">
         </div>
         <div class="flex flex-col gap-1">
             <label class="text-xs font-medium text-gray-500 uppercase">Description</label>

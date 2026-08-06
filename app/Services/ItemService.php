@@ -313,7 +313,7 @@ class ItemService
         string $pcode,
         ?ItemGroup $existing = null,
     ): string {
-        $name = trim((string) ($input->alias ?? $input->name ?? ''));
+        $name = trim((string) ($input->product_name ?? $input->alias ?? $input->name ?? ''));
 
         if ($name !== '') {
             return $name;

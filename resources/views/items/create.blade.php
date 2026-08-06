@@ -4,7 +4,7 @@
     $isAsset = $itemType == 2;
     $formItem = [
         'pcode' => old('pcode'),
-        'alias' => old('alias'),
+        'product_name' => old('product_name'),
         'price' => old('price'),
         'cost' => old('cost'),
         'description' => old('description'),

@@ -30,7 +30,7 @@ test('it throws exception for invalid pcode', function () {
     $input = (object) [
         'pcode' => 'INVALID',
         'type' => ItemType::ITEM->value,
-        'alias' => 'Test Product',
+        'product_name' => 'Test Product',
     ];
 
     $this->itemService->create($input, [
@@ -120,7 +120,7 @@ test('it propagates product name change from item update to all sizes in group',
     $this->itemService->update($item->id, (object) [
         'pcode' => 'CX90233-23',
         'type' => ItemType::ITEM->value,
-        'alias' => 'Slash Running Shirt',
+        'product_name' => 'Slash Running Shirt',
         'price' => 100000,
     ], [
         'types' => [$this->typeTag->id],
@@ -139,7 +139,7 @@ test('it creates manufactured item with unified code and display name', function
         'type' => ItemType::ITEM->value,
         'price' => 100000,
         'description' => 'Test Item',
-        'alias' => 'Slash Running Shirt',
+        'product_name' => 'Slash Running Shirt',
     ];
 
     $tags = [
@@ -172,7 +172,7 @@ test('it saves image when provided', function () {
         'pcode' => 'CX90233-24',
         'type' => ItemType::ITEM->value,
         'price' => 100000,
-        'alias' => 'Slash Running Shirt',
+        'product_name' => 'Slash Running Shirt',
     ];
 
     $tags = [
@@ -194,7 +194,7 @@ test('it creates asset lancar variants with cartesian color and size', function 
     $input = (object) [
         'pcode' => 'GLOVE-01',
         'type' => ItemType::ASSET_LANCAR->value,
-        'alias' => 'Boxing Gloves',
+        'product_name' => 'Boxing Gloves',
         'price' => 5000000,
         'cost' => 3000000,
     ];
@@ -227,7 +227,7 @@ test('it rejects duplicate sku on create', function () {
     $input = (object) [
         'pcode' => 'CX90233-23',
         'type' => ItemType::ITEM->value,
-        'alias' => 'Slash Running Shirt',
+        'product_name' => 'Slash Running Shirt',
     ];
 
     $tags = [
