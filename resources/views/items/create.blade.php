@@ -1,13 +1,23 @@
 @extends('layouts.app')
 
-@php $isAsset = $itemType == 2; @endphp
+@php
+    $isAsset = $itemType == 2;
+    $formItem = [
+        'pcode' => old('pcode'),
+        'alias' => old('alias'),
+        'price' => old('price'),
+        'cost' => old('cost'),
+        'description' => old('description'),
+        'description2' => old('description2'),
+    ];
+@endphp
 @section('title', $isAsset ? 'Create New Asset' : 'Create New Item')
 
 @section('content')
 @php
 $breadcrumbs = [
     ['title' => 'Dashboard', 'href' => route('dashboard')],
-    ['title' => 'Items', 'href' => route('items.index')],
+    ['title' => $isAsset ? 'Asset Lancar' : 'Items', 'href' => $isAsset ? route('assetlancar.index') : route('items.index')],
     ['title' => 'Create New', 'href' => '#'],
 ];
 $actionUrl = $isAsset ? route('assetlancar.store') : route('items.store');
@@ -16,21 +26,27 @@ $actionUrl = $isAsset ? route('assetlancar.store') : route('items.store');
 <div class="flex flex-col gap-4 p-4" x-data="itemForm()" x-init="init()">
     <div class="mb-2">
         <h2 class="mb-1 text-3xl font-bold tracking-tight text-gray-900">{{ $isAsset ? 'Create New Asset' : 'Create New Item' }}</h2>
-        <p class="text-gray-500">Add a new {{ $isAsset ? 'asset' : 'item' }} to the inventory system with STRING-NUMBER format (e.g. BOXING-01).</p>
+        <p class="text-gray-500">
+            @if($isAsset)
+                Add asset lancar variants — select multiple colors and sizes; each combination becomes one SKU.
+            @else
+                Add manufactured item sizes for one production code and color (pcode suffix).
+            @endif
+        </p>
     </div>
+
+    @include('items.partials.form-errors')
 
     <form method="POST" action="{{ $actionUrl }}" enctype="multipart/form-data" class="space-y-8">
         @csrf
         <input type="hidden" name="type" value="{{ $itemType }}">
 
         <div class="grid grid-cols-1 gap-8 lg:grid-cols-3">
-            {{-- Left --}}
             <div class="space-y-6 lg:col-span-2">
-                @include('items.partials.form-basic')
-                @include('items.partials.form-details')
+                @include('items.partials.form-basic', ['formItem' => $formItem])
+                @include('items.partials.form-details', ['formItem' => $formItem])
                 @include('items.partials.form-preview')
             </div>
-            {{-- Right --}}
             <div class="space-y-6">
                 @include('items.partials.form-attributes', ['multiSize' => true])
                 @include('items.partials.form-image')
@@ -44,5 +60,5 @@ $actionUrl = $isAsset ? route('assetlancar.store') : route('items.store');
     </form>
 </div>
 
-@include('items.partials.form-scripts', ['multiSize' => true])
+@include('items.partials.form-scripts', ['multiSize' => true, 'isAsset' => $isAsset, 'formItem' => $formItem])
 @endsection

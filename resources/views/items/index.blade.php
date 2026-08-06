@@ -48,8 +48,8 @@ $idr = fn ($v) => 'Rp ' . number_format((float) $v, 0, ',', '.');
             <input type="text" name="name" value="{{ $filters['name'] ?? '' }}" placeholder="Name…" class="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm">
         </div>
         <div class="flex flex-col gap-1">
-            <label class="text-xs font-medium text-gray-500 uppercase">Alias</label>
-            <input type="text" name="alias" value="{{ $filters['alias'] ?? '' }}" placeholder="Alias…" class="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm">
+            <label class="text-xs font-medium text-gray-500 uppercase">Product</label>
+            <input type="text" name="alias" value="{{ $filters['alias'] ?? '' }}" placeholder="Product name…" class="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm">
         </div>
         <div class="flex flex-col gap-1">
             <label class="text-xs font-medium text-gray-500 uppercase">Description</label>
@@ -97,15 +97,13 @@ $idr = fn ($v) => 'Rp ' . number_format((float) $v, 0, ',', '.');
             <thead class="border-b border-gray-200 bg-gray-50 text-[10px] uppercase tracking-wider text-gray-500">
                 <tr>
                     <th class="w-16 px-2 py-2.5 font-bold" x-show="showImage">Image</th>
-                    <th class="w-14 px-2 py-2.5 font-bold">Code</th>
-                    @if($isAsset)
-                        <th class="px-2 py-2.5 font-bold">Name</th>
-                        <th class="w-28 px-2 py-2.5 font-bold">SKU</th>
-                    @else
-                        <th class="w-28 px-2 py-2.5 font-bold">SKU</th>
+                    <th class="w-14 px-2 py-2.5 font-bold">ID</th>
+                    <th class="w-32 px-2 py-2.5 font-bold">SKU</th>
+                    @unless($isAsset)
                         <th class="w-28 px-2 py-2.5 font-bold">Kode Produksi</th>
-                        <th class="px-2 py-2.5 font-bold">Alias</th>
-                    @endif
+                    @endunless
+                    <th class="px-2 py-2.5 font-bold">Product</th>
+                    <th class="px-2 py-2.5 font-bold">Display Name</th>
                     <th class="px-2 py-2.5 font-bold">Description</th>
                     <th class="w-28 px-2 py-2.5 text-right font-bold">Price</th>
                     <th class="w-40 px-2 py-2.5 font-bold">NB</th>
@@ -117,7 +115,7 @@ $idr = fn ($v) => 'Rp ' . number_format((float) $v, 0, ',', '.');
             <tbody class="divide-y divide-gray-100">
                 @forelse($items as $item)
                     @php
-                        $alias = $item->group?->alias ?? $item->name;
+                        $productName = $item->group?->name ?? $item->group?->alias ?? '-';
                         $desc = $item->group?->description ?? $item->description;
                         $nb = $item->group?->description2 ?? $item->description2;
                     @endphp
@@ -134,14 +132,12 @@ $idr = fn ($v) => 'Rp ' . number_format((float) $v, 0, ',', '.');
                         <td class="px-2 py-2">
                             <a href="{{ $baseUrl }}/{{ $item->id }}" class="font-medium text-blue-600 hover:underline">{{ $item->id }}</a>
                         </td>
-                        @if($isAsset)
-                            <td class="truncate px-2 py-2 italic text-gray-700" title="{{ $alias }}">{{ $alias ?: '-' }}</td>
-                            <td class="truncate px-2 py-2 text-gray-500" title="{{ $item->code }}">{{ $item->code ?: '-' }}</td>
-                        @else
-                            <td class="truncate px-2 py-2 text-gray-500" title="{{ $item->code }}">{{ $item->code ?: '-' }}</td>
-                            <td class="truncate px-2 py-2 text-gray-500" title="{{ $item->pcode }}">{{ $item->pcode ?: '-' }}</td>
-                            <td class="truncate px-2 py-2 italic text-gray-700" title="{{ $alias }}">{{ $alias ?: '-' }}</td>
-                        @endif
+                        <td class="truncate px-2 py-2 font-mono text-gray-600" title="{{ $item->code }}">{{ $item->code ?: '-' }}</td>
+                        @unless($isAsset)
+                            <td class="truncate px-2 py-2 font-mono text-gray-500" title="{{ $item->pcode }}">{{ $item->pcode ?: '-' }}</td>
+                        @endunless
+                        <td class="truncate px-2 py-2 italic text-gray-700" title="{{ $productName }}">{{ $productName }}</td>
+                        <td class="truncate px-2 py-2 text-gray-800" title="{{ $item->name }}">{{ $item->name ?: '-' }}</td>
                         <td class="truncate px-2 py-2 text-gray-700" title="{{ $desc }}">{{ $desc ?: '-' }}</td>
                         <td class="whitespace-nowrap px-2 py-2 text-right font-bold tabular-nums text-gray-800">{{ $idr($item->price) }}</td>
                         <td class="truncate px-2 py-2 text-gray-500" title="{{ $nb }}">{{ $nb ?: '--' }}</td>
@@ -160,7 +156,7 @@ $idr = fn ($v) => 'Rp ' . number_format((float) $v, 0, ',', '.');
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="10" class="px-4 py-12 text-center text-sm italic text-gray-500">No {{ $isAsset ? 'assets' : 'items' }} found matching your filters.</td></tr>
+                    <tr><td colspan="11" class="px-4 py-12 text-center text-sm italic text-gray-500">No {{ $isAsset ? 'assets' : 'items' }} found matching your filters.</td></tr>
                 @endforelse
             </tbody>
         </table>

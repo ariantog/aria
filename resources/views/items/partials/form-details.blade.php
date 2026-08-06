@@ -1,4 +1,11 @@
-@php $fi = $formItem ?? ['description'=>old('description'),'description2'=>old('description2')]; @endphp
+@php
+    $fi = $formItem ?? [
+        'description' => old('description'),
+        'description2' => old('description2'),
+    ];
+    $fi['description'] = $fi['description'] ?? old('description');
+    $fi['description2'] = $fi['description2'] ?? old('description2');
+@endphp
 <div class="rounded-xl border border-gray-200 bg-white shadow-sm">
     <div class="flex items-center gap-3 border-b border-gray-100 px-5 py-4">
         <div class="rounded-lg bg-yellow-500/10 p-2">
