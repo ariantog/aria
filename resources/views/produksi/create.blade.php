@@ -8,9 +8,14 @@ $breadcrumbs = [
     ['title' => 'Produksi', 'href' => route('produksi.index')],
     ['title' => 'New Entry', 'href' => route('produksi.create')],
 ];
+$defaultItem = ['name' => '', 'size_id' => '', 'qty' => 1, 'customer' => '', 'warna' => ''];
+$oldItems = old('items', [$defaultItem]);
+if (empty($oldItems)) {
+    $oldItems = [$defaultItem];
+}
 @endphp
 
-<div class="p-4" x-data="produksiCreate()">
+<div class="p-4" x-data="produksiCreate(@js($oldItems))">
     <div class="mb-8 flex items-center gap-4">
         <a href="{{ route('produksi.index') }}" class="flex h-9 w-9 items-center justify-center rounded-full hover:bg-gray-100">
             <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
@@ -102,6 +107,16 @@ $breadcrumbs = [
                     </tbody>
                 </table>
             </div>
+            @if ($errors->has('items') || $errors->has('items.*'))
+            <div class="border-t border-gray-200 px-6 py-3">
+                @error('items')<p class="text-sm text-red-500">{{ $message }}</p>@enderror
+                @foreach ($errors->get('items.*') as $messages)
+                    @foreach ($messages as $message)
+                    <p class="text-sm text-red-500">{{ $message }}</p>
+                    @endforeach
+                @endforeach
+            </div>
+            @endif
         </div>
 
         <div class="flex items-center justify-end gap-4">
@@ -116,9 +131,18 @@ $breadcrumbs = [
 
 @push('scripts')
 <script>
-function produksiCreate() {
+function produksiCreate(initialItems) {
+    const defaultItem = { name: '', size_id: '', qty: 1, customer: '', warna: '' };
+    const items = Array.isArray(initialItems) && initialItems.length ? initialItems : [defaultItem];
+
     return {
-        items: [{ name: '', size_id: '', qty: 1, customer: '', warna: '' }],
+        items: items.map((item) => ({
+            name: item.name ?? '',
+            size_id: item.size_id ?? '',
+            qty: item.qty ?? 1,
+            customer: item.customer ?? '',
+            warna: item.warna ?? '',
+        })),
         addItem() { this.items.push({ name: '', size_id: '', qty: 1, customer: '', warna: '' }); },
         removeItem(i) { this.items.splice(i, 1); },
     };
