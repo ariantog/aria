@@ -8,7 +8,6 @@ use App\Models\ItemGroup;
 use App\Models\Tag;
 use App\Services\Items\ItemIdentityBuilder;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\Schema;
 
 class NormalizeItemIdentity extends Command
 {
@@ -45,16 +44,6 @@ class NormalizeItemIdentity extends Command
                     if ($sampleItem->type === ItemType::ITEM) {
                         if ($currentName === '' && $pcode !== '') {
                             $targetName = $pcode;
-                        } elseif (
-                            Schema::hasColumn('item_groups', 'alias')
-                            && trim((string) $group->alias) !== ''
-                            && ($currentName === '' || $currentName === strtoupper(trim((string) $group->alias)))
-                        ) {
-                            $aliasName = strtoupper(trim((string) $group->alias));
-
-                            if ($aliasName !== $pcode) {
-                                $targetName = $aliasName;
-                            }
                         }
                     }
 

@@ -36,7 +36,7 @@ it('repopulates item create form after validation errors', function () {
         ->post(route('items.store'), [
             'type' => ItemType::ITEM->value,
             'pcode' => 'INVALID',
-            'alias' => 'Slash Running Shirt',
+            'product_name' => 'Slash Running Shirt',
             'price' => 150000,
             'description' => 'Test desc',
             'tags' => [
@@ -66,7 +66,7 @@ it('repopulates item create form after service error', function () {
         ->post(route('items.store'), [
             'type' => ItemType::ITEM->value,
             'pcode' => 'BAD',
-            'alias' => 'Keep My Product Name',
+            'product_name' => 'Keep My Product Name',
             'price' => 99000,
             'tags' => [
                 'types' => [$typeTag->id],

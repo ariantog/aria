@@ -28,7 +28,7 @@ $breadcrumbs = [
         </div>
         <div class="space-y-1">
             <label class="text-xs font-semibold uppercase text-gray-500">Product Name</label>
-            <input name="alias" value="{{ $filters['alias'] ?? '' }}" placeholder="Filter product name…" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
+            <input name="product_name" value="{{ $filters['product_name'] ?? '' }}" placeholder="Filter product name…" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
         </div>
         <div class="space-y-1">
             <label class="text-xs font-semibold uppercase text-gray-500">Description</label>

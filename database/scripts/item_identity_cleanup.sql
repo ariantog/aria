@@ -1,4 +1,5 @@
 -- Item identity migration helpers (run in phpMyAdmin on production MySQL).
+-- For the full ordered checklist see: upgrade/items.txt
 -- Review results with SELECT before DELETE/UPDATE. Take a backup first.
 
 -- ---------------------------------------------------------------------------

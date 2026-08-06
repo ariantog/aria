@@ -39,7 +39,7 @@ class ItemsController extends Controller
             ->when($request->filled('brand'), fn ($q) => $q->where('brand', $request->brand))
             ->when($request->filled('code'), fn ($q) => $q->where('code', 'like', "{$request->code}%"))
             ->when($request->filled('name'), fn ($q) => $q->where('name', 'like', "%{$request->name}%"))
-            ->when($request->filled('alias'), fn ($q) => $q->whereHas('group', fn ($s) => $s->where('name', 'like', "%{$request->alias}%")))
+            ->when($request->filled('product_name'), fn ($q) => $q->whereHas('group', fn ($s) => $s->where('name', 'like', "%{$request->product_name}%")))
             ->when($request->filled('desc'), fn ($q) => $q->where(fn ($s) => $s
                 ->where('description', 'like', "%{$request->desc}%")
                 ->orWhereHas('group', fn ($g) => $g->where('description', 'like', "%{$request->desc}%"))
@@ -76,7 +76,7 @@ class ItemsController extends Controller
                     'qty' => $item->qty,
                     'image_url' => $item->image_url,
                     'jubelio_item_id' => $item->jubelio_item_id,
-                    'alias' => $item->group?->name ?? $item->name,
+                    'product_name' => $item->group?->name ?? $item->name,
                     'description' => $item->group?->description ?? $item->description,
                     'description2' => $item->group?->description2 ?? $item->description2,
                 ])->all(),
@@ -89,7 +89,7 @@ class ItemsController extends Controller
 
         return view('items.index', [
             'items' => $items,
-            'filters' => $request->only(['search', 'brand', 'type', 'jahit', 'size', 'warna', 'item_type', 'code', 'name', 'alias', 'desc']),
+            'filters' => $request->only(['search', 'brand', 'type', 'jahit', 'size', 'warna', 'item_type', 'code', 'name', 'product_name', 'desc']),
             'brands' => $this->brandOptions(),
             'types' => $this->typeOptions(),
             'tags' => \App\Models\Tag::all()->groupBy('type'),
@@ -181,7 +181,7 @@ class ItemsController extends Controller
 
         $request->validate([
             'pcode' => ['required', 'string'],
-            'alias' => $isAsset ? ['required', 'string', 'max:255'] : ['nullable', 'string', 'max:255'],
+            'product_name' => $isAsset ? ['required', 'string', 'max:255'] : ['nullable', 'string', 'max:255'],
             'price' => ['nullable', 'numeric'],
             'cost' => $isAsset ? ['required', 'numeric'] : ['nullable'],
             'tags.types' => $isAsset ? ['nullable'] : ['required'],
@@ -189,7 +189,7 @@ class ItemsController extends Controller
             'tags.warna' => ['required'],
             'tags.jahit' => $isAsset ? ['nullable'] : ['required'],
         ], [
-            'alias.required' => 'Product name is required.',
+            'product_name.required' => 'Product name is required.',
             'tags.warna.required' => 'Please select a color (warna).',
             'tags.types.required' => 'Please select a type (SKU prefix).',
             'tags.jahit.required' => 'Please select a jahit tag.',
@@ -280,12 +280,12 @@ class ItemsController extends Controller
 
         $query = ItemGroup::query()
             ->when($request->filled('kode'), fn ($q) => $q->where('name', 'like', "%{$request->kode}%"))
-            ->when($request->filled('alias'), fn ($q) => $q->where('name', 'like', "%{$request->alias}%"))
+            ->when($request->filled('product_name'), fn ($q) => $q->where('name', 'like', "%{$request->product_name}%"))
             ->when($request->filled('desc'), fn ($q) => $q->where('description', 'like', "%{$request->desc}%"));
 
         return view('items.group', [
             'groups' => $query->orderBy('id', 'desc')->paginate(20)->withQueryString(),
-            'filters' => $request->only(['kode', 'alias', 'desc']),
+            'filters' => $request->only(['kode', 'product_name', 'desc']),
             'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
     }

@@ -1,0 +1,321 @@
+================================================================================
+ITEM IDENTITY MIGRATION CHECKLIST
+Aria Core — manufactured items + asset lancar unified identity (PRs #1–#5)
+================================================================================
+
+Run steps IN ORDER. Take a full database backup before step 1.
+Test on a staging copy first. Review every SELECT result before running UPDATE/DELETE.
+
+Related files:
+  - database/scripts/item_identity_cleanup.sql  (shorter SQL snippets)
+  - app/Services/Items/ItemIdentityBuilder.php  (SKU / name rules)
+  - php artisan items:normalize-identity        (post-migration name sync)
+
+--------------------------------------------------------------------------------
+PHASE 0 — PRE-FLIGHT
+--------------------------------------------------------------------------------
+
+[ ] 0.1  Backup database (mysqldump or hosting panel).
+
+[ ] 0.2  Note current row counts:
+
+        SELECT 'items' AS tbl, COUNT(*) AS cnt FROM items WHERE deleted_at IS NULL
+        UNION ALL
+        SELECT 'item_groups', COUNT(*) FROM item_groups
+        UNION ALL
+        SELECT 'item_tag', COUNT(*) FROM item_tag;
+
+[ ] 0.3  Deploy the Laravel code (PRs #1–#5 merged) but do NOT run migrations yet
+         until pre-migration SQL below is done.
+
+[ ] 0.4  Stop or pause Jubelio sync jobs if any are running.
+
+[ ] 0.5  Ensure queue worker will be restarted after deploy:
+         php artisan queue:restart
+
+
+--------------------------------------------------------------------------------
+PHASE 1 — PRE-MIGRATION DATA CLEANUP (phpMyAdmin / MySQL)
+         Run BEFORE `php artisan migrate`
+--------------------------------------------------------------------------------
+
+--- 1.1  Find unused items (review only; optional soft-delete) ---------------
+
+SELECT i.id, i.code, i.name, i.pcode, i.type, i.created_at
+FROM items i
+WHERE i.deleted_at IS NULL
+  AND i.created_at < DATE_SUB(NOW(), INTERVAL 1 YEAR)
+  AND NOT EXISTS (
+    SELECT 1 FROM warehouse_items wi WHERE wi.item_id = i.id AND wi.quantity <> 0
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM transaction_details td WHERE td.item_id = i.id
+  )
+ORDER BY i.id;
+
+-- After review, optional soft-delete:
+-- UPDATE items i
+-- SET i.deleted_at = NOW()
+-- WHERE i.deleted_at IS NULL
+--   AND i.created_at < DATE_SUB(NOW(), INTERVAL 1 YEAR)
+--   AND NOT EXISTS (SELECT 1 FROM warehouse_items wi WHERE wi.item_id = i.id AND wi.quantity <> 0)
+--   AND NOT EXISTS (SELECT 1 FROM transaction_details td WHERE td.item_id = i.id);
+
+
+--- 1.2  Fix pcode slash → hyphen (manufactured items) -----------------------
+
+-- Preview:
+SELECT id, pcode FROM items WHERE pcode LIKE '%/%' AND deleted_at IS NULL LIMIT 50;
+
+UPDATE items
+SET pcode = REPLACE(pcode, '/', '-')
+WHERE pcode LIKE '%/%' AND deleted_at IS NULL;
+
+UPDATE item_groups
+SET name = REPLACE(name, '/', '-')
+WHERE name LIKE '%/%';
+
+
+--- 1.3  Copy item_groups.alias → item_groups.name (BEFORE alias column drop) --
+
+-- Preview groups where alias has a real product name but name does not:
+SELECT id, name, alias, master, variant
+FROM item_groups
+WHERE alias IS NOT NULL
+  AND TRIM(alias) <> ''
+  AND (
+    name IS NULL
+    OR TRIM(name) = ''
+    OR UPPER(name) = UPPER(alias)
+  )
+LIMIT 50;
+
+-- Promote alias to name where name is empty:
+UPDATE item_groups
+SET name = UPPER(TRIM(alias))
+WHERE alias IS NOT NULL
+  AND TRIM(alias) <> ''
+  AND (name IS NULL OR TRIM(name) = '');
+
+-- Where name equals pcode placeholder but alias has the real product name:
+UPDATE item_groups g
+JOIN (
+    SELECT group_id, UPPER(TRIM(pcode)) AS pcode
+    FROM items
+    WHERE deleted_at IS NULL
+    GROUP BY group_id, UPPER(TRIM(pcode))
+) i ON i.group_id = g.id
+SET g.name = UPPER(TRIM(g.alias))
+WHERE g.alias IS NOT NULL
+  AND TRIM(g.alias) <> ''
+  AND UPPER(TRIM(g.name)) = i.pcode
+  AND UPPER(TRIM(g.alias)) <> i.pcode;
+
+
+--- 1.4  Backfill legacy_code (preserve old SKUs for Jubelio / barcode) -------
+
+-- Skip if migration 2026_08_05_221616 will run (it backfills automatically).
+-- Run manually only if you need legacy_code BEFORE deploying that migration:
+
+-- Preview:
+SELECT id, code, legacy_code FROM items
+WHERE legacy_code IS NULL AND code IS NOT NULL AND code <> ''
+LIMIT 50;
+
+UPDATE items
+SET legacy_code = code
+WHERE legacy_code IS NULL AND code IS NOT NULL AND code <> '';
+
+
+--- 1.5  Warna tag codes (preview) -------------------------------------------
+
+-- Migration 2026_08_06_073452 syncs warna tag code = UPPER(name).
+-- Preview mismatches:
+SELECT id, name, code, type
+FROM tags
+WHERE type = 20
+  AND code <> UPPER(name)
+LIMIT 50;
+
+
+--------------------------------------------------------------------------------
+PHASE 2 — LARAVEL MIGRATIONS (in this exact order)
+--------------------------------------------------------------------------------
+
+[ ] 2.1  php artisan migrate
+
+     Migrations applied (item-related):
+       2026_08_05_221616_add_legacy_code_to_items_table
+         → ADD items.legacy_code (nullable, indexed)
+         → Backfills legacy_code = code for existing rows
+
+       2026_08_06_073452_sync_warna_tag_codes_to_match_names
+         → UPDATE tags SET code = UPPER(name) WHERE type = 20 (warna)
+
+       2026_08_06_080753_drop_alias_from_item_groups_table
+         → DROP item_groups.alias
+
+     Manual SQL equivalents (only if you cannot run artisan migrate):
+
+     -- ADD legacy_code:
+     ALTER TABLE items ADD COLUMN legacy_code VARCHAR(255) NULL AFTER code;
+     CREATE INDEX items_legacy_code_index ON items (legacy_code);
+     UPDATE items SET legacy_code = code WHERE legacy_code IS NULL AND code <> '';
+
+     -- Sync warna codes:
+     UPDATE tags SET code = UPPER(name) WHERE type = 20;
+
+     -- DROP alias (run ONLY after step 1.3):
+     ALTER TABLE item_groups DROP COLUMN alias;
+
+
+--------------------------------------------------------------------------------
+PHASE 3 — POST-MIGRATION NORMALIZE (artisan)
+--------------------------------------------------------------------------------
+
+[ ] 3.1  Dry run — review output, no writes:
+
+         php artisan items:normalize-identity --dry-run
+
+[ ] 3.2  Apply — backfill group names (pcode placeholder) and regenerate
+         item display names from group.name + warna + size tags:
+
+         php artisan items:normalize-identity
+
+[ ] 3.3  Restart queue worker:
+
+         php artisan queue:listen
+         (or your supervisor/systemd service)
+
+
+--------------------------------------------------------------------------------
+PHASE 4 — VERIFICATION QUERIES
+--------------------------------------------------------------------------------
+
+--- 4.1  legacy_code populated -------------------------------------------------
+
+SELECT COUNT(*) AS missing_legacy_code
+FROM items
+WHERE deleted_at IS NULL
+  AND code IS NOT NULL AND code <> ''
+  AND legacy_code IS NULL;
+
+-- Expect: 0
+
+
+--- 4.2  alias column gone -----------------------------------------------------
+
+-- Should error "Unknown column 'alias'" after migration:
+-- SELECT alias FROM item_groups LIMIT 1;
+
+
+--- 4.3  Manufactured items with pcode placeholder names -----------------------
+
+SELECT i.id, i.code, i.pcode, i.name, g.name AS group_name
+FROM items i
+JOIN item_groups g ON g.id = i.group_id
+WHERE i.type = 1
+  AND i.deleted_at IS NULL
+  AND UPPER(g.name) = UPPER(i.pcode)
+LIMIT 20;
+
+-- Expected for items not yet named for market release.
+
+
+--- 4.4  Display name format spot-check ----------------------------------------
+
+-- Should look like: PRODUCT NAME - WARNA - SIZE  (or PCODE - WARNA - SIZE)
+SELECT id, code, name, pcode FROM items WHERE deleted_at IS NULL ORDER BY id DESC LIMIT 20;
+
+
+--- 4.5  Jubelio / legacy SKU lookup -------------------------------------------
+
+-- Pick a few known OLD barcodes that changed format:
+SELECT id, code, legacy_code, name
+FROM items
+WHERE UPPER(legacy_code) IN ('PUT-OLD-SKU-1', 'PUT-OLD-SKU-2')
+   OR UPPER(code) IN ('PUT-OLD-SKU-1', 'PUT-OLD-SKU-2');
+
+
+--- 4.6  Duplicate SKU check ---------------------------------------------------
+
+SELECT UPPER(code) AS sku, COUNT(*) AS cnt
+FROM items
+WHERE deleted_at IS NULL
+GROUP BY UPPER(code)
+HAVING cnt > 1;
+
+-- Expect: 0 rows
+
+
+--- 4.7  Invalid manufactured pcode format -------------------------------------
+
+SELECT id, pcode FROM items
+WHERE type = 1 AND deleted_at IS NULL
+  AND pcode NOT REGEXP '^[A-Z]{2,3}[0-9]{5}-[0-9]{2,3}$'
+LIMIT 50;
+
+
+--------------------------------------------------------------------------------
+PHASE 5 — MANUAL APP TESTING (staging)
+--------------------------------------------------------------------------------
+
+[ ] 5.1  Create manufactured item WITHOUT product name → group.name = pcode,
+         display name = {pcode} - {warna} - {size}
+
+[ ] 5.2  Create manufactured item WITH product name → normal display name
+
+[ ] 5.3  Create asset lancar → product name required; cartesian warna × size
+
+[ ] 5.4  Edit single manufactured item → change product name → all sizes in
+         group update
+
+[ ] 5.5  Group detail page → Rename Product → all items in group update
+
+[ ] 5.6  Item list filters (product name, SKU, pcode) work
+
+[ ] 5.7  Transaction entry barcode lookup finds item by code AND legacy_code
+
+[ ] 5.8  Jubelio item link still resolves via legacy_code where SKU changed
+
+[ ] 5.9  ./vendor/bin/pest passes on staging
+
+
+--------------------------------------------------------------------------------
+PHASE 6 — PRODUCTION CUTOVER
+--------------------------------------------------------------------------------
+
+[ ] 6.1  Repeat phases 0–5 on production (maintenance window if needed).
+
+[ ] 6.2  Monitor logs for SKU-not-found errors after go-live.
+
+[ ] 6.3  Keep legacy_code indefinitely — do NOT drop that column; Jubelio and
+         old barcodes depend on it until everything is re-linked.
+
+
+--------------------------------------------------------------------------------
+REFERENCE — NEW IDENTITY RULES (after migration)
+--------------------------------------------------------------------------------
+
+SKU (items.code):
+  Manufactured:  {TYPE}-{pcode}-{size?}     e.g. AJD-CX90324-05-S
+  Asset lancar:  {pcode}-{warna}-{size?}    e.g. GLOVE-01-BLACK-S
+  All-size (AS): omit trailing -{size}
+
+Display name (items.name):
+  {group.name} - {warna code} - {size code}
+  e.g. SLASH RUNNING SHIRT - BLUE - S
+  or   CX93249-03 - BLUE - S  (when product name not yet released)
+
+Pcode:
+  Manufactured:  XX12345-23  (hyphen, not slash)
+  Asset lancar:  GLOVE-01
+
+Product name (item_groups.name):
+  Required for asset lancar.
+  Optional for manufactured items — defaults to pcode until renamed via
+  item edit or group detail page.
+
+================================================================================
+END OF CHECKLIST
+================================================================================

@@ -1,7 +1,7 @@
 @php
     $fi = $formItem ?? [
         'pcode' => old('pcode'),
-        'alias' => old('alias'),
+        'product_name' => old('product_name'),
         'price' => old('price'),
         'cost' => old('cost'),
     ];
@@ -20,12 +20,12 @@
                 Product Name
                 @if($isAsset)<span class="text-red-500">*</span>@endif
             </label>
-            <input type="text" name="alias" x-model="form.alias" value="{{ $fi['alias'] }}"
+            <input type="text" name="product_name" x-model="form.product_name" value="{{ $fi['product_name'] }}"
                    @unless($isAsset) :placeholder="(form.pcode || '').toUpperCase() || 'CX90233-23'" @endunless
                    placeholder="{{ $isAsset ? 'e.g. Boxing Gloves' : '' }}"
                    @if($isAsset) required @endif
-                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 @error('alias') border-red-500 @enderror">
-            @error('alias')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
+                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 @error('product_name') border-red-500 @enderror">
+            @error('product_name')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
             <p class="mt-1 text-xs text-gray-500">
                 @if($isAsset)
                     Stored on the item group; sizes/colors append to this in the display name.

@@ -3,7 +3,7 @@
     $isAsset = $isAsset ?? false;
     $formItem = $formItem ?? [
         'pcode' => old('pcode', ''),
-        'alias' => old('alias', ''),
+        'product_name' => old('product_name', ''),
     ];
 @endphp
 @push('scripts')
@@ -16,7 +16,7 @@ function itemForm() {
         allSizeCode: 'AS',
         form: {
             pcode: @js($formItem['pcode'] ?? ''),
-            alias: @js($formItem['alias'] ?? ''),
+            product_name: @js($formItem['product_name'] ?? ''),
         },
         typeCode: '???',
         warnaCode: '???',
@@ -59,7 +59,7 @@ function itemForm() {
 
         get previewItems() {
             const pcode = (this.form.pcode || '').toUpperCase().trim();
-            const productName = (this.form.alias || '').toUpperCase().trim()
+            const productName = (this.form.product_name || '').toUpperCase().trim()
                 || (this.isAsset ? '???' : pcode || '???');
             if (!pcode) {
                 return [];
