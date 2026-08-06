@@ -8,11 +8,14 @@ use App\Models\Tag;
 use App\Services\Restock\RestockCellService;
 use App\Services\Restock\RestockGridBuilder;
 use App\Services\Restock\RestockMoveService;
+use App\Services\Restock\RestockReceiveService;
+use App\Services\Restock\RestockSettingsService;
 use App\Services\Restock\RestockSheetService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use InvalidArgumentException;
 
@@ -23,6 +26,8 @@ class RestockSheetController extends Controller
     protected RestockGridBuilder $gridBuilder,
     protected RestockCellService $cellService,
     protected RestockMoveService $moveService,
+    protected RestockReceiveService $receiveService,
+    protected RestockSettingsService $settingsService,
   ) {}
 
   public function store(Request $request, Tag $typeTag): RedirectResponse
@@ -48,11 +53,14 @@ class RestockSheetController extends Controller
 
     $sheet->load(['typeTag', 'representativeGroup']);
 
+    $receiveReady = rescue(fn () => $this->settingsService->resolveReceiveParties(), report: false) !== null;
+
     return view('restock.sheet', [
       'sheet' => $sheet,
       'grid' => $this->gridBuilder->build($sheet),
       'typeTags' => $this->sheetService->typeTags(),
       'canEdit' => request()->user()?->can(RestockSheet::getPermissions()['edit']) ?? false,
+      'receiveReady' => $receiveReady,
     ]);
   }
 
@@ -114,6 +122,40 @@ class RestockSheetController extends Controller
     return response()->json([
       'message' => $moved > 0 ? "Moved {$moved} unit(s)." : 'Nothing to move.',
       'moved' => $moved,
+      'grid' => $this->gridBuilder->build($sheet->fresh()),
+    ]);
+  }
+
+  public function receive(Request $request, RestockSheet $sheet): JsonResponse
+  {
+    Gate::authorize(RestockSheet::getPermissions()['edit']);
+
+    $validated = $request->validate([
+      'date' => ['required', 'date'],
+      'invoice_number' => ['nullable', 'string', 'max:255'],
+      'cells' => ['required', 'array', 'min:1'],
+      'cells.*.id' => ['required', 'integer'],
+      'cells.*.qty' => ['nullable', 'integer', 'min:1'],
+    ]);
+
+    try {
+      $transaction = $this->receiveService->receive(
+        $sheet,
+        $validated['cells'],
+        $request->user(),
+        $validated['date'],
+        $validated['invoice_number'] ?? null,
+      );
+    } catch (ValidationException $e) {
+      return response()->json(['message' => collect($e->errors())->flatten()->first()], 422);
+    } catch (InvalidArgumentException $e) {
+      return response()->json(['message' => $e->getMessage()], 422);
+    }
+
+    return response()->json([
+      'message' => 'Received into warehouse.',
+      'transaction_id' => $transaction->id,
+      'transaction_url' => route('transactions.show', $transaction),
       'grid' => $this->gridBuilder->build($sheet->fresh()),
     ]);
   }

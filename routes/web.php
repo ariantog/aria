@@ -237,6 +237,7 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
         Route::get('/sheets/{sheet}', [App\Http\Controllers\Restock\RestockSheetController::class, 'show'])->name('sheets.show');
         Route::put('/sheets/{sheet}', [App\Http\Controllers\Restock\RestockSheetController::class, 'update'])->name('sheets.update');
         Route::post('/sheets/{sheet}/move', [App\Http\Controllers\Restock\RestockSheetController::class, 'move'])->name('sheets.move');
+        Route::post('/sheets/{sheet}/receive', [App\Http\Controllers\Restock\RestockSheetController::class, 'receive'])->name('sheets.receive');
         Route::post('/sheets/{sheet}/sync', [App\Http\Controllers\Restock\RestockSheetController::class, 'sync'])->name('sheets.sync');
     });
 });
