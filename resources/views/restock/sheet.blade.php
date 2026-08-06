@@ -3,12 +3,13 @@
 @push('head-css')
 <link href="https://unpkg.com/tabulator-tables@6.3.1/dist/css/tabulator.min.css" rel="stylesheet">
 <style>
-    .tabulator { font-size: 13px; border-radius: 0.5rem; overflow: hidden; }
+    .tabulator { font-size: 13px; border-radius: 0.5rem; overflow: hidden; width: max-content; max-width: 100%; }
     .tabulator .tabulator-header .tabulator-col.tabulator-col-group-restock { background: #dbeafe; }
     .tabulator .tabulator-header .tabulator-col.tabulator-col-group-production { background: #fde68a; }
     .tabulator .tabulator-header .tabulator-col.tabulator-col-group-shipped { background: #e5e7eb; }
     .tabulator-cell.tabulator-editing { border: 2px solid #2563eb !important; }
     .restock-urgent-cell { background-color: #fef2f2 !important; color: #b91c1c; font-weight: 600; }
+    .restock-grid-scroll { overflow-x: auto; }
 </style>
 @endpush
 
@@ -75,7 +76,7 @@ $breadcrumbs = [
                 <h2 class="font-semibold text-gray-900">{{ $parent['name'] }}</h2>
                 <p class="font-mono text-xs text-gray-500">{{ $parent['pcode'] }}</p>
             </div>
-            <div class="p-2" data-parent-grid="{{ $parent['pcode'] }}"></div>
+            <div class="restock-grid-scroll p-2" data-parent-grid="{{ $parent['pcode'] }}"></div>
         </section>
     @empty
         <div class="rounded-xl border border-gray-200 bg-white p-8 text-center text-gray-500">
@@ -105,9 +106,9 @@ function restockSheetPage() {
                     if (!el) continue;
                     this.tables[parent.pcode] = new Tabulator(el, {
                         data: parent.rows,
-                        layout: 'fitDataStretch',
+                        layout: 'fitData',
                         height: Math.max(120, (parent.rows.length + 1) * 38 + 20),
-                        columnDefaults: { headerHozAlign: 'center', hozAlign: 'right' },
+                        columnDefaults: { headerHozAlign: 'center', hozAlign: 'right', widthGrow: 0 },
                         columns: this.buildColumns(parent.sizes),
                         rowFormatter: (row) => this.formatUrgentRow(row),
                     });
@@ -116,8 +117,14 @@ function restockSheetPage() {
         },
 
         buildColumns(sizes) {
+            const qtyCol = {
+                width: 58,
+                widthGrow: 0,
+                editor: this.canEdit ? 'number' : false,
+            };
+
             const cols = [
-                { title: 'Color', field: 'color_name', frozen: true, width: 130, hozAlign: 'left', headerHozAlign: 'left', editor: false },
+                { title: 'Color', field: 'color_name', frozen: true, width: 130, widthGrow: 0, hozAlign: 'left', headerHozAlign: 'left', editor: false },
             ];
 
             const stages = [
@@ -133,8 +140,7 @@ function restockSheetPage() {
                     return {
                         title: size,
                         field,
-                        editor: this.canEdit ? 'number' : false,
-                        minWidth: 58,
+                        ...qtyCol,
                         formatter: (cell) => {
                             const val = cell.getValue() ?? 0;
                             const row = cell.getRow().getData();
@@ -151,8 +157,9 @@ function restockSheetPage() {
                     children.push({
                         title: 'Total',
                         field: 'restock_total',
+                        width: 64,
+                        widthGrow: 0,
                         editor: false,
-                        minWidth: 64,
                         hozAlign: 'right',
                         formatter: (cell) => cell.getValue() ?? 0,
                     });
