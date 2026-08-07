@@ -212,6 +212,42 @@ class JubelioService
     /**
      * @return array<string, mixed>|null
      */
+    public function fetchSalesOrders(int $page, int $pageSize, string $dateFrom, string $dateTo): ?array
+    {
+        $request = $this->authenticatedRequest();
+        if (! $request) {
+            return null;
+        }
+
+        try {
+            $response = $request->get('https://api2.jubelio.com/sales/orders/', [
+                'page' => $page,
+                'pageSize' => $pageSize,
+                'transactionDateFrom' => $dateFrom,
+                'transactionDateTo' => $dateTo,
+            ]);
+
+            if ($response->successful()) {
+                $data = $response->json();
+
+                return is_array($data) ? $data : null;
+            }
+
+            Log::error('Jubelio fetch sales orders failed.', [
+                'page' => $page,
+                'status' => $response->status(),
+                'response' => $response->body(),
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Jubelio fetch sales orders error: '.$e->getMessage(), ['page' => $page]);
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
     public function fetchSalesOrder(int|string $orderId): ?array
     {
         $request = $this->authenticatedRequest();

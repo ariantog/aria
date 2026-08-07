@@ -185,6 +185,7 @@
         @if($hasPerm('jubelio-view') || $isSuperAdmin)
         <a href="{{ route('jubelio.index') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $currentUrl === 'jubelio' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Orders</a>
         <a href="{{ route('jubelio.returns.index') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/jubelio-returns') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Cancellations</a>
+        <a href="{{ route('jubelio.get-orders.index') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/jubelio-get-orders') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Get Orders</a>
         @endif
         @if($hasPerm('jubelio-sync') || $isSuperAdmin)
         <a href="{{ route('jubelio.transaction.sync') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/jubelio-transaction') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Stock Sync</a>
