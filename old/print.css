@@ -1,0 +1,19 @@
+/* print.css */
+body {font-family:Calibri, Arial, Sans-serif;color:#000;background:none;font-size:10pt;}
+.ph,#left-menu, #dropdown1, nav{display: none;}
+#content-container{padding-left: 0px;}
+a {background:none;text-decoration:none;color:#000;}
+a:link:after { content:none; }
+body { padding-top: 0px; }
+#invoice table
+{
+	clear:both;
+	margin-top:10px;
+	border-collapse:collapse;
+	width:100%;
+}
+
+#invoice h5, #invoice th, #invoice td {margin: 0; padding: 0;}
+#invoice h5{font-size: 12pt;}
+#invoice .invoice th,#invoice .invoice td{border: none;}
+#invoice .sh {display: block;}
