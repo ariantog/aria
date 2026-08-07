@@ -15,23 +15,23 @@ class UserController extends Controller
         Gate::authorize(User::getPermissions()['view']);
 
         $status = $request->query('status', 'active');
+        $search = trim((string) $request->query('q', ''));
 
         $query = User::with(['location', 'roles'])
             ->when($status === 'active', fn ($q) => $q->where('is_active', true))
             ->when($status === 'banned', fn ($q) => $q->where('is_active', false))
-            ->when(
-                Auth::user()->is_superadmin
-                    && in_array(\Illuminate\Database\Eloquent\SoftDeletes::class, class_uses_recursive(User::class), true),
-                fn ($q) => $q->withTrashed()
-            );
+            ->when($search !== '', fn ($q) => $q->where(function ($sq) use ($search) {
+                $sq->where('name', 'like', "%{$search}%")
+                    ->orWhere('username', 'like', "%{$search}%")
+                    ->orWhere('email', 'like', "%{$search}%");
+            }));
 
         return view('users.index', [
             'users' => $query->latest()->paginate(10)->withQueryString(),
-            'filters' => ['status' => $status],
+            'filters' => ['status' => $status, 'q' => $search],
             'can' => [
                 'create_user' => request()->user()?->can(User::getPermissions()['create']) ?? false,
                 'edit_user' => request()->user()?->can(User::getPermissions()['edit']) ?? false,
-                'delete_user' => request()->user()?->can(User::getPermissions()['delete']) ?? false,
             ],
             'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
@@ -97,12 +97,17 @@ class UserController extends Controller
             'is_active' => 'boolean',
         ]);
 
-        $user->update([
+        $updates = [
             'name' => $data['name'],
             'username' => $data['username'],
             'location_id' => $data['location_id'] ?? null,
-            'is_active' => $data['is_active'] ?? true,
-        ]);
+        ];
+
+        if (! $user->is_superadmin && $user->id !== Auth::id()) {
+            $updates['is_active'] = $data['is_active'] ?? true;
+        }
+
+        $user->update($updates);
 
         if ($data['password']) {
             $user->update(['password' => bcrypt($data['password'])]);
@@ -112,21 +117,37 @@ class UserController extends Controller
         return redirect()->route('users.index')->with('success', 'User updated.');
     }
 
-    public function destroy(User $user)
+    public function ban(User $user)
     {
-        Gate::authorize(User::getPermissions()['delete']);
+        Gate::authorize(User::getPermissions()['edit']);
 
         if ($user->is_superadmin) {
-            return redirect()->route('users.index')->with('error', 'The superadmin account cannot be deleted.');
+            return redirect()->route('users.index')->with('error', 'The superadmin account cannot be banned.');
         }
 
         if ($user->id === Auth::id()) {
-            return redirect()->route('users.index')->with('error', 'You cannot delete your own account.');
+            return redirect()->route('users.index')->with('error', 'You cannot ban your own account.');
         }
 
-        $user->syncRoles([]);
-        $user->delete();
+        if (! $user->is_active) {
+            return redirect()->route('users.index')->with('error', 'User is already banned.');
+        }
 
-        return redirect()->route('users.index')->with('success', 'User deleted.');
+        $user->update(['is_active' => false]);
+
+        return redirect()->route('users.index')->with('success', 'User banned.');
+    }
+
+    public function unban(User $user)
+    {
+        Gate::authorize(User::getPermissions()['edit']);
+
+        if ($user->is_active) {
+            return redirect()->route('users.index')->with('error', 'User is already active.');
+        }
+
+        $user->update(['is_active' => true]);
+
+        return redirect()->route('users.index')->with('success', 'User unbanned.');
     }
 }
