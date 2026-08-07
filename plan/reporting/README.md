@@ -9,7 +9,9 @@ Status: **Planning only** — no implementation yet.
 |------|---------|
 | [01-brainstorm.md](./01-brainstorm.md) | What we need, data gaps, Indonesian tax & neraca concepts |
 | [02-data-model.md](./02-data-model.md) | How existing tables map to reports; new tables/settings needed |
-| [03-composer-implementation-plan.md](./03-composer-implementation-plan.md) | Phased build plan for Composer agent |
+| [03-composer-implementation-plan.md](./03-composer-implementation-plan.md) | Phased build plan for Composer agent (v1 — superseded in parts) |
+| [04-revised-architecture-v2.md](./04-revised-architecture-v2.md) | **Current** architecture: entities, bank-PKP tax, cash categories |
+| [05-pre-implementation-questions.md](./05-pre-implementation-questions.md) | **Answer before coding** |
 
 ## Context (read first)
 
