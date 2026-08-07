@@ -11,7 +11,7 @@
     $ppn = (bool) old('ppn', $isEdit ? $addrbook->ppn : false);
 @endphp
 
-<div class="grid grid-cols-1 gap-6 md:grid-cols-2">
+<div class="grid grid-cols-1 gap-6 md:grid-cols-2" x-data="{ selectedType: '{{ $typeValue }}' }" @change.capture="if ($event.target && $event.target.name === 'type') selectedType = $event.target.value">
     {{-- Basic Information --}}
     <div class="rounded-xl border border-gray-200 bg-white shadow-sm md:col-span-2">
         <div class="border-b border-gray-100 px-5 py-4">
@@ -113,6 +113,26 @@
             </div>
         </div>
     </div>
+
+    @if(($locations ?? collect())->isNotEmpty())
+    <div class="rounded-xl border border-gray-200 bg-white shadow-sm md:col-span-2"
+         x-show="selectedType === '{{ \App\Enums\AddrbookType::Customer->value }}'" x-cloak>
+        <div class="border-b border-gray-100 px-5 py-4">
+            <h3 class="text-sm font-semibold text-gray-900">Locations</h3>
+            <p class="text-xs text-gray-500">Assign this customer to one or more locations.</p>
+        </div>
+        <div class="grid grid-cols-1 gap-2 p-5 sm:grid-cols-2 lg:grid-cols-3">
+            @php $selectedIds = collect(old('location_ids', ($selectedLocationIds ?? collect())->all())); @endphp
+            @foreach($locations as $location)
+            <label class="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                <input type="checkbox" name="location_ids[]" value="{{ $location->id }}"
+                       @checked($selectedIds->contains($location->id))>
+                <span>{{ $location->name }}</span>
+            </label>
+            @endforeach
+        </div>
+    </div>
+    @endif
 
     {{-- Financials --}}
     <div class="rounded-xl border border-gray-200 bg-white shadow-sm">

@@ -31,6 +31,8 @@ class StoreAddrbookRequest extends FormRequest
             'is_online' => 'boolean',
             'ppn' => 'boolean',
             'initial_balance' => 'nullable|numeric',
+            'location_ids' => 'nullable|array',
+            'location_ids.*' => 'integer|exists:locations,id',
         ];
     }
 }

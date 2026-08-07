@@ -8,6 +8,7 @@ use App\Enums\TransactionType;
 use App\Http\Requests\StoreAddrbookRequest;
 use App\Http\Requests\UpdateAddrbookRequest;
 use App\Models\Addrbook;
+use App\Models\Location;
 use App\Models\StatSell;
 use Illuminate\Support\Facades\Gate;
 
@@ -85,6 +86,7 @@ class AddrbookController extends Controller
             'preselected_type_id' => $pt,
             'current_type' => $type,
             'ppn_rate' => (float) \App\Models\Setting::getValue('ppn_rate', 11),
+            ...$this->locationFormProps(),
         ]);
     }
 
@@ -95,6 +97,7 @@ class AddrbookController extends Controller
 
         $a = Addrbook::create($r->validated());
         $a->stat()->create(['balance' => $r->input('initial_balance', 0)]);
+        $this->syncCustomerLocations($a, $r->input('location_ids', []));
 
         return redirect()->route('addrbook.index')->with('success', 'Created.');
     }
@@ -163,9 +166,10 @@ class AddrbookController extends Controller
         $this->authorizeAddrbookLocation($a);
 
         return view('addrbook.edit', [
-            'addrbook' => $a->load('stat'),
+            'addrbook' => $a->load(['stat', 'locations']),
             'types' => Addrbook::getTypes(),
             'ppn_rate' => (float) \App\Models\Setting::getValue('ppn_rate', 11),
+            ...$this->locationFormProps($a),
         ]);
     }
 
@@ -179,6 +183,7 @@ class AddrbookController extends Controller
         $a = $addrbook;
         Gate::authorize(Addrbook::getPermissions($this->addrbookTypeSlug($a))['edit']);
         $a->update($r->validated());
+        $this->syncCustomerLocations($a, $r->input('location_ids', []));
 
         return redirect()->route('addrbook.index')->with('success', 'Updated.');
     }
@@ -417,5 +422,25 @@ class AddrbookController extends Controller
             AddrbookType::Warehouse->value, AddrbookType::VirtualWarehouse->value => 'warehouse',
             default => 'other',
         };
+    }
+
+    /**
+     * @return array{locations: \Illuminate\Support\Collection, selectedLocationIds: \Illuminate\Support\Collection<int, int>}
+     */
+    private function locationFormProps(?Addrbook $addrbook = null): array
+    {
+        return [
+            'locations' => Location::query()->orderBy('name')->get(),
+            'selectedLocationIds' => $addrbook?->locations->pluck('id') ?? collect(),
+        ];
+    }
+
+    private function syncCustomerLocations(Addrbook $addrbook, array $locationIds): void
+    {
+        if ($addrbook->type !== AddrbookType::Customer) {
+            return;
+        }
+
+        $addrbook->locations()->sync($locationIds);
     }
 }

@@ -28,7 +28,7 @@ $breadcrumbs = [
     <form method="GET" action="{{ route('users.index') }}" class="flex flex-wrap items-end gap-2 rounded-xl border border-gray-200 bg-white p-3">
         <div class="flex min-w-[12rem] flex-1 flex-col gap-1">
             <label class="text-xs font-medium uppercase text-gray-500">Search</label>
-            <input type="search" name="q" value="{{ $filters['q'] ?? '' }}" placeholder="Name, username, or email"
+            <input type="search" name="q" value="{{ $filters['q'] ?? '' }}" placeholder="Name or username"
                    class="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
         </div>
         <div class="flex flex-col gap-1">
@@ -53,7 +53,7 @@ $breadcrumbs = [
                     <tr>
                         <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Name</th>
                         <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Username</th>
-                        <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Email</th>
+                        <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Location</th>
                         <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Role</th>
                         <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Status</th>
                         <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Joined</th>
@@ -67,7 +67,7 @@ $breadcrumbs = [
                             <div class="font-semibold text-gray-900">{{ $user->name }}</div>
                         </td>
                         <td class="whitespace-nowrap px-6 py-4 text-gray-500">{{ '@'.$user->username }}</td>
-                        <td class="whitespace-nowrap px-6 py-4 text-gray-500">{{ $user->email }}</td>
+                        <td class="whitespace-nowrap px-6 py-4 text-gray-500">{{ $user->location?->name ?? '—' }}</td>
                         <td class="whitespace-nowrap px-6 py-4">
                             <div class="flex flex-wrap gap-1">
                                 @forelse($user->roles as $role)

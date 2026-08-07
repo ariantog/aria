@@ -30,6 +30,7 @@ $breadcrumbs = [
                 <thead class="bg-gray-50">
                     <tr>
                         <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Name</th>
+                        <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Customers</th>
                         <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Created At</th>
                         <th class="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Actions</th>
                     </tr>
@@ -38,10 +39,15 @@ $breadcrumbs = [
                     @forelse($locations as $location)
                     <tr class="hover:bg-gray-50">
                         <td class="whitespace-nowrap px-6 py-4 font-semibold text-gray-900">{{ $location->name }}</td>
+                        <td class="whitespace-nowrap px-6 py-4 text-gray-500">{{ $location->addrbooks_count }}</td>
                         <td class="whitespace-nowrap px-6 py-4 text-gray-500">{{ $location->created_at?->format('d/m/Y') }}</td>
                         <td class="whitespace-nowrap px-6 py-4 text-right">
                             <div class="flex justify-end gap-1">
                                 @if($can['edit_location'])
+                                <a href="{{ route('locations.addrbooks', $location->id) }}"
+                                   class="inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-400 hover:bg-gray-100 hover:text-gray-900" title="Manage customers">
+                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a4 4 0 00-5-3.87M9 20H4v-2a4 4 0 015-3.87M12 12a4 4 0 100-8 4 4 0 000 8zm6 8v-2a4 4 0 00-3-3.87M6 18v-2a4 4 0 013-3.87"/></svg>
+                                </a>
                                 <a href="{{ route('locations.edit', $location->id) }}"
                                    class="inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-400 hover:bg-gray-100 hover:text-gray-900" title="Edit">
                                     <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
@@ -60,7 +66,7 @@ $breadcrumbs = [
                         </td>
                     </tr>
                     @empty
-                    <tr><td colspan="3" class="px-6 py-12 text-center text-sm text-gray-500">No locations found.</td></tr>
+                    <tr><td colspan="4" class="px-6 py-12 text-center text-sm text-gray-500">No locations found.</td></tr>
                     @endforelse
                 </tbody>
             </table>
