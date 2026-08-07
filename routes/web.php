@@ -33,6 +33,9 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::post('users/{user}/unban', [\App\Http\Controllers\UserController::class, 'unban'])->name('users.unban');
     Route::resource('users', \App\Http\Controllers\UserController::class)->except(['destroy']);
     Route::resource('locations', \App\Http\Controllers\LocationController::class);
+    Route::get('locations/{location}/addrbooks', [\App\Http\Controllers\LocationController::class, 'addrbooks'])->name('locations.addrbooks');
+    Route::post('locations/{location}/addrbooks', [\App\Http\Controllers\LocationController::class, 'attachAddrbook'])->name('locations.addrbooks.attach');
+    Route::delete('locations/{location}/addrbooks/{addrbook}', [\App\Http\Controllers\LocationController::class, 'detachAddrbook'])->name('locations.addrbooks.detach');
     Route::resource('posts', App\Http\Controllers\PostController::class);
     Route::get('items/{item}/transactions', [App\Http\Controllers\ItemsController::class, 'itemTransactions'])->name('items.transactions');
     Route::get('items/{item}/stats', [App\Http\Controllers\ItemsController::class, 'itemStats'])->name('items.stats');

@@ -22,8 +22,7 @@ class UserController extends Controller
             ->when($status === 'banned', fn ($q) => $q->where('is_active', false))
             ->when($search !== '', fn ($q) => $q->where(function ($sq) use ($search) {
                 $sq->where('name', 'like', "%{$search}%")
-                    ->orWhere('username', 'like', "%{$search}%")
-                    ->orWhere('email', 'like', "%{$search}%");
+                    ->orWhere('username', 'like', "%{$search}%");
             }));
 
         return view('users.index', [

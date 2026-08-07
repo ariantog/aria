@@ -30,6 +30,8 @@ class UpdateAddrbookRequest extends FormRequest
             'contact_person' => ['nullable', 'string', 'max:255'],
             'is_online' => 'boolean',
             'ppn' => 'boolean',
+            'location_ids' => 'nullable|array',
+            'location_ids.*' => 'integer|exists:locations,id',
         ];
     }
 }
