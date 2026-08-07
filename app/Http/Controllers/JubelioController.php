@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Actions\Jubelio\AdjustStock;
+use App\Actions\Jubelio\ProcessJubelioOrder;
 use App\Enums\TransactionType;
 use App\Models\Jubelio;
 use App\Models\Jubelioorder;
@@ -22,10 +23,17 @@ class JubelioController extends Controller
     {
         Gate::authorize(Jubelio::getPermissions()['view']);
         $q = Jubelioorder::query()->with('user')->orderBy('updated_at', 'desc');
-        if ($request->status == 'warning') $q->where('status', 2)->where('error_type', 2);
-        elseif ($request->status == 'success') $q->where('status', 2)->where('error_type', 10);
-        elseif ($request->status == 'error') $q->where('status', 1)->where('error_type', 1);
-        elseif ($request->status == 'pending') $q->where('status', 0);
+        if ($request->status == 'warning') {
+            $q->where('status', 2)->where('error_type', 2);
+        } elseif ($request->status == 'success') {
+            $q->where('status', 2)->where('error_type', 10);
+        } elseif ($request->status == 'error') {
+            $q->where('status', 1)->where('error_type', 1);
+        } elseif ($request->status == 'pending') {
+            $q->where('status', 0);
+        } elseif (! $request->invoice) {
+            $q->where('status', 0);
+        }
         $q->when($request->invoice, fn ($q) => $q->where('invoice', 'like', '%'.$request->invoice.'%'));
         $stats = Jubelioorder::selectRaw("COUNT(CASE WHEN status=0 THEN 1 END) as pending, COUNT(CASE WHEN status=2 AND error_type=10 THEN 1 END) as success, COUNT(CASE WHEN status=2 AND error_type=2 THEN 1 END) as warning, COUNT(CASE WHEN status=1 AND error_type=1 THEN 1 END) as error")->first();
         return view('jubelio.index', ['orders' => $q->paginate(15)->withQueryString(), 'stats' => ['pending'=>(int)$stats->pending,'success'=>(int)$stats->success,'warning'=>(int)$stats->warning,'error'=>(int)$stats->error], 'filters' => $request->only(['status','invoice']), 'flash' => ['success' => session('success'), 'error' => session('error') ?? session('errorMessage')]]);
@@ -53,6 +61,39 @@ class JubelioController extends Controller
         return response()->json([
             'payload' => $jubelio->payloadArray(),
         ]);
+    }
+
+    public function processOrder(Jubelioorder $jubelio, ProcessJubelioOrder $processor): RedirectResponse
+    {
+        Gate::authorize(Jubelio::getPermissions()['view']);
+
+        if (! $jubelio->canProcessManually()) {
+            return back()->with('error', 'Order ini tidak dapat diproses manual.');
+        }
+
+        $result = $processor->execute($jubelio, auth()->id());
+
+        return $result['success']
+            ? back()->with('success', $result['message'])
+            : back()->with('errorMessage', $result['message']);
+    }
+
+    public function markSolved(Jubelioorder $jubelio): RedirectResponse
+    {
+        Gate::authorize(Jubelio::getPermissions()['view']);
+
+        if (! $jubelio->canMarkSolved()) {
+            return back()->with('error', 'Order ini tidak dapat ditandai selesai.');
+        }
+
+        $jubelio->update([
+            'error_type' => 10,
+            'error' => null,
+            'execute_by' => auth()->id(),
+            'status' => 2,
+        ]);
+
+        return redirect()->route('jubelio.index')->with('success', 'Order ditandai selesai.');
     }
 
     public function webhookOrder(Request $request): JsonResponse

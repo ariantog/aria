@@ -69,6 +69,23 @@ class Jubelioorder extends Model
         return route('transactions.index', ['invoice_number' => $this->invoice]);
     }
 
+    public function isSuccessful(): bool
+    {
+        return $this->status === 2 && $this->error_type === 10;
+    }
+
+    public function canProcessManually(): bool
+    {
+        return in_array($this->type, ['SELL', 'RETURN'], true)
+            && ! $this->isSuccessful();
+    }
+
+    public function canMarkSolved(): bool
+    {
+        return ! $this->isSuccessful()
+            && ($this->status === 1 || ($this->status === 2 && $this->error_type === 2));
+    }
+
     /**
      * Get the user that executed the order.
      */
