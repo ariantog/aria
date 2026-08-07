@@ -11,6 +11,11 @@
     .tabulator-cell.tabulator-editing { border: 2px solid #2563eb !important; }
     .restock-urgent-cell { background-color: #fef2f2 !important; color: #b91c1c; font-weight: 600; }
     .restock-grid-scroll { overflow-x: auto; }
+    .restock-sheet-toolbar {
+        position: sticky;
+        top: 3.5rem;
+        z-index: 20;
+    }
 </style>
 @endpush
 
@@ -26,69 +31,74 @@ $breadcrumbs = [
 ];
 @endphp
 
-<div class="flex flex-col gap-4 p-4" x-data="restockSheetPage()" x-init="init()">
-    @include('restock.partials.type-tabs', [
-        'typeTags' => $typeTags,
-        'activeTypeTag' => $sheet->typeTag,
-    ])
+<div x-data="restockSheetPage()" x-init="init()">
+    <div class="restock-sheet-toolbar border-b border-gray-200 bg-gray-50/95 px-4 py-3 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-gray-50/90">
+        <div class="flex flex-col gap-3">
+            @include('restock.partials.type-tabs', [
+                'typeTags' => $typeTags,
+                'activeTypeTag' => $sheet->typeTag,
+            ])
 
-    <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div class="flex items-start gap-4">
-            <img src="{{ $sheet->image_url }}" alt="" class="h-16 w-16 rounded-lg border border-gray-200 object-cover"
-                 onerror="this.onerror=null;this.src='{{ asset('images/default-item.svg') }}'">
-            <div>
-                <h1 class="text-2xl font-bold text-gray-900">{{ $sheet->name }}</h1>
-                <p class="text-sm text-gray-500">{{ count($grid['parents']) }} parent variant(s)</p>
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div class="flex items-start gap-4">
+                    <img src="{{ $sheet->image_url }}" alt="" class="h-16 w-16 rounded-lg border border-gray-200 object-cover"
+                         onerror="this.onerror=null;this.src='{{ asset('images/default-item.svg') }}'">
+                    <div>
+                        <h1 class="text-2xl font-bold text-gray-900">{{ $sheet->name }}</h1>
+                        <p class="text-sm text-gray-500">{{ count($grid['parents']) }} parent variant(s)</p>
+                    </div>
+                </div>
+                <div class="flex flex-wrap items-center gap-2">
+                    @can('restock-edit')
+                    <button type="button" @click="save()" :disabled="saving || !canEdit"
+                            class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
+                        <span x-text="saving ? 'Saving…' : 'Save sheet'"></span>
+                    </button>
+                    <button type="button" @click="move('to_production')" :disabled="moving || !canEdit || selectionCount === 0"
+                            class="rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-sm font-medium text-amber-900 hover:bg-amber-100 disabled:opacity-50">
+                        Restock → Production
+                    </button>
+                    <button type="button" @click="move('to_shipped')" :disabled="moving || !canEdit || selectionCount === 0"
+                            class="rounded-md border border-gray-300 bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-800 hover:bg-gray-200 disabled:opacity-50">
+                        Production → Shipped
+                    </button>
+                    <button type="button" @click="openReceiveModal()" :disabled="receiving || !canEdit || !receiveReady || selectionCount === 0"
+                            title="{{ $receiveReady ? 'Receive shipped qty into warehouse (Buy transaction)' : 'Configure supplier and receiver in Restock settings' }}"
+                            class="rounded-md border border-green-300 bg-green-50 px-3 py-1.5 text-sm font-medium text-green-900 hover:bg-green-100 disabled:opacity-50">
+                        Receive → Warehouse
+                    </button>
+                    <form method="POST" action="{{ route('restock.sheets.sync', $sheet) }}">
+                        @csrf
+                        <button type="submit" class="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                            Sync SKUs
+                        </button>
+                    </form>
+                    @endcan
+                    <a href="{{ route('restock.sheets.export', $sheet) }}"
+                       class="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                        Export Excel
+                    </a>
+                    <a href="{{ route('restock.type.missing', $sheet->typeTag) }}"
+                       class="rounded-md border border-red-200 bg-red-50 px-3 py-1.5 text-sm font-medium text-red-800 hover:bg-red-100">
+                        Missing SKUs
+                    </a>
+                    <a href="{{ route('restock.type.show', $sheet->typeTag) }}"
+                       class="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                        Back to list
+                    </a>
+                </div>
             </div>
-        </div>
-        <div class="flex flex-wrap items-center gap-2">
-            @can('restock-edit')
-            <button type="button" @click="save()" :disabled="saving || !canEdit"
-                    class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
-                <span x-text="saving ? 'Saving…' : 'Save sheet'"></span>
-            </button>
-            <button type="button" @click="move('to_production')" :disabled="moving || !canEdit || selectionCount === 0"
-                    class="rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-sm font-medium text-amber-900 hover:bg-amber-100 disabled:opacity-50">
-                Restock → Production
-            </button>
-            <button type="button" @click="move('to_shipped')" :disabled="moving || !canEdit || selectionCount === 0"
-                    class="rounded-md border border-gray-300 bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-800 hover:bg-gray-200 disabled:opacity-50">
-                Production → Shipped
-            </button>
-            <button type="button" @click="openReceiveModal()" :disabled="receiving || !canEdit || !receiveReady || selectionCount === 0"
-                    title="{{ $receiveReady ? 'Receive shipped qty into warehouse (Buy transaction)' : 'Configure supplier and receiver in Restock settings' }}"
-                    class="rounded-md border border-green-300 bg-green-50 px-3 py-1.5 text-sm font-medium text-green-900 hover:bg-green-100 disabled:opacity-50">
-                Receive → Warehouse
-            </button>
-            <form method="POST" action="{{ route('restock.sheets.sync', $sheet) }}">
-                @csrf
-                <button type="submit" class="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
-                    Sync SKUs
-                </button>
-            </form>
-            @endcan
-            <a href="{{ route('restock.sheets.export', $sheet) }}"
-               class="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
-                Export Excel
-            </a>
-            <a href="{{ route('restock.type.missing', $sheet->typeTag) }}"
-               class="rounded-md border border-red-200 bg-red-50 px-3 py-1.5 text-sm font-medium text-red-800 hover:bg-red-100">
-                Missing SKUs
-            </a>
-            <a href="{{ route('restock.type.show', $sheet->typeTag) }}"
-               class="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
-                Back to list
-            </a>
+
+            @if(session('success'))
+                <div class="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">{{ session('success') }}</div>
+            @endif
+
+            <div x-show="flash" x-cloak class="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800" x-text="flash"></div>
+            <div x-show="error" x-cloak class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" x-text="error"></div>
         </div>
     </div>
 
-    @if(session('success'))
-        <div class="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">{{ session('success') }}</div>
-    @endif
-
-    <div x-show="flash" x-cloak class="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800" x-text="flash"></div>
-    <div x-show="error" x-cloak class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" x-text="error"></div>
-
+    <div class="flex flex-col gap-4 p-4">
     <div class="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
         Select color row(s) with the checkboxes, then use move buttons to advance quantities through the pipeline, or <strong>Receive → Warehouse</strong> for shipped qty. Edit restock / production / shipped cells directly and click <strong>Save sheet</strong> for manual adjustments. <strong>Stock</strong> shows warehouse qty from settings ({{ $stockWarehouseLabel }}). Any receive shortfall is recorded on the <a href="{{ route('restock.type.missing', $sheet->typeTag) }}" class="font-medium underline">Missing SKUs</a> page.
         @unless($receiveReady)
@@ -115,6 +125,7 @@ $breadcrumbs = [
             No cells seeded. Try Sync SKUs.
         </div>
     @endforelse
+    </div>
 
     <div x-show="receiveModalOpen" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" @click.self="receiveModalOpen = false">
         <div class="w-full max-w-2xl rounded-xl border border-gray-200 bg-white p-5 shadow-xl">
