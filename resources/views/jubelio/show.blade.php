@@ -10,14 +10,14 @@ $breadcrumbs = [
 ];
 $statusConfig = [
     0 => ['label' => 'Pending', 'cls' => 'bg-gray-100 text-gray-700'],
-    1 => ['label' => 'Success', 'cls' => 'bg-blue-600 text-white'],
-    2 => ['label' => 'Failed',  'cls' => 'bg-red-600 text-white'],
+    1 => ['label' => 'Failed',  'cls' => 'bg-red-600 text-white'],
+    2 => ['label' => 'Processed', 'cls' => 'bg-blue-600 text-white'],
 ];
 $sc = $statusConfig[$order->status] ?? ['label' => 'Unknown', 'cls' => 'border border-gray-200 bg-white text-gray-600'];
 @endphp
 
 <div class="flex flex-col gap-6 p-6">
-    <div class="flex items-center justify-between">
+    <div class="flex flex-col justify-between gap-4 md:flex-row md:items-center">
         <div class="flex items-center gap-4">
             <a href="{{ route('jubelio.index') }}" class="flex h-9 w-9 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100">
                 <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
@@ -27,10 +27,16 @@ $sc = $statusConfig[$order->status] ?? ['label' => 'Unknown', 'cls' => 'border b
                 Order #{{ $order->invoice }}
             </h1>
         </div>
+
+        <a href="{{ $transactionsUrl }}"
+           class="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z"/></svg>
+            Cek duplikat di Transaksi
+        </a>
     </div>
 
-    <div class="grid grid-cols-1 gap-6 md:grid-cols-3">
-        <div class="space-y-6 md:col-span-1">
+    <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div class="space-y-6 lg:col-span-1">
             <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
                 <h2 class="mb-4 text-lg font-semibold">Order Details</h2>
                 <dl class="space-y-4">
@@ -48,7 +54,9 @@ $sc = $statusConfig[$order->status] ?? ['label' => 'Unknown', 'cls' => 'border b
                     </div>
                     <div>
                         <dt class="text-sm text-gray-400">Sync Status</dt>
-                        <dd class="text-sm font-medium"><span class="inline-flex rounded px-2 py-0.5 text-xs {{ $sc['cls'] }}">{{ $sc['label'] }}</span></dd>
+                        <dd class="text-sm font-medium">
+                            @include('jubelio.partials.sync-status-badge', ['status' => $order->status, 'errorType' => $order->error_type, 'executeBy' => $order->user->name ?? null])
+                        </dd>
                     </div>
                     <div>
                         <dt class="text-sm text-gray-400">Run Count</dt>
@@ -59,8 +67,48 @@ $sc = $statusConfig[$order->status] ?? ['label' => 'Unknown', 'cls' => 'border b
                         <dd class="text-sm font-medium">{{ $order->user->name ?? 'System' }}</dd>
                     </div>
                     <div>
-                        <dt class="text-sm text-gray-400">Date</dt>
+                        <dt class="text-sm text-gray-400">Received</dt>
                         <dd class="text-sm font-medium">{{ \Carbon\Carbon::parse($order->created_at)->translatedFormat('d/m/Y H:i') }}</dd>
+                    </div>
+                    @if($summary['transaction_date'])
+                    <div>
+                        <dt class="text-sm text-gray-400">Transaction Date</dt>
+                        <dd class="text-sm font-medium">{{ \Carbon\Carbon::parse($summary['transaction_date'])->translatedFormat('d/m/Y H:i') }}</dd>
+                    </div>
+                    @endif
+                </dl>
+            </div>
+
+            <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+                <h2 class="mb-4 text-lg font-semibold">Summary</h2>
+                <dl class="space-y-3 text-sm">
+                    <div class="flex justify-between gap-4">
+                        <dt class="text-gray-400">Store</dt>
+                        <dd class="text-right font-medium">{{ $summary['store_name'] ?: '—' }}</dd>
+                    </div>
+                    <div class="flex justify-between gap-4">
+                        <dt class="text-gray-400">Location</dt>
+                        <dd class="text-right font-medium">{{ $summary['location_name'] ?: '—' }}</dd>
+                    </div>
+                    @if($summary['customer_name'])
+                    <div class="flex justify-between gap-4">
+                        <dt class="text-gray-400">Customer</dt>
+                        <dd class="text-right font-medium">{{ $summary['customer_name'] }}</dd>
+                    </div>
+                    @endif
+                    @if($summary['payment_method'])
+                    <div class="flex justify-between gap-4">
+                        <dt class="text-gray-400">Payment</dt>
+                        <dd class="text-right font-medium">{{ $summary['payment_method'] }}</dd>
+                    </div>
+                    @endif
+                    <div class="flex justify-between gap-4 border-t border-gray-100 pt-3">
+                        <dt class="text-gray-400">Subtotal</dt>
+                        <dd class="font-mono font-medium">{{ $summary['sub_total'] !== null ? number_format((float) $summary['sub_total'], 0, ',', '.') : '—' }}</dd>
+                    </div>
+                    <div class="flex justify-between gap-4">
+                        <dt class="font-semibold text-gray-700">Grand Total</dt>
+                        <dd class="font-mono font-bold">{{ $summary['grand_total'] !== null ? number_format((float) $summary['grand_total'], 0, ',', '.') : '—' }}</dd>
                     </div>
                 </dl>
             </div>
@@ -68,8 +116,8 @@ $sc = $statusConfig[$order->status] ?? ['label' => 'Unknown', 'cls' => 'border b
             @if($order->trx)
             <div class="rounded-xl border border-blue-500/30 bg-blue-50 p-6 shadow-sm">
                 <h2 class="mb-4 text-lg font-semibold text-blue-700">Linked Transaction</h2>
-                <p class="mb-4 text-sm text-blue-600/70">This order is linked to an internal transaction.</p>
-                <a href="{{ url('/transactions/' . $order->trx->id) }}"
+                <p class="mb-4 text-sm text-blue-600/70">Order ini sudah terhubung ke transaksi internal.</p>
+                <a href="{{ route('transactions.show', $order->trx->id) }}"
                    class="flex w-full items-center justify-center gap-2 rounded-lg border border-blue-300 bg-white px-4 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50">
                     View Transaction
                     <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
@@ -78,12 +126,36 @@ $sc = $statusConfig[$order->status] ?? ['label' => 'Unknown', 'cls' => 'border b
             @endif
         </div>
 
-        <div class="space-y-6 md:col-span-2">
+        <div class="space-y-6 lg:col-span-2">
             <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-                <h2 class="mb-4 text-lg font-semibold">Payload</h2>
-                <div class="overflow-x-auto rounded-lg border border-gray-800 bg-gray-900 p-4 font-mono text-xs text-green-300">
-                    <pre>{{ json_encode(json_decode($order->payload), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?: $order->payload }}</pre>
+                <h2 class="mb-4 text-lg font-semibold">Items ({{ count($items) }})</h2>
+                @if(count($items) > 0)
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-sm">
+                        <thead class="border-b border-gray-100 text-xs font-semibold uppercase text-gray-500">
+                            <tr>
+                                <th class="px-3 py-2">SKU</th>
+                                <th class="px-3 py-2 text-right">Qty</th>
+                                <th class="px-3 py-2 text-right">Price</th>
+                                <th class="px-3 py-2 text-right">Subtotal</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-50">
+                            @foreach($items as $item)
+                            @php $lineTotal = (float) $item['quantity'] * (float) ($item['price'] ?? 0); @endphp
+                            <tr>
+                                <td class="px-3 py-2 font-mono text-xs">{{ $item['item_code'] }}</td>
+                                <td class="px-3 py-2 text-right font-mono text-xs">{{ number_format((float) $item['quantity'], 0, ',', '.') }}</td>
+                                <td class="px-3 py-2 text-right font-mono text-xs">{{ $item['price'] !== null ? number_format((float) $item['price'], 0, ',', '.') : '—' }}</td>
+                                <td class="px-3 py-2 text-right font-mono text-xs">{{ $item['price'] !== null ? number_format($lineTotal, 0, ',', '.') : '—' }}</td>
+                            </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
                 </div>
+                @else
+                <p class="text-sm text-gray-400 italic">Tidak ada item di payload.</p>
+                @endif
             </div>
 
             @if($order->error)
@@ -94,6 +166,63 @@ $sc = $statusConfig[$order->status] ?? ['label' => 'Unknown', 'cls' => 'border b
                 </div>
             </div>
             @endif
+
+            <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm"
+                 x-data="{
+                    open: false,
+                    loading: false,
+                    loaded: false,
+                    raw: null,
+                    error: null,
+                    async loadPayload() {
+                        if (this.loaded || this.loading) {
+                            this.open = !this.open;
+                            return;
+                        }
+                        this.loading = true;
+                        this.open = true;
+                        this.error = null;
+                        try {
+                            const res = await fetch(@js(route('jubelio.payload', $order->id)), {
+                                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                            });
+                            if (!res.ok) throw new Error('HTTP ' + res.status);
+                            const data = await res.json();
+                            this.raw = JSON.stringify(data.payload, null, 2);
+                            this.loaded = true;
+                        } catch (e) {
+                            this.error = 'Gagal memuat payload JSON.';
+                        } finally {
+                            this.loading = false;
+                        }
+                    }
+                 }">
+                <div class="flex items-center justify-between gap-4">
+                    <h2 class="text-lg font-semibold">Raw Payload</h2>
+                    <button type="button"
+                            @click="loadPayload()"
+                            class="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                            data-testid="jubelio-load-payload">
+                        <span x-show="!open">Tampilkan JSON</span>
+                        <span x-show="open" x-cloak>Sembunyikan JSON</span>
+                    </button>
+                </div>
+                <p class="mt-1 text-xs text-gray-500">JSON dimuat on-demand agar halaman tidak berat.</p>
+
+                <div x-show="open" x-cloak class="mt-4">
+                    <template x-if="loading">
+                        <p class="text-sm text-gray-500">Memuat payload...</p>
+                    </template>
+                    <template x-if="error">
+                        <p class="text-sm text-red-600" x-text="error"></p>
+                    </template>
+                    <template x-if="loaded && raw">
+                        <div class="max-h-[32rem] overflow-auto rounded-lg border border-gray-800 bg-gray-900 p-4 font-mono text-xs text-green-300">
+                            <pre x-text="raw"></pre>
+                        </div>
+                    </template>
+                </div>
+            </div>
         </div>
     </div>
 </div>
