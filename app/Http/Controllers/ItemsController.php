@@ -238,16 +238,13 @@ class ItemsController extends Controller
     {
         Gate::authorize(Item::getPermissions()['edit']);
 
-        $token = $jubelioService->getCachedToken();
-        if (! $token) {
+        $http = $jubelioService->authenticatedRequest();
+        if (! $http) {
             return back()->withErrors(['message' => 'Gagal otentikasi Jubelio']);
         }
 
         try {
-            $response = \Illuminate\Support\Facades\Http::withHeaders([
-                'Content-Type' => 'application/json',
-                'authorization' => $token,
-            ])->get('https://api2.jubelio.com/inventory/items/to-stock/', [
+            $response = $http->get('https://api2.jubelio.com/inventory/items/to-stock/', [
                 'q' => $request->input('q', $item->code),
             ]);
 
@@ -508,16 +505,13 @@ class ItemsController extends Controller
             return ['Item belum terhubung', []];
         }
 
-        $t = $s->getCachedToken();
-        if (! $t) {
+        $http = $s->authenticatedRequest();
+        if (! $http) {
             return ['Gagal otentikasi', []];
         }
 
         try {
-            $r = \Illuminate\Support\Facades\Http::withHeaders([
-                'Content-Type' => 'application/json',
-                'authorization' => $t,
-            ])->post('https://api2.jubelio.com/inventory/items/all-stocks/', [
+            $r = $http->post('https://api2.jubelio.com/inventory/items/all-stocks/', [
                 'ids' => [$item->jubelio_item_id],
             ]);
 

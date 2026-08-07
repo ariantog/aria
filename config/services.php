@@ -41,6 +41,7 @@ return [
         'email' => env('JUBELIO_EMAIL'),
         'password' => env('JUBELIO_PASSWORD'),
         'verify_ssl' => env('JUBELIO_VERIFY_SSL', true),
+        'webhook_secret' => env('JUBELIO_WEBHOOK_SECRET', 'corenation2025'),
     ],
 
 ];
