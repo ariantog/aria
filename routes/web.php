@@ -21,6 +21,10 @@ Route::middleware(['auth', 'active'])->get('/banned', function () {
     return view('auth.banned');
 })->withoutMiddleware(['active'])->name('banned');
 
+// Jubelio webhook — must stay public (no auth); CSRF exempt in bootstrap/app.php
+Route::post('jubelio/webhook/order', [App\Http\Controllers\JubelioController::class, 'webhookOrder'])
+    ->name('jubelio.webhook.order');
+
 Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::get('/permissions', [App\Http\Controllers\PermissionController::class, 'index'])->name('permissions.index');
     Route::post('/permissions/generate', [App\Http\Controllers\PermissionController::class, 'generate'])->name('permissions.generate');
@@ -39,7 +43,6 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::get('jubelio-transaction/{transaction}/detail-sync', [App\Http\Controllers\JubelioController::class, 'detailJubelioSync'])->name('jubelio.transaction.detail-sync');
     Route::patch('jubelio-transaction/{transaction}/sync-display', [App\Http\Controllers\JubelioController::class, 'transactionSyncDisplay'])->name('jubelio.transaction.sync-display');
     Route::post('jubelio-transaction/{id}/adjust-stok', [App\Http\Controllers\JubelioController::class, 'adjustStok'])->name('jubelio.adjustStok');
-    Route::post('jubelio/webhook/order', [App\Http\Controllers\JubelioController::class, 'webhookOrder'])->name('jubelio.webhook.order');
 
     // Jubelio Stock Check Routes
     Route::resource('jubelio-stock-checks', App\Http\Controllers\JubelioStockCheckController::class)->only(['index', 'create', 'store', 'show', 'destroy']);

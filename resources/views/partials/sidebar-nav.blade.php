@@ -170,6 +170,32 @@
 </div>
 @endif
 
+{{-- ── Jubelio ───────────────────────────────────────────────────────── --}}
+@if($hasPerm('jubelio-view') || $hasPerm('jubelio-sync') || $hasPerm('jubelio-stock-check') || $isSuperAdmin)
+@php $jubActive = $isActive('/jubelio'); @endphp
+<div x-data="{ open: {{ $jubActive ? 'true' : 'false' }} }" class="mb-1">
+    <button @click="open = !open"
+            class="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors
+                   {{ $jubActive ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100' }}">
+        <svg class="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"/></svg>
+        <span x-show="sidebarOpen" x-cloak class="flex-1 text-left">Jubelio</span>
+        <svg x-show="sidebarOpen" x-cloak :class="open ? 'rotate-90' : ''" class="h-3.5 w-3.5 flex-shrink-0 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+    </button>
+    <div x-show="open && sidebarOpen" x-cloak class="ml-6 mt-1 space-y-0.5">
+        @if($hasPerm('jubelio-view') || $isSuperAdmin)
+        <a href="{{ route('jubelio.index') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $currentUrl === 'jubelio' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Orders</a>
+        @endif
+        @if($hasPerm('jubelio-sync') || $isSuperAdmin)
+        <a href="{{ route('jubelio.transaction.sync') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/jubelio-transaction') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Stock Sync</a>
+        <a href="{{ route('jubelio.sync.index') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/jubelio-sync') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Warehouse Map</a>
+        @endif
+        @if($hasPerm('jubelio-stock-check') || $isSuperAdmin)
+        <a href="{{ route('jubelio-stock-checks.index') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/jubelio-stock-checks') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Stock Check</a>
+        @endif
+    </div>
+</div>
+@endif
+
 {{-- ── Journals ──────────────────────────────────────────────────────── --}}
 @if($hasPerm('journal-account-list') || $hasPerm('journal-operation-list') || $isSuperAdmin)
 @php $jrnActive = $isActive('/journals'); @endphp

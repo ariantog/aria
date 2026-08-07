@@ -5,17 +5,18 @@ namespace App\Http\Controllers;
 use App\Models\Addrbook;
 use App\Models\Jubelio;
 use App\Models\Jubeliosync;
+use App\Services\JubelioService;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
-use Illuminate\Support\Facades\Http;
 use Illuminate\View\View;
 
 class JubelioSyncController extends Controller
 {
+    public function __construct(private JubelioService $jubelioService) {}
+
     /**
      * Display a listing of the resource.
      */
@@ -46,13 +47,11 @@ class JubelioSyncController extends Controller
     {
         Gate::authorize(Jubelio::getPermissions()['sync']);
 
-        $token = Cache::get('jubelio_data')['token'] ?? null;
-
         $dataList = ['data' => []];
-        if ($token) {
-            $response = Http::withHeaders([
-                'Authorization' => $token,
-            ])->get('https://api2.jubelio.com/locations/', [
+        $request = $this->jubelioService->authenticatedRequest();
+
+        if ($request) {
+            $response = $request->get('https://api2.jubelio.com/locations/', [
                 'page' => 1,
                 'pageSize' => 200,
             ]);
@@ -85,14 +84,12 @@ class JubelioSyncController extends Controller
             'warehouse_id' => 'required|exists:addrbooks,id',
         ]);
 
-        $token = Cache::get('jubelio_data')['token'] ?? null;
-        if (! $token) {
-            return back()->with('errorMessage', 'Jubelio token not found in cache.');
+        $http = $this->jubelioService->authenticatedRequest();
+        if (! $http) {
+            return back()->with('errorMessage', 'Jubelio authentication failed.');
         }
 
-        $response = Http::withHeaders([
-            'Authorization' => $token,
-        ])->get('https://api2.jubelio.com/locations/'.$request->location_id);
+        $response = $http->get('https://api2.jubelio.com/locations/'.$request->location_id);
 
         if (! $response->successful()) {
             return back()->with('errorMessage', 'Failed to fetch location details from Jubelio.');
@@ -181,26 +178,23 @@ class JubelioSyncController extends Controller
     {
         Gate::authorize(Jubelio::getPermissions()['sync']);
 
-        $token = Cache::get('jubelio_data')['token'] ?? null;
-        if (! $token) {
-            return back()->with('errorMessage', 'Jubelio token not found.');
+        $http = $this->jubelioService->authenticatedRequest();
+        if (! $http) {
+            return back()->with('errorMessage', 'Jubelio authentication failed.');
         }
 
-        $response = Http::withHeaders([
-            'Content-Type' => 'application/json',
-            'authorization' => $token,
-        ])->get('https://api2.jubelio.com/wms/default-bin/'.$sync->jubelio_location_id);
+        $response = $http->get('https://api2.jubelio.com/wms/default-bin/'.$sync->jubelio_location_id);
 
         if ($response->successful()) {
             $result = $response->json();
             $sync->update(['bin_id' => $result['bin_id'] ?? 0]);
 
             return redirect()->route('jubelio.sync.index')->with('success', 'Jubelio updated bin id.');
-        } else {
-            $error = $response->json();
-            $message = $error['message'] ?? 'Terjadi kesalahan saat mengambil bin.';
-
-            return redirect()->route('jubelio.sync.index')->with('fail', $message);
         }
+
+        $error = $response->json();
+        $message = $error['message'] ?? 'Terjadi kesalahan saat mengambil bin.';
+
+        return redirect()->route('jubelio.sync.index')->with('fail', $message);
     }
 }

@@ -7,7 +7,6 @@ use App\Models\Transaction;
 use App\Services\JubelioService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Http;
 
 class AdjustStock
 {
@@ -28,20 +27,22 @@ class AdjustStock
             if (! $jubSync) throw new \RuntimeException('Jubelio mapping not found.');
 
             config(['services.jubelio.active' => true, 'services.jubelio.verify_ssl' => false]);
-            $token = app(JubelioService::class)->getToken();
-            if (! $token) throw new \RuntimeException('Jubelio auth failed.');
+            $http = app(JubelioService::class)->authenticatedRequest();
+            if (! $http) {
+                throw new \RuntimeException('Jubelio auth failed.');
+            }
 
             $transaction->loadMissing('details.item');
             $items = [];
             foreach ($transaction->details as $row) {
-                if (! $row->item?->jubelio_item_id) continue;
+                if (! $row->item?->jubelio_item_id) {
+                    continue;
+                }
                 $qty = $adjustType === 1 ? (float) $row->quantity : -(float) $row->quantity;
                 $items[] = ['item_adj_detail_id' => 0, 'item_id' => $row->item->jubelio_item_id, 'serial_no' => null, 'qty_in_base' => $qty, 'original_item_adj_detail_id' => 0, 'unit' => 'Buah', 'amount' => (float) $row->total, 'location_id' => $jubSync->jubelio_location_id, 'account_id' => 75, 'description' => 'Item '.$row->item->code, 'bin_id' => $jubSync->bin_id, 'cost' => 0];
             }
 
-            $req = Http::withHeaders(['Content-Type' => 'application/json', 'Authorization' => $token]);
-            if (! config('services.jubelio.verify_ssl', true)) $req->withoutVerifying();
-            $response = $req->post('https://api2.jubelio.com/inventory/adjustments/warehouse', ['item_adj_id' => 0, 'item_adj_no' => '[auto]', 'transaction_date' => now()->toIso8601ZuluString(), 'note' => 'Adjust from Aria #'.$transaction->invoice_number, 'location_id' => $jubSync->jubelio_location_id, 'is_opening_balance' => false, 'items' => $items]);
+            $response = $http->post('https://api2.jubelio.com/inventory/adjustments/warehouse', ['item_adj_id' => 0, 'item_adj_no' => '[auto]', 'transaction_date' => now()->toIso8601ZuluString(), 'note' => 'Adjust from Aria #'.$transaction->invoice_number, 'location_id' => $jubSync->jubelio_location_id, 'is_opening_balance' => false, 'items' => $items]);
 
             if ($response->successful()) {
                 $result = $response->json();

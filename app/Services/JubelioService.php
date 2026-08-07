@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Setting;
 use Carbon\Carbon;
+use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -124,32 +125,54 @@ class JubelioService
     }
 
     /**
+     * Build an authenticated HTTP client for Jubelio API calls.
+     * Forces the service active so UI/CLI callers do not depend on JUBELIO_ACTIVE alone.
+     */
+    public function authenticatedRequest(): ?PendingRequest
+    {
+        config(['services.jubelio.active' => true]);
+
+        $token = $this->getToken();
+        if (! $token) {
+            return null;
+        }
+
+        $request = Http::withToken($token)
+            ->withHeaders(['Accept' => 'application/json']);
+
+        if (! ($this->config()['verify_ssl'] ?? true)) {
+            $request->withoutVerifying();
+        }
+
+        return $request;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    protected function config(): array
+    {
+        return config('services.jubelio', []);
+    }
+
+    /**
      * Fetch inventory from Jubelio API.
      */
     public function fetchInventory(int $page = 1, int $pageSize = 200): ?array
     {
         Log::info("Fetching inventory for page {$page}...");
-        $token = $this->getToken();
+        $request = $this->authenticatedRequest();
 
-        if (! $token) {
+        if (! $request) {
             Log::error('Failed to get token for fetchInventory.');
 
             return null;
         }
 
-        $config = config('services.jubelio');
-
         try {
-            $request = Http::withToken($token)
-                ->withHeaders(['Accept' => 'application/json']);
-
-            if (! ($config['verify_ssl'] ?? true)) {
-                $request->withoutVerifying();
-            }
-
             $response = $request->get('https://api2.jubelio.com/inventory/', [
                 'page' => $page,
-                'pageSize' => 50, // Kecilkan pageSize agar lebih ringan
+                'pageSize' => $pageSize,
             ]);
 
             Log::info("Jubelio API Response Status: {$response->status()}");

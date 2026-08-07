@@ -35,7 +35,7 @@ class JubelioController extends Controller
 
     public function webhookOrder(Request $request): JsonResponse
     {
-        $s = config('services.jubelio.webhook_secret', 'corenation2025');
+        $s = config('services.jubelio.webhook_secret');
         if ($request->header('Sign') !== hash_hmac('sha256', trim($request->getContent()).$s, $s, false)) return response()->json(['error'=>'Invalid signature'], 403);
         $d = $request->all();
         if (($d['status']??'') === 'SHIPPED') { if (Carbon::parse($d['transaction_date'])->lt(Carbon::parse('2025-03-06'))) return response()->json(['status'=>'ok','message'=>'Before threshold.']); if (Jubelioorder::where('invoice',$d['salesorder_no'])->where('type','SELL')->where('order_status',$d['status'])->exists()) return response()->json(['status'=>'ok','message'=>'Already exists']); Jubelioorder::create(['jubelio_order_id'=>$d['salesorder_id'],'source'=>1,'invoice'=>$d['salesorder_no'],'type'=>'SELL','order_status'=>$d['status'],'run_count'=>0,'payload'=>json_encode($d),'status'=>0]); return response()->json(['status'=>'ok','message'=>'Saved']); }
