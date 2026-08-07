@@ -149,6 +149,11 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::get('transactions/adjust', [App\Http\Controllers\TransactionsController::class, 'adjust'])->name('transactions.adjust');
     Route::post('transactions/adjust', [App\Http\Controllers\TransactionsController::class, 'storeAdjust'])->name('transactions.adjust.store');
 
+    Route::get('transactions/export', [App\Http\Controllers\TransactionsController::class, 'export'])->name('transactions.export');
+    Route::get('transactions/{transaction}/receipt', [App\Http\Controllers\TransactionsController::class, 'receipt'])->name('transactions.receipt');
+    Route::get('transactions/{transaction}/print', [App\Http\Controllers\TransactionsController::class, 'printInvoice'])->name('transactions.print');
+    Route::post('transactions/{transaction}/whatsapp', [App\Http\Controllers\TransactionsController::class, 'sendWhatsapp'])->name('transactions.whatsapp');
+
     Route::get('transactions/{transaction}', [App\Http\Controllers\TransactionsController::class, 'show'])->name('transactions.show');
     Route::delete('transactions/{transaction}', [App\Http\Controllers\TransactionsController::class, 'destroy'])->name('transactions.destroy');
 

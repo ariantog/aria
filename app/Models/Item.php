@@ -153,6 +153,15 @@ class Item extends Model
         return $this->getItemCode();
     }
 
+    public function getItemName(): string
+    {
+        if ($this->type === ItemType::ASSET_LANCAR) {
+            return $this->name;
+        }
+
+        return $this->group?->alias ?? $this->name;
+    }
+
     /**
      * Resolve an item by canonical code or preserved legacy SKU (Jubelio / imports).
      */

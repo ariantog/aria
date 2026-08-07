@@ -15,7 +15,10 @@ use App\Models\DeletedTransactionDetail;
 use App\Models\Jubeliosync;
 use App\Models\Transaction;
 use App\Services\BookClosingService;
+use App\Services\TransactionInvoiceService;
+use App\Services\TransactionListExportService;
 use App\Services\TransactionService;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -27,31 +30,44 @@ class TransactionsController extends Controller
     public function index(Request $request)
     {
         Gate::authorize(Transaction::getPermissions()['view']);
-        $transactions = Transaction::with(['sender', 'receiver'])
-            ->visibleToUser(Auth::user())
-            ->when($request->invoice_number, fn ($q, $v) => $q->where('invoice_number', 'like', "%{$v}%"))
-            ->when($request->type, fn ($q, $v) => $q->where('type', $v))
-            ->when($request->min_total, fn ($q, $v) => $q->where('grand_total', '>=', $v))
-            ->when($request->max_total, fn ($q, $v) => $q->where('grand_total', '<=', $v))
-            ->when($request->from, fn ($q, $v) => $q->whereDate('date', '>=', $v))
-            ->when($request->to, fn ($q, $v) => $q->whereDate('date', '<=', $v));
         $sort = $request->input('sort', 'date');
         $direction = $request->input('direction', 'desc');
+        $perPage = $this->resolvePerPage($request);
+        $transactions = $this->filteredTransactionsQuery($request);
         if (in_array($sort, ['date', 'invoice_number', 'type', 'grand_total'], true)) {
             $transactions->orderBy($sort, $direction)->orderBy('id', 'desc');
         } else {
             $transactions->orderBy('date', 'desc')->orderBy('id', 'desc');
         }
-        $filters = $request->only(['from', 'to', 'sort', 'direction', 'type', 'invoice_number', 'min_total', 'max_total']);
+        $filters = $request->only(['from', 'to', 'sort', 'direction', 'type', 'invoice_number', 'min_total', 'max_total', 'per_page']);
         $can = $this->transactionPermissions();
-        // Return JSON for AJAX requests
         if ($request->expectsJson() || $request->ajax()) {
-            return response()->json($transactions->paginate(50)->withQueryString());
+            return response()->json($transactions->paginate($perPage)->withQueryString());
         }
 
-        $rows = $transactions->paginate(50)->withQueryString();
+        $rows = $transactions->paginate($perPage)->withQueryString();
 
-        return view('transactions.index', compact('rows', 'filters', 'can', 'sort', 'direction'));
+        return view('transactions.index', compact('rows', 'filters', 'can', 'sort', 'direction', 'perPage'));
+    }
+
+    public function export(Request $request, TransactionListExportService $exportService)
+    {
+        Gate::authorize(Transaction::getPermissions()['view']);
+        $sort = $request->input('sort', 'date');
+        $direction = $request->input('direction', 'desc');
+        $perPage = $this->resolvePerPage($request);
+        $transactions = $this->filteredTransactionsQuery($request);
+        if (in_array($sort, ['date', 'invoice_number', 'type', 'grand_total'], true)) {
+            $transactions->orderBy($sort, $direction)->orderBy('id', 'desc');
+        } else {
+            $transactions->orderBy('date', 'desc')->orderBy('id', 'desc');
+        }
+
+        $page = max(1, (int) $request->input('page', 1));
+        $rows = $transactions->paginate($perPage, ['*'], 'page', $page);
+        $hideBank = ! Auth::user()->is_superadmin && Auth::user()->can('addrbook-bank-account-hidden-balance');
+
+        return $exportService->download($rows, $hideBank);
     }
 
     public function create(string $type, BookClosingService $bookClosingService)
@@ -196,9 +212,42 @@ class TransactionsController extends Controller
         return view('transactions.show', [
             'transaction' => $transaction,
             'config' => ['sender_label' => $getLabel('sender'), 'receiver_label' => $getLabel('receiver'), 'type_slug' => $typeSlug],
-            'can' => ['delete_transaction' => Auth::user()->can(Transaction::getPermissions()['delete']), 'edit_transaction' => Auth::user()->can(Transaction::getPermissions()['edit']), 'bank_hidden_balance' => Auth::user()->can('addrbook-bank-account-hidden-balance')],
+            'can' => ['delete_transaction' => Auth::user()->can(Transaction::getPermissions()['delete']), 'edit_transaction' => Auth::user()->can(Transaction::getPermissions()['edit']), 'bank_hidden_balance' => ! Auth::user()->is_superadmin && Auth::user()->can('addrbook-bank-account-hidden-balance')],
             'flash' => ['success' => session('success'), 'error' => session('error')],
+            'hasInvoicePdf' => app(TransactionInvoiceService::class)->invoicePdfExists($transaction),
         ]);
+    }
+
+    public function receipt(Transaction $transaction)
+    {
+        $this->authorizeTransactionView($transaction);
+        $transaction->load(['details.item.group', 'sender', 'receiver']);
+
+        return view('transactions.receipt', compact('transaction'));
+    }
+
+    public function printInvoice(Transaction $transaction)
+    {
+        $this->authorizeTransactionView($transaction);
+        $transaction->load(['details.item.group', 'sender', 'receiver']);
+        $typeLabel = $transaction->getTypeLabel();
+
+        return view('transactions.print', compact('transaction', 'typeLabel'));
+    }
+
+    public function sendWhatsapp(Request $request, Transaction $transaction, TransactionInvoiceService $invoiceService)
+    {
+        $this->authorizeTransactionView($transaction);
+        $validated = $request->validate([
+            'phone' => ['required', 'string', 'regex:/^[0-9]{8,15}$/'],
+        ]);
+
+        $fileUrl = $invoiceService->ensureInvoicePdf($transaction);
+        $message = urlencode("Terimakasih telah belanja di CoreNation! Berikut invoice anda:\n\n{$fileUrl}");
+        $phone = preg_replace('/\D/', '', $validated['phone']);
+        $waLink = 'https://wa.me/'.$phone.'?text='.$message;
+
+        return redirect()->away($waLink);
     }
 
     public function batchParse(Request $request)
@@ -294,6 +343,34 @@ class TransactionsController extends Controller
         Gate::authorize($permissions[$permissionKey] ?? $permissions['create']);
     }
 
+    private function authorizeTransactionView(Transaction $transaction): void
+    {
+        Gate::authorize(Transaction::getPermissions()['show']);
+        abort_unless(
+            app(\App\Services\LocationAccessService::class)->canAccessTransaction(Auth::user(), $transaction),
+            403
+        );
+    }
+
+    private function filteredTransactionsQuery(Request $request): Builder
+    {
+        return Transaction::with(['sender', 'receiver'])
+            ->visibleToUser(Auth::user())
+            ->when($request->invoice_number, fn ($q, $v) => $q->where('invoice_number', 'like', "%{$v}%"))
+            ->when($request->type, fn ($q, $v) => $q->where('type', $v))
+            ->when($request->min_total, fn ($q, $v) => $q->where('grand_total', '>=', $v))
+            ->when($request->max_total, fn ($q, $v) => $q->where('grand_total', '<=', $v))
+            ->when($request->from, fn ($q, $v) => $q->whereDate('date', '>=', $v))
+            ->when($request->to, fn ($q, $v) => $q->whereDate('date', '<=', $v));
+    }
+
+    private function resolvePerPage(Request $request): int
+    {
+        $perPage = (int) $request->input('per_page', 100);
+
+        return in_array($perPage, [100, 200, 300], true) ? $perPage : 100;
+    }
+
     private function transactionPermissions(): array
     {
         $user = Auth::user();
@@ -301,6 +378,7 @@ class TransactionsController extends Controller
 
         return [
             'create_transaction' => $user->can($perms['create']), 'delete_transaction' => $user->can($perms['delete']),
+            'bank_hidden_balance' => ! $user->is_superadmin && $user->can('addrbook-bank-account-hidden-balance'),
             'type_buy' => $user->can($perms['type-buy']), 'type_sell' => $user->can($perms['type-sell']),
             'type_move' => $user->can($perms['type-move']), 'cash_in' => $user->can($perms['type-cash-in']),
             'cash_out' => $user->can($perms['type-cash-out']), 'transfer' => $user->can($perms['type-transfer']),
