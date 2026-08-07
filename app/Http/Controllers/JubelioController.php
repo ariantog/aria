@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Actions\Jubelio\AdjustStock;
 use App\Actions\Jubelio\ProcessJubelioOrder;
 use App\Enums\TransactionType;
+use App\Jobs\ProcessJubelioOrderJob;
 use App\Models\Jubelio;
 use App\Models\Jubelioorder;
 use App\Models\Jubelioreturn;
@@ -16,6 +17,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Log;
 use Illuminate\View\View;
 
 class JubelioController extends Controller
@@ -152,6 +154,15 @@ class JubelioController extends Controller
         if ($request->header('Sign') !== hash_hmac('sha256', trim($request->getContent()).$s, $s, false)) {
             return response()->json(['error' => 'Invalid signature'], 403);
         }
+
+        if ($request->header('X-Jubelio-Forwarded-From')) {
+            Log::info('Jubelio order webhook received via forward', [
+                'from' => $request->header('X-Jubelio-Forwarded-From'),
+                'invoice' => $request->input('salesorder_no'),
+                'status' => $request->input('status'),
+            ]);
+        }
+
         $d = $request->all();
         if (($d['status'] ?? '') === 'SHIPPED') {
             if (Carbon::parse($d['transaction_date'])->lt(Carbon::parse('2025-03-06'))) {
@@ -160,7 +171,7 @@ class JubelioController extends Controller
             if (Jubelioorder::where('invoice', $d['salesorder_no'])->where('type', 'SELL')->where('order_status', $d['status'])->exists()) {
                 return response()->json(['status' => 'ok', 'message' => 'Already exists']);
             }
-            Jubelioorder::create([
+            $order = Jubelioorder::create([
                 'jubelio_order_id' => $d['salesorder_id'],
                 'source' => 1,
                 'invoice' => $d['salesorder_no'],
@@ -170,6 +181,10 @@ class JubelioController extends Controller
                 'payload' => json_encode($d),
                 'status' => 0,
             ]);
+
+            if (config('services.jubelio.webhook_auto_process')) {
+                ProcessJubelioOrderJob::dispatch($order->id);
+            }
 
             return response()->json(['status' => 'ok', 'message' => 'Saved']);
         }
