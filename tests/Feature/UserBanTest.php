@@ -66,3 +66,10 @@ it('does not allow hard-deleting users', function () {
 
     expect(User::query()->find($user->id))->not->toBeNull();
 });
+
+it('prevents hard delete at the model level', function () {
+    $user = User::factory()->create();
+
+    expect(fn () => $user->delete())->toThrow(\LogicException::class, 'Users cannot be deleted. Ban the user instead.');
+    expect(User::query()->find($user->id))->not->toBeNull();
+});

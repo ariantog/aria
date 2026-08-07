@@ -73,7 +73,6 @@ class User extends Authenticatable
             'view' => 'users-list',
             'create' => 'users-create',
             'edit' => 'users-edit',
-            'delete' => 'users-delete',
 
             // Roles
             'roles-view' => 'users-roles-list',
@@ -85,5 +84,12 @@ class User extends Authenticatable
             'permissions-view' => 'users-permissions-list',
             'permissions-generate' => 'users-permissions-generate',
         ];
+    }
+
+    protected static function booted(): void
+    {
+        static::deleting(function () {
+            throw new \LogicException('Users cannot be deleted. Ban the user instead.');
+        });
     }
 }
