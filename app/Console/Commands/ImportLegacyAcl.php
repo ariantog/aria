@@ -21,7 +21,7 @@ class ImportLegacyAcl extends Command
                             {--skip-locations : Do not import locations or addrbook_location pivot}
                             {--preserve-user-1 : Skip overwriting user id 1}';
 
-    protected $description = 'Import legacy ACL, roles, users, locations, and addrbook location links from SQL dump';
+    protected $description = 'One-time import: convert legacy ACL SQL dump into Spatie permissions, roles, users, and location links';
 
     public function handle(
         LegacySqlParser $parser,

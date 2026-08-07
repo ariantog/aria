@@ -3,9 +3,10 @@
 namespace App\Services;
 
 /**
- * Maps legacy ACL rows (app_id + action) to Spatie permission names.
+ * Maps old ACL dump rows (app_id + action) to Spatie permission names.
  *
- * App IDs are defined in database/acl/AppsHelper.php from the Laravel 5 app.
+ * Used only by the one-time `app:import-legacy-acl` command. After import,
+ * authorization is 100% Spatie (permissions / roles / Gate) — no legacy acl table.
  */
 class LegacyAclMapper
 {
