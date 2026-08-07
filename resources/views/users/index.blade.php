@@ -25,6 +25,21 @@ $breadcrumbs = [
         @endif
     </div>
 
+    <form method="GET" action="{{ route('users.index') }}" class="flex flex-wrap items-end gap-2 rounded-xl border border-gray-200 bg-white p-3">
+        <div class="flex flex-col gap-1">
+            <label class="text-xs font-medium uppercase text-gray-500">Status</label>
+            <select name="status" class="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                <option value="active" @selected(($filters['status'] ?? 'active') === 'active')>Active only</option>
+                <option value="banned" @selected(($filters['status'] ?? '') === 'banned')>Banned only</option>
+                <option value="all" @selected(($filters['status'] ?? '') === 'all')>All users</option>
+            </select>
+        </div>
+        <div class="flex gap-2">
+            <button type="submit" class="rounded-lg bg-blue-700 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-800">Filter</button>
+            <a href="{{ route('users.index') }}" class="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-50">Reset</a>
+        </div>
+    </form>
+
     {{-- Table --}}
     <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
         <div class="overflow-x-auto">
