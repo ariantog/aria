@@ -20,11 +20,14 @@ class AddrbookController extends Controller
         $typeId = null;
         if ($type) {
             $d = collect(Addrbook::getTypes())->firstWhere('slug', $type);
-            if (! $d) abort(404);
+            if (! $d) {
+                abort(404);
+            }
             $typeId = $d['id'];
         }
 
         $q = Addrbook::with(['stat'])
+            ->visibleToUser(request()->user())
             ->when(request('trashed') === 'with', fn ($q) => $q->withTrashed())
             ->when(request('trashed') === 'only', fn ($q) => $q->onlyTrashed())
             ->when($typeId, fn ($q) => $q->where('type', $typeId))
@@ -101,6 +104,7 @@ class AddrbookController extends Controller
         $a = $addrbook;
         $slug = $this->addrbookTypeSlug($a);
         Gate::authorize(Addrbook::getPermissions($slug)['view']);
+        $this->authorizeAddrbookLocation($a);
 
         $load = ['stat', 'dailies' => fn ($q) => $q->latest('date')->limit(50)];
 
@@ -127,16 +131,36 @@ class AddrbookController extends Controller
         ]);
     }
 
-    public function showType(string $type, Addrbook $addrbook) { return $this->show($addrbook); }
-    public function transactionsType(string $type, Addrbook $addrbook) { return $this->transactions($addrbook->id); }
-    public function itemsType(string $type, Addrbook $addrbook) { return $this->items($addrbook->id); }
-    public function statType(string $type, Addrbook $addrbook) { return $this->stat($addrbook->id); }
-    public function itemSalesType(string $type, Addrbook $addrbook) { return $this->itemSales($addrbook->id); }
+    public function showType(string $type, Addrbook $addrbook)
+    {
+        return $this->show($addrbook);
+    }
+
+    public function transactionsType(string $type, Addrbook $addrbook)
+    {
+        return $this->transactions($addrbook->id);
+    }
+
+    public function itemsType(string $type, Addrbook $addrbook)
+    {
+        return $this->items($addrbook->id);
+    }
+
+    public function statType(string $type, Addrbook $addrbook)
+    {
+        return $this->stat($addrbook->id);
+    }
+
+    public function itemSalesType(string $type, Addrbook $addrbook)
+    {
+        return $this->itemSales($addrbook->id);
+    }
 
     public function edit(Addrbook $addrbook)
     {
         $a = $addrbook;
         Gate::authorize(Addrbook::getPermissions($this->addrbookTypeSlug($a))['edit']);
+        $this->authorizeAddrbookLocation($a);
 
         return view('addrbook.edit', [
             'addrbook' => $a->load('stat'),
@@ -145,7 +169,10 @@ class AddrbookController extends Controller
         ]);
     }
 
-    public function editType(string $type, Addrbook $addrbook) { return $this->edit($addrbook); }
+    public function editType(string $type, Addrbook $addrbook)
+    {
+        return $this->edit($addrbook);
+    }
 
     public function update(UpdateAddrbookRequest $r, Addrbook $addrbook)
     {
@@ -160,6 +187,7 @@ class AddrbookController extends Controller
     {
         $a = Addrbook::withTrashed()->findOrFail($id);
         Gate::authorize(Addrbook::getPermissions($this->addrbookTypeSlug($a))['view']);
+        $this->authorizeAddrbookLocation($a);
 
         $q = \App\Models\Transaction::where(fn ($q) => $q
             ->where('sender_id', $a->id)
@@ -198,6 +226,7 @@ class AddrbookController extends Controller
     {
         $a = Addrbook::withTrashed()->findOrFail($id);
         Gate::authorize(Addrbook::getPermissions($this->addrbookTypeSlug($a))['view']);
+        $this->authorizeAddrbookLocation($a);
 
         $q = $a->items()->with('group')
             ->when(request('name'), fn ($q) => $q->where(fn ($sq) => $sq
@@ -239,6 +268,7 @@ class AddrbookController extends Controller
     {
         $a = Addrbook::withTrashed()->findOrFail($id);
         Gate::authorize(Addrbook::getPermissions($this->addrbookTypeSlug($a))['view']);
+        $this->authorizeAddrbookLocation($a);
 
         $q = StatSell::where('sender_id', $a->id)->with('group')
             ->when(request('bulan'), fn ($q) => $q->where('bulan', request('bulan')))
@@ -272,6 +302,7 @@ class AddrbookController extends Controller
     {
         $a = Addrbook::withTrashed()->findOrFail($id);
         Gate::authorize(Addrbook::getPermissions($this->addrbookTypeSlug($a))['view']);
+        $this->authorizeAddrbookLocation($a);
 
         $mo = request('month');
         $yr = request('year', date('Y'));
@@ -295,7 +326,9 @@ class AddrbookController extends Controller
 
         foreach ($tx as $t) {
             $op = ($t->sender_id == $a->id) ? $t->receiver : $t->sender;
-            if (! $op) continue;
+            if (! $op) {
+                continue;
+            }
 
             $cat = $this->categorizeAddrbook($op);
             $amt = (float) $t->grand_total;
@@ -335,6 +368,14 @@ class AddrbookController extends Controller
         $a->delete();
 
         return redirect()->route('addrbook.index')->with('success', 'Deleted.');
+    }
+
+    private function authorizeAddrbookLocation(Addrbook $addrbook): void
+    {
+        abort_unless(
+            app(\App\Services\LocationAccessService::class)->canAccessAddrbook(request()->user(), $addrbook),
+            403
+        );
     }
 
     private function isJsonRequest(): bool

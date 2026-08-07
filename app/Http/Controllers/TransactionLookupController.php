@@ -22,7 +22,8 @@ class TransactionLookupController extends Controller
         $typeId = $request->input('addrbook_type') ?? ($request['addrbook_type'] ?? null);
 
         // We default to Addrbook model for all types now as per config
-        $query = \App\Models\Addrbook::query();
+        $query = \App\Models\Addrbook::query()
+            ->visibleToUser($request->user());
 
         // Apply type filtering
         if ($typeId !== null) {
