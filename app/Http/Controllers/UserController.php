@@ -115,6 +115,16 @@ class UserController extends Controller
     public function destroy(User $user)
     {
         Gate::authorize(User::getPermissions()['delete']);
+
+        if ($user->is_superadmin) {
+            return redirect()->route('users.index')->with('error', 'The superadmin account cannot be deleted.');
+        }
+
+        if ($user->id === Auth::id()) {
+            return redirect()->route('users.index')->with('error', 'You cannot delete your own account.');
+        }
+
+        $user->syncRoles([]);
         $user->delete();
 
         return redirect()->route('users.index')->with('success', 'User deleted.');
