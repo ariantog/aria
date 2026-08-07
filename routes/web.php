@@ -29,7 +29,9 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::get('/permissions', [App\Http\Controllers\PermissionController::class, 'index'])->name('permissions.index');
     Route::post('/permissions/generate', [App\Http\Controllers\PermissionController::class, 'generate'])->name('permissions.generate');
     Route::resource('roles', App\Http\Controllers\RoleController::class);
-    Route::resource('users', \App\Http\Controllers\UserController::class);
+    Route::post('users/{user}/ban', [\App\Http\Controllers\UserController::class, 'ban'])->name('users.ban');
+    Route::post('users/{user}/unban', [\App\Http\Controllers\UserController::class, 'unban'])->name('users.unban');
+    Route::resource('users', \App\Http\Controllers\UserController::class)->except(['destroy']);
     Route::resource('locations', \App\Http\Controllers\LocationController::class);
     Route::resource('posts', App\Http\Controllers\PostController::class);
     Route::get('items/{item}/transactions', [App\Http\Controllers\ItemsController::class, 'itemTransactions'])->name('items.transactions');

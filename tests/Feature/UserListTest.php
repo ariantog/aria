@@ -43,3 +43,17 @@ it('can list all users when filtered', function () {
         ->assertSee('active_user')
         ->assertSee('banned_user');
 });
+
+it('can search banned users by username', function () {
+    User::factory()->create(['username' => 'active_user', 'is_active' => true]);
+    User::factory()->create(['username' => 'banned_user', 'is_active' => false]);
+
+    $response = $this->actingAs($this->admin)->get(route('users.index', [
+        'status' => 'banned',
+        'q' => 'banned_user',
+    ]));
+
+    $response->assertOk()
+        ->assertSee('banned_user')
+        ->assertDontSee('active_user');
+});

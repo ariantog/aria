@@ -26,6 +26,11 @@ $breadcrumbs = [
     </div>
 
     <form method="GET" action="{{ route('users.index') }}" class="flex flex-wrap items-end gap-2 rounded-xl border border-gray-200 bg-white p-3">
+        <div class="flex min-w-[12rem] flex-1 flex-col gap-1">
+            <label class="text-xs font-medium uppercase text-gray-500">Search</label>
+            <input type="search" name="q" value="{{ $filters['q'] ?? '' }}" placeholder="Name, username, or email"
+                   class="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+        </div>
         <div class="flex flex-col gap-1">
             <label class="text-xs font-medium uppercase text-gray-500">Status</label>
             <select name="status" class="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
@@ -87,14 +92,22 @@ $breadcrumbs = [
                                     <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                                 </a>
                                 @endif
-                                @if($can['delete_user'])
-                                <form method="POST" action="{{ route('users.destroy', $user->id) }}" onsubmit="return confirm('Delete this user?')">
-                                    @csrf
-                                    @method('DELETE')
-                                    <button type="submit" class="inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-400 hover:bg-red-50 hover:text-red-600" title="Delete">
-                                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                                    </button>
-                                </form>
+                                @if($can['edit_user'] && ! $user->is_superadmin && $user->id !== auth()->id())
+                                    @if($user->is_active)
+                                    <form method="POST" action="{{ route('users.ban', $user->id) }}" onsubmit="return confirm('Ban this user? They will no longer be able to log in, but their history is preserved.')">
+                                        @csrf
+                                        <button type="submit" class="inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-400 hover:bg-red-50 hover:text-red-600" title="Ban user">
+                                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
+                                        </button>
+                                    </form>
+                                    @else
+                                    <form method="POST" action="{{ route('users.unban', $user->id) }}" onsubmit="return confirm('Unban this user? They will be able to log in again.')">
+                                        @csrf
+                                        <button type="submit" class="inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-400 hover:bg-emerald-50 hover:text-emerald-600" title="Unban user">
+                                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                        </button>
+                                    </form>
+                                    @endif
                                 @endif
                             </div>
                         </td>
