@@ -36,7 +36,7 @@ $sc = $statusConfig[$order->status] ?? ['label' => 'Unknown', 'cls' => 'border b
                         class="inline-flex items-center gap-2 rounded-lg bg-blue-700 px-4 py-2 text-sm font-medium text-white hover:bg-blue-800"
                         data-testid="jubelio-process-order">
                     <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-                    Proses Manual
+                    Buat Transaksi Manual
                 </button>
             </form>
             @endif
@@ -185,7 +185,13 @@ $sc = $statusConfig[$order->status] ?? ['label' => 'Unknown', 'cls' => 'border b
 
             @if($order->error)
             <div class="rounded-xl border border-red-900/30 bg-red-50 p-6 shadow-sm">
-                <h2 class="mb-4 text-lg font-semibold text-red-600">Error Details</h2>
+                <h2 class="mb-2 text-lg font-semibold text-red-600">Error Details</h2>
+                @if($order->status === 1)
+                <p class="mb-4 text-sm text-red-700">
+                    Biasanya terjadi karena stok di Aria tidak cukup (Jubelio masih punya stok, tapi gudang Aria sudah 0).
+                    Perbaiki stok di Aria terlebih dahulu, lalu klik <strong>Buat Transaksi Manual</strong> di atas.
+                </p>
+                @endif
                 <div class="rounded-lg border border-red-900/30 bg-red-100 p-4 font-mono text-xs text-red-700">
                     <pre class="whitespace-pre-wrap">{{ $order->error }}</pre>
                 </div>

@@ -98,7 +98,7 @@ it('loads jubelio order payload on demand', function () {
         ->assertSuccessful()
         ->assertSee('INV-PAYLOAD-TEST')
         ->assertSee('Cek duplikat di Transaksi')
-        ->assertSee('Proses Manual')
+        ->assertSee('Buat Transaksi Manual')
         ->assertSee('Tampilkan JSON')
         ->assertDontSee('"grand_total": 99000');
 });
