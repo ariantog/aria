@@ -69,10 +69,9 @@ class ImportLegacyAcl extends Command
         $permissionGenerator->generateAll();
         app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
 
-        try {
-            Schema::disableForeignKeyConstraints();
-            DB::beginTransaction();
+        Schema::disableForeignKeyConstraints();
 
+        try {
             if (! $this->option('skip-locations')) {
                 $this->importLocations($data['locations']);
                 $this->importAddrbookLocations($data['location_customer']);
@@ -89,20 +88,17 @@ class ImportLegacyAcl extends Command
             $this->syncRolePermissions($rolePermissions);
             $this->assignUserRoles($data['users']);
 
-            DB::commit();
-            Schema::enableForeignKeyConstraints();
-
             app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
 
             $this->info('Legacy ACL import completed.');
 
             return self::SUCCESS;
         } catch (\Throwable $e) {
-            DB::rollBack();
-            Schema::enableForeignKeyConstraints();
             $this->error('Import failed: '.$e->getMessage());
 
             return self::FAILURE;
+        } finally {
+            Schema::enableForeignKeyConstraints();
         }
     }
 
@@ -175,10 +171,20 @@ class ImportLegacyAcl extends Command
     {
         $this->info('Importing addrbook_location pivot...');
 
-        DB::table('addrbook_location')->truncate();
+        // TRUNCATE implicitly commits on MySQL and breaks surrounding transactions.
+        DB::table('addrbook_location')->delete();
 
+        $existingAddrbookIds = DB::table('addrbooks')->pluck('id')->flip();
         $batch = [];
+        $skipped = 0;
+
         foreach ($rows as $row) {
+            if (! isset($existingAddrbookIds[$row['customer_id']])) {
+                $skipped++;
+
+                continue;
+            }
+
             $batch[] = [
                 'location_id' => $row['location_id'],
                 'addrbook_id' => $row['customer_id'],
@@ -187,6 +193,10 @@ class ImportLegacyAcl extends Command
 
         foreach (array_chunk($batch, 500) as $chunk) {
             DB::table('addrbook_location')->insert($chunk);
+        }
+
+        if ($skipped > 0) {
+            $this->warn("Skipped {$skipped} location links for addrbooks not present in this database.");
         }
     }
 
