@@ -65,18 +65,20 @@ $breadcrumbs = [
                         <th class="px-6 py-4">Date</th>
                         <th class="px-6 py-4">Source</th>
                         <th class="px-6 py-4">Invoice</th>
+                        <th class="px-6 py-4">Store / Location</th>
                         <th class="px-6 py-4">Type</th>
+                        <th class="px-6 py-4 text-right">Items</th>
+                        <th class="px-6 py-4 text-right">Total</th>
                         <th class="px-6 py-4 text-center">Sync Status</th>
-                        <th class="px-6 py-4 text-right">Action</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100">
                     @forelse($orders as $order)
                     @php
-                        $payloadData = json_decode($order->payload, true) ?: [];
-                        $payloadDate = $payloadData['transaction_date'] ?? ($payloadData['created_date'] ?? null);
+                        $summary = $order->payloadSummary();
+                        $payloadDate = $summary['transaction_date'];
                     @endphp
-                    <tr x-data="{ open: false }" class="hover:bg-gray-50">
+                    <tr class="hover:bg-gray-50">
                         <td class="px-6 py-4 whitespace-nowrap">
                             <div class="flex flex-col gap-1">
                                 <div class="flex items-center gap-1.5">
@@ -98,46 +100,50 @@ $breadcrumbs = [
                             <span class="inline-flex rounded-full border border-yellow-500/20 bg-yellow-50 px-2 py-0.5 text-[10px] font-medium text-yellow-600">Aria</span>
                             @endif
                         </td>
-                        <td class="px-6 py-4 font-medium">
-                            <a href="{{ route('jubelio.show', $order->id) }}" class="text-blue-600 hover:underline">{{ $order->invoice }}</a>
+                        <td class="px-6 py-4">
+                            <a href="{{ route('jubelio.show', $order->id) }}" class="font-medium text-blue-600 hover:underline">{{ $order->invoice }}</a>
                             <div class="mt-0.5 text-[10px] text-gray-400">{{ $order->order_status }}</div>
+                            <a href="{{ $order->transactionsSearchUrl() }}"
+                               class="mt-1 inline-flex items-center gap-1 text-[10px] font-medium text-gray-500 hover:text-blue-600"
+                               title="Cari transaksi Aria dengan invoice ini">
+                                <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                                Cek transaksi
+                            </a>
+                        </td>
+                        <td class="px-6 py-4">
+                            <div class="text-xs font-medium text-gray-800">{{ $summary['store_name'] ?: '—' }}</div>
+                            @if($summary['location_name'])
+                            <div class="text-[10px] text-gray-500">{{ $summary['location_name'] }}</div>
+                            @endif
+                            @if($summary['customer_name'])
+                            <div class="mt-0.5 text-[10px] text-gray-400">{{ $summary['customer_name'] }}</div>
+                            @endif
                         </td>
                         <td class="px-6 py-4">
                             <span class="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-bold uppercase">{{ $order->type }}</span>
                         </td>
+                        <td class="px-6 py-4 text-right font-mono text-xs text-gray-700">
+                            {{ $summary['item_count'] > 0 ? number_format($summary['item_count'], 0, ',', '.') : '—' }}
+                        </td>
+                        <td class="px-6 py-4 text-right font-mono text-xs text-gray-800">
+                            @if($summary['grand_total'] !== null)
+                                {{ number_format((float) $summary['grand_total'], 0, ',', '.') }}
+                            @else
+                                —
+                            @endif
+                        </td>
                         <td class="px-6 py-4 text-center">
-                            @include('jubelio.partials.sync-status-badge', ['status' => $order->status, 'errorType' => $order->error_type, 'executeBy' => $order->user->name ?? null])
-                        </td>
-                        <td class="px-6 py-4 text-right">
-                            <button @click="open = !open"
-                                    class="inline-flex items-center gap-1 rounded-md bg-gray-100 px-3 py-1.5 text-[10px] font-bold uppercase transition-colors hover:bg-gray-200">
-                                Payload
-                                <svg x-show="!open" class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                                <svg x-show="open" x-cloak class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"/></svg>
-                            </button>
-                        </td>
-                    </tr>
-                    <tr x-show="open" x-cloak class="bg-gray-50/50">
-                        <td colspan="6" class="px-6 py-4">
-                            <div class="space-y-4">
-                                <div class="max-w-full overflow-x-auto rounded-lg border border-gray-800 bg-gray-900 p-4 font-mono text-[11px] text-green-300">
-                                    <pre>{{ json_encode(json_decode($order->payload), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?: $order->payload }}</pre>
-                                </div>
+                            <div class="flex flex-col items-center gap-1">
+                                @include('jubelio.partials.sync-status-badge', ['status' => $order->status, 'errorType' => $order->error_type, 'executeBy' => $order->user->name ?? null])
                                 @if(((($order->status == 1 && $order->error_type == 1)) || ($order->status == 2 && $order->error_type == 2)) && $order->error)
-                                <div class="rounded-lg border p-4 text-xs {{ $order->error_type == 2 ? 'border-yellow-500/30 bg-yellow-50 text-yellow-700' : 'border-red-500/30 bg-red-50 text-red-700' }}">
-                                    <p class="mb-1 flex items-center gap-1 font-bold">
-                                        <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                                        Info:
-                                    </p>
-                                    <pre class="whitespace-pre-wrap">{{ $order->error }}</pre>
-                                </div>
+                                <p class="max-w-[12rem] truncate text-[10px] text-red-600" title="{{ $order->error }}">{{ $order->error }}</p>
                                 @endif
                             </div>
                         </td>
                     </tr>
                     @empty
                     <tr>
-                        <td colspan="6" class="px-6 py-8 text-center text-gray-400 italic">No Jubelio orders found.</td>
+                        <td colspan="8" class="px-6 py-8 text-center text-gray-400 italic">No Jubelio orders found.</td>
                     </tr>
                     @endforelse
                 </tbody>

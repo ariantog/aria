@@ -31,7 +31,29 @@ class JubelioController extends Controller
         return view('jubelio.index', ['orders' => $q->paginate(15)->withQueryString(), 'stats' => ['pending'=>(int)$stats->pending,'success'=>(int)$stats->success,'warning'=>(int)$stats->warning,'error'=>(int)$stats->error], 'filters' => $request->only(['status','invoice']), 'flash' => ['success' => session('success'), 'error' => session('error') ?? session('errorMessage')]]);
     }
 
-    public function show(Jubelioorder $jubelio): View { Gate::authorize(Jubelio::getPermissions()['view']); return view('jubelio.show', ['order' => $jubelio->load(['user','trx']), 'flash' => ['success' => session('success'), 'error' => session('error')]]); }
+    public function show(Jubelioorder $jubelio): View
+    {
+        Gate::authorize(Jubelio::getPermissions()['view']);
+
+        $order = $jubelio->load(['user', 'trx']);
+
+        return view('jubelio.show', [
+            'order' => $order,
+            'summary' => $order->payloadSummary(),
+            'items' => $order->payloadItems(),
+            'transactionsUrl' => $order->transactionsSearchUrl(),
+            'flash' => ['success' => session('success'), 'error' => session('error')],
+        ]);
+    }
+
+    public function payload(Jubelioorder $jubelio): JsonResponse
+    {
+        Gate::authorize(Jubelio::getPermissions()['view']);
+
+        return response()->json([
+            'payload' => $jubelio->payloadArray(),
+        ]);
+    }
 
     public function webhookOrder(Request $request): JsonResponse
     {
