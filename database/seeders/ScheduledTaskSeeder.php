@@ -30,5 +30,15 @@ class ScheduledTaskSeeder extends Seeder
                 'description' => 'Processes pending Jubelio orders into Aria transactions.',
             ]
         );
+
+        \App\Models\ScheduledTask::updateOrCreate(
+            ['command' => 'jubelio:get-orders'],
+            [
+                'name' => 'Jubelio Get Orders (API backfill)',
+                'frequency' => 'everyMinute',
+                'is_active' => false,
+                'description' => 'Pulls Jubelio sales orders by date range to find missing webhooks. Enabled when a Get Orders import is started.',
+            ]
+        );
     }
 }
