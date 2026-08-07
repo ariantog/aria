@@ -8,6 +8,7 @@ use App\Models\Jubelioorder;
 use App\Models\Jubeliosync;
 use App\Models\Transaction;
 use App\Models\TransactionDetail;
+use App\Services\JubelioService;
 use App\Services\TransactionService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -15,7 +16,10 @@ use Illuminate\Support\Facades\Log;
 
 class ProcessJubelioOrder
 {
-    public function __construct(private TransactionService $transactionService) {}
+    public function __construct(
+        private TransactionService $transactionService,
+        private JubelioService $jubelioService,
+    ) {}
 
     /**
      * @return array{success: bool, message: string}
@@ -26,7 +30,7 @@ class ProcessJubelioOrder
 
         $order->refresh();
         $runCount = $order->run_count + 1;
-        $dataApi = $order->payloadArray();
+        $dataApi = $this->resolvePayload($order);
 
         if ($dataApi === []) {
             $order->update([
@@ -48,6 +52,25 @@ class ProcessJubelioOrder
         }
 
         return ['success' => false, 'message' => 'Tipe order tidak didukung'];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    protected function resolvePayload(Jubelioorder $order): array
+    {
+        if ((int) $order->source === 1) {
+            return $order->payloadArray();
+        }
+
+        $fetched = $this->jubelioService->fetchSalesOrder($order->jubelio_order_id);
+        if (! $fetched) {
+            return [];
+        }
+
+        $order->update(['payload' => json_encode($fetched)]);
+
+        return $fetched;
     }
 
     /**
