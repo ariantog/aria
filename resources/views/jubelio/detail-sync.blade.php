@@ -6,7 +6,7 @@
 @php
 $breadcrumbs = [
     ['title' => 'Transaction Sync', 'href' => route('jubelio.transaction.sync')],
-    ['title' => 'Sync Detail #' . $data->invoice_number, 'href' => route('jubelio.transaction.detail-sync', $data->id)],
+    ['title' => 'Sync Detail #' . ($data->invoice_number ?? $data->id)],
 ];
 $mappingMissing = $data->item_with_jubelio_count > 0;
 @endphp
@@ -121,6 +121,8 @@ $mappingMissing = $data->item_with_jubelio_count > 0;
                     'role' => 'sender',
                     'side' => 1,
                     'whType' => $whA,
+                    'warning' => $warningA,
+                    'transactionId' => $data->id,
                 ])
                 @include('jubelio.partials.sync-card', [
                     'title' => 'Receiver (Side B)',
@@ -135,6 +137,8 @@ $mappingMissing = $data->item_with_jubelio_count > 0;
                     'role' => 'receiver',
                     'side' => 2,
                     'whType' => $whB,
+                    'warning' => $warningB,
+                    'transactionId' => $data->id,
                 ])
             </div>
             @endif

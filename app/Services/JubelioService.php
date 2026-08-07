@@ -208,4 +208,66 @@ class JubelioService
 
         return null;
     }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    public function fetchSalesOrder(int|string $orderId): ?array
+    {
+        $request = $this->authenticatedRequest();
+        if (! $request) {
+            return null;
+        }
+
+        try {
+            $response = $request->get('https://api2.jubelio.com/sales/orders/'.$orderId);
+
+            if ($response->successful()) {
+                $data = $response->json();
+
+                return is_array($data) ? $data : null;
+            }
+
+            Log::error('Jubelio fetch sales order failed.', [
+                'order_id' => $orderId,
+                'status' => $response->status(),
+                'response' => $response->body(),
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Jubelio fetch sales order error: '.$e->getMessage(), ['order_id' => $orderId]);
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    public function fetchSalesReturn(int|string $returnId): ?array
+    {
+        $request = $this->authenticatedRequest();
+        if (! $request) {
+            return null;
+        }
+
+        try {
+            $response = $request->get('https://api2.jubelio.com/sales/sales-returns/'.$returnId);
+
+            if ($response->successful()) {
+                $data = $response->json();
+
+                return is_array($data) ? $data : null;
+            }
+
+            Log::error('Jubelio fetch sales return failed.', [
+                'return_id' => $returnId,
+                'status' => $response->status(),
+                'response' => $response->body(),
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Jubelio fetch sales return error: '.$e->getMessage(), ['return_id' => $returnId]);
+        }
+
+        return null;
+    }
 }

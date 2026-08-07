@@ -1,6 +1,7 @@
 @php
     $isSubmitted = !empty($submittedBy);
     $isDeduct = $type == 2;
+    $hasWarning = !empty($warning);
 @endphp
 @if(!$needsSync)
     <div class="rounded-xl border border-gray-200 bg-gray-50 p-6 opacity-50 shadow-sm">
@@ -15,9 +16,9 @@
     </div>
 @else
     @php
-        $theme = $isSubmitted ? 'green' : ($role === 'sender' ? 'zinc' : 'blue');
-        $themeBorder = ['green' => 'border-green-500/30 bg-green-50', 'blue' => 'border-blue-500/30 bg-blue-50', 'zinc' => 'border-gray-400/30 bg-gray-50'][$theme];
-        $themeText = ['green' => 'text-green-600', 'blue' => 'text-blue-600', 'zinc' => 'text-gray-600'][$theme];
+        $theme = $isSubmitted ? 'green' : ($hasWarning ? 'yellow' : ($role === 'sender' ? 'zinc' : 'blue'));
+        $themeBorder = ['green' => 'border-green-500/30 bg-green-50', 'yellow' => 'border-yellow-500/30 bg-yellow-50', 'blue' => 'border-blue-500/30 bg-blue-50', 'zinc' => 'border-gray-400/30 bg-gray-50'][$theme];
+        $themeText = ['green' => 'text-green-600', 'yellow' => 'text-yellow-700', 'blue' => 'text-blue-600', 'zinc' => 'text-gray-600'][$theme];
     @endphp
     <div class="rounded-xl border p-6 shadow-sm {{ $themeBorder }}">
         <div class="mb-4 flex items-center justify-between">
@@ -31,6 +32,8 @@
             </h3>
             @if($isSubmitted)
             <span class="inline-flex rounded border border-green-500/30 px-2 py-0.5 text-[9px] font-bold uppercase text-green-600">Synced</span>
+            @elseif($hasWarning)
+            <span class="inline-flex rounded border border-yellow-500/30 px-2 py-0.5 text-[9px] font-bold uppercase text-yellow-700">Warning</span>
             @endif
         </div>
 
@@ -53,6 +56,28 @@
         <div class="text-[10px] text-gray-500">
             <p>Synced by <span class="font-bold">{{ $submittedBy }}</span></p>
             <p class="mt-0.5 font-mono">Ref: {{ $referenceId ?: 'N/A' }}</p>
+        </div>
+        @elseif($hasWarning)
+        <div class="space-y-3">
+            <p class="text-xs text-yellow-800">
+                Push ke Jubelio sudah dicoba tetapi status tidak jelas. Konfirmasi jika berhasil di Jubelio, atau hapus peringatan untuk coba lagi.
+            </p>
+            <form method="POST" action="{{ route('jubelio.transaction.sync-confirm', ['transaction' => $transactionId]) }}" class="space-y-2">
+                @csrf
+                <input type="hidden" name="side" value="{{ $side }}">
+                <input type="text" name="reference_id" placeholder="Reference ID (opsional)"
+                       class="w-full rounded-md border border-yellow-300 px-2 py-1 text-xs">
+                <button type="submit" class="h-8 w-full rounded-lg bg-yellow-600 text-xs font-bold uppercase text-white hover:bg-yellow-700">
+                    Konfirmasi Berhasil
+                </button>
+            </form>
+            <form method="POST" action="{{ route('jubelio.transaction.sync-clear', ['transaction' => $transactionId]) }}">
+                @csrf
+                <input type="hidden" name="side" value="{{ $side }}">
+                <button type="submit" class="h-8 w-full rounded-lg border border-yellow-400 bg-white text-xs font-bold uppercase text-yellow-800 hover:bg-yellow-50">
+                    Hapus Peringatan
+                </button>
+            </form>
         </div>
         @else
         <button type="button"

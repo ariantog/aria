@@ -17,4 +17,9 @@ class Jubelioreturn extends Model
     {
         return $this->hasOne(User::class, 'id', 'confirmed_by');
     }
+
+    public function sellTransaction(): HasOne
+    {
+        return $this->hasOne(Transaction::class, 'id', 'transaction_id');
+    }
 }
