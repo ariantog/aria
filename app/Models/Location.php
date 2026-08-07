@@ -15,6 +15,11 @@ class Location extends Model
         return $this->hasMany(User::class);
     }
 
+    public function addrbooks()
+    {
+        return $this->belongsToMany(Addrbook::class, 'addrbook_location');
+    }
+
     /**
      * Define permissions associated with this model.
      *
