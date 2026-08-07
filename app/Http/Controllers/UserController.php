@@ -10,11 +10,15 @@ use Illuminate\Support\Facades\Gate;
 
 class UserController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
         Gate::authorize(User::getPermissions()['view']);
 
+        $status = $request->query('status', 'active');
+
         $query = User::with(['location', 'roles'])
+            ->when($status === 'active', fn ($q) => $q->where('is_active', true))
+            ->when($status === 'banned', fn ($q) => $q->where('is_active', false))
             ->when(
                 Auth::user()->is_superadmin
                     && in_array(\Illuminate\Database\Eloquent\SoftDeletes::class, class_uses_recursive(User::class), true),
@@ -23,6 +27,7 @@ class UserController extends Controller
 
         return view('users.index', [
             'users' => $query->latest()->paginate(10)->withQueryString(),
+            'filters' => ['status' => $status],
             'can' => [
                 'create_user' => request()->user()?->can(User::getPermissions()['create']) ?? false,
                 'edit_user' => request()->user()?->can(User::getPermissions()['edit']) ?? false,

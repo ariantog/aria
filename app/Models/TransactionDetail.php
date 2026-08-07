@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -33,5 +34,10 @@ class TransactionDetail extends Model
     public function item()
     {
         return $this->belongsTo(Item::class);
+    }
+
+    public function scopeVisibleToUser(Builder $query, ?User $user): Builder
+    {
+        return $query->whereHas('transaction', fn (Builder $q) => $q->visibleToUser($user));
     }
 }

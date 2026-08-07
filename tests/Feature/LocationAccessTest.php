@@ -1,8 +1,11 @@
 <?php
 
+use App\Enums\ItemType;
 use App\Models\Addrbook;
+use App\Models\Item;
 use App\Models\Location;
 use App\Models\Transaction;
+use App\Models\TransactionDetail;
 use App\Models\User;
 use App\Services\LocationAccessService;
 use Spatie\Permission\Models\Permission;
@@ -57,6 +60,47 @@ it('filters transactions by participant location', function () {
         ->not->toContain($hiddenTx->id);
 });
 
+it('shows transaction when only receiver is in user location', function () {
+    $visibleTx = Transaction::factory()->create([
+        'sender_id' => $this->addrbookB->id,
+        'receiver_id' => $this->addrbookA->id,
+    ]);
+
+    $ids = Transaction::query()->visibleToUser($this->user)->pluck('id');
+
+    expect($ids)->toContain($visibleTx->id);
+});
+
+it('filters item transaction details by parent transaction location', function () {
+    $item = \App\Models\Item::factory()->create();
+
+    $visibleTx = Transaction::factory()->create([
+        'sender_id' => $this->addrbookA->id,
+        'receiver_id' => $this->addrbookB->id,
+    ]);
+    $hiddenTx = Transaction::factory()->create([
+        'sender_id' => $this->addrbookB->id,
+        'receiver_id' => $this->addrbookB->id,
+    ]);
+
+    \App\Models\TransactionDetail::factory()->create([
+        'transaction_id' => $visibleTx->id,
+        'item_id' => $item->id,
+    ]);
+    \App\Models\TransactionDetail::factory()->create([
+        'transaction_id' => $hiddenTx->id,
+        'item_id' => $item->id,
+    ]);
+
+    $detailIds = \App\Models\TransactionDetail::query()
+        ->where('item_id', $item->id)
+        ->visibleToUser($this->user)
+        ->pluck('transaction_id');
+
+    expect($detailIds)->toContain($visibleTx->id)
+        ->not->toContain($hiddenTx->id);
+});
+
 it('reports location access through service helper', function () {
     $service = app(LocationAccessService::class);
 
@@ -70,4 +114,99 @@ it('treats users without location as unrestricted', function () {
     $visible = Addrbook::query()->visibleToUser($unrestricted)->pluck('id');
 
     expect($visible)->toContain($this->addrbookA->id, $this->addrbookB->id);
+});
+
+it('filters the transactions index by location', function () {
+    $visibleTx = Transaction::factory()->create([
+        'invoice_number' => 'LOC-VISIBLE-TX',
+        'sender_id' => $this->addrbookA->id,
+        'receiver_id' => $this->addrbookB->id,
+    ]);
+    $hiddenTx = Transaction::factory()->create([
+        'invoice_number' => 'LOC-HIDDEN-TX',
+        'sender_id' => $this->addrbookB->id,
+        'receiver_id' => $this->addrbookB->id,
+    ]);
+
+    $response = $this->actingAs($this->user)->get(route('transactions.index'));
+
+    $response->assertOk()
+        ->assertSee('LOC-VISIBLE-TX')
+        ->assertDontSee('LOC-HIDDEN-TX');
+});
+
+it('filters addrbook transactions by location', function () {
+    Permission::firstOrCreate(['name' => 'addrbook-supplier-list']);
+    $this->user->givePermissionTo('addrbook-supplier-list');
+
+    $visibleTx = Transaction::factory()->create([
+        'invoice_number' => 'ADDR-VISIBLE-TX',
+        'sender_id' => $this->addrbookA->id,
+        'receiver_id' => $this->addrbookB->id,
+    ]);
+    $hiddenTx = Transaction::factory()->create([
+        'invoice_number' => 'ADDR-HIDDEN-TX',
+        'sender_id' => $this->addrbookB->id,
+        'receiver_id' => $this->addrbookB->id,
+    ]);
+
+    $response = $this->actingAs($this->user)->get(route('addrbook.transactions', $this->addrbookA));
+
+    $response->assertOk()
+        ->assertSee('ADDR-VISIBLE-TX')
+        ->assertDontSee('ADDR-HIDDEN-TX');
+});
+
+it('filters item transactions by location', function () {
+    Permission::firstOrCreate(['name' => 'items-list']);
+    $this->user->givePermissionTo('items-list');
+
+    $item = Item::factory()->create();
+
+    $visibleTx = Transaction::factory()->create([
+        'invoice_number' => 'ITEM-VISIBLE-TX',
+        'sender_id' => $this->addrbookA->id,
+        'receiver_id' => $this->addrbookB->id,
+    ]);
+    $hiddenTx = Transaction::factory()->create([
+        'invoice_number' => 'ITEM-HIDDEN-TX',
+        'sender_id' => $this->addrbookB->id,
+        'receiver_id' => $this->addrbookB->id,
+    ]);
+
+    TransactionDetail::factory()->create(['transaction_id' => $visibleTx->id, 'item_id' => $item->id]);
+    TransactionDetail::factory()->create(['transaction_id' => $hiddenTx->id, 'item_id' => $item->id]);
+
+    $response = $this->actingAs($this->user)->get(route('items.transactions', $item));
+
+    $response->assertOk()
+        ->assertSee('ITEM-VISIBLE-TX')
+        ->assertDontSee('ITEM-HIDDEN-TX');
+});
+
+it('filters asset lancar transactions by location', function () {
+    Permission::firstOrCreate(['name' => 'items-list']);
+    $this->user->givePermissionTo('items-list');
+
+    $item = Item::factory()->create(['type' => ItemType::ASSET_LANCAR]);
+
+    $visibleTx = Transaction::factory()->create([
+        'invoice_number' => 'ASSET-VISIBLE-TX',
+        'sender_id' => $this->addrbookA->id,
+        'receiver_id' => $this->addrbookB->id,
+    ]);
+    $hiddenTx = Transaction::factory()->create([
+        'invoice_number' => 'ASSET-HIDDEN-TX',
+        'sender_id' => $this->addrbookB->id,
+        'receiver_id' => $this->addrbookB->id,
+    ]);
+
+    TransactionDetail::factory()->create(['transaction_id' => $visibleTx->id, 'item_id' => $item->id]);
+    TransactionDetail::factory()->create(['transaction_id' => $hiddenTx->id, 'item_id' => $item->id]);
+
+    $response = $this->actingAs($this->user)->get(route('assetlancar.transactions', $item));
+
+    $response->assertOk()
+        ->assertSee('ASSET-VISIBLE-TX')
+        ->assertDontSee('ASSET-HIDDEN-TX');
 });

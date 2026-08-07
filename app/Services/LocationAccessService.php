@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Addrbook;
+use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 
@@ -31,6 +32,9 @@ class LocationAccessService
         return $query->whereHas('locations', fn (Builder $q) => $q->where('locations.id', $locationId));
     }
 
+    /**
+     * User sees a transaction when the sender OR the receiver is in their location.
+     */
     public function applyTransactionScope(Builder $query, ?User $user): Builder
     {
         if ($this->hasUnrestrictedLocationAccess($user)) {
@@ -52,5 +56,24 @@ class LocationAccessService
         }
 
         return $addrbook->locations()->where('locations.id', $user->location_id)->exists();
+    }
+
+    public function canAccessTransaction(?User $user, Transaction $transaction): bool
+    {
+        if ($this->hasUnrestrictedLocationAccess($user)) {
+            return true;
+        }
+
+        $transaction->loadMissing(['sender', 'receiver']);
+
+        if ($transaction->sender && $this->canAccessAddrbook($user, $transaction->sender)) {
+            return true;
+        }
+
+        if ($transaction->receiver && $this->canAccessAddrbook($user, $transaction->receiver)) {
+            return true;
+        }
+
+        return false;
     }
 }
