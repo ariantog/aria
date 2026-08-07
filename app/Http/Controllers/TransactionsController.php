@@ -174,6 +174,10 @@ class TransactionsController extends Controller
     public function show(Transaction $transaction)
     {
         Gate::authorize(Transaction::getPermissions()['show']);
+        abort_unless(
+            app(\App\Services\LocationAccessService::class)->canAccessTransaction(Auth::user(), $transaction),
+            403
+        );
         $transaction->load(['details.item', 'sender', 'receiver', 'user', 'submitByA', 'submitByB']);
         $typeSlug = $this->resolveTypeSlug($transaction);
         $config = config("transaction_rules.{$typeSlug}");

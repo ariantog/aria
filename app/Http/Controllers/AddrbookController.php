@@ -193,6 +193,7 @@ class AddrbookController extends Controller
             ->where('sender_id', $a->id)
             ->orWhere('receiver_id', $a->id)
         )
+            ->visibleToUser(request()->user())
             ->with(['sender', 'receiver', 'user'])
             ->when(request('from'), fn ($q) => $q->whereDate('date', '>=', request('from')))
             ->when(request('to'), fn ($q) => $q->whereDate('date', '<=', request('to')))
