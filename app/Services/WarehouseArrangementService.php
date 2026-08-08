@@ -67,10 +67,6 @@ class WarehouseArrangementService
             ];
         }
 
-        $warehouseNames = Addrbook::query()
-            ->where('type', AddrbookType::Warehouse)
-            ->pluck('name', 'id');
-
         $sizeCodes = Tag::query()->where('type', Tag::TYPE_SIZE)->pluck('code', 'id');
         $warnaByItem = $this->loadWarnaCodesForMasters($familyRows->pluck('master')->all());
 
@@ -117,12 +113,13 @@ class WarehouseArrangementService
                 ->where('quantity', '>', 0)
                 ->pluck('quantity', 'item_id');
 
-            $sourceStock = DB::table('warehouse_items')
-                ->whereIn('item_id', $itemIds)
-                ->where('warehouse_id', '!=', $destinationWarehouseId)
-                ->where('quantity', '>', 0)
-                ->orderByDesc('quantity')
-                ->get(['warehouse_id', 'item_id', 'quantity']);
+            $sourceStock = DB::table('warehouse_items as wi')
+                ->join('addrbooks as a', 'a.id', '=', 'wi.warehouse_id')
+                ->whereIn('wi.item_id', $itemIds)
+                ->where('wi.warehouse_id', '!=', $destinationWarehouseId)
+                ->where('wi.quantity', '>', 0)
+                ->orderByDesc('wi.quantity')
+                ->get(['wi.warehouse_id', 'wi.item_id', 'wi.quantity', 'a.name as warehouse_name']);
 
             $bestSource = [];
             foreach ($sourceStock as $row) {
@@ -163,6 +160,7 @@ class WarehouseArrangementService
                 $bestSourceStock = (float) $source->quantity;
                 $itemDemandVal = max(0.0, (float) ($itemDemand[$itemId] ?? 0));
                 $fromId = (int) $source->warehouse_id;
+                $fromName = $source->warehouse_name ?? 'Unknown';
 
                 $suggestions[] = [
                     'master' => $master,
@@ -176,7 +174,7 @@ class WarehouseArrangementService
                     'size' => $sizeCodes[$item->size] ?? '-',
                     'item_demand' => $itemDemandVal,
                     'from_warehouse_id' => $fromId,
-                    'from_warehouse_name' => $warehouseNames[$fromId] ?? 'Unknown',
+                    'from_warehouse_name' => $fromName,
                     'to_warehouse_id' => $destinationWarehouseId,
                     'to_warehouse_name' => $destination->name,
                     'source_stock' => (int) $bestSourceStock,

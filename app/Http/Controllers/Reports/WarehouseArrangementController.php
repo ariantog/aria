@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Reports;
 
 use App\Http\Controllers\Controller;
+use App\Models\Addrbook;
+use App\Models\Item;
 use App\Models\Report;
 use App\Services\WarehouseArrangementExportService;
 use App\Services\WarehouseArrangementService;
@@ -73,5 +75,78 @@ class WarehouseArrangementController extends Controller
             $result['destination']->name,
             $demandDays,
         );
+    }
+
+    public function draftMove(Request $request)
+    {
+        Gate::authorize(Report::getPermissions()['view-warehouse-arrangement']);
+
+        $validated = $request->validate([
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.item_id' => ['required', 'integer', 'exists:items,id'],
+            'items.*.quantity' => ['required', 'numeric', 'min:1'],
+            'items.*.from_warehouse_id' => ['required', 'integer', 'exists:addrbooks,id'],
+            'items.*.to_warehouse_id' => ['required', 'integer', 'exists:addrbooks,id'],
+        ]);
+
+        $fromId = (int) $validated['items'][0]['from_warehouse_id'];
+        $toId = (int) $validated['items'][0]['to_warehouse_id'];
+
+        foreach ($validated['items'] as $row) {
+            if ((int) $row['from_warehouse_id'] !== $fromId || (int) $row['to_warehouse_id'] !== $toId) {
+                return back()->with('error', 'Selected items must share the same source and destination warehouses.');
+            }
+        }
+
+        $from = Addrbook::findOrFail($fromId);
+        $to = Addrbook::findOrFail($toId);
+
+        $itemIds = collect($validated['items'])->pluck('item_id')->map(fn ($id) => (int) $id)->all();
+        $items = Item::query()
+            ->with('warehouseItems')
+            ->whereIn('id', $itemIds)
+            ->get()
+            ->keyBy('id');
+
+        $prefillItems = [];
+        foreach ($validated['items'] as $row) {
+            $item = $items->get((int) $row['item_id']);
+            if (! $item) {
+                continue;
+            }
+
+            $quantity = (float) $row['quantity'];
+            $price = (float) $item->price;
+
+            $prefillItems[] = [
+                'item_id' => (string) $item->id,
+                'code' => $item->code,
+                'name' => $item->name,
+                'quantity' => $quantity,
+                'price' => $price,
+                'discount' => 0,
+                'subtotal' => $quantity * $price,
+                'warehouse_items' => $item->warehouseItems->map(fn ($wi) => [
+                    'warehouse_id' => (string) $wi->warehouse_id,
+                    'quantity' => (float) $wi->quantity,
+                ])->values()->all(),
+            ];
+        }
+
+        if ($prefillItems === []) {
+            return back()->with('error', 'No valid items selected for the move draft.');
+        }
+
+        session([
+            'transaction_move_prefill' => [
+                'sender_id' => (string) $from->id,
+                'sender' => ['id' => $from->id, 'name' => $from->name],
+                'receiver_id' => (string) $to->id,
+                'receiver' => ['id' => $to->id, 'name' => $to->name],
+                'items' => $prefillItems,
+            ],
+        ]);
+
+        return redirect()->route('transactions.create', ['type' => 'move']);
     }
 }

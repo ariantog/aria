@@ -254,6 +254,7 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
         Route::get('/item-sales', \App\Http\Controllers\Reports\ItemSaleReportController::class)->name('item-sales');
         Route::get('/warehouse-arrangement', [\App\Http\Controllers\Reports\WarehouseArrangementController::class, 'index'])->name('warehouse-arrangement');
         Route::get('/warehouse-arrangement/export', [\App\Http\Controllers\Reports\WarehouseArrangementController::class, 'export'])->name('warehouse-arrangement.export');
+        Route::post('/warehouse-arrangement/draft-move', [\App\Http\Controllers\Reports\WarehouseArrangementController::class, 'draftMove'])->name('warehouse-arrangement.draft-move');
     });
 
     // Restock Module
