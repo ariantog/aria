@@ -5,14 +5,63 @@
 @push('head-css')
 <link href="https://unpkg.com/tabulator-tables@6.3.1/dist/css/tabulator.min.css" rel="stylesheet">
 <style>
-    .tabulator { font-size: 12px; border-radius: 0.5rem; overflow: hidden; width: max-content; max-width: 100%; }
-    .arrangement-grid-scroll { overflow-x: auto; }
+    .arrangement-pcode-grid { width: 100%; }
+    .arrangement-pcode-grid .tabulator {
+        font-size: 12px;
+        border-radius: 0.5rem;
+        overflow: hidden;
+        width: 100%;
+        background: transparent;
+    }
+    .arrangement-pcode-grid .tabulator .tabulator-tableholder { overflow-x: hidden; }
+    .arrangement-pcode-grid .tabulator-row .tabulator-cell {
+        padding: 8px 6px;
+        overflow: visible;
+        vertical-align: top;
+    }
+    .arrangement-pcode-grid .tabulator .tabulator-header .tabulator-col {
+        background: #f9fafb;
+    }
+    .dark .arrangement-pcode-grid .tabulator .tabulator-header .tabulator-col {
+        background: #1f2937;
+    }
+    .arrangement-grid-scroll { overflow-x: auto; width: 100%; }
     .arrangement-actions { position: sticky; top: 0; z-index: 20; }
-    .arr-cell { min-width: 108px; padding: 4px 2px; line-height: 1.3; }
-    .arr-cell-selected { background: #eff6ff; border-radius: 0.375rem; outline: 1px solid #93c5fd; }
+    .arr-cell {
+        width: 100%;
+        min-width: 0;
+        padding: 2px 0;
+        line-height: 1.35;
+        box-sizing: border-box;
+    }
+    .arr-cell-selected {
+        background: #eff6ff;
+        border-radius: 0.375rem;
+        outline: 1px solid #93c5fd;
+        padding: 4px 6px;
+    }
     .arr-cell-demand { font-size: 11px; color: #047857; font-weight: 600; }
-    .arr-cell-meta { font-size: 11px; color: #6b7280; }
-    .arr-cell select { width: 100%; margin-top: 2px; font-size: 11px; border-radius: 0.25rem; border: 1px solid #d1d5db; padding: 2px 4px; }
+    .arr-cell-meta { font-size: 11px; color: #6b7280; margin-top: 4px; }
+    .arr-cell select.arr-cell-wh {
+        display: block;
+        width: 100%;
+        min-width: 0;
+        margin-top: 4px;
+        font-size: 12px;
+        line-height: 1.25;
+        border-radius: 0.375rem;
+        border: 1px solid #d1d5db;
+        padding: 6px 8px;
+        background-color: #ffffff;
+        color: #111827;
+        cursor: pointer;
+    }
+    .dark .arr-cell select.arr-cell-wh {
+        background-color: #ffffff;
+        color: #111827;
+        border-color: #9ca3af;
+    }
+    .arr-cell-check { flex-shrink: 0; }
 </style>
 @endpush
 
@@ -184,7 +233,7 @@ $queryParams = fn (array $extra = []) => array_filter(array_merge([
                     </div>
                 </div>
             </div>
-            <div class="arrangement-grid-scroll p-2" data-pcode-grid="{{ $parent['pcode'] }}"></div>
+            <div class="arrangement-grid-scroll p-2 arrangement-pcode-grid" data-pcode-grid="{{ $parent['pcode'] }}"></div>
         </section>
         @empty
         <div class="rounded-xl border border-gray-200 bg-white p-8 text-center text-sm text-gray-500">
@@ -234,9 +283,15 @@ function arrangementGridPage() {
 
                     const table = new Tabulator(el, {
                         data: parent.rows,
-                        layout: 'fitData',
-                        height: 72,
-                        columnDefaults: { headerHozAlign: 'center', hozAlign: 'center', widthGrow: 0 },
+                        layout: 'fitColumns',
+                        rowHeight: 104,
+                        columnDefaults: {
+                            headerHozAlign: 'center',
+                            hozAlign: 'left',
+                            minWidth: 140,
+                            widthGrow: 1,
+                            resizable: false,
+                        },
                         columns: this.buildColumns(parent.sizes, parent.pcode),
                     });
 
@@ -263,15 +318,27 @@ function arrangementGridPage() {
                 cols.push({
                     title: size,
                     field: prefix || 'cell',
-                    width: 120,
-                    widthGrow: 0,
+                    minWidth: 140,
+                    widthGrow: 1,
                     formatter: (cell) => {
                         const data = cell.getRow().getData();
                         const cellData = data._cells?.[prefix];
-                        if (!cellData) return '—';
+                        if (!cellData) {
+                            const empty = document.createElement('div');
+                            empty.className = 'text-center text-gray-400 text-xs';
+                            empty.textContent = '—';
+                            return empty;
+                        }
                         const state = this.cells[cellData.item_id];
-                        if (!state) return '—';
-                        return this.renderCellHtml(state);
+                        if (!state) {
+                            const empty = document.createElement('div');
+                            empty.className = 'text-center text-gray-400 text-xs';
+                            empty.textContent = '—';
+                            return empty;
+                        }
+                        const wrapper = document.createElement('div');
+                        wrapper.innerHTML = this.renderCellHtml(state);
+                        return wrapper;
                     },
                 });
             }
