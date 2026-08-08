@@ -58,3 +58,32 @@ it('resolves type permission keys with hyphens', function () {
         ->and(Transaction::permissionNameForType('return-supplier'))->toBe('transactions-type-return-supplier')
         ->and(Transaction::typePermissionKey('return-supplier'))->toBe('type-return-supplier');
 });
+
+it('allows item transaction forms for each type slug with only that type permission', function (string $type, string $permission) {
+    Permission::firstOrCreate(['name' => $permission]);
+    $this->user->syncPermissions([$permission]);
+
+    $this->actingAs($this->user)
+        ->get(route('transactions.create', $type))
+        ->assertOk();
+})->with([
+    ['buy', 'transactions-type-buy'],
+    ['sell', 'transactions-type-sell'],
+    ['move', 'transactions-type-move'],
+    ['return', 'transactions-type-return'],
+    ['return-supplier', 'transactions-type-return-supplier'],
+]);
+
+it('allows dedicated cash and transfer pages with only the matching type permission', function (string $routeName, string $permission) {
+    Permission::firstOrCreate(['name' => $permission]);
+    $this->user->syncPermissions([$permission]);
+
+    $this->actingAs($this->user)
+        ->get(route($routeName))
+        ->assertOk();
+})->with([
+    ['transactions.cash-in', 'transactions-type-cash-in'],
+    ['transactions.cash-out', 'transactions-type-cash-out'],
+    ['transactions.transfer', 'transactions-type-transfer'],
+    ['transactions.adjust', 'transactions-type-adjust'],
+]);
