@@ -463,6 +463,13 @@ class AddrbookController extends Controller
             ->values()
             ->all();
 
+        $sourceIds = Addrbook::query()
+            ->where('type', AddrbookType::Warehouse)
+            ->whereIn('id', $sourceIds)
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
         $addrbook->arrangementSources()->sync($sourceIds);
     }
 
@@ -479,7 +486,8 @@ class AddrbookController extends Controller
                 ->where('type', AddrbookType::Warehouse)
                 ->orderBy('name')
                 ->get(['id', 'name']),
-            'selectedArrangementSourceIds' => $addrbook?->arrangementSources->pluck('id') ?? collect(),
+            'selectedArrangementSourceIds' => $addrbook?->arrangementSources()
+                ->pluck('addrbooks.id') ?? collect(),
         ];
     }
 }

@@ -39,6 +39,10 @@ class WarehouseArrangementSyncService
 
     public function syncDestinations(?int $destinationId = null): int
     {
+        if ($destinationId === null) {
+            $this->purgeStaleDestinationCaches();
+        }
+
         $destinations = Addrbook::query()
             ->where('type', AddrbookType::Warehouse)
             ->where('arrangement_enabled', true)
@@ -69,6 +73,41 @@ class WarehouseArrangementSyncService
         }
 
         return $attached;
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function activeSourceWarehouseIdsForDestination(int $destinationWarehouseId): array
+    {
+        return DB::table('warehouse_arrangement_sources as was')
+            ->join('addrbooks as a', 'a.id', '=', 'was.source_warehouse_id')
+            ->where('was.destination_warehouse_id', $destinationWarehouseId)
+            ->where('a.type', AddrbookType::Warehouse->value)
+            ->whereNull('a.deleted_at')
+            ->pluck('was.source_warehouse_id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+    }
+
+    private function purgeStaleDestinationCaches(): void
+    {
+        $activeIds = Addrbook::query()
+            ->where('type', AddrbookType::Warehouse)
+            ->where('arrangement_enabled', true)
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        $staleQuery = WarehouseArrangementPcodeSnapshot::query()->distinct();
+
+        if ($activeIds !== []) {
+            $staleQuery->whereNotIn('destination_warehouse_id', $activeIds);
+        }
+
+        foreach ($staleQuery->pluck('destination_warehouse_id')->map(fn ($id) => (int) $id)->all() as $staleId) {
+            $this->clearDestinationCache($staleId);
+        }
     }
 
     private function syncDestination(int $destinationWarehouseId): int
@@ -231,11 +270,7 @@ class WarehouseArrangementSyncService
 
     private function syncSourcesForDestination(int $destinationWarehouseId): int
     {
-        $sourceIds = DB::table('warehouse_arrangement_sources')
-            ->where('destination_warehouse_id', $destinationWarehouseId)
-            ->pluck('source_warehouse_id')
-            ->map(fn ($id) => (int) $id)
-            ->all();
+        $sourceIds = $this->activeSourceWarehouseIdsForDestination($destinationWarehouseId);
 
         if ($sourceIds === []) {
             WarehouseArrangementCandidateSource::query()
