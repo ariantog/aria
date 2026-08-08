@@ -453,6 +453,62 @@ it('builds tabulator grid grouped by color pcode', function () {
     expect($grid['parents'][0]['rows'][0]['_cells'])->not->toBeEmpty();
 });
 
+it('shows all pcode sizes in the grid not only sizes to move', function () {
+    $source = Addrbook::factory()->warehouse()->create();
+    $destination = Addrbook::factory()->warehouse()->create(['arrangement_enabled' => true]);
+
+    $group = ItemGroup::factory()->create(['master' => 'CX90035', 'variant' => '02']);
+    $pcode = 'CX90035-02';
+
+    $sizeS = \App\Models\Tag::factory()->create(['type' => \App\Models\Tag::TYPE_SIZE, 'code' => 'S']);
+    $sizeM = \App\Models\Tag::factory()->create(['type' => \App\Models\Tag::TYPE_SIZE, 'code' => 'M']);
+    $sizeL = \App\Models\Tag::factory()->create(['type' => \App\Models\Tag::TYPE_SIZE, 'code' => 'L']);
+    $sizeXl = \App\Models\Tag::factory()->create(['type' => \App\Models\Tag::TYPE_SIZE, 'code' => 'XL']);
+
+    $anchor = Item::factory()->create(['group_id' => $group->id, 'type' => ItemType::ITEM, 'pcode' => $pcode, 'code' => 'AJD-CX90035-02-S', 'size' => $sizeS->id]);
+    $missingM = Item::factory()->create(['group_id' => $group->id, 'type' => ItemType::ITEM, 'pcode' => $pcode, 'code' => 'AJD-CX90035-02-M', 'size' => $sizeM->id]);
+    Item::factory()->create(['group_id' => $group->id, 'type' => ItemType::ITEM, 'pcode' => $pcode, 'code' => 'AJD-CX90035-02-L', 'size' => $sizeL->id]);
+    $missingXl = Item::factory()->create(['group_id' => $group->id, 'type' => ItemType::ITEM, 'pcode' => $pcode, 'code' => 'AJD-CX90035-02-XL', 'size' => $sizeXl->id]);
+
+    WarehouseItem::create(['warehouse_id' => $source->id, 'item_id' => $missingM->id, 'quantity' => 4]);
+    WarehouseItem::create(['warehouse_id' => $source->id, 'item_id' => $missingXl->id, 'quantity' => 2]);
+    WarehouseItem::create(['warehouse_id' => $destination->id, 'item_id' => $anchor->id, 'quantity' => 1]);
+
+    $now = now();
+    WarehouseItemMonthlyStat::create([
+        'warehouse_id' => $destination->id,
+        'item_id' => $anchor->id,
+        'month' => $now->month,
+        'year' => $now->year,
+        'sold_qty' => 6,
+        'returned_qty' => 0,
+    ]);
+    WarehouseItemMonthlyStat::create([
+        'warehouse_id' => $destination->id,
+        'item_id' => $missingM->id,
+        'month' => $now->month,
+        'year' => $now->year,
+        'sold_qty' => 2,
+        'returned_qty' => 0,
+    ]);
+    WarehouseItemMonthlyStat::create([
+        'warehouse_id' => $destination->id,
+        'item_id' => $missingXl->id,
+        'month' => $now->month,
+        'year' => $now->year,
+        'sold_qty' => 1,
+        'returned_qty' => 0,
+    ]);
+
+    $result = arrangementPage($destination->id);
+    $grid = app(WarehouseArrangementGridBuilder::class)->build($result['suggestions']);
+
+    expect($grid['parents'][0]['sizes'])->toEqual(['S', 'M', 'L', 'XL']);
+    expect($grid['parents'][0]['rows'][0]['_cells'])->toHaveCount(4);
+    expect($grid['parents'][0]['rows'][0]['_cells']['s_']['inactive'])->toBeTrue();
+    expect($grid['parents'][0]['rows'][0]['_cells']['l_']['inactive'])->toBeTrue();
+});
+
 it('recalculates warehouse item monthly stats from transaction details', function () {
     $warehouse = Addrbook::factory()->warehouse()->create();
     $customer = Addrbook::factory()->customer()->create();
