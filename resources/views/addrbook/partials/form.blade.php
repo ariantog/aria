@@ -1,15 +1,18 @@
 @php
     $isEdit = ($mode ?? 'create') === 'edit';
+    $addrbook = $addrbook ?? null;
     $val = function ($field, $default = '') use ($isEdit, $addrbook) {
         if (old($field) !== null) return old($field);
-        if ($isEdit && isset($addrbook)) return $addrbook->{$field};
+        if ($isEdit && $addrbook) return $addrbook->{$field};
         return $default;
     };
     $preselected = $preselected_type_id ?? null;
-    $typeValue = old('type', $isEdit ? (string) ($addrbook->type instanceof \App\Enums\AddrbookType ? $addrbook->type->value : $addrbook->type) : ($preselected ? (string) $preselected : ''));
-    $isOnline = (bool) old('is_online', $isEdit ? $addrbook->is_online : false);
-    $ppn = (bool) old('ppn', $isEdit ? $addrbook->ppn : false);
-    $arrangementEnabled = (bool) old('arrangement_enabled', $isEdit ? ($addrbook->arrangement_enabled ?? false) : false);
+    $typeValue = old('type', $isEdit && $addrbook
+        ? (string) ($addrbook->type instanceof \App\Enums\AddrbookType ? $addrbook->type->value : $addrbook->type)
+        : ($preselected ? (string) $preselected : ''));
+    $isOnline = (bool) old('is_online', $isEdit && $addrbook ? $addrbook->is_online : false);
+    $ppn = (bool) old('ppn', $isEdit && $addrbook ? $addrbook->ppn : false);
+    $arrangementEnabled = (bool) old('arrangement_enabled', $isEdit && $addrbook ? ($addrbook->arrangement_enabled ?? false) : false);
     $warehouseType = (string) \App\Enums\AddrbookType::Warehouse->value;
 @endphp
 
