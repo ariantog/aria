@@ -10,16 +10,20 @@ return new class extends Migration
     {
         Schema::create('warehouse_arrangement_sources', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('destination_warehouse_id')->constrained('addrbooks')->cascadeOnDelete();
-            $table->foreignId('source_warehouse_id')->constrained('addrbooks')->cascadeOnDelete();
+            $table->foreignId('destination_warehouse_id');
+            $table->foreignId('source_warehouse_id');
             $table->timestamps();
 
             $table->unique(['destination_warehouse_id', 'source_warehouse_id'], 'arr_src_dest_src_unique');
+            $table->foreign('destination_warehouse_id', 'arr_src_dest_fk')
+                ->references('id')->on('addrbooks')->cascadeOnDelete();
+            $table->foreign('source_warehouse_id', 'arr_src_source_fk')
+                ->references('id')->on('addrbooks')->cascadeOnDelete();
         });
 
         Schema::create('warehouse_arrangement_pcode_snapshots', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('destination_warehouse_id')->constrained('addrbooks')->cascadeOnDelete();
+            $table->foreignId('destination_warehouse_id');
             $table->string('pcode');
             $table->string('master')->nullable();
             $table->string('master_name')->nullable();
@@ -33,12 +37,14 @@ return new class extends Migration
             $table->timestamps();
 
             $table->unique(['destination_warehouse_id', 'pcode'], 'arr_pcode_dest_pcode_unique');
+            $table->foreign('destination_warehouse_id', 'arr_pcode_snap_dest_fk')
+                ->references('id')->on('addrbooks')->cascadeOnDelete();
         });
 
         Schema::create('warehouse_arrangement_candidates', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('destination_warehouse_id')->constrained('addrbooks')->cascadeOnDelete();
-            $table->foreignId('item_id')->constrained('items')->cascadeOnDelete();
+            $table->foreignId('destination_warehouse_id');
+            $table->foreignId('item_id');
             $table->string('pcode')->nullable();
             $table->string('master')->nullable();
             $table->string('item_code')->nullable();
@@ -54,17 +60,25 @@ return new class extends Migration
 
             $table->unique(['destination_warehouse_id', 'item_id'], 'arr_candidate_dest_item_unique');
             $table->index(['destination_warehouse_id', 'pcode'], 'arr_candidate_dest_pcode_idx');
+            $table->foreign('destination_warehouse_id', 'arr_cand_dest_fk')
+                ->references('id')->on('addrbooks')->cascadeOnDelete();
+            $table->foreign('item_id', 'arr_cand_item_fk')
+                ->references('id')->on('items')->cascadeOnDelete();
         });
 
         Schema::create('warehouse_arrangement_candidate_sources', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('candidate_id')->constrained('warehouse_arrangement_candidates')->cascadeOnDelete();
-            $table->foreignId('source_warehouse_id')->constrained('addrbooks')->cascadeOnDelete();
+            $table->foreignId('candidate_id');
+            $table->foreignId('source_warehouse_id');
             $table->unsignedInteger('source_stock')->default(0);
             $table->unsignedInteger('suggested_qty')->default(1);
             $table->timestamps();
 
             $table->unique(['candidate_id', 'source_warehouse_id'], 'arr_cand_src_unique');
+            $table->foreign('candidate_id', 'arr_cand_src_cand_fk')
+                ->references('id')->on('warehouse_arrangement_candidates')->cascadeOnDelete();
+            $table->foreign('source_warehouse_id', 'arr_cand_src_wh_fk')
+                ->references('id')->on('addrbooks')->cascadeOnDelete();
         });
     }
 
