@@ -72,9 +72,7 @@ class TransactionsController extends Controller
 
     public function create(string $type, BookClosingService $bookClosingService)
     {
-        $permissionKey = 'type_'.str_replace('-', '_', $type);
-        $permissions = Transaction::getPermissions();
-        Gate::authorize($permissions[$permissionKey] ?? $permissions['create']);
+        Transaction::authorizeTypeAccess($type);
         $config = config("transaction_rules.{$type}");
         if (! $config) {
             abort(404, "Transaction type '{$type}' not supported.");
@@ -338,9 +336,7 @@ class TransactionsController extends Controller
 
     private function authorizeTransactionType(string $type): void
     {
-        $permissionKey = 'type_'.str_replace('-', '_', $type);
-        $permissions = Transaction::getPermissions();
-        Gate::authorize($permissions[$permissionKey] ?? $permissions['create']);
+        Transaction::authorizeTypeAccess($type);
     }
 
     private function authorizeTransactionView(Transaction $transaction): void

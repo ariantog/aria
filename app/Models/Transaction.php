@@ -4,10 +4,12 @@ namespace App\Models;
 
 use App\Enums\TransactionStatus;
 use App\Enums\TransactionType;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\Gate;
 
 class Transaction extends Model
 {
@@ -161,5 +163,44 @@ class Transaction extends Model
             'type-return-supplier' => 'transactions-type-return-supplier',
             'transaction-sync' => 'transactions-transaction-sync',
         ];
+    }
+
+    public static function typePermissionKey(string $typeSlug): string
+    {
+        return 'type-'.$typeSlug;
+    }
+
+    public static function permissionNameForType(string $typeSlug): ?string
+    {
+        return self::getPermissions()[self::typePermissionKey($typeSlug)] ?? null;
+    }
+
+    public static function userCanAccessType(?User $user, string $typeSlug): bool
+    {
+        if (! $user) {
+            return false;
+        }
+
+        if ($user->is_superadmin) {
+            return true;
+        }
+
+        $permissions = self::getPermissions();
+        $typePermission = self::permissionNameForType($typeSlug);
+
+        if ($typePermission && $user->can($typePermission)) {
+            return true;
+        }
+
+        return $user->can($permissions['view']) || $user->can($permissions['create']);
+    }
+
+    public static function authorizeTypeAccess(string $typeSlug): void
+    {
+        if (self::userCanAccessType(auth()->user(), $typeSlug)) {
+            return;
+        }
+
+        Gate::authorize(self::permissionNameForType($typeSlug) ?? self::getPermissions()['create']);
     }
 }

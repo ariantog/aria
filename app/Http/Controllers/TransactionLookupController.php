@@ -16,7 +16,7 @@ class TransactionLookupController extends Controller
      */
     public function search(Request $request, string $type, string $role)
     {
-        \Illuminate\Support\Facades\Gate::authorize(\App\Models\Transaction::getPermissions()['view']);
+        abort_unless(Transaction::userCanAccessType($request->user(), $type), 403);
         // Remove dd and use request input
         // Configuration now gives us the Addrbook Type ID directly, or we get it from request
         $typeId = $request->input('addrbook_type') ?? ($request['addrbook_type'] ?? null);
