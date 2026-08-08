@@ -117,11 +117,11 @@ $queryBase = array_filter([
     @endif
 
     <div class="rounded-xl border border-gray-200 bg-white shadow-sm"
-         x-data="arrangementSelection(@js($suggestions))">
+         x-data="arrangementSelection(@js($suggestions), {{ (int) $sourceSlotCount }})">
         <div class="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-4 py-3">
             <div>
                 <h2 class="text-sm font-semibold text-gray-900">Suggested moves</h2>
-                <p class="text-xs text-gray-500">Each SKU may appear on multiple rows (one per source warehouse). Select one source per SKU; all selections must use the same From warehouse to draft a move.</p>
+                <p class="text-xs text-gray-500">One row per SKU with source warehouses sorted by stock (highest first). Pick a source per row; all selected rows must use the same From warehouse to draft.</p>
             </div>
             <div class="flex items-center gap-2">
                 <span class="text-xs text-gray-500" x-show="selectedCount > 0" x-cloak>
@@ -137,11 +137,11 @@ $queryBase = array_filter([
         </div>
         <form id="arrangement-draft-form" method="POST" action="{{ route('reports.warehouse-arrangement.draft-move') }}" class="hidden">
             @csrf
-            <template x-for="(row, idx) in selectedRows()" :key="`${row.item_id}-${row.from_warehouse_id}`">
-                <input type="hidden" name="items[][item_id]" :value="row.item_id">
-                <input type="hidden" name="items[][quantity]" :value="row.suggested_qty">
-                <input type="hidden" name="items[][from_warehouse_id]" :value="row.from_warehouse_id">
-                <input type="hidden" name="items[][to_warehouse_id]" :value="row.to_warehouse_id">
+            <template x-for="(draft, idx) in draftItems()" :key="`${draft.item_id}-${draft.from_warehouse_id}`">
+                <input type="hidden" name="items[][item_id]" :value="draft.item_id">
+                <input type="hidden" name="items[][quantity]" :value="draft.suggested_qty">
+                <input type="hidden" name="items[][from_warehouse_id]" :value="draft.from_warehouse_id">
+                <input type="hidden" name="items[][to_warehouse_id]" :value="draft.to_warehouse_id">
             </template>
         </form>
         <div class="overflow-x-auto">
@@ -152,53 +152,70 @@ $queryBase = array_filter([
                             <input type="checkbox" class="rounded border-gray-300"
                                    :checked="allSelected"
                                    @change="toggleAll($event.target.checked)"
-                                   :disabled="suggestions.length === 0">
+                                   :disabled="rows.length === 0">
                         </th>
                         <th class="px-3 py-2">Master</th>
                         <th class="px-3 py-2">SKU</th>
                         <th class="px-3 py-2">Color</th>
                         <th class="px-3 py-2">Size</th>
                         <th class="px-3 py-2 text-center">Demand</th>
-                        <th class="px-3 py-2">From</th>
+                        @for ($slot = 1; $slot <= $sourceSlotCount; $slot++)
+                        <th class="px-3 py-2">Warehouse {{ $slot }}</th>
+                        <th class="px-3 py-2 text-center">Stock {{ $slot }}</th>
+                        @endfor
                         <th class="px-3 py-2">To</th>
-                        <th class="px-3 py-2 text-center">Src stock</th>
                         <th class="px-3 py-2 text-center">Qty</th>
                     </tr>
                 </thead>
                 <tbody>
-                    @forelse($suggestions as $idx => $s)
-                    <tr class="border-b hover:bg-gray-50" :class="isSelected({{ $idx }}) ? 'bg-blue-50/40' : ''">
-                        <td class="px-3 py-2">
-                            <input type="checkbox" class="rounded border-gray-300"
-                                   :checked="isSelected({{ $idx }})"
-                                   @change="toggle({{ $idx }}, $event.target.checked)">
-                        </td>
-                        <td class="px-3 py-2 font-mono text-xs">{{ $s['master'] }}</td>
-                        <td class="px-3 py-2">
-                            <div class="font-medium">{{ $s['item_name'] }}</div>
-                            <div class="font-mono text-xs text-gray-500">{{ $s['item_code'] }}</div>
-                        </td>
-                        <td class="px-3 py-2">{{ $s['warna'] }}</td>
-                        <td class="px-3 py-2">{{ $s['size'] }}</td>
-                        <td class="px-3 py-2 text-center font-mono">{{ $fmtNum($s['item_demand']) }}</td>
-                        <td class="px-3 py-2">{{ $s['from_warehouse_name'] }}</td>
-                        <td class="px-3 py-2 font-medium">{{ $s['to_warehouse_name'] }}</td>
-                        <td class="px-3 py-2 text-center font-mono">{{ $s['source_stock'] }}</td>
-                        <td class="px-3 py-2 text-center font-mono font-bold text-blue-600">{{ $s['suggested_qty'] }}</td>
-                    </tr>
-                    @empty
-                    <tr>
-                        <td colspan="10" class="px-3 py-8 text-center text-gray-500">No moves suggested — destination already has all SKUs with stock, or no source stock available.</td>
-                    </tr>
-                    @endforelse
+                    <template x-if="rows.length === 0">
+                        <tr>
+                            <td colspan="{{ 8 + ($sourceSlotCount * 2) }}" class="px-3 py-8 text-center text-gray-500">No moves suggested — destination already has all SKUs with stock, or no source stock available.</td>
+                        </tr>
+                    </template>
+                    <template x-for="(row, idx) in rows" :key="row.item_id">
+                        <tr class="border-b hover:bg-gray-50" :class="isSelected(idx) ? 'bg-blue-50/40' : ''">
+                            <td class="px-3 py-2">
+                                <input type="checkbox" class="rounded border-gray-300"
+                                       :checked="isSelected(idx)"
+                                       @change="toggle(idx, $event.target.checked)">
+                            </td>
+                            <td class="px-3 py-2 font-mono text-xs" x-text="row.master"></td>
+                            <td class="px-3 py-2">
+                                <div class="font-medium" x-text="row.item_name"></div>
+                                <div class="font-mono text-xs text-gray-500" x-text="row.item_code"></div>
+                            </td>
+                            <td class="px-3 py-2" x-text="row.warna"></td>
+                            <td class="px-3 py-2" x-text="row.size"></td>
+                            <td class="px-3 py-2 text-center font-mono" x-text="Number(row.item_demand).toLocaleString('id-ID')"></td>
+                            <template x-for="slot in sourceSlotCount" :key="slot">
+                                <td class="px-3 py-2">
+                                    <template x-if="row.sources[slot]">
+                                        <label class="flex items-center gap-1.5 cursor-pointer">
+                                            <input type="radio" class="border-gray-300 text-blue-600"
+                                                   :name="'src-' + row.item_id"
+                                                   :value="slot"
+                                                   x-model.number="row.chosenSourceIndex">
+                                            <span class="text-sm" x-text="row.sources[slot].from_warehouse_name"></span>
+                                        </label>
+                                    </template>
+                                    <span x-show="!row.sources[slot]" class="text-gray-300">—</span>
+                                </td>
+                                <td class="px-3 py-2 text-center font-mono text-gray-700">
+                                    <span x-show="row.sources[slot]" x-text="row.sources[slot].source_stock"></span>
+                                    <span x-show="!row.sources[slot]" class="text-gray-300">—</span>
+                                </td>
+                            </template>
+                            <td class="px-3 py-2 font-medium" x-text="row.to_warehouse_name"></td>
+                            <td class="px-3 py-2 text-center font-mono font-bold text-blue-600"
+                                x-text="chosenSource(row)?.suggested_qty ?? '—'"></td>
+                        </tr>
+                    </template>
                 </tbody>
             </table>
         </div>
         <p class="border-t border-gray-100 px-4 py-2 text-xs text-amber-600" x-show="selectedCount > 0 && hasMixedSources()" x-cloak>
-            Selected rows use different source warehouses. Pick rows from one From warehouse only.
-        </p>
-        <p class="border-t border-gray-100 px-4 py-2 text-xs text-amber-600" x-show="selectedCount > 0 && hasDuplicateItems() && !hasMixedSources()" x-cloak>
-            Each SKU can only be selected once. Uncheck duplicate rows for the same item.
+            Selected rows use different source warehouses. Pick the same From warehouse on every selected row.
         </p>
     </div>
     @else
@@ -211,53 +228,51 @@ $queryBase = array_filter([
 
 @push('scripts')
 <script>
-function arrangementSelection(suggestions) {
+function arrangementSelection(suggestions, sourceSlotCount) {
     return {
-        suggestions,
+        sourceSlotCount,
+        rows: suggestions.map(row => ({ ...row, chosenSourceIndex: 0 })),
         selected: new Set(),
         get selectedCount() { return this.selected.size; },
         get allSelected() {
-            return this.suggestions.length > 0 && this.selected.size === this.suggestions.length;
+            return this.rows.length > 0 && this.selected.size === this.rows.length;
+        },
+        chosenSource(row) {
+            return row.sources?.[row.chosenSourceIndex] ?? row.sources?.[0] ?? null;
         },
         isSelected(idx) { return this.selected.has(idx); },
         toggle(idx, checked) {
-            if (checked) {
-                const itemId = this.suggestions[idx].item_id;
-                this.suggestions.forEach((row, i) => {
-                    if (row.item_id === itemId && i !== idx) {
-                        this.selected.delete(i);
-                    }
-                });
-                this.selected.add(idx);
-            } else {
-                this.selected.delete(idx);
-            }
+            if (checked) this.selected.add(idx);
+            else this.selected.delete(idx);
         },
         toggleAll(checked) {
             this.selected = checked
-                ? new Set(this.suggestions.map((_, i) => i))
+                ? new Set(this.rows.map((_, i) => i))
                 : new Set();
         },
-        selectedRows() {
-            return [...this.selected].sort((a, b) => a - b).map(i => this.suggestions[i]);
+        draftItems() {
+            return [...this.selected].sort((a, b) => a - b).map(i => {
+                const row = this.rows[i];
+                const src = this.chosenSource(row);
+                return {
+                    item_id: row.item_id,
+                    suggested_qty: src?.suggested_qty ?? 1,
+                    from_warehouse_id: src?.from_warehouse_id,
+                    to_warehouse_id: row.to_warehouse_id,
+                };
+            });
         },
         hasMixedSources() {
-            const rows = this.selectedRows();
-            if (rows.length <= 1) return false;
-            const from = rows[0].from_warehouse_id;
-            return rows.some(r => r.from_warehouse_id !== from);
-        },
-        hasDuplicateItems() {
-            const rows = this.selectedRows();
-            const ids = rows.map(r => r.item_id);
-            return ids.length !== new Set(ids).size;
+            const items = this.draftItems();
+            if (items.length <= 1) return false;
+            const from = items[0].from_warehouse_id;
+            return items.some(item => item.from_warehouse_id !== from);
         },
         canDraft() {
-            const rows = this.selectedRows();
-            if (rows.length === 0) return false;
-            if (this.hasMixedSources() || this.hasDuplicateItems()) return false;
-            const to = rows[0].to_warehouse_id;
-            return rows.every(r => r.to_warehouse_id === to);
+            const items = this.draftItems();
+            if (items.length === 0) return false;
+            if (this.hasMixedSources()) return false;
+            return items.every(item => item.from_warehouse_id && item.to_warehouse_id);
         },
         draftMove() {
             if (!this.canDraft()) return;

@@ -19,6 +19,8 @@ class WarehouseArrangementService
 
     public const EXPORT_MAX_SUGGESTIONS = 5000;
 
+    public const MAX_SOURCE_SLOTS = 5;
+
     /**
      * @return Collection<int, Addrbook>
      */
@@ -148,37 +150,49 @@ class WarehouseArrangementService
 
                 $itemDemandVal = max(0.0, (float) ($itemDemand[$itemId] ?? 0));
 
-                foreach ($sources as $source) {
-                    $totalSuggestionCount++;
+                $sourceRows = $sources
+                    ->sortByDesc(fn ($source) => (float) $source->quantity)
+                    ->values()
+                    ->take(self::MAX_SOURCE_SLOTS)
+                    ->map(function ($source) use ($itemDemandVal) {
+                        $sourceStockQty = (float) $source->quantity;
 
-                    if (count($suggestions) >= $maxSuggestions) {
-                        $truncated = true;
-                        continue;
-                    }
+                        return [
+                            'from_warehouse_id' => (int) $source->warehouse_id,
+                            'from_warehouse_name' => $source->warehouse_name ?? 'Unknown',
+                            'source_stock' => (int) $sourceStockQty,
+                            'suggested_qty' => max(1, min((int) $sourceStockQty, (int) ceil($itemDemandVal) ?: 1)),
+                        ];
+                    })
+                    ->values()
+                    ->all();
 
-                    $sourceStockQty = (float) $source->quantity;
-                    $fromId = (int) $source->warehouse_id;
-                    $fromName = $source->warehouse_name ?? 'Unknown';
-
-                    $suggestions[] = [
-                        'master' => $master,
-                        'master_name' => $familyMeta['name'],
-                        'family_demand_score' => $familyMeta['demand_score'],
-                        'completeness_pct' => $familyMeta['completeness_pct'],
-                        'item_id' => $itemId,
-                        'item_code' => $item->code,
-                        'item_name' => $item->name,
-                        'warna' => $warnaByItem[$itemId] ?? '-',
-                        'size' => $sizeCodes[$item->size] ?? '-',
-                        'item_demand' => $itemDemandVal,
-                        'from_warehouse_id' => $fromId,
-                        'from_warehouse_name' => $fromName,
-                        'to_warehouse_id' => $destinationWarehouseId,
-                        'to_warehouse_name' => $destination->name,
-                        'source_stock' => (int) $sourceStockQty,
-                        'suggested_qty' => max(1, min((int) $sourceStockQty, (int) ceil($itemDemandVal) ?: 1)),
-                    ];
+                if ($sourceRows === []) {
+                    continue;
                 }
+
+                $totalSuggestionCount++;
+
+                if (count($suggestions) >= $maxSuggestions) {
+                    $truncated = true;
+                    continue;
+                }
+
+                $suggestions[] = [
+                    'master' => $master,
+                    'master_name' => $familyMeta['name'],
+                    'family_demand_score' => $familyMeta['demand_score'],
+                    'completeness_pct' => $familyMeta['completeness_pct'],
+                    'item_id' => $itemId,
+                    'item_code' => $item->code,
+                    'item_name' => $item->name,
+                    'warna' => $warnaByItem[$itemId] ?? '-',
+                    'size' => $sizeCodes[$item->size] ?? '-',
+                    'item_demand' => $itemDemandVal,
+                    'sources' => $sourceRows,
+                    'to_warehouse_id' => $destinationWarehouseId,
+                    'to_warehouse_name' => $destination->name,
+                ];
             }
         }
 
