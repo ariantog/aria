@@ -41,3 +41,29 @@ test('authorized user can view create setting page', function () {
         ->get(route('system-settings.create'))
         ->assertStatus(200);
 });
+
+test('authorized user can view invoice branding settings', function () {
+    $this->user->givePermissionTo(Setting::getPermissions()['edit']);
+
+    $this->actingAs($this->user)
+        ->get(route('invoice-settings.edit'))
+        ->assertOk()
+        ->assertSee('Invoice Settings', false)
+        ->assertSee('CORENATION', false);
+});
+
+test('authorized user can update invoice branding settings', function () {
+    $this->user->givePermissionTo(Setting::getPermissions()['edit']);
+
+    $this->actingAs($this->user)
+        ->put(route('invoice-settings.update'), [
+            'company_name' => 'Test Co',
+            'address' => 'Jl. Test 123',
+            'phone' => '08123456789',
+        ])
+        ->assertRedirect(route('invoice-settings.edit'));
+
+    expect(Setting::getValue('invoice_company_name'))->toBe('Test Co');
+    expect(Setting::getValue('invoice_address'))->toBe('Jl. Test 123');
+    expect(Setting::getValue('invoice_phone'))->toBe('08123456789');
+});
