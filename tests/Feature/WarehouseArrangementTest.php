@@ -524,6 +524,71 @@ it('shows all pcode sizes in the section not only sizes to move', function () {
     expect(isset($section['cells']['L']))->toBeFalse();
 });
 
+it('excludes soft deleted warehouses from destination list and source sync', function () {
+    $activeSource = Addrbook::factory()->warehouse()->create(['name' => 'Active Source']);
+    $deletedSource = Addrbook::factory()->warehouse()->create(['name' => 'Deleted Source']);
+    $deletedSource->delete();
+
+    $activeDestination = Addrbook::factory()->warehouse()->create([
+        'name' => 'Active Destination',
+        'arrangement_enabled' => true,
+    ]);
+    $deletedDestination = Addrbook::factory()->warehouse()->create([
+        'name' => 'Deleted Destination',
+        'arrangement_enabled' => true,
+    ]);
+    $deletedDestination->delete();
+
+    DB::table('warehouse_arrangement_sources')->insert([
+        'destination_warehouse_id' => $activeDestination->id,
+        'source_warehouse_id' => $activeSource->id,
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+    DB::table('warehouse_arrangement_sources')->insert([
+        'destination_warehouse_id' => $activeDestination->id,
+        'source_warehouse_id' => $deletedSource->id,
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    $destinations = app(WarehouseArrangementService::class)->destinationWarehouses();
+    expect($destinations->pluck('id')->all())->toContain($activeDestination->id);
+    expect($destinations->pluck('id')->all())->not->toContain($deletedDestination->id);
+
+    $group = ItemGroup::factory()->create(['master' => 'CX90102', 'variant' => '02']);
+    $anchor = Item::factory()->create(['group_id' => $group->id, 'type' => ItemType::ITEM, 'pcode' => 'CX90102-02', 'code' => 'AJD-CX90102-02-S']);
+    $missing = Item::factory()->create(['group_id' => $group->id, 'type' => ItemType::ITEM, 'pcode' => 'CX90102-02', 'code' => 'AJD-CX90102-02-M']);
+
+    WarehouseItem::create(['warehouse_id' => $deletedSource->id, 'item_id' => $missing->id, 'quantity' => 9]);
+    WarehouseItem::create(['warehouse_id' => $activeSource->id, 'item_id' => $missing->id, 'quantity' => 2]);
+    WarehouseItem::create(['warehouse_id' => $activeDestination->id, 'item_id' => $anchor->id, 'quantity' => 1]);
+
+    WarehouseItemMonthlyStat::create([
+        'warehouse_id' => $activeDestination->id,
+        'item_id' => $anchor->id,
+        'month' => now()->month,
+        'year' => now()->year,
+        'sold_qty' => 4,
+        'returned_qty' => 0,
+    ]);
+    WarehouseItemMonthlyStat::create([
+        'warehouse_id' => $activeDestination->id,
+        'item_id' => $missing->id,
+        'month' => now()->month,
+        'year' => now()->year,
+        'sold_qty' => 2,
+        'returned_qty' => 0,
+    ]);
+
+    app(WarehouseArrangementSyncService::class)->syncAll($activeDestination->id);
+
+    $result = app(WarehouseArrangementService::class)->buildPage($activeDestination->id);
+    expect($result['suggestions'])->toHaveCount(1);
+    expect($result['suggestions'][0]['sources'])->toHaveCount(1);
+    expect($result['suggestions'][0]['sources'][0]['from_warehouse_id'])->toBe($activeSource->id);
+});
+
 it('sync command rebuilds cached arrangement candidates', function () {
     $source = Addrbook::factory()->warehouse()->create();
     $destination = Addrbook::factory()->warehouse()->create(['arrangement_enabled' => true]);

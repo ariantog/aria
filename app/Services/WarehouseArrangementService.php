@@ -83,7 +83,7 @@ class WarehouseArrangementService
 
         $candidateQuery = WarehouseArrangementCandidate::query()
             ->where('destination_warehouse_id', $destinationWarehouseId)
-            ->whereHas('sources')
+            ->whereHas('sources', fn ($q) => $q->whereHas('sourceWarehouse'))
             ->when($excludeItemIds !== [], fn ($q) => $q->whereNotIn('item_id', $excludeItemIds));
 
         if ($mode === self::MODE_DEMAND) {
@@ -121,7 +121,10 @@ class WarehouseArrangementService
         $pagePcodes = $sortedPcodes->slice(($page - 1) * $perPage, $perPage)->values();
 
         $candidates = WarehouseArrangementCandidate::query()
-            ->with(['sources.sourceWarehouse'])
+            ->with([
+                'sources' => fn ($q) => $q->whereHas('sourceWarehouse'),
+                'sources.sourceWarehouse',
+            ])
             ->where('destination_warehouse_id', $destinationWarehouseId)
             ->whereIn('pcode', $pagePcodes->all())
             ->whereHas('sources')
