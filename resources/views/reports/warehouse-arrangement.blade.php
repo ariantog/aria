@@ -313,6 +313,7 @@ function arrangementGridPage() {
             for (const parent of this.grid.parents) {
                 for (const row of parent.rows) {
                     for (const [prefix, cell] of Object.entries(row._cells || {})) {
+                        if (cell.inactive) continue;
                         this.cells[cell.item_id] = { ...cell, pcode: parent.pcode, prefix };
                     }
                 }
@@ -336,6 +337,13 @@ function arrangementGridPage() {
                             empty.className = 'text-center text-gray-400 text-xs';
                             empty.textContent = '—';
                             return empty;
+                        }
+                        if (cellData.inactive) {
+                            const inactive = document.createElement('div');
+                            inactive.className = 'text-center text-xs text-gray-500 py-6';
+                            const stock = Number(cellData.dest_stock ?? 0);
+                            inactive.textContent = stock > 0 ? `OK · Stock ${stock}` : 'No move';
+                            return inactive;
                         }
                         const state = this.cells[cellData.item_id];
                         if (!state) {
