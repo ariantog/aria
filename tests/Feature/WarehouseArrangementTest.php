@@ -72,6 +72,38 @@ it('builds move suggestions for missing skus at arrangement destinations', funct
     expect($result['suggestions'][0]['from_warehouse_name'])->toBe('Source WH');
 });
 
+it('lists every physical warehouse that holds a missing sku', function () {
+    $sourceA = Addrbook::factory()->warehouse()->create(['name' => 'WH Alpha']);
+    $sourceB = Addrbook::factory()->warehouse()->create(['name' => 'WH Beta']);
+    $destination = Addrbook::factory()->warehouse()->create([
+        'name' => 'Flagship WH',
+        'arrangement_enabled' => true,
+    ]);
+
+    $group = ItemGroup::factory()->create(['master' => 'CX90031', 'variant' => '02']);
+    $anchor = Item::factory()->create(['group_id' => $group->id, 'type' => ItemType::ITEM, 'code' => 'AJD-CX90031-02-S']);
+    $missing = Item::factory()->create(['group_id' => $group->id, 'type' => ItemType::ITEM, 'code' => 'AJD-CX90031-02-M']);
+
+    WarehouseItem::create(['warehouse_id' => $sourceA->id, 'item_id' => $missing->id, 'quantity' => 8]);
+    WarehouseItem::create(['warehouse_id' => $sourceB->id, 'item_id' => $missing->id, 'quantity' => 3]);
+    WarehouseItem::create(['warehouse_id' => $destination->id, 'item_id' => $anchor->id, 'quantity' => 1]);
+
+    WarehouseItemMonthlyStat::create([
+        'warehouse_id' => $destination->id,
+        'item_id' => $anchor->id,
+        'month' => now()->month,
+        'year' => now()->year,
+        'sold_qty' => 4,
+        'returned_qty' => 0,
+    ]);
+
+    $result = app(WarehouseArrangementService::class)->buildSuggestions($destination->id, 365);
+
+    expect($result['suggestions'])->toHaveCount(2);
+    expect(collect($result['suggestions'])->pluck('from_warehouse_id')->all())
+        ->toEqualCanonicalizing([$sourceA->id, $sourceB->id]);
+});
+
 it('ignores virtual warehouses and customers as move sources', function () {
     $virtual = Addrbook::factory()->create([
         'name' => 'VWH Only',

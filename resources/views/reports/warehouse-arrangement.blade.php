@@ -121,7 +121,7 @@ $queryBase = array_filter([
         <div class="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-4 py-3">
             <div>
                 <h2 class="text-sm font-semibold text-gray-900">Suggested moves</h2>
-                <p class="text-xs text-gray-500">Select rows with the same source warehouse, then draft one move with all items prefilled. Sources are physical warehouses only.</p>
+                <p class="text-xs text-gray-500">Each SKU may appear on multiple rows (one per source warehouse). Select one source per SKU; all selections must use the same From warehouse to draft a move.</p>
             </div>
             <div class="flex items-center gap-2">
                 <span class="text-xs text-gray-500" x-show="selectedCount > 0" x-cloak>
@@ -137,7 +137,7 @@ $queryBase = array_filter([
         </div>
         <form id="arrangement-draft-form" method="POST" action="{{ route('reports.warehouse-arrangement.draft-move') }}" class="hidden">
             @csrf
-            <template x-for="(row, idx) in selectedRows()" :key="row.item_id">
+            <template x-for="(row, idx) in selectedRows()" :key="`${row.item_id}-${row.from_warehouse_id}`">
                 <input type="hidden" name="items[][item_id]" :value="row.item_id">
                 <input type="hidden" name="items[][quantity]" :value="row.suggested_qty">
                 <input type="hidden" name="items[][from_warehouse_id]" :value="row.from_warehouse_id">
@@ -194,8 +194,11 @@ $queryBase = array_filter([
                 </tbody>
             </table>
         </div>
-        <p class="border-t border-gray-100 px-4 py-2 text-xs text-gray-500" x-show="selectedCount > 0 && !canDraft()" x-cloak>
-            Selected items must share the same source and destination warehouses.
+        <p class="border-t border-gray-100 px-4 py-2 text-xs text-amber-600" x-show="selectedCount > 0 && hasMixedSources()" x-cloak>
+            Selected rows use different source warehouses. Pick rows from one From warehouse only.
+        </p>
+        <p class="border-t border-gray-100 px-4 py-2 text-xs text-amber-600" x-show="selectedCount > 0 && hasDuplicateItems() && !hasMixedSources()" x-cloak>
+            Each SKU can only be selected once. Uncheck duplicate rows for the same item.
         </p>
     </div>
     @else
@@ -218,8 +221,17 @@ function arrangementSelection(suggestions) {
         },
         isSelected(idx) { return this.selected.has(idx); },
         toggle(idx, checked) {
-            if (checked) this.selected.add(idx);
-            else this.selected.delete(idx);
+            if (checked) {
+                const itemId = this.suggestions[idx].item_id;
+                this.suggestions.forEach((row, i) => {
+                    if (row.item_id === itemId && i !== idx) {
+                        this.selected.delete(i);
+                    }
+                });
+                this.selected.add(idx);
+            } else {
+                this.selected.delete(idx);
+            }
         },
         toggleAll(checked) {
             this.selected = checked
@@ -229,12 +241,23 @@ function arrangementSelection(suggestions) {
         selectedRows() {
             return [...this.selected].sort((a, b) => a - b).map(i => this.suggestions[i]);
         },
+        hasMixedSources() {
+            const rows = this.selectedRows();
+            if (rows.length <= 1) return false;
+            const from = rows[0].from_warehouse_id;
+            return rows.some(r => r.from_warehouse_id !== from);
+        },
+        hasDuplicateItems() {
+            const rows = this.selectedRows();
+            const ids = rows.map(r => r.item_id);
+            return ids.length !== new Set(ids).size;
+        },
         canDraft() {
             const rows = this.selectedRows();
             if (rows.length === 0) return false;
-            const from = rows[0].from_warehouse_id;
+            if (this.hasMixedSources() || this.hasDuplicateItems()) return false;
             const to = rows[0].to_warehouse_id;
-            return rows.every(r => r.from_warehouse_id === from && r.to_warehouse_id === to);
+            return rows.every(r => r.to_warehouse_id === to);
         },
         draftMove() {
             if (!this.canDraft()) return;
