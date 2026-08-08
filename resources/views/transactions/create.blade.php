@@ -394,6 +394,10 @@ function createTransaction() {
                 this.form.sender = _Prefill.sender || null;
                 this.form.receiver_id = String(_Prefill.receiver_id || '');
                 this.form.receiver = _Prefill.receiver || null;
+                if (_Prefill.invoice_number) this.form.invoice_number = _Prefill.invoice_number;
+                if (_Prefill.note) this.form.note = _Prefill.note;
+                if (_Prefill.discount_percent != null) this.form.discount_percent = Number(_Prefill.discount_percent);
+                if (_Prefill.adjustment != null) this.form.adjustment = Number(_Prefill.adjustment);
                 this.form.items = [];
                 (_Prefill.items || []).forEach(ci => {
                     const row = this.newItemRow();
