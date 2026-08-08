@@ -46,7 +46,12 @@ class Addrbook extends Model
 
     protected function casts(): array
     {
-        return ['type' => AddrbookType::class, 'ppn' => 'boolean'];
+        return [
+            'type' => AddrbookType::class,
+            'ppn' => 'boolean',
+            'is_online' => 'boolean',
+            'arrangement_enabled' => 'boolean',
+        ];
     }
 
     public $appends = ['type_name', 'type_slug'];

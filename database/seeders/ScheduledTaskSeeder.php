@@ -12,12 +12,12 @@ class ScheduledTaskSeeder extends Seeder
     public function run(): void
     {
         \App\Models\ScheduledTask::updateOrCreate(
-            ['command' => 'app:generate-stock-intelligence'],
+            ['command' => 'app:recalculate-warehouse-item-stats'],
             [
-                'name' => 'Generate Stock Intelligence',
-                'frequency' => 'daily',
+                'name' => 'Recalculate Warehouse Item Stats',
+                'frequency' => 'weekly',
                 'is_active' => true,
-                'description' => 'Generates daily stock intelligence reports.',
+                'description' => 'Rebuilds monthly per-warehouse SKU sell/return statistics for arrangement reports.',
             ]
         );
 

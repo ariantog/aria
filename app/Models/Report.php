@@ -21,7 +21,7 @@ class Report
             'view-expense' => 'report-expense',
             'view-warehouse-item' => 'report-warehouse-item',
             'view-item-sales' => 'report-item-sales',
-            'view-stock-intelligence' => 'report-stock-intelligence',
+            'view-warehouse-arrangement' => 'report-warehouse-arrangement',
         ];
     }
 }

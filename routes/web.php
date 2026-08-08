@@ -252,11 +252,8 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
         Route::delete('/compare/{compare}', [\App\Http\Controllers\Reports\CompareReportController::class, 'destroy'])->name('compare.destroy');
         Route::get('/inventory-health', [\App\Http\Controllers\ReportController::class, 'inventoryHealth'])->name('inventory-health');
         Route::get('/item-sales', \App\Http\Controllers\Reports\ItemSaleReportController::class)->name('item-sales');
-        Route::get('/stock-intelligence', [\App\Http\Controllers\ReportController::class, 'stockIntelligence'])->name('stock-intelligence');
-        Route::post('/stock-intelligence/generate', [\App\Http\Controllers\ReportController::class, 'generateManual'])->name('stock-intelligence.generate');
-        Route::post('/stock-settings', [\App\Http\Controllers\ReportController::class, 'updateStockSettings'])->name('stock-settings.update');
-        Route::post('/stock-settings/reset', [\App\Http\Controllers\ReportController::class, 'resetStockSettings'])->name('stock-settings.reset');
-        Route::get('/rebalance-detail', [\App\Http\Controllers\ReportController::class, 'rebalanceDetail'])->name('rebalance-detail');
+        Route::get('/warehouse-arrangement', [\App\Http\Controllers\Reports\WarehouseArrangementController::class, 'index'])->name('warehouse-arrangement');
+        Route::get('/warehouse-arrangement/export', [\App\Http\Controllers\Reports\WarehouseArrangementController::class, 'export'])->name('warehouse-arrangement.export');
     });
 
     // Restock Module
