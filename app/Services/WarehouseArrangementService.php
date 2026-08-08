@@ -19,7 +19,7 @@ class WarehouseArrangementService
 
     public const EXPORT_MAX_SUGGESTIONS = 5000;
 
-    public const MAX_SOURCE_SLOTS = 5;
+    public const MAX_SOURCE_SLOTS = 3;
 
     /**
      * @return Collection<int, Addrbook>
@@ -149,6 +149,10 @@ class WarehouseArrangementService
                 }
 
                 $itemDemandVal = max(0.0, (float) ($itemDemand[$itemId] ?? 0));
+
+                if ($itemDemandVal <= 0) {
+                    continue;
+                }
 
                 $sourceRows = $sources
                     ->sortByDesc(fn ($source) => (float) $source->quantity)

@@ -117,11 +117,11 @@ $queryBase = array_filter([
     @endif
 
     <div class="rounded-xl border border-gray-200 bg-white shadow-sm"
-         x-data="arrangementSelection(@js($suggestions), {{ (int) $sourceSlotCount }})">
+         x-data="arrangementSelection(@js($suggestions))">
         <div class="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-4 py-3">
             <div>
                 <h2 class="text-sm font-semibold text-gray-900">Suggested moves</h2>
-                <p class="text-xs text-gray-500">One row per SKU with source warehouses sorted by stock (highest first). Pick a source per row; all selected rows must use the same From warehouse to draft.</p>
+                <p class="text-xs text-gray-500">One row per SKU with demand at this warehouse and stock elsewhere. Pick a source warehouse per row; all selected rows must share the same From warehouse to draft.</p>
             </div>
             <div class="flex items-center gap-2">
                 <span class="text-xs text-gray-500" x-show="selectedCount > 0" x-cloak>
@@ -159,10 +159,8 @@ $queryBase = array_filter([
                         <th class="px-3 py-2">Color</th>
                         <th class="px-3 py-2">Size</th>
                         <th class="px-3 py-2 text-center">Demand</th>
-                        @for ($slot = 1; $slot <= $sourceSlotCount; $slot++)
-                        <th class="px-3 py-2">Warehouse {{ $slot }}</th>
-                        <th class="px-3 py-2 text-center">Stock {{ $slot }}</th>
-                        @endfor
+                        <th class="px-3 py-2 min-w-[200px]">From warehouse</th>
+                        <th class="px-3 py-2 text-center">Stock</th>
                         <th class="px-3 py-2">To</th>
                         <th class="px-3 py-2 text-center">Qty</th>
                     </tr>
@@ -170,7 +168,7 @@ $queryBase = array_filter([
                 <tbody>
                     <template x-if="rows.length === 0">
                         <tr>
-                            <td colspan="{{ 8 + ($sourceSlotCount * 2) }}" class="px-3 py-8 text-center text-gray-500">No moves suggested — destination already has all SKUs with stock, or no source stock available.</td>
+                            <td colspan="10" class="px-3 py-8 text-center text-gray-500">No moves suggested — SKUs with demand are already stocked here, or no physical warehouse holds them elsewhere.</td>
                         </tr>
                     </template>
                     <template x-for="(row, idx) in rows" :key="row.item_id">
@@ -187,25 +185,18 @@ $queryBase = array_filter([
                             </td>
                             <td class="px-3 py-2" x-text="row.warna"></td>
                             <td class="px-3 py-2" x-text="row.size"></td>
-                            <td class="px-3 py-2 text-center font-mono" x-text="Number(row.item_demand).toLocaleString('id-ID')"></td>
-                            <template x-for="slot in sourceSlotCount" :key="slot">
-                                <td class="px-3 py-2">
-                                    <template x-if="row.sources[slot]">
-                                        <label class="flex items-center gap-1.5 cursor-pointer">
-                                            <input type="radio" class="border-gray-300 text-blue-600"
-                                                   :name="'src-' + row.item_id"
-                                                   :value="slot"
-                                                   x-model.number="row.chosenSourceIndex">
-                                            <span class="text-sm" x-text="row.sources[slot].from_warehouse_name"></span>
-                                        </label>
+                            <td class="px-3 py-2 text-center font-mono font-semibold text-emerald-600" x-text="Number(row.item_demand).toLocaleString('id-ID')"></td>
+                            <td class="px-3 py-2">
+                                <select
+                                    class="w-full min-w-[180px] rounded border border-gray-300 px-2 py-1.5 text-sm"
+                                    x-model.number="row.chosenSourceIndex">
+                                    <template x-for="(src, srcIdx) in row.sources" :key="src.from_warehouse_id">
+                                        <option :value="srcIdx" x-text="`${src.from_warehouse_name} (${src.source_stock} pcs)`"></option>
                                     </template>
-                                    <span x-show="!row.sources[slot]" class="text-gray-300">—</span>
-                                </td>
-                                <td class="px-3 py-2 text-center font-mono text-gray-700">
-                                    <span x-show="row.sources[slot]" x-text="row.sources[slot].source_stock"></span>
-                                    <span x-show="!row.sources[slot]" class="text-gray-300">—</span>
-                                </td>
-                            </template>
+                                </select>
+                            </td>
+                            <td class="px-3 py-2 text-center font-mono text-gray-700"
+                                x-text="chosenSource(row)?.source_stock ?? '—'"></td>
                             <td class="px-3 py-2 font-medium" x-text="row.to_warehouse_name"></td>
                             <td class="px-3 py-2 text-center font-mono font-bold text-blue-600"
                                 x-text="chosenSource(row)?.suggested_qty ?? '—'"></td>
@@ -228,9 +219,8 @@ $queryBase = array_filter([
 
 @push('scripts')
 <script>
-function arrangementSelection(suggestions, sourceSlotCount) {
+function arrangementSelection(suggestions) {
     return {
-        sourceSlotCount,
         rows: suggestions.map(row => ({ ...row, chosenSourceIndex: 0 })),
         selected: new Set(),
         get selectedCount() { return this.selected.size; },
