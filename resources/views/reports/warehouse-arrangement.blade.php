@@ -5,17 +5,14 @@
 @push('head-css')
 <link href="https://unpkg.com/tabulator-tables@6.3.1/dist/css/tabulator.min.css" rel="stylesheet">
 <style>
-    .tabulator { font-size: 13px; border-radius: 0.5rem; overflow: hidden; width: max-content; max-width: 100%; }
-    .tabulator .tabulator-header .tabulator-col.tabulator-col-group-demand { background: #d1fae5; }
-    .tabulator .tabulator-header .tabulator-col.tabulator-col-group-source { background: #dbeafe; }
-    .tabulator .tabulator-header .tabulator-col.tabulator-col-group-move { background: #e0e7ff; }
-    .arrangement-demand-cell { color: #047857; font-weight: 600; }
+    .tabulator { font-size: 12px; border-radius: 0.5rem; overflow: hidden; width: max-content; max-width: 100%; }
     .arrangement-grid-scroll { overflow-x: auto; }
-    .arrangement-actions {
-        position: sticky;
-        top: 0;
-        z-index: 20;
-    }
+    .arrangement-actions { position: sticky; top: 0; z-index: 20; }
+    .arr-cell { min-width: 108px; padding: 4px 2px; line-height: 1.3; }
+    .arr-cell-selected { background: #eff6ff; border-radius: 0.375rem; outline: 1px solid #93c5fd; }
+    .arr-cell-demand { font-size: 11px; color: #047857; font-weight: 600; }
+    .arr-cell-meta { font-size: 11px; color: #6b7280; }
+    .arr-cell select { width: 100%; margin-top: 2px; font-size: 11px; border-radius: 0.25rem; border: 1px solid #d1d5db; padding: 2px 4px; }
 </style>
 @endpush
 
@@ -28,26 +25,13 @@ $breadcrumbs = [
     ['title' => 'Reports', 'href' => '#'],
     ['title' => 'Warehouse Arrangement', 'href' => route('reports.warehouse-arrangement')],
 ];
-$fmtNum = fn ($v) => number_format((float) $v, 0, ',', '.');
-$queryBase = array_filter([
+$queryParams = fn (array $extra = []) => array_filter(array_merge([
     'warehouse_id' => $selectedWarehouseId,
     'demand_days' => $demandDays,
     'mode' => $mode,
-    'layout' => $layout,
-    'min_demand' => $mode === WarehouseArrangementService::MODE_STRONG_DEMAND ? $minDemand : null,
-]);
-$modeLabels = [
-    WarehouseArrangementService::MODE_HIGH_DEMAND => 'High demand',
-    WarehouseArrangementService::MODE_COMPLETE_FAMILY => 'Complete family',
-    WarehouseArrangementService::MODE_STRONG_DEMAND => 'Strong demand',
-    WarehouseArrangementService::MODE_INCOMPLETE => 'Incomplete families',
-];
-$modeDescriptions = [
-    WarehouseArrangementService::MODE_HIGH_DEMAND => 'SKUs with sales at this warehouse in the window.',
-    WarehouseArrangementService::MODE_COMPLETE_FAMILY => 'Every missing SKU with stock elsewhere, including zero-demand sizes/colors.',
-    WarehouseArrangementService::MODE_STRONG_DEMAND => 'SKUs whose demand meets the minimum threshold.',
-    WarehouseArrangementService::MODE_INCOMPLETE => 'Missing SKUs in families that are not 100% stocked here.',
-];
+    'search' => $search ?: null,
+    'page' => $page > 1 ? $page : null,
+], $extra));
 @endphp
 
 <div x-data="arrangementGridPage()" x-init="init()">
@@ -55,12 +39,11 @@ $modeDescriptions = [
         <div class="flex flex-wrap items-start justify-between gap-4">
             <div>
                 <h1 class="text-2xl font-bold tracking-tight">Warehouse Arrangement</h1>
-                <p class="text-gray-500">Suggest moves to complete pcode families at high-demand destination warehouses.</p>
+                <p class="text-gray-500">Pick source warehouses per size, then draft one move transaction per source warehouse.</p>
             </div>
             @if($selectedWarehouseId && $destinationName)
-            <a href="{{ route('reports.warehouse-arrangement.export', $queryBase) }}"
+            <a href="{{ route('reports.warehouse-arrangement.export', $queryParams()) }}"
                class="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
-                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
                 Export Excel
             </a>
             @endif
@@ -72,18 +55,17 @@ $modeDescriptions = [
 
         @if($destinations->isEmpty())
         <div class="rounded-xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-800">
-            No destination warehouses are enabled for arrangement. Edit a warehouse contact and turn on <strong>Arrangement destination</strong>.
+            No destination warehouses enabled. Turn on <strong>Arrangement destination</strong> on a warehouse contact.
         </div>
         @else
         <div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
             <form method="GET" action="{{ route('reports.warehouse-arrangement') }}" class="flex flex-wrap items-end gap-4">
                 <input type="hidden" name="mode" value="{{ $mode }}">
-                <input type="hidden" name="layout" value="{{ $layout }}">
-                @if($mode === WarehouseArrangementService::MODE_STRONG_DEMAND)
-                <input type="hidden" name="min_demand" value="{{ $minDemand }}">
+                @if($search)
+                <input type="hidden" name="search" value="{{ $search }}">
                 @endif
                 <div>
-                    <label for="warehouse_id" class="mb-1 block text-xs font-medium uppercase text-gray-500">Destination warehouse</label>
+                    <label for="warehouse_id" class="mb-1 block text-xs font-medium uppercase text-gray-500">Destination</label>
                     <select id="warehouse_id" name="warehouse_id" class="min-w-[220px] rounded-lg border border-gray-300 px-3 py-2 text-sm">
                         @foreach($destinations as $wh)
                         <option value="{{ $wh->id }}" @selected($wh->id === $selectedWarehouseId)>{{ $wh->name }}</option>
@@ -100,119 +82,71 @@ $modeDescriptions = [
                 </div>
                 <button type="submit" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Apply</button>
             </form>
-            <p class="mt-3 text-xs text-gray-500">Statistics use stored monthly sell/return aggregates. Run <code class="rounded bg-gray-100 px-1">php artisan app:recalculate-warehouse-item-stats</code> after bulk imports.</p>
-        </div>
-
-        @if($families !== [])
-        <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
-            <div class="rounded-xl border border-gray-200 bg-white p-4">
-                <p class="text-sm font-medium text-gray-600">Destination</p>
-                <p class="mt-1 text-lg font-bold text-gray-900">{{ $destinationName }}</p>
-            </div>
-            <div class="rounded-xl border border-gray-200 bg-white p-4">
-                <p class="text-sm font-medium text-gray-600">High-demand families</p>
-                <p class="mt-1 text-lg font-bold text-emerald-600">{{ count($families) }}</p>
-            </div>
-            <div class="rounded-xl border border-gray-200 bg-white p-4">
-                <p class="text-sm font-medium text-gray-600">Move suggestions</p>
-                <p class="mt-1 text-lg font-bold text-blue-600">{{ count($suggestions) }}</p>
-                @if($truncated ?? false)
-                <p class="mt-1 text-xs text-amber-600">Showing top {{ count($suggestions) }} of {{ $totalSuggestionCount }} — export for more.</p>
-                @endif
-            </div>
         </div>
         @endif
     </div>
 
-    @if($destinations->isNotEmpty() && $families !== [])
-    <div class="arrangement-actions border-b border-gray-200 bg-gray-50/95 px-4 py-2 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-gray-50/90">
+    @if($destinations->isNotEmpty())
+    <div class="arrangement-actions border-b border-gray-200 bg-gray-50/95 px-4 py-3 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-gray-50/90">
         <div class="flex flex-col gap-3">
-            <div class="flex flex-wrap items-center justify-between gap-3">
+            <div class="flex flex-wrap items-center gap-2">
+                <span class="text-xs font-medium uppercase text-gray-500">View:</span>
+                <a href="{{ route('reports.warehouse-arrangement', $queryParams(['mode' => WarehouseArrangementService::MODE_DEMAND, 'page' => null])) }}"
+                   class="rounded-lg px-3 py-1.5 text-sm font-medium {{ $mode === WarehouseArrangementService::MODE_DEMAND ? 'bg-blue-600 text-white' : 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50' }}">
+                    Demand
+                </a>
+                <a href="{{ route('reports.warehouse-arrangement', $queryParams(['mode' => WarehouseArrangementService::MODE_FAMILY, 'page' => null])) }}"
+                   class="rounded-lg px-3 py-1.5 text-sm font-medium {{ $mode === WarehouseArrangementService::MODE_FAMILY ? 'bg-blue-600 text-white' : 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50' }}">
+                    Complete family
+                </a>
+                <span class="text-xs text-gray-500 ml-2">
+                    @if($mode === WarehouseArrangementService::MODE_DEMAND)
+                    Missing SKUs with sales here (stocked SKUs hidden).
+                    @else
+                    Families below {{ WarehouseArrangementService::FAMILY_COMPLETENESS_THRESHOLD }}% complete.
+                    @endif
+                </span>
+            </div>
+
+            <form method="GET" action="{{ route('reports.warehouse-arrangement') }}" class="flex flex-wrap items-end gap-2">
+                <input type="hidden" name="warehouse_id" value="{{ $selectedWarehouseId }}">
+                <input type="hidden" name="demand_days" value="{{ $demandDays }}">
+                <input type="hidden" name="mode" value="{{ $mode }}">
                 <div>
-                    <h2 class="text-sm font-semibold text-gray-900">Suggested moves</h2>
-                    <p class="text-xs text-gray-500">{{ $modeDescriptions[$mode] ?? '' }} · Grouped by master pcode, colors as rows, sizes as columns (like Restock).</p>
+                    <label for="search" class="mb-1 block text-xs font-medium uppercase text-gray-500">Search pcode</label>
+                    <input id="search" name="search" type="search" value="{{ $search }}" placeholder="CX90028-02"
+                           class="min-w-[160px] rounded-lg border border-gray-300 px-3 py-1.5 text-sm">
                 </div>
-                <div class="flex flex-wrap items-center gap-2">
-                    <span class="text-xs text-gray-500" x-show="selectionCount > 0" x-cloak>
-                        <span x-text="selectionCount"></span> color row(s) selected
-                    </span>
+                <button type="submit" class="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">Search</button>
+            </form>
+
+            <div class="flex flex-wrap items-center gap-2">
+                <template x-for="batch in draftBatches()" :key="batch.from_warehouse_id">
                     <button type="button"
-                            @click="draftSelected()"
-                            :disabled="!canDraftSelected()"
-                            class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500">
-                        Draft Move (selected)
+                            @click="draftWarehouse(batch.from_warehouse_id)"
+                            class="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700">
+                        Draft <span x-text="batch.name"></span> (<span x-text="batch.count"></span>)
                     </button>
-                </div>
+                </template>
+                <span class="text-xs text-gray-500" x-show="selectedCount() > 0" x-cloak>
+                    <span x-text="selectedCount()"></span> cell(s) selected
+                </span>
             </div>
 
-            <div class="flex flex-wrap items-center gap-2">
-                <span class="text-xs font-medium uppercase text-gray-500">Show:</span>
-                @foreach($modeLabels as $modeKey => $modeLabel)
-                <a href="{{ route('reports.warehouse-arrangement', array_filter([
-                    'warehouse_id' => $selectedWarehouseId,
-                    'demand_days' => $demandDays,
-                    'mode' => $modeKey,
-                    'layout' => $layout,
-                    'min_demand' => $modeKey === WarehouseArrangementService::MODE_STRONG_DEMAND ? $minDemand : null,
-                ])) }}"
-                   class="rounded-lg px-3 py-1.5 text-sm font-medium {{ $mode === $modeKey ? 'bg-blue-600 text-white' : 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50' }}">
-                    {{ $modeLabel }}
-                </a>
-                @endforeach
-            </div>
+            <div x-show="error" x-cloak class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800" x-text="error"></div>
 
-            @if($mode === WarehouseArrangementService::MODE_STRONG_DEMAND)
-            <div class="flex flex-wrap items-center gap-2">
-                <span class="text-xs font-medium uppercase text-gray-500">Min demand:</span>
-                @foreach([2, 3, 5, 10] as $threshold)
-                <a href="{{ route('reports.warehouse-arrangement', [
-                    'warehouse_id' => $selectedWarehouseId,
-                    'demand_days' => $demandDays,
-                    'mode' => $mode,
-                    'layout' => $layout,
-                    'min_demand' => $threshold,
-                ]) }}"
-                   class="rounded-lg px-3 py-1.5 text-sm font-medium {{ $minDemand === $threshold ? 'bg-emerald-600 text-white' : 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50' }}">
-                    ≥ {{ $threshold }}
-                </a>
-                @endforeach
-            </div>
-            @endif
-
-            <div class="flex flex-wrap items-center gap-2">
-                <span class="text-xs font-medium uppercase text-gray-500">Sections:</span>
-                <a href="{{ route('reports.warehouse-arrangement', array_filter([
-                    'warehouse_id' => $selectedWarehouseId,
-                    'demand_days' => $demandDays,
-                    'mode' => $mode,
-                    'layout' => WarehouseArrangementService::LAYOUT_FLAT,
-                    'min_demand' => $mode === WarehouseArrangementService::MODE_STRONG_DEMAND ? $minDemand : null,
-                ])) }}"
-                   class="rounded-lg px-3 py-1.5 text-sm font-medium {{ $layout === WarehouseArrangementService::LAYOUT_FLAT ? 'bg-gray-800 text-white' : 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50' }}">
-                    All expanded
-                </a>
-                <a href="{{ route('reports.warehouse-arrangement', array_filter([
-                    'warehouse_id' => $selectedWarehouseId,
-                    'demand_days' => $demandDays,
-                    'mode' => $mode,
-                    'layout' => WarehouseArrangementService::LAYOUT_FAMILY,
-                    'min_demand' => $mode === WarehouseArrangementService::MODE_STRONG_DEMAND ? $minDemand : null,
-                ])) }}"
-                   class="rounded-lg px-3 py-1.5 text-sm font-medium {{ $layout === WarehouseArrangementService::LAYOUT_FAMILY ? 'bg-gray-800 text-white' : 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50' }}">
-                    Collapsed
-                </a>
-            </div>
-
-            <div x-show="error" x-cloak class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" x-text="error"></div>
-            <p class="text-xs text-amber-600" x-show="selectionCount > 0 && hasMixedSources()" x-cloak>
-                Selected rows use different source warehouses. Use <strong>Complete pcode</strong> on a section when one warehouse stocks every missing SKU, or pick the same From warehouse per color row.
+            @if($totalPcodes > 0)
+            <p class="text-xs text-gray-500">
+                Page {{ $page }} of {{ $lastPage }} · {{ $totalPcodes }} color pcode(s)
+                @if($truncated) · export for full list @endif
             </p>
+            @endif
         </div>
     </div>
 
     <form id="arrangement-draft-form" method="POST" action="{{ route('reports.warehouse-arrangement.draft-move') }}" class="hidden">
         @csrf
-        <template x-for="(draft, idx) in draftPayload" :key="`${draft.item_id}-${draft.from_warehouse_id}`">
+        <template x-for="(draft, idx) in draftPayload" :key="`${draft.item_id}-${idx}`">
             <input type="hidden" name="items[][item_id]" :value="draft.item_id">
             <input type="hidden" name="items[][quantity]" :value="draft.quantity">
             <input type="hidden" name="items[][from_warehouse_id]" :value="draft.from_warehouse_id">
@@ -222,64 +156,60 @@ $modeDescriptions = [
 
     <div class="flex flex-col gap-4 p-4 pt-3">
         @forelse($grid['parents'] as $parent)
-        <section id="parent-{{ $parent['pcode'] }}" class="scroll-mt-32 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+        <section id="pcode-{{ $parent['pcode'] }}" class="scroll-mt-32 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
             <div class="border-b border-gray-100 bg-gray-50 px-4 py-3">
                 <div class="flex flex-wrap items-center justify-between gap-3">
-                    <div class="flex flex-wrap items-center gap-3">
-                        <button type="button" class="rounded border border-gray-300 bg-white px-2 py-0.5 text-xs text-gray-600 hover:bg-gray-100"
-                                @click="toggleSection('{{ $parent['pcode'] }}')">
-                            <span x-text="isSectionOpen('{{ $parent['pcode'] }}') ? '▼' : '▶'"></span>
-                        </button>
-                        <div>
-                            <h2 class="font-semibold text-gray-900">{{ $parent['name'] }}</h2>
-                            <p class="font-mono text-xs text-gray-500">{{ $parent['pcode'] }}</p>
-                        </div>
-                        <span class="text-xs text-gray-500">
-                            demand <span class="font-mono font-semibold text-emerald-600">{{ $fmtNum($parent['family_demand_score']) }}</span>
+                    <div class="flex flex-wrap items-center gap-2 text-sm">
+                        <span class="font-mono font-semibold text-gray-900">{{ $parent['pcode'] }}</span>
+                        <span class="text-gray-600">{{ $parent['name'] }}</span>
+                        @if($parent['warna'] && $parent['warna'] !== '—')
+                        <span class="text-gray-500">· {{ $parent['warna'] }}</span>
+                        @endif
+                        <span class="rounded bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                            demand {{ number_format($parent['family_demand_score'], 0, ',', '.') }}
                         </span>
-                        <span class="text-xs text-gray-500">
-                            completeness <span class="font-mono">{{ $parent['completeness_pct'] }}%</span>
+                        <span class="rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">
+                            {{ $parent['present_count'] }}/{{ $parent['total_count'] }} sizes ({{ $parent['completeness_pct'] }}%)
                         </span>
-                        <span class="text-xs text-gray-400">→ {{ $parent['to_warehouse_name'] }}</span>
                     </div>
                     <div class="flex flex-wrap items-center gap-2">
-                        <template x-if="parentSourceOptions('{{ $parent['pcode'] }}').length > 1">
-                            <select class="rounded border border-gray-300 px-2 py-1 text-xs"
-                                    @change="setParentSource('{{ $parent['pcode'] }}', Number($event.target.value))">
-                                <template x-for="opt in parentSourceOptions('{{ $parent['pcode'] }}')" :key="opt.id">
-                                    <option :value="opt.id" :selected="opt.id === parentSourceId('{{ $parent['pcode'] }}')" x-text="opt.name"></option>
-                                </template>
-                            </select>
-                        </template>
-                        <button type="button"
-                                @click="draftParent('{{ $parent['pcode'] }}')"
-                                :disabled="!canDraftParent('{{ $parent['pcode'] }}')"
-                                class="rounded-lg border border-blue-600 px-3 py-1 text-xs font-medium text-blue-600 hover:bg-blue-50 disabled:cursor-not-allowed disabled:border-gray-300 disabled:text-gray-400">
-                            Complete pcode
+                        <button type="button" @click="selectAllInPcode('{{ $parent['pcode'] }}')"
+                                class="rounded border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50">
+                            Select all
+                        </button>
+                        <button type="button" @click="applyWarehouseToPcode('{{ $parent['pcode'] }}')"
+                                class="rounded border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50">
+                            Same WH as first selected
                         </button>
                     </div>
                 </div>
-                <p class="mt-1 text-xs text-amber-600" x-show="!canDraftParent('{{ $parent['pcode'] }}')" x-cloak>
-                    No single warehouse stocks every missing SKU under this pcode.
-                </p>
             </div>
-            <div class="arrangement-grid-scroll p-2" x-show="isSectionOpen('{{ $parent['pcode'] }}')">
-                <div data-parent-grid="{{ $parent['pcode'] }}"></div>
-            </div>
+            <div class="arrangement-grid-scroll p-2" data-pcode-grid="{{ $parent['pcode'] }}"></div>
         </section>
         @empty
         <div class="rounded-xl border border-gray-200 bg-white p-8 text-center text-sm text-gray-500">
-            No moves for this view — try another mode or demand window.
+            @if($search)
+            No pcode matches “{{ $search }}” for this view.
+            @else
+            Nothing to move — stock looks OK here, or return after drafting earlier batches.
+            @endif
         </div>
         @endforelse
-    </div>
-    @elseif($destinations->isNotEmpty())
-    <div class="p-4">
-        <div class="rounded-xl border border-gray-200 bg-white p-6 text-sm text-gray-600">
-            No high-demand pcode families found for this warehouse in the selected window. Try a longer demand window or ensure monthly stats are recalculated.
+
+        @if($lastPage > 1)
+        <div class="flex flex-wrap items-center justify-center gap-2">
+            @if($page > 1)
+            <a href="{{ route('reports.warehouse-arrangement', $queryParams(['page' => $page - 1])) }}"
+               class="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">Previous</a>
+            @endif
+            <span class="text-sm text-gray-500">Page {{ $page }} / {{ $lastPage }}</span>
+            @if($page < $lastPage)
+            <a href="{{ route('reports.warehouse-arrangement', $queryParams(['page' => $page + 1])) }}"
+               class="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">Next</a>
+            @endif
         </div>
+        @endif
     </div>
-    @endif
     @endif
 </div>
 @endsection
@@ -290,140 +220,92 @@ $modeDescriptions = [
 function arrangementGridPage() {
     return {
         grid: @json($grid),
-        layout: @json($layout),
-        parentSources: {},
-        openSections: new Set(@json($layout !== WarehouseArrangementService::LAYOUT_FAMILY ? collect($grid['parents'])->pluck('pcode')->all() : [])),
+        cells: {},
         tables: {},
-        selectionCount: 0,
         draftPayload: [],
         error: '',
 
-        isSectionOpen(pcode) {
-            return this.openSections.has(pcode);
-        },
-
-        toggleSection(pcode) {
-            if (this.openSections.has(pcode)) {
-                this.openSections.delete(pcode);
-            } else {
-                this.openSections.add(pcode);
-            }
-        },
-
         init() {
+            this.hydrateCells();
             this.$nextTick(() => {
                 for (const parent of this.grid.parents) {
-                    const el = document.querySelector(`[data-parent-grid="${parent.pcode}"]`);
+                    const el = document.querySelector(`[data-pcode-grid="${parent.pcode}"]`);
                     if (!el) continue;
 
-                    const common = this.findCommonSourceForParent(parent);
-                    if (common) {
-                        this.parentSources[parent.pcode] = common;
-                    }
-
-                    this.tables[parent.pcode] = new Tabulator(el, {
+                    const table = new Tabulator(el, {
                         data: parent.rows,
                         layout: 'fitData',
-                        height: Math.max(100, (parent.rows.length + 1) * 38 + 20),
-                        selectableRows: true,
-                        rowHeader: {
-                            formatter: 'rowSelection',
-                            titleFormatter: 'rowSelection',
-                            headerSort: false,
-                            frozen: true,
-                            width: 40,
-                        },
-                        columnDefaults: { headerHozAlign: 'center', hozAlign: 'right', widthGrow: 0 },
+                        height: 72,
+                        columnDefaults: { headerHozAlign: 'center', hozAlign: 'center', widthGrow: 0 },
                         columns: this.buildColumns(parent.sizes, parent.pcode),
-                        rowFormatter: (row) => this.formatDemandRow(row),
                     });
 
-                    this.tables[parent.pcode].on('rowSelectionChanged', () => this.syncSelectionCount());
+                    this.tables[parent.pcode] = table;
+                    el.addEventListener('change', (e) => this.onCellChange(e, parent.pcode));
                 }
             });
         },
 
-        buildColumns(sizes, pcode) {
-            const cols = [
-                { title: 'Color', field: 'color_name', frozen: true, width: 120, widthGrow: 0, hozAlign: 'left', headerHozAlign: 'left' },
-            ];
-
-            const demandGroup = {
-                key: 'demand',
-                title: 'Demand',
-                groupClass: 'tabulator-col-group-demand',
-                formatter: (cell) => cell.getValue() ?? 0,
-            };
-
-            const sourceGroup = {
-                key: 'source_stock',
-                title: 'Source stock',
-                groupClass: 'tabulator-col-group-source',
-                formatter: (cell) => {
-                    const row = cell.getRow().getData();
-                    const field = cell.getField();
-                    if (field === 'source_stock_total') {
-                        return Object.values(row._meta || {}).reduce((sum, meta) => {
-                            const src = this.chosenSource(meta, pcode);
-                            return sum + (src?.source_stock ?? 0);
-                        }, 0);
+        hydrateCells() {
+            for (const parent of this.grid.parents) {
+                for (const row of parent.rows) {
+                    for (const [prefix, cell] of Object.entries(row._cells || {})) {
+                        this.cells[cell.item_id] = { ...cell, pcode: parent.pcode, prefix };
                     }
-                    const prefix = field.replace('source_stock', '');
-                    const meta = row._meta?.[prefix];
-                    if (!meta) return cell.getValue() ?? 0;
-                    const src = this.chosenSource(meta, pcode);
-                    return src?.source_stock ?? 0;
-                },
-            };
-
-            const moveGroup = {
-                key: 'move_qty',
-                title: 'Move qty',
-                groupClass: 'tabulator-col-group-move',
-                formatter: (cell) => {
-                    const row = cell.getRow().getData();
-                    const field = cell.getField();
-                    if (field === 'move_qty_total') {
-                        return Object.values(row._meta || {}).reduce((sum, meta) => {
-                            const src = this.chosenSource(meta, pcode);
-                            return sum + (src?.suggested_qty ?? 0);
-                        }, 0);
-                    }
-                    const prefix = field.replace('move_qty', '');
-                    const meta = row._meta?.[prefix];
-                    if (!meta) return cell.getValue() ?? 0;
-                    const src = this.chosenSource(meta, pcode);
-                    return src?.suggested_qty ?? 0;
-                },
-            };
-
-            for (const group of [demandGroup, sourceGroup, moveGroup]) {
-                const children = sizes.map((size) => {
-                    const prefix = this.sizePrefix(size);
-                    const field = prefix + group.key;
-                    return {
-                        title: size,
-                        field,
-                        width: 58,
-                        widthGrow: 0,
-                        formatter: group.formatter,
-                    };
-                });
-
-                if (sizes.length > 1) {
-                    children.push({
-                        title: 'Total',
-                        field: group.key + '_total',
-                        width: 64,
-                        widthGrow: 0,
-                        formatter: group.formatter,
-                    });
                 }
-
-                cols.push({ title: group.title, cssClass: group.groupClass, columns: children });
             }
+        },
 
+        buildColumns(sizes, pcode) {
+            const cols = [];
+            for (const size of sizes) {
+                const prefix = this.sizePrefix(size);
+                cols.push({
+                    title: size,
+                    field: prefix || 'cell',
+                    width: 120,
+                    widthGrow: 0,
+                    formatter: (cell) => {
+                        const data = cell.getRow().getData();
+                        const cellData = data._cells?.[prefix];
+                        if (!cellData) return '—';
+                        const state = this.cells[cellData.item_id];
+                        if (!state) return '—';
+                        return this.renderCellHtml(state);
+                    },
+                });
+            }
             return cols;
+        },
+
+        renderCellHtml(state) {
+            const selected = state.selected ? 'arr-cell-selected' : '';
+            const options = (state.sources || []).map((src, idx) => {
+                const label = `${src.from_warehouse_name} (${src.source_stock})`;
+                const sel = idx === state.chosen_source_index ? 'selected' : '';
+                return `<option value="${idx}" ${sel}>${this.escapeHtml(label)}</option>`;
+            }).join('');
+
+            const src = this.chosenSource(state);
+            const stock = src?.source_stock ?? 0;
+            const qty = src?.suggested_qty ?? 0;
+            const demand = Number(state.demand ?? 0);
+
+            return `
+                <div class="arr-cell ${selected}" data-item-id="${state.item_id}">
+                    <label class="flex items-center gap-1 text-xs">
+                        <input type="checkbox" class="arr-cell-check rounded border-gray-300" data-item-id="${state.item_id}" ${state.selected ? 'checked' : ''}>
+                        <span class="arr-cell-demand">D ${demand.toLocaleString('id-ID')}</span>
+                    </label>
+                    <select class="arr-cell-wh" data-item-id="${state.item_id}">${options}</select>
+                    <div class="arr-cell-meta">Stock ${stock} · Move ${qty}</div>
+                </div>`;
+        },
+
+        escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
         },
 
         sizePrefix(size) {
@@ -431,173 +313,94 @@ function arrangementGridPage() {
             return size.toLowerCase().replace(/[. ]/g, '_') + '_';
         },
 
-        formatDemandRow(row) {
-            const data = row.getData();
-            Object.entries(data._meta || {}).forEach(([prefix, meta]) => {
-                if (!meta?.item_id) return;
-                const cell = row.getCell(prefix + 'demand');
-                if (cell && Number(data[prefix + 'demand'] ?? 0) > 0) {
-                    cell.getElement().classList.add('arrangement-demand-cell');
-                }
-            });
+        chosenSource(state) {
+            const idx = state.chosen_source_index ?? 0;
+            return state.sources?.[idx] ?? state.sources?.[0] ?? null;
         },
 
-        parentByPcode(pcode) {
-            return this.grid.parents.find((p) => p.pcode === pcode);
-        },
+        onCellChange(e, pcode) {
+            const itemId = Number(e.target.dataset.itemId);
+            const state = this.cells[itemId];
+            if (!state) return;
 
-        metaEntriesFromRows(rows) {
-            const entries = [];
-            for (const row of rows) {
-                for (const [prefix, meta] of Object.entries(row._meta || {})) {
-                    if (meta?.item_id) entries.push({ prefix, meta, row });
-                }
+            if (e.target.matches('.arr-cell-check')) {
+                state.selected = e.target.checked;
             }
-            return entries;
-        },
-
-        chosenSource(meta, pcode) {
-            const parentWh = this.parentSources[pcode];
-            if (parentWh) {
-                const idx = (meta.sources || []).findIndex((s) => s.from_warehouse_id === parentWh);
-                if (idx >= 0) return meta.sources[idx];
-            }
-            const idx = meta.chosen_source_index ?? 0;
-            return meta.sources?.[idx] ?? meta.sources?.[0] ?? null;
-        },
-
-        findCommonSourceForParent(parent) {
-            const entries = this.metaEntriesFromRows(parent.rows);
-            if (!entries.length) return null;
-
-            const candidates = entries[0].meta.sources?.map((s) => s.from_warehouse_id) ?? [];
-            for (const whId of candidates) {
-                if (entries.every((e) => (e.meta.sources || []).some((s) => s.from_warehouse_id === whId))) {
-                    return whId;
-                }
-            }
-            return null;
-        },
-
-        parentSourceId(pcode) {
-            return this.parentSources[pcode] ?? this.findCommonSourceForParent(this.parentByPcode(pcode));
-        },
-
-        parentSourceOptions(pcode) {
-            const parent = this.parentByPcode(pcode);
-            if (!parent) return [];
-
-            const map = new Map();
-            for (const row of parent.rows) {
-                for (const meta of Object.values(row._meta || {})) {
-                    for (const src of meta.sources || []) {
-                        map.set(src.from_warehouse_id, src.from_warehouse_name);
-                    }
-                }
+            if (e.target.matches('.arr-cell-wh')) {
+                state.chosen_source_index = Number(e.target.value);
             }
 
-            return [...map.entries()].map(([id, name]) => ({ id, name }));
-        },
-
-        setParentSource(pcode, whId) {
-            this.parentSources[pcode] = whId;
             const table = this.tables[pcode];
-            if (table) {
-                table.redraw(true);
-                for (const row of table.getRows()) {
-                    this.formatDemandRow(row);
+            if (table) table.redraw(true);
+        },
+
+        cellsForPcode(pcode) {
+            return Object.values(this.cells).filter((c) => c.pcode === pcode);
+        },
+
+        selectedCells() {
+            return Object.values(this.cells).filter((c) => c.selected);
+        },
+
+        selectedCount() {
+            return this.selectedCells().length;
+        },
+
+        selectAllInPcode(pcode) {
+            for (const cell of this.cellsForPcode(pcode)) {
+                cell.selected = true;
+            }
+            this.tables[pcode]?.redraw(true);
+        },
+
+        applyWarehouseToPcode(pcode) {
+            const cells = this.cellsForPcode(pcode);
+            const first = cells.find((c) => c.selected) ?? cells[0];
+            if (!first) return;
+            const whIdx = first.chosen_source_index ?? 0;
+            for (const cell of cells) {
+                if ((cell.sources || []).length > whIdx) {
+                    cell.chosen_source_index = whIdx;
                 }
             }
+            this.tables[pcode]?.redraw(true);
         },
 
-        canDraftParent(pcode) {
-            return this.findCommonSourceForParent(this.parentByPcode(pcode)) !== null;
-        },
-
-        selectedRows() {
-            const rows = [];
-            for (const parent of this.grid.parents) {
-                const table = this.tables[parent.pcode];
-                if (!table) continue;
-                rows.push(...table.getSelectedRows().map((row) => ({
-                    pcode: parent.pcode,
-                    data: row.getData(),
-                })));
+        draftBatches() {
+            const map = new Map();
+            for (const cell of this.selectedCells()) {
+                const src = this.chosenSource(cell);
+                if (!src) continue;
+                const id = src.from_warehouse_id;
+                if (!map.has(id)) {
+                    map.set(id, { from_warehouse_id: id, name: src.from_warehouse_name, count: 0 });
+                }
+                map.get(id).count++;
             }
-            return rows;
+            return [...map.values()];
         },
 
-        syncSelectionCount() {
-            this.selectionCount = this.selectedRows().length;
-        },
-
-        buildDraftFromEntries(entries, pcode) {
-            return entries.map((e) => {
-                const src = this.chosenSource(e.meta, pcode);
-                return {
-                    item_id: e.meta.item_id,
-                    quantity: src?.suggested_qty ?? 1,
-                    from_warehouse_id: src?.from_warehouse_id,
-                    to_warehouse_id: e.meta.to_warehouse_id,
-                };
-            }).filter((d) => d.from_warehouse_id && d.to_warehouse_id);
-        },
-
-        hasMixedSources() {
-            const items = this.buildDraftFromSelected();
-            if (items.length <= 1) return false;
-            const from = items[0].from_warehouse_id;
-            return items.some((item) => item.from_warehouse_id !== from);
-        },
-
-        buildDraftFromSelected() {
-            const items = [];
-            for (const { pcode, data } of this.selectedRows()) {
-                items.push(...this.buildDraftFromEntries(this.metaEntriesFromRows([data]), pcode));
-            }
-            return items;
-        },
-
-        canDraftSelected() {
-            const items = this.buildDraftFromSelected();
-            if (!items.length) return false;
-            const from = items[0].from_warehouse_id;
-            return items.every((item) => item.from_warehouse_id === from);
-        },
-
-        draftSelected() {
+        draftWarehouse(fromWarehouseId) {
             this.error = '';
-            const items = this.buildDraftFromSelected();
-            if (!items.length) return;
-            if (!this.canDraftSelected()) {
-                this.error = 'Selected color rows use different source warehouses.';
-                return;
-            }
-            this.submitDraft(items);
-        },
+            const items = this.selectedCells()
+                .filter((cell) => this.chosenSource(cell)?.from_warehouse_id === fromWarehouseId)
+                .map((cell) => {
+                    const src = this.chosenSource(cell);
+                    return {
+                        item_id: cell.item_id,
+                        quantity: src?.suggested_qty ?? 1,
+                        from_warehouse_id: src?.from_warehouse_id,
+                        to_warehouse_id: cell.to_warehouse_id,
+                    };
+                });
 
-        draftParent(pcode) {
-            this.error = '';
-            const parent = this.parentByPcode(pcode);
-            if (!parent) return;
-
-            const common = this.findCommonSourceForParent(parent);
-            if (!common) {
-                this.error = `Pcode ${pcode}: no single warehouse stocks all missing SKUs.`;
+            if (!items.length) {
+                this.error = 'No selected cells for this warehouse.';
                 return;
             }
 
-            this.parentSources[pcode] = common;
-            const entries = this.metaEntriesFromRows(parent.rows);
-            const items = this.buildDraftFromEntries(entries, pcode);
-            this.submitDraft(items);
-        },
-
-        submitDraft(items) {
             this.draftPayload = items;
-            this.$nextTick(() => {
-                document.getElementById('arrangement-draft-form').submit();
-            });
+            this.$nextTick(() => document.getElementById('arrangement-draft-form').submit());
         },
     };
 }

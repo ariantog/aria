@@ -15,6 +15,8 @@ use Illuminate\Support\Facades\Gate;
 
 class WarehouseArrangementController extends Controller
 {
+    private const SESSION_DRAFTED_KEY = 'warehouse_arrangement_drafted';
+
     public function index(Request $request, WarehouseArrangementService $arrangementService, WarehouseArrangementGridBuilder $gridBuilder)
     {
         Gate::authorize(Report::getPermissions()['view-warehouse-arrangement']);
@@ -25,58 +27,57 @@ class WarehouseArrangementController extends Controller
             $demandDays = 365;
         }
 
-        $mode = (string) $request->query('mode', WarehouseArrangementService::MODE_HIGH_DEMAND);
+        $mode = (string) $request->query('mode', WarehouseArrangementService::MODE_DEMAND);
         if (! in_array($mode, WarehouseArrangementService::validModes(), true)) {
-            $mode = WarehouseArrangementService::MODE_HIGH_DEMAND;
+            $mode = WarehouseArrangementService::MODE_DEMAND;
         }
 
-        $layout = (string) $request->query('layout', WarehouseArrangementService::LAYOUT_FLAT);
-        if (! in_array($layout, WarehouseArrangementService::validLayouts(), true)) {
-            $layout = WarehouseArrangementService::LAYOUT_FLAT;
-        }
-
-        $minDemand = max(1, (int) $request->query('min_demand', 2));
+        $page = max(1, (int) $request->query('page', 1));
+        $search = trim((string) $request->query('search', ''));
 
         $warehouseId = (int) $request->query('warehouse_id');
         if (! $warehouseId && $destinations->isNotEmpty()) {
             $warehouseId = $destinations->first()->id;
         }
 
+        $excludeItemIds = $this->draftedItemIdsForWarehouse($warehouseId);
+
         $result = null;
-        $truncated = false;
-        $totalSuggestionCount = 0;
         $suggestions = [];
         $grid = ['parents' => []];
 
         if ($warehouseId && $destinations->contains('id', $warehouseId)) {
-            $result = $arrangementService->buildSuggestions(
+            $result = $arrangementService->buildPage(
                 $warehouseId,
                 $demandDays,
-                WarehouseArrangementService::UI_MAX_FAMILIES,
-                WarehouseArrangementService::UI_MAX_SUGGESTIONS,
                 $mode,
-                $minDemand,
-                $layout,
+                $page,
+                WarehouseArrangementService::PER_PAGE,
+                $search,
+                $excludeItemIds,
             );
-            $truncated = $result['truncated'];
-            $totalSuggestionCount = $result['total_suggestion_count'];
             $suggestions = $result['suggestions'];
             $grid = $gridBuilder->build($suggestions);
         }
+
+        $totalPcodes = $result['total_pcodes'] ?? 0;
+        $perPage = $result['per_page'] ?? WarehouseArrangementService::PER_PAGE;
+        $lastPage = $totalPcodes > 0 ? (int) ceil($totalPcodes / $perPage) : 1;
 
         return view('reports.warehouse-arrangement', [
             'destinations' => $destinations,
             'selectedWarehouseId' => $warehouseId,
             'demandDays' => $demandDays,
             'mode' => $result['mode'] ?? $mode,
-            'layout' => $result['layout'] ?? $layout,
-            'minDemand' => $result['min_demand'] ?? $minDemand,
-            'families' => $result['families'] ?? [],
+            'page' => $result['page'] ?? $page,
+            'perPage' => $perPage,
+            'totalPcodes' => $totalPcodes,
+            'lastPage' => $lastPage,
+            'search' => $result['search'] ?? $search,
             'suggestions' => $suggestions,
             'grid' => $grid,
             'destinationName' => $result['destination']->name ?? null,
-            'truncated' => $truncated,
-            'totalSuggestionCount' => $totalSuggestionCount,
+            'truncated' => $result['truncated'] ?? false,
             'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
     }
@@ -91,22 +92,18 @@ class WarehouseArrangementController extends Controller
             $demandDays = 365;
         }
 
-        $mode = (string) $request->query('mode', WarehouseArrangementService::MODE_HIGH_DEMAND);
+        $mode = (string) $request->query('mode', WarehouseArrangementService::MODE_DEMAND);
         if (! in_array($mode, WarehouseArrangementService::validModes(), true)) {
-            $mode = WarehouseArrangementService::MODE_HIGH_DEMAND;
+            $mode = WarehouseArrangementService::MODE_DEMAND;
         }
-
-        $minDemand = max(1, (int) $request->query('min_demand', 2));
 
         abort_unless($warehouseId > 0, 404);
 
-        $result = $arrangementService->buildSuggestions(
+        $result = $arrangementService->buildSuggestionsForExport(
             $warehouseId,
             $demandDays,
-            WarehouseArrangementService::EXPORT_MAX_FAMILIES,
-            WarehouseArrangementService::EXPORT_MAX_SUGGESTIONS,
             $mode,
-            $minDemand,
+            $this->draftedItemIdsForWarehouse($warehouseId),
         );
 
         return $exportService->download(
@@ -134,13 +131,13 @@ class WarehouseArrangementController extends Controller
 
         foreach ($validated['items'] as $row) {
             if ((int) $row['from_warehouse_id'] !== $fromId || (int) $row['to_warehouse_id'] !== $toId) {
-                return back()->with('error', 'Selected items must share the same source and destination warehouses.');
+                return back()->with('error', 'All items in one draft must share the same source and destination warehouses.');
             }
         }
 
         $draftItemIds = collect($validated['items'])->pluck('item_id')->map(fn ($id) => (int) $id);
         if ($draftItemIds->unique()->count() !== $draftItemIds->count()) {
-            return back()->with('error', 'Each SKU can only be selected once. Pick one source warehouse per item.');
+            return back()->with('error', 'Each SKU can only be selected once.');
         }
 
         $from = Addrbook::query()
@@ -152,7 +149,7 @@ class WarehouseArrangementController extends Controller
             ->where('arrangement_enabled', true)
             ->findOrFail($toId);
 
-        $itemIds = collect($validated['items'])->pluck('item_id')->map(fn ($id) => (int) $id)->all();
+        $itemIds = $draftItemIds->all();
         $items = Item::query()
             ->with('warehouseItems')
             ->whereIn('id', $itemIds)
@@ -188,6 +185,8 @@ class WarehouseArrangementController extends Controller
             return back()->with('error', 'No valid items selected for the move draft.');
         }
 
+        $this->rememberDraftedItems($toId, $itemIds);
+
         session([
             'transaction_move_prefill' => [
                 'sender_id' => (string) $from->id,
@@ -199,5 +198,32 @@ class WarehouseArrangementController extends Controller
         ]);
 
         return redirect()->route('transactions.create', ['type' => 'move']);
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function draftedItemIdsForWarehouse(int $warehouseId): array
+    {
+        if ($warehouseId <= 0) {
+            return [];
+        }
+
+        $all = session(self::SESSION_DRAFTED_KEY, []);
+
+        return array_values(array_map('intval', $all[$warehouseId] ?? []));
+    }
+
+    /**
+     * @param  list<int>  $itemIds
+     */
+    private function rememberDraftedItems(int $destinationWarehouseId, array $itemIds): void
+    {
+        $all = session(self::SESSION_DRAFTED_KEY, []);
+        $existing = array_map('intval', $all[$destinationWarehouseId] ?? []);
+        $merged = array_values(array_unique(array_merge($existing, array_map('intval', $itemIds))));
+
+        $all[$destinationWarehouseId] = $merged;
+        session([self::SESSION_DRAFTED_KEY => $all]);
     }
 }
