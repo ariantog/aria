@@ -1,0 +1,176 @@
+<?php
+
+use App\Enums\ItemType;
+use App\Models\Item;
+use App\Models\Tag;
+use App\Services\Items\ItemIdentityBuilder;
+use App\Services\Items\LegacyItemIdentityParser;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+
+uses(Tests\TestCase::class, RefreshDatabase::class);
+
+beforeEach(function () {
+    $this->builder = new ItemIdentityBuilder;
+
+    $this->sizeTags = collect([
+        Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'S', 'name' => 'S']),
+        Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'XL', 'name' => 'XL']),
+        Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => '14OZ', 'name' => '14OZ']),
+        Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => '3M', 'name' => '3M']),
+        Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'AS', 'name' => 'All Size']),
+    ]);
+
+    $this->warnaTags = collect([
+        Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'BLACK', 'name' => 'BLACK']),
+        Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'POWDERWHITE', 'name' => 'POWDERWHITE']),
+        Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'MARBLEPINK', 'name' => 'MARBLEPINK']),
+        Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'BLUE', 'name' => 'BLUE']),
+    ]);
+
+    $this->typeTags = collect([
+        Tag::factory()->create(['type' => Tag::TYPE_TYPE, 'code' => 'AJJ', 'name' => 'Jacket']),
+    ]);
+
+    $this->parser = new LegacyItemIdentityParser(
+        $this->builder,
+        $this->sizeTags,
+        $this->warnaTags,
+        $this->typeTags,
+        $this->sizeTags->firstWhere('code', 'AS'),
+    );
+});
+
+function makeAssetItem(string $code, ?string $name = null): Item
+{
+    return Item::factory()->create([
+        'type' => ItemType::ASSET_LANCAR,
+        'group_id' => null,
+        'code' => $code,
+        'pcode' => explode('-', $code)[0].'-'.explode('-', $code)[1],
+        'name' => $name ?? $code,
+    ]);
+}
+
+describe('size matching', function () {
+    it('matches longest hyphenated size suffix first', function () {
+        $match = $this->parser->matchSizeFromSuffix('MARBLEPINK-3M');
+
+        expect($match?->code)->toBe('3M');
+    });
+
+    it('matches exact size remainder', function () {
+        expect($this->parser->matchSizeFromSuffix('XL')?->code)->toBe('XL');
+    });
+});
+
+describe('asset fixtures §3.2', function () {
+    it('parses YOGAMAT-20-POWDERWHITE as all-size without code change', function () {
+        $item = makeAssetItem('YOGAMAT-20-POWDERWHITE', 'YOGA MAT - POWDERWHITE');
+        $result = $this->parser->parse($item);
+
+        expect($result->success)->toBeTrue()
+            ->and($result->pcode)->toBe('YOGAMAT-20')
+            ->and($result->warnaCode)->toBe('POWDERWHITE')
+            ->and($result->sizeCode)->toBe('AS')
+            ->and($result->canonicalCode)->toBe('YOGAMAT-20-POWDERWHITE')
+            ->and($result->codeUnchanged)->toBeTrue();
+    });
+
+    it('parses LUMBARSUPPORT-01-BLACK-S unchanged', function () {
+        $item = makeAssetItem('LUMBARSUPPORT-01-BLACK-S', 'LUMBAR SUPPORT - BLACK - S');
+        $result = $this->parser->parse($item);
+
+        expect($result->success)->toBeTrue()
+            ->and($result->pcode)->toBe('LUMBARSUPPORT-01')
+            ->and($result->warnaCode)->toBe('BLACK')
+            ->and($result->sizeCode)->toBe('S')
+            ->and($result->canonicalCode)->toBe('LUMBARSUPPORT-01-BLACK-S')
+            ->and($result->codeUnchanged)->toBeTrue();
+    });
+
+    it('parses BOXINGGLOVE-02-BLACK-14OZ unchanged', function () {
+        $item = makeAssetItem('BOXINGGLOVE-02-BLACK-14OZ', 'BOXING GLOVE - BLACK - 14OZ');
+        $result = $this->parser->parse($item);
+
+        expect($result->success)->toBeTrue()
+            ->and($result->pcode)->toBe('BOXINGGLOVE-02')
+            ->and($result->warnaCode)->toBe('BLACK')
+            ->and($result->sizeCode)->toBe('14OZ')
+            ->and($result->canonicalCode)->toBe('BOXINGGLOVE-02-BLACK-14OZ')
+            ->and($result->codeUnchanged)->toBeTrue();
+    });
+
+    it('parses BOXINGWRAP-02-MARBLEPINK-3M unchanged', function () {
+        $item = makeAssetItem('BOXINGWRAP-02-MARBLEPINK-3M', 'BOXING WRAP - MARBLEPINK - 3M');
+        $result = $this->parser->parse($item);
+
+        expect($result->success)->toBeTrue()
+            ->and($result->pcode)->toBe('BOXINGWRAP-02')
+            ->and($result->warnaCode)->toBe('MARBLEPINK')
+            ->and($result->sizeCode)->toBe('3M')
+            ->and($result->canonicalCode)->toBe('BOXINGWRAP-02-MARBLEPINK-3M')
+            ->and($result->codeUnchanged)->toBeTrue();
+    });
+});
+
+describe('manufactured glue fixture §4.5', function () {
+    it('parses AJJPL2512906XL into AJJ-PL25129-06-XL', function () {
+        $warna = Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'NAVY', 'name' => 'NAVY']);
+
+        $item = Item::factory()->create([
+            'type' => ItemType::ITEM,
+            'group_id' => null,
+            'code' => 'AJJPL2512906XL',
+            'pcode' => 'PL25129-06',
+            'name' => 'JACKET',
+        ]);
+        $item->tags()->sync([
+            $this->typeTags->first()->id,
+            $warna->id,
+            Tag::factory()->create(['type' => Tag::TYPE_JAHIT, 'code' => 'J1', 'name' => 'J1'])->id,
+        ]);
+
+        $result = $this->parser->parse($item->fresh('tags'));
+
+        expect($result->success)->toBeTrue()
+            ->and($result->typeCode)->toBe('AJJ')
+            ->and($result->pcode)->toBe('PL25129-06')
+            ->and($result->sizeCode)->toBe('XL')
+            ->and($result->canonicalCode)->toBe('AJJ-PL25129-06-XL')
+            ->and($result->legacyCode)->toBe('AJJPL2512906XL');
+    });
+
+    it('parses hyphenated manufactured code AJJ-PL25129-06-XL', function () {
+        $warna = Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'NAVY', 'name' => 'NAVY']);
+
+        $item = Item::factory()->create([
+            'type' => ItemType::ITEM,
+            'code' => 'AJJ-PL25129-06-XL',
+            'pcode' => 'PL25129-06',
+        ]);
+        $item->tags()->sync([
+            $this->typeTags->first()->id,
+            $warna->id,
+        ]);
+
+        $result = $this->parser->parse($item->fresh('tags'));
+
+        expect($result->success)->toBeTrue()
+            ->and($result->canonicalCode)->toBe('AJJ-PL25129-06-XL');
+    });
+});
+
+describe('Bahasa color scan', function () {
+    it('detects Indonesian color words', function () {
+        expect($this->parser->scanBahasaColor('warna hitam pekat'))->toBe([
+            'code' => 'BLACK',
+            'ambiguous' => false,
+        ]);
+    });
+
+    it('flags ambiguous colors', function () {
+        $scan = $this->parser->scanBahasaColor('hitam dan merah');
+
+        expect($scan['ambiguous'])->toBeTrue();
+    });
+});
