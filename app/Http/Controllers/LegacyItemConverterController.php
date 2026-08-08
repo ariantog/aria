@@ -26,6 +26,8 @@ class LegacyItemConverterController extends Controller
             ?? ItemType::ASSET_LANCAR;
 
         $pendingCount = $this->converterService->eligibleQuery($itemType)->count();
+        $uselessCount = $this->converterService->uselessQuery($itemType)->count();
+        $superOldCount = $this->converterService->superOldQuery($itemType)->count();
         $latestRun = ItemIdentityConversionRun::query()
             ->where('item_type', $itemType)
             ->latest('id')
@@ -41,6 +43,8 @@ class LegacyItemConverterController extends Controller
             'tab' => $tab,
             'itemType' => $itemType,
             'pendingCount' => $pendingCount,
+            'uselessCount' => $uselessCount,
+            'superOldCount' => $superOldCount,
             'latestRun' => $latestRun,
             'dataList' => $data,
             'batchSize' => LegacyItemConverterService::DEFAULT_BATCH_SIZE,
@@ -82,6 +86,21 @@ class LegacyItemConverterController extends Controller
                 'type' => $itemType->value,
             ])
             ->with('success', "Batch complete: {$run->success_count} converted, {$run->failed_count} failed, {$run->skipped_count} skipped.");
+    }
+
+    public function purgeUseless(Request $request): RedirectResponse
+    {
+        $this->authorizeConverter();
+
+        $itemType = $this->validatedItemType($request);
+        $deleted = $this->converterService->deleteUselessBatch($itemType);
+
+        return redirect()
+            ->route('items.legacy-converter', [
+                'tab' => 'pending',
+                'type' => $itemType->value,
+            ])
+            ->with('success', "Hard-deleted {$deleted} useless SKU(s) (created >1 year ago, never used in transactions).");
     }
 
     protected function pendingItems(ItemType $itemType)

@@ -21,12 +21,42 @@ class LegacyItemConverterService
         protected ItemIdentityBuilder $identityBuilder,
     ) {}
 
-    public function eligibleQuery(ItemType $itemType): Builder
+    public function baseQuery(ItemType $itemType): Builder
     {
         return Item::query()
-            ->with(['tags', 'group'])
             ->whereNull('deleted_at')
-            ->where('type', $itemType)
+            ->where('type', $itemType);
+    }
+
+    /**
+     * Useless SKU: created >1 year ago and never appeared in any transaction detail.
+     */
+    public function uselessQuery(ItemType $itemType): Builder
+    {
+        return $this->baseQuery($itemType)
+            ->where('created_at', '<', now()->subYear())
+            ->whereNotExists($this->transactionDetailExistsSubquery());
+    }
+
+    /**
+     * Super-old SKU: created >5 years ago with no transaction activity in the last 2 years.
+     * Excluded from conversion queue (not deleted).
+     */
+    public function superOldQuery(ItemType $itemType): Builder
+    {
+        return $this->baseQuery($itemType)
+            ->where('created_at', '<', now()->subYears(5))
+            ->whereNotExists($this->transactionDetailSinceSubquery(now()->subYears(2)));
+    }
+
+    public function eligibleQuery(ItemType $itemType): Builder
+    {
+        return $this->baseQuery($itemType)
+            ->with(['tags', 'group'])
+            ->where(function (Builder $query) {
+                $query->where('items.created_at', '>=', now()->subYears(5))
+                    ->orWhereExists($this->transactionDetailSinceSubquery(now()->subYears(2)));
+            })
             ->whereNotExists(function ($query) {
                 $query->select(DB::raw(1))
                     ->from('item_identity_conversion_results')
@@ -34,6 +64,57 @@ class LegacyItemConverterService
                     ->where('item_identity_conversion_results.status', ItemIdentityConversionResult::STATUS_SUCCESS);
             })
             ->orderBy('id');
+    }
+
+    public function deleteUselessBatch(ItemType $itemType, int $limit = self::DEFAULT_BATCH_SIZE): int
+    {
+        $items = $this->uselessQuery($itemType)->orderBy('id')->limit($limit)->get();
+        $deleted = 0;
+
+        foreach ($items as $item) {
+            DB::transaction(fn () => $this->hardDeleteItem($item));
+            $deleted++;
+        }
+
+        return $deleted;
+    }
+
+    protected function hardDeleteItem(Item $item): void
+    {
+        ItemIdentityConversionResult::query()->where('item_id', $item->id)->delete();
+        $item->tags()->detach();
+        DB::table('warehouse_items')->where('item_id', $item->id)->delete();
+        $item->forceDelete();
+    }
+
+    protected function transactionDetailExistsSubquery(): \Closure
+    {
+        return function ($query) {
+            $query->select(DB::raw(1))
+                ->from('transaction_details')
+                ->whereColumn('transaction_details.item_id', 'items.id')
+                ->whereNull('transaction_details.deleted_at');
+        };
+    }
+
+    protected function transactionDetailSinceSubquery(\DateTimeInterface $since): \Closure
+    {
+        $sinceDate = $since->format('Y-m-d');
+
+        return function ($query) use ($sinceDate) {
+            $query->select(DB::raw(1))
+                ->from('transaction_details')
+                ->whereColumn('transaction_details.item_id', 'items.id')
+                ->whereNull('transaction_details.deleted_at')
+                ->where(function ($dateQuery) use ($sinceDate) {
+                    $dateQuery->where('transaction_details.date', '>=', $sinceDate)
+                        ->orWhereIn('transaction_details.transaction_id', function ($tx) use ($sinceDate) {
+                            $tx->select('id')
+                                ->from('transactions')
+                                ->where('date', '>=', $sinceDate);
+                        });
+                });
+        };
     }
 
     /**

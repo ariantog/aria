@@ -4,6 +4,8 @@ use App\Enums\ItemType;
 use App\Models\Item;
 use App\Models\ItemIdentityConversionResult;
 use App\Models\Tag;
+use App\Models\Transaction;
+use App\Models\TransactionDetail;
 use App\Models\User;
 use App\Services\Items\ItemIdentityBuilder;
 use App\Services\Items\LegacyItemConverterService;
@@ -142,4 +144,94 @@ it('allows reviewing failed tab while pending items remain', function () {
         ->get(route('items.legacy-converter', ['tab' => 'failed', 'type' => ItemType::ITEM->value]))
         ->assertOk()
         ->assertSee('SKU_UNPARSEABLE', false);
+});
+
+it('hard deletes useless skus older than one year with no transactions', function () {
+    $useless = Item::factory()->create([
+        'type' => ItemType::ASSET_LANCAR,
+        'code' => 'OLD-UNUSED-SKU',
+        'created_at' => now()->subYears(2),
+    ]);
+
+    $deleted = $this->service->deleteUselessBatch(ItemType::ASSET_LANCAR);
+
+    expect($deleted)->toBe(1)
+        ->and(Item::withTrashed()->find($useless->id))->toBeNull();
+});
+
+it('does not delete useless candidates that appear in transactions', function () {
+    $item = Item::factory()->create([
+        'type' => ItemType::ASSET_LANCAR,
+        'code' => 'OLD-BUT-USED',
+        'created_at' => now()->subYears(2),
+    ]);
+
+    TransactionDetail::factory()->create([
+        'item_id' => $item->id,
+        'date' => now()->subYears(3)->toDateString(),
+    ]);
+
+    $deleted = $this->service->deleteUselessBatch(ItemType::ASSET_LANCAR);
+
+    expect($deleted)->toBe(0)
+        ->and(Item::find($item->id))->not->toBeNull();
+});
+
+it('excludes super old skus with no recent transactions from conversion queue', function () {
+    $superOld = Item::factory()->create([
+        'type' => ItemType::ITEM,
+        'group_id' => null,
+        'code' => 'ANCIENT-SKU',
+        'pcode' => 'INVALID',
+        'created_at' => now()->subYears(6),
+    ]);
+
+    $oldTransaction = Transaction::factory()->create([
+        'date' => now()->subYears(4)->toDateString(),
+    ]);
+
+    TransactionDetail::factory()->create([
+        'transaction_id' => $oldTransaction->id,
+        'item_id' => $superOld->id,
+        'date' => now()->subYears(4)->toDateString(),
+    ]);
+
+    $recent = Item::factory()->create([
+        'type' => ItemType::ITEM,
+        'group_id' => null,
+        'code' => 'RECENT-ACTIVITY',
+        'pcode' => 'INVALID',
+        'created_at' => now()->subYears(6),
+    ]);
+
+    $recentTransaction = Transaction::factory()->create([
+        'date' => now()->subYear()->toDateString(),
+    ]);
+
+    TransactionDetail::factory()->create([
+        'transaction_id' => $recentTransaction->id,
+        'item_id' => $recent->id,
+        'date' => now()->subYear()->toDateString(),
+    ]);
+
+    expect($this->service->eligibleQuery(ItemType::ITEM)->pluck('id')->all())
+        ->toContain($recent->id)
+        ->not->toContain($superOld->id);
+});
+
+it('purges useless skus via controller action', function () {
+    Item::factory()->create([
+        'type' => ItemType::ASSET_LANCAR,
+        'code' => 'PURGE-ME',
+        'created_at' => now()->subYears(2),
+    ]);
+
+    $this->actingAs($this->user)
+        ->post(route('items.legacy-converter.purge-useless'), [
+            'type' => ItemType::ASSET_LANCAR->value,
+        ])
+        ->assertRedirect()
+        ->assertSessionHas('success');
+
+    expect(Item::query()->where('code', 'PURGE-ME')->exists())->toBeFalse();
 });

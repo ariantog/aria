@@ -41,6 +41,7 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::resource('posts', App\Http\Controllers\PostController::class);
     Route::get('items/legacy-converter', [App\Http\Controllers\LegacyItemConverterController::class, 'index'])->name('items.legacy-converter');
     Route::post('items/legacy-converter/preview', [App\Http\Controllers\LegacyItemConverterController::class, 'preview'])->name('items.legacy-converter.preview');
+    Route::post('items/legacy-converter/purge-useless', [App\Http\Controllers\LegacyItemConverterController::class, 'purgeUseless'])->name('items.legacy-converter.purge-useless');
     Route::post('items/legacy-converter/run', [App\Http\Controllers\LegacyItemConverterController::class, 'run'])->name('items.legacy-converter.run');
     Route::get('items/{item}/transactions', [App\Http\Controllers\ItemsController::class, 'itemTransactions'])->name('items.transactions');
     Route::get('items/{item}/stats', [App\Http\Controllers\ItemsController::class, 'itemStats'])->name('items.stats');
