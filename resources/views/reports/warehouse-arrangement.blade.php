@@ -121,7 +121,7 @@ $queryBase = array_filter([
         <div class="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-4 py-3">
             <div>
                 <h2 class="text-sm font-semibold text-gray-900">Suggested moves</h2>
-                <p class="text-xs text-gray-500">Select rows with the same source warehouse, then draft one move with all items prefilled.</p>
+                <p class="text-xs text-gray-500">Select rows with the same source warehouse, then draft one move with all items prefilled. Sources are physical warehouses only.</p>
             </div>
             <div class="flex items-center gap-2">
                 <span class="text-xs text-gray-500" x-show="selectedCount > 0" x-cloak>

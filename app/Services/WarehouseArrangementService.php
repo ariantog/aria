@@ -118,6 +118,8 @@ class WarehouseArrangementService
                 ->whereIn('wi.item_id', $itemIds)
                 ->where('wi.warehouse_id', '!=', $destinationWarehouseId)
                 ->where('wi.quantity', '>', 0)
+                ->where('a.type', AddrbookType::Warehouse->value)
+                ->whereNull('a.deleted_at')
                 ->orderByDesc('wi.quantity')
                 ->get(['wi.warehouse_id', 'wi.item_id', 'wi.quantity', 'a.name as warehouse_name']);
 

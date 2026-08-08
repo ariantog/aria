@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Reports;
 
 use App\Http\Controllers\Controller;
+use App\Enums\AddrbookType;
 use App\Models\Addrbook;
 use App\Models\Item;
 use App\Models\Report;
@@ -98,8 +99,14 @@ class WarehouseArrangementController extends Controller
             }
         }
 
-        $from = Addrbook::findOrFail($fromId);
-        $to = Addrbook::findOrFail($toId);
+        $from = Addrbook::query()
+            ->where('type', AddrbookType::Warehouse)
+            ->findOrFail($fromId);
+
+        $to = Addrbook::query()
+            ->where('type', AddrbookType::Warehouse)
+            ->where('arrangement_enabled', true)
+            ->findOrFail($toId);
 
         $itemIds = collect($validated['items'])->pluck('item_id')->map(fn ($id) => (int) $id)->all();
         $items = Item::query()

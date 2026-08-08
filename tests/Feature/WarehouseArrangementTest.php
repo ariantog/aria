@@ -72,11 +72,13 @@ it('builds move suggestions for missing skus at arrangement destinations', funct
     expect($result['suggestions'][0]['from_warehouse_name'])->toBe('Source WH');
 });
 
-it('resolves source warehouse names including virtual warehouses', function () {
-    $source = Addrbook::factory()->create([
-        'name' => 'VWH Source',
+it('ignores virtual warehouses and customers as move sources', function () {
+    $virtual = Addrbook::factory()->create([
+        'name' => 'VWH Only',
         'type' => Addrbook::TYPE_V_WAREHOUSE,
     ]);
+    $customer = Addrbook::factory()->customer()->create(['name' => 'Customer Stock']);
+    $realSource = Addrbook::factory()->warehouse()->create(['name' => 'Real WH']);
     $destination = Addrbook::factory()->warehouse()->create([
         'name' => 'Flagship WH',
         'arrangement_enabled' => true,
@@ -86,7 +88,9 @@ it('resolves source warehouse names including virtual warehouses', function () {
     $item = Item::factory()->create(['group_id' => $group->id, 'type' => ItemType::ITEM, 'code' => 'AJD-CX90029-02-S']);
     $soldItem = Item::factory()->create(['group_id' => $group->id, 'type' => ItemType::ITEM, 'code' => 'AJD-CX90029-02-M']);
 
-    WarehouseItem::create(['warehouse_id' => $source->id, 'item_id' => $item->id, 'quantity' => 2]);
+    WarehouseItem::create(['warehouse_id' => $virtual->id, 'item_id' => $item->id, 'quantity' => 99]);
+    WarehouseItem::create(['warehouse_id' => $customer->id, 'item_id' => $item->id, 'quantity' => 50]);
+    WarehouseItem::create(['warehouse_id' => $realSource->id, 'item_id' => $item->id, 'quantity' => 2]);
     WarehouseItem::create(['warehouse_id' => $destination->id, 'item_id' => $soldItem->id, 'quantity' => 1]);
 
     WarehouseItemMonthlyStat::create([
@@ -101,7 +105,39 @@ it('resolves source warehouse names including virtual warehouses', function () {
     $result = app(WarehouseArrangementService::class)->buildSuggestions($destination->id, 365);
 
     expect($result['suggestions'])->toHaveCount(1);
-    expect($result['suggestions'][0]['from_warehouse_name'])->toBe('VWH Source');
+    expect($result['suggestions'][0]['from_warehouse_id'])->toBe($realSource->id);
+    expect($result['suggestions'][0]['from_warehouse_name'])->toBe('Real WH');
+});
+
+it('does not suggest moves when only non-warehouse addrbooks hold stock', function () {
+    $virtual = Addrbook::factory()->create([
+        'name' => 'VWH Only',
+        'type' => Addrbook::TYPE_V_WAREHOUSE,
+    ]);
+    $destination = Addrbook::factory()->warehouse()->create([
+        'name' => 'Flagship WH',
+        'arrangement_enabled' => true,
+    ]);
+
+    $group = ItemGroup::factory()->create(['master' => 'CX90030', 'variant' => '02']);
+    $item = Item::factory()->create(['group_id' => $group->id, 'type' => ItemType::ITEM, 'code' => 'AJD-CX90030-02-S']);
+    $soldItem = Item::factory()->create(['group_id' => $group->id, 'type' => ItemType::ITEM, 'code' => 'AJD-CX90030-02-M']);
+
+    WarehouseItem::create(['warehouse_id' => $virtual->id, 'item_id' => $item->id, 'quantity' => 5]);
+    WarehouseItem::create(['warehouse_id' => $destination->id, 'item_id' => $soldItem->id, 'quantity' => 1]);
+
+    WarehouseItemMonthlyStat::create([
+        'warehouse_id' => $destination->id,
+        'item_id' => $soldItem->id,
+        'month' => now()->month,
+        'year' => now()->year,
+        'sold_qty' => 3,
+        'returned_qty' => 0,
+    ]);
+
+    $result = app(WarehouseArrangementService::class)->buildSuggestions($destination->id, 365);
+
+    expect($result['suggestions'])->toBeEmpty();
 });
 
 it('drafts a multi-item move with prefilled form data', function () {
