@@ -1,0 +1,282 @@
+================================================================================
+LEGACY ITEM IDENTITY CONVERTER — AGREED RULES (v1)
+For the next agent chat implementing the batched converter UI + parser.
+================================================================================
+
+Related:
+  - upgrade/items.txt          — production migration checklist
+  - upgrade/restock.txt        — restock + item identity context (if present)
+  - app/Services/Items/ItemIdentityBuilder.php
+  - app/Services/ItemService.php — group resolve, legacy_code preserve (PR #33)
+  - app/Models/Tag.php           — TYPE=3, SIZE=7, WARNA=20
+
+--------------------------------------------------------------------------------
+1. CONVERTER PAGE (PRODUCT)
+--------------------------------------------------------------------------------
+
+Route (proposed): /items/legacy-converter
+Permission: superadmin or new items-convert-legacy
+
+Batch size: 1,000 items per run (configurable).
+
+Tabs:
+  Pending   — queue not yet converted (or eligible for retry)
+  Completed — last batch successes + history
+  Failed    — failures with reason code + detail; user reviews while running next batch
+
+Actions per type tab: [Manufactured] [Asset Lancar]
+  - Preview (dry-run): parse only, no writes
+  - Run next batch: process up to N items, one DB transaction per item
+
+Track runs in DB (proposed):
+  item_identity_conversion_runs
+  item_identity_conversion_results (item_id, status, failure_code, detail, snapshot JSON)
+
+Success definition:
+  Asset:     group_id set, warna + size tags synced, code matches buildCode()
+  Manufactured: above + TYPE (+ JAHIT if required), legacy_code preserved, pcode valid
+
+--------------------------------------------------------------------------------
+2. CORE PRINCIPLE — RESOLVE SIZES FROM TAG TABLE
+--------------------------------------------------------------------------------
+
+DO NOT hardcode size lists (S/M/L/14OZ/3M/etc.) as the source of truth.
+
+Sizes live in tags where type = Tag::TYPE_SIZE (7). Codes can be non-standard
+and MAY CONTAIN HYPHENS (e.g. WEIRD-SIZE, PART-EXTRA).
+
+At parser init (per batch), load all size tags keyed by UPPER(code), sorted by
+code length DESCENDING (longest match first).
+
+Helper: matchSizeFromSuffix(string $remainder, Collection $sizeTags): ?Tag
+
+  $remainder = strtoupper(trim($remainder))
+
+  For each size tag (longest code first):
+    $code = strtoupper($tag->code)
+    if $remainder === $code                          → match
+    if str_ends_with($remainder, '-'.$code)         → match; warna = part before
+
+  Return null → treat as all-size (AS) when no size segment applies.
+
+Legacy size ALIASES (apply before tag lookup, only for manufactured glue codes):
+  0S → S
+  0M → M
+  0L → L
+
+After alias normalize, look up tag by code. If tag missing → FAIL or auto-create
+size tag (decision: auto-create for converter v1 to reduce failures).
+
+--------------------------------------------------------------------------------
+3. ASSET LANCAR PARSER
+--------------------------------------------------------------------------------
+
+Canonical SKU: {pcode}-{warna}-{size?}
+  pcode = {NAME}-{NN}   e.g. GLOVE-01, BOXINGWRAP-02, YOGAMAT-20
+  warna = tag code (single token; compounds OK: MARBLEPINK, POWDERWHITE)
+  size  = tag code from tag table; omit segment when AS (all-size)
+
+Asset items do NOT use TYPE tag in SKU (no TYPE segment in code).
+
+### 3.1 Hyphenated code (most legacy assets)
+
+Step A — Extract pcode (fixed: first two hyphen segments):
+  segments = explode('-', code)
+  if count < 3 → FAIL SKU_UNPARSEABLE
+  pcode = segments[0] + '-' + segments[1]
+  validate pcode against ASSET_PCODE_PATTERN (GLOVE-01 style)
+
+Step B — Remainder after pcode:
+  remainder = substring after "{segments[0]}-{segments[1]}-" in code
+  (keeps internal hyphens in remainder for weird sizes)
+
+Step C — Split warna vs size using tag table:
+  sizeTag = matchSizeFromSuffix(remainder, sizeTags)
+  if sizeTag:
+    warna = trim trailing '-' + sizeTag->code from remainder (or prefix before match)
+  else:
+    warna = remainder          # entire remainder is color
+    sizeTag = AS tag or null   # all-size; no trailing size segment in SKU
+
+Step D — Canonical code:
+  If all-size: {pcode}-{warna}
+  Else:        {pcode}-{warna}-{sizeTag->code}
+
+Step E — Group:
+  master  = pcode (full string, e.g. BOXINGWRAP-02)
+  variant = warna tag code
+  name    = derive from item.name (before first " - ") or pcode
+
+### 3.2 Verified fixtures (asset)
+
+| Legacy code                      | pcode            | warna        | size   | Code change? |
+|----------------------------------|------------------|--------------|--------|--------------|
+| YOGAMAT-20-POWDERWHITE           | YOGAMAT-20       | POWDERWHITE  | AS     | No           |
+| LUMBARSUPPORT-01-BLACK-S         | LUMBARSUPPORT-01 | BLACK        | S      | No           |
+| BOXINGGLOVE-02-BLACK-14OZ        | BOXINGGLOVE-02   | BLACK        | 14OZ   | No           |
+| BOXINGWRAP-02-MARBLEPINK-3M      | BOXINGWRAP-02    | MARBLEPINK   | 3M     | No           |
+
+Converter action for above: create group + sync tags if group_id null; code unchanged.
+
+### 3.3 Warna tags
+
+Match warna string against existing TYPE_WARNA tags (type=20) by code (UPPER).
+If missing → firstOrCreate warna tag (code = name = UPPER(warna)).
+Tag::normalizeWarnaAttributes applies on save.
+
+--------------------------------------------------------------------------------
+4. MANUFACTURED ITEM PARSER
+--------------------------------------------------------------------------------
+
+Canonical SKU: {TYPE}-{pcode}-{size?}
+  TYPE  = tag code (type=3), first segment when hyphenated
+  pcode = [A-Z]{2,3}[0-9]{5}-[0-9]{2,3}  e.g. CX90233-23, PL25129-06
+  size  = from tag table (see §2)
+  color number in pcode suffix; separate WARNA tag still required for display name
+
+### 4.1 Hyphenated manufactured code
+
+Example target: AJJ-PL25129-06-XL
+
+  segments = explode('-', code)
+  typeCode = segments[0]     → lookup TYPE tag (type=3)
+  tail     = segments[last]
+  sizeTag  = matchSizeFromSuffix(tail, sizeTags) OR exact match on tail only
+
+  if sizeTag matched on tail as whole segment:
+    pcode = implode('-', array_slice(segments, 1, -1))
+  else:
+    pcode = implode('-', array_slice(segments, 1))
+    sizeTag = AS
+
+  Validate pcode against ITEM_PCODE_PATTERN.
+
+### 4.2 Glue code (no hyphens)
+
+Example: AJJPL2512906XL → AJJ-PL25129-06-XL
+
+Regex (initial — refine with more samples):
+
+  ^([A-Z]{2,3})([A-Z]{2}[0-9]{5})([0-9]{2,3})(.+)?$
+
+  Group 1 = TYPE code
+  Group 2+3 = pcode master + variant → {2}-{3}
+  Group 4 = size suffix → normalize aliases (0S→S) → match against size tag table
+            (try longest tag codes that match suffix end)
+
+  legacy_code = original glue code (before write)
+
+### 4.3 WARNA for manufactured
+
+Priority:
+  1. Existing warna tag on item / item_tag
+  2. Map pcode variant suffix via lookup table (06 → ???) if you build one
+  3. Scan description + description2 for Bahasa primary colors (prefer ID over EN)
+
+Bahasa → warna tag code (create if missing):
+
+  hitam → BLACK       putih → WHITE       merah → RED
+  biru → BLUE         hijau → GREEN       kuning → YELLOW
+  abu, abu-abu → GRAY  coklat → BROWN     pink, merah muda → PINK
+  ungu → PURPLE       orange, jingga → ORANGE
+
+Rules:
+  - Word-boundary match, case-insensitive
+  - Prefer Indonesian hit over English when both present
+  - Multiple distinct colors → FAIL COLOR_AMBIGUOUS
+  - None found → FAIL COLOR_NOT_FOUND (user fixes in Failed tab)
+
+### 4.4 legacy_code (Jubelio) — MANDATORY
+
+On manufactured update/convert:
+  - If legacy_code already set → NEVER overwrite
+  - If empty and code is changing → snapshot old code into legacy_code
+
+### 4.5 Verified fixture (manufactured glue)
+
+| Legacy code      | TYPE | pcode       | size | Canonical SKU        | legacy_code      |
+|------------------|------|-------------|------|----------------------|------------------|
+| AJJPL2512906XL   | AJJ  | PL25129-06  | XL   | AJJ-PL25129-06-XL    | AJJPL2512906XL   |
+
+Also needs: TYPE tag AJJ, WARNA (from suffix 06 or description), JAHIT tag.
+
+--------------------------------------------------------------------------------
+5. SHARED POST-PARSE ACTIONS
+--------------------------------------------------------------------------------
+
+For each successfully parsed item (inside per-item transaction):
+
+  1. preserveLegacyCode() for manufactured
+  2. firstOrCreate group (master + variant via ItemIdentityBuilder::groupVariant)
+  3. firstOrCreate / resolve tags (TYPE, WARNA, SIZE, JAHIT as needed)
+  4. ItemIdentityBuilder::buildCode() + buildName()
+  5. Reject if duplicate canonical SKU on another item_id
+  6. item.group_id, item.code, item.pcode, item.name, item.genre, item.size
+  7. Sync item_tag + tag_ids string
+  8. Write conversion result row
+
+Reuse ItemService / ItemIdentityBuilder — do not duplicate identity rules in controller.
+
+--------------------------------------------------------------------------------
+6. FAILURE CODES
+--------------------------------------------------------------------------------
+
+  SKU_UNPARSEABLE      — cannot split code / regex miss
+  PCODE_INVALID        — pcode fails pattern validation
+  TYPE_TAG_MISSING     — manufactured TYPE segment not in tags (and not auto-created)
+  SIZE_TAG_MISSING     — suffix looks like size but no tag (if auto-create disabled)
+  WARNA_MISSING        — no warna resolved
+  COLOR_AMBIGUOUS      — multiple Bahasa colors in description
+  COLOR_NOT_FOUND      — manufactured, no warna source
+  DUPLICATE_CANONICAL  — another item already has target SKU
+  JAHIT_MISSING        — manufactured requires jahit tag
+
+--------------------------------------------------------------------------------
+7. ELIGIBILITY QUERY (PENDING QUEUE)
+--------------------------------------------------------------------------------
+
+Items where deleted_at IS NULL and NOT EXISTS successful conversion result, AND:
+
+  Asset (type=2):
+    group_id IS NULL
+    OR missing warna/size on item_tag
+    OR code parseable as asset but fields out of sync
+
+  Manufactured (type=1):
+    group_id IS NULL
+    OR missing required tags
+    OR code not matching buildCode() output for parsed identity
+
+Order: id ASC (or prioritize warehouse qty > 0 — optional).
+
+Skip: already canonical + group + tags complete → mark SKIPPED.
+
+--------------------------------------------------------------------------------
+8. IMPLEMENTATION PHASES
+--------------------------------------------------------------------------------
+
+  Phase 1: LegacyItemIdentityParser + unit tests (all fixtures in §3.2, §4.5)
+           + size match from tag table (hyphen-safe)
+
+  Phase 2: Asset lancar batch converter + UI tabs
+
+  Phase 3: Manufactured glue + hyphen parsers + Bahasa color scanner
+
+  Phase 4: Queue jobs if sync batch times out; export failed CSV; retry action
+
+--------------------------------------------------------------------------------
+9. KICKOFF PROMPT (paste into new chat)
+--------------------------------------------------------------------------------
+
+Goal: Legacy identity converter page — batched (1k), parser from upgrade/legacy-item-converter.txt
+Where: LegacyItemIdentityParser, LegacyItemConverterController, conversion result migrations
+Acceptance:
+  - Sizes resolved from tags table (type=7), longest match, hyphen-safe
+  - Asset fixtures §3.2 pass (group+tags; code unchanged where noted)
+  - AJJPL2512906XL → AJJ-PL25129-06-XL with legacy_code preserved
+  - Failed tab shows failure_code; user can run next batch in parallel
+Notes: Read upgrade/legacy-item-converter.txt + upgrade/items.txt; reuse ItemIdentityBuilder
+
+================================================================================
+END
+================================================================================

@@ -8,6 +8,7 @@ Test on a staging copy first. Review every SELECT result before running UPDATE/D
 
 Related files:
   - database/scripts/item_identity_cleanup.sql  (shorter SQL snippets)
+  - upgrade/legacy-item-converter.txt           (batched legacy converter rules — implement next)
   - upgrade/restock.txt                         (restock feature context)
   - app/Services/Items/ItemIdentityBuilder.php  (SKU / name rules)
   - php artisan items:normalize-identity        (post-migration name sync)
