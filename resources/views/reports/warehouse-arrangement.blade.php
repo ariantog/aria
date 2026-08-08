@@ -276,12 +276,22 @@ function arrangementGridPage() {
 
         init() {
             this.hydrateCells();
-            this.$nextTick(() => {
-                for (const parent of this.grid.parents) {
-                    const el = document.querySelector(`[data-pcode-grid="${parent.pcode}"]`);
-                    if (!el) continue;
+            this.$nextTick(() => this.initTablesStaggered());
+        },
 
-                    const table = new Tabulator(el, {
+        initTablesStaggered() {
+            const parents = this.grid.parents || [];
+            parents.forEach((parent, index) => {
+                const delay = index * 40;
+                setTimeout(() => this.initTable(parent), delay);
+            });
+        },
+
+        initTable(parent) {
+            const el = document.querySelector(`[data-pcode-grid="${parent.pcode}"]`);
+            if (!el || this.tables[parent.pcode]) return;
+
+            const table = new Tabulator(el, {
                         data: parent.rows,
                         layout: 'fitColumns',
                         rowHeight: 104,
@@ -293,12 +303,10 @@ function arrangementGridPage() {
                             resizable: false,
                         },
                         columns: this.buildColumns(parent.sizes, parent.pcode),
-                    });
-
-                    this.tables[parent.pcode] = table;
-                    el.addEventListener('change', (e) => this.onCellChange(e, parent.pcode));
-                }
             });
+
+            this.tables[parent.pcode] = table;
+            el.addEventListener('change', (e) => this.onCellChange(e, parent.pcode));
         },
 
         hydrateCells() {
