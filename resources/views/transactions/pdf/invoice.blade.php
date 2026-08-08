@@ -4,9 +4,15 @@
     <meta charset="utf-8">
     <title>Invoice #{{ $transaction->invoice_number }}</title>
     <style>
-        body { font-family: DejaVu Sans, sans-serif; font-size: 12px; color: #111; }
-        h1 { font-size: 18px; margin: 0 0 4px; }
-        h2 { font-size: 14px; margin: 16px 0 8px; }
+        body { font-family: DejaVu Sans, sans-serif; font-size: 12px; color: #111; margin: 0; padding: 0; }
+        .header { display: table; width: 100%; margin-bottom: 16px; }
+        .header-logo, .header-info { display: table-cell; vertical-align: top; }
+        .header-logo { width: 120px; padding-right: 16px; }
+        .header-logo img { max-width: 110px; max-height: 70px; }
+        h1 { font-size: 20px; margin: 0 0 4px; letter-spacing: 0.5px; }
+        .address { font-size: 11px; line-height: 1.4; color: #333; white-space: pre-line; }
+        .phone { font-size: 11px; margin-top: 4px; color: #333; }
+        h2 { font-size: 14px; margin: 0 0 10px; border-bottom: 1px solid #ddd; padding-bottom: 4px; }
         table { width: 100%; border-collapse: collapse; margin-top: 8px; }
         th, td { border: 1px solid #ccc; padding: 6px 8px; }
         th { background: #f3f4f6; text-align: left; }
@@ -16,8 +22,20 @@
     </style>
 </head>
 <body>
-    <h1>CORENATION</h1>
-    <div>CILANDAK TOWN SQUARE no.171</div>
+    <div class="header">
+        <div class="header-logo">
+            @if($branding['logo_path'])
+                <img src="{{ $branding['logo_path'] }}" alt="{{ $branding['company_name'] }}">
+            @endif
+        </div>
+        <div class="header-info">
+            <h1>{{ $branding['company_name'] }}</h1>
+            <div class="address">{{ $branding['address'] }}</div>
+            @if($branding['phone'])
+                <div class="phone">Tel: {{ $branding['phone'] }}</div>
+            @endif
+        </div>
+    </div>
 
     <h2>{{ $typeLabel }} Invoice #{{ $transaction->invoice_number }}</h2>
 

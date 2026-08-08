@@ -207,14 +207,26 @@ class TransactionsController extends Controller
             return 'Contact';
         };
         $this->hydrateJubelioSyncData($transaction);
+        $invoiceService = app(TransactionInvoiceService::class);
 
         return view('transactions.show', [
             'transaction' => $transaction,
             'config' => ['sender_label' => $getLabel('sender'), 'receiver_label' => $getLabel('receiver'), 'type_slug' => $typeSlug],
             'can' => ['delete_transaction' => Auth::user()->can(Transaction::getPermissions()['delete']), 'edit_transaction' => Auth::user()->can(Transaction::getPermissions()['edit']), 'bank_hidden_balance' => ! Auth::user()->is_superadmin && Auth::user()->can('addrbook-bank-account-hidden-balance')],
             'flash' => ['success' => session('success'), 'error' => session('error')],
-            'hasInvoicePdf' => app(TransactionInvoiceService::class)->invoicePdfExists($transaction),
+            'hasInvoicePdf' => $invoiceService->invoicePdfExists($transaction),
+            'invoicePdfUrl' => $invoiceService->invoicePdfUrl($transaction),
         ]);
+    }
+
+    public function storePdf(Transaction $transaction, TransactionInvoiceService $invoiceService)
+    {
+        $this->authorizeTransactionView($transaction);
+        $invoiceService->createInvoicePdf($transaction, regenerate: true);
+
+        return redirect()
+            ->route('transactions.show', $transaction)
+            ->with('success', 'Invoice PDF saved.');
     }
 
     public function receipt(Transaction $transaction)
