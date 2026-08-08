@@ -31,6 +31,10 @@ $queryBase = array_filter([
         @endif
     </div>
 
+    @if(($flash['error'] ?? null))
+    <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ $flash['error'] }}</div>
+    @endif
+
     @if($destinations->isEmpty())
     <div class="rounded-xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-800">
         No destination warehouses are enabled for arrangement. Edit a warehouse contact and turn on <strong>Arrangement destination</strong>.
@@ -112,15 +116,44 @@ $queryBase = array_filter([
     </div>
     @endif
 
-    <div class="rounded-xl border border-gray-200 bg-white shadow-sm">
-        <div class="border-b border-gray-100 px-4 py-3">
-            <h2 class="text-sm font-semibold text-gray-900">Suggested moves</h2>
-            <p class="text-xs text-gray-500">Missing SKUs at the destination — source is the warehouse with the highest available stock.</p>
+    <div class="rounded-xl border border-gray-200 bg-white shadow-sm"
+         x-data="arrangementSelection(@js($suggestions))">
+        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-4 py-3">
+            <div>
+                <h2 class="text-sm font-semibold text-gray-900">Suggested moves</h2>
+                <p class="text-xs text-gray-500">Select rows with the same source warehouse, then draft one move with all items prefilled.</p>
+            </div>
+            <div class="flex items-center gap-2">
+                <span class="text-xs text-gray-500" x-show="selectedCount > 0" x-cloak>
+                    <span x-text="selectedCount"></span> selected
+                </span>
+                <button type="button"
+                        @click="draftMove()"
+                        :disabled="!canDraft()"
+                        class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500">
+                    Draft Move (selected)
+                </button>
+            </div>
         </div>
+        <form id="arrangement-draft-form" method="POST" action="{{ route('reports.warehouse-arrangement.draft-move') }}" class="hidden">
+            @csrf
+            <template x-for="(row, idx) in selectedRows()" :key="row.item_id">
+                <input type="hidden" name="items[][item_id]" :value="row.item_id">
+                <input type="hidden" name="items[][quantity]" :value="row.suggested_qty">
+                <input type="hidden" name="items[][from_warehouse_id]" :value="row.from_warehouse_id">
+                <input type="hidden" name="items[][to_warehouse_id]" :value="row.to_warehouse_id">
+            </template>
+        </form>
         <div class="overflow-x-auto">
             <table class="w-full text-sm">
                 <thead>
                     <tr class="border-b bg-gray-50 text-left text-xs uppercase text-gray-500">
+                        <th class="px-3 py-2 w-10">
+                            <input type="checkbox" class="rounded border-gray-300"
+                                   :checked="allSelected"
+                                   @change="toggleAll($event.target.checked)"
+                                   :disabled="suggestions.length === 0">
+                        </th>
                         <th class="px-3 py-2">Master</th>
                         <th class="px-3 py-2">SKU</th>
                         <th class="px-3 py-2">Color</th>
@@ -130,12 +163,16 @@ $queryBase = array_filter([
                         <th class="px-3 py-2">To</th>
                         <th class="px-3 py-2 text-center">Src stock</th>
                         <th class="px-3 py-2 text-center">Qty</th>
-                        <th class="px-3 py-2"></th>
                     </tr>
                 </thead>
                 <tbody>
-                    @forelse($suggestions as $s)
-                    <tr class="border-b hover:bg-gray-50">
+                    @forelse($suggestions as $idx => $s)
+                    <tr class="border-b hover:bg-gray-50" :class="isSelected({{ $idx }}) ? 'bg-blue-50/40' : ''">
+                        <td class="px-3 py-2">
+                            <input type="checkbox" class="rounded border-gray-300"
+                                   :checked="isSelected({{ $idx }})"
+                                   @change="toggle({{ $idx }}, $event.target.checked)">
+                        </td>
                         <td class="px-3 py-2 font-mono text-xs">{{ $s['master'] }}</td>
                         <td class="px-3 py-2">
                             <div class="font-medium">{{ $s['item_name'] }}</div>
@@ -148,12 +185,6 @@ $queryBase = array_filter([
                         <td class="px-3 py-2 font-medium">{{ $s['to_warehouse_name'] }}</td>
                         <td class="px-3 py-2 text-center font-mono">{{ $s['source_stock'] }}</td>
                         <td class="px-3 py-2 text-center font-mono font-bold text-blue-600">{{ $s['suggested_qty'] }}</td>
-                        <td class="px-3 py-2">
-                            <a href="{{ route('transactions.create', ['type' => 'move', 'item_id' => $s['item_id'], 'from_id' => $s['from_warehouse_id'], 'to_id' => $s['to_warehouse_id'], 'quantity' => $s['suggested_qty']]) }}"
-                               class="inline-flex rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700">
-                                Draft Move
-                            </a>
-                        </td>
                     </tr>
                     @empty
                     <tr>
@@ -163,6 +194,9 @@ $queryBase = array_filter([
                 </tbody>
             </table>
         </div>
+        <p class="border-t border-gray-100 px-4 py-2 text-xs text-gray-500" x-show="selectedCount > 0 && !canDraft()" x-cloak>
+            Selected items must share the same source and destination warehouses.
+        </p>
     </div>
     @else
     <div class="rounded-xl border border-gray-200 bg-white p-6 text-sm text-gray-600">
@@ -171,4 +205,43 @@ $queryBase = array_filter([
     @endif
     @endif
 </div>
+
+@push('scripts')
+<script>
+function arrangementSelection(suggestions) {
+    return {
+        suggestions,
+        selected: new Set(),
+        get selectedCount() { return this.selected.size; },
+        get allSelected() {
+            return this.suggestions.length > 0 && this.selected.size === this.suggestions.length;
+        },
+        isSelected(idx) { return this.selected.has(idx); },
+        toggle(idx, checked) {
+            if (checked) this.selected.add(idx);
+            else this.selected.delete(idx);
+        },
+        toggleAll(checked) {
+            this.selected = checked
+                ? new Set(this.suggestions.map((_, i) => i))
+                : new Set();
+        },
+        selectedRows() {
+            return [...this.selected].sort((a, b) => a - b).map(i => this.suggestions[i]);
+        },
+        canDraft() {
+            const rows = this.selectedRows();
+            if (rows.length === 0) return false;
+            const from = rows[0].from_warehouse_id;
+            const to = rows[0].to_warehouse_id;
+            return rows.every(r => r.from_warehouse_id === from && r.to_warehouse_id === to);
+        },
+        draftMove() {
+            if (!this.canDraft()) return;
+            document.getElementById('arrangement-draft-form').submit();
+        },
+    };
+}
+</script>
+@endpush
 @endsection

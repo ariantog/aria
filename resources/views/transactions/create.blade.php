@@ -79,6 +79,7 @@
                         <div x-data="asyncCombobox({
                             endpoint: @js($config['sender_route']),
                             placeholder: 'Select {{ $config['sender_label'] }}...',
+                            initial: @js(isset($prefill) ? ($prefill['sender'] ?? null) : null),
                             onSelect: (item) => { form.sender_id = item ? String(item.id) : ''; form.sender = item; recalcTotals(); }
                         })" class="relative">
                             <div class="relative flex h-10 w-full overflow-hidden rounded-lg border focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500"
@@ -121,6 +122,7 @@
                         <div x-data="asyncCombobox({
                             endpoint: @js($config['receiver_route']),
                             placeholder: 'Select {{ $config['receiver_label'] }}...',
+                            initial: @js(isset($prefill) ? ($prefill['receiver'] ?? null) : null),
                             onSelect: (item) => { form.receiver_id = item ? String(item.id) : ''; form.receiver = item; recalcTotals(); }
                         })" class="relative">
                             <div class="relative flex h-10 w-full overflow-hidden rounded-lg border focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500"
@@ -356,6 +358,7 @@ const _PPNRate = {{ $ppn_rate }};
 const _TxType  = '{{ $type }}';
 const _MinDate = '{{ $min_date ?? '' }}';
 const _PriceSource = @json($config['price_source'] ?? 'price');
+const _Prefill = @json($prefill ?? null);
 
 function createTransaction() {
     const today = new Date().toISOString().split('T')[0];
@@ -386,7 +389,34 @@ function createTransaction() {
         },
 
         init() {
-            this.addItemRow(false);
+            if (_Prefill) {
+                this.form.sender_id = String(_Prefill.sender_id || '');
+                this.form.sender = _Prefill.sender || null;
+                this.form.receiver_id = String(_Prefill.receiver_id || '');
+                this.form.receiver = _Prefill.receiver || null;
+                this.form.items = [];
+                (_Prefill.items || []).forEach(ci => {
+                    const row = this.newItemRow();
+                    row.item_id = String(ci.item_id ?? ci.id ?? '');
+                    row.code = ci.code || '';
+                    row.name = ci.name || '';
+                    row.quantity = Number(ci.quantity || 1);
+                    row.price = Number(ci.price ?? ci[_PriceSource] ?? 0);
+                    const gross = row.quantity * row.price;
+                    row.discount = gross > 0 ? (Number(ci.discount || 0) / gross) * 100 : 0;
+                    row.warehouse_items = ci.warehouse_items || [];
+                    row.warehouse_stock = this.stockFor(row);
+                    row.note = ci.note || '';
+                    row.subtotal = gross - (gross * row.discount / 100);
+                    this.form.items.push(row);
+                });
+                if (this.form.items.length === 0) {
+                    this.addItemRow(false);
+                }
+                this.recalcTotals();
+            } else {
+                this.addItemRow(false);
+            }
             // The warehouse side can change after items are added → refresh their stock.
             this.$watch('form.sender_id', () => this.refreshStocks());
             this.$watch('form.receiver_id', () => this.refreshStocks());

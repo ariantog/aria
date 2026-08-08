@@ -98,6 +98,7 @@ class TransactionsController extends Controller
             'config' => $config,
             'ppn_rate' => (float) \App\Models\Setting::getValue('ppn_rate', 11),
             'min_date' => $bookClosingService->getMinAllowedDate()->toDateString(),
+            'prefill' => $type === 'move' ? session()->pull('transaction_move_prefill') : null,
         ]);
     }
 

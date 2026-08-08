@@ -258,6 +258,12 @@ function asyncCombobox(config) {
         excludedIds: config.excludedIds || [],
 
         init() {
+            if (this.selected) {
+                this.query = this.selected.name || '';
+                if (this.onSelect) {
+                    this.onSelect(this.selected);
+                }
+            }
             // Pre-load options
             this.doSearch('');
         },
