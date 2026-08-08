@@ -11,6 +11,18 @@ use Illuminate\Support\Facades\DB;
 
 class WarehouseArrangementService
 {
+    public const MODE_HIGH_DEMAND = 'high_demand';
+
+    public const MODE_COMPLETE_FAMILY = 'complete_family';
+
+    public const MODE_STRONG_DEMAND = 'strong_demand';
+
+    public const MODE_INCOMPLETE = 'incomplete';
+
+    public const LAYOUT_FLAT = 'flat';
+
+    public const LAYOUT_FAMILY = 'family';
+
     public const UI_MAX_FAMILIES = 50;
 
     public const UI_MAX_SUGGESTIONS = 300;
@@ -19,7 +31,28 @@ class WarehouseArrangementService
 
     public const EXPORT_MAX_SUGGESTIONS = 5000;
 
-    public const MAX_SOURCE_SLOTS = 5;
+    public const MAX_SOURCE_SLOTS = 3;
+
+    /**
+     * @return list<string>
+     */
+    public static function validModes(): array
+    {
+        return [
+            self::MODE_HIGH_DEMAND,
+            self::MODE_COMPLETE_FAMILY,
+            self::MODE_STRONG_DEMAND,
+            self::MODE_INCOMPLETE,
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function validLayouts(): array
+    {
+        return [self::LAYOUT_FLAT, self::LAYOUT_FAMILY];
+    }
 
     /**
      * @return Collection<int, Addrbook>
@@ -37,6 +70,9 @@ class WarehouseArrangementService
      * @return array{
      *     destination: Addrbook,
      *     demand_days: int,
+     *     mode: string,
+     *     layout: string,
+     *     min_demand: int,
      *     families: list<array<string, mixed>>,
      *     suggestions: list<array<string, mixed>>,
      *     truncated: bool,
@@ -48,7 +84,20 @@ class WarehouseArrangementService
         int $demandDays = 365,
         int $maxFamilies = self::UI_MAX_FAMILIES,
         int $maxSuggestions = self::UI_MAX_SUGGESTIONS,
+        string $mode = self::MODE_HIGH_DEMAND,
+        int $minDemand = 2,
+        string $layout = self::LAYOUT_FLAT,
     ): array {
+        if (! in_array($mode, self::validModes(), true)) {
+            $mode = self::MODE_HIGH_DEMAND;
+        }
+
+        if (! in_array($layout, self::validLayouts(), true)) {
+            $layout = self::LAYOUT_FLAT;
+        }
+
+        $minDemand = max(1, $minDemand);
+
         $destination = Addrbook::query()
             ->where('type', AddrbookType::Warehouse)
             ->where('arrangement_enabled', true)
@@ -62,6 +111,9 @@ class WarehouseArrangementService
             return [
                 'destination' => $destination,
                 'demand_days' => $demandDays,
+                'mode' => $mode,
+                'layout' => $layout,
+                'min_demand' => $minDemand,
                 'families' => [],
                 'suggestions' => [],
                 'truncated' => false,
@@ -150,6 +202,10 @@ class WarehouseArrangementService
 
                 $itemDemandVal = max(0.0, (float) ($itemDemand[$itemId] ?? 0));
 
+                if (! $this->shouldIncludeSuggestion($itemDemandVal, $mode, $minDemand, $familyMeta['completeness_pct'])) {
+                    continue;
+                }
+
                 $sourceRows = $sources
                     ->sortByDesc(fn ($source) => (float) $source->quantity)
                     ->values()
@@ -199,11 +255,29 @@ class WarehouseArrangementService
         return [
             'destination' => $destination,
             'demand_days' => $demandDays,
+            'mode' => $mode,
+            'layout' => $layout,
+            'min_demand' => $minDemand,
             'families' => $families,
             'suggestions' => $suggestions,
             'truncated' => $truncated,
             'total_suggestion_count' => $totalSuggestionCount,
         ];
+    }
+
+    private function shouldIncludeSuggestion(
+        float $itemDemand,
+        string $mode,
+        int $minDemand,
+        float $completenessPct,
+    ): bool {
+        return match ($mode) {
+            self::MODE_HIGH_DEMAND => $itemDemand > 0,
+            self::MODE_COMPLETE_FAMILY => true,
+            self::MODE_STRONG_DEMAND => $itemDemand >= $minDemand,
+            self::MODE_INCOMPLETE => $completenessPct < 100,
+            default => $itemDemand > 0,
+        };
     }
 
     private function periodKey(\DateTimeInterface $date): int

@@ -8,16 +8,11 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class WarehouseArrangementExportService
 {
-    public function download(array $suggestions, string $warehouseName, int $demandDays): StreamedResponse
+    public function download(array $suggestions, string $warehouseName, int $demandDays, string $mode = WarehouseArrangementService::MODE_HIGH_DEMAND): StreamedResponse
     {
         $spreadsheet = new Spreadsheet;
         $worksheet = $spreadsheet->getActiveSheet();
         $worksheet->setTitle('Arrangement');
-
-        $slotCount = min(
-            WarehouseArrangementService::MAX_SOURCE_SLOTS,
-            (int) collect($suggestions)->max(fn (array $s) => count($s['sources'] ?? []))
-        );
 
         $headers = [
             'Master Pcode',
@@ -29,15 +24,11 @@ class WarehouseArrangementExportService
             'Color',
             'Size',
             'SKU Demand',
+            'From Warehouse',
+            'Source Stock',
+            'To Warehouse',
+            'Suggested Qty',
         ];
-
-        for ($i = 1; $i <= $slotCount; $i++) {
-            $headers[] = "Warehouse {$i}";
-            $headers[] = "Stock {$i}";
-        }
-
-        $headers[] = 'To Warehouse';
-        $headers[] = 'Suggested Qty (chosen)';
 
         foreach ($headers as $colIndex => $header) {
             $worksheet->setCellValueByColumnAndRow($colIndex + 1, 1, $header);
@@ -57,13 +48,8 @@ class WarehouseArrangementExportService
             $worksheet->setCellValueByColumnAndRow($col++, $rowNum, $row['warna']);
             $worksheet->setCellValueByColumnAndRow($col++, $rowNum, $row['size']);
             $worksheet->setCellValueByColumnAndRow($col++, $rowNum, $row['item_demand']);
-
-            for ($slot = 0; $slot < $slotCount; $slot++) {
-                $source = $row['sources'][$slot] ?? null;
-                $worksheet->setCellValueByColumnAndRow($col++, $rowNum, $source['from_warehouse_name'] ?? '');
-                $worksheet->setCellValueByColumnAndRow($col++, $rowNum, $source['source_stock'] ?? '');
-            }
-
+            $worksheet->setCellValueByColumnAndRow($col++, $rowNum, $chosen['from_warehouse_name'] ?? '');
+            $worksheet->setCellValueByColumnAndRow($col++, $rowNum, $chosen['source_stock'] ?? '');
             $worksheet->setCellValueByColumnAndRow($col++, $rowNum, $row['to_warehouse_name']);
             $worksheet->setCellValueByColumnAndRow($col++, $rowNum, $chosen['suggested_qty'] ?? '');
             $rowNum++;
@@ -74,8 +60,9 @@ class WarehouseArrangementExportService
         }
 
         $filename = sprintf(
-            'warehouse-arrangement-%s-%dd-%s.xlsx',
+            'warehouse-arrangement-%s-%s-%dd-%s.xlsx',
             \Illuminate\Support\Str::slug($warehouseName),
+            $mode,
             $demandDays,
             now()->format('Y-m-d'),
         );

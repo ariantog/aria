@@ -24,6 +24,18 @@ class WarehouseArrangementController extends Controller
             $demandDays = 365;
         }
 
+        $mode = (string) $request->query('mode', WarehouseArrangementService::MODE_HIGH_DEMAND);
+        if (! in_array($mode, WarehouseArrangementService::validModes(), true)) {
+            $mode = WarehouseArrangementService::MODE_HIGH_DEMAND;
+        }
+
+        $layout = (string) $request->query('layout', WarehouseArrangementService::LAYOUT_FLAT);
+        if (! in_array($layout, WarehouseArrangementService::validLayouts(), true)) {
+            $layout = WarehouseArrangementService::LAYOUT_FLAT;
+        }
+
+        $minDemand = max(1, (int) $request->query('min_demand', 2));
+
         $warehouseId = (int) $request->query('warehouse_id');
         if (! $warehouseId && $destinations->isNotEmpty()) {
             $warehouseId = $destinations->first()->id;
@@ -34,7 +46,15 @@ class WarehouseArrangementController extends Controller
         $totalSuggestionCount = 0;
 
         if ($warehouseId && $destinations->contains('id', $warehouseId)) {
-            $result = $arrangementService->buildSuggestions($warehouseId, $demandDays);
+            $result = $arrangementService->buildSuggestions(
+                $warehouseId,
+                $demandDays,
+                WarehouseArrangementService::UI_MAX_FAMILIES,
+                WarehouseArrangementService::UI_MAX_SUGGESTIONS,
+                $mode,
+                $minDemand,
+                $layout,
+            );
             $truncated = $result['truncated'];
             $totalSuggestionCount = $result['total_suggestion_count'];
         }
@@ -43,14 +63,11 @@ class WarehouseArrangementController extends Controller
             'destinations' => $destinations,
             'selectedWarehouseId' => $warehouseId,
             'demandDays' => $demandDays,
+            'mode' => $result['mode'] ?? $mode,
+            'layout' => $result['layout'] ?? $layout,
+            'minDemand' => $result['min_demand'] ?? $minDemand,
             'families' => $result['families'] ?? [],
             'suggestions' => $result['suggestions'] ?? [],
-            'sourceSlotCount' => $result
-                ? min(
-                    WarehouseArrangementService::MAX_SOURCE_SLOTS,
-                    (int) collect($result['suggestions'])->max(fn (array $s) => count($s['sources'] ?? []))
-                )
-                : 0,
             'destinationName' => $result['destination']->name ?? null,
             'truncated' => $truncated,
             'totalSuggestionCount' => $totalSuggestionCount,
@@ -68,6 +85,13 @@ class WarehouseArrangementController extends Controller
             $demandDays = 365;
         }
 
+        $mode = (string) $request->query('mode', WarehouseArrangementService::MODE_HIGH_DEMAND);
+        if (! in_array($mode, WarehouseArrangementService::validModes(), true)) {
+            $mode = WarehouseArrangementService::MODE_HIGH_DEMAND;
+        }
+
+        $minDemand = max(1, (int) $request->query('min_demand', 2));
+
         abort_unless($warehouseId > 0, 404);
 
         $result = $arrangementService->buildSuggestions(
@@ -75,12 +99,15 @@ class WarehouseArrangementController extends Controller
             $demandDays,
             WarehouseArrangementService::EXPORT_MAX_FAMILIES,
             WarehouseArrangementService::EXPORT_MAX_SUGGESTIONS,
+            $mode,
+            $minDemand,
         );
 
         return $exportService->download(
             $result['suggestions'],
             $result['destination']->name,
             $demandDays,
+            $mode,
         );
     }
 

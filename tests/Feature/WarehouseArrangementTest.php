@@ -62,6 +62,15 @@ it('builds move suggestions for missing skus at arrangement destinations', funct
         'returned_qty' => 0,
     ]);
 
+    WarehouseItemMonthlyStat::create([
+        'warehouse_id' => $destination->id,
+        'item_id' => $missingItem->id,
+        'month' => $now->month,
+        'year' => $now->year,
+        'sold_qty' => 3,
+        'returned_qty' => 0,
+    ]);
+
     $result = app(WarehouseArrangementService::class)->buildSuggestions($destination->id, 365);
 
     expect($result['families'])->not->toBeEmpty();
@@ -94,6 +103,15 @@ it('lists every physical warehouse that holds a missing sku on one row', functio
         'month' => now()->month,
         'year' => now()->year,
         'sold_qty' => 4,
+        'returned_qty' => 0,
+    ]);
+
+    WarehouseItemMonthlyStat::create([
+        'warehouse_id' => $destination->id,
+        'item_id' => $missing->id,
+        'month' => now()->month,
+        'year' => now()->year,
+        'sold_qty' => 2,
         'returned_qty' => 0,
     ]);
 
@@ -137,6 +155,15 @@ it('ignores virtual warehouses and customers as move sources', function () {
         'returned_qty' => 0,
     ]);
 
+    WarehouseItemMonthlyStat::create([
+        'warehouse_id' => $destination->id,
+        'item_id' => $item->id,
+        'month' => now()->month,
+        'year' => now()->year,
+        'sold_qty' => 1,
+        'returned_qty' => 0,
+    ]);
+
     $result = app(WarehouseArrangementService::class)->buildSuggestions($destination->id, 365);
 
     expect($result['suggestions'])->toHaveCount(1);
@@ -173,6 +200,123 @@ it('does not suggest moves when only non-warehouse addrbooks hold stock', functi
     $result = app(WarehouseArrangementService::class)->buildSuggestions($destination->id, 365);
 
     expect($result['suggestions'])->toBeEmpty();
+});
+
+it('does not suggest skus with zero demand at the destination', function () {
+    $source = Addrbook::factory()->warehouse()->create(['name' => 'Source WH']);
+    $destination = Addrbook::factory()->warehouse()->create([
+        'name' => 'Flagship WH',
+        'arrangement_enabled' => true,
+    ]);
+
+    $group = ItemGroup::factory()->create(['master' => 'CX90032', 'variant' => '02']);
+    $soldItem = Item::factory()->create(['group_id' => $group->id, 'type' => ItemType::ITEM, 'code' => 'AJD-CX90032-02-S']);
+    $missingNoDemand = Item::factory()->create(['group_id' => $group->id, 'type' => ItemType::ITEM, 'code' => 'AJD-CX90032-02-M']);
+
+    WarehouseItem::create(['warehouse_id' => $source->id, 'item_id' => $missingNoDemand->id, 'quantity' => 5]);
+    WarehouseItem::create(['warehouse_id' => $destination->id, 'item_id' => $soldItem->id, 'quantity' => 1]);
+
+    WarehouseItemMonthlyStat::create([
+        'warehouse_id' => $destination->id,
+        'item_id' => $soldItem->id,
+        'month' => now()->month,
+        'year' => now()->year,
+        'sold_qty' => 8,
+        'returned_qty' => 0,
+    ]);
+
+    $result = app(WarehouseArrangementService::class)->buildSuggestions(
+        $destination->id,
+        365,
+        mode: WarehouseArrangementService::MODE_HIGH_DEMAND,
+    );
+
+    expect($result['families'])->not->toBeEmpty();
+    expect($result['suggestions'])->toBeEmpty();
+});
+
+it('includes zero-demand missing skus in complete family mode', function () {
+    $source = Addrbook::factory()->warehouse()->create(['name' => 'Source WH']);
+    $destination = Addrbook::factory()->warehouse()->create([
+        'name' => 'Flagship WH',
+        'arrangement_enabled' => true,
+    ]);
+
+    $group = ItemGroup::factory()->create(['master' => 'CX90032', 'variant' => '02']);
+    $soldItem = Item::factory()->create(['group_id' => $group->id, 'type' => ItemType::ITEM, 'code' => 'AJD-CX90032-02-S']);
+    $missingNoDemand = Item::factory()->create(['group_id' => $group->id, 'type' => ItemType::ITEM, 'code' => 'AJD-CX90032-02-M']);
+
+    WarehouseItem::create(['warehouse_id' => $source->id, 'item_id' => $missingNoDemand->id, 'quantity' => 5]);
+    WarehouseItem::create(['warehouse_id' => $destination->id, 'item_id' => $soldItem->id, 'quantity' => 1]);
+
+    WarehouseItemMonthlyStat::create([
+        'warehouse_id' => $destination->id,
+        'item_id' => $soldItem->id,
+        'month' => now()->month,
+        'year' => now()->year,
+        'sold_qty' => 8,
+        'returned_qty' => 0,
+    ]);
+
+    $result = app(WarehouseArrangementService::class)->buildSuggestions(
+        $destination->id,
+        365,
+        mode: WarehouseArrangementService::MODE_COMPLETE_FAMILY,
+    );
+
+    expect($result['suggestions'])->toHaveCount(1);
+    expect($result['suggestions'][0]['item_id'])->toBe($missingNoDemand->id);
+    expect($result['suggestions'][0]['item_demand'])->toBe(0.0);
+});
+
+it('filters by strong demand threshold', function () {
+    $source = Addrbook::factory()->warehouse()->create();
+    $destination = Addrbook::factory()->warehouse()->create(['arrangement_enabled' => true]);
+
+    $group = ItemGroup::factory()->create(['master' => 'CX90033', 'variant' => '02']);
+    $anchor = Item::factory()->create(['group_id' => $group->id, 'type' => ItemType::ITEM, 'code' => 'AJD-CX90033-02-S']);
+    $lowDemand = Item::factory()->create(['group_id' => $group->id, 'type' => ItemType::ITEM, 'code' => 'AJD-CX90033-02-M']);
+    $highDemand = Item::factory()->create(['group_id' => $group->id, 'type' => ItemType::ITEM, 'code' => 'AJD-CX90033-02-L']);
+
+    WarehouseItem::create(['warehouse_id' => $source->id, 'item_id' => $lowDemand->id, 'quantity' => 4]);
+    WarehouseItem::create(['warehouse_id' => $source->id, 'item_id' => $highDemand->id, 'quantity' => 6]);
+    WarehouseItem::create(['warehouse_id' => $destination->id, 'item_id' => $anchor->id, 'quantity' => 1]);
+
+    $now = now();
+    WarehouseItemMonthlyStat::create([
+        'warehouse_id' => $destination->id,
+        'item_id' => $anchor->id,
+        'month' => $now->month,
+        'year' => $now->year,
+        'sold_qty' => 10,
+        'returned_qty' => 0,
+    ]);
+    WarehouseItemMonthlyStat::create([
+        'warehouse_id' => $destination->id,
+        'item_id' => $lowDemand->id,
+        'month' => $now->month,
+        'year' => $now->year,
+        'sold_qty' => 1,
+        'returned_qty' => 0,
+    ]);
+    WarehouseItemMonthlyStat::create([
+        'warehouse_id' => $destination->id,
+        'item_id' => $highDemand->id,
+        'month' => $now->month,
+        'year' => $now->year,
+        'sold_qty' => 5,
+        'returned_qty' => 0,
+    ]);
+
+    $result = app(WarehouseArrangementService::class)->buildSuggestions(
+        $destination->id,
+        365,
+        mode: WarehouseArrangementService::MODE_STRONG_DEMAND,
+        minDemand: 3,
+    );
+
+    expect($result['suggestions'])->toHaveCount(1);
+    expect($result['suggestions'][0]['item_id'])->toBe($highDemand->id);
 });
 
 it('drafts a multi-item move with prefilled form data', function () {
