@@ -22,7 +22,7 @@ class StoreItemTransactionRequest extends FormRequest
             'items.*.item_id' => ['required', 'integer', 'exists:items,id'],
             'items.*.quantity' => ['required', 'numeric', 'min:0.01'],
             'items.*.price' => ['required', 'numeric', 'min:0'],
-            'items.*.discount' => ['nullable', 'numeric', 'min:0'],
+            'items.*.discount' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'items.*.note' => ['nullable', 'string', 'max:1000'],
             'discount_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'adjustment' => ['nullable', 'numeric'],

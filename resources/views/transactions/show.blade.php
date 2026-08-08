@@ -343,7 +343,7 @@
                     <div class="flex items-center justify-between sm:col-span-1 sm:block sm:text-right print:block print:text-right">
                         <span class="text-[10px] font-bold text-gray-500 uppercase sm:hidden print:hidden">Disc</span>
                         @if($detail->discount > 0)
-                            <span class="inline-flex h-5 items-center rounded-md border border-dashed border-red-300 bg-red-50 px-1.5 text-[10px] font-bold text-red-600">-{{ $fmt($detail->discount) }}</span>
+                            <span class="inline-flex h-5 items-center rounded-md border border-dashed border-red-300 bg-red-50 px-1.5 text-[10px] font-bold text-red-600">-{{ number_format((float) $detail->discount, 2, ',', '.') }}%</span>
                         @else
                             <span class="text-gray-400">-</span>
                         @endif
