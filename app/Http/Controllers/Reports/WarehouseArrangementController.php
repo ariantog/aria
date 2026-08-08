@@ -27,8 +27,13 @@ class WarehouseArrangementController extends Controller
         }
 
         $result = null;
+        $truncated = false;
+        $totalSuggestionCount = 0;
+
         if ($warehouseId && $destinations->contains('id', $warehouseId)) {
             $result = $arrangementService->buildSuggestions($warehouseId, $demandDays);
+            $truncated = $result['truncated'];
+            $totalSuggestionCount = $result['total_suggestion_count'];
         }
 
         return view('reports.warehouse-arrangement', [
@@ -38,6 +43,8 @@ class WarehouseArrangementController extends Controller
             'families' => $result['families'] ?? [],
             'suggestions' => $result['suggestions'] ?? [],
             'destinationName' => $result['destination']->name ?? null,
+            'truncated' => $truncated,
+            'totalSuggestionCount' => $totalSuggestionCount,
             'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
     }
@@ -54,7 +61,12 @@ class WarehouseArrangementController extends Controller
 
         abort_unless($warehouseId > 0, 404);
 
-        $result = $arrangementService->buildSuggestions($warehouseId, $demandDays);
+        $result = $arrangementService->buildSuggestions(
+            $warehouseId,
+            $demandDays,
+            WarehouseArrangementService::EXPORT_MAX_FAMILIES,
+            WarehouseArrangementService::EXPORT_MAX_SUGGESTIONS,
+        );
 
         return $exportService->download(
             $result['suggestions'],

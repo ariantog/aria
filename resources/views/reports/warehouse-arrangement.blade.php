@@ -72,6 +72,9 @@ $queryBase = array_filter([
         <div class="rounded-xl border border-gray-200 bg-white p-4">
             <p class="text-sm font-medium text-gray-600">Move suggestions</p>
             <p class="mt-1 text-lg font-bold text-blue-600">{{ count($suggestions) }}</p>
+            @if($truncated ?? false)
+            <p class="mt-1 text-xs text-amber-600">Showing top {{ count($suggestions) }} of {{ $totalSuggestionCount }} — export for more.</p>
+            @endif
         </div>
     </div>
 
