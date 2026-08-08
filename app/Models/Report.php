@@ -22,6 +22,7 @@ class Report
             'view-warehouse-item' => 'report-warehouse-item',
             'view-item-sales' => 'report-item-sales',
             'view-warehouse-arrangement' => 'report-warehouse-arrangement',
+            'view-product-performance' => 'report-product-performance',
         ];
     }
 }

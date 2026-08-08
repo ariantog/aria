@@ -121,7 +121,7 @@ class LegacyAclMapper
             self::BORONGAN => $this->mapBorongan($action),
             self::PRODUKSI => $this->mapProduksi($action),
             self::SETORAN => $this->mapSetoran($action),
-            self::CONTRIBUTORS => ['items-contributor'],
+            self::CONTRIBUTORS => ['report-product-performance'],
             self::HIDE => $this->mapHide($action),
             self::TRANSACTION_FILTERS => ['transactions-list'],
             self::VITEM => $this->mapItems($action),
