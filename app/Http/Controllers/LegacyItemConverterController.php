@@ -25,9 +25,10 @@ class LegacyItemConverterController extends Controller
         $itemType = ItemType::tryFrom((int) $request->query('type', ItemType::ASSET_LANCAR->value))
             ?? ItemType::ASSET_LANCAR;
 
-        $pendingCount = $this->converterService->eligibleQuery($itemType)->count();
+        $pendingCount = $this->converterService->countEligible($itemType);
         $uselessCount = $this->converterService->uselessQuery($itemType)->count();
         $superOldCount = $this->converterService->superOldQuery($itemType)->count();
+        $unparseableCount = $this->converterService->countStructurallyUnparseable($itemType);
         $latestRun = ItemIdentityConversionRun::query()
             ->where('item_type', $itemType)
             ->latest('id')
@@ -45,6 +46,7 @@ class LegacyItemConverterController extends Controller
             'pendingCount' => $pendingCount,
             'uselessCount' => $uselessCount,
             'superOldCount' => $superOldCount,
+            'unparseableCount' => $unparseableCount,
             'latestRun' => $latestRun,
             'dataList' => $data,
             'batchSize' => LegacyItemConverterService::DEFAULT_BATCH_SIZE,
@@ -106,8 +108,7 @@ class LegacyItemConverterController extends Controller
     protected function pendingItems(ItemType $itemType)
     {
         return $this->converterService
-            ->eligibleQuery($itemType)
-            ->paginate(50)
+            ->paginateEligible($itemType, 50)
             ->withQueryString();
     }
 

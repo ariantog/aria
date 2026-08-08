@@ -10,6 +10,7 @@ use App\Models\ItemIdentityConversionRun;
 use App\Models\Tag;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -49,7 +50,7 @@ class LegacyItemConverterService
             ->whereNotExists($this->transactionDetailSinceSubquery(now()->subYears(2)));
     }
 
-    public function eligibleQuery(ItemType $itemType): Builder
+    public function candidateQuery(ItemType $itemType): Builder
     {
         return $this->baseQuery($itemType)
             ->with(['tags', 'group'])
@@ -64,6 +65,123 @@ class LegacyItemConverterService
                     ->where('item_identity_conversion_results.status', ItemIdentityConversionResult::STATUS_SUCCESS);
             })
             ->orderBy('id');
+    }
+
+    /** @deprecated Use candidateQuery() or countEligible() */
+    public function eligibleQuery(ItemType $itemType): Builder
+    {
+        return $this->candidateQuery($itemType);
+    }
+
+    public function isStructurallyEligible(Item $item, ?LegacyItemIdentityParser $parser = null): bool
+    {
+        $parser ??= $this->makeParser();
+
+        return $parser->hasMinimumIdentityStructure((string) $item->code, $item->type);
+    }
+
+    public function countEligible(ItemType $itemType): int
+    {
+        $parser = $this->makeParser();
+        $count = 0;
+
+        $this->candidateQuery($itemType)
+            ->select(['items.id', 'items.code', 'items.type'])
+            ->chunkById(500, function ($items) use ($parser, $itemType, &$count) {
+                foreach ($items as $item) {
+                    if ($parser->hasMinimumIdentityStructure((string) $item->code, $itemType)) {
+                        $count++;
+                    }
+                }
+            });
+
+        return $count;
+    }
+
+    public function countStructurallyUnparseable(ItemType $itemType): int
+    {
+        $parser = $this->makeParser();
+        $count = 0;
+
+        $this->candidateQuery($itemType)
+            ->select(['items.id', 'items.code', 'items.type'])
+            ->chunkById(500, function ($items) use ($parser, $itemType, &$count) {
+                foreach ($items as $item) {
+                    if (! $parser->hasMinimumIdentityStructure((string) $item->code, $itemType)) {
+                        $count++;
+                    }
+                }
+            });
+
+        return $count;
+    }
+
+    public function paginateEligible(ItemType $itemType, int $perPage = 50): LengthAwarePaginator
+    {
+        $parser = $this->makeParser();
+        $page = max(1, (int) request()->query('page', 1));
+        $total = $this->countEligible($itemType);
+        $start = ($page - 1) * $perPage;
+        $eligibleIndex = 0;
+        $pageItems = collect();
+
+        $this->candidateQuery($itemType)->chunkById(200, function ($items) use (
+            $parser,
+            $itemType,
+            $start,
+            $perPage,
+            &$eligibleIndex,
+            &$pageItems,
+        ) {
+            foreach ($items as $item) {
+                if (! $parser->hasMinimumIdentityStructure((string) $item->code, $itemType)) {
+                    continue;
+                }
+
+                if ($eligibleIndex >= $start && $pageItems->count() < $perPage) {
+                    $pageItems->push($item);
+                }
+
+                $eligibleIndex++;
+            }
+
+            return $pageItems->count() < $perPage;
+        });
+
+        return new LengthAwarePaginator(
+            $pageItems,
+            $total,
+            $perPage,
+            $page,
+            ['path' => request()->url(), 'query' => request()->query()],
+        );
+    }
+
+    /**
+     * @return Collection<int, Item>
+     */
+    public function nextEligibleBatch(ItemType $itemType, int $limit = self::DEFAULT_BATCH_SIZE): Collection
+    {
+        $parser = $this->makeParser();
+        $batch = collect();
+
+        $this->candidateQuery($itemType)->chunkById(200, function ($items) use ($parser, $itemType, $limit, &$batch) {
+            foreach ($items as $item) {
+                if (! $parser->hasMinimumIdentityStructure((string) $item->code, $itemType)) {
+                    continue;
+                }
+
+                $batch->push($item);
+
+                if ($batch->count() >= $limit) {
+                    return false;
+                }
+            }
+
+            return $batch->count() < $limit;
+        });
+
+        return $batch;
     }
 
     public function deleteUselessBatch(ItemType $itemType, int $limit = self::DEFAULT_BATCH_SIZE): int
@@ -123,7 +241,7 @@ class LegacyItemConverterService
     public function previewBatch(ItemType $itemType, int $limit = self::DEFAULT_BATCH_SIZE): Collection
     {
         $parser = $this->makeParser();
-        $items = $this->eligibleQuery($itemType)->limit($limit)->get();
+        $items = $this->nextEligibleBatch($itemType, $limit);
 
         return $items->map(fn (Item $item) => [
             'item' => $item,
@@ -142,7 +260,7 @@ class LegacyItemConverterService
         ]);
 
         $parser = $this->makeParser();
-        $items = $this->eligibleQuery($itemType)->limit($limit)->get();
+        $items = $this->nextEligibleBatch($itemType, $limit);
 
         foreach ($items as $item) {
             $this->convertItem($item, $run, $parser, $dryRun);

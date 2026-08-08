@@ -53,7 +53,7 @@
 
     <div class="rounded-xl border border-amber-200 bg-amber-50 p-4">
         <h3 class="text-sm font-semibold text-amber-900">Prep — shrink the queue</h3>
-        <dl class="mt-2 grid gap-2 text-sm text-amber-900 sm:grid-cols-2">
+        <dl class="mt-2 grid gap-2 text-sm text-amber-900 sm:grid-cols-2 lg:grid-cols-3">
             <div>
                 <dt class="font-medium">Useless SKUs (hard delete)</dt>
                 <dd class="text-amber-800">{{ number_format($uselessCount) }} — created &gt;1 year ago, never in any transaction</dd>
@@ -61,6 +61,10 @@
             <div>
                 <dt class="font-medium">Super-old (excluded)</dt>
                 <dd class="text-amber-800">{{ number_format($superOldCount) }} — created &gt;5 years ago, no transactions in last 2 years</dd>
+            </div>
+            <div>
+                <dt class="font-medium">Unparseable structure (excluded)</dt>
+                <dd class="text-amber-800">{{ number_format($unparseableCount) }} — missing PCODE-COLOR (asset) or TYPE-PCODE (manufactured), e.g. HANGER-01</dd>
             </div>
         </dl>
         @if($uselessCount > 0)

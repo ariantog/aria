@@ -129,6 +129,95 @@ class LegacyItemIdentityParser
         return null;
     }
 
+    /**
+     * Fast structural gate before batch conversion.
+     * Asset lancar: PCODE-COLOR minimum (e.g. GLOVE-01-BLACK, not HANGER-01 or ECOFEET-13-SM).
+     * Manufactured: TYPE-PCODE minimum (hyphenated) or glue-code regex.
+     */
+    public function hasMinimumIdentityStructure(string $code, ItemType $type): bool
+    {
+        $code = strtoupper(trim($code));
+
+        if ($code === '') {
+            return false;
+        }
+
+        return match ($type) {
+            ItemType::ASSET_LANCAR => $this->assetHasMinimumStructure($code),
+            ItemType::ITEM => $this->manufacturedHasMinimumStructure($code),
+            default => false,
+        };
+    }
+
+    protected function assetHasMinimumStructure(string $code): bool
+    {
+        $segments = explode('-', $code);
+
+        if (count($segments) < 3) {
+            return false;
+        }
+
+        $pcode = $segments[0].'-'.$segments[1];
+
+        try {
+            $this->identityBuilder->validatePcode(ItemType::ASSET_LANCAR, $pcode);
+        } catch (InvalidArgumentException) {
+            return false;
+        }
+
+        $prefix = $segments[0].'-'.$segments[1].'-';
+        $remainder = substr($code, strlen($prefix));
+
+        if ($remainder === false || $remainder === '') {
+            return false;
+        }
+
+        $sizeTag = $this->matchSizeFromSuffix($remainder);
+        $warna = $this->extractWarnaFromRemainder($remainder, $sizeTag);
+
+        return $warna !== '';
+    }
+
+    protected function manufacturedHasMinimumStructure(string $code): bool
+    {
+        if (! str_contains($code, '-')) {
+            return (bool) preg_match('/^([A-Z]{2,3})([A-Z]{2}[0-9]{5})([0-9]{2,3})(.+)?$/', $code);
+        }
+
+        $segments = explode('-', $code);
+
+        if (count($segments) < 3) {
+            return false;
+        }
+
+        $typeCode = $segments[0];
+
+        if (! preg_match('/^[A-Z]{2,3}$/', $typeCode) || ! $this->typeTagsByCode->has($typeCode)) {
+            return false;
+        }
+
+        $tail = $segments[count($segments) - 1];
+        $sizeTag = $this->matchSizeFromSuffix($tail);
+
+        if ($sizeTag && strtoupper((string) $sizeTag->code) === strtoupper($tail)) {
+            $pcode = implode('-', array_slice($segments, 1, -1));
+        } else {
+            $pcode = implode('-', array_slice($segments, 1));
+        }
+
+        if ($pcode === '') {
+            return false;
+        }
+
+        try {
+            $this->identityBuilder->validatePcode(ItemType::ITEM, $pcode);
+        } catch (InvalidArgumentException) {
+            return false;
+        }
+
+        return true;
+    }
+
     protected function parseAsset(Item $item, string $code): LegacyParseResult
     {
         $segments = explode('-', $code);
