@@ -9,6 +9,7 @@ use App\Models\TransactionDetail;
 use App\Models\User;
 use App\Services\Items\ItemIdentityBuilder;
 use App\Services\Items\LegacyItemConverterService;
+use App\Services\Items\LegacyItemIdentityParser;
 
 beforeEach(function () {
     $this->user = User::factory()->create();
@@ -90,8 +91,8 @@ it('records failure_code for unparseable manufactured items', function () {
     Item::factory()->create([
         'type' => ItemType::ITEM,
         'group_id' => null,
-        'code' => 'NOT-A-VALID-SKU',
-        'pcode' => 'INVALID',
+        'code' => 'AJJ-PL25129-06',
+        'pcode' => 'PL25129-06',
     ]);
 
     $run = $this->service->runBatch(ItemType::ITEM, $this->user);
@@ -101,7 +102,7 @@ it('records failure_code for unparseable manufactured items', function () {
     $result = ItemIdentityConversionResult::query()->where('run_id', $run->id)->first();
 
     expect($result->status)->toBe(ItemIdentityConversionResult::STATUS_FAILED)
-        ->and($result->failure_code)->not->toBeNull();
+        ->and($result->failure_code)->toBe(LegacyItemIdentityParser::FAILURE_COLOR_NOT_FOUND);
 });
 
 it('renders legacy converter page for superadmin', function () {
@@ -132,26 +133,26 @@ it('allows reviewing failed tab while pending items remain', function () {
     Item::factory()->create([
         'type' => ItemType::ITEM,
         'group_id' => null,
-        'code' => 'BADCODE',
-        'pcode' => 'INVALID',
+        'code' => 'AJJ-PL25129-06',
+        'pcode' => 'PL25129-06',
     ]);
 
     Item::factory()->create([
         'type' => ItemType::ITEM,
         'group_id' => null,
-        'code' => 'ALSO-BAD',
-        'pcode' => 'INVALID',
+        'code' => 'AJJ-PL25130-07',
+        'pcode' => 'PL25130-07',
     ]);
 
     $run = $this->service->runBatch(ItemType::ITEM, $this->user, limit: 1);
 
     expect($run->failed_count)->toBe(1)
-        ->and($this->service->eligibleQuery(ItemType::ITEM)->count())->toBe(2);
+        ->and($this->service->countEligible(ItemType::ITEM))->toBe(2);
 
     $this->actingAs($this->user)
         ->get(route('items.legacy-converter', ['tab' => 'failed', 'type' => ItemType::ITEM->value]))
         ->assertOk()
-        ->assertSee('SKU_UNPARSEABLE', false);
+        ->assertSee('COLOR_NOT_FOUND', false);
 });
 
 it('hard deletes useless skus older than one year with no transactions', function () {
@@ -189,8 +190,8 @@ it('excludes super old skus with no recent transactions from conversion queue', 
     $superOld = Item::factory()->create([
         'type' => ItemType::ITEM,
         'group_id' => null,
-        'code' => 'ANCIENT-SKU',
-        'pcode' => 'INVALID',
+        'code' => 'AJJ-PL25129-06',
+        'pcode' => 'PL25129-06',
         'created_at' => now()->subYears(6),
     ]);
 
@@ -207,8 +208,8 @@ it('excludes super old skus with no recent transactions from conversion queue', 
     $recent = Item::factory()->create([
         'type' => ItemType::ITEM,
         'group_id' => null,
-        'code' => 'RECENT-ACTIVITY',
-        'pcode' => 'INVALID',
+        'code' => 'AJJ-PL25130-07',
+        'pcode' => 'PL25130-07',
         'created_at' => now()->subYears(6),
     ]);
 
@@ -222,9 +223,44 @@ it('excludes super old skus with no recent transactions from conversion queue', 
         'date' => now()->subYear()->toDateString(),
     ]);
 
-    expect($this->service->eligibleQuery(ItemType::ITEM)->pluck('id')->all())
-        ->toContain($recent->id)
+    expect($this->service->countEligible(ItemType::ITEM))->toBe(1);
+
+    $batch = $this->service->nextEligibleBatch(ItemType::ITEM, 10);
+
+    expect($batch->pluck('id')->all())->toContain($recent->id)
         ->not->toContain($superOld->id);
+});
+
+it('excludes structurally unparseable skus from the conversion queue', function () {
+    Item::factory()->create([
+        'type' => ItemType::ASSET_LANCAR,
+        'group_id' => null,
+        'code' => 'HANGER-01',
+    ]);
+
+    Item::factory()->create([
+        'type' => ItemType::ASSET_LANCAR,
+        'group_id' => null,
+        'code' => 'ECOFEET-13-SM',
+        'pcode' => 'ECOFEET-13',
+    ]);
+
+    Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'SM', 'name' => 'SM']);
+
+    Item::factory()->create([
+        'type' => ItemType::ASSET_LANCAR,
+        'group_id' => null,
+        'code' => 'GLOVE-01-BLACK-S',
+        'pcode' => 'GLOVE-01',
+    ]);
+
+    expect($this->service->countEligible(ItemType::ASSET_LANCAR))->toBe(1)
+        ->and($this->service->countStructurallyUnparseable(ItemType::ASSET_LANCAR))->toBe(2);
+
+    $batch = $this->service->nextEligibleBatch(ItemType::ASSET_LANCAR, 10);
+
+    expect($batch)->toHaveCount(1)
+        ->and($batch->first()->code)->toBe('GLOVE-01-BLACK-S');
 });
 
 it('purges useless skus via controller action', function () {

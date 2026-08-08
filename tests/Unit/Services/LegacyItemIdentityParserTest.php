@@ -17,6 +17,7 @@ beforeEach(function () {
         Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'XL', 'name' => 'XL']),
         Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => '14OZ', 'name' => '14OZ']),
         Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => '3M', 'name' => '3M']),
+        Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'SM', 'name' => 'SM']),
         Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'AS', 'name' => 'All Size']),
     ]);
 
@@ -157,6 +158,32 @@ describe('manufactured glue fixture §4.5', function () {
 
         expect($result->success)->toBeTrue()
             ->and($result->canonicalCode)->toBe('AJJ-PL25129-06-XL');
+    });
+});
+
+describe('minimum identity structure', function () {
+    it('rejects asset codes without a color segment', function () {
+        expect($this->parser->hasMinimumIdentityStructure('HANGER-01', ItemType::ASSET_LANCAR))->toBeFalse();
+    });
+
+    it('rejects asset codes with only a size suffix and no color', function () {
+        expect($this->parser->hasMinimumIdentityStructure('ECOFEET-13-SM', ItemType::ASSET_LANCAR))->toBeFalse();
+    });
+
+    it('accepts asset codes with pcode color and optional size', function () {
+        expect($this->parser->hasMinimumIdentityStructure('GLOVE-01-BLACK-S', ItemType::ASSET_LANCAR))->toBeTrue();
+    });
+
+    it('accepts manufactured hyphenated type and pcode', function () {
+        expect($this->parser->hasMinimumIdentityStructure('AJJ-PL25129-06-XL', ItemType::ITEM))->toBeTrue();
+    });
+
+    it('rejects manufactured codes without type and pcode segments', function () {
+        expect($this->parser->hasMinimumIdentityStructure('HANGER-01', ItemType::ITEM))->toBeFalse();
+    });
+
+    it('accepts manufactured glue codes', function () {
+        expect($this->parser->hasMinimumIdentityStructure('AJJPL2512906XL', ItemType::ITEM))->toBeTrue();
     });
 });
 
