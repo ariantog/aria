@@ -99,6 +99,11 @@ class WarehouseArrangementController extends Controller
             }
         }
 
+        $draftItemIds = collect($validated['items'])->pluck('item_id')->map(fn ($id) => (int) $id);
+        if ($draftItemIds->unique()->count() !== $draftItemIds->count()) {
+            return back()->with('error', 'Each SKU can only be selected once. Pick one source warehouse per item.');
+        }
+
         $from = Addrbook::query()
             ->where('type', AddrbookType::Warehouse)
             ->findOrFail($fromId);

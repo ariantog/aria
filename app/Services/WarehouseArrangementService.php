@@ -123,13 +123,7 @@ class WarehouseArrangementService
                 ->orderByDesc('wi.quantity')
                 ->get(['wi.warehouse_id', 'wi.item_id', 'wi.quantity', 'a.name as warehouse_name']);
 
-            $bestSource = [];
-            foreach ($sourceStock as $row) {
-                $itemId = (int) $row->item_id;
-                if (! isset($bestSource[$itemId])) {
-                    $bestSource[$itemId] = $row;
-                }
-            }
+            $sourcesByItem = $sourceStock->groupBy(fn ($row) => (int) $row->item_id);
 
             $itemDemand = DB::table('warehouse_item_monthly_stats')
                 ->where('warehouse_id', $destinationWarehouseId)
@@ -147,41 +141,44 @@ class WarehouseArrangementService
                     continue;
                 }
 
-                $source = $bestSource[$itemId] ?? null;
-                if (! $source) {
+                $sources = $sourcesByItem->get($itemId, collect());
+                if ($sources->isEmpty()) {
                     continue;
                 }
 
-                $totalSuggestionCount++;
-
-                if (count($suggestions) >= $maxSuggestions) {
-                    $truncated = true;
-                    continue;
-                }
-
-                $bestSourceStock = (float) $source->quantity;
                 $itemDemandVal = max(0.0, (float) ($itemDemand[$itemId] ?? 0));
-                $fromId = (int) $source->warehouse_id;
-                $fromName = $source->warehouse_name ?? 'Unknown';
 
-                $suggestions[] = [
-                    'master' => $master,
-                    'master_name' => $familyMeta['name'],
-                    'family_demand_score' => $familyMeta['demand_score'],
-                    'completeness_pct' => $familyMeta['completeness_pct'],
-                    'item_id' => $itemId,
-                    'item_code' => $item->code,
-                    'item_name' => $item->name,
-                    'warna' => $warnaByItem[$itemId] ?? '-',
-                    'size' => $sizeCodes[$item->size] ?? '-',
-                    'item_demand' => $itemDemandVal,
-                    'from_warehouse_id' => $fromId,
-                    'from_warehouse_name' => $fromName,
-                    'to_warehouse_id' => $destinationWarehouseId,
-                    'to_warehouse_name' => $destination->name,
-                    'source_stock' => (int) $bestSourceStock,
-                    'suggested_qty' => max(1, min((int) $bestSourceStock, (int) ceil($itemDemandVal) ?: 1)),
-                ];
+                foreach ($sources as $source) {
+                    $totalSuggestionCount++;
+
+                    if (count($suggestions) >= $maxSuggestions) {
+                        $truncated = true;
+                        continue;
+                    }
+
+                    $sourceStockQty = (float) $source->quantity;
+                    $fromId = (int) $source->warehouse_id;
+                    $fromName = $source->warehouse_name ?? 'Unknown';
+
+                    $suggestions[] = [
+                        'master' => $master,
+                        'master_name' => $familyMeta['name'],
+                        'family_demand_score' => $familyMeta['demand_score'],
+                        'completeness_pct' => $familyMeta['completeness_pct'],
+                        'item_id' => $itemId,
+                        'item_code' => $item->code,
+                        'item_name' => $item->name,
+                        'warna' => $warnaByItem[$itemId] ?? '-',
+                        'size' => $sizeCodes[$item->size] ?? '-',
+                        'item_demand' => $itemDemandVal,
+                        'from_warehouse_id' => $fromId,
+                        'from_warehouse_name' => $fromName,
+                        'to_warehouse_id' => $destinationWarehouseId,
+                        'to_warehouse_name' => $destination->name,
+                        'source_stock' => (int) $sourceStockQty,
+                        'suggested_qty' => max(1, min((int) $sourceStockQty, (int) ceil($itemDemandVal) ?: 1)),
+                    ];
+                }
             }
         }
 
