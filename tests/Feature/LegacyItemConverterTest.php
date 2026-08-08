@@ -105,11 +105,19 @@ it('records failure_code for unparseable manufactured items', function () {
 });
 
 it('renders legacy converter page for superadmin', function () {
+    $asset = Item::factory()->create([
+        'type' => ItemType::ASSET_LANCAR,
+        'group_id' => null,
+        'code' => 'LINK-TEST-ASSET',
+    ]);
+
     $this->actingAs($this->user)
-        ->get(route('items.legacy-converter'))
+        ->get(route('items.legacy-converter', ['type' => ItemType::ASSET_LANCAR->value]))
         ->assertOk()
         ->assertSee('Legacy Item Identity Converter', false)
-        ->assertSee('Failed', false);
+        ->assertSee('Failed', false)
+        ->assertSee(route('assetlancar.show', $asset), false)
+        ->assertSee('LINK-TEST-ASSET', false);
 });
 
 it('forbids legacy converter for non-superadmin without permission', function () {
