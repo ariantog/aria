@@ -40,6 +40,30 @@
         <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ $flash['error'] }}</div>
     @endif
 
+    <div class="rounded-xl border border-amber-200 bg-amber-50 p-4">
+        <h3 class="text-sm font-semibold text-amber-900">Prep — shrink the queue</h3>
+        <dl class="mt-2 grid gap-2 text-sm text-amber-900 sm:grid-cols-2">
+            <div>
+                <dt class="font-medium">Useless SKUs (hard delete)</dt>
+                <dd class="text-amber-800">{{ number_format($uselessCount) }} — created &gt;1 year ago, never in any transaction</dd>
+            </div>
+            <div>
+                <dt class="font-medium">Super-old (excluded)</dt>
+                <dd class="text-amber-800">{{ number_format($superOldCount) }} — created &gt;5 years ago, no transactions in last 2 years</dd>
+            </div>
+        </dl>
+        @if($uselessCount > 0)
+        <form method="POST" action="{{ route('items.legacy-converter.purge-useless') }}" class="mt-3"
+              onsubmit="return confirm('Permanently delete up to {{ number_format($batchSize) }} useless {{ strtolower($typeLabel) }} SKUs? This cannot be undone.');">
+            @csrf
+            <input type="hidden" name="type" value="{{ $itemType->value }}">
+            <button type="submit" class="rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50">
+                Delete useless batch ({{ number_format(min($uselessCount, $batchSize)) }})
+            </button>
+        </form>
+        @endif
+    </div>
+
     <div class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white p-3">
         <div class="flex flex-wrap gap-1">
             @foreach($tabs as $key => $label)
