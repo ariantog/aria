@@ -12,11 +12,18 @@ $firstGroup = $groupList->first() ?? 'General';
 @endphp
 
 <div class="flex flex-col gap-4 p-3 sm:p-4" x-data="{ activeGroup: @js($firstGroup) }">
-    <div class="flex flex-col items-start justify-between gap-2 sm:flex-row sm:items-center">
+        <div class="flex flex-col items-start justify-between gap-2 sm:flex-row sm:items-center">
         <div>
             <h2 class="text-2xl font-bold tracking-tight text-gray-900">System Settings</h2>
             <p class="mt-0.5 text-sm text-gray-500">Configure application wide settings and parameters.</p>
         </div>
+        <div class="flex flex-wrap gap-2">
+        @if($can['edit'])
+        <a href="{{ route('invoice-settings.edit') }}"
+           class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+            Invoice Branding
+        </a>
+        @endif
         @if($can['create'])
         <a href="{{ route('system-settings.create') }}"
            class="inline-flex items-center gap-1.5 rounded-lg bg-blue-700 px-4 py-2 text-sm font-medium text-white hover:bg-blue-800">
@@ -24,6 +31,7 @@ $firstGroup = $groupList->first() ?? 'General';
             Add New Setting
         </a>
         @endif
+        </div>
     </div>
 
     <div class="flex flex-col gap-6 lg:flex-row">

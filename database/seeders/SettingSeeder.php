@@ -66,6 +66,24 @@ class SettingSeeder extends Seeder
                 'slug' => 'restock.default_warehouse_ids',
                 'value' => [],
             ],
+            [
+                'group' => 'Invoice',
+                'name' => 'Invoice Company Name',
+                'slug' => 'invoice_company_name',
+                'value' => 'CORENATION',
+            ],
+            [
+                'group' => 'Invoice',
+                'name' => 'Invoice Address',
+                'slug' => 'invoice_address',
+                'value' => 'CILANDAK TOWN SQUARE no.171',
+            ],
+            [
+                'group' => 'Invoice',
+                'name' => 'Invoice Phone',
+                'slug' => 'invoice_phone',
+                'value' => '082244226656',
+            ],
         ];
 
         foreach ($settings as $setting) {

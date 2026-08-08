@@ -59,6 +59,56 @@ it('renders the dot matrix print page', function () {
         ->assertSee('css/print.css', false);
 });
 
+it('shows save to pdf on transaction detail when no pdf exists', function () {
+    $transaction = Transaction::factory()->create(['invoice_number' => 'PDF-NEW']);
+
+    $this->actingAs($this->user)
+        ->get(route('transactions.show', $transaction))
+        ->assertOk()
+        ->assertSee('Save to PDF', false)
+        ->assertDontSee('View PDF', false);
+});
+
+it('shows view pdf on transaction detail when pdf already exists', function () {
+    $transaction = Transaction::factory()->create(['invoice_number' => 'PDF-EXISTS']);
+    $filePath = app(TransactionInvoiceService::class)->invoiceDiskPath('invoice_'.$transaction->id.'.pdf');
+    File::put($filePath, '%PDF-1.4 fake');
+
+    $this->actingAs($this->user)
+        ->get(route('transactions.show', $transaction))
+        ->assertOk()
+        ->assertSee('View PDF', false)
+        ->assertSee('https://invoice.test/invoice_'.$transaction->id.'.pdf', false)
+        ->assertDontSee('Save to PDF', false);
+});
+
+it('creates invoice pdf via save to pdf and shows view pdf', function () {
+    $transaction = Transaction::factory()->create([
+        'invoice_number' => 'PDF-SAVE',
+        'grand_total' => 25_000,
+        'total' => 25_000,
+    ]);
+    TransactionDetail::factory()->create([
+        'transaction_id' => $transaction->id,
+        'quantity' => 1,
+        'price' => 25_000,
+        'total' => 25_000,
+    ]);
+
+    $this->actingAs($this->user)
+        ->post(route('transactions.pdf.store', $transaction))
+        ->assertRedirect(route('transactions.show', $transaction));
+
+    $filePath = app(TransactionInvoiceService::class)->invoiceDiskPath('invoice_'.$transaction->id.'.pdf');
+    expect(File::exists($filePath))->toBeTrue();
+
+    $this->actingAs($this->user)
+        ->get(route('transactions.show', $transaction))
+        ->assertOk()
+        ->assertSee('View PDF', false)
+        ->assertDontSee('Save to PDF', false);
+});
+
 it('generates invoice pdf and redirects to whatsapp with cdn link', function () {
     $transaction = Transaction::factory()->create([
         'invoice_number' => 'WA-001',
@@ -82,6 +132,23 @@ it('generates invoice pdf and redirects to whatsapp with cdn link', function () 
         ->toContain(urlencode('https://invoice.test/invoice_'.$transaction->id.'.pdf'));
 
     expect(File::exists(app(TransactionInvoiceService::class)->invoiceDiskPath('invoice_'.$transaction->id.'.pdf')))->toBeTrue();
+});
+
+it('reuses existing pdf for whatsapp without regenerating', function () {
+    $transaction = Transaction::factory()->create(['invoice_number' => 'WA-EXIST']);
+    $service = app(TransactionInvoiceService::class);
+    $filePath = $service->invoiceDiskPath('invoice_'.$transaction->id.'.pdf');
+    File::put($filePath, '%PDF-1.4 existing');
+    $mtimeBefore = File::lastModified($filePath);
+
+    sleep(1);
+
+    $response = $this->actingAs($this->user)->post(route('transactions.whatsapp', $transaction), [
+        'phone' => '62812244226656',
+    ]);
+
+    $response->assertRedirect();
+    expect(File::lastModified($filePath))->toBe($mtimeBefore);
 });
 
 it('paginates the transactions index with per_page 100 by default', function () {
