@@ -67,12 +67,12 @@ it('builds move suggestions for missing skus at arrangement destinations', funct
     expect($result['families'])->not->toBeEmpty();
     expect($result['suggestions'])->toHaveCount(1);
     expect($result['suggestions'][0]['item_id'])->toBe($missingItem->id);
-    expect($result['suggestions'][0]['from_warehouse_id'])->toBe($source->id);
+    expect($result['suggestions'][0]['sources'][0]['from_warehouse_id'])->toBe($source->id);
     expect($result['suggestions'][0]['to_warehouse_id'])->toBe($destination->id);
-    expect($result['suggestions'][0]['from_warehouse_name'])->toBe('Source WH');
+    expect($result['suggestions'][0]['sources'][0]['from_warehouse_name'])->toBe('Source WH');
 });
 
-it('lists every physical warehouse that holds a missing sku', function () {
+it('lists every physical warehouse that holds a missing sku on one row', function () {
     $sourceA = Addrbook::factory()->warehouse()->create(['name' => 'WH Alpha']);
     $sourceB = Addrbook::factory()->warehouse()->create(['name' => 'WH Beta']);
     $destination = Addrbook::factory()->warehouse()->create([
@@ -99,9 +99,12 @@ it('lists every physical warehouse that holds a missing sku', function () {
 
     $result = app(WarehouseArrangementService::class)->buildSuggestions($destination->id, 365);
 
-    expect($result['suggestions'])->toHaveCount(2);
-    expect(collect($result['suggestions'])->pluck('from_warehouse_id')->all())
+    expect($result['suggestions'])->toHaveCount(1);
+    expect($result['suggestions'][0]['sources'])->toHaveCount(2);
+    expect(collect($result['suggestions'][0]['sources'])->pluck('from_warehouse_id')->all())
         ->toEqualCanonicalizing([$sourceA->id, $sourceB->id]);
+    expect($result['suggestions'][0]['sources'][0]['source_stock'])
+        ->toBeGreaterThan($result['suggestions'][0]['sources'][1]['source_stock']);
 });
 
 it('ignores virtual warehouses and customers as move sources', function () {
@@ -137,8 +140,8 @@ it('ignores virtual warehouses and customers as move sources', function () {
     $result = app(WarehouseArrangementService::class)->buildSuggestions($destination->id, 365);
 
     expect($result['suggestions'])->toHaveCount(1);
-    expect($result['suggestions'][0]['from_warehouse_id'])->toBe($realSource->id);
-    expect($result['suggestions'][0]['from_warehouse_name'])->toBe('Real WH');
+    expect($result['suggestions'][0]['sources'][0]['from_warehouse_id'])->toBe($realSource->id);
+    expect($result['suggestions'][0]['sources'][0]['from_warehouse_name'])->toBe('Real WH');
 });
 
 it('does not suggest moves when only non-warehouse addrbooks hold stock', function () {

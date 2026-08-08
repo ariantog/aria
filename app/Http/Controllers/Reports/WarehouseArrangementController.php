@@ -45,6 +45,12 @@ class WarehouseArrangementController extends Controller
             'demandDays' => $demandDays,
             'families' => $result['families'] ?? [],
             'suggestions' => $result['suggestions'] ?? [],
+            'sourceSlotCount' => $result
+                ? min(
+                    WarehouseArrangementService::MAX_SOURCE_SLOTS,
+                    (int) collect($result['suggestions'])->max(fn (array $s) => count($s['sources'] ?? []))
+                )
+                : 0,
             'destinationName' => $result['destination']->name ?? null,
             'truncated' => $truncated,
             'totalSuggestionCount' => $totalSuggestionCount,

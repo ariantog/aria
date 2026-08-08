@@ -14,6 +14,11 @@ class WarehouseArrangementExportService
         $worksheet = $spreadsheet->getActiveSheet();
         $worksheet->setTitle('Arrangement');
 
+        $slotCount = min(
+            WarehouseArrangementService::MAX_SOURCE_SLOTS,
+            (int) collect($suggestions)->max(fn (array $s) => count($s['sources'] ?? []))
+        );
+
         $headers = [
             'Master Pcode',
             'Product Name',
@@ -24,11 +29,15 @@ class WarehouseArrangementExportService
             'Color',
             'Size',
             'SKU Demand',
-            'From Warehouse',
-            'To Warehouse',
-            'Source Stock',
-            'Suggested Qty',
         ];
+
+        for ($i = 1; $i <= $slotCount; $i++) {
+            $headers[] = "Warehouse {$i}";
+            $headers[] = "Stock {$i}";
+        }
+
+        $headers[] = 'To Warehouse';
+        $headers[] = 'Suggested Qty (chosen)';
 
         foreach ($headers as $colIndex => $header) {
             $worksheet->setCellValueByColumnAndRow($colIndex + 1, 1, $header);
@@ -37,19 +46,26 @@ class WarehouseArrangementExportService
 
         $rowNum = 2;
         foreach ($suggestions as $row) {
-            $worksheet->setCellValueByColumnAndRow(1, $rowNum, $row['master']);
-            $worksheet->setCellValueByColumnAndRow(2, $rowNum, $row['master_name']);
-            $worksheet->setCellValueByColumnAndRow(3, $rowNum, $row['family_demand_score']);
-            $worksheet->setCellValueByColumnAndRow(4, $rowNum, $row['completeness_pct']);
-            $worksheet->setCellValueByColumnAndRow(5, $rowNum, $row['item_code']);
-            $worksheet->setCellValueByColumnAndRow(6, $rowNum, $row['item_name']);
-            $worksheet->setCellValueByColumnAndRow(7, $rowNum, $row['warna']);
-            $worksheet->setCellValueByColumnAndRow(8, $rowNum, $row['size']);
-            $worksheet->setCellValueByColumnAndRow(9, $rowNum, $row['item_demand']);
-            $worksheet->setCellValueByColumnAndRow(10, $rowNum, $row['from_warehouse_name']);
-            $worksheet->setCellValueByColumnAndRow(11, $rowNum, $row['to_warehouse_name']);
-            $worksheet->setCellValueByColumnAndRow(12, $rowNum, $row['source_stock']);
-            $worksheet->setCellValueByColumnAndRow(13, $rowNum, $row['suggested_qty']);
+            $chosen = $row['sources'][0] ?? null;
+            $col = 1;
+            $worksheet->setCellValueByColumnAndRow($col++, $rowNum, $row['master']);
+            $worksheet->setCellValueByColumnAndRow($col++, $rowNum, $row['master_name']);
+            $worksheet->setCellValueByColumnAndRow($col++, $rowNum, $row['family_demand_score']);
+            $worksheet->setCellValueByColumnAndRow($col++, $rowNum, $row['completeness_pct']);
+            $worksheet->setCellValueByColumnAndRow($col++, $rowNum, $row['item_code']);
+            $worksheet->setCellValueByColumnAndRow($col++, $rowNum, $row['item_name']);
+            $worksheet->setCellValueByColumnAndRow($col++, $rowNum, $row['warna']);
+            $worksheet->setCellValueByColumnAndRow($col++, $rowNum, $row['size']);
+            $worksheet->setCellValueByColumnAndRow($col++, $rowNum, $row['item_demand']);
+
+            for ($slot = 0; $slot < $slotCount; $slot++) {
+                $source = $row['sources'][$slot] ?? null;
+                $worksheet->setCellValueByColumnAndRow($col++, $rowNum, $source['from_warehouse_name'] ?? '');
+                $worksheet->setCellValueByColumnAndRow($col++, $rowNum, $source['source_stock'] ?? '');
+            }
+
+            $worksheet->setCellValueByColumnAndRow($col++, $rowNum, $row['to_warehouse_name']);
+            $worksheet->setCellValueByColumnAndRow($col++, $rowNum, $chosen['suggested_qty'] ?? '');
             $rowNum++;
         }
 
