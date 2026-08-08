@@ -116,16 +116,34 @@
 
             <div x-show="selectedType === '{{ $warehouseType }}'" x-cloak
                  x-data="{ on: {{ $arrangementEnabled ? 'true' : 'false' }} }"
-                 class="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 p-4">
-                <div>
-                    <p class="text-sm font-medium text-gray-900">Arrangement destination</p>
-                    <p class="text-xs text-gray-500">Receive suggested stock consolidation moves for manufactured items.</p>
+                 class="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                <div class="flex items-center justify-between gap-4">
+                    <div>
+                        <p class="text-sm font-medium text-gray-900">Arrangement destination</p>
+                        <p class="text-xs text-gray-500">Receive suggested stock consolidation moves for manufactured items.</p>
+                    </div>
+                    <input type="hidden" name="arrangement_enabled" :value="on ? 1 : 0">
+                    <button type="button" @click="on = !on" :class="on ? 'bg-blue-600' : 'bg-gray-300'"
+                            class="relative inline-flex h-6 w-11 flex-shrink-0 rounded-full transition-colors">
+                        <span :class="on ? 'translate-x-5' : 'translate-x-0.5'" class="mt-0.5 inline-block h-5 w-5 transform rounded-full bg-white transition-transform"></span>
+                    </button>
                 </div>
-                <input type="hidden" name="arrangement_enabled" :value="on ? 1 : 0">
-                <button type="button" @click="on = !on" :class="on ? 'bg-blue-600' : 'bg-gray-300'"
-                        class="relative inline-flex h-6 w-11 flex-shrink-0 rounded-full transition-colors">
-                    <span :class="on ? 'translate-x-5' : 'translate-x-0.5'" class="mt-0.5 inline-block h-5 w-5 transform rounded-full bg-white transition-transform"></span>
-                </button>
+                @if(($arrangementWarehouses ?? collect())->isNotEmpty())
+                <div class="mt-4 border-t border-gray-200 pt-4" x-show="on" x-cloak>
+                    <p class="mb-2 text-xs font-medium uppercase text-gray-500">Source warehouses</p>
+                    <p class="mb-3 text-xs text-gray-500">Only check stock at these warehouses when suggesting moves.</p>
+                    @php $selectedSources = collect(old('arrangement_source_ids', ($selectedArrangementSourceIds ?? collect())->all())); @endphp
+                    <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                        @foreach($arrangementWarehouses as $warehouse)
+                        <label class="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                            <input type="checkbox" name="arrangement_source_ids[]" value="{{ $warehouse->id }}"
+                                   @checked($selectedSources->contains($warehouse->id))>
+                            <span>{{ $warehouse->name }}</span>
+                        </label>
+                        @endforeach
+                    </div>
+                </div>
+                @endif
             </div>
         </div>
     </div>

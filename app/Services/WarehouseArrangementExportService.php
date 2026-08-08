@@ -8,7 +8,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class WarehouseArrangementExportService
 {
-    public function download(array $suggestions, string $warehouseName, int $demandDays, string $mode = WarehouseArrangementService::MODE_HIGH_DEMAND): StreamedResponse
+    public function download(array $suggestions, string $warehouseName, int $demandDays, string $mode = WarehouseArrangementService::MODE_DEMAND): StreamedResponse
     {
         $spreadsheet = new Spreadsheet;
         $worksheet = $spreadsheet->getActiveSheet();

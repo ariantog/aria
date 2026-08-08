@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\AddrbookType;
 use App\Enums\ItemType;
 use App\Models\Addrbook;
 use App\Models\Item;
@@ -7,8 +8,9 @@ use App\Models\ItemGroup;
 use App\Models\User;
 use App\Models\WarehouseItem;
 use App\Models\WarehouseItemMonthlyStat;
-use App\Services\WarehouseArrangementGridBuilder;
 use App\Services\WarehouseArrangementService;
+use App\Services\WarehouseArrangementSyncService;
+use Illuminate\Support\Facades\DB;
 
 beforeEach(function () {
     $this->user = User::factory()->create();
@@ -16,6 +18,24 @@ beforeEach(function () {
 
 function arrangementPage(int $destinationId, array $params = []): array
 {
+    $sourceIds = $params['source_ids'] ?? Addrbook::query()
+        ->where('type', AddrbookType::Warehouse)
+        ->where('id', '!=', $destinationId)
+        ->pluck('id')
+        ->all();
+
+    foreach ($sourceIds as $sourceId) {
+        DB::table('warehouse_arrangement_sources')->updateOrInsert(
+            [
+                'destination_warehouse_id' => $destinationId,
+                'source_warehouse_id' => (int) $sourceId,
+            ],
+            ['created_at' => now(), 'updated_at' => now()],
+        );
+    }
+
+    app(WarehouseArrangementSyncService::class)->syncAll($destinationId);
+
     return app(WarehouseArrangementService::class)->buildPage(
         $destinationId,
         $params['demand_days'] ?? 365,
@@ -94,7 +114,7 @@ it('builds move suggestions for missing skus at arrangement destinations', funct
     expect($result['suggestions'][0]['sources'][0]['from_warehouse_name'])->toBe('Source WH');
 });
 
-it('lists every physical warehouse that holds a missing sku on one row', function () {
+it('lists every configured source warehouse that holds a missing sku on one row', function () {
     $sourceA = Addrbook::factory()->warehouse()->create(['name' => 'WH Alpha']);
     $sourceB = Addrbook::factory()->warehouse()->create(['name' => 'WH Beta']);
     $destination = Addrbook::factory()->warehouse()->create([
@@ -138,12 +158,8 @@ it('lists every physical warehouse that holds a missing sku on one row', functio
         ->toBeGreaterThan($result['suggestions'][0]['sources'][1]['source_stock']);
 });
 
-it('ignores virtual warehouses and customers as move sources', function () {
-    $virtual = Addrbook::factory()->create([
-        'name' => 'VWH Only',
-        'type' => Addrbook::TYPE_V_WAREHOUSE,
-    ]);
-    $customer = Addrbook::factory()->customer()->create(['name' => 'Customer Stock']);
+it('ignores warehouses that are not configured as arrangement sources', function () {
+    $unlinked = Addrbook::factory()->warehouse()->create(['name' => 'Unlinked WH']);
     $realSource = Addrbook::factory()->warehouse()->create(['name' => 'Real WH']);
     $destination = Addrbook::factory()->warehouse()->create([
         'name' => 'Flagship WH',
@@ -154,8 +170,7 @@ it('ignores virtual warehouses and customers as move sources', function () {
     $item = Item::factory()->create(['group_id' => $group->id, 'type' => ItemType::ITEM, 'pcode' => 'CX90029-02', 'code' => 'AJD-CX90029-02-S']);
     $soldItem = Item::factory()->create(['group_id' => $group->id, 'type' => ItemType::ITEM, 'pcode' => 'CX90029-02', 'code' => 'AJD-CX90029-02-M']);
 
-    WarehouseItem::create(['warehouse_id' => $virtual->id, 'item_id' => $item->id, 'quantity' => 99]);
-    WarehouseItem::create(['warehouse_id' => $customer->id, 'item_id' => $item->id, 'quantity' => 50]);
+    WarehouseItem::create(['warehouse_id' => $unlinked->id, 'item_id' => $item->id, 'quantity' => 99]);
     WarehouseItem::create(['warehouse_id' => $realSource->id, 'item_id' => $item->id, 'quantity' => 2]);
     WarehouseItem::create(['warehouse_id' => $destination->id, 'item_id' => $soldItem->id, 'quantity' => 1]);
 
@@ -177,14 +192,14 @@ it('ignores virtual warehouses and customers as move sources', function () {
         'returned_qty' => 0,
     ]);
 
-    $result = arrangementPage($destination->id);
+    $result = arrangementPage($destination->id, ['source_ids' => [$realSource->id]]);
 
     expect($result['suggestions'])->toHaveCount(1);
     expect($result['suggestions'][0]['sources'][0]['from_warehouse_id'])->toBe($realSource->id);
     expect($result['suggestions'][0]['sources'][0]['from_warehouse_name'])->toBe('Real WH');
 });
 
-it('does not suggest moves when only non-warehouse addrbooks hold stock', function () {
+it('does not suggest moves when configured sources hold no stock', function () {
     $virtual = Addrbook::factory()->create([
         'name' => 'VWH Only',
         'type' => Addrbook::TYPE_V_WAREHOUSE,
@@ -210,7 +225,7 @@ it('does not suggest moves when only non-warehouse addrbooks hold stock', functi
         'returned_qty' => 0,
     ]);
 
-    $result = arrangementPage($destination->id);
+    $result = arrangementPage($destination->id, ['source_ids' => []]);
 
     expect($result['suggestions'])->toBeEmpty();
 });
@@ -392,18 +407,18 @@ it('exports arrangement suggestions as excel', function () {
     expect($response->headers->get('content-type'))->toContain('spreadsheetml.sheet');
 });
 
-it('renders the warehouse arrangement report page', function () {
+it('renders the warehouse arrangement report page without tabulator', function () {
     Addrbook::factory()->warehouse()->create(['arrangement_enabled' => true]);
 
     $this->actingAs($this->user)
         ->get(route('reports.warehouse-arrangement'))
         ->assertOk()
         ->assertSee('Warehouse Arrangement', false)
-        ->assertSee('tabulator-tables', false)
+        ->assertDontSee('tabulator-tables', false)
         ->assertSee('Demand', false);
 });
 
-it('builds tabulator grid grouped by color pcode', function () {
+it('groups sections by color pcode', function () {
     $source = Addrbook::factory()->warehouse()->create(['name' => 'Source WH']);
     $destination = Addrbook::factory()->warehouse()->create([
         'name' => 'Flagship WH',
@@ -446,14 +461,13 @@ it('builds tabulator grid grouped by color pcode', function () {
     ]);
 
     $result = arrangementPage($destination->id);
-    $grid = app(WarehouseArrangementGridBuilder::class)->build($result['suggestions']);
 
-    expect($grid['parents'])->toHaveCount(1);
-    expect($grid['parents'][0]['pcode'])->toBe('CX90034-02');
-    expect($grid['parents'][0]['rows'][0]['_cells'])->not->toBeEmpty();
+    expect($result['sections'])->toHaveCount(1);
+    expect($result['sections'][0]['pcode'])->toBe('CX90034-02');
+    expect($result['sections'][0]['cells'])->not->toBeEmpty();
 });
 
-it('shows all pcode sizes in the grid not only sizes to move', function () {
+it('shows all pcode sizes in the section not only sizes to move', function () {
     $source = Addrbook::factory()->warehouse()->create();
     $destination = Addrbook::factory()->warehouse()->create(['arrangement_enabled' => true]);
 
@@ -501,12 +515,48 @@ it('shows all pcode sizes in the grid not only sizes to move', function () {
     ]);
 
     $result = arrangementPage($destination->id);
-    $grid = app(WarehouseArrangementGridBuilder::class)->build($result['suggestions']);
+    $section = $result['sections'][0];
 
-    expect($grid['parents'][0]['sizes'])->toEqual(['S', 'M', 'L', 'XL']);
-    expect($grid['parents'][0]['rows'][0]['_cells'])->toHaveCount(4);
-    expect($grid['parents'][0]['rows'][0]['_cells']['s_']['inactive'])->toBeTrue();
-    expect($grid['parents'][0]['rows'][0]['_cells']['l_']['inactive'])->toBeTrue();
+    expect($section['sizes'])->toEqual(['S', 'M', 'L', 'XL']);
+    expect($section['cells']['S']['moveable'] ?? true)->toBeFalse();
+    expect($section['cells']['M']['moveable'])->toBeTrue();
+    expect($section['cells']['XL']['moveable'])->toBeTrue();
+    expect(isset($section['cells']['L']))->toBeFalse();
+});
+
+it('sync command rebuilds cached arrangement candidates', function () {
+    $source = Addrbook::factory()->warehouse()->create();
+    $destination = Addrbook::factory()->warehouse()->create(['arrangement_enabled' => true]);
+    $destination->arrangementSources()->sync([$source->id]);
+
+    $group = ItemGroup::factory()->create(['master' => 'CX90101', 'variant' => '02']);
+    $anchor = Item::factory()->create(['group_id' => $group->id, 'type' => ItemType::ITEM, 'pcode' => 'CX90101-02', 'code' => 'AJD-CX90101-02-S']);
+    $missing = Item::factory()->create(['group_id' => $group->id, 'type' => ItemType::ITEM, 'pcode' => 'CX90101-02', 'code' => 'AJD-CX90101-02-M']);
+
+    WarehouseItem::create(['warehouse_id' => $source->id, 'item_id' => $missing->id, 'quantity' => 2]);
+    WarehouseItem::create(['warehouse_id' => $destination->id, 'item_id' => $anchor->id, 'quantity' => 1]);
+
+    WarehouseItemMonthlyStat::create([
+        'warehouse_id' => $destination->id,
+        'item_id' => $anchor->id,
+        'month' => now()->month,
+        'year' => now()->year,
+        'sold_qty' => 4,
+        'returned_qty' => 0,
+    ]);
+    WarehouseItemMonthlyStat::create([
+        'warehouse_id' => $destination->id,
+        'item_id' => $missing->id,
+        'month' => now()->month,
+        'year' => now()->year,
+        'sold_qty' => 2,
+        'returned_qty' => 0,
+    ]);
+
+    $this->artisan('app:sync-warehouse-arrangement', ['--destination' => $destination->id])->assertSuccessful();
+
+    $result = app(WarehouseArrangementService::class)->buildPage($destination->id);
+    expect($result['suggestions'])->toHaveCount(1);
 });
 
 it('recalculates warehouse item monthly stats from transaction details', function () {

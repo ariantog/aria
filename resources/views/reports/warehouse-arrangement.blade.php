@@ -2,69 +2,6 @@
 
 @section('title', 'Warehouse Arrangement')
 
-@push('head-css')
-<link href="https://unpkg.com/tabulator-tables@6.3.1/dist/css/tabulator.min.css" rel="stylesheet">
-<style>
-    .arrangement-pcode-grid { width: 100%; }
-    .arrangement-pcode-grid .tabulator {
-        font-size: 12px;
-        border-radius: 0.5rem;
-        overflow: hidden;
-        width: 100%;
-        background: transparent;
-    }
-    .arrangement-pcode-grid .tabulator .tabulator-tableholder { overflow-x: hidden; }
-    .arrangement-pcode-grid .tabulator-row .tabulator-cell {
-        padding: 8px 6px;
-        overflow: visible;
-        vertical-align: top;
-    }
-    .arrangement-pcode-grid .tabulator .tabulator-header .tabulator-col {
-        background: #f9fafb;
-    }
-    .dark .arrangement-pcode-grid .tabulator .tabulator-header .tabulator-col {
-        background: #1f2937;
-    }
-    .arrangement-grid-scroll { overflow-x: auto; width: 100%; }
-    .arrangement-actions { position: sticky; top: 0; z-index: 20; }
-    .arr-cell {
-        width: 100%;
-        min-width: 0;
-        padding: 2px 0;
-        line-height: 1.35;
-        box-sizing: border-box;
-    }
-    .arr-cell-selected {
-        background: #eff6ff;
-        border-radius: 0.375rem;
-        outline: 1px solid #93c5fd;
-        padding: 4px 6px;
-    }
-    .arr-cell-demand { font-size: 11px; color: #047857; font-weight: 600; }
-    .arr-cell-meta { font-size: 11px; color: #6b7280; margin-top: 4px; }
-    .arr-cell select.arr-cell-wh {
-        display: block;
-        width: 100%;
-        min-width: 0;
-        margin-top: 4px;
-        font-size: 12px;
-        line-height: 1.25;
-        border-radius: 0.375rem;
-        border: 1px solid #d1d5db;
-        padding: 6px 8px;
-        background-color: #ffffff;
-        color: #111827;
-        cursor: pointer;
-    }
-    .dark .arr-cell select.arr-cell-wh {
-        background-color: #ffffff;
-        color: #111827;
-        border-color: #9ca3af;
-    }
-    .arr-cell-check { flex-shrink: 0; }
-</style>
-@endpush
-
 @section('content')
 @php
 use App\Services\WarehouseArrangementService;
@@ -83,7 +20,7 @@ $queryParams = fn (array $extra = []) => array_filter(array_merge([
 ], $extra));
 @endphp
 
-<div x-data="arrangementGridPage()" x-init="init()">
+<div x-data="arrangementPage()" x-init="init()">
     <div class="flex flex-col gap-4 p-4 pb-0">
         <div class="flex flex-wrap items-start justify-between gap-4">
             <div>
@@ -131,12 +68,22 @@ $queryParams = fn (array $extra = []) => array_filter(array_merge([
                 </div>
                 <button type="submit" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Apply</button>
             </form>
+            @if($syncedAt)
+            <p class="mt-3 text-xs text-gray-500">
+                Cached data synced {{ $syncedAt->diffForHumans() }}.
+                @if($stale)
+                <span class="text-amber-700">May be stale — run <code class="text-xs">app:sync-warehouse-arrangement</code> or wait for the daily cron.</span>
+                @endif
+            </p>
+            @else
+            <p class="mt-3 text-xs text-amber-700">No cached data yet. Run <code class="text-xs">php artisan app:sync-warehouse-arrangement</code> after configuring source warehouses.</p>
+            @endif
         </div>
         @endif
     </div>
 
     @if($destinations->isNotEmpty())
-    <div class="arrangement-actions border-b border-gray-200 bg-gray-50/95 px-4 py-3 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-gray-50/90">
+    <div class="sticky top-0 z-20 border-b border-gray-200 bg-gray-50/95 px-4 py-3 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-gray-50/90">
         <div class="flex flex-col gap-3">
             <div class="flex flex-wrap items-center gap-2">
                 <span class="text-xs font-medium uppercase text-gray-500">View:</span>
@@ -148,9 +95,9 @@ $queryParams = fn (array $extra = []) => array_filter(array_merge([
                    class="rounded-lg px-3 py-1.5 text-sm font-medium {{ $mode === WarehouseArrangementService::MODE_FAMILY ? 'bg-blue-600 text-white' : 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50' }}">
                     Complete family
                 </a>
-                <span class="text-xs text-gray-500 ml-2">
+                <span class="ml-2 text-xs text-gray-500">
                     @if($mode === WarehouseArrangementService::MODE_DEMAND)
-                    Missing SKUs with sales here (stocked SKUs hidden).
+                    Missing SKUs with sales in the selected window.
                     @else
                     Families below {{ WarehouseArrangementService::FAMILY_COMPLETENESS_THRESHOLD }}% complete.
                     @endif
@@ -185,10 +132,7 @@ $queryParams = fn (array $extra = []) => array_filter(array_merge([
             <div x-show="error" x-cloak class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800" x-text="error"></div>
 
             @if($totalPcodes > 0)
-            <p class="text-xs text-gray-500">
-                Page {{ $page }} of {{ $lastPage }} · {{ $totalPcodes }} color pcode(s)
-                @if($truncated) · export for full list @endif
-            </p>
+            <p class="text-xs text-gray-500">Page {{ $page }} of {{ $lastPage }} · {{ $totalPcodes }} color pcode(s)</p>
             @endif
         </div>
     </div>
@@ -204,43 +148,95 @@ $queryParams = fn (array $extra = []) => array_filter(array_merge([
     </form>
 
     <div class="flex flex-col gap-4 p-4 pt-3">
-        @forelse($grid['parents'] as $parent)
-        <section id="pcode-{{ $parent['pcode'] }}" class="scroll-mt-32 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+        @forelse($sections as $section)
+        <section class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
             <div class="border-b border-gray-100 bg-gray-50 px-4 py-3">
                 <div class="flex flex-wrap items-center justify-between gap-3">
                     <div class="flex flex-wrap items-center gap-2 text-sm">
-                        <span class="font-mono font-semibold text-gray-900">{{ $parent['pcode'] }}</span>
-                        <span class="text-gray-600">{{ $parent['name'] }}</span>
-                        @if($parent['warna'] && $parent['warna'] !== '—')
-                        <span class="text-gray-500">· {{ $parent['warna'] }}</span>
+                        <span class="font-mono font-semibold text-gray-900">{{ $section['pcode'] }}</span>
+                        <span class="text-gray-600">{{ $section['name'] }}</span>
+                        @if($section['warna'] && $section['warna'] !== '—')
+                        <span class="text-gray-500">· {{ $section['warna'] }}</span>
                         @endif
                         <span class="rounded bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
-                            demand {{ number_format($parent['family_demand_score'], 0, ',', '.') }}
+                            demand {{ number_format($section['family_demand_score'], 0, ',', '.') }}
                         </span>
                         <span class="rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">
-                            {{ $parent['present_count'] }}/{{ $parent['total_count'] }} sizes ({{ $parent['completeness_pct'] }}%)
+                            {{ $section['present_count'] }}/{{ $section['total_count'] }} sizes ({{ $section['completeness_pct'] }}%)
                         </span>
                     </div>
                     <div class="flex flex-wrap items-center gap-2">
-                        <button type="button" @click="selectAllInPcode('{{ $parent['pcode'] }}')"
+                        <button type="button" @click="selectAllInPcode('{{ $section['pcode'] }}')"
                                 class="rounded border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50">
                             Select all
                         </button>
-                        <button type="button" @click="applyWarehouseToPcode('{{ $parent['pcode'] }}')"
+                        <button type="button" @click="applyWarehouseToPcode('{{ $section['pcode'] }}')"
                                 class="rounded border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50">
                             Same WH as first selected
                         </button>
                     </div>
                 </div>
             </div>
-            <div class="arrangement-grid-scroll p-2 arrangement-pcode-grid" data-pcode-grid="{{ $parent['pcode'] }}"></div>
+            <div class="overflow-x-auto p-3">
+                <table class="min-w-full text-xs">
+                    <thead>
+                        <tr class="text-center text-gray-500">
+                            @foreach($section['sizes'] as $size)
+                            <th class="px-2 py-2 font-medium">{{ $size }}</th>
+                            @endforeach
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            @foreach($section['sizes'] as $size)
+                            @php $cell = $section['cells'][$size] ?? null; @endphp
+                            <td class="align-top px-2 py-2 min-w-[140px]">
+                                @if($cell && ($cell['moveable'] ?? false))
+                                <div class="rounded-lg border border-gray-200 p-2"
+                                     :class="isSelected({{ $cell['item_id'] }}) ? 'border-blue-300 bg-blue-50' : 'bg-white'">
+                                    <label class="flex items-center gap-1">
+                                        <input type="checkbox"
+                                               class="rounded border-gray-300"
+                                               data-item-id="{{ $cell['item_id'] }}"
+                                               @change="toggle({{ $cell['item_id'] }}, $event.target.checked)">
+                                        <span class="font-semibold text-emerald-700">D {{ number_format($cell['demand'], 0, ',', '.') }}</span>
+                                    </label>
+                                    <select class="mt-2 w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-gray-900"
+                                            data-item-id="{{ $cell['item_id'] }}"
+                                            @change="setSourceIndex({{ $cell['item_id'] }}, $event.target.value)">
+                                        @foreach($cell['sources'] as $idx => $src)
+                                        <option value="{{ $idx }}">{{ $src['from_warehouse_name'] }} ({{ $src['source_stock'] }})</option>
+                                        @endforeach
+                                    </select>
+                                    @php $firstSrc = $cell['sources'][0] ?? null; @endphp
+                                    <div class="mt-1 text-gray-500">
+                                        Stock {{ $firstSrc['source_stock'] ?? 0 }} · Move {{ $firstSrc['suggested_qty'] ?? 0 }}
+                                    </div>
+                                </div>
+                                @elseif($cell)
+                                <div class="py-6 text-center text-gray-500">
+                                    @if(($cell['dest_stock'] ?? 0) > 0)
+                                    OK · Stock {{ $cell['dest_stock'] }}
+                                    @else
+                                    No move
+                                    @endif
+                                </div>
+                                @else
+                                <div class="py-6 text-center text-gray-400">—</div>
+                                @endif
+                            </td>
+                            @endforeach
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
         </section>
         @empty
         <div class="rounded-xl border border-gray-200 bg-white p-8 text-center text-sm text-gray-500">
             @if($search)
             No pcode matches “{{ $search }}” for this view.
             @else
-            Nothing to move — stock looks OK here, or return after drafting earlier batches.
+            Nothing to move — stock looks OK here, configure source warehouses and run sync, or return after drafting earlier batches.
             @endif
         </div>
         @endforelse
@@ -264,157 +260,48 @@ $queryParams = fn (array $extra = []) => array_filter(array_merge([
 @endsection
 
 @push('scripts')
-<script src="https://unpkg.com/tabulator-tables@6.3.1/dist/js/tabulator.min.js"></script>
 <script>
-function arrangementGridPage() {
+function arrangementPage() {
+    const sections = @json($sections);
+    const destinationId = {{ (int) $selectedWarehouseId }};
+
+    const cells = {};
+    for (const section of sections) {
+        for (const [size, cell] of Object.entries(section.cells || {})) {
+            if (!cell.moveable) continue;
+            cells[cell.item_id] = {
+                item_id: cell.item_id,
+                pcode: section.pcode,
+                selected: false,
+                chosen_source_index: 0,
+                sources: cell.sources || [],
+                to_warehouse_id: destinationId,
+            };
+        }
+    }
+
     return {
-        grid: @json($grid),
-        cells: {},
-        tables: {},
+        cells,
         draftPayload: [],
         error: '',
 
-        init() {
-            this.hydrateCells();
-            this.$nextTick(() => this.initTablesStaggered());
+        init() {},
+
+        isSelected(itemId) {
+            return this.cells[itemId]?.selected ?? false;
         },
 
-        initTablesStaggered() {
-            const parents = this.grid.parents || [];
-            parents.forEach((parent, index) => {
-                const delay = index * 40;
-                setTimeout(() => this.initTable(parent), delay);
-            });
+        toggle(itemId, selected) {
+            if (this.cells[itemId]) this.cells[itemId].selected = selected;
         },
 
-        initTable(parent) {
-            const el = document.querySelector(`[data-pcode-grid="${parent.pcode}"]`);
-            if (!el || this.tables[parent.pcode]) return;
-
-            const table = new Tabulator(el, {
-                        data: parent.rows,
-                        layout: 'fitColumns',
-                        rowHeight: 104,
-                        columnDefaults: {
-                            headerHozAlign: 'center',
-                            hozAlign: 'left',
-                            minWidth: 140,
-                            widthGrow: 1,
-                            resizable: false,
-                        },
-                        columns: this.buildColumns(parent.sizes, parent.pcode),
-            });
-
-            this.tables[parent.pcode] = table;
-            el.addEventListener('change', (e) => this.onCellChange(e, parent.pcode));
+        setSourceIndex(itemId, index) {
+            if (this.cells[itemId]) this.cells[itemId].chosen_source_index = Number(index);
         },
 
-        hydrateCells() {
-            for (const parent of this.grid.parents) {
-                for (const row of parent.rows) {
-                    for (const [prefix, cell] of Object.entries(row._cells || {})) {
-                        if (cell.inactive) continue;
-                        this.cells[cell.item_id] = { ...cell, pcode: parent.pcode, prefix };
-                    }
-                }
-            }
-        },
-
-        buildColumns(sizes, pcode) {
-            const cols = [];
-            for (const size of sizes) {
-                const prefix = this.sizePrefix(size);
-                cols.push({
-                    title: size,
-                    field: prefix || 'cell',
-                    minWidth: 140,
-                    widthGrow: 1,
-                    formatter: (cell) => {
-                        const data = cell.getRow().getData();
-                        const cellData = data._cells?.[prefix];
-                        if (!cellData) {
-                            const empty = document.createElement('div');
-                            empty.className = 'text-center text-gray-400 text-xs';
-                            empty.textContent = '—';
-                            return empty;
-                        }
-                        if (cellData.inactive) {
-                            const inactive = document.createElement('div');
-                            inactive.className = 'text-center text-xs text-gray-500 py-6';
-                            const stock = Number(cellData.dest_stock ?? 0);
-                            inactive.textContent = stock > 0 ? `OK · Stock ${stock}` : 'No move';
-                            return inactive;
-                        }
-                        const state = this.cells[cellData.item_id];
-                        if (!state) {
-                            const empty = document.createElement('div');
-                            empty.className = 'text-center text-gray-400 text-xs';
-                            empty.textContent = '—';
-                            return empty;
-                        }
-                        const wrapper = document.createElement('div');
-                        wrapper.innerHTML = this.renderCellHtml(state);
-                        return wrapper;
-                    },
-                });
-            }
-            return cols;
-        },
-
-        renderCellHtml(state) {
-            const selected = state.selected ? 'arr-cell-selected' : '';
-            const options = (state.sources || []).map((src, idx) => {
-                const label = `${src.from_warehouse_name} (${src.source_stock})`;
-                const sel = idx === state.chosen_source_index ? 'selected' : '';
-                return `<option value="${idx}" ${sel}>${this.escapeHtml(label)}</option>`;
-            }).join('');
-
-            const src = this.chosenSource(state);
-            const stock = src?.source_stock ?? 0;
-            const qty = src?.suggested_qty ?? 0;
-            const demand = Number(state.demand ?? 0);
-
-            return `
-                <div class="arr-cell ${selected}" data-item-id="${state.item_id}">
-                    <label class="flex items-center gap-1 text-xs">
-                        <input type="checkbox" class="arr-cell-check rounded border-gray-300" data-item-id="${state.item_id}" ${state.selected ? 'checked' : ''}>
-                        <span class="arr-cell-demand">D ${demand.toLocaleString('id-ID')}</span>
-                    </label>
-                    <select class="arr-cell-wh" data-item-id="${state.item_id}">${options}</select>
-                    <div class="arr-cell-meta">Stock ${stock} · Move ${qty}</div>
-                </div>`;
-        },
-
-        escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        },
-
-        sizePrefix(size) {
-            if (size === '—') return '';
-            return size.toLowerCase().replace(/[. ]/g, '_') + '_';
-        },
-
-        chosenSource(state) {
-            const idx = state.chosen_source_index ?? 0;
-            return state.sources?.[idx] ?? state.sources?.[0] ?? null;
-        },
-
-        onCellChange(e, pcode) {
-            const itemId = Number(e.target.dataset.itemId);
-            const state = this.cells[itemId];
-            if (!state) return;
-
-            if (e.target.matches('.arr-cell-check')) {
-                state.selected = e.target.checked;
-            }
-            if (e.target.matches('.arr-cell-wh')) {
-                state.chosen_source_index = Number(e.target.value);
-            }
-
-            const table = this.tables[pcode];
-            if (table) table.redraw(true);
+        chosenSource(cell) {
+            const idx = cell.chosen_source_index ?? 0;
+            return cell.sources?.[idx] ?? cell.sources?.[0] ?? null;
         },
 
         cellsForPcode(pcode) {
@@ -430,23 +317,17 @@ function arrangementGridPage() {
         },
 
         selectAllInPcode(pcode) {
-            for (const cell of this.cellsForPcode(pcode)) {
-                cell.selected = true;
-            }
-            this.tables[pcode]?.redraw(true);
+            for (const cell of this.cellsForPcode(pcode)) cell.selected = true;
         },
 
         applyWarehouseToPcode(pcode) {
-            const cells = this.cellsForPcode(pcode);
-            const first = cells.find((c) => c.selected) ?? cells[0];
+            const list = this.cellsForPcode(pcode);
+            const first = list.find((c) => c.selected) ?? list[0];
             if (!first) return;
             const whIdx = first.chosen_source_index ?? 0;
-            for (const cell of cells) {
-                if ((cell.sources || []).length > whIdx) {
-                    cell.chosen_source_index = whIdx;
-                }
+            for (const cell of list) {
+                if ((cell.sources || []).length > whIdx) cell.chosen_source_index = whIdx;
             }
-            this.tables[pcode]?.redraw(true);
         },
 
         draftBatches() {

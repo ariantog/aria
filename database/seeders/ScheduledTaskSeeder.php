@@ -22,6 +22,16 @@ class ScheduledTaskSeeder extends Seeder
         );
 
         \App\Models\ScheduledTask::updateOrCreate(
+            ['command' => 'app:sync-warehouse-arrangement'],
+            [
+                'name' => 'Sync Warehouse Arrangement',
+                'frequency' => 'daily',
+                'is_active' => true,
+                'description' => 'Pre-computes arrangement candidates and source warehouse matches for fast report loads.',
+            ]
+        );
+
+        \App\Models\ScheduledTask::updateOrCreate(
             ['command' => 'jubelio:order-jubelio-to-aria'],
             [
                 'name' => 'Sync Jubelio Orders',
