@@ -29,6 +29,7 @@ class StoreAddrbookRequest extends FormRequest
             'email' => 'nullable|email|max:255', // Removed unique check for now, or should be unique:addrbooks,email
             'contact_person' => ['nullable', 'string', 'max:255'],
             'is_online' => 'boolean',
+            'arrangement_enabled' => 'boolean',
             'ppn' => 'boolean',
             'initial_balance' => 'nullable|numeric',
             'location_ids' => 'nullable|array',

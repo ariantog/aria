@@ -163,8 +163,8 @@
         @if($hasPerm('report-expense') || $isSuperAdmin)
         <a href="{{ route('reports.expense') }}" class="block rounded-md px-2.5 py-1.5 text-sm text-gray-600 hover:bg-gray-100">Laporan Biaya</a>
         @endif
-        @if($hasPerm('report-stock-intelligence') || $isSuperAdmin)
-        <a href="{{ route('reports.stock-intelligence') }}" class="block rounded-md px-2.5 py-1.5 text-sm text-gray-600 hover:bg-gray-100">Stock Intelegen</a>
+        @if($hasPerm('report-warehouse-arrangement') || $isSuperAdmin)
+        <a href="{{ route('reports.warehouse-arrangement') }}" class="block rounded-md px-2.5 py-1.5 text-sm text-gray-600 hover:bg-gray-100">Warehouse Arrangement</a>
         @endif
     </div>
 </div>

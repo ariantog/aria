@@ -9,6 +9,8 @@
     $typeValue = old('type', $isEdit ? (string) ($addrbook->type instanceof \App\Enums\AddrbookType ? $addrbook->type->value : $addrbook->type) : ($preselected ? (string) $preselected : ''));
     $isOnline = (bool) old('is_online', $isEdit ? $addrbook->is_online : false);
     $ppn = (bool) old('ppn', $isEdit ? $addrbook->ppn : false);
+    $arrangementEnabled = (bool) old('arrangement_enabled', $isEdit ? ($addrbook->arrangement_enabled ?? false) : false);
+    $warehouseType = (string) \App\Enums\AddrbookType::Warehouse->value;
 @endphp
 
 <div class="grid grid-cols-1 gap-6 md:grid-cols-2" x-data="{ selectedType: '{{ $typeValue }}' }" @change.capture="if ($event.target && $event.target.name === 'type') selectedType = $event.target.value">
@@ -106,6 +108,20 @@
                     <p class="text-xs text-gray-500">Apply {{ $ppn_rate }}% tax for this contact?</p>
                 </div>
                 <input type="hidden" name="ppn" :value="on ? 1 : 0">
+                <button type="button" @click="on = !on" :class="on ? 'bg-blue-600' : 'bg-gray-300'"
+                        class="relative inline-flex h-6 w-11 flex-shrink-0 rounded-full transition-colors">
+                    <span :class="on ? 'translate-x-5' : 'translate-x-0.5'" class="mt-0.5 inline-block h-5 w-5 transform rounded-full bg-white transition-transform"></span>
+                </button>
+            </div>
+
+            <div x-show="selectedType === '{{ $warehouseType }}'" x-cloak
+                 x-data="{ on: {{ $arrangementEnabled ? 'true' : 'false' }} }"
+                 class="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 p-4">
+                <div>
+                    <p class="text-sm font-medium text-gray-900">Arrangement destination</p>
+                    <p class="text-xs text-gray-500">Receive suggested stock consolidation moves for manufactured items.</p>
+                </div>
+                <input type="hidden" name="arrangement_enabled" :value="on ? 1 : 0">
                 <button type="button" @click="on = !on" :class="on ? 'bg-blue-600' : 'bg-gray-300'"
                         class="relative inline-flex h-6 w-11 flex-shrink-0 rounded-full transition-colors">
                     <span :class="on ? 'translate-x-5' : 'translate-x-0.5'" class="mt-0.5 inline-block h-5 w-5 transform rounded-full bg-white transition-transform"></span>
