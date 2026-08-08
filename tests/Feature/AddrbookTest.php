@@ -22,6 +22,13 @@ test('can view addrbook index', function () {
         ->assertStatus(200);
 });
 
+test('can view customer create through type-specific route', function () {
+    $this->actingAs($this->user)
+        ->get(route('addrbook.type.create', 'customer'))
+        ->assertStatus(200)
+        ->assertSee('Basic Information');
+});
+
 test('can create addrbook', function () {
     $response = $this->actingAs($this->user)
         ->post(route('addrbook.store'), [
