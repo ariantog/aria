@@ -11,6 +11,17 @@
         'failed' => 'Failed',
     ];
     $baseParams = ['type' => $itemType->value];
+    $itemShowUrl = function ($item) use ($itemType) {
+        if (! $item) {
+            return null;
+        }
+
+        $type = $item->type ?? $itemType;
+
+        return $type === \App\Enums\ItemType::ASSET_LANCAR
+            ? route('assetlancar.show', $item)
+            : route('items.show', $item);
+    };
 @endphp
 
 <div class="flex flex-col gap-4 p-3 sm:p-4">
@@ -116,10 +127,29 @@
                 </thead>
                 <tbody class="divide-y divide-gray-100">
                     @forelse($dataList as $item)
-                        <tr>
-                            <td class="px-4 py-2 text-gray-500">{{ $item->id }}</td>
-                            <td class="px-4 py-2 font-mono text-gray-900">{{ $item->code }}</td>
-                            <td class="px-4 py-2 text-gray-700">{{ $item->name }}</td>
+                        @php $showUrl = $itemShowUrl($item); @endphp
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-4 py-2 text-gray-500">
+                                @if($showUrl)
+                                    <a href="{{ $showUrl }}" class="font-medium text-blue-600 hover:underline">#{{ $item->id }}</a>
+                                @else
+                                    {{ $item->id }}
+                                @endif
+                            </td>
+                            <td class="px-4 py-2 font-mono">
+                                @if($showUrl)
+                                    <a href="{{ $showUrl }}" class="text-blue-600 hover:underline">{{ $item->code }}</a>
+                                @else
+                                    <span class="text-gray-900">{{ $item->code }}</span>
+                                @endif
+                            </td>
+                            <td class="px-4 py-2 text-gray-700">
+                                @if($showUrl)
+                                    <a href="{{ $showUrl }}" class="hover:text-blue-600 hover:underline">{{ $item->name }}</a>
+                                @else
+                                    {{ $item->name }}
+                                @endif
+                            </td>
                             <td class="px-4 py-2 text-gray-500">{{ $item->group_id ?? '—' }}</td>
                         </tr>
                     @empty
@@ -140,10 +170,23 @@
                 </thead>
                 <tbody class="divide-y divide-gray-100">
                     @forelse($dataList as $result)
-                        <tr>
-                            <td class="px-4 py-2 text-gray-500">#{{ $result->item_id }}</td>
+                        @php $showUrl = $itemShowUrl($result->item); @endphp
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-4 py-2 text-gray-500">
+                                @if($showUrl)
+                                    <a href="{{ $showUrl }}" class="font-medium text-blue-600 hover:underline">#{{ $result->item_id }}</a>
+                                @else
+                                    #{{ $result->item_id }}
+                                @endif
+                            </td>
                             <td class="px-4 py-2 font-mono text-gray-700">{{ $result->snapshot['original_code'] ?? '—' }}</td>
-                            <td class="px-4 py-2 font-mono text-gray-900">{{ $result->snapshot['canonical_code'] ?? $result->item?->code }}</td>
+                            <td class="px-4 py-2 font-mono">
+                                @if($showUrl)
+                                    <a href="{{ $showUrl }}" class="text-blue-600 hover:underline">{{ $result->snapshot['canonical_code'] ?? $result->item?->code }}</a>
+                                @else
+                                    <span class="text-gray-900">{{ $result->snapshot['canonical_code'] ?? '—' }}</span>
+                                @endif
+                            </td>
                             <td class="px-4 py-2 text-gray-500">#{{ $result->run_id }}</td>
                             <td class="px-4 py-2 text-gray-500">{{ $result->created_at?->format('Y-m-d H:i') }}</td>
                         </tr>
@@ -165,9 +208,25 @@
                 </thead>
                 <tbody class="divide-y divide-gray-100">
                     @forelse($dataList as $result)
-                        <tr>
-                            <td class="px-4 py-2 text-gray-500">#{{ $result->item_id }}</td>
-                            <td class="px-4 py-2 font-mono text-gray-700">{{ $result->item?->code ?? ($result->snapshot['original_code'] ?? '—') }}</td>
+                        @php
+                            $showUrl = $itemShowUrl($result->item);
+                            $code = $result->item?->code ?? ($result->snapshot['original_code'] ?? '—');
+                        @endphp
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-4 py-2 text-gray-500">
+                                @if($showUrl)
+                                    <a href="{{ $showUrl }}" class="font-medium text-blue-600 hover:underline">#{{ $result->item_id }}</a>
+                                @else
+                                    #{{ $result->item_id }}
+                                @endif
+                            </td>
+                            <td class="px-4 py-2 font-mono">
+                                @if($showUrl)
+                                    <a href="{{ $showUrl }}" class="text-blue-600 hover:underline">{{ $code }}</a>
+                                @else
+                                    <span class="text-gray-700">{{ $code }}</span>
+                                @endif
+                            </td>
                             <td class="px-4 py-2">
                                 <span class="rounded bg-red-100 px-2 py-0.5 font-mono text-xs font-semibold text-red-800">{{ $result->failure_code }}</span>
                             </td>
