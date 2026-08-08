@@ -39,6 +39,9 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::post('locations/{location}/addrbooks', [\App\Http\Controllers\LocationController::class, 'attachAddrbook'])->name('locations.addrbooks.attach');
     Route::delete('locations/{location}/addrbooks/{addrbook}', [\App\Http\Controllers\LocationController::class, 'detachAddrbook'])->name('locations.addrbooks.detach');
     Route::resource('posts', App\Http\Controllers\PostController::class);
+    Route::get('items/legacy-converter', [App\Http\Controllers\LegacyItemConverterController::class, 'index'])->name('items.legacy-converter');
+    Route::post('items/legacy-converter/preview', [App\Http\Controllers\LegacyItemConverterController::class, 'preview'])->name('items.legacy-converter.preview');
+    Route::post('items/legacy-converter/run', [App\Http\Controllers\LegacyItemConverterController::class, 'run'])->name('items.legacy-converter.run');
     Route::get('items/{item}/transactions', [App\Http\Controllers\ItemsController::class, 'itemTransactions'])->name('items.transactions');
     Route::get('items/{item}/stats', [App\Http\Controllers\ItemsController::class, 'itemStats'])->name('items.stats');
     Route::get('items/{item}/jubelio', [App\Http\Controllers\ItemsController::class, 'jubelio'])->name('items.jubelio');
