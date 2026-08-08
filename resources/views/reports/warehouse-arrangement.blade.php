@@ -2,6 +2,32 @@
 
 @section('title', 'Warehouse Arrangement')
 
+@push('head-css')
+<style>
+    .arrangement-size-table {
+        table-layout: fixed;
+        width: 100%;
+    }
+    .arrangement-size-table th,
+    .arrangement-size-table td {
+        width: 1%;
+        vertical-align: top;
+        border-right: 1px solid #e5e7eb;
+    }
+    .arrangement-size-table th:last-child,
+    .arrangement-size-table td:last-child {
+        border-right: none;
+    }
+    .dark .arrangement-size-table th,
+    .dark .arrangement-size-table td {
+        border-right-color: #4b5563;
+    }
+    .arrangement-size-table select {
+        max-width: 100%;
+    }
+</style>
+@endpush
+
 @section('content')
 @php
 use App\Services\WarehouseArrangementService;
@@ -178,7 +204,7 @@ $queryParams = fn (array $extra = []) => array_filter(array_merge([
                 </div>
             </div>
             <div class="overflow-x-auto p-3">
-                <table class="min-w-full text-xs">
+                <table class="arrangement-size-table text-xs">
                     <thead>
                         <tr class="text-center text-gray-500">
                             @foreach($section['sizes'] as $size)
@@ -190,10 +216,10 @@ $queryParams = fn (array $extra = []) => array_filter(array_merge([
                         <tr>
                             @foreach($section['sizes'] as $size)
                             @php $cell = $section['cells'][$size] ?? null; @endphp
-                            <td class="align-top px-2 py-2 min-w-[140px]">
+                            <td class="px-2 py-2">
                                 @if($cell && ($cell['moveable'] ?? false))
-                                <div class="rounded-lg border border-gray-200 p-2"
-                                     :class="isSelected({{ $cell['item_id'] }}) ? 'border-blue-300 bg-blue-50' : 'bg-white'">
+                                <div class="min-h-[6.5rem] rounded-lg border border-gray-200 p-2"
+                                     :class="isSelected({{ $cell['item_id'] }}) ? 'border-blue-300 bg-blue-50' : 'bg-white dark:bg-gray-800'">
                                     <label class="flex items-center gap-1">
                                         <input type="checkbox"
                                                class="rounded border-gray-300"
@@ -214,7 +240,7 @@ $queryParams = fn (array $extra = []) => array_filter(array_merge([
                                     </div>
                                 </div>
                                 @elseif($cell)
-                                <div class="py-6 text-center text-gray-500">
+                                <div class="flex min-h-[6.5rem] items-center justify-center text-center text-gray-500">
                                     @if(($cell['dest_stock'] ?? 0) > 0)
                                     OK · Stock {{ $cell['dest_stock'] }}
                                     @else
@@ -222,7 +248,7 @@ $queryParams = fn (array $extra = []) => array_filter(array_merge([
                                     @endif
                                 </div>
                                 @else
-                                <div class="py-6 text-center text-gray-400">—</div>
+                                <div class="flex min-h-[6.5rem] items-center justify-center text-center text-gray-400">—</div>
                                 @endif
                             </td>
                             @endforeach
