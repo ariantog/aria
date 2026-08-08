@@ -8,7 +8,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class WarehouseArrangementExportService
 {
-    public function download(array $suggestions, string $warehouseName, int $demandDays): StreamedResponse
+    public function download(array $suggestions, string $warehouseName, int $demandDays, string $mode = WarehouseArrangementService::MODE_HIGH_DEMAND): StreamedResponse
     {
         $spreadsheet = new Spreadsheet;
         $worksheet = $spreadsheet->getActiveSheet();
@@ -60,8 +60,9 @@ class WarehouseArrangementExportService
         }
 
         $filename = sprintf(
-            'warehouse-arrangement-%s-%dd-%s.xlsx',
+            'warehouse-arrangement-%s-%s-%dd-%s.xlsx',
             \Illuminate\Support\Str::slug($warehouseName),
+            $mode,
             $demandDays,
             now()->format('Y-m-d'),
         );
