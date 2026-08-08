@@ -367,7 +367,58 @@ it('renders the warehouse arrangement report page', function () {
     $this->actingAs($this->user)
         ->get(route('reports.warehouse-arrangement'))
         ->assertOk()
-        ->assertSee('Warehouse Arrangement', false);
+        ->assertSee('Warehouse Arrangement', false)
+        ->assertSee('tabulator-tables', false);
+});
+
+it('builds tabulator grid grouped by master pcode', function () {
+    $source = Addrbook::factory()->warehouse()->create(['name' => 'Source WH']);
+    $destination = Addrbook::factory()->warehouse()->create([
+        'name' => 'Flagship WH',
+        'arrangement_enabled' => true,
+    ]);
+
+    $group = ItemGroup::factory()->create(['master' => 'CX90034', 'variant' => '02', 'name' => 'Grid Shirt']);
+    $anchor = Item::factory()->create(['group_id' => $group->id, 'type' => ItemType::ITEM, 'code' => 'AJD-CX90034-02-S']);
+    $missingM = Item::factory()->create(['group_id' => $group->id, 'type' => ItemType::ITEM, 'code' => 'AJD-CX90034-02-M', 'size' => 2]);
+    $missingL = Item::factory()->create(['group_id' => $group->id, 'type' => ItemType::ITEM, 'code' => 'AJD-CX90034-02-L', 'size' => 3]);
+
+    WarehouseItem::create(['warehouse_id' => $source->id, 'item_id' => $missingM->id, 'quantity' => 4]);
+    WarehouseItem::create(['warehouse_id' => $source->id, 'item_id' => $missingL->id, 'quantity' => 2]);
+    WarehouseItem::create(['warehouse_id' => $destination->id, 'item_id' => $anchor->id, 'quantity' => 1]);
+
+    $now = now();
+    WarehouseItemMonthlyStat::create([
+        'warehouse_id' => $destination->id,
+        'item_id' => $anchor->id,
+        'month' => $now->month,
+        'year' => $now->year,
+        'sold_qty' => 6,
+        'returned_qty' => 0,
+    ]);
+    WarehouseItemMonthlyStat::create([
+        'warehouse_id' => $destination->id,
+        'item_id' => $missingM->id,
+        'month' => $now->month,
+        'year' => $now->year,
+        'sold_qty' => 2,
+        'returned_qty' => 0,
+    ]);
+    WarehouseItemMonthlyStat::create([
+        'warehouse_id' => $destination->id,
+        'item_id' => $missingL->id,
+        'month' => $now->month,
+        'year' => $now->year,
+        'sold_qty' => 1,
+        'returned_qty' => 0,
+    ]);
+
+    $result = app(WarehouseArrangementService::class)->buildSuggestions($destination->id, 365);
+    $grid = app(\App\Services\WarehouseArrangementGridBuilder::class)->build($result['suggestions']);
+
+    expect($grid['parents'])->toHaveCount(1);
+    expect($grid['parents'][0]['pcode'])->toBe('CX90034');
+    expect($grid['parents'][0]['rows'])->not->toBeEmpty();
 });
 
 it('recalculates warehouse item monthly stats from transaction details', function () {

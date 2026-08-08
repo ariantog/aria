@@ -8,13 +8,14 @@ use App\Models\Addrbook;
 use App\Models\Item;
 use App\Models\Report;
 use App\Services\WarehouseArrangementExportService;
+use App\Services\WarehouseArrangementGridBuilder;
 use App\Services\WarehouseArrangementService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 
 class WarehouseArrangementController extends Controller
 {
-    public function index(Request $request, WarehouseArrangementService $arrangementService)
+    public function index(Request $request, WarehouseArrangementService $arrangementService, WarehouseArrangementGridBuilder $gridBuilder)
     {
         Gate::authorize(Report::getPermissions()['view-warehouse-arrangement']);
 
@@ -44,6 +45,8 @@ class WarehouseArrangementController extends Controller
         $result = null;
         $truncated = false;
         $totalSuggestionCount = 0;
+        $suggestions = [];
+        $grid = ['parents' => []];
 
         if ($warehouseId && $destinations->contains('id', $warehouseId)) {
             $result = $arrangementService->buildSuggestions(
@@ -57,6 +60,8 @@ class WarehouseArrangementController extends Controller
             );
             $truncated = $result['truncated'];
             $totalSuggestionCount = $result['total_suggestion_count'];
+            $suggestions = $result['suggestions'];
+            $grid = $gridBuilder->build($suggestions);
         }
 
         return view('reports.warehouse-arrangement', [
@@ -67,7 +72,8 @@ class WarehouseArrangementController extends Controller
             'layout' => $result['layout'] ?? $layout,
             'minDemand' => $result['min_demand'] ?? $minDemand,
             'families' => $result['families'] ?? [],
-            'suggestions' => $result['suggestions'] ?? [],
+            'suggestions' => $suggestions,
+            'grid' => $grid,
             'destinationName' => $result['destination']->name ?? null,
             'truncated' => $truncated,
             'totalSuggestionCount' => $totalSuggestionCount,
