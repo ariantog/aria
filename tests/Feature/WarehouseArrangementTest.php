@@ -7,11 +7,25 @@ use App\Models\ItemGroup;
 use App\Models\User;
 use App\Models\WarehouseItem;
 use App\Models\WarehouseItemMonthlyStat;
+use App\Services\WarehouseArrangementGridBuilder;
 use App\Services\WarehouseArrangementService;
 
 beforeEach(function () {
     $this->user = User::factory()->create();
 });
+
+function arrangementPage(int $destinationId, array $params = []): array
+{
+    return app(WarehouseArrangementService::class)->buildPage(
+        $destinationId,
+        $params['demand_days'] ?? 365,
+        $params['mode'] ?? WarehouseArrangementService::MODE_DEMAND,
+        $params['page'] ?? 1,
+        $params['per_page'] ?? WarehouseArrangementService::PER_PAGE,
+        $params['search'] ?? '',
+        $params['exclude'] ?? [],
+    );
+}
 
 it('builds move suggestions for missing skus at arrangement destinations', function () {
     $source = Addrbook::factory()->warehouse()->create(['name' => 'Source WH']);
@@ -71,9 +85,8 @@ it('builds move suggestions for missing skus at arrangement destinations', funct
         'returned_qty' => 0,
     ]);
 
-    $result = app(WarehouseArrangementService::class)->buildSuggestions($destination->id, 365);
+    $result = arrangementPage($destination->id);
 
-    expect($result['families'])->not->toBeEmpty();
     expect($result['suggestions'])->toHaveCount(1);
     expect($result['suggestions'][0]['item_id'])->toBe($missingItem->id);
     expect($result['suggestions'][0]['sources'][0]['from_warehouse_id'])->toBe($source->id);
@@ -90,8 +103,8 @@ it('lists every physical warehouse that holds a missing sku on one row', functio
     ]);
 
     $group = ItemGroup::factory()->create(['master' => 'CX90031', 'variant' => '02']);
-    $anchor = Item::factory()->create(['group_id' => $group->id, 'type' => ItemType::ITEM, 'code' => 'AJD-CX90031-02-S']);
-    $missing = Item::factory()->create(['group_id' => $group->id, 'type' => ItemType::ITEM, 'code' => 'AJD-CX90031-02-M']);
+    $anchor = Item::factory()->create(['group_id' => $group->id, 'type' => ItemType::ITEM, 'pcode' => 'CX90031-02', 'code' => 'AJD-CX90031-02-S']);
+    $missing = Item::factory()->create(['group_id' => $group->id, 'type' => ItemType::ITEM, 'pcode' => 'CX90031-02', 'code' => 'AJD-CX90031-02-M']);
 
     WarehouseItem::create(['warehouse_id' => $sourceA->id, 'item_id' => $missing->id, 'quantity' => 8]);
     WarehouseItem::create(['warehouse_id' => $sourceB->id, 'item_id' => $missing->id, 'quantity' => 3]);
@@ -115,7 +128,7 @@ it('lists every physical warehouse that holds a missing sku on one row', functio
         'returned_qty' => 0,
     ]);
 
-    $result = app(WarehouseArrangementService::class)->buildSuggestions($destination->id, 365);
+    $result = arrangementPage($destination->id);
 
     expect($result['suggestions'])->toHaveCount(1);
     expect($result['suggestions'][0]['sources'])->toHaveCount(2);
@@ -138,8 +151,8 @@ it('ignores virtual warehouses and customers as move sources', function () {
     ]);
 
     $group = ItemGroup::factory()->create(['master' => 'CX90029', 'variant' => '02']);
-    $item = Item::factory()->create(['group_id' => $group->id, 'type' => ItemType::ITEM, 'code' => 'AJD-CX90029-02-S']);
-    $soldItem = Item::factory()->create(['group_id' => $group->id, 'type' => ItemType::ITEM, 'code' => 'AJD-CX90029-02-M']);
+    $item = Item::factory()->create(['group_id' => $group->id, 'type' => ItemType::ITEM, 'pcode' => 'CX90029-02', 'code' => 'AJD-CX90029-02-S']);
+    $soldItem = Item::factory()->create(['group_id' => $group->id, 'type' => ItemType::ITEM, 'pcode' => 'CX90029-02', 'code' => 'AJD-CX90029-02-M']);
 
     WarehouseItem::create(['warehouse_id' => $virtual->id, 'item_id' => $item->id, 'quantity' => 99]);
     WarehouseItem::create(['warehouse_id' => $customer->id, 'item_id' => $item->id, 'quantity' => 50]);
@@ -164,7 +177,7 @@ it('ignores virtual warehouses and customers as move sources', function () {
         'returned_qty' => 0,
     ]);
 
-    $result = app(WarehouseArrangementService::class)->buildSuggestions($destination->id, 365);
+    $result = arrangementPage($destination->id);
 
     expect($result['suggestions'])->toHaveCount(1);
     expect($result['suggestions'][0]['sources'][0]['from_warehouse_id'])->toBe($realSource->id);
@@ -182,8 +195,8 @@ it('does not suggest moves when only non-warehouse addrbooks hold stock', functi
     ]);
 
     $group = ItemGroup::factory()->create(['master' => 'CX90030', 'variant' => '02']);
-    $item = Item::factory()->create(['group_id' => $group->id, 'type' => ItemType::ITEM, 'code' => 'AJD-CX90030-02-S']);
-    $soldItem = Item::factory()->create(['group_id' => $group->id, 'type' => ItemType::ITEM, 'code' => 'AJD-CX90030-02-M']);
+    $item = Item::factory()->create(['group_id' => $group->id, 'type' => ItemType::ITEM, 'pcode' => 'CX90030-02', 'code' => 'AJD-CX90030-02-S']);
+    $soldItem = Item::factory()->create(['group_id' => $group->id, 'type' => ItemType::ITEM, 'pcode' => 'CX90030-02', 'code' => 'AJD-CX90030-02-M']);
 
     WarehouseItem::create(['warehouse_id' => $virtual->id, 'item_id' => $item->id, 'quantity' => 5]);
     WarehouseItem::create(['warehouse_id' => $destination->id, 'item_id' => $soldItem->id, 'quantity' => 1]);
@@ -197,12 +210,12 @@ it('does not suggest moves when only non-warehouse addrbooks hold stock', functi
         'returned_qty' => 0,
     ]);
 
-    $result = app(WarehouseArrangementService::class)->buildSuggestions($destination->id, 365);
+    $result = arrangementPage($destination->id);
 
     expect($result['suggestions'])->toBeEmpty();
 });
 
-it('does not suggest skus with zero demand at the destination', function () {
+it('does not suggest skus with zero demand in demand mode', function () {
     $source = Addrbook::factory()->warehouse()->create(['name' => 'Source WH']);
     $destination = Addrbook::factory()->warehouse()->create([
         'name' => 'Flagship WH',
@@ -210,8 +223,8 @@ it('does not suggest skus with zero demand at the destination', function () {
     ]);
 
     $group = ItemGroup::factory()->create(['master' => 'CX90032', 'variant' => '02']);
-    $soldItem = Item::factory()->create(['group_id' => $group->id, 'type' => ItemType::ITEM, 'code' => 'AJD-CX90032-02-S']);
-    $missingNoDemand = Item::factory()->create(['group_id' => $group->id, 'type' => ItemType::ITEM, 'code' => 'AJD-CX90032-02-M']);
+    $soldItem = Item::factory()->create(['group_id' => $group->id, 'type' => ItemType::ITEM, 'pcode' => 'CX90032-02', 'code' => 'AJD-CX90032-02-S']);
+    $missingNoDemand = Item::factory()->create(['group_id' => $group->id, 'type' => ItemType::ITEM, 'pcode' => 'CX90032-02', 'code' => 'AJD-CX90032-02-M']);
 
     WarehouseItem::create(['warehouse_id' => $source->id, 'item_id' => $missingNoDemand->id, 'quantity' => 5]);
     WarehouseItem::create(['warehouse_id' => $destination->id, 'item_id' => $soldItem->id, 'quantity' => 1]);
@@ -225,17 +238,12 @@ it('does not suggest skus with zero demand at the destination', function () {
         'returned_qty' => 0,
     ]);
 
-    $result = app(WarehouseArrangementService::class)->buildSuggestions(
-        $destination->id,
-        365,
-        mode: WarehouseArrangementService::MODE_HIGH_DEMAND,
-    );
+    $result = arrangementPage($destination->id, ['mode' => WarehouseArrangementService::MODE_DEMAND]);
 
-    expect($result['families'])->not->toBeEmpty();
     expect($result['suggestions'])->toBeEmpty();
 });
 
-it('includes zero-demand missing skus in complete family mode', function () {
+it('includes zero-demand missing skus in family mode when completeness is low', function () {
     $source = Addrbook::factory()->warehouse()->create(['name' => 'Source WH']);
     $destination = Addrbook::factory()->warehouse()->create([
         'name' => 'Flagship WH',
@@ -243,8 +251,8 @@ it('includes zero-demand missing skus in complete family mode', function () {
     ]);
 
     $group = ItemGroup::factory()->create(['master' => 'CX90032', 'variant' => '02']);
-    $soldItem = Item::factory()->create(['group_id' => $group->id, 'type' => ItemType::ITEM, 'code' => 'AJD-CX90032-02-S']);
-    $missingNoDemand = Item::factory()->create(['group_id' => $group->id, 'type' => ItemType::ITEM, 'code' => 'AJD-CX90032-02-M']);
+    $soldItem = Item::factory()->create(['group_id' => $group->id, 'type' => ItemType::ITEM, 'pcode' => 'CX90032-02', 'code' => 'AJD-CX90032-02-S']);
+    $missingNoDemand = Item::factory()->create(['group_id' => $group->id, 'type' => ItemType::ITEM, 'pcode' => 'CX90032-02', 'code' => 'AJD-CX90032-02-M']);
 
     WarehouseItem::create(['warehouse_id' => $source->id, 'item_id' => $missingNoDemand->id, 'quantity' => 5]);
     WarehouseItem::create(['warehouse_id' => $destination->id, 'item_id' => $soldItem->id, 'quantity' => 1]);
@@ -258,28 +266,63 @@ it('includes zero-demand missing skus in complete family mode', function () {
         'returned_qty' => 0,
     ]);
 
-    $result = app(WarehouseArrangementService::class)->buildSuggestions(
-        $destination->id,
-        365,
-        mode: WarehouseArrangementService::MODE_COMPLETE_FAMILY,
-    );
+    $result = arrangementPage($destination->id, ['mode' => WarehouseArrangementService::MODE_FAMILY]);
 
     expect($result['suggestions'])->toHaveCount(1);
     expect($result['suggestions'][0]['item_id'])->toBe($missingNoDemand->id);
     expect($result['suggestions'][0]['item_demand'])->toBe(0.0);
 });
 
-it('filters by strong demand threshold', function () {
+it('paginates color pcodes', function () {
     $source = Addrbook::factory()->warehouse()->create();
     $destination = Addrbook::factory()->warehouse()->create(['arrangement_enabled' => true]);
 
-    $group = ItemGroup::factory()->create(['master' => 'CX90033', 'variant' => '02']);
-    $anchor = Item::factory()->create(['group_id' => $group->id, 'type' => ItemType::ITEM, 'code' => 'AJD-CX90033-02-S']);
-    $lowDemand = Item::factory()->create(['group_id' => $group->id, 'type' => ItemType::ITEM, 'code' => 'AJD-CX90033-02-M']);
-    $highDemand = Item::factory()->create(['group_id' => $group->id, 'type' => ItemType::ITEM, 'code' => 'AJD-CX90033-02-L']);
+    for ($i = 1; $i <= 35; $i++) {
+        $master = 'CX9'.str_pad((string) $i, 4, '0', STR_PAD_LEFT);
+        $pcode = $master.'-02';
+        $group = ItemGroup::factory()->create(['master' => $master, 'variant' => '02']);
+        $anchor = Item::factory()->create(['group_id' => $group->id, 'type' => ItemType::ITEM, 'pcode' => $pcode, 'code' => "AJD-{$pcode}-S"]);
+        $missing = Item::factory()->create(['group_id' => $group->id, 'type' => ItemType::ITEM, 'pcode' => $pcode, 'code' => "AJD-{$pcode}-M"]);
 
-    WarehouseItem::create(['warehouse_id' => $source->id, 'item_id' => $lowDemand->id, 'quantity' => 4]);
-    WarehouseItem::create(['warehouse_id' => $source->id, 'item_id' => $highDemand->id, 'quantity' => 6]);
+        WarehouseItem::create(['warehouse_id' => $source->id, 'item_id' => $missing->id, 'quantity' => 2]);
+        WarehouseItem::create(['warehouse_id' => $destination->id, 'item_id' => $anchor->id, 'quantity' => 1]);
+
+        WarehouseItemMonthlyStat::create([
+            'warehouse_id' => $destination->id,
+            'item_id' => $anchor->id,
+            'month' => now()->month,
+            'year' => now()->year,
+            'sold_qty' => 10 + $i,
+            'returned_qty' => 0,
+        ]);
+        WarehouseItemMonthlyStat::create([
+            'warehouse_id' => $destination->id,
+            'item_id' => $missing->id,
+            'month' => now()->month,
+            'year' => now()->year,
+            'sold_qty' => $i,
+            'returned_qty' => 0,
+        ]);
+    }
+
+    $page1 = arrangementPage($destination->id, ['per_page' => 30]);
+    $page2 = arrangementPage($destination->id, ['page' => 2, 'per_page' => 30]);
+
+    expect($page1['total_pcodes'])->toBe(35);
+    expect($page1['suggestions'])->not->toBeEmpty();
+    expect($page2['suggestions'])->not->toBeEmpty();
+    expect(count($page1['suggestions']))->not->toBe(count($page2['suggestions']));
+});
+
+it('hides drafted item ids from the page', function () {
+    $source = Addrbook::factory()->warehouse()->create();
+    $destination = Addrbook::factory()->warehouse()->create(['arrangement_enabled' => true]);
+
+    $group = ItemGroup::factory()->create(['master' => 'CX90100', 'variant' => '02']);
+    $item = Item::factory()->create(['group_id' => $group->id, 'type' => ItemType::ITEM, 'pcode' => 'CX90100-02', 'code' => 'AJD-CX90100-02-M']);
+    $anchor = Item::factory()->create(['group_id' => $group->id, 'type' => ItemType::ITEM, 'pcode' => 'CX90100-02', 'code' => 'AJD-CX90100-02-S']);
+
+    WarehouseItem::create(['warehouse_id' => $source->id, 'item_id' => $item->id, 'quantity' => 3]);
     WarehouseItem::create(['warehouse_id' => $destination->id, 'item_id' => $anchor->id, 'quantity' => 1]);
 
     $now = now();
@@ -288,35 +331,23 @@ it('filters by strong demand threshold', function () {
         'item_id' => $anchor->id,
         'month' => $now->month,
         'year' => $now->year,
-        'sold_qty' => 10,
-        'returned_qty' => 0,
-    ]);
-    WarehouseItemMonthlyStat::create([
-        'warehouse_id' => $destination->id,
-        'item_id' => $lowDemand->id,
-        'month' => $now->month,
-        'year' => $now->year,
-        'sold_qty' => 1,
-        'returned_qty' => 0,
-    ]);
-    WarehouseItemMonthlyStat::create([
-        'warehouse_id' => $destination->id,
-        'item_id' => $highDemand->id,
-        'month' => $now->month,
-        'year' => $now->year,
         'sold_qty' => 5,
         'returned_qty' => 0,
     ]);
+    WarehouseItemMonthlyStat::create([
+        'warehouse_id' => $destination->id,
+        'item_id' => $item->id,
+        'month' => $now->month,
+        'year' => $now->year,
+        'sold_qty' => 2,
+        'returned_qty' => 0,
+    ]);
 
-    $result = app(WarehouseArrangementService::class)->buildSuggestions(
-        $destination->id,
-        365,
-        mode: WarehouseArrangementService::MODE_STRONG_DEMAND,
-        minDemand: 3,
-    );
+    $with = arrangementPage($destination->id);
+    expect($with['suggestions'])->toHaveCount(1);
 
-    expect($result['suggestions'])->toHaveCount(1);
-    expect($result['suggestions'][0]['item_id'])->toBe($highDemand->id);
+    $hidden = arrangementPage($destination->id, ['exclude' => [$item->id]]);
+    expect($hidden['suggestions'])->toBeEmpty();
 });
 
 it('drafts a multi-item move with prefilled form data', function () {
@@ -327,8 +358,8 @@ it('drafts a multi-item move with prefilled form data', function () {
     ]);
 
     $group = ItemGroup::factory()->create(['master' => 'CX90028', 'variant' => '02']);
-    $itemA = Item::factory()->create(['group_id' => $group->id, 'type' => ItemType::ITEM, 'code' => 'AJD-CX90028-02-S']);
-    $itemB = Item::factory()->create(['group_id' => $group->id, 'type' => ItemType::ITEM, 'code' => 'AJD-CX90028-02-M']);
+    $itemA = Item::factory()->create(['group_id' => $group->id, 'type' => ItemType::ITEM, 'pcode' => 'CX90028-02', 'code' => 'AJD-CX90028-02-S']);
+    $itemB = Item::factory()->create(['group_id' => $group->id, 'type' => ItemType::ITEM, 'pcode' => 'CX90028-02', 'code' => 'AJD-CX90028-02-M']);
 
     WarehouseItem::create(['warehouse_id' => $source->id, 'item_id' => $itemA->id, 'quantity' => 3]);
     WarehouseItem::create(['warehouse_id' => $source->id, 'item_id' => $itemB->id, 'quantity' => 4]);
@@ -368,10 +399,11 @@ it('renders the warehouse arrangement report page', function () {
         ->get(route('reports.warehouse-arrangement'))
         ->assertOk()
         ->assertSee('Warehouse Arrangement', false)
-        ->assertSee('tabulator-tables', false);
+        ->assertSee('tabulator-tables', false)
+        ->assertSee('Demand', false);
 });
 
-it('builds tabulator grid grouped by master pcode', function () {
+it('builds tabulator grid grouped by color pcode', function () {
     $source = Addrbook::factory()->warehouse()->create(['name' => 'Source WH']);
     $destination = Addrbook::factory()->warehouse()->create([
         'name' => 'Flagship WH',
@@ -379,9 +411,9 @@ it('builds tabulator grid grouped by master pcode', function () {
     ]);
 
     $group = ItemGroup::factory()->create(['master' => 'CX90034', 'variant' => '02', 'name' => 'Grid Shirt']);
-    $anchor = Item::factory()->create(['group_id' => $group->id, 'type' => ItemType::ITEM, 'code' => 'AJD-CX90034-02-S']);
-    $missingM = Item::factory()->create(['group_id' => $group->id, 'type' => ItemType::ITEM, 'code' => 'AJD-CX90034-02-M', 'size' => 2]);
-    $missingL = Item::factory()->create(['group_id' => $group->id, 'type' => ItemType::ITEM, 'code' => 'AJD-CX90034-02-L', 'size' => 3]);
+    $anchor = Item::factory()->create(['group_id' => $group->id, 'type' => ItemType::ITEM, 'pcode' => 'CX90034-02', 'code' => 'AJD-CX90034-02-S']);
+    $missingM = Item::factory()->create(['group_id' => $group->id, 'type' => ItemType::ITEM, 'pcode' => 'CX90034-02', 'code' => 'AJD-CX90034-02-M']);
+    $missingL = Item::factory()->create(['group_id' => $group->id, 'type' => ItemType::ITEM, 'pcode' => 'CX90034-02', 'code' => 'AJD-CX90034-02-L']);
 
     WarehouseItem::create(['warehouse_id' => $source->id, 'item_id' => $missingM->id, 'quantity' => 4]);
     WarehouseItem::create(['warehouse_id' => $source->id, 'item_id' => $missingL->id, 'quantity' => 2]);
@@ -413,12 +445,12 @@ it('builds tabulator grid grouped by master pcode', function () {
         'returned_qty' => 0,
     ]);
 
-    $result = app(WarehouseArrangementService::class)->buildSuggestions($destination->id, 365);
-    $grid = app(\App\Services\WarehouseArrangementGridBuilder::class)->build($result['suggestions']);
+    $result = arrangementPage($destination->id);
+    $grid = app(WarehouseArrangementGridBuilder::class)->build($result['suggestions']);
 
     expect($grid['parents'])->toHaveCount(1);
-    expect($grid['parents'][0]['pcode'])->toBe('CX90034');
-    expect($grid['parents'][0]['rows'])->not->toBeEmpty();
+    expect($grid['parents'][0]['pcode'])->toBe('CX90034-02');
+    expect($grid['parents'][0]['rows'][0]['_cells'])->not->toBeEmpty();
 });
 
 it('recalculates warehouse item monthly stats from transaction details', function () {
