@@ -3,9 +3,9 @@
 namespace App\Services;
 
 use App\Enums\AddrbookType;
-use App\Enums\ItemType;
 use App\Models\Addrbook;
-use App\Models\Tag;
+use App\Models\WarehouseArrangementCandidate;
+use App\Models\WarehouseArrangementPcodeSnapshot;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -18,16 +18,6 @@ class WarehouseArrangementService
     public const PER_PAGE = 30;
 
     public const FAMILY_COMPLETENESS_THRESHOLD = 75.0;
-
-    public const UI_MAX_FAMILIES_SCAN = 60;
-
-    public const UI_MAX_SUGGESTIONS_SCAN = 1500;
-
-    public const EXPORT_MAX_FAMILIES = 200;
-
-    public const EXPORT_MAX_SUGGESTIONS = 5000;
-
-    public const MAX_SOURCE_SLOTS = 3;
 
     /**
      * @return list<string>
@@ -60,7 +50,9 @@ class WarehouseArrangementService
      *     total_pcodes: int,
      *     search: string,
      *     suggestions: list<array<string, mixed>>,
-     *     truncated: bool
+     *     sections: list<array<string, mixed>>,
+     *     synced_at: ?\Carbon\CarbonInterface,
+     *     stale: bool
      * }
      */
     public function buildPage(
@@ -79,35 +71,144 @@ class WarehouseArrangementService
         $page = max(1, $page);
         $perPage = max(1, min(50, $perPage));
         $search = trim($search);
+        $demandDays = $this->normalizeDemandDays($demandDays);
 
-        $all = $this->collectSuggestions(
-            $destinationWarehouseId,
-            $demandDays,
-            $mode,
-            self::UI_MAX_FAMILIES_SCAN,
-            self::UI_MAX_SUGGESTIONS_SCAN,
-            $excludeItemIds,
-        );
+        $destination = Addrbook::query()
+            ->where('type', AddrbookType::Warehouse)
+            ->where('arrangement_enabled', true)
+            ->findOrFail($destinationWarehouseId);
 
-        $grouped = collect($all['suggestions'])->groupBy('pcode');
+        $demandColumn = $this->demandColumn($demandDays);
+        $excludeSet = array_flip(array_map('intval', $excludeItemIds));
+
+        $candidateQuery = WarehouseArrangementCandidate::query()
+            ->where('destination_warehouse_id', $destinationWarehouseId)
+            ->whereHas('sources')
+            ->when($excludeItemIds !== [], fn ($q) => $q->whereNotIn('item_id', $excludeItemIds));
+
+        if ($mode === self::MODE_DEMAND) {
+            $candidateQuery->where($demandColumn, '>', 0);
+        }
+
+        $eligiblePcodes = $candidateQuery
+            ->distinct()
+            ->pluck('pcode')
+            ->filter()
+            ->values();
+
+        $snapshots = WarehouseArrangementPcodeSnapshot::query()
+            ->where('destination_warehouse_id', $destinationWarehouseId)
+            ->whereIn('pcode', $eligiblePcodes)
+            ->get()
+            ->keyBy('pcode');
+
+        if ($mode === self::MODE_FAMILY) {
+            $eligiblePcodes = $eligiblePcodes->filter(function (string $pcode) use ($snapshots) {
+                $snap = $snapshots->get($pcode);
+
+                return $snap && (float) $snap->completeness_pct < self::FAMILY_COMPLETENESS_THRESHOLD;
+            })->values();
+        }
 
         if ($search !== '') {
             $needle = strtoupper($search);
-            $grouped = $grouped->filter(fn ($items, $pcode) => str_contains(strtoupper($pcode), $needle));
+            $eligiblePcodes = $eligiblePcodes->filter(fn (string $pcode) => str_contains(strtoupper($pcode), $needle))->values();
         }
 
-        $sortedPcodes = $this->sortPcodes($grouped, $mode);
+        $sortedPcodes = $this->sortPcodes($eligiblePcodes, $snapshots, $candidateQuery->clone(), $mode, $demandColumn);
 
         $totalPcodes = $sortedPcodes->count();
         $pagePcodes = $sortedPcodes->slice(($page - 1) * $perPage, $perPage)->values();
 
-        $suggestions = $pagePcodes
-            ->flatMap(fn ($pcode) => $grouped->get($pcode, collect()))
-            ->values()
-            ->all();
+        $candidates = WarehouseArrangementCandidate::query()
+            ->with(['sources.sourceWarehouse'])
+            ->where('destination_warehouse_id', $destinationWarehouseId)
+            ->whereIn('pcode', $pagePcodes->all())
+            ->whereHas('sources')
+            ->when($excludeItemIds !== [], fn ($q) => $q->whereNotIn('item_id', $excludeItemIds))
+            ->when($mode === self::MODE_DEMAND, fn ($q) => $q->where($demandColumn, '>', 0))
+            ->get();
+
+        if ($mode === self::MODE_FAMILY) {
+            $candidates = $candidates->filter(function (WarehouseArrangementCandidate $c) use ($snapshots) {
+                $snap = $snapshots->get($c->pcode);
+
+                return $snap && (float) $snap->completeness_pct < self::FAMILY_COMPLETENESS_THRESHOLD;
+            });
+        }
+
+        $stockedByPcode = $this->loadStockedSizes($destinationWarehouseId, $pagePcodes->all());
+
+        $suggestions = [];
+        $sections = [];
+
+        foreach ($pagePcodes as $pcode) {
+            $snap = $snapshots->get($pcode);
+            if (! $snap) {
+                continue;
+            }
+
+            $pcodeCandidates = $candidates->where('pcode', $pcode);
+            $stocked = $stockedByPcode[$pcode] ?? [];
+            $sizes = $this->resolveSectionSizes($snap, $pcodeCandidates, $stocked);
+            $cells = [];
+
+            foreach ($sizes as $sizeCode) {
+                $candidate = $pcodeCandidates->first(fn (WarehouseArrangementCandidate $c) => $this->candidateMatchesSize($c, $sizeCode));
+
+                if ($candidate) {
+                    $itemDemand = $candidate->demandForDays($demandDays);
+                    $sources = $candidate->sources
+                        ->sortByDesc('source_stock')
+                        ->values()
+                        ->map(fn ($src) => [
+                            'from_warehouse_id' => (int) $src->source_warehouse_id,
+                            'from_warehouse_name' => $src->sourceWarehouse?->name ?? 'Unknown',
+                            'source_stock' => (int) $src->source_stock,
+                            'suggested_qty' => $this->suggestedQty($mode, $itemDemand, (int) $src->source_stock),
+                        ])
+                        ->all();
+
+                    $cells[$sizeCode] = [
+                        'item_id' => $candidate->item_id,
+                        'item_code' => $candidate->item_code,
+                        'demand' => $itemDemand,
+                        'sources' => $sources,
+                        'moveable' => true,
+                    ];
+
+                    $suggestions[] = $this->candidateToSuggestion($candidate, $destination, $snap, $itemDemand, $sources);
+
+                    continue;
+                }
+
+                $stockedCell = $stocked[$sizeCode] ?? null;
+                if ($stockedCell) {
+                    $cells[$sizeCode] = [
+                        'item_id' => $stockedCell['item_id'],
+                        'dest_stock' => $stockedCell['dest_stock'],
+                        'moveable' => false,
+                    ];
+                }
+            }
+
+            $sections[] = [
+                'pcode' => $pcode,
+                'name' => $snap->master_name ?? $pcode,
+                'warna' => $snap->warna ?? '—',
+                'family_demand_score' => (float) $snap->family_demand_365,
+                'completeness_pct' => (float) $snap->completeness_pct,
+                'present_count' => (int) $snap->present_count,
+                'total_count' => (int) $snap->total_count,
+                'sizes' => $sizes,
+                'cells' => $cells,
+            ];
+        }
+
+        $syncedAt = $snapshots->max('synced_at');
 
         return [
-            'destination' => $all['destination'],
+            'destination' => $destination,
             'demand_days' => $demandDays,
             'mode' => $mode,
             'page' => $page,
@@ -115,7 +216,9 @@ class WarehouseArrangementService
             'total_pcodes' => $totalPcodes,
             'search' => $search,
             'suggestions' => $suggestions,
-            'truncated' => $all['truncated'],
+            'sections' => $sections,
+            'synced_at' => $syncedAt,
+            'stale' => $syncedAt === null || $syncedAt->lt(now()->subDay()),
         ];
     }
 
@@ -129,276 +232,138 @@ class WarehouseArrangementService
         string $mode = self::MODE_DEMAND,
         array $excludeItemIds = [],
     ): array {
-        $result = $this->collectSuggestions(
-            $destinationWarehouseId,
-            $demandDays,
-            $mode,
-            self::EXPORT_MAX_FAMILIES,
-            self::EXPORT_MAX_SUGGESTIONS,
-            $excludeItemIds,
-        );
+        $allSuggestions = [];
+        $page = 1;
+        $perPage = 500;
+        $lastPage = 1;
 
-        return [
-            'destination' => $result['destination'],
-            'suggestions' => $result['suggestions'],
-        ];
-    }
-
-    /**
-     * @param  list<int>  $excludeItemIds
-     * @return array{
-     *     destination: Addrbook,
-     *     suggestions: list<array<string, mixed>>,
-     *     truncated: bool
-     * }
-     */
-    private function collectSuggestions(
-        int $destinationWarehouseId,
-        int $demandDays,
-        string $mode,
-        int $maxFamilies,
-        int $maxSuggestions,
-        array $excludeItemIds = [],
-    ): array {
-        $destination = Addrbook::query()
-            ->where('type', AddrbookType::Warehouse)
-            ->where('arrangement_enabled', true)
-            ->findOrFail($destinationWarehouseId);
-
-        $startKey = $this->periodKey(now()->subDays($demandDays));
-
-        $familyRows = $mode === self::MODE_FAMILY
-            ? $this->loadFamiliesForCompletionMode($destinationWarehouseId, $startKey, $maxFamilies)
-            : $this->loadTopFamiliesByDemand($destinationWarehouseId, $startKey, $maxFamilies);
-
-        if ($familyRows->isEmpty()) {
-            return [
-                'destination' => $destination,
-                'suggestions' => [],
-                'truncated' => false,
-            ];
-        }
-
-        $masters = $familyRows->pluck('master')->all();
-        $completenessByMaster = $this->familyCompletenessForMasters($masters, $destinationWarehouseId);
-        $familyMetaByMaster = $familyRows->keyBy('master');
-
-        $eligibleMasters = [];
-        foreach ($familyRows as $familyRow) {
-            $master = $familyRow->master;
-            $completeness = $completenessByMaster[$master] ?? ['total' => 0, 'present' => 0, 'pct' => 0.0];
-
-            if ($mode === self::MODE_FAMILY && $completeness['pct'] >= self::FAMILY_COMPLETENESS_THRESHOLD) {
-                continue;
-            }
-
-            $eligibleMasters[] = $master;
-        }
-
-        if ($eligibleMasters === []) {
-            return [
-                'destination' => $destination,
-                'suggestions' => [],
-                'truncated' => false,
-            ];
-        }
-
-        $sizeCodes = Tag::query()->where('type', Tag::TYPE_SIZE)->pluck('code', 'id');
-        $warnaByItem = $this->loadWarnaCodesForMasters($eligibleMasters);
-        $excludeSet = array_flip(array_map('intval', $excludeItemIds));
-
-        $items = DB::table('items as i')
-            ->join('item_groups as ig', 'i.group_id', '=', 'ig.id')
-            ->where('i.type', ItemType::ITEM->value)
-            ->whereIn('ig.master', $eligibleMasters)
-            ->whereNull('i.deleted_at')
-            ->select('i.id', 'i.code', 'i.name', 'i.size', 'i.pcode', 'ig.master', 'ig.name as group_name')
-            ->get();
-
-        if ($items->isEmpty()) {
-            return [
-                'destination' => $destination,
-                'suggestions' => [],
-                'truncated' => false,
-            ];
-        }
-
-        $itemIds = $items->pluck('id')->map(fn ($id) => (int) $id)->all();
-
-        $destStock = DB::table('warehouse_items')
-            ->where('warehouse_id', $destinationWarehouseId)
-            ->whereIn('item_id', $itemIds)
-            ->where('quantity', '>', 0)
-            ->pluck('quantity', 'item_id');
-
-        $sourceStock = DB::table('warehouse_items as wi')
-            ->join('addrbooks as a', 'a.id', '=', 'wi.warehouse_id')
-            ->whereIn('wi.item_id', $itemIds)
-            ->where('wi.warehouse_id', '!=', $destinationWarehouseId)
-            ->where('wi.quantity', '>', 0)
-            ->where('a.type', AddrbookType::Warehouse->value)
-            ->whereNull('a.deleted_at')
-            ->orderByDesc('wi.quantity')
-            ->get(['wi.warehouse_id', 'wi.item_id', 'wi.quantity', 'a.name as warehouse_name']);
-
-        $sourcesByItem = $sourceStock->groupBy(fn ($row) => (int) $row->item_id);
-
-        $itemDemand = DB::table('warehouse_item_monthly_stats')
-            ->where('warehouse_id', $destinationWarehouseId)
-            ->whereIn('item_id', $itemIds)
-            ->whereRaw('(year * 12 + month) >= ?', [$startKey])
-            ->selectRaw('item_id, SUM(sold_qty - returned_qty) as demand')
-            ->groupBy('item_id')
-            ->pluck('demand', 'item_id');
-
-        $suggestions = [];
-        $truncated = false;
-
-        foreach ($items as $item) {
-            $itemId = (int) $item->id;
-            $master = $item->master;
-
-            if (isset($excludeSet[$itemId])) {
-                continue;
-            }
-
-            if (($destStock[$itemId] ?? 0) > 0) {
-                continue;
-            }
-
-            $sources = $sourcesByItem->get($itemId, collect());
-            if ($sources->isEmpty()) {
-                continue;
-            }
-
-            $itemDemandVal = max(0.0, (float) ($itemDemand[$itemId] ?? 0));
-
-            if ($mode === self::MODE_DEMAND && $itemDemandVal <= 0) {
-                continue;
-            }
-
-            $sourceRows = $sources
-                ->sortByDesc(fn ($source) => (float) $source->quantity)
-                ->values()
-                ->take(self::MAX_SOURCE_SLOTS)
-                ->map(function ($source) use ($itemDemandVal, $mode) {
-                    $sourceStockQty = (float) $source->quantity;
-                    $qtyCap = $mode === self::MODE_DEMAND
-                        ? max(1, (int) ceil($itemDemandVal))
-                        : 1;
-
-                    return [
-                        'from_warehouse_id' => (int) $source->warehouse_id,
-                        'from_warehouse_name' => $source->warehouse_name ?? 'Unknown',
-                        'source_stock' => (int) $sourceStockQty,
-                        'suggested_qty' => max(1, min((int) $sourceStockQty, $qtyCap)),
-                    ];
-                })
-                ->values()
-                ->all();
-
-            if ($sourceRows === []) {
-                continue;
-            }
-
-            if (count($suggestions) >= $maxSuggestions) {
-                $truncated = true;
-                break;
-            }
-
-            $familyRow = $familyMetaByMaster->get($master);
-            $completeness = $completenessByMaster[$master] ?? ['total' => 0, 'present' => 0, 'pct' => 0.0];
-            $pcode = strtoupper(trim($item->pcode ?? ''));
-
-            $suggestions[] = [
-                'master' => $master,
-                'pcode' => $pcode !== '' ? $pcode : $master,
-                'master_name' => $familyRow->name ?? $item->group_name ?? $master,
-                'family_demand_score' => (float) ($familyRow->demand_score ?? 0),
-                'completeness_pct' => $completeness['pct'],
-                'present_count' => $completeness['present'],
-                'total_count' => $completeness['total'],
-                'item_id' => $itemId,
-                'item_code' => $item->code,
-                'item_name' => $item->name,
-                'warna' => $warnaByItem[$itemId] ?? '-',
-                'size' => $sizeCodes[$item->size] ?? '-',
-                'item_demand' => $itemDemandVal,
-                'sources' => $sourceRows,
-                'to_warehouse_id' => $destinationWarehouseId,
-                'to_warehouse_name' => $destination->name,
-            ];
-        }
+        do {
+            $result = $this->buildPage(
+                $destinationWarehouseId,
+                $demandDays,
+                $mode,
+                $page,
+                $perPage,
+                '',
+                $excludeItemIds,
+            );
+            $allSuggestions = array_merge($allSuggestions, $result['suggestions']);
+            $lastPage = $result['total_pcodes'] > 0 ? (int) ceil($result['total_pcodes'] / $perPage) : 1;
+            $destination = $result['destination'];
+            $page++;
+        } while ($page <= $lastPage);
 
         return [
             'destination' => $destination,
-            'suggestions' => $suggestions,
-            'truncated' => $truncated,
+            'suggestions' => $allSuggestions,
         ];
     }
 
-    /**
-     * @param  list<string>  $masters
-     * @return array<string, array{total: int, present: int, pct: float}>
-     */
-    private function familyCompletenessForMasters(array $masters, int $warehouseId): array
+    private function normalizeDemandDays(int $days): int
     {
-        if ($masters === []) {
-            return [];
+        return in_array($days, [30, 90, 180, 365], true) ? $days : 365;
+    }
+
+    private function demandColumn(int $demandDays): string
+    {
+        return match ($demandDays) {
+            30 => 'demand_30',
+            90 => 'demand_90',
+            180 => 'demand_180',
+            default => 'demand_365',
+        };
+    }
+
+    private function candidateMatchesSize(WarehouseArrangementCandidate $candidate, string $sizeCode): bool
+    {
+        $itemSize = $candidate->size_code ?? '-';
+
+        if ($sizeCode === '—') {
+            return $itemSize === '-' || $itemSize === '';
         }
 
-        $totals = DB::table('items as i')
-            ->join('item_groups as ig', 'i.group_id', '=', 'ig.id')
-            ->where('i.type', ItemType::ITEM->value)
-            ->whereIn('ig.master', $masters)
-            ->whereNull('i.deleted_at')
-            ->groupBy('ig.master')
-            ->selectRaw('ig.master, COUNT(*) as total')
-            ->pluck('total', 'master');
-
-        $present = DB::table('items as i')
-            ->join('item_groups as ig', 'i.group_id', '=', 'ig.id')
-            ->join('warehouse_items as wi', 'wi.item_id', '=', 'i.id')
-            ->where('i.type', ItemType::ITEM->value)
-            ->whereIn('ig.master', $masters)
-            ->where('wi.warehouse_id', $warehouseId)
-            ->where('wi.quantity', '>', 0)
-            ->whereNull('i.deleted_at')
-            ->groupBy('ig.master')
-            ->selectRaw('ig.master, COUNT(DISTINCT i.id) as present')
-            ->pluck('present', 'master');
-
-        $result = [];
-        foreach ($masters as $master) {
-            $total = (int) ($totals[$master] ?? 0);
-            $presentCount = (int) ($present[$master] ?? 0);
-
-            $result[$master] = [
-                'total' => $total,
-                'present' => $presentCount,
-                'pct' => $total > 0 ? round($presentCount / $total * 100, 1) : 0.0,
-            ];
-        }
-
-        return $result;
+        return strtoupper($itemSize) === strtoupper($sizeCode);
     }
 
     /**
-     * @param  Collection<string, Collection<int, array<string, mixed>>>  $grouped
-     * @return Collection<int, string>
+     * @param  \Illuminate\Support\Collection<int, WarehouseArrangementCandidate>  $pcodeCandidates
+     * @param  array<string, array{item_id: int, dest_stock: int}>  $stocked
+     * @return list<string>
      */
-    private function sortPcodes(Collection $grouped, string $mode): Collection
+    private function resolveSectionSizes(
+        WarehouseArrangementPcodeSnapshot $snap,
+        $pcodeCandidates,
+        array $stocked,
+    ): array {
+        $codes = collect($snap->sizes ?? [])
+            ->merge($pcodeCandidates->pluck('size_code'))
+            ->merge(array_keys($stocked))
+            ->filter(fn ($code) => $code && $code !== '-')
+            ->unique();
+
+        if ($codes->isEmpty()) {
+            return ['—'];
+        }
+
+        return $this->sortSizeCodes($codes);
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<int, string>  $codes
+     * @return list<string>
+     */
+    private function sortSizeCodes(Collection $codes): array
     {
-        return $grouped
-            ->map(function ($items, $pcode) use ($mode) {
-                $demandSum = $items->sum(fn (array $row) => (float) ($row['item_demand'] ?? 0));
-                $completeness = (float) ($items->first()['completeness_pct'] ?? 0);
+        $order = ['S', 'M', 'L', 'XL', '2L', 'XXL'];
+
+        return $codes
+            ->sortBy(function (string $code) {
+                $order = ['S', 'M', 'L', 'XL', '2L', 'XXL'];
+                $upper = strtoupper($code);
+                $index = array_search($upper, $order, true);
+
+                if ($index !== false) {
+                    return '0_'.str_pad((string) $index, 2, '0', STR_PAD_LEFT).'_'.$upper;
+                }
+
+                return '1_'.$upper;
+            })
+            ->values()
+            ->all();
+    }
+
+    private function suggestedQty(string $mode, float $itemDemand, int $sourceStock): int
+    {
+        $cap = $mode === self::MODE_DEMAND ? max(1, (int) ceil($itemDemand)) : 1;
+
+        return max(1, min($sourceStock, $cap));
+    }
+
+    /**
+     * @param  Collection<int, string>  $pcodes
+     * @param  Collection<string, WarehouseArrangementPcodeSnapshot>  $snapshots
+     */
+    private function sortPcodes(
+        Collection $pcodes,
+        Collection $snapshots,
+        \Illuminate\Database\Eloquent\Builder $candidateBase,
+        string $mode,
+        string $demandColumn,
+    ): Collection {
+        $demandSums = $candidateBase
+            ->selectRaw('pcode, SUM('.$demandColumn.') as demand_sum')
+            ->groupBy('pcode')
+            ->pluck('demand_sum', 'pcode');
+
+        return $pcodes
+            ->map(function (string $pcode) use ($snapshots, $demandSums, $mode) {
+                $snap = $snapshots->get($pcode);
 
                 return [
                     'pcode' => $pcode,
-                    'demand_sum' => $demandSum,
-                    'completeness' => $completeness,
-                    'family_demand' => (float) ($items->first()['family_demand_score'] ?? 0),
+                    'demand_sum' => (float) ($demandSums[$pcode] ?? 0),
+                    'completeness' => (float) ($snap->completeness_pct ?? 0),
+                    'family_demand' => (float) ($snap->family_demand_365 ?? 0),
                 ];
             })
             ->sort(function ($a, $b) use ($mode) {
@@ -414,72 +379,69 @@ class WarehouseArrangementService
             ->values();
     }
 
-    private function periodKey(\DateTimeInterface $date): int
-    {
-        return (int) $date->format('Y') * 12 + (int) $date->format('n');
-    }
-
     /**
-     * @return Collection<int, object{master: string, name: string, demand_score: string|float}>
+     * @param  list<string>  $pcodes
+     * @return array<string, array<string, array{item_id: int, dest_stock: int}>>
      */
-    private function loadTopFamiliesByDemand(int $warehouseId, int $startKey, int $limit): Collection
+    private function loadStockedSizes(int $destinationWarehouseId, array $pcodes): array
     {
-        return DB::table('warehouse_item_monthly_stats as w')
-            ->join('items as i', 'w.item_id', '=', 'i.id')
-            ->join('item_groups as ig', 'i.group_id', '=', 'ig.id')
-            ->where('w.warehouse_id', $warehouseId)
-            ->where('i.type', ItemType::ITEM->value)
-            ->whereNull('i.deleted_at')
-            ->whereNotNull('ig.master')
-            ->whereRaw('(w.year * 12 + w.month) >= ?', [$startKey])
-            ->groupBy('ig.master', 'ig.name')
-            ->selectRaw('ig.master, ig.name, SUM(w.sold_qty - w.returned_qty) as demand_score')
-            ->havingRaw('SUM(w.sold_qty - w.returned_qty) > 0')
-            ->orderByDesc('demand_score')
-            ->limit($limit)
-            ->get();
-    }
-
-    /**
-     * @return Collection<int, object{master: string, name: string, demand_score: string|float}>
-     */
-    private function loadFamiliesForCompletionMode(int $warehouseId, int $startKey, int $limit): Collection
-    {
-        return DB::table('warehouse_item_monthly_stats as w')
-            ->join('items as i', 'w.item_id', '=', 'i.id')
-            ->join('item_groups as ig', 'i.group_id', '=', 'ig.id')
-            ->where('w.warehouse_id', $warehouseId)
-            ->where('i.type', ItemType::ITEM->value)
-            ->whereNull('i.deleted_at')
-            ->whereNotNull('ig.master')
-            ->whereRaw('(w.year * 12 + w.month) >= ?', [$startKey])
-            ->groupBy('ig.master', 'ig.name')
-            ->selectRaw('ig.master, ig.name, SUM(w.sold_qty - w.returned_qty) as demand_score')
-            ->havingRaw('SUM(w.sold_qty - w.returned_qty) > 0')
-            ->orderByDesc('demand_score')
-            ->limit($limit)
-            ->get();
-    }
-
-    /**
-     * @param  list<string>  $masters
-     * @return array<int, string>
-     */
-    private function loadWarnaCodesForMasters(array $masters): array
-    {
-        if ($masters === []) {
+        if ($pcodes === []) {
             return [];
         }
 
-        return DB::table('item_tag')
-            ->join('tags', 'tags.id', '=', 'item_tag.tag_id')
-            ->join('items as i', 'i.id', '=', 'item_tag.item_id')
-            ->join('item_groups as ig', 'ig.id', '=', 'i.group_id')
-            ->where('tags.type', Tag::TYPE_WARNA)
-            ->whereIn('ig.master', $masters)
+        $rows = DB::table('items as i')
+            ->join('warehouse_items as wi', 'wi.item_id', '=', 'i.id')
+            ->join('tags as t', 't.id', '=', 'i.size')
+            ->where('wi.warehouse_id', $destinationWarehouseId)
+            ->where('wi.quantity', '>', 0)
+            ->whereIn(DB::raw('UPPER(TRIM(i.pcode))'), $pcodes)
             ->whereNull('i.deleted_at')
-            ->pluck('tags.code', 'i.id')
-            ->mapWithKeys(fn ($code, $id) => [(int) $id => $code])
-            ->all();
+            ->select('i.id', 'i.pcode', 't.code as size_code', 'wi.quantity')
+            ->get();
+
+        $byPcode = [];
+        foreach ($rows as $row) {
+            $pcode = strtoupper(trim($row->pcode ?? ''));
+            $size = $row->size_code ?? '-';
+            if ($pcode === '' || $size === '-') {
+                continue;
+            }
+            $byPcode[$pcode][$size] = [
+                'item_id' => (int) $row->id,
+                'dest_stock' => (int) $row->quantity,
+            ];
+        }
+
+        return $byPcode;
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $sources
+     */
+    private function candidateToSuggestion(
+        WarehouseArrangementCandidate $candidate,
+        Addrbook $destination,
+        WarehouseArrangementPcodeSnapshot $snap,
+        float $itemDemand,
+        array $sources,
+    ): array {
+        return [
+            'master' => $candidate->master ?? $snap->master,
+            'pcode' => $candidate->pcode,
+            'master_name' => $snap->master_name,
+            'family_demand_score' => (float) $snap->family_demand_365,
+            'completeness_pct' => (float) $snap->completeness_pct,
+            'present_count' => (int) $snap->present_count,
+            'total_count' => (int) $snap->total_count,
+            'item_id' => $candidate->item_id,
+            'item_code' => $candidate->item_code,
+            'item_name' => $candidate->item_name,
+            'warna' => $candidate->warna,
+            'size' => $candidate->size_code,
+            'item_demand' => $itemDemand,
+            'sources' => $sources,
+            'to_warehouse_id' => $destination->id,
+            'to_warehouse_name' => $destination->name,
+        ];
     }
 }

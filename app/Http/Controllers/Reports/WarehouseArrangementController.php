@@ -8,7 +8,6 @@ use App\Models\Addrbook;
 use App\Models\Item;
 use App\Models\Report;
 use App\Services\WarehouseArrangementExportService;
-use App\Services\WarehouseArrangementGridBuilder;
 use App\Services\WarehouseArrangementService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -17,7 +16,7 @@ class WarehouseArrangementController extends Controller
 {
     private const SESSION_DRAFTED_KEY = 'warehouse_arrangement_drafted';
 
-    public function index(Request $request, WarehouseArrangementService $arrangementService, WarehouseArrangementGridBuilder $gridBuilder)
+    public function index(Request $request, WarehouseArrangementService $arrangementService)
     {
         Gate::authorize(Report::getPermissions()['view-warehouse-arrangement']);
 
@@ -43,8 +42,7 @@ class WarehouseArrangementController extends Controller
         $excludeItemIds = $this->draftedItemIdsForWarehouse($warehouseId);
 
         $result = null;
-        $suggestions = [];
-        $grid = ['parents' => []];
+        $sections = [];
 
         if ($warehouseId && $destinations->contains('id', $warehouseId)) {
             $result = $arrangementService->buildPage(
@@ -56,8 +54,7 @@ class WarehouseArrangementController extends Controller
                 $search,
                 $excludeItemIds,
             );
-            $suggestions = $result['suggestions'];
-            $grid = $gridBuilder->build($suggestions);
+            $sections = $result['sections'];
         }
 
         $totalPcodes = $result['total_pcodes'] ?? 0;
@@ -74,10 +71,10 @@ class WarehouseArrangementController extends Controller
             'totalPcodes' => $totalPcodes,
             'lastPage' => $lastPage,
             'search' => $result['search'] ?? $search,
-            'suggestions' => $suggestions,
-            'grid' => $grid,
+            'sections' => $sections,
             'destinationName' => $result['destination']->name ?? null,
-            'truncated' => $result['truncated'] ?? false,
+            'syncedAt' => $result['synced_at'] ?? null,
+            'stale' => $result['stale'] ?? false,
             'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
     }

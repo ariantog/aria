@@ -137,6 +137,19 @@ class Addrbook extends Model
         return $this->belongsToMany(Location::class, 'addrbook_location');
     }
 
+    /**
+     * Physical warehouses that can supply stock to this arrangement destination.
+     */
+    public function arrangementSources(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            Addrbook::class,
+            'warehouse_arrangement_sources',
+            'destination_warehouse_id',
+            'source_warehouse_id',
+        )->withTimestamps();
+    }
+
     public function scopeVisibleToUser(Builder $query, ?User $user): Builder
     {
         return app(\App\Services\LocationAccessService::class)->applyAddrbookScope($query, $user);

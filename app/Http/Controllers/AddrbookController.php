@@ -87,6 +87,7 @@ class AddrbookController extends Controller
             'current_type' => $type,
             'ppn_rate' => (float) \App\Models\Setting::getValue('ppn_rate', 11),
             ...$this->locationFormProps(),
+            ...$this->arrangementFormProps(),
         ]);
     }
 
@@ -95,9 +96,10 @@ class AddrbookController extends Controller
         $td = collect(Addrbook::getTypes())->firstWhere('id', $r->type);
         Gate::authorize(Addrbook::getPermissions($td['slug'] ?? null)['create']);
 
-        $a = Addrbook::create($r->validated());
+        $a = Addrbook::create($r->safe()->except(['location_ids', 'arrangement_source_ids', 'initial_balance']));
         $a->stat()->create(['balance' => $r->input('initial_balance', 0)]);
         $this->syncCustomerLocations($a, $r->input('location_ids', []));
+        $this->syncArrangementSources($a, $r->input('arrangement_source_ids', []));
 
         return redirect()->route('addrbook.index')->with('success', 'Created.');
     }
@@ -166,10 +168,11 @@ class AddrbookController extends Controller
         $this->authorizeAddrbookLocation($a);
 
         return view('addrbook.edit', [
-            'addrbook' => $a->load(['stat', 'locations']),
+            'addrbook' => $a->load(['stat', 'locations', 'arrangementSources']),
             'types' => Addrbook::getTypes(),
             'ppn_rate' => (float) \App\Models\Setting::getValue('ppn_rate', 11),
             ...$this->locationFormProps($a),
+            ...$this->arrangementFormProps($a),
         ]);
     }
 
@@ -182,8 +185,9 @@ class AddrbookController extends Controller
     {
         $a = $addrbook;
         Gate::authorize(Addrbook::getPermissions($this->addrbookTypeSlug($a))['edit']);
-        $a->update($r->validated());
+        $a->update($r->safe()->except(['location_ids', 'arrangement_source_ids']));
         $this->syncCustomerLocations($a, $r->input('location_ids', []));
+        $this->syncArrangementSources($a, $r->input('arrangement_source_ids', []));
 
         return redirect()->route('addrbook.index')->with('success', 'Updated.');
     }
@@ -442,5 +446,40 @@ class AddrbookController extends Controller
         }
 
         $addrbook->locations()->sync($locationIds);
+    }
+
+    private function syncArrangementSources(Addrbook $addrbook, array $sourceIds): void
+    {
+        if (! $this->addrbookIsWarehouse($addrbook) || ! $addrbook->arrangement_enabled) {
+            $addrbook->arrangementSources()->sync([]);
+
+            return;
+        }
+
+        $sourceIds = collect($sourceIds)
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn (int $id) => $id > 0 && $id !== $addrbook->id)
+            ->unique()
+            ->values()
+            ->all();
+
+        $addrbook->arrangementSources()->sync($sourceIds);
+    }
+
+    /**
+     * @return array{
+     *     arrangementWarehouses: \Illuminate\Support\Collection,
+     *     selectedArrangementSourceIds: \Illuminate\Support\Collection<int, int>
+     * }
+     */
+    private function arrangementFormProps(?Addrbook $addrbook = null): array
+    {
+        return [
+            'arrangementWarehouses' => Addrbook::query()
+                ->where('type', AddrbookType::Warehouse)
+                ->orderBy('name')
+                ->get(['id', 'name']),
+            'selectedArrangementSourceIds' => $addrbook?->arrangementSources->pluck('id') ?? collect(),
+        ];
     }
 }

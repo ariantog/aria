@@ -30,6 +30,8 @@ class StoreAddrbookRequest extends FormRequest
             'contact_person' => ['nullable', 'string', 'max:255'],
             'is_online' => 'boolean',
             'arrangement_enabled' => 'boolean',
+            'arrangement_source_ids' => 'nullable|array',
+            'arrangement_source_ids.*' => 'integer|exists:addrbooks,id',
             'ppn' => 'boolean',
             'initial_balance' => 'nullable|numeric',
             'location_ids' => 'nullable|array',
