@@ -24,6 +24,8 @@ Route::middleware(['auth', 'active'])->get('/banned', function () {
 // Jubelio webhook — must stay public (no auth); CSRF exempt in bootstrap/app.php
 Route::post('jubelio/webhook/order', [App\Http\Controllers\JubelioController::class, 'webhookOrder'])
     ->name('jubelio.webhook.order');
+Route::post('jubelio/webhook/return', [App\Http\Controllers\JubelioController::class, 'webhookReturn'])
+    ->name('jubelio.webhook.return');
 
 Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::get('/permissions', [App\Http\Controllers\PermissionController::class, 'index'])->name('permissions.index');
@@ -44,10 +46,24 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::post('items/{item}/jubelio-link', [App\Http\Controllers\ItemsController::class, 'updateJubelioId'])->name('items.jubelio-link');
     Route::resource('items', App\Http\Controllers\ItemsController::class);
     Route::get('jubelio/{jubelio}/payload', [App\Http\Controllers\JubelioController::class, 'payload'])->name('jubelio.payload');
+    Route::post('jubelio/{jubelio}/process', [App\Http\Controllers\JubelioController::class, 'processOrder'])->name('jubelio.process');
+    Route::post('jubelio/{jubelio}/solve', [App\Http\Controllers\JubelioController::class, 'markSolved'])->name('jubelio.solve');
     Route::resource('jubelio', App\Http\Controllers\JubelioController::class);
+    Route::get('jubelio-returns', [App\Http\Controllers\JubelioReturnController::class, 'index'])->name('jubelio.returns.index');
+    Route::get('jubelio-returns/{jubelioReturn}', [App\Http\Controllers\JubelioReturnController::class, 'show'])->name('jubelio.returns.show');
+    Route::post('jubelio-returns/{jubelioReturn}/process', [App\Http\Controllers\JubelioReturnController::class, 'process'])->name('jubelio.returns.process');
+    Route::post('jubelio-returns/{jubelioReturn}/solve', [App\Http\Controllers\JubelioReturnController::class, 'markSolved'])->name('jubelio.returns.solve');
+    Route::get('jubelio-get-orders', [App\Http\Controllers\JubelioGetOrderController::class, 'index'])->name('jubelio.get-orders.index');
+    Route::post('jubelio-get-orders', [App\Http\Controllers\JubelioGetOrderController::class, 'store'])->name('jubelio.get-orders.store');
+    Route::post('jubelio-get-orders/check-transactions', [App\Http\Controllers\JubelioGetOrderController::class, 'checkTransactions'])->name('jubelio.get-orders.check-transactions');
+    Route::post('jubelio-get-orders/check-existing', [App\Http\Controllers\JubelioGetOrderController::class, 'checkExisting'])->name('jubelio.get-orders.check-existing');
+    Route::post('jubelio-get-orders/import', [App\Http\Controllers\JubelioGetOrderController::class, 'importToOrders'])->name('jubelio.get-orders.import');
+    Route::post('jubelio-get-orders/reset', [App\Http\Controllers\JubelioGetOrderController::class, 'reset'])->name('jubelio.get-orders.reset');
     Route::get('jubelio-transaction/sync', [App\Http\Controllers\JubelioController::class, 'transactionSync'])->name('jubelio.transaction.sync');
     Route::get('jubelio-transaction/{transaction}/detail-sync', [App\Http\Controllers\JubelioController::class, 'detailJubelioSync'])->name('jubelio.transaction.detail-sync');
     Route::patch('jubelio-transaction/{transaction}/sync-display', [App\Http\Controllers\JubelioController::class, 'transactionSyncDisplay'])->name('jubelio.transaction.sync-display');
+    Route::post('jubelio-transaction/{transaction}/sync-confirm', [App\Http\Controllers\JubelioController::class, 'confirmSyncWarning'])->name('jubelio.transaction.sync-confirm');
+    Route::post('jubelio-transaction/{transaction}/sync-clear', [App\Http\Controllers\JubelioController::class, 'clearSyncWarning'])->name('jubelio.transaction.sync-clear');
     Route::post('jubelio-transaction/{id}/adjust-stok', [App\Http\Controllers\JubelioController::class, 'adjustStok'])->name('jubelio.adjustStok');
 
     // Jubelio Stock Check Routes

@@ -134,6 +134,16 @@ class Transaction extends Model
         return $this->belongsTo(User::class, 'b_submit_by');
     }
 
+    public function hasSyncWarningA(): bool
+    {
+        return $this->submit_a_count > 0 && $this->a_submit_by === null;
+    }
+
+    public function hasSyncWarningB(): bool
+    {
+        return $this->submit_b_count > 0 && $this->b_submit_by === null;
+    }
+
     public function scopeVisibleToUser(Builder $query, ?User $user): Builder
     {
         return app(\App\Services\LocationAccessService::class)->applyTransactionScope($query, $user);

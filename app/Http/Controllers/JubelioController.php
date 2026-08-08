@@ -3,17 +3,21 @@
 namespace App\Http\Controllers;
 
 use App\Actions\Jubelio\AdjustStock;
+use App\Actions\Jubelio\ProcessJubelioOrder;
 use App\Enums\TransactionType;
+use App\Jobs\ProcessJubelioOrderJob;
 use App\Models\Jubelio;
 use App\Models\Jubelioorder;
 use App\Models\Jubelioreturn;
 use App\Models\Jubeliosync;
 use App\Models\Transaction;
+use App\Services\JubelioService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Log;
 use Illuminate\View\View;
 
 class JubelioController extends Controller
@@ -22,10 +26,17 @@ class JubelioController extends Controller
     {
         Gate::authorize(Jubelio::getPermissions()['view']);
         $q = Jubelioorder::query()->with('user')->orderBy('updated_at', 'desc');
-        if ($request->status == 'warning') $q->where('status', 2)->where('error_type', 2);
-        elseif ($request->status == 'success') $q->where('status', 2)->where('error_type', 10);
-        elseif ($request->status == 'error') $q->where('status', 1)->where('error_type', 1);
-        elseif ($request->status == 'pending') $q->where('status', 0);
+        if ($request->status == 'warning') {
+            $q->where('status', 2)->where('error_type', 2);
+        } elseif ($request->status == 'success') {
+            $q->where('status', 2)->where('error_type', 10);
+        } elseif ($request->status == 'error') {
+            $q->where('status', 1)->where('error_type', 1);
+        } elseif ($request->status == 'pending') {
+            $q->where('status', 0);
+        } elseif (! $request->invoice) {
+            $q->where('status', 0);
+        }
         $q->when($request->invoice, fn ($q) => $q->where('invoice', 'like', '%'.$request->invoice.'%'));
         $stats = Jubelioorder::selectRaw("COUNT(CASE WHEN status=0 THEN 1 END) as pending, COUNT(CASE WHEN status=2 AND error_type=10 THEN 1 END) as success, COUNT(CASE WHEN status=2 AND error_type=2 THEN 1 END) as warning, COUNT(CASE WHEN status=1 AND error_type=1 THEN 1 END) as error")->first();
         return view('jubelio.index', ['orders' => $q->paginate(15)->withQueryString(), 'stats' => ['pending'=>(int)$stats->pending,'success'=>(int)$stats->success,'warning'=>(int)$stats->warning,'error'=>(int)$stats->error], 'filters' => $request->only(['status','invoice']), 'flash' => ['success' => session('success'), 'error' => session('error') ?? session('errorMessage')]]);
@@ -55,14 +66,212 @@ class JubelioController extends Controller
         ]);
     }
 
+    public function processOrder(Jubelioorder $jubelio, ProcessJubelioOrder $processor): RedirectResponse
+    {
+        Gate::authorize(Jubelio::getPermissions()['view']);
+
+        if (! $jubelio->canProcessManually()) {
+            return back()->with('error', 'Order ini tidak dapat diproses manual.');
+        }
+
+        $result = $processor->execute($jubelio, auth()->id());
+
+        return $result['success']
+            ? back()->with('success', $result['message'])
+            : back()->with('errorMessage', $result['message']);
+    }
+
+    public function markSolved(Jubelioorder $jubelio): RedirectResponse
+    {
+        Gate::authorize(Jubelio::getPermissions()['view']);
+
+        if (! $jubelio->canMarkSolved()) {
+            return back()->with('error', 'Order ini tidak dapat ditandai selesai.');
+        }
+
+        $jubelio->update([
+            'error_type' => 10,
+            'error' => null,
+            'execute_by' => auth()->id(),
+            'status' => 2,
+        ]);
+
+        return redirect()->route('jubelio.index')->with('success', 'Order ditandai selesai.');
+    }
+
+    public function webhookReturn(Request $request, JubelioService $jubelioService): JsonResponse
+    {
+        $secret = config('services.jubelio.webhook_secret');
+        if ($request->header('Sign') !== hash_hmac('sha256', trim($request->getContent()).$secret, $secret, false)) {
+            return response()->json(['error' => 'Invalid signature'], 403);
+        }
+
+        $payload = $request->all();
+        $returnId = $payload['return_id'] ?? null;
+
+        if (! $returnId) {
+            return response()->json(['status' => 'ok', 'message' => 'return_id missing']);
+        }
+
+        $dataApi = $jubelioService->fetchSalesReturn($returnId);
+
+        if (! $dataApi) {
+            return response()->json(['status' => 'ok', 'message' => 'Gagal mengambil data retur dari API.']);
+        }
+
+        if (Jubelioorder::where('invoice', $dataApi['return_no'])
+            ->where('type', 'RETURN')
+            ->where('order_status', 'RETURN')
+            ->exists()) {
+            return response()->json(['status' => 'ok', 'message' => 'Data already exists']);
+        }
+
+        $sellExists = Transaction::where('type', TransactionType::Sell->value)
+            ->where('invoice_number', $dataApi['salesorder_no'])
+            ->exists();
+
+        if (! $sellExists) {
+            return response()->json(['status' => 'ok', 'message' => 'Transaksi sell tidak ada.']);
+        }
+
+        Jubelioorder::create([
+            'jubelio_order_id' => $dataApi['return_id'],
+            'source' => 1,
+            'invoice' => $dataApi['return_no'],
+            'type' => 'RETURN',
+            'order_status' => 'RETURN',
+            'run_count' => 0,
+            'payload' => json_encode($dataApi),
+            'status' => 0,
+        ]);
+
+        return response()->json(['status' => 'ok', 'message' => 'Data saved successfully']);
+    }
+
     public function webhookOrder(Request $request): JsonResponse
     {
         $s = config('services.jubelio.webhook_secret');
-        if ($request->header('Sign') !== hash_hmac('sha256', trim($request->getContent()).$s, $s, false)) return response()->json(['error'=>'Invalid signature'], 403);
+        if ($request->header('Sign') !== hash_hmac('sha256', trim($request->getContent()).$s, $s, false)) {
+            return response()->json(['error' => 'Invalid signature'], 403);
+        }
+
+        if ($request->header('X-Jubelio-Forwarded-From')) {
+            Log::info('Jubelio order webhook received via forward', [
+                'from' => $request->header('X-Jubelio-Forwarded-From'),
+                'invoice' => $request->input('salesorder_no'),
+                'status' => $request->input('status'),
+            ]);
+        }
+
         $d = $request->all();
-        if (($d['status']??'') === 'SHIPPED') { if (Carbon::parse($d['transaction_date'])->lt(Carbon::parse('2025-03-06'))) return response()->json(['status'=>'ok','message'=>'Before threshold.']); if (Jubelioorder::where('invoice',$d['salesorder_no'])->where('type','SELL')->where('order_status',$d['status'])->exists()) return response()->json(['status'=>'ok','message'=>'Already exists']); Jubelioorder::create(['jubelio_order_id'=>$d['salesorder_id'],'source'=>1,'invoice'=>$d['salesorder_no'],'type'=>'SELL','order_status'=>$d['status'],'run_count'=>0,'payload'=>json_encode($d),'status'=>0]); return response()->json(['status'=>'ok','message'=>'Saved']); }
-        if (($d['status']??'') === 'CANCELED') { $t = Transaction::where('type',TransactionType::Sell->value)->where('invoice_number',$d['salesorder_no'])->first(); if (! $t) return response()->json(['status'=>'ok','message'=>'Not found']); if (Jubelioreturn::where('order_id',$d['salesorder_id'])->exists()) return response()->json(['status'=>'ok','message'=>'Return exists']); Jubelioreturn::create(['order_id'=>$d['salesorder_id'],'transaction_id'=>$t->id,'method_pay'=>$d['payment_method']??null,'invoice'=>$d['salesorder_no'],'pesan'=>$d['cancel_reason_detail']??null,'location_name'=>$d['location_name']??null,'store_name'=>$d['source_name']??null,'status'=>0,'confirmed_by'=>0]); return response()->json(['status'=>'ok','message'=>'Cancel saved']); }
-        return response()->json(['status'=>'ok','message'=>'Status '.($d['status']??'unknown')]);
+        if (($d['status'] ?? '') === 'SHIPPED') {
+            if (Carbon::parse($d['transaction_date'])->lt(Carbon::parse('2025-03-06'))) {
+                return response()->json(['status' => 'ok', 'message' => 'Before threshold.']);
+            }
+            if (Jubelioorder::where('invoice', $d['salesorder_no'])->where('type', 'SELL')->where('order_status', $d['status'])->exists()) {
+                return response()->json(['status' => 'ok', 'message' => 'Already exists']);
+            }
+            $order = Jubelioorder::create([
+                'jubelio_order_id' => $d['salesorder_id'],
+                'source' => 1,
+                'invoice' => $d['salesorder_no'],
+                'type' => 'SELL',
+                'order_status' => $d['status'],
+                'run_count' => 0,
+                'payload' => json_encode($d),
+                'status' => 0,
+            ]);
+
+            if (config('services.jubelio.webhook_auto_process')) {
+                ProcessJubelioOrderJob::dispatch($order->id);
+            }
+
+            return response()->json(['status' => 'ok', 'message' => 'Saved']);
+        }
+        if (($d['status'] ?? '') === 'CANCELED') {
+            $t = Transaction::where('type', TransactionType::Sell->value)->where('invoice_number', $d['salesorder_no'])->first();
+            if (! $t) {
+                return response()->json(['status' => 'ok', 'message' => 'Not found']);
+            }
+            if ((int) $t->jubelio_return > 0) {
+                return response()->json(['status' => 'ok', 'message' => 'Transaksi sudah return']);
+            }
+            if (Jubelioreturn::where('order_id', $d['salesorder_id'])->exists()) {
+                return response()->json(['status' => 'ok', 'message' => 'Return exists']);
+            }
+            Jubelioreturn::create([
+                'order_id' => $d['salesorder_id'],
+                'transaction_id' => $t->id,
+                'method_pay' => $d['payment_method'] ?? null,
+                'invoice' => $d['salesorder_no'],
+                'pesan' => $d['cancel_reason_detail'] ?? null,
+                'location_name' => $d['location_name'] ?? null,
+                'store_name' => $d['source_name'] ?? null,
+                'status' => 0,
+                'confirmed_by' => 0,
+            ]);
+
+            return response()->json(['status' => 'ok', 'message' => 'Cancel saved']);
+        }
+
+        return response()->json(['status' => 'ok', 'message' => 'Status '.($d['status'] ?? 'unknown')]);
+    }
+
+    public function confirmSyncWarning(Request $request, Transaction $transaction): RedirectResponse
+    {
+        Gate::authorize(Jubelio::getPermissions()['sync']);
+
+        $validated = $request->validate([
+            'side' => ['required', 'in:1,2'],
+            'reference_id' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $side = (int) $validated['side'];
+
+        if ($side === 1) {
+            if (! $transaction->hasSyncWarningA()) {
+                return back()->with('errorMessage', 'Tidak ada peringatan sinkronisasi untuk Side A.');
+            }
+            $transaction->update([
+                'a_submit_by' => auth()->id(),
+                'a_reference_id' => $validated['reference_id'] ?? null,
+            ]);
+        } else {
+            if (! $transaction->hasSyncWarningB()) {
+                return back()->with('errorMessage', 'Tidak ada peringatan sinkronisasi untuk Side B.');
+            }
+            $transaction->update([
+                'b_submit_by' => auth()->id(),
+                'b_reference_id' => $validated['reference_id'] ?? null,
+            ]);
+        }
+
+        return back()->with('success', 'Sinkronisasi dikonfirmasi berhasil.');
+    }
+
+    public function clearSyncWarning(Request $request, Transaction $transaction): RedirectResponse
+    {
+        Gate::authorize(Jubelio::getPermissions()['sync']);
+
+        $validated = $request->validate([
+            'side' => ['required', 'in:1,2'],
+        ]);
+
+        $side = (int) $validated['side'];
+
+        if ($side === 1) {
+            if (! $transaction->hasSyncWarningA()) {
+                return back()->with('errorMessage', 'Tidak ada peringatan sinkronisasi untuk Side A.');
+            }
+            $transaction->update(['submit_a_count' => 0]);
+        } else {
+            if (! $transaction->hasSyncWarningB()) {
+                return back()->with('errorMessage', 'Tidak ada peringatan sinkronisasi untuk Side B.');
+            }
+            $transaction->update(['submit_b_count' => 0]);
+        }
+
+        return back()->with('success', 'Peringatan sinkronisasi dihapus. Anda dapat mencoba push ulang.');
     }
 
     public function transactionSync(Request $request): View
@@ -80,13 +289,31 @@ class JubelioController extends Controller
     public function detailJubelioSync(Transaction $t): View
     {
         Gate::authorize(Jubelio::getPermissions()['sync']);
-        $t->load(['receiver','sender','user','submitByA','submitByB','details.item.group'])->loadCount(['details as item_with_jubelio_count'=>fn($q)=>$q->whereHas('item',fn($q)=>$q->where(fn($q)=>$q->whereNull('jubelio_item_id')->orWhere('jubelio_item_id','<',1)))]);
-        $syncA = in_array($t->type,[TransactionType::Sell->value,TransactionType::ReturnSupplier->value,TransactionType::Move->value]);
-        $syncB = in_array($t->type,[TransactionType::Buy->value,TransactionType::Return->value,TransactionType::Move->value]);
+        $t->load(['receiver', 'sender', 'user', 'submitByA', 'submitByB', 'details.item.group']);
+        $t->setAttribute('item_with_jubelio_count', $t->details->filter(
+            fn ($detail) => ! $detail->item || ! $detail->item->jubelio_item_id || $detail->item->jubelio_item_id < 1
+        )->count());
+        $type = $t->type instanceof TransactionType ? $t->type->value : (int) $t->type;
+        $syncA = in_array($type, [TransactionType::Sell->value, TransactionType::ReturnSupplier->value, TransactionType::Move->value], true);
+        $syncB = in_array($type, [TransactionType::Buy->value, TransactionType::Return->value, TransactionType::Move->value], true);
         $adA=0;$adB=0;$jA=null;$jB=null;
         if($syncA){$jsA=Jubeliosync::where('warehouse_id',$t->sender_id)->first();if($jsA){$adA=2;$jA=$jsA->jubelio_location_name;}}
         if($syncB){$jsB=Jubeliosync::where('warehouse_id',$t->receiver_id)->first();if($jsB){$adB=1;$jB=$jsB->jubelio_location_name;}}
-        return view('jubelio.detail-sync',['data'=>$t,'can_sync'=>$t->submit_type===Transaction::SUBMIT_TYPE_MANUAL,'JubelioA'=>$jA,'JubelioB'=>$jB,'adJustTypeA'=>$adA,'adJustTypeB'=>$adB,'whA'=>2,'whB'=>1,'whAName'=>$t->sender->name??'','whBName'=>$t->receiver->name??'','flash'=>['success'=>session('success'),'error'=>session('errorMessage')??session('error')]]);
+        return view('jubelio.detail-sync', [
+            'data' => $t,
+            'can_sync' => $t->submit_type === Transaction::SUBMIT_TYPE_MANUAL,
+            'JubelioA' => $jA,
+            'JubelioB' => $jB,
+            'adJustTypeA' => $adA,
+            'adJustTypeB' => $adB,
+            'whA' => 2,
+            'whB' => 1,
+            'whAName' => $t->sender->name ?? '',
+            'whBName' => $t->receiver->name ?? '',
+            'warningA' => $t->hasSyncWarningA(),
+            'warningB' => $t->hasSyncWarningB(),
+            'flash' => ['success' => session('success'), 'error' => session('errorMessage') ?? session('error')],
+        ]);
     }
 
     public function transactionSyncDisplay(Transaction $t): RedirectResponse { Gate::authorize(Jubelio::getPermissions()['sync']); $t->update(['sync_hide'=>$t->sync_hide=='N'?'Y':'N']); return back()->with('success','Updated.'); }

@@ -1,7 +1,43 @@
 <?php
 
+use App\Models\Addrbook;
+use App\Models\Item;
 use App\Models\Jubelioorder;
+use App\Models\Jubeliosync;
 use App\Models\User;
+
+it('defaults jubelio orders index to pending only', function () {
+    $user = User::factory()->create();
+
+    Jubelioorder::create([
+        'jubelio_order_id' => 'pending-1',
+        'source' => 1,
+        'invoice' => 'INV-PENDING',
+        'type' => 'SELL',
+        'order_status' => 'SHIPPED',
+        'run_count' => 0,
+        'payload' => '{}',
+        'status' => 0,
+    ]);
+
+    Jubelioorder::create([
+        'jubelio_order_id' => 'success-1',
+        'source' => 1,
+        'invoice' => 'INV-SUCCESS',
+        'type' => 'SELL',
+        'order_status' => 'SHIPPED',
+        'run_count' => 1,
+        'payload' => '{}',
+        'status' => 2,
+        'error_type' => 10,
+    ]);
+
+    $this->actingAs($user)
+        ->get(route('jubelio.index'))
+        ->assertSuccessful()
+        ->assertSee('INV-PENDING')
+        ->assertDontSee('INV-SUCCESS');
+});
 
 it('shows jubelio order summary without raw payload on list page', function () {
     $user = User::factory()->create();
@@ -62,6 +98,7 @@ it('loads jubelio order payload on demand', function () {
         ->assertSuccessful()
         ->assertSee('INV-PAYLOAD-TEST')
         ->assertSee('Cek duplikat di Transaksi')
+        ->assertSee('Buat Transaksi Manual')
         ->assertSee('Tampilkan JSON')
         ->assertDontSee('"grand_total": 99000');
 });
@@ -80,4 +117,79 @@ it('links jubelio invoice to transactions search', function () {
 
     expect($order->transactionsSearchUrl())
         ->toBe(route('transactions.index', ['invoice_number' => 'INV-LINK-TEST']));
+});
+
+it('can manually process a pending jubelio sell order', function () {
+    $user = User::factory()->create();
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    $customer = Addrbook::factory()->create(['type' => Addrbook::TYPE_CUSTOMER]);
+    $item = Item::factory()->create(['code' => 'SKU-MANUAL-1']);
+
+    Jubeliosync::create([
+        'jubelio_store_id' => 10,
+        'jubelio_store_name' => 'Store',
+        'jubelio_location_id' => 20,
+        'jubelio_location_name' => 'Gudang',
+        'warehouse_id' => $warehouse->id,
+        'customer_id' => $customer->id,
+        'bin_id' => 0,
+    ]);
+
+    $order = Jubelioorder::create([
+        'jubelio_order_id' => 'manual-1',
+        'source' => 1,
+        'invoice' => 'INV-MANUAL-1',
+        'type' => 'SELL',
+        'order_status' => 'SHIPPED',
+        'run_count' => 0,
+        'payload' => json_encode([
+            'salesorder_no' => 'INV-MANUAL-1',
+            'store_id' => 10,
+            'location_id' => 20,
+            'sub_total' => 100000,
+            'grand_total' => 100000,
+            'transaction_date' => '2026-05-10',
+            'items' => [
+                ['item_code' => 'SKU-MANUAL-1', 'qty' => 1, 'price' => 100000],
+            ],
+        ]),
+        'status' => 0,
+    ]);
+
+    $this->actingAs($user)
+        ->post(route('jubelio.process', $order))
+        ->assertRedirect()
+        ->assertSessionHas('success');
+
+    $order->refresh();
+    expect($order->status)->toBe(2)
+        ->and($order->error_type)->toBe(10)
+        ->and($order->execute_by)->toBe($user->id);
+});
+
+it('can mark duplicate jubelio order as solved', function () {
+    $user = User::factory()->create();
+
+    $order = Jubelioorder::create([
+        'jubelio_order_id' => 'dup-1',
+        'source' => 1,
+        'invoice' => 'INV-DUP-1',
+        'type' => 'SELL',
+        'order_status' => 'SHIPPED',
+        'run_count' => 1,
+        'error' => 'Transaction sudah ada',
+        'error_type' => 2,
+        'payload' => '{}',
+        'status' => 2,
+    ]);
+
+    $this->actingAs($user)
+        ->post(route('jubelio.solve', $order))
+        ->assertRedirect(route('jubelio.index'))
+        ->assertSessionHas('success');
+
+    $order->refresh();
+    expect($order->error_type)->toBe(10)
+        ->and($order->error)->toBeNull()
+        ->and($order->execute_by)->toBe($user->id);
 });
