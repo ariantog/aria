@@ -2,7 +2,6 @@
 
 namespace App\Console\Commands;
 
-use App\Enums\ItemType;
 use App\Models\Item;
 use App\Models\Transaction;
 use App\Models\WarehouseItemMonthlyStat;
