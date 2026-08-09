@@ -161,6 +161,25 @@ class Item extends Model
         return $this->group?->alias ?? $this->name;
     }
 
+    public function isAssetLancar(): bool
+    {
+        return $this->type === ItemType::ASSET_LANCAR;
+    }
+
+    public function showUrl(): string
+    {
+        return $this->isAssetLancar()
+            ? route('assetlancar.show', $this)
+            : route('items.show', $this);
+    }
+
+    public function editUrl(): string
+    {
+        return $this->isAssetLancar()
+            ? route('assetlancar.edit', $this)
+            : route('items.edit', $this);
+    }
+
     /**
      * Resolve an item by canonical code or preserved legacy SKU (Jubelio / imports).
      */
