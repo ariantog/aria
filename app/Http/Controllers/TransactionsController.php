@@ -107,6 +107,10 @@ class TransactionsController extends Controller
         ]);
     }
 
+    /**
+     * Resolve a scanned barcode (= item id) for the line-item rows.
+     * Covers both regular items and asset lancar.
+     */
     public function itemById(string $type, Request $request)
     {
         Transaction::authorizeTypeAccess($type);
@@ -124,7 +128,8 @@ class TransactionsController extends Controller
             'item' => [
                 'id' => $item->id,
                 'code' => $item->getItemCode(),
-                'name' => $item->getItemName(),
+                'name' => $item->name ?: $item->getItemName(),
+                'type' => $item->type instanceof \BackedEnum ? $item->type->value : $item->type,
                 'price' => (float) $item->price,
                 'cost' => (float) $item->cost,
                 'warehouse_items' => $item->warehouseItems->map(fn ($wi) => [
