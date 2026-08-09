@@ -223,9 +223,12 @@
                 </div>
 
                 {{-- Item rows --}}
+                @php
+                    $rowInput = 'w-full h-8 rounded border border-gray-200 px-2 text-sm leading-tight focus:border-blue-500 focus:ring-1 focus:ring-blue-500';
+                @endphp
                 <div class="divide-y divide-gray-100 px-0">
                     <template x-for="(item, idx) in form.items" :key="item.uid">
-                        <div class="grid grid-cols-12 items-start gap-2 px-5 py-2.5 text-sm hover:bg-gray-50"
+                        <div class="grid grid-cols-12 items-center gap-2 px-5 py-2 text-sm hover:bg-gray-50"
                              :class="(isOverStock(item) || itemInvalid(item)) ? 'bg-red-50' : ''">
                             {{-- Code / barcode --}}
                             <div class="col-span-2">
@@ -233,18 +236,18 @@
                                        @keydown.enter.prevent.stop="lookupBarcode(idx, $event)"
                                        @keydown.tab.prevent.stop="lookupBarcode(idx, $event)"
                                        placeholder="ID / SKU"
-                                       class="w-full rounded border border-gray-200 px-2 py-1 font-mono text-xs focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                                       class="{{ $rowInput }} font-mono">
                             </div>
                             {{-- Name autocomplete --}}
                             <div class="relative col-span-3">
                                 <input type="text" x-model="item.name" :id="'name_' + idx"
-                                       @input="searchItems(idx)" @focus="item.showDropdown = true"
+                                       @input="searchItems(idx, $event)" @focus="item.showDropdown = true"
                                        @keydown="nameKeydown(idx, $event)"
                                        @keyup="nameKeyup(idx, $event)"
                                        :readonly="nameKeyboardNavLock(item)"
                                        @click.away="item.showDropdown = false"
                                        placeholder="Search name or code…" autocomplete="off"
-                                       class="w-full rounded border border-gray-200 px-2 py-1 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                                       class="{{ $rowInput }}">
                                 <div x-show="item.showDropdown && item.results.length" class="combobox-options" x-cloak>
                                     <template x-for="(r, ri) in item.results" :key="r.id">
                                         <div @mousedown.prevent="pickItem(idx, r)" @mouseenter="item.activeIndex = ri"
@@ -260,11 +263,11 @@
                                 <input type="number" x-model.number="item.quantity" :id="'qty_' + idx"
                                        @input="recalcItem(idx)" @keydown.enter.prevent="focusField(idx, '{{ $isMove ? 'price' : 'disc' }}')"
                                        min="0" step="1"
-                                       class="w-full rounded border border-gray-200 px-1.5 py-1 text-center text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                                       class="{{ $rowInput }} text-center"
                                        :class="isOverStock(item) ? 'border-red-400 text-red-700' : ''">
                             </div>
                             {{-- Warehouse stock (read-only) --}}
-                            <div class="{{ $isMove ? 'col-span-2' : 'col-span-1' }} pt-1 text-center text-xs tabular-nums"
+                            <div class="{{ $isMove ? 'col-span-2' : 'col-span-1' }} text-center text-xs tabular-nums"
                                  :class="isOverStock(item) ? 'font-semibold text-red-500' : 'text-gray-400'"
                                  x-text="item.item_id ? (Number(item.warehouse_stock || 0)).toLocaleString('id-ID') : '—'"></div>
                             {{-- Discount % --}}
@@ -273,22 +276,22 @@
                                 <input type="number" x-model.number="item.discount" :id="'disc_' + idx"
                                        @input="recalcItem(idx)" @keydown.enter.prevent="focusField(idx, 'price')"
                                        min="0" max="100" step="0.01"
-                                       class="w-full rounded border border-gray-200 px-1.5 py-1 text-right text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                                       class="{{ $rowInput }} text-right">
                             </div>
                             @endunless
                             {{-- Price --}}
                             <div class="col-span-2">
                                 <input type="number" x-model.number="item.price" :id="'price_' + idx"
                                        @input="recalcItem(idx)" @keydown.enter.prevent="priceEnter(idx)"
-                                       min="0"
-                                       class="w-full rounded border border-gray-200 px-2 py-1 text-right text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                                       min="0" step="0.01"
+                                       class="{{ $rowInput }} text-right">
                             </div>
                             {{-- Subtotal --}}
-                            <div class="col-span-1 pt-1 text-right text-sm font-medium tabular-nums" x-text="Number(item.subtotal || 0).toLocaleString('id-ID')"></div>
+                            <div class="col-span-1 text-right text-sm font-medium tabular-nums" x-text="Number(item.subtotal || 0).toLocaleString('id-ID')"></div>
                             {{-- Remove --}}
-                            <div class="col-span-1 pt-0.5 text-center">
+                            <div class="col-span-1 text-center">
                                 <button type="button" @click="removeItem(idx)"
-                                        class="flex h-6 w-6 items-center justify-center rounded text-gray-400 hover:bg-red-50 hover:text-red-500 mx-auto">
+                                        class="inline-flex h-8 w-8 items-center justify-center rounded text-gray-400 hover:bg-red-50 hover:text-red-500">
                                     <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                                 </button>
                             </div>
@@ -376,6 +379,7 @@ function createTransaction() {
         errors: {},
         serverErrors: [],
         _initialized: false,
+        _barcodeFillIdx: null,
         form: {
             date: startDate,
             due_date: '',
@@ -502,17 +506,26 @@ function createTransaction() {
             this.form.items.forEach(row => { if (row.item_id) row.warehouse_stock = this.stockFor(row); });
         },
 
-        applyItem(row, item) {
-            row._applying = true;
-            row.item_id = String(item.id);
-            row.code = item.code || String(item.id);
-            row.name = item.name || '';
-            row.price = Number(item[_PriceSource] ?? item.price) || 0;
-            row.warehouse_items = item.warehouse_items || item.warehouseItems || [];
-            row.warehouse_stock = this.stockFor(row);
-            if (!row.quantity || row.quantity < 1) row.quantity = 1;
-            row.results = []; row.showDropdown = false; row.activeIndex = -1;
-            row._applying = false;
+        applyItemAtIndex(idx, source) {
+            const row = this.form.items[idx];
+            if (!row || !source) return;
+
+            const warehouse_items = source.warehouse_items || source.warehouseItems || [];
+            const updated = {
+                ...row,
+                item_id: String(source.id),
+                code: source.code || String(source.id),
+                name: source.name || '',
+                price: Number(source[_PriceSource] ?? source.price ?? source.cost) || 0,
+                warehouse_items,
+                results: [],
+                showDropdown: false,
+                activeIndex: -1,
+                quantity: (!row.quantity || row.quantity < 1) ? 1 : row.quantity,
+            };
+            updated.warehouse_stock = this.stockFor(updated);
+            // Replace the row object so Alpine x-for bindings refresh reliably.
+            this.form.items.splice(idx, 1, updated);
         },
 
         warnBarcodeNotFound(code, input) {
@@ -523,43 +536,48 @@ function createTransaction() {
         },
 
         async lookupBarcode(idx, e) {
-            const row = this.form.items[idx];
-            if (!row || row._barcodeLookup) return;
+            if (!this.form.items[idx] || this._barcodeFillIdx != null) return;
 
             const input = e?.target ?? document.getElementById('code_' + idx);
-            const code = String(input?.value ?? row.code ?? '').trim();
+            const code = String(input?.value ?? this.form.items[idx].code ?? '').trim();
             if (!code) return;
 
-            row.code = code;
-            row._barcodeLookup = true;
+            this.form.items[idx].code = code;
+            this._barcodeFillIdx = idx;
 
             try {
                 const res = await fetch(`${_ItemLookupUrl}?id=${encodeURIComponent(code)}`, {
                     headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
                 });
                 if (!res.ok) {
+                    this._barcodeFillIdx = null;
                     this.warnBarcodeNotFound(code, input);
                     return;
                 }
                 const data = await res.json();
                 const item = data.item ?? null;
                 if (item) {
-                    this.applyItem(row, item);
+                    this.applyItemAtIndex(idx, item);
                     this.recalcItem(idx);
-                    this.focusField(idx, 'qty');
+                    this.$nextTick(() => {
+                        this._barcodeFillIdx = null;
+                        this.focusField(idx, 'qty');
+                    });
                 } else {
+                    this._barcodeFillIdx = null;
                     this.warnBarcodeNotFound(code, input);
                 }
             } catch (err) {
+                this._barcodeFillIdx = null;
                 this.warnBarcodeNotFound(code, input);
-            } finally {
-                row._barcodeLookup = false;
             }
         },
 
-        searchItems(idx) {
+        searchItems(idx, e) {
             const row = this.form.items[idx];
-            if (row._applying) return;
+            if (!row || this._barcodeFillIdx === idx) return;
+            // Ignore programmatic x-model updates (e.g. after barcode fill).
+            if (e && !e.isTrusted) return;
             row.item_id = '';
             const q = String(row.name || '').trim();
             clearTimeout(row.searchTimer);
@@ -578,9 +596,9 @@ function createTransaction() {
         },
 
         pickItem(idx, item) {
-            this.applyItem(this.form.items[idx], item);
+            this.applyItemAtIndex(idx, item);
             this.recalcItem(idx);
-            this.focusField(idx, 'qty');
+            this.$nextTick(() => this.focusField(idx, 'qty'));
         },
 
         nameKeyboardNavLock(row) {
