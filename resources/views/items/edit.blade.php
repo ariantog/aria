@@ -11,11 +11,6 @@ $breadcrumbs = [
 ];
 $actionUrl = $isAsset ? route('assetlancar.update', $item->id) : route('items.update', $item->id);
 
-$typeTags  = $tags[\App\Models\Tag::TYPE_TYPE]  ?? collect();
-$sizeTags  = $tags[\App\Models\Tag::TYPE_SIZE]  ?? collect();
-$warnaTags = $tags[\App\Models\Tag::TYPE_WARNA] ?? collect();
-$jahitTags = $tags[\App\Models\Tag::TYPE_JAHIT] ?? collect();
-
 $curType  = optional($item->tags->firstWhere('type', \App\Models\Tag::TYPE_TYPE))->id;
 $curJahit = optional($item->tags->firstWhere('type', \App\Models\Tag::TYPE_JAHIT))->id;
 $curWarna = optional($item->tags->firstWhere('type', \App\Models\Tag::TYPE_WARNA))->id;

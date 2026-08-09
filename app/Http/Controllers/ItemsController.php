@@ -9,6 +9,7 @@ use App\Enums\TransactionType;
 use App\Http\Requests\StoreItemRequest;
 use App\Models\Item;
 use App\Models\ItemGroup;
+use App\Models\Tag;
 use App\Models\TransactionDetail;
 use App\Services\ItemService;
 use App\Services\ProductPerformanceService;
@@ -96,7 +97,7 @@ class ItemsController extends Controller
             'filters' => $request->only(['search', 'brand', 'type', 'jahit', 'size', 'warna', 'item_type', 'code', 'name', 'product_name', 'desc']),
             'brands' => $this->brandOptions(),
             'types' => $this->typeOptions(),
-            'tags' => \App\Models\Tag::all()->groupBy('type'),
+            'tags' => $this->tagGroupsForList($type),
             'can' => $this->itemPermissions($type),
             'isAsset' => $type === ItemType::ASSET_LANCAR,
             'baseUrl' => $type === ItemType::ASSET_LANCAR ? '/assetlancar' : '/items',
@@ -167,13 +168,10 @@ class ItemsController extends Controller
         $p = Item::getPermissions();
         Gate::authorize($item->type === ItemType::ASSET_LANCAR ? $p['asset-lancar-edit'] : $p['edit']);
 
-        return view('items.edit', [
+        return view('items.edit', array_merge($this->formProps($item->type), [
             'item' => $item->load(['group', 'tags']),
-            'brands' => $this->brandOptions(),
             'types' => $this->typeOptions(),
-            'tags' => \App\Models\Tag::all()->groupBy('type'),
-            'isAsset' => $item->type === ItemType::ASSET_LANCAR,
-        ]);
+        ]));
     }
 
     public function update(Request $request, Item $item)
@@ -441,7 +439,7 @@ class ItemsController extends Controller
         return [
             'brands' => $this->brandOptions(),
             'jahitTags' => \App\Models\Tag::where('type', \App\Models\Tag::TYPE_JAHIT)->get(),
-            'typeTags' => \App\Models\Tag::where('type', \App\Models\Tag::TYPE_TYPE)->get(),
+            'typeTags' => Tag::typeTagsForItem($t),
             'sizeTags' => \App\Models\Tag::where('type', \App\Models\Tag::TYPE_SIZE)->get(),
             'warnaTags' => \App\Models\Tag::where('type', \App\Models\Tag::TYPE_WARNA)->get(),
             'itemType' => $t->value,
@@ -456,6 +454,14 @@ class ItemsController extends Controller
                     ->pluck('pcode')
                 : collect(),
         ];
+    }
+
+    private function tagGroupsForList(ItemType $itemType): \Illuminate\Support\Collection
+    {
+        $tags = Tag::all()->groupBy('type');
+        $tags[Tag::TYPE_TYPE] = Tag::typeTagsForItem($itemType);
+
+        return $tags;
     }
 
     private function brandOptions(): array
