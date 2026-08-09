@@ -100,7 +100,7 @@ class TransactionsController extends Controller
             'ppn_rate' => (float) \App\Models\Setting::getValue('ppn_rate', 11),
             'min_date' => $bookClosingService->getMinAllowedDate()->toDateString(),
             'prefill' => match ($type) {
-                'move' => session()->pull('transaction_move_prefill'),
+                'move' => $this->pullReturnPrefill('move') ?? session()->pull('transaction_move_prefill'),
                 'return', 'return-supplier' => $this->pullReturnPrefill($type),
                 default => null,
             },
@@ -266,7 +266,7 @@ class TransactionsController extends Controller
     {
         $this->authorizeTransactionView($transaction);
         $targetType = $draftService->targetTypeSlug($transaction);
-        abort_unless($targetType, 422, 'Only buy or sell transactions can be returned.');
+        abort_unless($targetType, 422, 'This transaction type cannot be returned.');
         Transaction::authorizeTypeAccess($targetType);
 
         $prefill = $draftService->buildPrefill($transaction);
@@ -430,6 +430,7 @@ class TransactionsController extends Controller
         return match ($type) {
             Transaction::TYPE_SELL => $user->can($perms['type-return']),
             Transaction::TYPE_BUY => $user->can($perms['type-return-supplier']),
+            Transaction::TYPE_MOVE => $user->can($perms['type-move']),
             default => false,
         };
     }
