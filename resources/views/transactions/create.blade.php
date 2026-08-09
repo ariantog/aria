@@ -230,7 +230,7 @@
                             {{-- Code / barcode --}}
                             <div class="col-span-2">
                                 <input type="text" x-model="item.code" :id="'code_' + idx"
-                                       @keydown.enter.prevent="lookupBarcode(idx)"
+                                       @keydown="codeKeydown(idx, $event)"
                                        placeholder="ID / SKU"
                                        class="w-full rounded border border-gray-200 px-2 py-1 font-mono text-xs focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
                             </div>
@@ -373,6 +373,7 @@ function createTransaction() {
         submitting: false,
         errors: {},
         serverErrors: [],
+        _initialized: false,
         form: {
             date: startDate,
             due_date: '',
@@ -395,6 +396,9 @@ function createTransaction() {
         },
 
         init() {
+            if (this._initialized) return;
+            this._initialized = true;
+
             if (_Prefill) {
                 this.form.sender_id = String(_Prefill.sender_id || '');
                 this.form.sender = _Prefill.sender || null;
@@ -420,11 +424,10 @@ function createTransaction() {
                     row.subtotal = gross - (gross * row.discount / 100);
                     this.form.items.push(row);
                 });
-                if (this.form.items.length === 0) {
-                    this.addItemRow(false);
-                }
                 this.recalcTotals();
-            } else {
+            }
+
+            if (this.form.items.length === 0) {
                 this.addItemRow(false);
             }
             // The warehouse side can change after items are added → refresh their stock.
@@ -470,6 +473,9 @@ function createTransaction() {
         },
 
         addItemRow(focus = true) {
+            if (!focus && this.form.items.some(i => !i.item_id && !String(i.code || '').trim() && !String(i.name || '').trim())) {
+                return;
+            }
             this.form.items.push(this.newItemRow());
             if (focus) {
                 const idx = this.form.items.length - 1;
@@ -496,27 +502,68 @@ function createTransaction() {
 
         applyItem(row, item) {
             row.item_id = String(item.id);
-            row.code = item.code || '';
+            row.code = item.code || String(item.id);
             row.name = item.name || '';
             row.price = Number(item[_PriceSource] ?? item.price) || 0;
-            row.warehouse_items = item.warehouse_items || [];
+            row.warehouse_items = item.warehouse_items || item.warehouseItems || [];
             row.warehouse_stock = this.stockFor(row);
             if (!row.quantity || row.quantity < 1) row.quantity = 1;
             row.results = []; row.showDropdown = false; row.activeIndex = -1;
         },
 
-        async lookupBarcode(idx) {
+        codeKeydown(idx, e) {
+            const key = normalizeNavigationKey(e);
+            if (key !== 'Enter' && key !== 'Tab') return;
+            const input = e.target;
+            const code = String(input?.value ?? this.form.items[idx].code ?? '').trim();
+            if (!code) {
+                if (key === 'Enter') e.preventDefault();
+                return;
+            }
+            this.lookupBarcode(idx, e);
+        },
+
+        warnBarcodeNotFound(code, input) {
+            alert('Barcode / ID "' + code + '" tidak ditemukan.');
+            this.$nextTick(() => {
+                if (input) { input.focus(); input.select?.(); }
+            });
+        },
+
+        async lookupBarcode(idx, e) {
             const row = this.form.items[idx];
-            const code = String(row.code || '').trim();
+            const input = e?.target ?? document.getElementById('code_' + idx);
+            const code = String(input?.value ?? row.code ?? '').trim();
             if (!code) return;
+
+            const key = e ? normalizeNavigationKey(e) : '';
+            if (key === 'Enter' || key === 'Tab') {
+                e.preventDefault();
+            }
+
+            row.code = code;
+
             try {
                 const res = await fetch(`/items?id=${encodeURIComponent(code)}&json=1`, {
                     headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
                 });
+                if (!res.ok) {
+                    this.warnBarcodeNotFound(code, input);
+                    return;
+                }
                 const data = await res.json();
                 const list = Array.isArray(data) ? data : (data.data || []);
-                if (list[0]) { this.applyItem(row, list[0]); this.recalcItem(idx); this.focusField(idx, 'qty'); }
-            } catch (e) { /* ignore */ }
+                const item = list.find(i => String(i.id) === code) ?? list[0];
+                if (item) {
+                    this.applyItem(row, item);
+                    this.recalcItem(idx);
+                    this.focusField(idx, 'qty');
+                } else {
+                    this.warnBarcodeNotFound(code, input);
+                }
+            } catch (err) {
+                this.warnBarcodeNotFound(code, input);
+            }
         },
 
         searchItems(idx) {
