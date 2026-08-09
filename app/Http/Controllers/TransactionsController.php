@@ -17,6 +17,7 @@ use App\Models\Transaction;
 use App\Services\BookClosingService;
 use App\Services\TransactionInvoiceService;
 use App\Services\TransactionListExportService;
+use App\Services\TransactionReturnDraftService;
 use App\Services\TransactionService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
@@ -98,7 +99,11 @@ class TransactionsController extends Controller
             'config' => $config,
             'ppn_rate' => (float) \App\Models\Setting::getValue('ppn_rate', 11),
             'min_date' => $bookClosingService->getMinAllowedDate()->toDateString(),
-            'prefill' => $type === 'move' ? session()->pull('transaction_move_prefill') : null,
+            'prefill' => match ($type) {
+                'move' => session()->pull('transaction_move_prefill'),
+                'return', 'return-supplier' => $this->pullReturnPrefill($type),
+                default => null,
+            },
         ]);
     }
 
@@ -212,11 +217,31 @@ class TransactionsController extends Controller
         return view('transactions.show', [
             'transaction' => $transaction,
             'config' => ['sender_label' => $getLabel('sender'), 'receiver_label' => $getLabel('receiver'), 'type_slug' => $typeSlug],
-            'can' => ['delete_transaction' => Auth::user()->can(Transaction::getPermissions()['delete']), 'edit_transaction' => Auth::user()->can(Transaction::getPermissions()['edit']), 'bank_hidden_balance' => ! Auth::user()->is_superadmin && Auth::user()->can('addrbook-bank-account-hidden-balance')],
+            'can' => [
+                'delete_transaction' => Auth::user()->can(Transaction::getPermissions()['delete']),
+                'edit_transaction' => Auth::user()->can(Transaction::getPermissions()['edit']),
+                'bank_hidden_balance' => ! Auth::user()->is_superadmin && Auth::user()->can('addrbook-bank-account-hidden-balance'),
+                'return_draft' => $this->canDraftReturn($transaction),
+            ],
             'flash' => ['success' => session('success'), 'error' => session('error')],
             'hasInvoicePdf' => $invoiceService->invoicePdfExists($transaction),
             'invoicePdfUrl' => $invoiceService->invoicePdfUrl($transaction),
         ]);
+    }
+
+    public function draftReturn(Transaction $transaction, TransactionReturnDraftService $draftService)
+    {
+        $this->authorizeTransactionView($transaction);
+        $targetType = $draftService->targetTypeSlug($transaction);
+        abort_unless($targetType, 422, 'Only buy or sell transactions can be returned.');
+        Transaction::authorizeTypeAccess($targetType);
+
+        $prefill = $draftService->buildPrefill($transaction);
+        session([
+            'transaction_return_prefill' => array_merge($prefill, ['type' => $targetType]),
+        ]);
+
+        return redirect()->route('transactions.create', ['type' => $targetType]);
     }
 
     public function storePdf(Transaction $transaction, TransactionInvoiceService $invoiceService)
@@ -359,6 +384,35 @@ class TransactionsController extends Controller
             app(\App\Services\LocationAccessService::class)->canAccessTransaction(Auth::user(), $transaction),
             403
         );
+    }
+
+    private function canDraftReturn(Transaction $transaction): bool
+    {
+        $user = Auth::user();
+        $perms = Transaction::getPermissions();
+        $type = $transaction->type instanceof \BackedEnum
+            ? $transaction->type->value
+            : (int) $transaction->type;
+
+        return match ($type) {
+            Transaction::TYPE_SELL => $user->can($perms['type-return']),
+            Transaction::TYPE_BUY => $user->can($perms['type-return-supplier']),
+            default => false,
+        };
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function pullReturnPrefill(string $type): ?array
+    {
+        $prefill = session()->pull('transaction_return_prefill');
+        if (! is_array($prefill) || ($prefill['type'] ?? null) !== $type) {
+            return null;
+        }
+        unset($prefill['type']);
+
+        return $prefill;
     }
 
     private function filteredTransactionsQuery(Request $request): Builder

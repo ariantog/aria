@@ -59,6 +59,17 @@
                 Print
             </a>
 
+            @if($can['return_draft'] ?? false)
+            <form method="POST" action="{{ route('transactions.draft-return', $transaction->id) }}" class="inline">
+                @csrf
+                <button type="submit" data-testid="draft-return-button"
+                        class="inline-flex items-center gap-2 rounded-md border border-orange-300 bg-orange-50 px-4 py-2 text-sm font-medium text-orange-700 hover:bg-orange-100">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/></svg>
+                    Return
+                </button>
+            </form>
+            @endif
+
             @if($hasInvoicePdf)
             <a href="{{ $invoicePdfUrl }}" target="_blank" rel="noopener"
                class="inline-flex items-center gap-2 rounded-md border border-blue-300 bg-blue-50 px-4 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100">
