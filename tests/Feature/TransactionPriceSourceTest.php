@@ -22,7 +22,7 @@ class TransactionPriceSourceTest extends TestCase
 
         // The item picker must initialize line prices from the configured source
         $response->assertSee('const _PriceSource = "cost"', false);
-        $response->assertSee('item[_PriceSource]', false);
+        $response->assertSee('[_PriceSource]', false);
     }
 
     public function test_sell_transaction_has_price_price_source()
@@ -35,6 +35,6 @@ class TransactionPriceSourceTest extends TestCase
         $response->assertViewIs('transactions.create');
         $this->assertSame('price', $response->viewData('config')['price_source']);
         $response->assertSee('const _PriceSource = "price"', false);
-        $response->assertSee('item[_PriceSource]', false);
+        $response->assertSee('[_PriceSource]', false);
     }
 }

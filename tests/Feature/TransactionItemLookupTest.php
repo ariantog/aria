@@ -1,7 +1,10 @@
 <?php
 
+use App\Enums\ItemType;
+use App\Models\Addrbook;
 use App\Models\Item;
 use App\Models\User;
+use App\Models\WarehouseItem;
 use Spatie\Permission\Models\Permission;
 
 beforeEach(function () {
@@ -57,6 +60,44 @@ it('requires items-list permission for the generic items index id lookup', funct
     $this->actingAs($this->user)
         ->getJson('/items?id='.$item->id.'&json=1')
         ->assertForbidden();
+});
+
+it('resolves an asset lancar item by id for transaction rows', function () {
+    $this->user->givePermissionTo('transactions-type-sell');
+
+    $asset = Item::factory()->create([
+        'name' => 'Meja Kantor',
+        'code' => 'ASET-MEJA-01',
+        'type' => ItemType::ASSET_LANCAR,
+        'price' => 750_000,
+    ]);
+
+    $this->actingAs($this->user)
+        ->getJson(route('transactions.item-by-id', ['type' => 'sell', 'id' => $asset->id]))
+        ->assertSuccessful()
+        ->assertJsonPath('item.id', $asset->id)
+        ->assertJsonPath('item.name', 'Meja Kantor')
+        ->assertJsonPath('item.type', ItemType::ASSET_LANCAR->value);
+});
+
+it('exposes warehouse stock so scanned rows can show on-hand quantity', function () {
+    $this->user->givePermissionTo('transactions-type-sell');
+
+    $item = Item::factory()->create(['name' => 'Stocked Item']);
+    $warehouse = Addrbook::factory()->create(['type' => Addrbook::TYPE_WAREHOUSE]);
+    WarehouseItem::create([
+        'item_id' => $item->id,
+        'warehouse_id' => $warehouse->id,
+        'warehouse_type' => Addrbook::class,
+        'quantity' => 7,
+    ]);
+
+    $response = $this->actingAs($this->user)
+        ->getJson(route('transactions.item-by-id', ['type' => 'sell', 'id' => $item->id]))
+        ->assertSuccessful()
+        ->assertJsonPath('item.warehouse_items.0.warehouse_id', (string) $warehouse->id);
+
+    expect((float) $response->json('item.warehouse_items.0.quantity'))->toBe(7.0);
 });
 
 it('finds an item by numeric id through the items search json endpoint', function () {

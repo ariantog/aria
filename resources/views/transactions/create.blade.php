@@ -210,6 +210,13 @@
 
                 <div x-show="errors.items" class="mx-5 mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800" x-text="errors.items"></div>
 
+                {{-- Barcode lookup feedback --}}
+                <div x-show="barcodeError" x-cloak data-testid="barcode-error"
+                     class="mx-5 mt-4 flex items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                    <span x-text="barcodeError"></span>
+                    <button type="button" @click="barcodeError = ''" class="text-amber-600 hover:text-amber-800">✕</button>
+                </div>
+
                 {{-- Table header --}}
                 <div class="hidden grid-cols-12 gap-2 border-b bg-gray-50 px-5 py-2.5 text-[10px] font-medium uppercase tracking-wide text-gray-500 sm:grid">
                     <div class="col-span-2">Code / Barcode</div>
@@ -378,6 +385,7 @@ function createTransaction() {
         submitting: false,
         errors: {},
         serverErrors: [],
+        barcodeError: '',
         _initialized: false,
         _barcodeFillIdx: null,
         form: {
@@ -506,87 +514,97 @@ function createTransaction() {
             this.form.items.forEach(row => { if (row.item_id) row.warehouse_stock = this.stockFor(row); });
         },
 
+        // Mutate the existing row object; x-for scopes keep their original reference,
+        // so replacing the array entry would leave the inputs bound to the stale row.
         applyItemAtIndex(idx, source) {
             const row = this.form.items[idx];
             if (!row || !source) return;
 
-            const warehouse_items = source.warehouse_items || source.warehouseItems || [];
-            const price = Number(source[_PriceSource] ?? source.price ?? source.cost) || 0;
-            const updated = {
-                ...row,
-                item_id: String(source.id ?? source.item_id ?? ''),
-                code: source.code || source.item_code || String(source.id ?? ''),
-                name: source.name || source.product_name || '',
-                price,
-                warehouse_items,
-                results: [],
-                showDropdown: false,
-                activeIndex: -1,
-                quantity: (!row.quantity || row.quantity < 1) ? 1 : row.quantity,
-            };
-            updated.warehouse_stock = this.stockFor(updated);
-            this.form.items.splice(idx, 1, updated);
+            row.item_id = String(source.id ?? source.item_id ?? '');
+            row.code = source.code || source.item_code || String(source.id ?? '');
+            row.name = source.name || source.product_name || '';
+            row.price = Number(source[_PriceSource] ?? source.price ?? source.cost) || 0;
+            row.warehouse_items = source.warehouse_items || source.warehouseItems || [];
+            if (!row.quantity || row.quantity < 1) row.quantity = 1;
+            row.warehouse_stock = this.stockFor(row);
+            row.results = [];
+            row.showDropdown = false;
+            row.activeIndex = -1;
         },
 
+        async fetchJson(url) {
+            try {
+                const res = await fetch(url, {
+                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                });
+                if (!res.ok) return null;
+                return await res.json();
+            } catch (_) {
+                return null;
+            }
+        },
+
+        // A barcode is the item id, but codes/SKUs are accepted too. Every source below
+        // covers regular items and asset lancar; the exact-id endpoint is tried first
+        // because it is authoritative and unaffected by the search result limit.
         async resolveItemByCode(code) {
-            const headers = { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' };
+            const isNumeric = /^\d+$/.test(code);
 
-            // Same JSON source as the name autocomplete (known to populate rows correctly).
-            try {
-                const res = await fetch(`/items?search=${encodeURIComponent(code)}&json=1`, { headers });
-                if (res.ok) {
-                    const data = await res.json();
-                    const list = Array.isArray(data) ? data : (data.data || []);
-                    const exact = list.find(i => String(i.id) === code);
-                    if (exact) return exact;
-                    if (list.length === 1) return list[0];
-                }
-            } catch (_) { /* try fallback below */ }
+            if (isNumeric) {
+                const exact = await this.fetchJson(`${_ItemLookupUrl}?id=${encodeURIComponent(code)}`);
+                if (exact?.item) return exact.item;
 
-            // Fallback when the user lacks items-list but has transaction-type access.
-            try {
-                const res = await fetch(`${_ItemLookupUrl}?id=${encodeURIComponent(code)}`, { headers });
-                if (res.ok) {
-                    const data = await res.json();
-                    if (data.item) return data.item;
-                }
-            } catch (_) { /* not found */ }
+                const byId = await this.fetchJson(`/items?id=${encodeURIComponent(code)}&json=1`);
+                const byIdList = Array.isArray(byId) ? byId : (byId?.data || []);
+                const byIdMatch = byIdList.find(i => String(i.id) === code) ?? byIdList[0];
+                if (byIdMatch) return byIdMatch;
+            }
 
-            return null;
+            const searched = await this.fetchJson(`/items?search=${encodeURIComponent(code)}&json=1`);
+            const list = Array.isArray(searched) ? searched : (searched?.data || []);
+            const upper = code.toUpperCase();
+
+            return list.find(i => String(i.id) === code)
+                ?? list.find(i => String(i.code || '').toUpperCase() === upper)
+                ?? list.find(i => String(i.legacy_code || '').toUpperCase() === upper)
+                ?? (list.length === 1 ? list[0] : null);
         },
 
         warnBarcodeNotFound(code, input) {
-            alert('Barcode / ID "' + code + '" tidak ditemukan.');
+            this.barcodeError = 'Barcode / ID "' + code + '" tidak ditemukan.';
             this.$nextTick(() => {
                 if (input) { input.focus(); input.select?.(); }
             });
         },
 
         async lookupBarcode(idx, e) {
-            const row = this.form.items[idx];
-            if (!row || this._barcodeFillIdx != null) return;
+            if (!this.form.items[idx] || this._barcodeFillIdx != null) return;
 
             const input = e?.target ?? document.getElementById('code_' + idx);
-            const code = String(input?.value ?? row.code ?? '').trim();
+            const code = String(input?.value ?? this.form.items[idx].code ?? '').trim();
             if (!code) return;
 
-            const uid = row.uid;
+            const uid = this.form.items[idx].uid;
+            this.barcodeError = '';
             this._barcodeFillIdx = idx;
 
             try {
                 const item = await this.resolveItemByCode(code);
-                const rowIdx = this.form.items.findIndex(r => r.uid === uid);
-                if (rowIdx === -1) return;
+                // Rows can shift while the request is in flight; fall back to the
+                // original index when the uid is no longer present.
+                const found = this.form.items.findIndex(r => r.uid === uid);
+                const rowIdx = found === -1 ? idx : found;
+                if (!this.form.items[rowIdx]) return;
 
                 if (item && String(item.id ?? item.item_id ?? '') !== '') {
                     this.pickItem(rowIdx, item, true);
                 } else {
-                    this._barcodeFillIdx = null;
                     this.warnBarcodeNotFound(code, input);
                 }
             } catch (err) {
-                this._barcodeFillIdx = null;
                 this.warnBarcodeNotFound(code, input);
+            } finally {
+                this._barcodeFillIdx = null;
             }
         },
 
@@ -613,13 +631,10 @@ function createTransaction() {
         },
 
         pickItem(idx, item, fromBarcode = false) {
-            if (fromBarcode) this._barcodeFillIdx = idx;
+            this.barcodeError = '';
             this.applyItemAtIndex(idx, item);
             this.recalcItem(idx);
-            this.$nextTick(() => {
-                if (fromBarcode) this._barcodeFillIdx = null;
-                this.focusField(idx, 'qty');
-            });
+            this.$nextTick(() => this.focusField(idx, 'qty'));
         },
 
         nameKeyboardNavLock(row) {
