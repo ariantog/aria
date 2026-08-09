@@ -230,7 +230,8 @@
                             {{-- Code / barcode --}}
                             <div class="col-span-2">
                                 <input type="text" x-model="item.code" :id="'code_' + idx"
-                                       @keydown="codeKeydown(idx, $event)"
+                                       @keydown.enter.prevent.stop="lookupBarcode(idx, $event)"
+                                       @keydown.tab.prevent.stop="lookupBarcode(idx, $event)"
                                        placeholder="ID / SKU"
                                        class="w-full rounded border border-gray-200 px-2 py-1 font-mono text-xs focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
                             </div>
@@ -365,6 +366,7 @@ const _TxType  = '{{ $type }}';
 const _MinDate = '{{ $min_date ?? '' }}';
 const _PriceSource = @json($config['price_source'] ?? 'price');
 const _Prefill = @json($prefill ?? null);
+const _ItemLookupUrl = @json(route('transactions.item-by-id', ['type' => $type]));
 
 function createTransaction() {
     const today = new Date().toISOString().split('T')[0];
@@ -501,6 +503,7 @@ function createTransaction() {
         },
 
         applyItem(row, item) {
+            row._applying = true;
             row.item_id = String(item.id);
             row.code = item.code || String(item.id);
             row.name = item.name || '';
@@ -509,18 +512,7 @@ function createTransaction() {
             row.warehouse_stock = this.stockFor(row);
             if (!row.quantity || row.quantity < 1) row.quantity = 1;
             row.results = []; row.showDropdown = false; row.activeIndex = -1;
-        },
-
-        codeKeydown(idx, e) {
-            const key = normalizeNavigationKey(e);
-            if (key !== 'Enter' && key !== 'Tab') return;
-            const input = e.target;
-            const code = String(input?.value ?? this.form.items[idx].code ?? '').trim();
-            if (!code) {
-                if (key === 'Enter') e.preventDefault();
-                return;
-            }
-            this.lookupBarcode(idx, e);
+            row._applying = false;
         },
 
         warnBarcodeNotFound(code, input) {
@@ -532,19 +524,17 @@ function createTransaction() {
 
         async lookupBarcode(idx, e) {
             const row = this.form.items[idx];
+            if (!row || row._barcodeLookup) return;
+
             const input = e?.target ?? document.getElementById('code_' + idx);
             const code = String(input?.value ?? row.code ?? '').trim();
             if (!code) return;
 
-            const key = e ? normalizeNavigationKey(e) : '';
-            if (key === 'Enter' || key === 'Tab') {
-                e.preventDefault();
-            }
-
             row.code = code;
+            row._barcodeLookup = true;
 
             try {
-                const res = await fetch(`/items?id=${encodeURIComponent(code)}&json=1`, {
+                const res = await fetch(`${_ItemLookupUrl}?id=${encodeURIComponent(code)}`, {
                     headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
                 });
                 if (!res.ok) {
@@ -552,8 +542,7 @@ function createTransaction() {
                     return;
                 }
                 const data = await res.json();
-                const list = Array.isArray(data) ? data : (data.data || []);
-                const item = list.find(i => String(i.id) === code) ?? list[0];
+                const item = data.item ?? null;
                 if (item) {
                     this.applyItem(row, item);
                     this.recalcItem(idx);
@@ -563,11 +552,14 @@ function createTransaction() {
                 }
             } catch (err) {
                 this.warnBarcodeNotFound(code, input);
+            } finally {
+                row._barcodeLookup = false;
             }
         },
 
         searchItems(idx) {
             const row = this.form.items[idx];
+            if (row._applying) return;
             row.item_id = '';
             const q = String(row.name || '').trim();
             clearTimeout(row.searchTimer);

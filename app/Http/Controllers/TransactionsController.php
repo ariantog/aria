@@ -107,6 +107,34 @@ class TransactionsController extends Controller
         ]);
     }
 
+    public function itemById(string $type, Request $request)
+    {
+        Transaction::authorizeTypeAccess($type);
+
+        $validated = $request->validate([
+            'id' => ['required', 'integer', 'min:1'],
+        ]);
+
+        $item = \App\Models\Item::with('warehouseItems')->find($validated['id']);
+        if (! $item) {
+            return response()->json(['item' => null]);
+        }
+
+        return response()->json([
+            'item' => [
+                'id' => $item->id,
+                'code' => $item->getItemCode(),
+                'name' => $item->getItemName(),
+                'price' => (float) $item->price,
+                'cost' => (float) $item->cost,
+                'warehouse_items' => $item->warehouseItems->map(fn ($wi) => [
+                    'warehouse_id' => (string) $wi->warehouse_id,
+                    'quantity' => (float) $wi->quantity,
+                ])->values()->all(),
+            ],
+        ]);
+    }
+
     public function store(StoreItemTransactionRequest $request, CreateItemTransaction $action, BookClosingService $bookClosingService)
     {
         $this->authorizeTransactionType($request->input('type'));
