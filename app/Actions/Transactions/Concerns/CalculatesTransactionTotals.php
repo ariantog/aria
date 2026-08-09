@@ -26,9 +26,12 @@ trait CalculatesTransactionTotals
         return false;
     }
 
-    protected function calculateItemTotal(float $quantity, float $price, float $discount = 0): float
+    protected function calculateItemTotal(float $quantity, float $price, float $discountPercent = 0): float
     {
-        return ($quantity * $price) - $discount;
+        $gross = $quantity * $price;
+        $percent = max(0.0, min(100.0, $discountPercent));
+
+        return $gross - ($gross * $percent / 100);
     }
 
     protected function calculateDiscountAmount(float $grandTotal, float $discountPercent): float

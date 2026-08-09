@@ -122,9 +122,6 @@
         @if($hasPerm('stuff-tag-list') || $isSuperAdmin)
         <a href="{{ route('tags.index') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/tags') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Tags</a>
         @endif
-        @if($hasPerm('items-contributor') || $isSuperAdmin)
-        <a href="{{ route('contributors.index') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/contributors') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Contributors</a>
-        @endif
         @if($hasPerm('restock-list') || $isSuperAdmin)
         <a href="{{ route('restock.index') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/restock') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Restock</a>
         @endif
@@ -136,7 +133,7 @@
 @endif
 
 {{-- ── Reports ───────────────────────────────────────────────────────── --}}
-@if($hasPerm('report-nett-cash') || $isSuperAdmin)
+@if($hasPerm('report-nett-cash') || $hasPerm('report-product-performance') || $isSuperAdmin)
 @php $repActive = $isActive('/reports'); @endphp
 <div x-data="{ open: {{ $repActive ? 'true' : 'false' }} }" class="mb-1">
     <button @click="open = !open"
@@ -168,6 +165,9 @@
         @endif
         @if($hasPerm('report-warehouse-arrangement') || $isSuperAdmin)
         <a href="{{ route('reports.warehouse-arrangement') }}" class="block rounded-md px-2.5 py-1.5 text-sm text-gray-600 hover:bg-gray-100">Warehouse Arrangement</a>
+        @endif
+        @if($hasPerm('report-product-performance') || $isSuperAdmin)
+        <a href="{{ route('reports.product-performance') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/product-performance') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Product Performance</a>
         @endif
     </div>
 </div>

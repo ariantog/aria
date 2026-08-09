@@ -8,7 +8,7 @@ use App\Models\DailyInventorySummary;
 use App\Models\MonthlyAccountSummary;
 use App\Models\MonthlyCategorySummary;
 use App\Models\Transaction;
-use App\Models\WarehouseItemMonthlyStat;
+use App\Services\WarehouseItemStatsRecorder;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\DB;
@@ -19,7 +19,7 @@ class UpdateTransactionSummaries implements ShouldQueue
 
     public function __construct(public int $transactionId) {}
 
-    public function handle(): void
+    public function handle(WarehouseItemStatsRecorder $statsRecorder): void
     {
         $transaction = Transaction::with('details')->find($this->transactionId);
         if (! $transaction || $transaction->status->value !== 1) return;
@@ -32,7 +32,9 @@ class UpdateTransactionSummaries implements ShouldQueue
         $this->updateCategorySummary($transaction, $year, $month);
         $this->updateInventorySummary($transaction, $date);
         $this->updateStatSell($transaction);
-        $this->updateWarehouseItemStats($transaction);
+        foreach ($transaction->details as $detail) {
+            $statsRecorder->recordDetail($transaction, $detail);
+        }
     }
 
     private function updateAccountSummary(Transaction $transaction, int $year, int $month): void
@@ -111,35 +113,6 @@ class UpdateTransactionSummaries implements ShouldQueue
             DB::table('stat_sells')->updateOrInsert(
                 ['group_id' => $row->group_id, 'bulan' => $row->bulan, 'tahun' => $row->tahun, 'sender_id' => $row->sender_id, 'type' => $row->type],
                 ['sum_qty' => DB::raw('sum_qty + '.(float) $row->sum_qty), 'sum_total' => DB::raw('sum_total + '.(float) $row->sum_total), 'updated_at' => now()]);
-        }
-    }
-
-    private function updateWarehouseItemStats(Transaction $transaction): void
-    {
-        if (! in_array($transaction->type, [TransactionType::Sell, TransactionType::Return], true)) {
-            return;
-        }
-
-        foreach ($transaction->details as $detail) {
-            $warehouseId = match ($transaction->type) {
-                TransactionType::Sell => $transaction->sender_id,
-                TransactionType::Return => $transaction->receiver_id,
-            };
-
-            if (! $warehouseId) {
-                continue;
-            }
-
-            $date = $detail->date ?? $transaction->date;
-            $stat = WarehouseItemMonthlyStat::firstOrCreate([
-                'warehouse_id' => $warehouseId,
-                'item_id' => $detail->item_id,
-                'month' => $date->month,
-                'year' => $date->year,
-            ]);
-
-            $column = $transaction->type === TransactionType::Sell ? 'sold_qty' : 'returned_qty';
-            $stat->increment($column, abs((float) $detail->quantity));
         }
     }
 }

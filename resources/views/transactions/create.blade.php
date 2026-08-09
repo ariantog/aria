@@ -655,7 +655,7 @@ function createTransaction() {
                         item_id: i.item_id,
                         quantity: i.quantity,
                         price: i.price,
-                        discount: gross * Number(i.discount || 0) / 100, // row discount % → Rp for the backend
+                        discount: Number(i.discount || 0),
                         subtotal: i.subtotal,
                         warehouse_id: this.warehouseId,
                         note: i.note || '',

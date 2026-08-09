@@ -32,7 +32,16 @@ class ScheduledTaskSeeder extends Seeder
         );
 
         \App\Models\ScheduledTask::updateOrCreate(
-            ['command' => 'jubelio:order-jubelio-to-aria'],
+            ['command' => 'app:sync-product-performance'],
+            [
+                'name' => 'Sync Product Performance',
+                'frequency' => 'daily',
+                'is_active' => true,
+                'description' => 'Rebuilds product performance rollups for sales contribution and warehouse demand reports.',
+            ]
+        );
+
+        \App\Models\ScheduledTask::updateOrCreate(
             [
                 'name' => 'Sync Jubelio Orders',
                 'frequency' => 'everyMinute',

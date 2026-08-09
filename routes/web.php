@@ -184,8 +184,8 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::get('transactions/{type}/lookup/{role}', [App\Http\Controllers\TransactionLookupController::class, 'search'])->name('transactions.lookup');
     Route::get('tags/lookup', [App\Http\Controllers\TagLookupController::class, 'search'])->name('tags.lookup');
     Route::resource('tags', \App\Http\Controllers\Stuff\TagController::class);
-    Route::resource('contributors', \App\Http\Controllers\Stuff\ContributorController::class);
-    Route::get('contributors/filter', [\App\Http\Controllers\Stuff\ContributorController::class, 'index'])->name('contributor.filter');
+    Route::redirect('/contributors', '/reports/product-performance');
+    Route::redirect('/contributors/filter', '/reports/product-performance');
     // Journal Module
     Route::resource('journals/operations', \App\Http\Controllers\Journal\OperationController::class);
     Route::resource('journals/account-list', \App\Http\Controllers\Journal\AccountListController::class)->parameters([
@@ -262,6 +262,7 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
         Route::get('/warehouse-arrangement', [\App\Http\Controllers\Reports\WarehouseArrangementController::class, 'index'])->name('warehouse-arrangement');
         Route::get('/warehouse-arrangement/export', [\App\Http\Controllers\Reports\WarehouseArrangementController::class, 'export'])->name('warehouse-arrangement.export');
         Route::post('/warehouse-arrangement/draft-move', [\App\Http\Controllers\Reports\WarehouseArrangementController::class, 'draftMove'])->name('warehouse-arrangement.draft-move');
+        Route::get('/product-performance', [\App\Http\Controllers\Reports\ProductPerformanceController::class, 'index'])->name('product-performance');
     });
 
     // Restock Module

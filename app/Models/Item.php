@@ -67,7 +67,6 @@ class Item extends Model
             'create' => 'items-create',
             'edit' => 'items-edit',
             'delete' => 'items-delete',
-            'contributor' => 'items-contributor',
 
             // Asset Lancar
             'asset-lancar-view' => 'assetLancar-list',
