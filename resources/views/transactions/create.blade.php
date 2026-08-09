@@ -89,6 +89,8 @@
                                        @input="handleInput()"
                                        @focus="handleFocus()"
                                        @keydown="handleKeydown($event)"
+                                       @keyup="handleKeyup($event)"
+                                       :readonly="keyboardNavLock()"
                                        :placeholder="placeholder"
                                        class="flex-1 border-none bg-transparent px-3 py-2 text-sm outline-none placeholder-gray-400"
                                        autocomplete="off">
@@ -132,6 +134,8 @@
                                        @input="handleInput()"
                                        @focus="handleFocus()"
                                        @keydown="handleKeydown($event)"
+                                       @keyup="handleKeyup($event)"
+                                       :readonly="keyboardNavLock()"
                                        :placeholder="placeholder"
                                        class="flex-1 border-none bg-transparent px-3 py-2 text-sm outline-none placeholder-gray-400"
                                        autocomplete="off">
@@ -235,6 +239,8 @@
                                 <input type="text" x-model="item.name" :id="'name_' + idx"
                                        @input="searchItems(idx)" @focus="item.showDropdown = true"
                                        @keydown="nameKeydown(idx, $event)"
+                                       @keyup="nameKeyup(idx, $event)"
+                                       :readonly="nameKeyboardNavLock(item)"
                                        @click.away="item.showDropdown = false"
                                        placeholder="Search name or code…" autocomplete="off"
                                        class="w-full rounded border border-gray-200 px-2 py-1 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
@@ -538,17 +544,76 @@ function createTransaction() {
             this.focusField(idx, 'qty');
         },
 
+        nameKeyboardNavLock(row) {
+            return isMobileComboboxContext() && row.showDropdown && row.results.length > 0;
+        },
+
         nameKeydown(idx, e) {
-            const row = this.form.items[idx];
-            const len = row.results.length;
-            if (e.key === 'ArrowDown') { e.preventDefault(); if (len) { row.showDropdown = true; row.activeIndex = (row.activeIndex + 1) % len; } }
-            else if (e.key === 'ArrowUp') { e.preventDefault(); if (len) row.activeIndex = row.activeIndex <= 0 ? len - 1 : row.activeIndex - 1; }
-            else if (e.key === 'Enter') {
+            this.form.items[idx]._keydownHandled = false;
+            if (this._processNameKey(idx, e)) {
+                this.form.items[idx]._keydownHandled = true;
                 e.preventDefault();
-                if (row.showDropdown && row.activeIndex >= 0 && row.results[row.activeIndex]) this.pickItem(idx, row.results[row.activeIndex]);
-                else if (len === 1) this.pickItem(idx, row.results[0]);
-                else this.focusField(idx, 'qty');
-            } else if (e.key === 'Escape') { row.showDropdown = false; }
+            }
+        },
+
+        nameKeyup(idx, e) {
+            const row = this.form.items[idx];
+            if (row._keydownHandled) return;
+            if (!isMobileComboboxContext()) return;
+            const key = normalizeNavigationKey(e);
+            if (['ArrowDown', 'ArrowUp', 'Enter'].includes(key) && this._processNameKey(idx, e)) {
+                e.preventDefault();
+            }
+        },
+
+        _processNameKey(idx, e) {
+            const row = this.form.items[idx];
+            const key = normalizeNavigationKey(e);
+            if (!key) return false;
+            const len = row.results.length;
+
+            if (this.nameKeyboardNavLock(row)) {
+                if (key === 'Backspace') {
+                    row.name = String(row.name || '').slice(0, -1);
+                    this.searchItems(idx);
+                    return true;
+                }
+                if (key === 'Delete') {
+                    row.name = '';
+                    this.searchItems(idx);
+                    return true;
+                }
+                if (isPrintableComboboxKey(key, e)) {
+                    row.name = String(row.name || '') + key;
+                    row.activeIndex = -1;
+                    this.searchItems(idx);
+                    return true;
+                }
+            }
+
+            if (key === 'ArrowDown') {
+                if (len) { row.showDropdown = true; row.activeIndex = (row.activeIndex + 1) % len; }
+                return true;
+            }
+            if (key === 'ArrowUp') {
+                if (len) row.activeIndex = row.activeIndex <= 0 ? len - 1 : row.activeIndex - 1;
+                return true;
+            }
+            if (key === 'Enter') {
+                if (row.showDropdown && row.activeIndex >= 0 && row.results[row.activeIndex]) {
+                    this.pickItem(idx, row.results[row.activeIndex]);
+                } else if (len === 1) {
+                    this.pickItem(idx, row.results[0]);
+                } else {
+                    this.focusField(idx, 'qty');
+                }
+                return true;
+            }
+            if (key === 'Escape') {
+                row.showDropdown = false;
+                return true;
+            }
+            return false;
         },
 
         focusField(idx, field) {

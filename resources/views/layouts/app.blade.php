@@ -239,6 +239,37 @@ function appShell() {
     };
 }
 
+// ─── Combobox keyboard helpers (mobile + external keyboard friendly) ───────
+function isMobileComboboxContext() {
+    if (window._isMobileCombobox != null) return window._isMobileCombobox;
+    const coarse = window.matchMedia('(pointer: coarse)').matches;
+    const ua = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+    window._isMobileCombobox = coarse || ua;
+    return window._isMobileCombobox;
+}
+
+function normalizeNavigationKey(e) {
+    const legacy = { 13: 'Enter', 27: 'Escape', 9: 'Tab', 38: 'ArrowUp', 40: 'ArrowDown', 37: 'ArrowLeft', 39: 'ArrowRight', 8: 'Backspace', 46: 'Delete' };
+    const kc = e.keyCode || e.which;
+    if (kc && legacy[kc]) return legacy[kc];
+
+    const codeMap = { NumpadEnter: 'Enter' };
+    if (e.code) {
+        if (e.code.startsWith('Arrow') || e.code === 'Enter' || e.code === 'Escape' || e.code === 'Tab' || e.code === 'Backspace' || e.code === 'Delete') {
+            return codeMap[e.code] || e.code;
+        }
+    }
+
+    const key = e.key;
+    if (!key || key === 'Unidentified') return '';
+    const short = { Down: 'ArrowDown', Up: 'ArrowUp', Esc: 'Escape', Left: 'ArrowLeft', Right: 'ArrowRight' };
+    return short[key] || key;
+}
+
+function isPrintableComboboxKey(key, e) {
+    return key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey;
+}
+
 // ─── Reusable Alpine async-combobox component ─────────────────────────────
 function asyncCombobox(config) {
     return {
@@ -248,6 +279,7 @@ function asyncCombobox(config) {
         open: false,
         selected: config.initial || null,
         activeIndex: -1,
+        _keydownHandled: false,
         debounceTimer: null,
         endpoint: config.endpoint,
         queryParam: config.queryParam || 'search',
@@ -316,49 +348,95 @@ function asyncCombobox(config) {
             if (this.items.length === 0) this.doSearch(this.query);
         },
 
+        keyboardNavLock() {
+            return isMobileComboboxContext() && this.open && this.items.length > 0;
+        },
+
         handleKeydown(e) {
-            // Normalise key across browsers (older engines report "Down"/"Up"/"Esc").
-            const key = ({ Down: 'ArrowDown', Up: 'ArrowUp', Esc: 'Escape' })[e.key] || e.key;
+            this._keydownHandled = false;
+            if (this._processKey(e)) {
+                this._keydownHandled = true;
+                e.preventDefault();
+            }
+        },
+
+        handleKeyup(e) {
+            if (this._keydownHandled) return;
+            if (!isMobileComboboxContext()) return;
+            const key = normalizeNavigationKey(e);
+            if (['ArrowDown', 'ArrowUp', 'Enter'].includes(key) && this._processKey(e)) {
+                e.preventDefault();
+            }
+        },
+
+        _processKey(e) {
+            const key = normalizeNavigationKey(e);
+            if (!key) return false;
             const len = this.items.length;
 
+            if (this.keyboardNavLock()) {
+                if (key === 'Backspace') {
+                    this.query = this.query.slice(0, -1);
+                    this.handleInput();
+                    return true;
+                }
+                if (key === 'Delete') {
+                    this.query = '';
+                    this.handleInput();
+                    return true;
+                }
+                if (isPrintableComboboxKey(key, e)) {
+                    this.query += key;
+                    this.activeIndex = -1;
+                    this.handleInput();
+                    return true;
+                }
+            }
+
             if (key === 'ArrowDown') {
-                e.preventDefault();
                 if (!this.open) {
                     this.open = true;
-                    if (len === 0) { this.doSearch(this.query); return; }
+                    if (len === 0) { this.doSearch(this.query); return true; }
                 }
-                if (len === 0) return;
+                if (len === 0) return true;
                 this.activeIndex = this.activeIndex < len - 1 ? this.activeIndex + 1 : 0;
                 this.scrollActive();
-            } else if (key === 'ArrowUp') {
-                e.preventDefault();
+                return true;
+            }
+            if (key === 'ArrowUp') {
                 if (!this.open) {
                     this.open = true;
-                    if (len === 0) { this.doSearch(this.query); return; }
+                    if (len === 0) { this.doSearch(this.query); return true; }
                 }
-                if (len === 0) return;
+                if (len === 0) return true;
                 this.activeIndex = this.activeIndex > 0 ? this.activeIndex - 1 : len - 1;
                 this.scrollActive();
-            } else if (key === 'Enter') {
-                // Always swallow Enter while focused so it never submits the surrounding form.
-                e.preventDefault();
+                return true;
+            }
+            if (key === 'Enter') {
                 if (!this.open) {
                     this.open = true;
                     if (len === 0) this.doSearch(this.query);
-                    return;
+                    return true;
                 }
                 if (this.activeIndex >= 0 && this.items[this.activeIndex]) {
                     this.selectItem(this.items[this.activeIndex]);
                 }
-            } else if (key === 'Escape') {
+                return true;
+            }
+            if (key === 'Escape') {
                 this.open = false;
                 this.activeIndex = -1;
-            } else if (key === 'Tab') {
+                return true;
+            }
+            if (key === 'Tab') {
                 if (this.open && this.activeIndex >= 0 && this.items[this.activeIndex]) {
                     this.selectItem(this.items[this.activeIndex]);
                 }
                 this.open = false;
+                return false;
             }
+            return false;
         },
 
         scrollActive() {
