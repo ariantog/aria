@@ -58,3 +58,22 @@ it('requires items-list permission for the generic items index id lookup', funct
         ->getJson('/items?id='.$item->id.'&json=1')
         ->assertForbidden();
 });
+
+it('finds an item by numeric id through the items search json endpoint', function () {
+    $this->user->givePermissionTo('items-list');
+
+    $item = Item::factory()->create([
+        'name' => 'Warehouse Tee',
+        'code' => 'WH-TEE-01',
+        'price' => 120_000,
+    ]);
+
+    $response = $this->actingAs($this->user)
+        ->getJson('/items?search='.$item->id.'&json=1');
+
+    $response->assertSuccessful();
+    $match = collect($response->json())->first(fn ($row) => $row['id'] === $item->id);
+    expect($match)->not->toBeNull()
+        ->and($match['name'])->toBe('Warehouse Tee')
+        ->and($match['code'])->toBe('WH-TEE-01');
+});
