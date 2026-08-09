@@ -79,7 +79,6 @@ class WarehouseArrangementService
             ->findOrFail($destinationWarehouseId);
 
         $demandColumn = $this->demandColumn($demandDays);
-        $excludeSet = array_flip(array_map('intval', $excludeItemIds));
 
         $candidateQuery = WarehouseArrangementCandidate::query()
             ->where('destination_warehouse_id', $destinationWarehouseId)
@@ -317,8 +316,6 @@ class WarehouseArrangementService
      */
     private function sortSizeCodes(Collection $codes): array
     {
-        $order = ['S', 'M', 'L', 'XL', '2L', 'XXL'];
-
         return $codes
             ->sortBy(function (string $code) {
                 $order = ['S', 'M', 'L', 'XL', '2L', 'XXL'];

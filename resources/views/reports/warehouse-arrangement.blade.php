@@ -46,7 +46,7 @@ $queryParams = fn (array $extra = []) => array_filter(array_merge([
 ], $extra));
 @endphp
 
-<div x-data="arrangementPage()" x-init="init()">
+<div x-data="arrangementPage()">
     <div class="flex flex-col gap-4 p-4 pb-0">
         <div class="flex flex-wrap items-start justify-between gap-4">
             <div>
@@ -153,6 +153,11 @@ $queryParams = fn (array $extra = []) => array_filter(array_merge([
                 <span class="text-xs text-gray-500" x-show="selectedCount() > 0" x-cloak>
                     <span x-text="selectedCount()"></span> cell(s) selected
                 </span>
+                <button type="button" x-show="selectedCount() > 0" x-cloak
+                        @click="clearSelection()"
+                        class="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50">
+                    Clear selection
+                </button>
             </div>
 
             <div x-show="error" x-cloak class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800" x-text="error"></div>
@@ -166,10 +171,12 @@ $queryParams = fn (array $extra = []) => array_filter(array_merge([
     <form id="arrangement-draft-form" method="POST" action="{{ route('reports.warehouse-arrangement.draft-move') }}" class="hidden">
         @csrf
         <template x-for="(draft, idx) in draftPayload" :key="`${draft.item_id}-${idx}`">
-            <input type="hidden" name="items[][item_id]" :value="draft.item_id">
-            <input type="hidden" name="items[][quantity]" :value="draft.quantity">
-            <input type="hidden" name="items[][from_warehouse_id]" :value="draft.from_warehouse_id">
-            <input type="hidden" name="items[][to_warehouse_id]" :value="draft.to_warehouse_id">
+            <div>
+                <input type="hidden" :name="`items[${idx}][item_id]`" :value="draft.item_id">
+                <input type="hidden" :name="`items[${idx}][quantity]`" :value="draft.quantity">
+                <input type="hidden" :name="`items[${idx}][from_warehouse_id]`" :value="draft.from_warehouse_id">
+                <input type="hidden" :name="`items[${idx}][to_warehouse_id]`" :value="draft.to_warehouse_id">
+            </div>
         </template>
     </form>
 
@@ -185,16 +192,16 @@ $queryParams = fn (array $extra = []) => array_filter(array_merge([
                         <span class="text-gray-500">· {{ $section['warna'] }}</span>
                         @endif
                         <span class="rounded bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
-                            demand {{ number_format($section['family_demand_score'], 0, ',', '.') }}
+                            demand {{ number_format($section['family_demand_score'], 0, ',', '.') }} <span class="font-normal text-emerald-600">(365d)</span>
                         </span>
                         <span class="rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">
                             {{ $section['present_count'] }}/{{ $section['total_count'] }} sizes ({{ $section['completeness_pct'] }}%)
                         </span>
                     </div>
                     <div class="flex flex-wrap items-center gap-2">
-                        <button type="button" @click="selectAllInPcode('{{ $section['pcode'] }}')"
+                        <button type="button" @click="toggleAllInPcode('{{ $section['pcode'] }}')"
                                 class="rounded border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50">
-                            Select all
+                            <span x-text="allSelectedInPcode('{{ $section['pcode'] }}') ? 'Clear all' : 'Select all'"></span>
                         </button>
                         <button type="button" @click="applyWarehouseToPcode('{{ $section['pcode'] }}')"
                                 class="rounded border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50">
@@ -218,29 +225,36 @@ $queryParams = fn (array $extra = []) => array_filter(array_merge([
                             @php $cell = $section['cells'][$size] ?? null; @endphp
                             <td class="px-2 py-2">
                                 @if($cell && ($cell['moveable'] ?? false))
-                                <div class="min-h-[6.5rem] rounded-lg border border-gray-200 p-2"
+                                <div class="min-h-[7rem] rounded-lg border border-gray-200 p-2"
+                                     title="{{ $cell['item_code'] }}"
                                      :class="isSelected({{ $cell['item_id'] }}) ? 'border-blue-300 bg-blue-50' : 'bg-white dark:bg-gray-800'">
-                                    <label class="flex items-center gap-1">
+                                    <label class="flex cursor-pointer items-center gap-1">
                                         <input type="checkbox"
                                                class="rounded border-gray-300"
-                                               data-item-id="{{ $cell['item_id'] }}"
-                                               @change="toggle({{ $cell['item_id'] }}, $event.target.checked)">
+                                               x-model="cells[{{ $cell['item_id'] }}].selected">
                                         <span class="font-semibold text-emerald-700">D {{ number_format($cell['demand'], 0, ',', '.') }}</span>
                                     </label>
                                     <select class="mt-2 w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-gray-900"
-                                            data-item-id="{{ $cell['item_id'] }}"
-                                            @change="setSourceIndex({{ $cell['item_id'] }}, $event.target.value)">
+                                            x-model.number="cells[{{ $cell['item_id'] }}].chosen_source_index"
+                                            @change="onSourceChange({{ $cell['item_id'] }})">
                                         @foreach($cell['sources'] as $idx => $src)
                                         <option value="{{ $idx }}">{{ $src['from_warehouse_name'] }} ({{ $src['source_stock'] }})</option>
                                         @endforeach
                                     </select>
-                                    @php $firstSrc = $cell['sources'][0] ?? null; @endphp
-                                    <div class="mt-1 text-gray-500">
-                                        Stock {{ $firstSrc['source_stock'] ?? 0 }} · Move {{ $firstSrc['suggested_qty'] ?? 0 }}
+                                    <div class="mt-1.5 flex items-center gap-1.5 text-gray-500">
+                                        <span>Stock <span x-text="chosenSource(cells[{{ $cell['item_id'] }}])?.source_stock ?? 0"></span></span>
+                                        <span>·</span>
+                                        <label class="flex items-center gap-1">
+                                            Move
+                                            <input type="number" min="1"
+                                                   :max="chosenSource(cells[{{ $cell['item_id'] }}])?.source_stock ?? 1"
+                                                   class="w-14 rounded border border-gray-300 bg-white px-1.5 py-0.5 text-gray-900"
+                                                   x-model.number="cells[{{ $cell['item_id'] }}].qty">
+                                        </label>
                                     </div>
                                 </div>
                                 @elseif($cell)
-                                <div class="flex min-h-[6.5rem] items-center justify-center text-center text-gray-500">
+                                <div class="flex min-h-[7rem] items-center justify-center text-center text-gray-500">
                                     @if(($cell['dest_stock'] ?? 0) > 0)
                                     OK · Stock {{ $cell['dest_stock'] }}
                                     @else
@@ -248,7 +262,7 @@ $queryParams = fn (array $extra = []) => array_filter(array_merge([
                                     @endif
                                 </div>
                                 @else
-                                <div class="flex min-h-[6.5rem] items-center justify-center text-center text-gray-400">—</div>
+                                <div class="flex min-h-[7rem] items-center justify-center text-center text-gray-400">—</div>
                                 @endif
                             </td>
                             @endforeach
@@ -300,6 +314,7 @@ function arrangementPage() {
                 pcode: section.pcode,
                 selected: false,
                 chosen_source_index: 0,
+                qty: cell.sources?.[0]?.suggested_qty ?? 1,
                 sources: cell.sources || [],
                 to_warehouse_id: destinationId,
             };
@@ -311,23 +326,20 @@ function arrangementPage() {
         draftPayload: [],
         error: '',
 
-        init() {},
-
         isSelected(itemId) {
             return this.cells[itemId]?.selected ?? false;
         },
 
-        toggle(itemId, selected) {
-            if (this.cells[itemId]) this.cells[itemId].selected = selected;
-        },
-
-        setSourceIndex(itemId, index) {
-            if (this.cells[itemId]) this.cells[itemId].chosen_source_index = Number(index);
-        },
-
         chosenSource(cell) {
+            if (!cell) return null;
             const idx = cell.chosen_source_index ?? 0;
             return cell.sources?.[idx] ?? cell.sources?.[0] ?? null;
+        },
+
+        onSourceChange(itemId) {
+            const cell = this.cells[itemId];
+            if (!cell) return;
+            cell.qty = this.chosenSource(cell)?.suggested_qty ?? 1;
         },
 
         cellsForPcode(pcode) {
@@ -342,8 +354,18 @@ function arrangementPage() {
             return this.selectedCells().length;
         },
 
-        selectAllInPcode(pcode) {
-            for (const cell of this.cellsForPcode(pcode)) cell.selected = true;
+        allSelectedInPcode(pcode) {
+            const list = this.cellsForPcode(pcode);
+            return list.length > 0 && list.every((c) => c.selected);
+        },
+
+        toggleAllInPcode(pcode) {
+            const target = !this.allSelectedInPcode(pcode);
+            for (const cell of this.cellsForPcode(pcode)) cell.selected = target;
+        },
+
+        clearSelection() {
+            for (const cell of Object.values(this.cells)) cell.selected = false;
         },
 
         applyWarehouseToPcode(pcode) {
@@ -352,7 +374,10 @@ function arrangementPage() {
             if (!first) return;
             const whIdx = first.chosen_source_index ?? 0;
             for (const cell of list) {
-                if ((cell.sources || []).length > whIdx) cell.chosen_source_index = whIdx;
+                if ((cell.sources || []).length > whIdx) {
+                    cell.chosen_source_index = whIdx;
+                    cell.qty = this.chosenSource(cell)?.suggested_qty ?? 1;
+                }
             }
         },
 
@@ -376,9 +401,11 @@ function arrangementPage() {
                 .filter((cell) => this.chosenSource(cell)?.from_warehouse_id === fromWarehouseId)
                 .map((cell) => {
                     const src = this.chosenSource(cell);
+                    const maxQty = src?.source_stock ?? 1;
+                    const qty = Math.max(1, Math.min(maxQty, Number(cell.qty) || 1));
                     return {
                         item_id: cell.item_id,
-                        quantity: src?.suggested_qty ?? 1,
+                        quantity: qty,
                         from_warehouse_id: src?.from_warehouse_id,
                         to_warehouse_id: cell.to_warehouse_id,
                     };
