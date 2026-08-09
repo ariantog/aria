@@ -38,7 +38,7 @@ class ItemDimensionResolver
 
             return [
                 'item_type' => $typeValue,
-                'group_id' => $item->group_id,
+                'group_id' => $this->normalizeGroupId($item->group_id),
                 'pcode' => $this->identityBuilder->assetLancarParentPcode($item),
                 'type_code' => $typeTag ? strtoupper($typeTag->code) : '-',
                 'warna_code' => $warnaTag ? strtoupper($warnaTag->code) : $this->identityBuilder->assetLancarColorLabel($item),
@@ -53,13 +53,20 @@ class ItemDimensionResolver
 
         return [
             'item_type' => $typeValue,
-            'group_id' => $item->group_id,
+            'group_id' => $this->normalizeGroupId($item->group_id),
             'pcode' => strtoupper(trim($item->pcode ?: ($item->group?->master ?? ''))) ?: '-',
             'type_code' => $genreTag ? strtoupper($genreTag->code) : '-',
             'warna_code' => '-',
             'size_code' => $sizeTag ? strtoupper($sizeTag->code) : '-',
-            'brand' => $brand,
+            'brand' => $brand > 0 ? $brand : null,
         ];
+    }
+
+    private function normalizeGroupId(mixed $groupId): ?int
+    {
+        $id = (int) $groupId;
+
+        return $id > 0 ? $id : null;
     }
 
     /**

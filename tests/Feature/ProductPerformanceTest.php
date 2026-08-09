@@ -111,6 +111,19 @@ it('redirects legacy contributors url to product performance', function () {
         ->assertRedirect('/reports/product-performance');
 });
 
+it('normalizes legacy group_id zero when resolving item dimensions', function () {
+    $item = Item::factory()->create([
+        'type' => ItemType::ASSET_LANCAR,
+        'pcode' => 'KNEESUPPORT-03',
+        'code' => 'KNEESUPPORT-03-L',
+    ]);
+    $item->group_id = 0;
+
+    $dims = app(\App\Services\Items\ItemDimensionResolver::class)->resolve($item);
+
+    expect($dims['group_id'])->toBeNull();
+});
+
 it('renders item stats from cached warehouse monthly stats with period presets', function () {
     $warehouse = Addrbook::factory()->warehouse()->create();
     $item = Item::factory()->create(['name' => 'Stats SKU', 'code' => 'STAT-01']);
