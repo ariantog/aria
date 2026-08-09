@@ -101,14 +101,64 @@ it('drafts a return supplier from a buy transaction', function () {
         ->assertSee('Kain Katun', false);
 });
 
-it('shows the return button only on buy and sell detail pages', function () {
+it('drafts an opposite move from a move transaction', function () {
+    $source = Addrbook::factory()->warehouse()->create(['name' => 'Gudang A']);
+    $destination = Addrbook::factory()->warehouse()->create(['name' => 'Gudang B']);
+    $item = Item::factory()->create(['name' => 'Barang Pindah', 'code' => 'MOV-01', 'price' => 25_000]);
+
+    WarehouseItem::create([
+        'warehouse_id' => $destination->id,
+        'item_id' => $item->id,
+        'warehouse_type' => Addrbook::TYPE_WAREHOUSE,
+        'quantity' => 8,
+    ]);
+
+    $move = Transaction::factory()->create([
+        'type' => Transaction::TYPE_MOVE,
+        'invoice_number' => 'MOV-100',
+        'notes' => 'Pindah stok',
+        'sender_id' => $source->id,
+        'receiver_id' => $destination->id,
+        'sender_type' => (string) Addrbook::TYPE_WAREHOUSE,
+        'receiver_type' => (string) Addrbook::TYPE_WAREHOUSE,
+        'grand_total' => 50_000,
+        'total' => 50_000,
+    ]);
+
+    TransactionDetail::factory()->create([
+        'transaction_id' => $move->id,
+        'item_id' => $item->id,
+        'quantity' => 2,
+        'price' => 25_000,
+        'discount' => 0,
+        'total' => 50_000,
+    ]);
+
+    $this->actingAs($this->user)
+        ->post(route('transactions.draft-return', $move))
+        ->assertRedirect(route('transactions.create', ['type' => 'move']));
+
+    $this->actingAs($this->user)
+        ->get(route('transactions.create', ['type' => 'move']))
+        ->assertOk()
+        ->assertSee('Gudang B', false)
+        ->assertSee('Gudang A', false)
+        ->assertSee('MOV-100', false)
+        ->assertSee('Barang Pindah', false)
+        ->assertSee('return', false)
+        ->assertSee('Pindah stok', false);
+});
+
+it('shows the return button on buy, sell, and move detail pages', function () {
     $sell = Transaction::factory()->create(['type' => Transaction::TYPE_SELL]);
     $buy = Transaction::factory()->create(['type' => Transaction::TYPE_BUY]);
     $move = Transaction::factory()->create(['type' => Transaction::TYPE_MOVE]);
+    $cashIn = Transaction::factory()->create(['type' => Transaction::TYPE_CASH_IN]);
 
     $this->actingAs($this->user)->get(route('transactions.show', $sell))->assertOk()->assertSee('data-testid="draft-return-button"', false);
     $this->actingAs($this->user)->get(route('transactions.show', $buy))->assertOk()->assertSee('data-testid="draft-return-button"', false);
-    $this->actingAs($this->user)->get(route('transactions.show', $move))->assertOk()->assertDontSee('data-testid="draft-return-button"', false);
+    $this->actingAs($this->user)->get(route('transactions.show', $move))->assertOk()->assertSee('data-testid="draft-return-button"', false);
+    $this->actingAs($this->user)->get(route('transactions.show', $cashIn))->assertOk()->assertDontSee('data-testid="draft-return-button"', false);
 });
 
 it('submits a drafted return transaction with the same invoice and line totals', function () {
@@ -177,10 +227,10 @@ it('submits a drafted return transaction with the same invoice and line totals',
 });
 
 it('rejects drafting a return from unsupported transaction types', function () {
-    $move = Transaction::factory()->create(['type' => Transaction::TYPE_MOVE]);
-    TransactionDetail::factory()->create(['transaction_id' => $move->id]);
+    $cashIn = Transaction::factory()->create(['type' => Transaction::TYPE_CASH_IN]);
+    TransactionDetail::factory()->create(['transaction_id' => $cashIn->id]);
 
     $this->actingAs($this->user)
-        ->post(route('transactions.draft-return', $move))
+        ->post(route('transactions.draft-return', $cashIn))
         ->assertStatus(422);
 });

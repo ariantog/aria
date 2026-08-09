@@ -16,6 +16,7 @@ class TransactionReturnDraftService
         return match ($type) {
             Transaction::TYPE_SELL => 'return',
             Transaction::TYPE_BUY => 'return-supplier',
+            Transaction::TYPE_MOVE => 'move',
             default => null,
         };
     }
@@ -29,7 +30,7 @@ class TransactionReturnDraftService
 
         if (! $this->targetTypeSlug($transaction)) {
             throw ValidationException::withMessages([
-                'transaction' => ['Only buy or sell transactions can be returned.'],
+                'transaction' => ['This transaction type cannot be returned.'],
             ]);
         }
 
@@ -41,6 +42,12 @@ class TransactionReturnDraftService
 
         $newSender = $transaction->receiver;
         $newReceiver = $transaction->sender;
+
+        if (! $newSender || ! $newReceiver) {
+            throw ValidationException::withMessages([
+                'transaction' => ['Transaction is missing sender or receiver.'],
+            ]);
+        }
 
         $prefillItems = [];
         foreach ($transaction->details as $detail) {
