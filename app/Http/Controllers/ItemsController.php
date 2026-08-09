@@ -11,13 +11,17 @@ use App\Models\Item;
 use App\Models\ItemGroup;
 use App\Models\TransactionDetail;
 use App\Services\ItemService;
+use App\Services\ProductPerformanceService;
 use App\Services\JubelioService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 
 class ItemsController extends Controller
 {
-    public function __construct(protected ItemService $itemService) {}
+    public function __construct(
+        protected ItemService $itemService,
+        protected ProductPerformanceService $performance,
+    ) {}
 
     public function index(Request $request, ?ItemType $type = null)
     {
@@ -382,47 +386,26 @@ class ItemsController extends Controller
 
     public function itemStats(Request $request, Item $item)
     {
-        Gate::authorize(Item::getPermissions()['view']);
+        $p = Item::getPermissions();
+        Gate::authorize($item->type === ItemType::ASSET_LANCAR ? $p['asset-lancar-view'] : $p['view']);
 
-        $from = $request->input('from');
-        $to = $request->input('to');
-        $addrId = $request->input('addr');
-
-        $query = TransactionDetail::select([
-            'transaction_type',
-            \DB::raw("DATE_FORMAT(date,'%M %Y') AS showdate"),
-            \DB::raw("DATE_FORMAT(date,'%m') AS bulan"),
-            \DB::raw("DATE_FORMAT(date,'%Y') AS tahun"),
-            \DB::raw('SUM(quantity) as total_qty'),
-        ])
-            ->where('item_id', $item->id)
-            ->whereIn('transaction_type', [
-                TransactionType::Sell->value,
-                TransactionType::Move->value,
-                TransactionType::Return->value,
-                TransactionType::Production->value,
-            ])
-            ->groupBy('showdate', 'transaction_type', 'bulan', 'tahun')
-            ->orderBy('tahun', 'DESC')
-            ->orderBy('bulan', 'DESC')
-            ->when($from, fn ($q) => $q->whereDate('date', '>=', $from))
-            ->when($to, fn ($q) => $q->whereDate('date', '<=', $to))
-            ->when($addrId, fn ($q) => $q->where(fn ($sq) => $sq
-                ->where('sender_id', $addrId)
-                ->orWhere('receiver_id', $addrId)
-            ));
-
-        $addrbooks = \App\Models\Addrbook::whereIn('type', [
-            AddrbookType::Customer->value,
-            AddrbookType::Reseller->value,
-            AddrbookType::Warehouse->value,
-        ])->orderBy('name')->get(['id', 'name', 'type']);
+        $periodDays = $this->performance->normalizePeriodDays($request->query('period', 90));
+        $warehouseId = $request->query('warehouse_id') ? (int) $request->query('warehouse_id') : null;
+        $stats = $this->performance->itemMonthlyBreakdown($item->id, $periodDays, $warehouseId);
 
         return view('items.item-stats', [
             'item' => $item->load('group'),
-            'data' => $query->get(),
-            'addrbooks' => $addrbooks,
-            'filters' => compact('from', 'to') + ['addr' => $addrId],
+            'months' => $stats['months'],
+            'totals' => $stats['totals'],
+            'syncedAt' => $stats['synced_at'],
+            'stale' => $stats['stale'],
+            'hasData' => $stats['has_data'],
+            'warehouses' => $this->performance->warehouses(),
+            'periodOptions' => ProductPerformanceService::periodOptions(),
+            'filters' => [
+                'period' => $periodDays,
+                'warehouse_id' => $warehouseId,
+            ],
             'isAsset' => $item->type === ItemType::ASSET_LANCAR,
         ]);
     }
