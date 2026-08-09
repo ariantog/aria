@@ -224,7 +224,7 @@
 
                 {{-- Item rows --}}
                 @php
-                    $rowInput = 'w-full h-8 rounded border border-gray-200 px-2 text-sm leading-tight focus:border-blue-500 focus:ring-1 focus:ring-blue-500';
+                    $rowInput = 'w-full h-8 min-h-8 box-border rounded border border-gray-200 px-2 py-0 text-sm leading-8 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 [-moz-appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none';
                 @endphp
                 <div class="divide-y divide-gray-100 px-0">
                     <template x-for="(item, idx) in form.items" :key="item.uid">
@@ -511,12 +511,13 @@ function createTransaction() {
             if (!row || !source) return;
 
             const warehouse_items = source.warehouse_items || source.warehouseItems || [];
+            const price = Number(source[_PriceSource] ?? source.price ?? source.cost) || 0;
             const updated = {
                 ...row,
-                item_id: String(source.id),
-                code: source.code || String(source.id),
-                name: source.name || '',
-                price: Number(source[_PriceSource] ?? source.price ?? source.cost) || 0,
+                item_id: String(source.id ?? source.item_id ?? ''),
+                code: source.code || source.item_code || String(source.id ?? ''),
+                name: source.name || source.product_name || '',
+                price,
                 warehouse_items,
                 results: [],
                 showDropdown: false,
@@ -524,8 +525,34 @@ function createTransaction() {
                 quantity: (!row.quantity || row.quantity < 1) ? 1 : row.quantity,
             };
             updated.warehouse_stock = this.stockFor(updated);
-            // Replace the row object so Alpine x-for bindings refresh reliably.
             this.form.items.splice(idx, 1, updated);
+        },
+
+        async resolveItemByCode(code) {
+            const headers = { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' };
+
+            // Same JSON source as the name autocomplete (known to populate rows correctly).
+            try {
+                const res = await fetch(`/items?search=${encodeURIComponent(code)}&json=1`, { headers });
+                if (res.ok) {
+                    const data = await res.json();
+                    const list = Array.isArray(data) ? data : (data.data || []);
+                    const exact = list.find(i => String(i.id) === code);
+                    if (exact) return exact;
+                    if (list.length === 1) return list[0];
+                }
+            } catch (_) { /* try fallback below */ }
+
+            // Fallback when the user lacks items-list but has transaction-type access.
+            try {
+                const res = await fetch(`${_ItemLookupUrl}?id=${encodeURIComponent(code)}`, { headers });
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.item) return data.item;
+                }
+            } catch (_) { /* not found */ }
+
+            return null;
         },
 
         warnBarcodeNotFound(code, input) {
@@ -536,33 +563,23 @@ function createTransaction() {
         },
 
         async lookupBarcode(idx, e) {
-            if (!this.form.items[idx] || this._barcodeFillIdx != null) return;
+            const row = this.form.items[idx];
+            if (!row || this._barcodeFillIdx != null) return;
 
             const input = e?.target ?? document.getElementById('code_' + idx);
-            const code = String(input?.value ?? this.form.items[idx].code ?? '').trim();
+            const code = String(input?.value ?? row.code ?? '').trim();
             if (!code) return;
 
-            this.form.items[idx].code = code;
+            const uid = row.uid;
             this._barcodeFillIdx = idx;
 
             try {
-                const res = await fetch(`${_ItemLookupUrl}?id=${encodeURIComponent(code)}`, {
-                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-                });
-                if (!res.ok) {
-                    this._barcodeFillIdx = null;
-                    this.warnBarcodeNotFound(code, input);
-                    return;
-                }
-                const data = await res.json();
-                const item = data.item ?? null;
-                if (item) {
-                    this.applyItemAtIndex(idx, item);
-                    this.recalcItem(idx);
-                    this.$nextTick(() => {
-                        this._barcodeFillIdx = null;
-                        this.focusField(idx, 'qty');
-                    });
+                const item = await this.resolveItemByCode(code);
+                const rowIdx = this.form.items.findIndex(r => r.uid === uid);
+                if (rowIdx === -1) return;
+
+                if (item && String(item.id ?? item.item_id ?? '') !== '') {
+                    this.pickItem(rowIdx, item, true);
                 } else {
                     this._barcodeFillIdx = null;
                     this.warnBarcodeNotFound(code, input);
@@ -595,10 +612,14 @@ function createTransaction() {
             }, 250);
         },
 
-        pickItem(idx, item) {
+        pickItem(idx, item, fromBarcode = false) {
+            if (fromBarcode) this._barcodeFillIdx = idx;
             this.applyItemAtIndex(idx, item);
             this.recalcItem(idx);
-            this.$nextTick(() => this.focusField(idx, 'qty'));
+            this.$nextTick(() => {
+                if (fromBarcode) this._barcodeFillIdx = null;
+                this.focusField(idx, 'qty');
+            });
         },
 
         nameKeyboardNavLock(row) {
