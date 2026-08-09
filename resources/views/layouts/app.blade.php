@@ -248,20 +248,24 @@ function isMobileComboboxContext() {
     return window._isMobileCombobox;
 }
 
+// Resolve a navigation key across engines. Android/IME keyboards frequently send
+// key "Unidentified" with keyCode 229, so `code` and the legacy keyCode are both
+// consulted before falling back to `key`.
 function normalizeNavigationKey(e) {
-    const legacy = { 13: 'Enter', 27: 'Escape', 9: 'Tab', 38: 'ArrowUp', 40: 'ArrowDown', 37: 'ArrowLeft', 39: 'ArrowRight', 8: 'Backspace', 46: 'Delete' };
-    const kc = e.keyCode || e.which;
-    if (kc && legacy[kc]) return legacy[kc];
-
     const codeMap = { NumpadEnter: 'Enter' };
     if (e.code) {
-        if (e.code.startsWith('Arrow') || e.code === 'Enter' || e.code === 'Escape' || e.code === 'Tab' || e.code === 'Backspace' || e.code === 'Delete') {
+        if (e.code.startsWith('Arrow') || ['Enter', 'NumpadEnter', 'Escape', 'Tab', 'Backspace', 'Delete'].includes(e.code)) {
             return codeMap[e.code] || e.code;
         }
     }
 
+    const legacy = { 13: 'Enter', 27: 'Escape', 9: 'Tab', 38: 'ArrowUp', 40: 'ArrowDown', 37: 'ArrowLeft', 39: 'ArrowRight', 8: 'Backspace', 46: 'Delete' };
+    const kc = e.keyCode || e.which;
+    if (kc && legacy[kc]) return legacy[kc];
+
     const key = e.key;
-    if (!key || key === 'Unidentified') return '';
+    // 229 is the IME "processing" placeholder; there is no usable key here.
+    if (!key || key === 'Unidentified' || key === 'Process') return '';
     const short = { Down: 'ArrowDown', Up: 'ArrowUp', Esc: 'Escape', Left: 'ArrowLeft', Right: 'ArrowRight' };
     return short[key] || key;
 }
@@ -360,9 +364,12 @@ function asyncCombobox(config) {
             }
         },
 
+        // Fallback for keyboards whose keydown carries no usable key (Android/IME).
         handleKeyup(e) {
-            if (this._keydownHandled) return;
-            if (!isMobileComboboxContext()) return;
+            if (this._keydownHandled) {
+                this._keydownHandled = false;
+                return;
+            }
             const key = normalizeNavigationKey(e);
             if (['ArrowDown', 'ArrowUp', 'Enter'].includes(key) && this._processKey(e)) {
                 e.preventDefault();

@@ -240,9 +240,10 @@
                             {{-- Code / barcode --}}
                             <div class="col-span-2">
                                 <input type="text" x-model="item.code" :id="'code_' + idx"
-                                       @keydown.enter.prevent.stop="lookupBarcode(idx, $event)"
-                                       @keydown.tab.prevent.stop="lookupBarcode(idx, $event)"
-                                       placeholder="ID / SKU"
+                                       @keydown="rowKeydown(idx, 'code', $event)"
+                                       @keyup="rowKeyup(idx, 'code', $event)"
+                                       inputmode="text" enterkeyhint="search"
+                                       placeholder="ID / SKU" autocomplete="off"
                                        class="{{ $rowInput }} font-mono">
                             </div>
                             {{-- Name autocomplete --}}
@@ -268,7 +269,10 @@
                             {{-- Qty --}}
                             <div class="col-span-1">
                                 <input type="number" x-model.number="item.quantity" :id="'qty_' + idx"
-                                       @input="recalcItem(idx)" @keydown.enter.prevent="focusField(idx, '{{ $isMove ? 'price' : 'disc' }}')"
+                                       @input="recalcItem(idx)"
+                                       @keydown="rowKeydown(idx, 'qty', $event)"
+                                       @keyup="rowKeyup(idx, 'qty', $event)"
+                                       enterkeyhint="next"
                                        min="0" step="1"
                                        class="{{ $rowInput }} text-center"
                                        :class="isOverStock(item) ? 'border-red-400 text-red-700' : ''">
@@ -281,7 +285,10 @@
                             @unless($isMove)
                             <div class="col-span-1">
                                 <input type="number" x-model.number="item.discount" :id="'disc_' + idx"
-                                       @input="recalcItem(idx)" @keydown.enter.prevent="focusField(idx, 'price')"
+                                       @input="recalcItem(idx)"
+                                       @keydown="rowKeydown(idx, 'disc', $event)"
+                                       @keyup="rowKeyup(idx, 'disc', $event)"
+                                       enterkeyhint="next"
                                        min="0" max="100" step="0.01"
                                        class="{{ $rowInput }} text-right">
                             </div>
@@ -289,7 +296,10 @@
                             {{-- Price --}}
                             <div class="col-span-2">
                                 <input type="number" x-model.number="item.price" :id="'price_' + idx"
-                                       @input="recalcItem(idx)" @keydown.enter.prevent="priceEnter(idx)"
+                                       @input="recalcItem(idx)"
+                                       @keydown="rowKeydown(idx, 'price', $event)"
+                                       @keyup="rowKeyup(idx, 'price', $event)"
+                                       enterkeyhint="next"
                                        min="0" step="0.01"
                                        class="{{ $rowInput }} text-right">
                             </div>
@@ -377,6 +387,7 @@ const _MinDate = '{{ $min_date ?? '' }}';
 const _PriceSource = @json($config['price_source'] ?? 'price');
 const _Prefill = @json($prefill ?? null);
 const _ItemLookupUrl = @json(route('transactions.item-by-id', ['type' => $type]));
+const _AfterQtyField = @js($isMove ? 'price' : 'disc');
 
 function createTransaction() {
     const today = new Date().toISOString().split('T')[0];
@@ -388,6 +399,8 @@ function createTransaction() {
         barcodeError: '',
         _initialized: false,
         _barcodeFillIdx: null,
+        _rowKeyHandled: false,
+        _lastScan: { idx: -1, code: '', at: 0 },
         form: {
             date: startDate,
             due_date: '',
@@ -584,6 +597,11 @@ function createTransaction() {
             const code = String(input?.value ?? this.form.items[idx].code ?? '').trim();
             if (!code) return;
 
+            // keydown and keyup can both reach here on mobile; ignore the echo.
+            const now = Date.now();
+            if (this._lastScan.idx === idx && this._lastScan.code === code && now - this._lastScan.at < 700) return;
+            this._lastScan = { idx, code, at: now };
+
             const uid = this.form.items[idx].uid;
             this.barcodeError = '';
             this._barcodeFillIdx = idx;
@@ -630,6 +648,58 @@ function createTransaction() {
             }, 250);
         },
 
+        // Row navigation is wired through bare keydown/keyup handlers instead of
+        // Alpine's .enter/.tab modifiers: Android keyboards report key
+        // "Unidentified" (keyCode 229) on keydown, which no modifier can match,
+        // and sometimes only the keyup carries a usable key.
+        rowKeydown(idx, field, e) {
+            this._rowKeyHandled = false;
+            if (this._processRowKey(idx, field, e)) {
+                this._rowKeyHandled = true;
+                e.preventDefault();
+                e.stopPropagation();
+            }
+        },
+
+        rowKeyup(idx, field, e) {
+            if (this._rowKeyHandled) {
+                this._rowKeyHandled = false;
+                return;
+            }
+            if (this._processRowKey(idx, field, e)) {
+                e.preventDefault();
+            }
+        },
+
+        _processRowKey(idx, field, e) {
+            const key = normalizeNavigationKey(e);
+            const isEnter = key === 'Enter';
+            // Scanners often terminate with Tab; only the code field claims it.
+            const isScanTab = key === 'Tab' && field === 'code';
+            if (!isEnter && !isScanTab) return false;
+
+            const row = this.form.items[idx];
+            if (!row) return false;
+
+            if (field === 'code') {
+                const code = String(e.target?.value ?? row.code ?? '').trim();
+                if (!code) return isEnter;
+                // Already resolved and unchanged: just advance.
+                if (row.item_id && String(row.code || '') === code) {
+                    this.focusField(idx, 'qty');
+                    return true;
+                }
+                this.lookupBarcode(idx, e);
+                return true;
+            }
+
+            if (field === 'qty') { this.focusField(idx, _AfterQtyField); return true; }
+            if (field === 'disc') { this.focusField(idx, 'price'); return true; }
+            if (field === 'price') { this.priceEnter(idx); return true; }
+
+            return false;
+        },
+
         pickItem(idx, item, fromBarcode = false) {
             this.barcodeError = '';
             this.applyItemAtIndex(idx, item);
@@ -651,8 +721,11 @@ function createTransaction() {
 
         nameKeyup(idx, e) {
             const row = this.form.items[idx];
-            if (row._keydownHandled) return;
-            if (!isMobileComboboxContext()) return;
+            if (!row) return;
+            if (row._keydownHandled) {
+                row._keydownHandled = false;
+                return;
+            }
             const key = normalizeNavigationKey(e);
             if (['ArrowDown', 'ArrowUp', 'Enter'].includes(key) && this._processNameKey(idx, e)) {
                 e.preventDefault();
