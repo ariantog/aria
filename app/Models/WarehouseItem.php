@@ -26,8 +26,11 @@ class WarehouseItem extends Model
         return $this->belongsTo(Item::class);
     }
 
-    public function warehouse()
+    /**
+     * warehouse_type stores the addrbook type (e.g. 2 = warehouse), not a morph class.
+     */
+    public function warehouse(): BelongsTo
     {
-        return $this->morphTo();
+        return $this->belongsTo(Addrbook::class, 'warehouse_id')->withTrashed();
     }
 }

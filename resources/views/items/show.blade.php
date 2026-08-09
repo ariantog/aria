@@ -138,8 +138,8 @@ $nb = optional($item->group)->description2 ?? ($item->description2 ?? '-');
                         <div class="flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50 p-4 {{ $wh->quantity < 1 ? 'opacity-60' : '' }}"
                              @if($wh->quantity < 1) x-show="showZero" @endif>
                             <div>
-                                <p class="font-medium text-gray-900">{{ optional($wh->warehouse)->name ?? 'Unknown' }}</p>
-                                <p class="text-[10px] uppercase text-gray-500">ID: {{ optional($wh->warehouse)->id }}</p>
+                                <p class="font-medium text-gray-900">{{ $wh->warehouse?->name ?? 'Warehouse #'.$wh->warehouse_id }}</p>
+                                <p class="text-[10px] uppercase text-gray-500">ID: {{ $wh->warehouse_id }}</p>
                             </div>
                             <div class="text-right">
                                 <p class="text-lg font-bold {{ $wh->quantity > 0 ? 'text-blue-600' : 'text-gray-400' }}">{{ number_format($wh->quantity, 0, ',', '.') }}</p>
