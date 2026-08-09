@@ -153,7 +153,10 @@ class ItemsController extends Controller
             'group',
             'tags',
             'warehouseItems' => fn ($q) => $q
-                ->whereIn('warehouse_id', fn ($s) => $s->select('id')->from('addrbooks')->where('type', AddrbookType::Warehouse->value))
+                ->whereIn('warehouse_id', fn ($s) => $s->select('id')->from('addrbooks')->whereIn('type', [
+                    AddrbookType::Warehouse->value,
+                    AddrbookType::VirtualWarehouse->value,
+                ]))
                 ->with('warehouse'),
         ]);
 
@@ -294,7 +297,10 @@ class ItemsController extends Controller
         Gate::authorize(ItemGroup::getPermissions()['view']);
 
         $group->load(['items.warehouseItems' => fn ($q) => $q
-            ->whereIn('warehouse_id', fn ($sq) => $sq->select('id')->from('addrbooks')->where('type', AddrbookType::Warehouse->value))
+            ->whereIn('warehouse_id', fn ($sq) => $sq->select('id')->from('addrbooks')->whereIn('type', [
+                AddrbookType::Warehouse->value,
+                AddrbookType::VirtualWarehouse->value,
+            ]))
             ->with('warehouse'),
         ]);
 
