@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1:3306
--- Generation Time: Aug 07, 2026 at 04:53 AM
+-- Generation Time: Aug 09, 2026 at 10:10 AM
 -- Server version: 11.8.8-MariaDB-log
 -- PHP Version: 7.2.34
 
@@ -18,8 +18,23 @@ SET time_zone = "+00:00";
 /*!40101 SET NAMES utf8mb4 */;
 
 --
--- Database: `u343060430_coreId`
+-- Database: `u343060430_aria`
 --
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `accesses`
+--
+
+CREATE TABLE `accesses` (
+  `id` bigint(20) UNSIGNED NOT NULL,
+  `name` varchar(255) NOT NULL,
+  `token` varchar(255) NOT NULL,
+  `expired_at` date DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -76,6 +91,23 @@ CREATE TABLE `alertrules` (
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `ams`
+--
+
+CREATE TABLE `ams` (
+  `id` bigint(20) UNSIGNED NOT NULL,
+  `name` varchar(255) NOT NULL,
+  `sk` longtext DEFAULT NULL,
+  `pk` longtext DEFAULT NULL,
+  `ok` longtext DEFAULT NULL,
+  `expDate` datetime DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `app_settings`
 --
 
@@ -117,6 +149,34 @@ CREATE TABLE `aproduksi` (
   `invoice` varchar(20) NOT NULL,
   `detail_id` int(11) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `aria_permissions`
+--
+
+CREATE TABLE `aria_permissions` (
+  `id` bigint(20) UNSIGNED NOT NULL,
+  `name` varchar(255) NOT NULL,
+  `guard_name` varchar(255) NOT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `aria_roles`
+--
+
+CREATE TABLE `aria_roles` (
+  `id` bigint(20) UNSIGNED NOT NULL,
+  `name` varchar(255) NOT NULL,
+  `guard_name` varchar(255) NOT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -187,6 +247,75 @@ CREATE TABLE `cron` (
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `crongetorderdetails`
+--
+
+CREATE TABLE `crongetorderdetails` (
+  `id` bigint(20) UNSIGNED NOT NULL,
+  `get_order_id` int(11) NOT NULL,
+  `order_id` int(11) NOT NULL,
+  `invoice` varchar(255) NOT NULL,
+  `location_id` varchar(255) NOT NULL,
+  `store_id` varchar(255) NOT NULL,
+  `status` varchar(255) NOT NULL,
+  `is_canceled` varchar(255) NOT NULL DEFAULT '10',
+  `payload` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`payload`)),
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `crongetorders`
+--
+
+CREATE TABLE `crongetorders` (
+  `id` bigint(20) UNSIGNED NOT NULL,
+  `from` date NOT NULL,
+  `to` int(11) NOT NULL,
+  `count` int(11) NOT NULL DEFAULT 0,
+  `total` int(11) NOT NULL DEFAULT 0,
+  `status` int(11) NOT NULL DEFAULT 0,
+  `step` int(11) NOT NULL DEFAULT 1,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `cronruns`
+--
+
+CREATE TABLE `cronruns` (
+  `id` bigint(20) UNSIGNED NOT NULL,
+  `name` varchar(255) NOT NULL,
+  `command` varchar(255) NOT NULL,
+  `schedule` varchar(255) NOT NULL,
+  `status` tinyint(1) NOT NULL DEFAULT 0,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `cron_stat_runs`
+--
+
+CREATE TABLE `cron_stat_runs` (
+  `id` bigint(20) UNSIGNED NOT NULL,
+  `name` varchar(255) NOT NULL,
+  `runner` int(11) NOT NULL DEFAULT 0,
+  `failed` int(11) NOT NULL DEFAULT 0,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `customers`
 --
 
@@ -194,7 +323,7 @@ CREATE TABLE `customers` (
   `id` int(11) NOT NULL,
   `name` varchar(150) NOT NULL,
   `type` int(2) NOT NULL,
-  `address` text NOT NULL,
+  `address` text DEFAULT NULL,
   `description` text NOT NULL,
   `phone` varchar(20) NOT NULL,
   `phone2` varchar(20) NOT NULL,
@@ -214,7 +343,8 @@ CREATE TABLE `customers` (
   `memberId` varchar(32) NOT NULL,
   `password` varchar(10) NOT NULL,
   `portalId` int(11) NOT NULL,
-  `ppn` tinyint(1) DEFAULT 0
+  `ppn` tinyint(1) DEFAULT 0,
+  `is_online` tinyint(4) NOT NULL DEFAULT 0
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 
 -- --------------------------------------------------------
@@ -260,6 +390,25 @@ CREATE TABLE `customer_class` (
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `cutis`
+--
+
+CREATE TABLE `cutis` (
+  `id` bigint(20) UNSIGNED NOT NULL,
+  `karyawan_id` int(11) NOT NULL,
+  `tipe` int(11) NOT NULL,
+  `tgl_mulai` date NOT NULL,
+  `tgl_akhir` date NOT NULL,
+  `tahunan` int(11) NOT NULL DEFAULT 0,
+  `sakit` int(11) NOT NULL DEFAULT 0,
+  `mendadak` int(11) NOT NULL DEFAULT 0,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `deleted`
 --
 
@@ -288,7 +437,19 @@ CREATE TABLE `deleted` (
   `receiver_type` tinyint(2) NOT NULL,
   `sender_type` tinyint(2) NOT NULL,
   `location_id` int(11) NOT NULL,
-  `ppn` decimal(20,2) NOT NULL
+  `ppn` decimal(20,2) NOT NULL,
+  `jubelio_return` int(11) DEFAULT NULL,
+  `submit_type` int(11) DEFAULT 2,
+  `user_jubelio` int(11) DEFAULT 0,
+  `a_reference_id` varchar(255) DEFAULT NULL,
+  `a_submit_by` int(11) DEFAULT NULL,
+  `b_submit_by` int(11) DEFAULT NULL,
+  `b_reference_id` varchar(255) DEFAULT NULL,
+  `submit_a_count` int(11) NOT NULL,
+  `submit_b_count` int(11) NOT NULL,
+  `sync_hide` varchar(255) NOT NULL,
+  `desty_side_a` int(11) DEFAULT NULL,
+  `desty_side_b` int(11) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 
 -- --------------------------------------------------------
@@ -329,6 +490,87 @@ CREATE TABLE `depreciation` (
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `desty_payloads`
+--
+
+CREATE TABLE `desty_payloads` (
+  `id` bigint(20) UNSIGNED NOT NULL,
+  `date` date DEFAULT NULL,
+  `platform_warehouse_id` varchar(255) DEFAULT NULL,
+  `platform_warehouse_name` varchar(255) DEFAULT NULL,
+  `store_id` varchar(255) DEFAULT NULL,
+  `store_name` varchar(255) DEFAULT NULL,
+  `platform_name` varchar(255) DEFAULT NULL,
+  `invoice` varchar(255) DEFAULT NULL,
+  `adjustment` decimal(15,2) NOT NULL DEFAULT 0.00,
+  `total_sales` decimal(15,2) NOT NULL DEFAULT 0.00,
+  `order_status_list` varchar(255) DEFAULT NULL,
+  `status` varchar(255) DEFAULT NULL,
+  `info` text DEFAULT NULL,
+  `item_list` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`item_list`)),
+  `json_path` varchar(255) DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `desty_syncs`
+--
+
+CREATE TABLE `desty_syncs` (
+  `id` bigint(20) UNSIGNED NOT NULL,
+  `platform_warehouse_id` varchar(255) DEFAULT NULL,
+  `platform_warehouse_name` varchar(255) DEFAULT NULL,
+  `store_id` varchar(255) DEFAULT NULL,
+  `store_name` varchar(255) DEFAULT NULL,
+  `external_warehouse_id` varchar(255) DEFAULT NULL,
+  `warehouse_name` varchar(255) DEFAULT NULL,
+  `warehouse_id` int(11) NOT NULL,
+  `customer_id` int(11) NOT NULL,
+  `gudang_id` varchar(255) DEFAULT NULL,
+  `slot_id` varchar(255) DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `desty_warehouses`
+--
+
+CREATE TABLE `desty_warehouses` (
+  `id` bigint(20) UNSIGNED NOT NULL,
+  `platform_warehouse_id` varchar(255) DEFAULT NULL,
+  `platform_warehouse_name` varchar(255) DEFAULT NULL,
+  `store_id` varchar(255) DEFAULT NULL,
+  `store_name` varchar(255) DEFAULT NULL,
+  `platform_name` varchar(255) DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `failed_jobs`
+--
+
+CREATE TABLE `failed_jobs` (
+  `id` bigint(20) UNSIGNED NOT NULL,
+  `uuid` varchar(255) NOT NULL,
+  `connection` text NOT NULL,
+  `queue` text NOT NULL,
+  `payload` longtext NOT NULL,
+  `exception` longtext NOT NULL,
+  `failed_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `gaji`
 --
 
@@ -353,6 +595,36 @@ CREATE TABLE `gaji` (
   `total_gaji` decimal(20,2) NOT NULL,
   `gpu` decimal(20,2) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `gajihs`
+--
+
+CREATE TABLE `gajihs` (
+  `id` bigint(20) UNSIGNED NOT NULL,
+  `karyawan_id` int(11) NOT NULL,
+  `bulan` int(11) NOT NULL,
+  `tahun` int(11) NOT NULL,
+  `bulanan` int(11) NOT NULL,
+  `harian` int(11) NOT NULL,
+  `premi` int(11) NOT NULL,
+  `cuti_sakit` int(11) NOT NULL DEFAULT 0,
+  `cuti_tahunan` int(11) NOT NULL DEFAULT 0,
+  `cuti_mendadak` int(11) NOT NULL DEFAULT 0,
+  `total_cuti` int(11) NOT NULL DEFAULT 0,
+  `potongan_cuti_bulanan` int(11) NOT NULL DEFAULT 0,
+  `potongan_cuti_premi` int(11) NOT NULL DEFAULT 0,
+  `total_potongan` int(11) NOT NULL DEFAULT 0,
+  `bonus` int(11) NOT NULL DEFAULT 0,
+  `sanksi` int(11) NOT NULL DEFAULT 0,
+  `total_gajih` int(11) NOT NULL DEFAULT 0,
+  `flag` int(11) NOT NULL DEFAULT 1,
+  `bank_id` int(11) DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -520,7 +792,8 @@ CREATE TABLE `items` (
   `brand` int(5) NOT NULL DEFAULT 0,
   `size` int(5) NOT NULL DEFAULT 0,
   `genre` int(5) NOT NULL DEFAULT 0,
-  `deleted_at` timestamp NULL DEFAULT NULL
+  `deleted_at` timestamp NULL DEFAULT NULL,
+  `jubelio_item_id` bigint(11) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 
 -- --------------------------------------------------------
@@ -583,6 +856,123 @@ CREATE TABLE `item_tag` (
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `jubelioorders`
+--
+
+CREATE TABLE `jubelioorders` (
+  `id` bigint(20) UNSIGNED NOT NULL,
+  `jubelio_order_id` varchar(255) NOT NULL,
+  `source` int(11) NOT NULL DEFAULT 1,
+  `invoice` varchar(255) NOT NULL,
+  `type` varchar(255) NOT NULL,
+  `order_status` varchar(255) NOT NULL,
+  `run_count` int(11) NOT NULL DEFAULT 0,
+  `error_type` int(11) DEFAULT NULL,
+  `error` longtext DEFAULT NULL,
+  `payload` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`payload`)),
+  `execute_by` int(11) DEFAULT NULL,
+  `status` int(11) NOT NULL DEFAULT 0,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `jubelioreturns`
+--
+
+CREATE TABLE `jubelioreturns` (
+  `id` bigint(20) UNSIGNED NOT NULL,
+  `order_id` varchar(255) DEFAULT NULL,
+  `transaction_id` varchar(255) DEFAULT NULL,
+  `method_pay` varchar(255) DEFAULT NULL,
+  `invoice` varchar(255) DEFAULT NULL,
+  `pesan` longtext DEFAULT NULL,
+  `location_name` varchar(255) DEFAULT NULL,
+  `store_name` varchar(255) DEFAULT NULL,
+  `status` int(11) NOT NULL DEFAULT 0,
+  `confirmed_by` int(11) NOT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `jubeliosyncs`
+--
+
+CREATE TABLE `jubeliosyncs` (
+  `id` bigint(20) UNSIGNED NOT NULL,
+  `jubelio_store_id` int(11) NOT NULL,
+  `jubelio_store_name` varchar(255) NOT NULL,
+  `jubelio_location_id` int(11) NOT NULL,
+  `jubelio_location_name` varchar(255) NOT NULL,
+  `warehouse_id` int(11) NOT NULL,
+  `customer_id` int(11) NOT NULL,
+  `bin_id` int(11) NOT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `jubelio_stock_checks`
+--
+
+CREATE TABLE `jubelio_stock_checks` (
+  `id` bigint(20) UNSIGNED NOT NULL,
+  `page_tracking` int(11) NOT NULL DEFAULT 1,
+  `status` varchar(255) NOT NULL DEFAULT 'created',
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `jubelio_stock_discrepancies`
+--
+
+CREATE TABLE `jubelio_stock_discrepancies` (
+  `id` bigint(20) UNSIGNED NOT NULL,
+  `jubelio_stock_check_id` bigint(20) UNSIGNED NOT NULL,
+  `jubelio_item_id` bigint(20) UNSIGNED NOT NULL,
+  `jubelio_location_id` int(11) NOT NULL,
+  `item_id` bigint(20) UNSIGNED DEFAULT NULL,
+  `jubelio_location_name` varchar(255) DEFAULT NULL,
+  `warehouse_id` int(11) NOT NULL,
+  `aria_qty` decimal(15,2) NOT NULL,
+  `jubelio_qty` decimal(15,2) NOT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `karyawans`
+--
+
+CREATE TABLE `karyawans` (
+  `id` bigint(20) UNSIGNED NOT NULL,
+  `nama` varchar(255) NOT NULL,
+  `alamat` longtext NOT NULL,
+  `no_telp` varchar(255) NOT NULL,
+  `bulanan` int(11) DEFAULT NULL,
+  `harian` int(11) DEFAULT NULL,
+  `premi` int(11) DEFAULT NULL,
+  `flag` int(11) NOT NULL DEFAULT 1,
+  `bank_id` int(11) DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `locations`
 --
 
@@ -617,6 +1007,65 @@ CREATE TABLE `loginlog` (
   `date` datetime NOT NULL,
   `meta` text NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `logjubelios`
+--
+
+CREATE TABLE `logjubelios` (
+  `id` bigint(20) UNSIGNED NOT NULL,
+  `order_id` varchar(255) DEFAULT NULL,
+  `error` varchar(255) DEFAULT NULL,
+  `type` varchar(255) DEFAULT NULL,
+  `invoice` varchar(255) DEFAULT NULL,
+  `pesan` longtext DEFAULT NULL,
+  `location_name` varchar(255) DEFAULT NULL,
+  `store_name` varchar(255) DEFAULT NULL,
+  `cron_failed` longtext DEFAULT NULL,
+  `cron_run` int(11) NOT NULL DEFAULT 0,
+  `status` int(11) NOT NULL DEFAULT 0,
+  `user_solved_by` int(11) DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `migrations`
+--
+
+CREATE TABLE `migrations` (
+  `id` int(10) UNSIGNED NOT NULL,
+  `migration` varchar(255) NOT NULL,
+  `batch` int(11) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `model_has_permissions`
+--
+
+CREATE TABLE `model_has_permissions` (
+  `permission_id` bigint(20) UNSIGNED NOT NULL,
+  `model_type` varchar(255) NOT NULL,
+  `model_id` bigint(20) UNSIGNED NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `model_has_roles`
+--
+
+CREATE TABLE `model_has_roles` (
+  `role_id` bigint(20) UNSIGNED NOT NULL,
+  `model_type` varchar(255) NOT NULL,
+  `model_id` bigint(20) UNSIGNED NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -691,6 +1140,37 @@ CREATE TABLE `operations` (
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `password_reset_tokens`
+--
+
+CREATE TABLE `password_reset_tokens` (
+  `email` varchar(255) NOT NULL,
+  `token` varchar(255) NOT NULL,
+  `created_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `personal_access_tokens`
+--
+
+CREATE TABLE `personal_access_tokens` (
+  `id` bigint(20) UNSIGNED NOT NULL,
+  `tokenable_type` varchar(255) NOT NULL,
+  `tokenable_id` bigint(20) UNSIGNED NOT NULL,
+  `name` varchar(255) NOT NULL,
+  `token` varchar(64) NOT NULL,
+  `abilities` text DEFAULT NULL,
+  `last_used_at` timestamp NULL DEFAULT NULL,
+  `expires_at` timestamp NULL DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `personnels`
 --
 
@@ -728,6 +1208,59 @@ CREATE TABLE `personnel_cuti` (
   `year` int(5) NOT NULL,
   `sisa_tahunan` int(2) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `pos`
+--
+
+CREATE TABLE `pos` (
+  `id` bigint(20) UNSIGNED NOT NULL,
+  `date` date NOT NULL,
+  `type` tinyint(4) NOT NULL,
+  `invoice` varchar(255) DEFAULT NULL,
+  `description` text DEFAULT NULL,
+  `sender_id` int(11) NOT NULL DEFAULT 0,
+  `receiver_id` int(11) DEFAULT NULL,
+  `total` int(11) NOT NULL DEFAULT 0,
+  `total_items` int(11) NOT NULL DEFAULT 0,
+  `detail_ids` text NOT NULL,
+  `due` date DEFAULT NULL,
+  `status` tinyint(4) NOT NULL,
+  `user_id` int(11) NOT NULL,
+  `ppn` int(11) NOT NULL DEFAULT 0,
+  `real_total` int(11) NOT NULL DEFAULT 0,
+  `cogs` int(11) NOT NULL DEFAULT 0,
+  `receiver_type` tinyint(4) NOT NULL DEFAULT 0,
+  `sender_type` tinyint(4) NOT NULL DEFAULT 0,
+  `location_id` int(11) NOT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `po_details`
+--
+
+CREATE TABLE `po_details` (
+  `id` bigint(20) UNSIGNED NOT NULL,
+  `transaction_id` int(11) NOT NULL,
+  `item_id` int(11) NOT NULL,
+  `quantity` int(11) NOT NULL DEFAULT 0,
+  `available_quantity` int(11) NOT NULL DEFAULT 0,
+  `price` int(11) NOT NULL DEFAULT 0,
+  `discount` int(11) NOT NULL DEFAULT 0,
+  `total` int(11) NOT NULL DEFAULT 0,
+  `date` date NOT NULL,
+  `transaction_type` tinyint(4) DEFAULT NULL,
+  `sender_id` int(11) NOT NULL DEFAULT 0,
+  `receiver_id` int(11) NOT NULL DEFAULT 0,
+  `transaction_disc` int(11) NOT NULL DEFAULT 0,
+  `status` tinyint(4) NOT NULL DEFAULT 1
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -856,7 +1389,8 @@ CREATE TABLE `prod_produksi` (
   `transaction_id` int(11) NOT NULL DEFAULT 0,
   `deleted_at` timestamp NULL DEFAULT NULL,
   `gudang_date` date DEFAULT NULL,
-  `surat_jalan_potong` varchar(50) NOT NULL
+  `surat_jalan_potong` varchar(50) NOT NULL,
+  `qc_id` int(11) NOT NULL DEFAULT 0
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
 
 -- --------------------------------------------------------
@@ -973,6 +1507,47 @@ CREATE TABLE `report` (
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `restocks`
+--
+
+CREATE TABLE `restocks` (
+  `id` bigint(20) UNSIGNED NOT NULL,
+  `item_id` int(11) NOT NULL,
+  `date` date NOT NULL,
+  `status` int(11) NOT NULL,
+  `restocked_quantity` int(11) DEFAULT NULL,
+  `in_production_quantity` int(11) DEFAULT NULL,
+  `shipped_quantity` int(11) DEFAULT NULL,
+  `missing_quantity` int(11) DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `restock_histories`
+--
+
+CREATE TABLE `restock_histories` (
+  `id` bigint(20) UNSIGNED NOT NULL,
+  `restock_id` bigint(20) UNSIGNED NOT NULL,
+  `item_id` int(11) NOT NULL,
+  `step` varchar(255) NOT NULL,
+  `action` varchar(255) NOT NULL,
+  `qty_before` int(11) NOT NULL DEFAULT 0,
+  `qty_after` int(11) NOT NULL DEFAULT 0,
+  `qty_changed` int(11) NOT NULL DEFAULT 0,
+  `invoice` varchar(255) DEFAULT NULL,
+  `user_id` int(11) NOT NULL,
+  `date` date NOT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `roles`
 --
 
@@ -984,6 +1559,17 @@ CREATE TABLE `roles` (
   `sidebar` text NOT NULL,
   `sidenav` text NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `role_has_permissions`
+--
+
+CREATE TABLE `role_has_permissions` (
+  `permission_id` bigint(20) UNSIGNED NOT NULL,
+  `role_id` bigint(20) UNSIGNED NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -1036,6 +1622,25 @@ CREATE TABLE `solutions` (
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `stat_sells`
+--
+
+CREATE TABLE `stat_sells` (
+  `id` bigint(20) UNSIGNED NOT NULL,
+  `group_id` int(11) NOT NULL,
+  `bulan` int(11) NOT NULL,
+  `tahun` int(11) NOT NULL,
+  `sender_id` int(11) NOT NULL,
+  `type` int(11) NOT NULL,
+  `sum_qty` int(11) NOT NULL,
+  `sum_total` decimal(30,2) NOT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `tags`
 --
 
@@ -1044,6 +1649,7 @@ CREATE TABLE `tags` (
   `name` varchar(50) NOT NULL,
   `type` tinyint(1) NOT NULL,
   `code` varchar(50) NOT NULL,
+  `item_type` int(11) NOT NULL DEFAULT 0,
   `price` int(11) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 
@@ -1078,7 +1684,18 @@ CREATE TABLE `transactions` (
   `location_id` int(11) NOT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `updated_at` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
-  `ppn` decimal(20,2) NOT NULL DEFAULT 0.00
+  `ppn` decimal(20,2) NOT NULL DEFAULT 0.00,
+  `submit_type` int(11) NOT NULL DEFAULT 1,
+  `jubelio_return` int(11) NOT NULL DEFAULT 0,
+  `a_submit_by` int(11) DEFAULT NULL,
+  `a_reference_id` varchar(255) DEFAULT NULL,
+  `b_submit_by` int(11) DEFAULT NULL,
+  `b_reference_id` varchar(255) DEFAULT NULL,
+  `submit_a_count` int(11) NOT NULL DEFAULT 0,
+  `submit_b_count` int(11) NOT NULL DEFAULT 0,
+  `sync_hide` varchar(255) DEFAULT 'N',
+  `desty_side_a` int(11) DEFAULT NULL,
+  `desty_side_b` int(11) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 PARTITION BY RANGE COLUMNS(`date`)
 (
@@ -1215,6 +1832,20 @@ CREATE TABLE `user_activity` (
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `warehouse_compares`
+--
+
+CREATE TABLE `warehouse_compares` (
+  `id` bigint(20) UNSIGNED NOT NULL,
+  `user_id` int(11) NOT NULL,
+  `werehouse_id` int(11) NOT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `warehouse_item`
 --
 
@@ -1228,6 +1859,12 @@ CREATE TABLE `warehouse_item` (
 --
 -- Indexes for dumped tables
 --
+
+--
+-- Indexes for table `accesses`
+--
+ALTER TABLE `accesses`
+  ADD PRIMARY KEY (`id`);
 
 --
 -- Indexes for table `acl`
@@ -1256,6 +1893,12 @@ ALTER TABLE `alertrules`
   ADD KEY `entityId` (`entityId`);
 
 --
+-- Indexes for table `ams`
+--
+ALTER TABLE `ams`
+  ADD PRIMARY KEY (`id`);
+
+--
 -- Indexes for table `app_settings`
 --
 ALTER TABLE `app_settings`
@@ -1272,6 +1915,20 @@ ALTER TABLE `aproduksi`
   ADD KEY `temp_name` (`temp_name`),
   ADD KEY `customer` (`customer`),
   ADD KEY `detail_id` (`detail_id`);
+
+--
+-- Indexes for table `aria_permissions`
+--
+ALTER TABLE `aria_permissions`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `aria_permissions_name_guard_name_unique` (`name`,`guard_name`);
+
+--
+-- Indexes for table `aria_roles`
+--
+ALTER TABLE `aria_roles`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `aria_roles_name_guard_name_unique` (`name`,`guard_name`);
 
 --
 -- Indexes for table `balance_trackers`
@@ -1300,6 +1957,30 @@ ALTER TABLE `cron`
   ADD PRIMARY KEY (`id`);
 
 --
+-- Indexes for table `crongetorderdetails`
+--
+ALTER TABLE `crongetorderdetails`
+  ADD PRIMARY KEY (`id`);
+
+--
+-- Indexes for table `crongetorders`
+--
+ALTER TABLE `crongetorders`
+  ADD PRIMARY KEY (`id`);
+
+--
+-- Indexes for table `cronruns`
+--
+ALTER TABLE `cronruns`
+  ADD PRIMARY KEY (`id`);
+
+--
+-- Indexes for table `cron_stat_runs`
+--
+ALTER TABLE `cron_stat_runs`
+  ADD PRIMARY KEY (`id`);
+
+--
 -- Indexes for table `customers`
 --
 ALTER TABLE `customers`
@@ -1321,6 +2002,12 @@ ALTER TABLE `customerstat`
 ALTER TABLE `customer_class`
   ADD PRIMARY KEY (`id`),
   ADD KEY `customer_id` (`customer_id`,`date`);
+
+--
+-- Indexes for table `cutis`
+--
+ALTER TABLE `cutis`
+  ADD PRIMARY KEY (`id`);
 
 --
 -- Indexes for table `deleted`
@@ -1353,11 +2040,43 @@ ALTER TABLE `depreciation`
   ADD KEY `expire_date` (`expire_date`);
 
 --
+-- Indexes for table `desty_payloads`
+--
+ALTER TABLE `desty_payloads`
+  ADD PRIMARY KEY (`id`);
+
+--
+-- Indexes for table `desty_syncs`
+--
+ALTER TABLE `desty_syncs`
+  ADD PRIMARY KEY (`id`);
+
+--
+-- Indexes for table `desty_warehouses`
+--
+ALTER TABLE `desty_warehouses`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `desty_warehouses_platform_warehouse_id_store_id_unique` (`platform_warehouse_id`,`store_id`);
+
+--
+-- Indexes for table `failed_jobs`
+--
+ALTER TABLE `failed_jobs`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `failed_jobs_uuid_unique` (`uuid`);
+
+--
 -- Indexes for table `gaji`
 --
 ALTER TABLE `gaji`
   ADD PRIMARY KEY (`id`),
   ADD KEY `personnel_id` (`personnel_id`);
+
+--
+-- Indexes for table `gajihs`
+--
+ALTER TABLE `gajihs`
+  ADD PRIMARY KEY (`id`);
 
 --
 -- Indexes for table `geo_city`
@@ -1460,6 +2179,44 @@ ALTER TABLE `item_tag`
   ADD UNIQUE KEY `catId` (`tag_id`,`item_id`);
 
 --
+-- Indexes for table `jubelioorders`
+--
+ALTER TABLE `jubelioorders`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `jubelioorders_jubelio_order_id_unique` (`jubelio_order_id`);
+
+--
+-- Indexes for table `jubelioreturns`
+--
+ALTER TABLE `jubelioreturns`
+  ADD PRIMARY KEY (`id`);
+
+--
+-- Indexes for table `jubeliosyncs`
+--
+ALTER TABLE `jubeliosyncs`
+  ADD PRIMARY KEY (`id`);
+
+--
+-- Indexes for table `jubelio_stock_checks`
+--
+ALTER TABLE `jubelio_stock_checks`
+  ADD PRIMARY KEY (`id`);
+
+--
+-- Indexes for table `jubelio_stock_discrepancies`
+--
+ALTER TABLE `jubelio_stock_discrepancies`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `jubelio_stock_discrepancies_jubelio_stock_check_id_foreign` (`jubelio_stock_check_id`);
+
+--
+-- Indexes for table `karyawans`
+--
+ALTER TABLE `karyawans`
+  ADD PRIMARY KEY (`id`);
+
+--
 -- Indexes for table `locations`
 --
 ALTER TABLE `locations`
@@ -1476,6 +2233,32 @@ ALTER TABLE `location_customer`
 --
 ALTER TABLE `loginlog`
   ADD PRIMARY KEY (`id`);
+
+--
+-- Indexes for table `logjubelios`
+--
+ALTER TABLE `logjubelios`
+  ADD PRIMARY KEY (`id`);
+
+--
+-- Indexes for table `migrations`
+--
+ALTER TABLE `migrations`
+  ADD PRIMARY KEY (`id`);
+
+--
+-- Indexes for table `model_has_permissions`
+--
+ALTER TABLE `model_has_permissions`
+  ADD PRIMARY KEY (`permission_id`,`model_id`,`model_type`),
+  ADD KEY `model_has_permissions_model_id_model_type_index` (`model_id`,`model_type`);
+
+--
+-- Indexes for table `model_has_roles`
+--
+ALTER TABLE `model_has_roles`
+  ADD PRIMARY KEY (`role_id`,`model_id`,`model_type`),
+  ADD KEY `model_has_roles_model_id_model_type_index` (`model_id`,`model_type`);
 
 --
 -- Indexes for table `monthly_records`
@@ -1501,6 +2284,20 @@ ALTER TABLE `operations`
   ADD PRIMARY KEY (`id`);
 
 --
+-- Indexes for table `password_reset_tokens`
+--
+ALTER TABLE `password_reset_tokens`
+  ADD PRIMARY KEY (`email`);
+
+--
+-- Indexes for table `personal_access_tokens`
+--
+ALTER TABLE `personal_access_tokens`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `personal_access_tokens_token_unique` (`token`),
+  ADD KEY `personal_access_tokens_tokenable_type_tokenable_id_index` (`tokenable_type`,`tokenable_id`);
+
+--
 -- Indexes for table `personnels`
 --
 ALTER TABLE `personnels`
@@ -1513,6 +2310,18 @@ ALTER TABLE `personnels`
 ALTER TABLE `personnel_cuti`
   ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `personnel_id` (`personnel_id`,`year`);
+
+--
+-- Indexes for table `pos`
+--
+ALTER TABLE `pos`
+  ADD PRIMARY KEY (`id`);
+
+--
+-- Indexes for table `po_details`
+--
+ALTER TABLE `po_details`
+  ADD PRIMARY KEY (`id`);
 
 --
 -- Indexes for table `problems`
@@ -1613,11 +2422,32 @@ ALTER TABLE `report`
   ADD PRIMARY KEY (`day`,`month`,`year`,`type`);
 
 --
+-- Indexes for table `restocks`
+--
+ALTER TABLE `restocks`
+  ADD PRIMARY KEY (`id`);
+
+--
+-- Indexes for table `restock_histories`
+--
+ALTER TABLE `restock_histories`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `restock_histories_restock_id_foreign` (`restock_id`),
+  ADD KEY `restock_histories_item_id_index` (`item_id`);
+
+--
 -- Indexes for table `roles`
 --
 ALTER TABLE `roles`
   ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `name` (`name`);
+
+--
+-- Indexes for table `role_has_permissions`
+--
+ALTER TABLE `role_has_permissions`
+  ADD PRIMARY KEY (`permission_id`,`role_id`),
+  ADD KEY `role_has_permissions_role_id_foreign` (`role_id`);
 
 --
 -- Indexes for table `sessions`
@@ -1635,6 +2465,12 @@ ALTER TABLE `sitesettings`
 -- Indexes for table `solutions`
 --
 ALTER TABLE `solutions`
+  ADD PRIMARY KEY (`id`);
+
+--
+-- Indexes for table `stat_sells`
+--
+ALTER TABLE `stat_sells`
   ADD PRIMARY KEY (`id`);
 
 --
@@ -1698,6 +2534,12 @@ ALTER TABLE `user_activity`
   ADD KEY `user_id` (`user_id`);
 
 --
+-- Indexes for table `warehouse_compares`
+--
+ALTER TABLE `warehouse_compares`
+  ADD PRIMARY KEY (`id`);
+
+--
 -- Indexes for table `warehouse_item`
 --
 ALTER TABLE `warehouse_item`
@@ -1709,6 +2551,12 @@ ALTER TABLE `warehouse_item`
 --
 -- AUTO_INCREMENT for dumped tables
 --
+
+--
+-- AUTO_INCREMENT for table `accesses`
+--
+ALTER TABLE `accesses`
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `alert`
@@ -1723,10 +2571,28 @@ ALTER TABLE `alertrules`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
+-- AUTO_INCREMENT for table `ams`
+--
+ALTER TABLE `ams`
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
 -- AUTO_INCREMENT for table `app_settings`
 --
 ALTER TABLE `app_settings`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `aria_permissions`
+--
+ALTER TABLE `aria_permissions`
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `aria_roles`
+--
+ALTER TABLE `aria_roles`
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `borongan`
@@ -1747,6 +2613,30 @@ ALTER TABLE `cron`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
+-- AUTO_INCREMENT for table `crongetorderdetails`
+--
+ALTER TABLE `crongetorderdetails`
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `crongetorders`
+--
+ALTER TABLE `crongetorders`
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `cronruns`
+--
+ALTER TABLE `cronruns`
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `cron_stat_runs`
+--
+ALTER TABLE `cron_stat_runs`
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
 -- AUTO_INCREMENT for table `customers`
 --
 ALTER TABLE `customers`
@@ -1757,6 +2647,12 @@ ALTER TABLE `customers`
 --
 ALTER TABLE `customer_class`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `cutis`
+--
+ALTER TABLE `cutis`
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `deleted`
@@ -1771,10 +2667,40 @@ ALTER TABLE `deleted_details`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
+-- AUTO_INCREMENT for table `desty_payloads`
+--
+ALTER TABLE `desty_payloads`
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `desty_syncs`
+--
+ALTER TABLE `desty_syncs`
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `desty_warehouses`
+--
+ALTER TABLE `desty_warehouses`
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `failed_jobs`
+--
+ALTER TABLE `failed_jobs`
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
 -- AUTO_INCREMENT for table `gaji`
 --
 ALTER TABLE `gaji`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `gajihs`
+--
+ALTER TABLE `gajihs`
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `hashtags`
@@ -1843,6 +2769,42 @@ ALTER TABLE `item_tag`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
+-- AUTO_INCREMENT for table `jubelioorders`
+--
+ALTER TABLE `jubelioorders`
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `jubelioreturns`
+--
+ALTER TABLE `jubelioreturns`
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `jubeliosyncs`
+--
+ALTER TABLE `jubeliosyncs`
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `jubelio_stock_checks`
+--
+ALTER TABLE `jubelio_stock_checks`
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `jubelio_stock_discrepancies`
+--
+ALTER TABLE `jubelio_stock_discrepancies`
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `karyawans`
+--
+ALTER TABLE `karyawans`
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
 -- AUTO_INCREMENT for table `locations`
 --
 ALTER TABLE `locations`
@@ -1853,6 +2815,18 @@ ALTER TABLE `locations`
 --
 ALTER TABLE `loginlog`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `logjubelios`
+--
+ALTER TABLE `logjubelios`
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `migrations`
+--
+ALTER TABLE `migrations`
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `monthly_records`
@@ -1873,6 +2847,12 @@ ALTER TABLE `operations`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
+-- AUTO_INCREMENT for table `personal_access_tokens`
+--
+ALTER TABLE `personal_access_tokens`
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
 -- AUTO_INCREMENT for table `personnels`
 --
 ALTER TABLE `personnels`
@@ -1883,6 +2863,18 @@ ALTER TABLE `personnels`
 --
 ALTER TABLE `personnel_cuti`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `pos`
+--
+ALTER TABLE `pos`
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `po_details`
+--
+ALTER TABLE `po_details`
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `problems`
@@ -1957,6 +2949,18 @@ ALTER TABLE `reminder`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
+-- AUTO_INCREMENT for table `restocks`
+--
+ALTER TABLE `restocks`
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `restock_histories`
+--
+ALTER TABLE `restock_histories`
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
 -- AUTO_INCREMENT for table `roles`
 --
 ALTER TABLE `roles`
@@ -1967,6 +2971,12 @@ ALTER TABLE `roles`
 --
 ALTER TABLE `solutions`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `stat_sells`
+--
+ALTER TABLE `stat_sells`
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `tags`
@@ -2011,10 +3021,51 @@ ALTER TABLE `user_activity`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
+-- AUTO_INCREMENT for table `warehouse_compares`
+--
+ALTER TABLE `warehouse_compares`
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
 -- AUTO_INCREMENT for table `warehouse_item`
 --
 ALTER TABLE `warehouse_item`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- Constraints for dumped tables
+--
+
+--
+-- Constraints for table `jubelio_stock_discrepancies`
+--
+ALTER TABLE `jubelio_stock_discrepancies`
+  ADD CONSTRAINT `jubelio_stock_discrepancies_jubelio_stock_check_id_foreign` FOREIGN KEY (`jubelio_stock_check_id`) REFERENCES `jubelio_stock_checks` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `model_has_permissions`
+--
+ALTER TABLE `model_has_permissions`
+  ADD CONSTRAINT `model_has_permissions_permission_id_foreign` FOREIGN KEY (`permission_id`) REFERENCES `aria_permissions` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `model_has_roles`
+--
+ALTER TABLE `model_has_roles`
+  ADD CONSTRAINT `model_has_roles_role_id_foreign` FOREIGN KEY (`role_id`) REFERENCES `aria_roles` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `restock_histories`
+--
+ALTER TABLE `restock_histories`
+  ADD CONSTRAINT `restock_histories_restock_id_foreign` FOREIGN KEY (`restock_id`) REFERENCES `restocks` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `role_has_permissions`
+--
+ALTER TABLE `role_has_permissions`
+  ADD CONSTRAINT `role_has_permissions_permission_id_foreign` FOREIGN KEY (`permission_id`) REFERENCES `aria_permissions` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `role_has_permissions_role_id_foreign` FOREIGN KEY (`role_id`) REFERENCES `aria_roles` (`id`) ON DELETE CASCADE;
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
