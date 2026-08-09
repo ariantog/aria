@@ -2,9 +2,11 @@
 
 namespace App\Models;
 
+use App\Enums\ItemType;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Support\Collection;
 
 class Tag extends Model
 {
@@ -63,6 +65,20 @@ class Tag extends Model
     public function items(): BelongsToMany
     {
         return $this->belongsToMany(Item::class, 'item_tag');
+    }
+
+    /**
+     * TYPE tags (SKU prefix / restock tab) scoped to manufactured items or asset lancar.
+     *
+     * @return Collection<int, Tag>
+     */
+    public static function typeTagsForItem(ItemType $itemType): Collection
+    {
+        return static::query()
+            ->where('type', self::TYPE_TYPE)
+            ->where('item_type', $itemType->value)
+            ->orderBy('name')
+            ->get();
     }
 
     /**
