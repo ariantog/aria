@@ -51,8 +51,12 @@ $fmt = fn ($v) => number_format((float) $v, 0, ',', '.');
                         </p>
                     </div>
                     <div>
-                        <p class="text-sm font-semibold uppercase tracking-wider text-gray-500">Total in Warehouse</p>
-                        <p class="text-xl font-bold text-green-600">{{ $fmt($detail['total_warehouse_qty']) }}</p>
+                        <p class="text-sm font-semibold uppercase tracking-wider text-gray-500">Aria stock (physical warehouses)</p>
+                        @include('items.partials.warehouse-qty-breakdown', [
+                            'total' => $detail['total_warehouse_qty'],
+                            'warehouses' => $detail['warehouse_breakdown'] ?? [],
+                            'align' => 'left',
+                        ])
                     </div>
                     @if($detail['description'])
                     <div class="border-t border-gray-100 pt-4 md:col-span-2">
@@ -94,18 +98,36 @@ $fmt = fn ($v) => number_format((float) $v, 0, ',', '.');
         </div>
     </div>
 
+    <div class="mb-4 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+        <p class="font-medium">How to read quantities</p>
+        <ul class="mt-1 list-inside list-disc space-y-0.5 text-blue-800">
+            <li><strong>Aria</strong> — physical stock in each Core warehouse (summed per SKU, then per color / parent).</li>
+            <li><strong>Jubelio</strong> — online inventory from Jubelio (all channels combined, not per warehouse).</li>
+        </ul>
+    </div>
+
     <h2 class="mb-4 text-xl font-bold text-gray-900">Colors &amp; Sizes</h2>
 
     <div class="space-y-8">
         @foreach($detail['colors'] as $color)
         <section class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
             <div class="border-b-4 border-purple-300 bg-purple-50 px-6 py-4">
-                <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                    <h3 class="text-lg font-bold uppercase tracking-wide text-purple-900">{{ $color['code'] }}</h3>
-                    <span class="text-sm text-purple-700">{{ $color['name'] }}</span>
-                    @if($color['pcode'])
-                    <span class="font-mono text-xs text-purple-500">{{ $color['pcode'] }}</span>
-                    @endif
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                        <h3 class="text-lg font-bold uppercase tracking-wide text-purple-900">{{ $color['code'] }}</h3>
+                        <span class="text-sm text-purple-700">{{ $color['name'] }}</span>
+                        @if($color['pcode'])
+                        <span class="font-mono text-xs text-purple-500">{{ $color['pcode'] }}</span>
+                        @endif
+                    </div>
+                    <div class="min-w-[10rem] rounded-lg border border-purple-200 bg-white/80 px-3 py-2">
+                        <p class="mb-1 text-[10px] font-semibold uppercase tracking-wide text-purple-700">Color total (Aria)</p>
+                        @include('items.partials.warehouse-qty-breakdown', [
+                            'total' => $color['in_warehouse_qty'] ?? 0,
+                            'warehouses' => $color['warehouse_breakdown'] ?? [],
+                            'align' => 'left',
+                        ])
+                    </div>
                 </div>
             </div>
 
@@ -117,11 +139,26 @@ $fmt = fn ($v) => number_format((float) $v, 0, ',', '.');
                             <tr>
                                 <th class="px-4 py-3 text-left font-semibold">Size</th>
                                 <th class="px-4 py-3 text-left font-semibold">SKU</th>
-                                <th class="px-4 py-3 text-right font-semibold">Aria Qty</th>
-                                <th class="px-4 py-3 text-right font-semibold">Jubelio On Hand</th>
-                                <th class="px-4 py-3 text-right font-semibold">On Order</th>
-                                <th class="px-4 py-3 text-right font-semibold">Reserved</th>
-                                <th class="px-4 py-3 text-right font-semibold">Available</th>
+                                <th class="px-4 py-3 text-right font-semibold">
+                                    <div>Aria stock</div>
+                                    <div class="mt-0.5 text-[10px] font-normal normal-case text-gray-400">per warehouse</div>
+                                </th>
+                                <th class="px-4 py-3 text-right font-semibold">
+                                    <div>Jubelio on hand</div>
+                                    <div class="mt-0.5 text-[10px] font-normal normal-case text-gray-400">all channels</div>
+                                </th>
+                                <th class="px-4 py-3 text-right font-semibold">
+                                    <div>On order</div>
+                                    <div class="mt-0.5 text-[10px] font-normal normal-case text-gray-400">Jubelio</div>
+                                </th>
+                                <th class="px-4 py-3 text-right font-semibold">
+                                    <div>Reserved</div>
+                                    <div class="mt-0.5 text-[10px] font-normal normal-case text-gray-400">Jubelio</div>
+                                </th>
+                                <th class="px-4 py-3 text-right font-semibold">
+                                    <div>Available</div>
+                                    <div class="mt-0.5 text-[10px] font-normal normal-case text-gray-400">Jubelio</div>
+                                </th>
                                 <th class="px-4 py-3 text-right font-semibold"></th>
                             </tr>
                         </thead>
@@ -133,7 +170,12 @@ $fmt = fn ($v) => number_format((float) $v, 0, ',', '.');
                                     <a href="{{ $row['show_url'] }}" class="font-mono text-blue-600 hover:underline">{{ $row['code'] }}</a>
                                     <div class="text-xs text-gray-500">{{ $row['name'] }}</div>
                                 </td>
-                                <td class="px-4 py-3 text-right font-mono font-bold {{ $row['warehouse_qty'] > 0 ? 'text-green-600' : 'text-gray-400' }}">{{ $fmt($row['warehouse_qty']) }}</td>
+                                <td class="px-4 py-3 align-top">
+                                    @include('items.partials.warehouse-qty-breakdown', [
+                                        'total' => $row['warehouse_qty'],
+                                        'warehouses' => $row['warehouses'],
+                                    ])
+                                </td>
                                 <td class="px-4 py-3 text-right font-mono {{ $row['jubelio']['linked'] ? 'text-blue-600' : 'text-gray-300' }}">
                                     {{ $row['jubelio']['linked'] ? $fmt($row['jubelio']['on_hand']) : '—' }}
                                 </td>
@@ -158,30 +200,25 @@ $fmt = fn ($v) => number_format((float) $v, 0, ',', '.');
                 <div class="space-y-4">
                     @foreach($color['no_size_items'] as $row)
                     <div class="rounded-lg border border-gray-100 bg-gray-50/50 p-4" @if($row['warehouse_qty'] < 1) x-show="showZero" @endif>
-                        <div class="mb-3 flex flex-wrap items-start justify-between gap-2">
+                        <div class="mb-3 flex flex-wrap items-start justify-between gap-4">
                             <div>
                                 <a href="{{ $row['show_url'] }}" class="font-mono font-semibold text-blue-600 hover:underline">{{ $row['code'] }}</a>
                                 <p class="text-sm text-gray-600">{{ $row['name'] }}</p>
                             </div>
+                            <div class="min-w-[10rem] rounded-lg border border-gray-200 bg-white px-3 py-2">
+                                <p class="mb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-500">Aria stock</p>
+                                @include('items.partials.warehouse-qty-breakdown', [
+                                    'total' => $row['warehouse_qty'],
+                                    'warehouses' => $row['warehouses'],
+                                    'align' => 'left',
+                                ])
+                            </div>
                             <div class="text-right text-sm">
-                                <div class="text-gray-500">Jubelio available</div>
+                                <div class="text-[10px] font-semibold uppercase tracking-wide text-gray-500">Jubelio available</div>
+                                <div class="text-[10px] text-gray-400">all channels</div>
                                 <div class="font-mono font-bold {{ $row['jubelio']['linked'] ? 'text-green-600' : 'text-gray-300' }}">
                                     {{ $row['jubelio']['linked'] ? $fmt($row['jubelio']['available']) : '—' }}
                                 </div>
-                            </div>
-                        </div>
-                        <div class="divide-y divide-gray-200 rounded-md border border-gray-200 bg-white">
-                            @forelse($row['warehouses'] as $wh)
-                            <div class="flex justify-between px-4 py-2 text-sm" @if($wh['quantity'] < 1) x-show="showZero" @endif>
-                                <span class="text-gray-700">{{ $wh['name'] }}</span>
-                                <span class="font-mono font-semibold {{ $wh['quantity'] > 0 ? 'text-green-600' : 'text-gray-400' }}">{{ $fmt($wh['quantity']) }}</span>
-                            </div>
-                            @empty
-                            <div class="px-4 py-3 text-sm italic text-gray-400">No warehouse stock.</div>
-                            @endforelse
-                            <div class="flex justify-between border-t border-gray-200 bg-gray-50 px-4 py-2 text-sm font-bold">
-                                <span>Total Aria</span>
-                                <span class="font-mono text-green-600">{{ $fmt($row['warehouse_qty']) }}</span>
                             </div>
                         </div>
                     </div>

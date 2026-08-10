@@ -140,6 +140,7 @@ class ItemGroupHierarchyService
             : [];
 
         $colors = $this->buildColorSectionsFromGroups($groups, $jubelioStocks, $items);
+        $warehouseBreakdown = $this->aggregateWarehouseBreakdown($items);
 
         return [
             'parent_key' => $parentKey,
@@ -153,8 +154,43 @@ class ItemGroupHierarchyService
             'image_url' => $groups->first()?->image_url,
             'group_ids' => $groups->pluck('id')->all(),
             'colors' => $colors,
-            'total_warehouse_qty' => $items->sum(fn (Item $item) => $item->warehouseItems->sum('quantity')),
+            'total_warehouse_qty' => $this->sumWarehouseBreakdown($warehouseBreakdown),
+            'warehouse_breakdown' => $warehouseBreakdown,
         ];
+    }
+
+    /**
+     * @param  Collection<int, Item>  $items
+     * @return list<array{name: string, quantity: float}>
+     */
+    protected function aggregateWarehouseBreakdown(Collection $items): array
+    {
+        $totals = [];
+
+        foreach ($items as $item) {
+            foreach ($item->warehouseItems as $warehouseItem) {
+                $name = $warehouseItem->warehouse?->name ?? 'Warehouse #'.$warehouseItem->warehouse_id;
+                $totals[$name] = ($totals[$name] ?? 0) + (float) $warehouseItem->quantity;
+            }
+        }
+
+        ksort($totals);
+
+        return collect($totals)
+            ->map(fn (float $quantity, string $name) => [
+                'name' => $name,
+                'quantity' => $quantity,
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  list<array{name: string, quantity: float}>  $breakdown
+     */
+    protected function sumWarehouseBreakdown(array $breakdown): float
+    {
+        return array_sum(array_column($breakdown, 'quantity'));
     }
 
     /**
@@ -288,6 +324,8 @@ class ItemGroupHierarchyService
                     'pcode' => $sample->pcode,
                     'group_id' => $group->id,
                     'has_sizes' => $hasSizes,
+                    'warehouse_breakdown' => $this->aggregateWarehouseBreakdown($colorItems),
+                    'in_warehouse_qty' => $colorItems->sum(fn (Item $item) => $item->warehouseItems->sum('quantity')),
                     'size_rows' => [],
                     'no_size_items' => [],
                 ];
