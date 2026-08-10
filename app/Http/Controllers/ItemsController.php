@@ -13,6 +13,7 @@ use App\Models\Tag;
 use App\Models\TransactionDetail;
 use App\Services\ItemService;
 use App\Services\Items\ItemGroupHierarchyService;
+use App\Services\Items\ItemGroupParentExportService;
 use App\Services\Items\ItemIdentityBuilder;
 use App\Services\ProductPerformanceService;
 use App\Services\JubelioService;
@@ -312,6 +313,15 @@ class ItemsController extends Controller
             'canEditGroup' => auth()->user()->can(ItemGroup::getPermissions()['edit']),
             'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
+    }
+
+    public function exportGroupParent(string $parentSlug, ItemGroupParentExportService $exportService)
+    {
+        Gate::authorize(ItemGroup::getPermissions()['view']);
+
+        $parentKey = $this->identityBuilder->parentKeyFromSlug($parentSlug);
+
+        return $exportService->download($parentKey);
     }
 
     public function updateGroupParent(Request $request, string $parentSlug)

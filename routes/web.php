@@ -145,6 +145,7 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     // Item Group Routes
     Route::get('items-group', [App\Http\Controllers\ItemsController::class, 'group'])->name('items.group');
     Route::get('items-group/parent/{parentSlug}', [App\Http\Controllers\ItemsController::class, 'groupParentDetail'])->name('items.group-parent-detail');
+    Route::get('items-group/parent/{parentSlug}/export', [App\Http\Controllers\ItemsController::class, 'exportGroupParent'])->name('items.group-parent-export');
     Route::put('items-group/parent/{parentSlug}', [App\Http\Controllers\ItemsController::class, 'updateGroupParent'])->name('items.group-parent-update');
     Route::get('items-group/{group}', [App\Http\Controllers\ItemsController::class, 'groupDetail'])->name('items.group-detail');
     Route::put('items-group/{group}', [App\Http\Controllers\ItemsController::class, 'updateGroup'])->name('items.group-update');
