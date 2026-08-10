@@ -101,11 +101,13 @@ $nb = optional($item->group)->description2 ?? ($item->description2 ?? '-');
                         <div>
                             <p class="mb-2 text-[10px] font-bold uppercase tracking-widest text-gray-500">Group &amp; Tags</p>
                             <div class="flex flex-wrap items-center gap-2">
-                                @if($item->group)
-                                <span class="text-xs font-medium text-blue-600 underline underline-offset-4">{{ $item->group->name }}</span>
+                                @if($item->group && $groupUrl)
+                                <a href="{{ $groupUrl }}" class="rounded border border-blue-200 bg-blue-50 px-2 py-1 text-xs font-medium text-blue-600 hover:bg-blue-100 hover:underline">{{ $item->group->name }}</a>
+                                @elseif($item->group)
+                                <span class="text-xs font-medium text-gray-700">{{ $item->group->name }}</span>
                                 @endif
                                 @forelse($item->tags as $tag)
-                                <span class="rounded border border-blue-200 bg-blue-50 px-2 py-1 text-[9px] font-bold uppercase tracking-tighter text-blue-600">{{ $tag->name }}</span>
+                                <a href="{{ $tag->itemsIndexFilterUrl($item->type) }}" class="rounded border border-blue-200 bg-blue-50 px-2 py-1 text-[9px] font-bold uppercase tracking-tighter text-blue-600 hover:bg-blue-100 hover:underline">{{ $tag->name }}</a>
                                 @empty
                                     @unless($item->group)<span class="text-[10px] text-gray-400">No tags</span>@endunless
                                 @endforelse

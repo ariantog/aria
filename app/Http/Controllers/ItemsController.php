@@ -167,6 +167,11 @@ class ItemsController extends Controller
         return view('items.show', [
             'item' => $item,
             'isAsset' => $item->type === ItemType::ASSET_LANCAR,
+            'groupUrl' => $item->group_id
+                ? route('items.group-parent-detail', $this->identityBuilder->parentKeyToSlug(
+                    $this->identityBuilder->itemParentKey($item)
+                ))
+                : null,
         ]);
     }
 
