@@ -47,7 +47,6 @@ $breadcrumbs = [
                         <th class="px-6 py-3 font-bold">Variants</th>
                         <th class="px-6 py-3 font-bold">SKUs</th>
                         <th class="px-6 py-3 font-bold">Description</th>
-                        <th class="px-6 py-3 font-bold" title="Sum of physical stock across all warehouses">Aria total (all WH)</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100">
@@ -63,10 +62,9 @@ $breadcrumbs = [
                         <td class="px-6 py-3 text-gray-500">{{ $parent['variant_count'] ?? '—' }}</td>
                         <td class="px-6 py-3 text-gray-500">{{ $parent['sku_count'] }}</td>
                         <td class="px-6 py-3 text-gray-600">{{ \Illuminate\Support\Str::limit($parent['description'] ?? '', 60) ?: '—' }}</td>
-                        <td class="px-6 py-3 font-bold text-green-600">{{ number_format($parent['in_warehouse_qty'], 0, ',', '.') }}</td>
                     </tr>
                     @empty
-                    <tr><td colspan="6" class="px-6 py-12 text-center text-gray-500">No groups found matching your filters.</td></tr>
+                    <tr><td colspan="5" class="px-6 py-12 text-center text-gray-500">No groups found matching your filters.</td></tr>
                     @endforelse
                 </tbody>
             </table>
