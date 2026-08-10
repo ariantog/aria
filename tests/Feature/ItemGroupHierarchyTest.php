@@ -123,6 +123,7 @@ it('renders group list and parent detail pages', function () {
         ->assertOk()
         ->assertSee('BLACK', false)
         ->assertSee('Warehouse focus', false)
+        ->assertSee('Total only', false)
         ->assertSee('Export Excel', false)
         ->assertSee('all channels', false)
         ->assertSee('How to read quantities', false);
