@@ -38,7 +38,6 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::get('locations/{location}/addrbooks', [\App\Http\Controllers\LocationController::class, 'addrbooks'])->name('locations.addrbooks');
     Route::post('locations/{location}/addrbooks', [\App\Http\Controllers\LocationController::class, 'attachAddrbook'])->name('locations.addrbooks.attach');
     Route::delete('locations/{location}/addrbooks/{addrbook}', [\App\Http\Controllers\LocationController::class, 'detachAddrbook'])->name('locations.addrbooks.detach');
-    Route::resource('posts', App\Http\Controllers\PostController::class);
     Route::get('items/legacy-converter', [App\Http\Controllers\LegacyItemConverterController::class, 'index'])->name('items.legacy-converter');
     Route::post('items/legacy-converter/preview', [App\Http\Controllers\LegacyItemConverterController::class, 'preview'])->name('items.legacy-converter.preview');
     Route::post('items/legacy-converter/purge-useless', [App\Http\Controllers\LegacyItemConverterController::class, 'purgeUseless'])->name('items.legacy-converter.purge-useless');

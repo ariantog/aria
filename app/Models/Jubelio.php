@@ -16,8 +16,6 @@ class Jubelio
             'view' => 'jubelio-view',
             'sync' => 'jubelio-sync',
             'stock-check' => 'jubelio-stock-check',
-            'discrepancy' => 'jubelio-discrepancy',
-            'log' => 'jubelio-log',
         ];
     }
 }
