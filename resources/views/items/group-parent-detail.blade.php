@@ -164,7 +164,7 @@ $fmt = fn ($v) => number_format((float) $v, 0, ',', '.');
                         </thead>
                         <tbody class="divide-y divide-gray-100">
                             @foreach($color['size_rows'] as $row)
-                            <tr class="hover:bg-gray-50/50" @if($row['warehouse_qty'] < 1) x-show="showZero" @endif>
+                            <tr class="hover:bg-gray-50/50" x-show="showZero || {{ (float) $row['warehouse_qty'] > 0 ? 'true' : 'false' }}" x-cloak>
                                 <td class="px-4 py-3 font-semibold text-gray-900">{{ $row['size'] }}</td>
                                 <td class="px-4 py-3">
                                     <a href="{{ $row['show_url'] }}" class="font-mono text-blue-600 hover:underline">{{ $row['code'] }}</a>
@@ -199,7 +199,7 @@ $fmt = fn ($v) => number_format((float) $v, 0, ',', '.');
                 @else
                 <div class="space-y-4">
                     @foreach($color['no_size_items'] as $row)
-                    <div class="rounded-lg border border-gray-100 bg-gray-50/50 p-4" @if($row['warehouse_qty'] < 1) x-show="showZero" @endif>
+                    <div class="rounded-lg border border-gray-100 bg-gray-50/50 p-4" x-show="showZero || {{ (float) $row['warehouse_qty'] > 0 ? 'true' : 'false' }}" x-cloak>
                         <div class="mb-3 flex flex-wrap items-start justify-between gap-4">
                             <div>
                                 <a href="{{ $row['show_url'] }}" class="font-mono font-semibold text-blue-600 hover:underline">{{ $row['code'] }}</a>
