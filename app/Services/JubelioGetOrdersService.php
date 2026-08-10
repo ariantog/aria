@@ -294,6 +294,133 @@ class JubelioGetOrdersService
     }
 
     /**
+     * @return array<string, mixed>|null
+     */
+    public function lookupOrder(string $orderId): ?array
+    {
+        return $this->jubelioService->fetchSalesOrder($orderId);
+    }
+
+    /**
+     * @param  array<string, mixed>  $apiData
+     * @return array<string, mixed>
+     */
+    public function inspectApiOrder(array $apiData): array
+    {
+        $invoice = $apiData['salesorder_no'] ?? null;
+        $orderId = $apiData['salesorder_id'] ?? null;
+        $status = $apiData['internal_status'] ?? $apiData['status'] ?? '';
+
+        $inTransaction = $invoice && Transaction::query()
+            ->where('type', Transaction::TYPE_SELL)
+            ->where('invoice_number', $invoice)
+            ->exists();
+
+        $existingOrder = null;
+        if ($orderId) {
+            $existingOrder = Jubelioorder::query()
+                ->where('type', 'SELL')
+                ->where('jubelio_order_id', $orderId)
+                ->first();
+        }
+        if (! $existingOrder && $invoice) {
+            $existingOrder = Jubelioorder::query()
+                ->where('type', 'SELL')
+                ->where('invoice', $invoice)
+                ->first();
+        }
+
+        $inQueue = $existingOrder !== null;
+        $eligible = $this->isEligibleApiOrder($apiData);
+
+        return [
+            'invoice' => $invoice,
+            'order_id' => $orderId,
+            'status' => $status,
+            'store_name' => $apiData['source_name'] ?? $apiData['store_name'] ?? null,
+            'location_name' => $apiData['location_name'] ?? null,
+            'transaction_date' => $apiData['transaction_date'] ?? $apiData['created_date'] ?? null,
+            'grand_total' => $apiData['grand_total'] ?? null,
+            'is_canceled' => ($apiData['is_canceled'] ?? 'N') === 'Y',
+            'eligible' => $eligible,
+            'in_transaction' => $inTransaction,
+            'in_queue' => $inQueue,
+            'existing_order' => $existingOrder,
+            'can_queue' => $eligible && $invoice && ! $inTransaction && ! $inQueue,
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $apiData
+     * @return array{success: bool, message: string, order: ?Jubelioorder}
+     */
+    public function queueApiOrder(array $apiData): array
+    {
+        $inspection = $this->inspectApiOrder($apiData);
+
+        if (! $inspection['eligible']) {
+            return [
+                'success' => false,
+                'message' => 'Status order tidak memenuhi syarat (harus SHIPPED, COMPLETED, atau RETURNED dan tidak dibatalkan).',
+                'order' => null,
+            ];
+        }
+
+        if ($inspection['in_transaction']) {
+            return [
+                'success' => false,
+                'message' => 'Invoice sudah ada di tabel transaksi — tidak dapat diantri.',
+                'order' => null,
+            ];
+        }
+
+        if ($inspection['in_queue']) {
+            return [
+                'success' => false,
+                'message' => 'Order sudah ada di antrian Jubelio Orders.',
+                'order' => $inspection['existing_order'],
+            ];
+        }
+
+        $invoice = $inspection['invoice'];
+        if (! $invoice) {
+            return [
+                'success' => false,
+                'message' => 'Invoice tidak ditemukan pada data API.',
+                'order' => null,
+            ];
+        }
+
+        $order = Jubelioorder::create([
+            'jubelio_order_id' => $inspection['order_id'],
+            'source' => 2,
+            'invoice' => $invoice,
+            'type' => 'SELL',
+            'order_status' => $inspection['status'] ?: 'SHIPPED',
+            'run_count' => 0,
+            'payload' => '{}',
+            'status' => 0,
+        ]);
+
+        return [
+            'success' => true,
+            'message' => 'Order berhasil diantri. Cron jubelio:order-jubelio-to-aria akan memprosesnya.',
+            'order' => $order,
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $apiData
+     */
+    public function isEligibleApiOrder(array $apiData): bool
+    {
+        return $this->isEligibleListRow([
+            'internal_status' => $apiData['internal_status'] ?? $apiData['status'] ?? '',
+            'is_canceled' => $apiData['is_canceled'] ?? 'N',
+        ]);
+    }
+
+    /**
      * @param  array<string, mixed>  $row
      */
     public function isEligibleListRow(array $row): bool
