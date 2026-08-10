@@ -62,7 +62,10 @@ class LegacyItemConverterService
                 $query->select(DB::raw(1))
                     ->from('item_identity_conversion_results')
                     ->whereColumn('item_identity_conversion_results.item_id', 'items.id')
-                    ->where('item_identity_conversion_results.status', ItemIdentityConversionResult::STATUS_SUCCESS);
+                    ->whereIn('item_identity_conversion_results.status', [
+                        ItemIdentityConversionResult::STATUS_SUCCESS,
+                        ItemIdentityConversionResult::STATUS_SKIPPED,
+                    ]);
             })
             ->orderBy('id');
     }
@@ -335,10 +338,11 @@ class LegacyItemConverterService
         $typeTag = null;
 
         if ($itemType === ItemType::ITEM) {
-            $typeTag = Tag::query()
-                ->where('type', Tag::TYPE_TYPE)
-                ->whereRaw('UPPER(code) = ?', [strtoupper((string) $parse->typeCode)])
-                ->firstOrFail();
+            $typeTag = Tag::findManufacturedTypeTag((string) $parse->typeCode);
+
+            if (! $typeTag) {
+                throw new \RuntimeException("TYPE tag not found for manufactured item: {$parse->typeCode}");
+            }
 
             $jahitTag = $item->tags->firstWhere('type', Tag::TYPE_JAHIT)
                 ?? $item->tags()->where('type', Tag::TYPE_JAHIT)->first();

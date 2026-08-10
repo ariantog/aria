@@ -25,7 +25,12 @@ beforeEach(function () {
     Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'POWDERWHITE', 'name' => 'POWDERWHITE']);
     Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'MARBLEPINK', 'name' => 'MARBLEPINK']);
 
-    $this->typeTag = Tag::factory()->create(['type' => Tag::TYPE_TYPE, 'code' => 'AJJ', 'name' => 'Jacket']);
+    $this->typeTag = Tag::factory()->create([
+        'type' => Tag::TYPE_TYPE,
+        'item_type' => ItemType::ITEM->value,
+        'code' => 'AJJ',
+        'name' => 'Jacket',
+    ]);
     $this->jahitTag = Tag::factory()->create(['type' => Tag::TYPE_JAHIT, 'code' => 'J1', 'name' => 'J1']);
     $this->warnaTag = Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'NAVY', 'name' => 'NAVY']);
 });
@@ -278,4 +283,71 @@ it('purges useless skus via controller action', function () {
         ->assertSessionHas('success');
 
     expect(Item::query()->where('code', 'PURGE-ME')->exists())->toBeFalse();
+});
+
+it('prefers manufactured type tags over asset lancar tags with the same code', function () {
+    Tag::factory()->create([
+        'type' => Tag::TYPE_TYPE,
+        'item_type' => ItemType::ASSET_LANCAR->value,
+        'code' => 'AJJ',
+        'name' => 'Asset AJJ',
+    ]);
+
+    $item = Item::factory()->create([
+        'type' => ItemType::ITEM,
+        'group_id' => null,
+        'code' => 'AJJPL2512906XL',
+        'pcode' => 'PL25129-06',
+        'name' => 'JACKET',
+    ]);
+    $item->tags()->sync([
+        $this->typeTag->id,
+        $this->warnaTag->id,
+        $this->jahitTag->id,
+        Tag::where('code', 'XL')->first()->id,
+    ]);
+
+    $run = $this->service->runBatch(ItemType::ITEM, $this->user);
+
+    expect($run->success_count)->toBe(1)
+        ->and($item->fresh()->code)->toBe('AJJ-PL25129-06-XL');
+});
+
+it('does not re-queue items already marked skipped as canonical', function () {
+    $item = Item::factory()->create([
+        'type' => ItemType::ASSET_LANCAR,
+        'group_id' => \App\Models\ItemGroup::factory()->create()->id,
+        'code' => 'GLOVE-01-BLACK-S',
+        'pcode' => 'GLOVE-01',
+        'name' => 'BOXING GLOVE - BLACK - S',
+    ]);
+    $item->tags()->sync([
+        Tag::where('code', 'BLACK')->first()->id,
+        Tag::where('code', 'S')->first()->id,
+    ]);
+
+    $firstRun = $this->service->runBatch(ItemType::ASSET_LANCAR, $this->user);
+
+    expect($firstRun->skipped_count)->toBe(1)
+        ->and($this->service->countEligible(ItemType::ASSET_LANCAR))->toBe(0);
+});
+
+it('uses product name from item title for manufactured group name', function () {
+    $item = Item::factory()->create([
+        'type' => ItemType::ITEM,
+        'group_id' => null,
+        'code' => 'AJJPL2512906XL',
+        'pcode' => 'PL25129-06',
+        'name' => 'SLASH RUNNING SHIRT - NAVY - XL',
+    ]);
+    $item->tags()->sync([
+        $this->typeTag->id,
+        $this->warnaTag->id,
+        $this->jahitTag->id,
+        Tag::where('code', 'XL')->first()->id,
+    ]);
+
+    $this->service->runBatch(ItemType::ITEM, $this->user);
+
+    expect($item->fresh()->group->name)->toBe('SLASH RUNNING SHIRT');
 });
