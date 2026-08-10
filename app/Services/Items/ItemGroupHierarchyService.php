@@ -129,6 +129,8 @@ class ItemGroupHierarchyService
         $colors = $this->buildColorSectionsFromGroups($groups, $jubelioStocks, $items);
         $warehouseBreakdown = $this->aggregateWarehouseBreakdown($items);
 
+        $warehouseNames = array_column($warehouseBreakdown, 'name');
+
         return [
             'parent_key' => $parentKey,
             'parent_slug' => $this->identityBuilder->parentKeyToSlug($parentKey),
@@ -143,6 +145,53 @@ class ItemGroupHierarchyService
             'colors' => $colors,
             'total_warehouse_qty' => $this->sumWarehouseBreakdown($warehouseBreakdown),
             'warehouse_breakdown' => $warehouseBreakdown,
+            'warehouse_names' => $warehouseNames,
+        ];
+    }
+
+    /**
+     * @return array{label: string, warehouse_names: list<string>, rows: list<array<string, mixed>>}|null
+     */
+    public function exportPayload(string $parentKey): ?array
+    {
+        $detail = $this->parentDetail($parentKey);
+        if ($detail === null) {
+            return null;
+        }
+
+        $warehouseNames = $detail['warehouse_names'];
+        $rows = [];
+
+        foreach ($detail['colors'] as $color) {
+            $itemRows = $color['has_sizes'] ? $color['size_rows'] : $color['no_size_items'];
+
+            foreach ($itemRows as $row) {
+                $warehouseQtys = array_fill_keys($warehouseNames, 0.0);
+
+                foreach ($row['warehouses'] as $warehouse) {
+                    $warehouseQtys[$warehouse['name']] = (float) $warehouse['quantity'];
+                }
+
+                $rows[] = [
+                    'item_id' => $row['item_id'],
+                    'item_name' => $row['name'],
+                    'item_code' => $row['code'],
+                    'color_code' => $color['code'],
+                    'color_name' => $color['name'],
+                    'color_pcode' => $color['pcode'] ?? '',
+                    'size' => $row['size'],
+                    'warehouse_qtys' => $warehouseQtys,
+                    'aria_total' => (float) $row['warehouse_qty'],
+                    'jubelio_on_hand' => $row['jubelio']['linked'] ? (float) $row['jubelio']['on_hand'] : null,
+                    'jubelio_available' => $row['jubelio']['linked'] ? (float) $row['jubelio']['available'] : null,
+                ];
+            }
+        }
+
+        return [
+            'label' => $detail['label'],
+            'warehouse_names' => $warehouseNames,
+            'rows' => $rows,
         ];
     }
 

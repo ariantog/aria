@@ -4,34 +4,57 @@
     'align' => 'right',
 ])
 @php
-    $fmt = fn ($v) => number_format((float) $v, 0, ',', '.');
     $alignClass = $align === 'left' ? 'text-left' : 'text-right';
 @endphp
 
-<div class="{{ $alignClass }}">
-    <div class="font-mono text-sm font-bold {{ (float) $total > 0 ? 'text-green-600' : 'text-gray-400' }}">
-        {{ $fmt($total) }}
-    </div>
-    <div class="text-[10px] font-medium uppercase tracking-wide text-gray-400">total all warehouses</div>
-    @if(count($warehouses) > 0)
-        <ul class="mt-1.5 space-y-0.5 border-t border-gray-100 pt-1.5 text-[11px] text-gray-600">
-            @foreach($warehouses as $warehouse)
+<div class="{{ $alignClass }}" x-data="{ wh: @js($warehouses) }">
+    <template x-if="filteredWarehouseBreakdown(wh).mode === 'compact'">
+        <div>
+            <div
+                class="font-mono text-sm font-bold"
+                :class="filteredWarehouseBreakdown(wh).total > 0 ? 'text-green-600' : 'text-gray-400'"
+                x-text="formatQty(filteredWarehouseBreakdown(wh).total)"
+            ></div>
+            <div class="text-[10px] font-medium uppercase tracking-wide text-gray-400">total all warehouses</div>
+        </div>
+    </template>
+
+    <template x-if="filteredWarehouseBreakdown(wh).mode === 'expanded'">
+        <div>
+            <div
+                class="font-mono text-sm font-bold"
+                :class="filteredWarehouseBreakdown(wh).total > 0 ? 'text-green-600' : 'text-gray-400'"
+                x-text="formatQty(filteredWarehouseBreakdown(wh).total)"
+            ></div>
+            <div class="text-[10px] font-medium uppercase tracking-wide text-gray-400">total all warehouses</div>
+            <ul class="mt-1.5 space-y-0.5 border-t border-gray-100 pt-1.5 text-[11px] text-gray-600">
+                <template x-for="line in filteredWarehouseBreakdown(wh).selectedLines" :key="line.name">
+                    <li
+                        x-show="showZero || line.quantity > 0"
+                        x-cloak
+                        class="flex items-baseline justify-between gap-3 {{ $align === 'left' ? '' : 'flex-row-reverse' }}"
+                    >
+                        <span class="truncate" x-text="line.name"></span>
+                        <span
+                            class="shrink-0 font-mono font-semibold"
+                            :class="line.quantity > 0 ? 'text-gray-800' : 'text-gray-400'"
+                            x-text="formatQty(line.quantity)"
+                        ></span>
+                    </li>
+                </template>
                 <li
-                    x-show="showZero || {{ (float) $warehouse['quantity'] > 0 ? 'true' : 'false' }}"
+                    x-show="showZero || filteredWarehouseBreakdown(wh).others > 0"
                     x-cloak
                     class="flex items-baseline justify-between gap-3 {{ $align === 'left' ? '' : 'flex-row-reverse' }}"
                 >
-                    <span class="truncate">{{ $warehouse['name'] }}</span>
-                    <span class="shrink-0 font-mono font-semibold {{ (float) $warehouse['quantity'] > 0 ? 'text-gray-800' : 'text-gray-400' }}">
-                        {{ $fmt($warehouse['quantity']) }}
-                    </span>
+                    <span class="truncate italic text-gray-500">Others</span>
+                    <span
+                        class="shrink-0 font-mono font-semibold"
+                        :class="filteredWarehouseBreakdown(wh).others > 0 ? 'text-gray-800' : 'text-gray-400'"
+                        x-text="formatQty(filteredWarehouseBreakdown(wh).others)"
+                    ></span>
                 </li>
-            @endforeach
-        </ul>
-        <p x-show="!showZero && {{ collect($warehouses)->contains(fn ($w) => (float) ($w['quantity'] ?? 0) > 0) ? 'false' : 'true' }}" x-cloak class="mt-1 text-[10px] italic text-gray-400">
-            No stock in any warehouse.
-        </p>
-    @else
-        <p class="mt-1 text-[10px] italic text-gray-400">No warehouse stock recorded.</p>
-    @endif
+            </ul>
+        </div>
+    </template>
 </div>

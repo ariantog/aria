@@ -12,7 +12,7 @@ $breadcrumbs = [
 $fmt = fn ($v) => number_format((float) $v, 0, ',', '.');
 @endphp
 
-<div class="p-4 sm:p-6" x-data="{ showZero: false }">
+<div class="p-4 sm:p-6" x-data="groupWarehousePicker(@js($detail['warehouse_names']), @js($detail['parent_slug']))">
     <div class="mb-4">
         <a href="{{ route('items.group') }}" class="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-gray-600 hover:bg-gray-100">
             <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
@@ -89,6 +89,11 @@ $fmt = fn ($v) => number_format((float) $v, 0, ',', '.');
                         <label class="flex items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600">
                             <input type="checkbox" x-model="showZero" class="rounded border-gray-300"> Show 0 Quantity
                         </label>
+                        <a href="{{ route('items.group-parent-export', $detail['parent_slug']) }}"
+                           class="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                            Export Excel
+                        </a>
                         @if($detail['is_asset'])
                         <a href="{{ route('restock.index') }}" class="inline-flex items-center gap-2 rounded-lg border border-blue-200 px-4 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50">Restock</a>
                         @endif
@@ -96,6 +101,38 @@ $fmt = fn ($v) => number_format((float) $v, 0, ',', '.');
                 </div>
             </div>
         </div>
+    </div>
+
+    <div class="mb-4 rounded-lg border border-gray-200 bg-white px-4 py-4">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+                <p class="text-sm font-semibold text-gray-900">Warehouse focus</p>
+                <p class="mt-0.5 text-sm text-gray-600">Pick warehouses to break out in the tables below. Selection is saved in this browser.</p>
+            </div>
+            <div class="flex shrink-0 gap-2" x-show="warehouseNames.length > 0" x-cloak>
+                <button type="button" @click="selectAllWarehouses()" class="rounded-md border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50">Select all</button>
+                <button type="button" @click="clearWarehouses()" class="rounded-md border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50">Clear</button>
+            </div>
+        </div>
+        @if(count($detail['warehouse_names']) > 0)
+        <div class="mt-3 flex flex-wrap gap-2">
+            @foreach($detail['warehouse_names'] as $warehouseName)
+            <label class="inline-flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-1.5 text-sm transition-colors"
+                   :class="isWarehouseSelected(@js($warehouseName)) ? 'border-blue-300 bg-blue-50 text-blue-800' : 'border-gray-200 bg-gray-50 text-gray-700 hover:border-gray-300'">
+                <input type="checkbox" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                       :checked="isWarehouseSelected(@js($warehouseName))"
+                       @change="toggleWarehouse(@js($warehouseName))">
+                <span>{{ $warehouseName }}</span>
+            </label>
+            @endforeach
+        </div>
+        <p class="mt-2 text-xs text-gray-500" x-show="selectedWarehouses.length === 0" x-cloak>Showing total stock only. Select one or more warehouses to see a breakdown with an Others line.</p>
+        <p class="mt-2 text-xs text-blue-700" x-show="selectedWarehouses.length > 0" x-cloak>
+            Showing <span x-text="selectedWarehouses.length"></span> selected warehouse<span x-show="selectedWarehouses.length !== 1" x-cloak>s</span> plus Others.
+        </p>
+        @else
+        <p class="mt-2 text-sm italic text-gray-500">No warehouse stock recorded for this group.</p>
+        @endif
     </div>
 
     <div class="mb-4 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-900">
@@ -141,7 +178,7 @@ $fmt = fn ($v) => number_format((float) $v, 0, ',', '.');
                                 <th class="px-4 py-3 text-left font-semibold">SKU</th>
                                 <th class="px-4 py-3 text-right font-semibold">
                                     <div>Aria stock</div>
-                                    <div class="mt-0.5 text-[10px] font-normal normal-case text-gray-400">per warehouse</div>
+                                    <div class="mt-0.5 text-[10px] font-normal normal-case text-gray-400" x-text="selectedWarehouses.length > 0 ? 'selected + others' : 'all warehouses total'"></div>
                                 </th>
                                 <th class="px-4 py-3 text-right font-semibold">
                                     <div>Jubelio on hand</div>
@@ -230,4 +267,81 @@ $fmt = fn ($v) => number_format((float) $v, 0, ',', '.');
         @endforeach
     </div>
 </div>
+
+@push('scripts')
+<script>
+function groupWarehousePicker(warehouseNames, parentSlug) {
+    return {
+        showZero: false,
+        warehouseNames,
+        selectedWarehouses: [],
+        storageKey: 'aria-item-group-wh-' + parentSlug,
+        init() {
+            try {
+                const saved = JSON.parse(localStorage.getItem(this.storageKey) || '[]');
+                if (Array.isArray(saved)) {
+                    this.selectedWarehouses = saved.filter((name) => this.warehouseNames.includes(name));
+                }
+            } catch (e) {
+                this.selectedWarehouses = [];
+            }
+
+            this.$watch('selectedWarehouses', (value) => {
+                localStorage.setItem(this.storageKey, JSON.stringify(value));
+            });
+        },
+        isWarehouseSelected(name) {
+            return this.selectedWarehouses.includes(name);
+        },
+        toggleWarehouse(name) {
+            const index = this.selectedWarehouses.indexOf(name);
+            if (index >= 0) {
+                this.selectedWarehouses.splice(index, 1);
+            } else {
+                this.selectedWarehouses.push(name);
+            }
+        },
+        selectAllWarehouses() {
+            this.selectedWarehouses = [...this.warehouseNames];
+        },
+        clearWarehouses() {
+            this.selectedWarehouses = [];
+        },
+        formatQty(value) {
+            return new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(Math.round(Number(value) || 0));
+        },
+        filteredWarehouseBreakdown(warehouses) {
+            const lines = Array.isArray(warehouses) ? warehouses : [];
+            const total = lines.reduce((sum, line) => sum + Number(line.quantity || 0), 0);
+
+            if (this.selectedWarehouses.length === 0) {
+                return { mode: 'compact', total, selectedLines: [], others: 0 };
+            }
+
+            const selectedSet = new Set(this.selectedWarehouses);
+            const selectedLines = [];
+            let others = 0;
+
+            for (const line of lines) {
+                if (selectedSet.has(line.name)) {
+                    selectedLines.push(line);
+                } else {
+                    others += Number(line.quantity || 0);
+                }
+            }
+
+            for (const name of this.selectedWarehouses) {
+                if (!selectedLines.some((line) => line.name === name)) {
+                    selectedLines.push({ name, quantity: 0 });
+                }
+            }
+
+            selectedLines.sort((a, b) => a.name.localeCompare(b.name));
+
+            return { mode: 'expanded', total, selectedLines, others };
+        },
+    };
+}
+</script>
+@endpush
 @endsection
