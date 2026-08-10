@@ -10,15 +10,12 @@ $breadcrumbs = [
 ];
 @endphp
 
-<div class="p-4 sm:p-6" x-data="{ showImage: true }">
+<div class="p-4 sm:p-6">
     <div class="mb-6 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
         <div>
             <h1 class="mb-1 text-3xl font-bold tracking-tight text-gray-900">Group List</h1>
             <p class="text-gray-500">Parent groups by TYPE + pcode (manufactured) or asset pcode</p>
         </div>
-        <label class="flex items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600">
-            <input type="checkbox" x-model="showImage" class="rounded border-gray-300"> Show Images
-        </label>
     </div>
 
     <form method="GET" action="{{ route('items.group') }}" class="mb-6 grid grid-cols-1 items-end gap-4 rounded-xl border border-gray-200 bg-white p-4 md:grid-cols-4">
@@ -45,9 +42,9 @@ $breadcrumbs = [
             <table class="w-full text-left text-sm">
                 <thead class="border-b border-gray-200 bg-gray-50 text-xs uppercase text-gray-500">
                     <tr>
-                        <th class="px-6 py-3 font-bold" :class="{'hidden': !showImage}">Image</th>
                         <th class="px-6 py-3 font-bold">Parent (TYPE + PCode)</th>
                         <th class="px-6 py-3 font-bold">Product</th>
+                        <th class="px-6 py-3 font-bold">Variants</th>
                         <th class="px-6 py-3 font-bold">SKUs</th>
                         <th class="px-6 py-3 font-bold">Description</th>
                         <th class="px-6 py-3 font-bold">In Warehouse</th>
@@ -56,15 +53,6 @@ $breadcrumbs = [
                 <tbody class="divide-y divide-gray-100">
                     @forelse($parents as $parent)
                     <tr class="hover:bg-gray-50/50">
-                        <td class="px-6 py-3" :class="{'hidden': !showImage}">
-                            <div class="flex h-10 w-10 items-center justify-center overflow-hidden rounded-md border border-gray-200 bg-white">
-                                @if($parent['image_url'])
-                                    <img src="{{ $parent['image_url'] }}" alt="{{ $parent['label'] }}" class="h-full w-full object-cover">
-                                @else
-                                    <svg class="h-5 w-5 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
-                                @endif
-                            </div>
-                        </td>
                         <td class="px-6 py-3 font-medium">
                             <a href="{{ route('items.group-parent-detail', $parent['parent_slug']) }}" class="font-mono text-blue-600 hover:underline">{{ $parent['label'] }}</a>
                             @if($parent['is_asset'])
@@ -72,6 +60,7 @@ $breadcrumbs = [
                             @endif
                         </td>
                         <td class="px-6 py-3 text-gray-700">{{ $parent['product_name'] ?: '—' }}</td>
+                        <td class="px-6 py-3 text-gray-500">{{ $parent['variant_count'] ?? '—' }}</td>
                         <td class="px-6 py-3 text-gray-500">{{ $parent['sku_count'] }}</td>
                         <td class="px-6 py-3 text-gray-600">{{ \Illuminate\Support\Str::limit($parent['description'] ?? '', 60) ?: '—' }}</td>
                         <td class="px-6 py-3 font-bold text-green-600">{{ number_format($parent['in_warehouse_qty'], 0, ',', '.') }}</td>
