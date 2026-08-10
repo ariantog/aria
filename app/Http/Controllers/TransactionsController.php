@@ -12,9 +12,10 @@ use App\Http\Requests\StoreItemTransactionRequest;
 use App\Http\Requests\StoreTransferRequest;
 use App\Models\DeletedTransaction;
 use App\Models\DeletedTransactionDetail;
-use App\Models\Jubeliosync;
+use App\Models\Jubelio;
 use App\Models\Transaction;
 use App\Services\BookClosingService;
+use App\Services\Jubelio\JubelioTransactionSyncPresenter;
 use App\Services\TransactionInvoiceService;
 use App\Services\TransactionListExportService;
 use App\Services\TransactionReturnDraftService;
@@ -224,7 +225,7 @@ class TransactionsController extends Controller
         return redirect()->route('transactions.show', $transaction)->with('success', 'Adjustment created.');
     }
 
-    public function show(Transaction $transaction)
+    public function show(Transaction $transaction, JubelioTransactionSyncPresenter $jubelioSyncPresenter)
     {
         Gate::authorize(Transaction::getPermissions()['show']);
         abort_unless(
@@ -244,11 +245,15 @@ class TransactionsController extends Controller
 
             return 'Contact';
         };
-        $this->hydrateJubelioSyncData($transaction);
+        $jubelioSync = $jubelioSyncPresenter->applyToTransaction($transaction);
+        $jubelioSync['show_ui'] = $jubelioSync['can_sync']
+            && $jubelioSync['sync_cek']
+            && Gate::allows(Jubelio::getPermissions()['sync']);
         $invoiceService = app(TransactionInvoiceService::class);
 
         return view('transactions.show', [
             'transaction' => $transaction,
+            'jubelioSync' => $jubelioSync,
             'config' => ['sender_label' => $getLabel('sender'), 'receiver_label' => $getLabel('receiver'), 'type_slug' => $typeSlug],
             'can' => [
                 'delete_transaction' => Auth::user()->can(Transaction::getPermissions()['delete']),
@@ -489,35 +494,5 @@ class TransactionsController extends Controller
         $typeKey = collect(config('transaction_rules'))->firstWhere('id', $transaction->type);
 
         return $typeKey ? array_search($typeKey, config('transaction_rules')) : 'adjust';
-    }
-
-    private function hydrateJubelioSyncData(Transaction $transaction): void
-    {
-        $isManual = $transaction->submit_type === Transaction::SUBMIT_TYPE_MANUAL;
-        $syncRelevantA = in_array($transaction->type, [Transaction::TYPE_SELL, Transaction::TYPE_RETURN_SUPPLIER, Transaction::TYPE_MOVE]);
-        $syncRelevantB = in_array($transaction->type, [Transaction::TYPE_BUY, Transaction::TYPE_RETURN, Transaction::TYPE_MOVE]);
-        $syncedWarehouseIds = Jubeliosync::pluck('warehouse_id')->toArray();
-        $jubSyncA = Jubeliosync::where('warehouse_id', $transaction->sender_id)->first();
-        $jubSyncB = Jubeliosync::where('warehouse_id', $transaction->receiver_id)->first();
-        $transaction->jubelio_a = ($isManual && $jubSyncA && $syncRelevantA) ? $jubSyncA->jubelio_location_name : null;
-        $transaction->jubelio_b = ($isManual && $jubSyncB && $syncRelevantB) ? $jubSyncB->jubelio_location_name : null;
-        $sync_cek = null;
-        if ($isManual) {
-            if (in_array($transaction->type, [Transaction::TYPE_SELL, Transaction::TYPE_RETURN_SUPPLIER])) {
-                $sync_cek = in_array($transaction->sender_id, $syncedWarehouseIds) ? 'S' : null;
-            } elseif (in_array($transaction->type, [Transaction::TYPE_BUY, Transaction::TYPE_RETURN])) {
-                $sync_cek = in_array($transaction->receiver_id, $syncedWarehouseIds) ? 'R' : null;
-            } elseif ($transaction->type == Transaction::TYPE_MOVE) {
-                $sS = in_array($transaction->sender_id, $syncedWarehouseIds);
-                $rS = in_array($transaction->receiver_id, $syncedWarehouseIds);
-                $sync_cek = match (true) {
-                    $sS && $rS => 'B', $sS => 'S', $rS => 'R', default => null
-                };
-            }
-        }
-        $transaction->sync_cek = $sync_cek;
-        $transaction->a_synced = $isManual && (bool) $transaction->a_submit_by;
-        $transaction->b_synced = $isManual && (bool) $transaction->b_submit_by;
-        $transaction->is_from_jubelio = $transaction->submit_type === Transaction::SUBMIT_TYPE_JUBELIO;
     }
 }

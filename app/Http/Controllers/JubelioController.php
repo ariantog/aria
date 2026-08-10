@@ -10,6 +10,8 @@ use App\Models\Jubelioorder;
 use App\Models\Jubelioreturn;
 use App\Models\Jubeliosync;
 use App\Models\Transaction;
+use App\Services\Jubelio\JubelioOrderWarehouseResolver;
+use App\Services\Jubelio\JubelioTransactionSyncPresenter;
 use App\Services\JubelioService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -38,7 +40,18 @@ class JubelioController extends Controller
         }
         $q->when($request->invoice, fn ($q) => $q->where('invoice', 'like', '%'.$request->invoice.'%'));
         $stats = Jubelioorder::selectRaw("COUNT(CASE WHEN status=0 THEN 1 END) as pending, COUNT(CASE WHEN status=2 AND error_type=10 THEN 1 END) as success, COUNT(CASE WHEN status=2 AND error_type=2 THEN 1 END) as warning, COUNT(CASE WHEN status=1 AND error_type=1 THEN 1 END) as error")->first();
-        return view('jubelio.index', ['orders' => $q->paginate(15)->withQueryString(), 'stats' => ['pending'=>(int)$stats->pending,'success'=>(int)$stats->success,'warning'=>(int)$stats->warning,'error'=>(int)$stats->error], 'filters' => $request->only(['status','invoice']), 'flash' => ['success' => session('success'), 'error' => session('error') ?? session('errorMessage')]]);
+        $resolver = app(JubelioOrderWarehouseResolver::class);
+        $syncIndex = $resolver->syncIndex();
+        $orders = $q->paginate(15)->withQueryString();
+        $orders->getCollection()->transform(function (Jubelioorder $order) use ($resolver, $syncIndex) {
+            $warehouses = $resolver->resolve($order, $syncIndex);
+            $order->jubelio_warehouse = $warehouses['jubelio_warehouse'];
+            $order->aria_warehouse = $warehouses['aria_warehouse'];
+
+            return $order;
+        });
+
+        return view('jubelio.index', ['orders' => $orders, 'stats' => ['pending'=>(int)$stats->pending,'success'=>(int)$stats->success,'warning'=>(int)$stats->warning,'error'=>(int)$stats->error], 'filters' => $request->only(['status','invoice']), 'flash' => ['success' => session('success'), 'error' => session('error') ?? session('errorMessage')]]);
     }
 
     public function show(Jubelioorder $jubelio): View
@@ -281,32 +294,26 @@ class JubelioController extends Controller
         return view('jubelio.transaction-sync',['transactions'=>$t,'types'=>$types,'filters'=>$request->only(['date','invoice','type','display']),'flash'=>['success'=>session('success'),'error'=>session('error')]]);
     }
 
-    public function detailJubelioSync(Transaction $t): View
+    public function detailJubelioSync(Transaction $t, JubelioTransactionSyncPresenter $presenter): View
     {
         Gate::authorize(Jubelio::getPermissions()['sync']);
         $t->load(['receiver', 'sender', 'user', 'submitByA', 'submitByB', 'details.item.group']);
-        $t->setAttribute('item_with_jubelio_count', $t->details->filter(
-            fn ($detail) => ! $detail->item || ! $detail->item->jubelio_item_id || $detail->item->jubelio_item_id < 1
-        )->count());
-        $type = $t->type instanceof TransactionType ? $t->type->value : (int) $t->type;
-        $syncA = in_array($type, [TransactionType::Sell->value, TransactionType::ReturnSupplier->value, TransactionType::Move->value], true);
-        $syncB = in_array($type, [TransactionType::Buy->value, TransactionType::Return->value, TransactionType::Move->value], true);
-        $adA=0;$adB=0;$jA=null;$jB=null;
-        if($syncA){$jsA=Jubeliosync::where('warehouse_id',$t->sender_id)->first();if($jsA){$adA=2;$jA=$jsA->jubelio_location_name;}}
-        if($syncB){$jsB=Jubeliosync::where('warehouse_id',$t->receiver_id)->first();if($jsB){$adB=1;$jB=$jsB->jubelio_location_name;}}
+        $sync = $presenter->present($t);
+        $t->setAttribute('item_with_jubelio_count', $sync['mapping_missing']);
+
         return view('jubelio.detail-sync', [
             'data' => $t,
-            'can_sync' => $t->submit_type === Transaction::SUBMIT_TYPE_MANUAL,
-            'JubelioA' => $jA,
-            'JubelioB' => $jB,
-            'adJustTypeA' => $adA,
-            'adJustTypeB' => $adB,
+            'can_sync' => $sync['can_sync'],
+            'JubelioA' => $sync['jubelio_a'],
+            'JubelioB' => $sync['jubelio_b'],
+            'adJustTypeA' => $sync['adjust_type_a'],
+            'adJustTypeB' => $sync['adjust_type_b'],
             'whA' => 2,
             'whB' => 1,
-            'whAName' => $t->sender->name ?? '',
-            'whBName' => $t->receiver->name ?? '',
-            'warningA' => $t->hasSyncWarningA(),
-            'warningB' => $t->hasSyncWarningB(),
+            'whAName' => $sync['wh_a_name'],
+            'whBName' => $sync['wh_b_name'],
+            'warningA' => $sync['warning_a'],
+            'warningB' => $sync['warning_b'],
             'flash' => ['success' => session('success'), 'error' => session('errorMessage') ?? session('error')],
         ]);
     }
