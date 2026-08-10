@@ -78,8 +78,19 @@ it('shows view pdf on transaction detail when pdf already exists', function () {
         ->get(route('transactions.show', $transaction))
         ->assertOk()
         ->assertSee('View PDF', false)
-        ->assertSee('https://invoice.test/invoice_'.$transaction->id.'.pdf', false)
+        ->assertSee(route('transactions.pdf.show', $transaction), false)
         ->assertDontSee('Save to PDF', false);
+});
+
+it('serves invoice pdf via app route', function () {
+    $transaction = Transaction::factory()->create(['invoice_number' => 'PDF-SERVE']);
+    $filePath = app(TransactionInvoiceService::class)->invoiceDiskPath('invoice_'.$transaction->id.'.pdf');
+    File::put($filePath, '%PDF-1.4 fake');
+
+    $this->actingAs($this->user)
+        ->get(route('transactions.pdf.show', $transaction))
+        ->assertOk()
+        ->assertHeader('content-type', 'application/pdf');
 });
 
 it('creates invoice pdf via save to pdf and shows view pdf', function () {

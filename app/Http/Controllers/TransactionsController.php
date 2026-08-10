@@ -282,6 +282,19 @@ class TransactionsController extends Controller
         return redirect()->route('transactions.create', ['type' => $targetType]);
     }
 
+    public function showPdf(Transaction $transaction, TransactionInvoiceService $invoiceService)
+    {
+        $this->authorizeTransactionView($transaction);
+        abort_unless($invoiceService->invoicePdfExists($transaction), 404);
+
+        $filePath = $invoiceService->invoiceDiskPath($invoiceService->invoiceFileName($transaction));
+
+        return response()->file($filePath, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="'.$invoiceService->invoiceFileName($transaction).'"',
+        ]);
+    }
+
     public function storePdf(Transaction $transaction, TransactionInvoiceService $invoiceService)
     {
         $this->authorizeTransactionView($transaction);

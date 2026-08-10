@@ -176,6 +176,7 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::get('transactions/export', [App\Http\Controllers\TransactionsController::class, 'export'])->name('transactions.export');
     Route::get('transactions/{transaction}/receipt', [App\Http\Controllers\TransactionsController::class, 'receipt'])->name('transactions.receipt');
     Route::get('transactions/{transaction}/print', [App\Http\Controllers\TransactionsController::class, 'printInvoice'])->name('transactions.print');
+    Route::get('transactions/{transaction}/pdf', [App\Http\Controllers\TransactionsController::class, 'showPdf'])->name('transactions.pdf.show');
     Route::post('transactions/{transaction}/pdf', [App\Http\Controllers\TransactionsController::class, 'storePdf'])->name('transactions.pdf.store');
     Route::post('transactions/{transaction}/draft-return', [App\Http\Controllers\TransactionsController::class, 'draftReturn'])->name('transactions.draft-return');
     Route::post('transactions/{transaction}/whatsapp', [App\Http\Controllers\TransactionsController::class, 'sendWhatsapp'])->name('transactions.whatsapp');
