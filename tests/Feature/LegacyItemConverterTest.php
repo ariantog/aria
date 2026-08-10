@@ -351,3 +351,58 @@ it('uses product name from item title for manufactured group name', function () 
 
     expect($item->fresh()->group->name)->toBe('SLASH RUNNING SHIRT');
 });
+
+it('converts only the item ids shown on the current page', function () {
+    $items = collect(range(1, 5))->map(function ($i) {
+        return Item::factory()->create([
+            'type' => ItemType::ASSET_LANCAR,
+            'group_id' => null,
+            'code' => sprintf('GLOVE-%02d-BLACK-S', $i),
+            'pcode' => sprintf('GLOVE-%02d', $i),
+            'name' => "GLOVE {$i} - BLACK - S",
+        ]);
+    });
+
+    $selected = $items->take(2);
+    $run = $this->service->runItems(ItemType::ASSET_LANCAR, $selected, $this->user);
+
+    expect($run->batch_size)->toBe(2)
+        ->and($run->success_count)->toBe(2)
+        ->and($selected->every(fn (Item $item) => $item->fresh()->group_id !== null))->toBeTrue()
+        ->and($items->skip(2)->every(fn (Item $item) => $item->fresh()->group_id === null))->toBeTrue();
+});
+
+it('converts current page via controller and preserves legacy_code on sku change', function () {
+    $item = Item::factory()->create([
+        'type' => ItemType::ITEM,
+        'group_id' => null,
+        'code' => 'AJJPL2512906XL',
+        'legacy_code' => null,
+        'pcode' => 'PL25129-06',
+        'name' => 'JACKET',
+    ]);
+    $item->tags()->sync([
+        $this->typeTag->id,
+        $this->warnaTag->id,
+        $this->jahitTag->id,
+        Tag::where('code', 'XL')->first()->id,
+    ]);
+
+    $this->actingAs($this->user)
+        ->post(route('items.legacy-converter.run'), [
+            'type' => ItemType::ITEM->value,
+            'page' => 1,
+            'item_ids' => [$item->id],
+        ])
+        ->assertRedirect(route('items.legacy-converter', [
+            'tab' => 'pending',
+            'type' => ItemType::ITEM->value,
+            'page' => 1,
+        ]))
+        ->assertSessionHas('success');
+
+    $item->refresh();
+
+    expect($item->code)->toBe('AJJ-PL25129-06-XL')
+        ->and($item->legacy_code)->toBe('AJJPL2512906XL');
+});

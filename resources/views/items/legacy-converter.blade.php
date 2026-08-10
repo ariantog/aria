@@ -11,6 +11,9 @@
         'failed' => 'Failed',
     ];
     $baseParams = ['type' => $itemType->value];
+    if ($tab === 'pending') {
+        $baseParams['page'] = $currentPage;
+    }
     $itemShowUrl = function ($item) use ($itemType) {
         if (! $item) {
             return null;
@@ -29,7 +32,10 @@
         <div>
             <h2 class="text-2xl font-bold tracking-tight text-gray-900">Legacy Item Identity Converter</h2>
             <p class="mt-0.5 text-sm text-gray-500">
-                Batch-convert legacy SKUs into canonical identity ({{ number_format($pendingCount) }} {{ strtolower($typeLabel) }} pending).
+                Convert legacy SKUs page by page ({{ number_format($pendingCount) }} {{ strtolower($typeLabel) }} pending).
+                @if($tab === 'pending' && $currentPageCount > 0)
+                    Page {{ $currentPage }} shows {{ number_format($currentPageCount) }} item(s).
+                @endif
             </p>
         </div>
         <div class="flex flex-wrap items-center gap-2">
@@ -88,22 +94,35 @@
                 </a>
             @endforeach
         </div>
+        @if($tab === 'pending' && $currentPageCount > 0)
         <div class="flex flex-wrap gap-2">
             <form method="POST" action="{{ route('items.legacy-converter.preview') }}">
                 @csrf
                 <input type="hidden" name="type" value="{{ $itemType->value }}">
+                <input type="hidden" name="page" value="{{ $currentPage }}">
+                @foreach($dataList as $item)
+                <input type="hidden" name="item_ids[]" value="{{ $item->id }}">
+                @endforeach
                 <button type="submit" class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
-                    Preview next batch ({{ number_format($batchSize) }})
+                    Preview this page ({{ number_format($currentPageCount) }})
                 </button>
             </form>
-            <form method="POST" action="{{ route('items.legacy-converter.run') }}" onsubmit="return confirm('Run conversion for up to {{ number_format($batchSize) }} {{ strtolower($typeLabel) }} items?');">
+            <form method="POST" action="{{ route('items.legacy-converter.run') }}"
+                  onsubmit="return confirm('Convert {{ number_format($currentPageCount) }} item(s) on page {{ $currentPage }}? Original codes are kept in legacy_code when the SKU changes.');">
                 @csrf
                 <input type="hidden" name="type" value="{{ $itemType->value }}">
+                <input type="hidden" name="page" value="{{ $currentPage }}">
+                @foreach($dataList as $item)
+                <input type="hidden" name="item_ids[]" value="{{ $item->id }}">
+                @endforeach
                 <button type="submit" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
-                    Run next batch
+                    Convert this page
                 </button>
             </form>
         </div>
+        @elseif($tab === 'pending')
+        <p class="text-sm text-gray-500">No items on this page to convert.</p>
+        @endif
     </div>
 
     @if($latestRun)
@@ -125,6 +144,7 @@
                     <tr>
                         <th class="px-4 py-3">ID</th>
                         <th class="px-4 py-3">Code</th>
+                        <th class="px-4 py-3">Legacy</th>
                         <th class="px-4 py-3">Name</th>
                         <th class="px-4 py-3">Group</th>
                     </tr>
@@ -147,6 +167,7 @@
                                     <span class="text-gray-900">{{ $item->code }}</span>
                                 @endif
                             </td>
+                            <td class="px-4 py-2 font-mono text-xs text-gray-500">{{ $item->legacy_code ?: '—' }}</td>
                             <td class="px-4 py-2 text-gray-700">
                                 @if($showUrl)
                                     <a href="{{ $showUrl }}" class="hover:text-blue-600 hover:underline">{{ $item->name }}</a>
@@ -157,7 +178,7 @@
                             <td class="px-4 py-2 text-gray-500">{{ $item->group_id ?? '—' }}</td>
                         </tr>
                     @empty
-                        <tr><td colspan="4" class="px-4 py-8 text-center text-gray-500">No pending items.</td></tr>
+                        <tr><td colspan="5" class="px-4 py-8 text-center text-gray-500">No pending items.</td></tr>
                     @endforelse
                 </tbody>
             </table>

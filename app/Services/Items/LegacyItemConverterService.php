@@ -18,6 +18,8 @@ class LegacyItemConverterService
 {
     public const DEFAULT_BATCH_SIZE = 1000;
 
+    public const PENDING_PAGE_SIZE = 50;
+
     public function __construct(
         protected ItemIdentityBuilder $identityBuilder,
     ) {}
@@ -119,11 +121,30 @@ class LegacyItemConverterService
         return $count;
     }
 
-    public function paginateEligible(ItemType $itemType, int $perPage = 50): LengthAwarePaginator
+    public function paginateEligible(ItemType $itemType, int $perPage = self::PENDING_PAGE_SIZE): LengthAwarePaginator
     {
-        $parser = $this->makeParser();
         $page = max(1, (int) request()->query('page', 1));
         $total = $this->countEligible($itemType);
+        $pageItems = $this->eligibleItemsForPage($itemType, $page, $perPage);
+
+        return new LengthAwarePaginator(
+            $pageItems,
+            $total,
+            $perPage,
+            $page,
+            ['path' => request()->url(), 'query' => request()->query()],
+        );
+    }
+
+    /**
+     * Eligible pending items for a single list page (same rows the UI shows).
+     *
+     * @return Collection<int, Item>
+     */
+    public function eligibleItemsForPage(ItemType $itemType, int $page, int $perPage = self::PENDING_PAGE_SIZE): Collection
+    {
+        $parser = $this->makeParser();
+        $page = max(1, $page);
         $start = ($page - 1) * $perPage;
         $eligibleIndex = 0;
         $pageItems = collect();
@@ -151,13 +172,7 @@ class LegacyItemConverterService
             return $pageItems->count() < $perPage;
         });
 
-        return new LengthAwarePaginator(
-            $pageItems,
-            $total,
-            $perPage,
-            $page,
-            ['path' => request()->url(), 'query' => request()->query()],
-        );
+        return $pageItems;
     }
 
     /**
@@ -236,6 +251,91 @@ class LegacyItemConverterService
                         });
                 });
         };
+    }
+
+    /**
+     * @return Collection<int, array{item: Item, parse: LegacyParseResult}>
+     */
+    public function previewItems(Collection $items): Collection
+    {
+        $parser = $this->makeParser();
+
+        return $items
+            ->map(fn (Item $item) => $item->loadMissing(['tags', 'group']))
+            ->map(fn (Item $item) => [
+                'item' => $item,
+                'parse' => $parser->parse($item),
+            ]);
+    }
+
+    public function runItems(
+        ItemType $itemType,
+        Collection $items,
+        User $user,
+        bool $dryRun = false,
+    ): ItemIdentityConversionRun {
+        $parser = $this->makeParser();
+        $items = $items
+            ->filter(fn (Item $item) => $item->type === $itemType)
+            ->filter(fn (Item $item) => $this->isStructurallyEligible($item, $parser))
+            ->values();
+
+        $run = ItemIdentityConversionRun::query()->create([
+            'item_type' => $itemType,
+            'dry_run' => $dryRun,
+            'batch_size' => $items->count(),
+            'user_id' => $user->id,
+            'started_at' => now(),
+        ]);
+
+        foreach ($items as $item) {
+            $this->convertItem($item, $run, $parser, $dryRun);
+        }
+
+        $run->update(['finished_at' => now()]);
+
+        return $run->fresh(['results']);
+    }
+
+    /**
+     * @return Collection<int, array{item: Item, parse: LegacyParseResult}>
+     */
+    public function previewPage(ItemType $itemType, int $page, int $perPage = self::PENDING_PAGE_SIZE): Collection
+    {
+        return $this->previewItems(
+            $this->eligibleItemsForPage($itemType, $page, $perPage),
+        );
+    }
+
+    public function runPage(
+        ItemType $itemType,
+        User $user,
+        int $page,
+        int $perPage = self::PENDING_PAGE_SIZE,
+        bool $dryRun = false,
+    ): ItemIdentityConversionRun {
+        return $this->runItems(
+            $itemType,
+            $this->eligibleItemsForPage($itemType, $page, $perPage),
+            $user,
+            $dryRun,
+        );
+    }
+
+    /**
+     * @return Collection<int, Item>
+     */
+    public function itemsForIds(ItemType $itemType, array $itemIds): Collection
+    {
+        if ($itemIds === []) {
+            return collect();
+        }
+
+        return $this->candidateQuery($itemType)
+            ->whereIn('items.id', $itemIds)
+            ->get()
+            ->sortBy(fn (Item $item) => array_search($item->id, $itemIds, true))
+            ->values();
     }
 
     /**
@@ -359,9 +459,7 @@ class LegacyItemConverterService
             throw new \RuntimeException("Duplicate canonical SKU: {$canonicalCode}");
         }
 
-        if ($itemType === ItemType::ITEM) {
-            $this->preserveLegacyCode($item, $canonicalCode, $parse->legacyCode);
-        }
+        $this->preserveLegacyCode($item, $canonicalCode, $parse->legacyCode);
 
         $item->group_id = $group->id;
         $item->pcode = strtoupper((string) $parse->pcode);
