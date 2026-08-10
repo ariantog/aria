@@ -9,6 +9,7 @@ use App\Models\Jubeliosync;
 use App\Models\Transaction;
 use App\Models\TransactionDetail;
 use App\Services\JubelioService;
+use App\Services\LocationAccessService;
 use App\Services\TransactionService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -19,6 +20,7 @@ class ProcessJubelioOrder
     public function __construct(
         private TransactionService $transactionService,
         private JubelioService $jubelioService,
+        private LocationAccessService $locationAccessService,
     ) {}
 
     /**
@@ -107,7 +109,7 @@ class ProcessJubelioOrder
             return ['success' => false, 'message' => $matched['error']];
         }
 
-        $arrayInvoice = $dataApi['salesorder_no'];
+        $arrayInvoice = $dataApi['salesorder_no'] ?? $order->invoice;
 
         if (Transaction::where('type', Transaction::TYPE_SELL)->where('invoice_number', $arrayInvoice)->exists()) {
             $order->update([
@@ -313,6 +315,8 @@ class ProcessJubelioOrder
                 if (! $customer || ! $warehouse) {
                     throw new \Exception('Customer or Warehouse not found.');
                 }
+
+                $this->locationAccessService->ensureJubelioPartyLocations($warehouse, $customer);
 
                 $transaction = new Transaction;
                 $transaction->date = Carbon::parse($dataJubelio->date);

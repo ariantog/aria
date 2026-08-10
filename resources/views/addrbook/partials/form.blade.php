@@ -153,10 +153,10 @@
 
     @if(($locations ?? collect())->isNotEmpty())
     <div class="rounded-xl border border-gray-200 bg-white shadow-sm md:col-span-2"
-         x-show="selectedType === '{{ \App\Enums\AddrbookType::Customer->value }}'" x-cloak>
+         x-show="selectedType === '{{ \App\Enums\AddrbookType::Customer->value }}' || selectedType === '{{ \App\Enums\AddrbookType::Warehouse->value }}'" x-cloak>
         <div class="border-b border-gray-100 px-5 py-4">
             <h3 class="text-sm font-semibold text-gray-900">Locations</h3>
-            <p class="text-xs text-gray-500">Assign this customer to one or more locations.</p>
+            <p class="text-xs text-gray-500">Assign this contact to one or more locations. Required for transaction list visibility.</p>
         </div>
         <div class="grid grid-cols-1 gap-2 p-5 sm:grid-cols-2 lg:grid-cols-3">
             @php $selectedIds = collect(old('location_ids', ($selectedLocationIds ?? collect())->all())); @endphp

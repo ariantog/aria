@@ -98,7 +98,7 @@ class AddrbookController extends Controller
 
         $a = Addrbook::create($r->safe()->except(['location_ids', 'arrangement_source_ids', 'initial_balance']));
         $a->stat()->create(['balance' => $r->input('initial_balance', 0)]);
-        $this->syncCustomerLocations($a, $r->input('location_ids', []));
+        $this->syncAddrbookLocations($a, $r->input('location_ids', []));
         $this->syncArrangementSources($a, $r->input('arrangement_source_ids', []));
 
         return redirect()->route('addrbook.index')->with('success', 'Created.');
@@ -186,7 +186,7 @@ class AddrbookController extends Controller
         $a = $addrbook;
         Gate::authorize(Addrbook::getPermissions($this->addrbookTypeSlug($a))['edit']);
         $a->update($r->safe()->except(['location_ids', 'arrangement_source_ids']));
-        $this->syncCustomerLocations($a, $r->input('location_ids', []));
+        $this->syncAddrbookLocations($a, $r->input('location_ids', []));
         $this->syncArrangementSources($a, $r->input('arrangement_source_ids', []));
 
         return redirect()->route('addrbook.index')->with('success', 'Updated.');
@@ -439,9 +439,9 @@ class AddrbookController extends Controller
         ];
     }
 
-    private function syncCustomerLocations(Addrbook $addrbook, array $locationIds): void
+    private function syncAddrbookLocations(Addrbook $addrbook, array $locationIds): void
     {
-        if ($addrbook->type !== AddrbookType::Customer) {
+        if (! in_array($addrbook->type, [AddrbookType::Customer, AddrbookType::Warehouse], true)) {
             return;
         }
 
