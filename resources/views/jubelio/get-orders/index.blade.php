@@ -159,7 +159,7 @@ $breadcrumbs = [
             </table>
         </div>
         @if($details instanceof \Illuminate\Contracts\Pagination\LengthAwarePaginator && $details->hasPages())
-        <div class="border-t border-gray-100 px-6 py-4">{{ $details->links() }}</div>
+        @include('partials.pagination', ['paginator' => $details, 'label' => 'orders'])
         @endif
     </div>
     @endif

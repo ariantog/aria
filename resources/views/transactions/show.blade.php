@@ -252,6 +252,8 @@
         ])
     </div>
 
+    @include('transactions.partials.jubelio-sync', ['transaction' => $transaction, 'jubelioSync' => $jubelioSync ?? []])
+
     {{-- Items Section --}}
     <div class="rounded-xl bg-white shadow-md print:shadow-none">
         <div class="flex flex-col justify-between gap-4 p-6 pb-4 md:flex-row md:items-center">

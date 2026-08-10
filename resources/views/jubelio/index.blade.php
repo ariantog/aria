@@ -65,7 +65,8 @@ $breadcrumbs = [
                         <th class="px-6 py-4">Date</th>
                         <th class="px-6 py-4">Source</th>
                         <th class="px-6 py-4">Invoice</th>
-                        <th class="px-6 py-4">Store / Location</th>
+                        <th class="px-6 py-4">Store</th>
+                        <th class="px-6 py-4">Warehouse</th>
                         <th class="px-6 py-4">Type</th>
                         <th class="px-6 py-4 text-right">Items</th>
                         <th class="px-6 py-4 text-right">Total</th>
@@ -111,13 +112,22 @@ $breadcrumbs = [
                             </a>
                         </td>
                         <td class="px-6 py-4">
-                            <div class="text-xs font-medium text-gray-800">{{ $summary['store_name'] ?: '—' }}</div>
-                            @if($summary['location_name'])
-                            <div class="text-[10px] text-gray-500">{{ $summary['location_name'] }}</div>
-                            @endif
+                            <div class="text-sm font-medium text-gray-800">{{ $summary['store_name'] ?: '—' }}</div>
                             @if($summary['customer_name'])
-                            <div class="mt-0.5 text-[10px] text-gray-400">{{ $summary['customer_name'] }}</div>
+                            <div class="mt-0.5 text-xs text-gray-500">{{ $summary['customer_name'] }}</div>
                             @endif
+                        </td>
+                        <td class="px-6 py-4">
+                            <div class="space-y-1">
+                                <div>
+                                    <span class="text-[10px] font-bold uppercase text-gray-400">Jubelio</span>
+                                    <div class="text-sm text-gray-800">{{ $order->jubelio_warehouse ?: ($summary['location_name'] ?: '—') }}</div>
+                                </div>
+                                <div>
+                                    <span class="text-[10px] font-bold uppercase text-gray-400">Aria</span>
+                                    <div class="text-sm font-medium text-gray-700">{{ $order->aria_warehouse ?: '—' }}</div>
+                                </div>
+                            </div>
                         </td>
                         <td class="px-6 py-4">
                             <span class="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-bold uppercase">{{ $order->type }}</span>
@@ -143,7 +153,7 @@ $breadcrumbs = [
                     </tr>
                     @empty
                     <tr>
-                        <td colspan="8" class="px-6 py-8 text-center text-gray-400 italic">No Jubelio orders found.</td>
+                        <td colspan="9" class="px-6 py-8 text-center text-gray-400 italic">No Jubelio orders found.</td>
                     </tr>
                     @endforelse
                 </tbody>

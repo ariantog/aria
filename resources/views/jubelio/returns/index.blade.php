@@ -39,6 +39,7 @@ $showSolved = ($filters['status'] ?? '') === 'SOLVED';
     </div>
 
     <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+        <div class="overflow-x-auto">
         <table class="w-full text-left text-sm">
             <thead class="bg-gray-50 font-semibold text-gray-600 uppercase">
                 <tr>
@@ -78,8 +79,9 @@ $showSolved = ($filters['status'] ?? '') === 'SOLVED';
                 @endforelse
             </tbody>
         </table>
+        </div>
     </div>
 
-    {{ $returns->links() }}
+    @include('partials.pagination', ['paginator' => $returns, 'label' => 'cancellations'])
 </div>
 @endsection

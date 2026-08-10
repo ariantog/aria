@@ -107,6 +107,130 @@ it('rejects duplicate jubelio return webhook payloads', function () {
     expect(Jubelioorder::where('invoice', 'RET-200')->count())->toBe(1);
 });
 
+it('accepts jubelio cancel webhook and stores cancellation record', function () {
+    config(['services.jubelio.webhook_secret' => 'test-secret']);
+
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    $customer = Addrbook::factory()->create(['type' => Addrbook::TYPE_CUSTOMER]);
+
+    $sell = Transaction::factory()->create([
+        'type' => Transaction::TYPE_SELL,
+        'invoice_number' => 'INV-CANCEL-WH',
+        'sender_id' => $warehouse->id,
+        'receiver_id' => $customer->id,
+        'jubelio_return' => 0,
+    ]);
+
+    $body = json_encode([
+        'status' => 'CANCELED',
+        'salesorder_id' => 'ord-cancel-1',
+        'salesorder_no' => 'INV-CANCEL-WH',
+        'payment_method' => 'COD',
+        'cancel_reason_detail' => 'Buyer request',
+        'location_name' => 'Gudang Pusat',
+        'source_name' => 'Tokopedia',
+    ]);
+    $sign = hash_hmac('sha256', trim($body).'test-secret', 'test-secret', false);
+
+    $this->call(
+        'POST',
+        route('jubelio.webhook.order'),
+        [],
+        [],
+        [],
+        ['HTTP_SIGN' => $sign, 'CONTENT_TYPE' => 'application/json'],
+        $body,
+    )->assertSuccessful()
+        ->assertJson(['status' => 'ok']);
+
+    expect(Jubelioreturn::where('order_id', 'ord-cancel-1')->where('transaction_id', $sell->id)->exists())->toBeTrue();
+});
+
+it('rejects duplicate jubelio cancel webhook payloads', function () {
+    config(['services.jubelio.webhook_secret' => 'test-secret']);
+
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    $customer = Addrbook::factory()->create(['type' => Addrbook::TYPE_CUSTOMER]);
+
+    Transaction::factory()->create([
+        'type' => Transaction::TYPE_SELL,
+        'invoice_number' => 'INV-CANCEL-DUP',
+        'sender_id' => $warehouse->id,
+        'receiver_id' => $customer->id,
+    ]);
+
+    Jubelioreturn::create([
+        'order_id' => 'ord-cancel-dup',
+        'transaction_id' => '1',
+        'invoice' => 'INV-CANCEL-DUP',
+        'status' => 0,
+        'confirmed_by' => 0,
+    ]);
+
+    $body = json_encode([
+        'status' => 'CANCELED',
+        'salesorder_id' => 'ord-cancel-dup',
+        'salesorder_no' => 'INV-CANCEL-DUP',
+    ]);
+    $sign = hash_hmac('sha256', trim($body).'test-secret', 'test-secret', false);
+
+    $this->call(
+        'POST',
+        route('jubelio.webhook.order'),
+        [],
+        [],
+        [],
+        ['HTTP_SIGN' => $sign, 'CONTENT_TYPE' => 'application/json'],
+        $body,
+    )->assertSuccessful()
+        ->assertJsonPath('message', 'Return exists');
+
+    expect(Jubelioreturn::where('order_id', 'ord-cancel-dup')->count())->toBe(1);
+});
+
+it('shows jubelio sync push buttons on transaction detail page', function () {
+    $user = User::factory()->create();
+    $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'WH Sync Test']);
+    $customer = Addrbook::factory()->create(['type' => Addrbook::TYPE_CUSTOMER]);
+    $item = Item::factory()->create(['jubelio_item_id' => 999]);
+
+    Jubeliosync::create([
+        'jubelio_store_id' => 1,
+        'jubelio_store_name' => 'Store',
+        'jubelio_location_id' => 2,
+        'jubelio_location_name' => 'Jubelio WH',
+        'warehouse_id' => $warehouse->id,
+        'customer_id' => $customer->id,
+        'bin_id' => 0,
+    ]);
+
+    $transaction = Transaction::factory()->create([
+        'type' => Transaction::TYPE_SELL,
+        'submit_type' => Transaction::SUBMIT_TYPE_MANUAL,
+        'sender_id' => $warehouse->id,
+        'receiver_id' => $customer->id,
+        'total_items' => 1,
+    ]);
+
+    $transaction->details()->create([
+        'date' => $transaction->date,
+        'transaction_type' => Transaction::TYPE_SELL,
+        'sender_id' => $warehouse->id,
+        'receiver_id' => $customer->id,
+        'item_id' => $item->id,
+        'quantity' => 1,
+        'price' => 10000,
+        'discount' => 0,
+        'total' => 10000,
+    ]);
+
+    $this->actingAs($user)
+        ->get(route('transactions.show', $transaction))
+        ->assertSuccessful()
+        ->assertSee('Sinkron Jubelio')
+        ->assertSee('Push to Jubelio');
+});
+
 it('lists pending jubelio cancellations by default', function () {
     $user = User::factory()->create();
 

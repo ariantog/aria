@@ -167,6 +167,46 @@ it('can manually process a pending jubelio sell order', function () {
         ->and($order->execute_by)->toBe($user->id);
 });
 
+it('shows jubelio and aria warehouse names on orders list', function () {
+    $user = User::factory()->create();
+    $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'Gudang Aria Utama']);
+
+    Jubeliosync::create([
+        'jubelio_store_id' => 55,
+        'jubelio_store_name' => 'Tokopedia',
+        'jubelio_location_id' => 66,
+        'jubelio_location_name' => 'Gudang Jubelio Pusat',
+        'warehouse_id' => $warehouse->id,
+        'customer_id' => 0,
+        'bin_id' => 0,
+    ]);
+
+    Jubelioorder::create([
+        'jubelio_order_id' => 'wh-ware-1',
+        'source' => 1,
+        'invoice' => 'INV-WAREHOUSE-TEST',
+        'type' => 'SELL',
+        'order_status' => 'SHIPPED',
+        'run_count' => 0,
+        'payload' => json_encode([
+            'salesorder_no' => 'INV-WAREHOUSE-TEST',
+            'store_id' => 55,
+            'location_id' => 66,
+            'source_name' => 'Tokopedia',
+            'location_name' => 'Gudang Jubelio Pusat',
+            'grand_total' => 100000,
+            'items' => [],
+        ]),
+        'status' => 0,
+    ]);
+
+    $this->actingAs($user)
+        ->get(route('jubelio.index'))
+        ->assertSuccessful()
+        ->assertSee('Gudang Jubelio Pusat')
+        ->assertSee('Gudang Aria Utama');
+});
+
 it('can mark duplicate jubelio order as solved', function () {
     $user = User::factory()->create();
 
