@@ -73,6 +73,8 @@ it('renders parent detail with color sections and size rows', function () {
     expect($detail['colors'][0]['name'])->toBe('PINK');
     expect($detail['colors'][0]['size_rows'])->toHaveCount(1);
     expect($detail['colors'][0]['size_rows'][0]['size'])->toBe('S');
+    expect($detail['warehouse_breakdown'])->toBeArray();
+    expect($detail['colors'][0]['warehouse_breakdown'])->toBeArray();
 });
 
 it('renders group list and parent detail pages', function () {
@@ -97,5 +99,7 @@ it('renders group list and parent detail pages', function () {
         ->get(route('items.group-parent-detail', $slug))
         ->assertOk()
         ->assertSee('BLACK', false)
-        ->assertSee('Jubelio On Hand', false);
+        ->assertSee('per warehouse', false)
+        ->assertSee('all channels', false)
+        ->assertSee('How to read quantities', false);
 });

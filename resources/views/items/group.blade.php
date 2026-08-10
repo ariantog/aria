@@ -47,7 +47,7 @@ $breadcrumbs = [
                         <th class="px-6 py-3 font-bold">Variants</th>
                         <th class="px-6 py-3 font-bold">SKUs</th>
                         <th class="px-6 py-3 font-bold">Description</th>
-                        <th class="px-6 py-3 font-bold">In Warehouse</th>
+                        <th class="px-6 py-3 font-bold" title="Sum of physical stock across all warehouses">Aria total (all WH)</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100">
