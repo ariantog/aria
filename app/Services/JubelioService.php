@@ -210,6 +210,46 @@ class JubelioService
     }
 
     /**
+     * Fetch stock levels for specific Jubelio item IDs (batch).
+     *
+     * @param  list<int|string>  $jubelioItemIds
+     * @return array<string, mixed>|null
+     */
+    public function fetchItemsAllStocks(array $jubelioItemIds): ?array
+    {
+        if ($jubelioItemIds === []) {
+            return ['data' => []];
+        }
+
+        $request = $this->authenticatedRequest();
+        if (! $request) {
+            return null;
+        }
+
+        try {
+            $response = $request->post('https://api2.jubelio.com/inventory/items/all-stocks/', [
+                'ids' => array_values($jubelioItemIds),
+            ]);
+
+            if ($response->successful()) {
+                $data = $response->json();
+
+                return is_array($data) ? $data : null;
+            }
+
+            Log::error('Jubelio fetch items all-stocks failed.', [
+                'status' => $response->status(),
+                'response' => $response->body(),
+                'count' => count($jubelioItemIds),
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Jubelio fetch items all-stocks error: '.$e->getMessage());
+        }
+
+        return null;
+    }
+
+    /**
      * @return array<string, mixed>|null
      */
     public function fetchSalesOrders(int $page, int $pageSize, string $dateFrom, string $dateTo): ?array

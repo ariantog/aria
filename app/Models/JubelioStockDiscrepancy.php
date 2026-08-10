@@ -19,6 +19,8 @@ class JubelioStockDiscrepancy extends Model
         'warehouse_id',
         'aria_qty',
         'jubelio_qty',
+        'jubelio_on_hand',
+        'jubelio_on_order',
     ];
 
     public function stockCheck(): BelongsTo
