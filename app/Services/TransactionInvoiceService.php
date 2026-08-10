@@ -38,7 +38,7 @@ class TransactionInvoiceService
             return null;
         }
 
-        return $this->invoicePublicUrl($this->invoiceFileName($transaction));
+        return route('transactions.pdf.show', $transaction);
     }
 
     public function invoicePdfExists(Transaction $transaction): bool

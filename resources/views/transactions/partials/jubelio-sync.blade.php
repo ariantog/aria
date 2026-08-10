@@ -1,5 +1,5 @@
 @if($jubelioSync['show_ui'] ?? false)
-<div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm print:hidden"
+<div class="flex flex-wrap items-center gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3 shadow-sm print:hidden"
      x-data="{
         confirmOpen: false,
         current: { whName: '', side: '', whType: '', adjustType: '' },
@@ -15,14 +15,11 @@
             this.$refs.adjustForm.submit();
         }
      }">
-    <div class="mb-4 flex items-center justify-between">
-        <h2 class="flex items-center gap-2 text-lg font-semibold text-gray-900">
-            <svg class="h-5 w-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-            Sinkron Jubelio
-        </h2>
-        <a href="{{ route('jubelio.transaction.detail-sync', $transaction) }}"
-           class="text-xs font-medium text-blue-700 hover:underline">Halaman sinkron penuh</a>
-    </div>
+    <span class="text-sm font-semibold text-gray-900">Sinkron Jubelio</span>
+
+    @if(($jubelioSync['mapping_missing'] ?? 0) > 0)
+    <span class="text-xs text-red-600">{{ $jubelioSync['mapping_missing'] }} item belum terhubung</span>
+    @endif
 
     <form method="POST" x-ref="adjustForm" class="hidden">
         @csrf
@@ -35,7 +32,7 @@
         <div @click.away="confirmOpen = false" class="w-full max-w-md rounded-xl border border-gray-200 bg-white p-6 shadow-xl">
             <h3 class="text-lg font-bold text-gray-900">Push to Jubelio?</h3>
             <p class="mt-2 text-sm text-gray-500">
-                Are you sure you want to adjust stock for <strong x-text="current.whName"></strong> in Jubelio?
+                Adjust stock for <strong x-text="current.whName"></strong> in Jubelio?
             </p>
             <div class="mt-6 flex justify-end gap-3">
                 <button type="button" @click="confirmOpen = false" class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Cancel</button>
@@ -44,50 +41,65 @@
         </div>
     </div>
 
-    @if(($jubelioSync['mapping_missing'] ?? 0) > 0)
-    <div class="mb-4 flex gap-3 rounded-xl border border-red-500/30 bg-red-50 p-4 text-red-600">
-        <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
-        <p class="text-sm">Ada {{ $jubelioSync['mapping_missing'] }} item yang belum terhubung ke Jubelio. Hubungkan di menu Item sebelum push.</p>
-    </div>
-    @endif
-
-    <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+    <div class="flex flex-wrap items-center gap-2">
         @if(in_array($jubelioSync['sync_cek'], ['S', 'B'], true))
-        @include('jubelio.partials.sync-card', [
-            'title' => 'Sender (Side A)',
-            'whName' => $jubelioSync['wh_a_name'] ?: ($transaction->sender->name ?? '-'),
-            'jubName' => $jubelioSync['jubelio_a'],
-            'type' => $jubelioSync['adjust_type_a'],
-            'qty' => $transaction->total_items,
-            'submittedBy' => $transaction->submitByA->username ?? null,
-            'referenceId' => $transaction->a_reference_id,
-            'needsSync' => $jubelioSync['adjust_type_a'] > 0,
-            'disabled' => ($jubelioSync['mapping_missing'] ?? 0) > 0,
-            'role' => 'sender',
-            'side' => 1,
-            'whType' => 2,
-            'warning' => $jubelioSync['warning_a'],
-            'transactionId' => $transaction->id,
-        ])
+            @php
+                $whName = $jubelioSync['wh_a_name'] ?: ($transaction->sender->name ?? '-');
+                $needsSync = $jubelioSync['adjust_type_a'] > 0;
+                $isSynced = (bool) $transaction->a_submit_by;
+                $hasWarning = $jubelioSync['warning_a'] ?? false;
+                $disabled = ($jubelioSync['mapping_missing'] ?? 0) > 0 || ! $jubelioSync['jubelio_a'];
+            @endphp
+            @if($isSynced)
+                <span class="inline-flex items-center gap-1 rounded-md border border-green-500/30 bg-green-50 px-3 py-1.5 text-xs font-medium text-green-700">
+                    <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                    {{ $whName }} synced
+                </span>
+            @elseif($hasWarning)
+                <a href="{{ route('jubelio.transaction.detail-sync', $transaction) }}"
+                   class="inline-flex items-center rounded-md border border-yellow-400 bg-yellow-50 px-3 py-1.5 text-xs font-medium text-yellow-800 hover:bg-yellow-100">
+                    {{ $whName }} — perlu konfirmasi
+                </a>
+            @elseif($needsSync)
+                <button type="button"
+                        @click="openConfirm(1, 2, {{ $jubelioSync['adjust_type_a'] }}, @js($whName))"
+                        @if($disabled) disabled @endif
+                        class="inline-flex items-center rounded-md bg-blue-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-40">
+                    Push to Jubelio — {{ $whName }}
+                </button>
+            @endif
         @endif
+
         @if(in_array($jubelioSync['sync_cek'], ['R', 'B'], true))
-        @include('jubelio.partials.sync-card', [
-            'title' => 'Receiver (Side B)',
-            'whName' => $jubelioSync['wh_b_name'] ?: ($transaction->receiver->name ?? '-'),
-            'jubName' => $jubelioSync['jubelio_b'],
-            'type' => $jubelioSync['adjust_type_b'],
-            'qty' => $transaction->total_items,
-            'submittedBy' => $transaction->submitByB->username ?? null,
-            'referenceId' => $transaction->b_reference_id,
-            'needsSync' => $jubelioSync['adjust_type_b'] > 0,
-            'disabled' => ($jubelioSync['mapping_missing'] ?? 0) > 0,
-            'role' => 'receiver',
-            'side' => 2,
-            'whType' => 1,
-            'warning' => $jubelioSync['warning_b'],
-            'transactionId' => $transaction->id,
-        ])
+            @php
+                $whName = $jubelioSync['wh_b_name'] ?: ($transaction->receiver->name ?? '-');
+                $needsSync = $jubelioSync['adjust_type_b'] > 0;
+                $isSynced = (bool) $transaction->b_submit_by;
+                $hasWarning = $jubelioSync['warning_b'] ?? false;
+                $disabled = ($jubelioSync['mapping_missing'] ?? 0) > 0 || ! $jubelioSync['jubelio_b'];
+            @endphp
+            @if($isSynced)
+                <span class="inline-flex items-center gap-1 rounded-md border border-green-500/30 bg-green-50 px-3 py-1.5 text-xs font-medium text-green-700">
+                    <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                    {{ $whName }} synced
+                </span>
+            @elseif($hasWarning)
+                <a href="{{ route('jubelio.transaction.detail-sync', $transaction) }}"
+                   class="inline-flex items-center rounded-md border border-yellow-400 bg-yellow-50 px-3 py-1.5 text-xs font-medium text-yellow-800 hover:bg-yellow-100">
+                    {{ $whName }} — perlu konfirmasi
+                </a>
+            @elseif($needsSync)
+                <button type="button"
+                        @click="openConfirm(2, 1, {{ $jubelioSync['adjust_type_b'] }}, @js($whName))"
+                        @if($disabled) disabled @endif
+                        class="inline-flex items-center rounded-md bg-blue-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-40">
+                    Push to Jubelio — {{ $whName }}
+                </button>
+            @endif
         @endif
     </div>
+
+    <a href="{{ route('jubelio.transaction.detail-sync', $transaction) }}"
+       class="ml-auto text-xs font-medium text-blue-700 hover:underline">Detail</a>
 </div>
 @endif
