@@ -3,7 +3,7 @@
     $roles = $_sidebar['roles'] ?? [];
     $addrbookTypes = $_sidebar['addrbook_types'] ?? [];
     // User ID 1 is the one and only superadmin.
-    $isSuperAdmin = auth()->id() === 1;
+    $isSuperAdmin = (bool) (auth()->user()?->is_superadmin);
     $currentUrl = request()->path();
 
     // Closures, not named functions: this partial can be compiled/included more

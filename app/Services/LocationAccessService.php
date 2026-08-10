@@ -21,7 +21,11 @@ class LocationAccessService
             return false;
         }
 
-        return $user->is_superadmin || $user->location_id === null;
+        if (User::isSuperadmin($user)) {
+            return true;
+        }
+
+        return $user->location_id === null;
     }
 
     public function applyAddrbookScope(Builder $query, ?User $user): Builder

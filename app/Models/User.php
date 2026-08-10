@@ -11,14 +11,86 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
 class User extends Authenticatable
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasFactory, Notifiable, \Spatie\Permission\Traits\HasRoles, TwoFactorAuthenticatable;
+    use HasFactory, Notifiable, TwoFactorAuthenticatable;
+    use \Spatie\Permission\Traits\HasRoles {
+        hasPermissionTo as protected spatieHasPermissionTo;
+        hasAnyPermission as protected spatieHasAnyPermission;
+        hasAllPermissions as protected spatieHasAllPermissions;
+        hasRole as protected spatieHasRole;
+        hasAnyRole as protected spatieHasAnyRole;
+        checkPermissionTo as protected spatieCheckPermissionTo;
+    }
+
+    /**
+     * The one and only superadmin account. This user bypasses all ACL and location filters.
+     */
+    public const SUPERADMIN_ID = 1;
+
+    public static function isSuperadmin(?self $user): bool
+    {
+        return $user !== null && $user->id === self::SUPERADMIN_ID;
+    }
 
     /**
      * User ID 1 is the one and only superadmin.
      */
     public function getIsSuperadminAttribute(): bool
     {
-        return $this->id === 1;
+        return self::isSuperadmin($this);
+    }
+
+    public function hasPermissionTo($permission, $guardName = null): bool
+    {
+        if ($this->is_superadmin) {
+            return true;
+        }
+
+        return $this->spatieHasPermissionTo($permission, $guardName);
+    }
+
+    public function checkPermissionTo($permission, $guardName = null): bool
+    {
+        if ($this->is_superadmin) {
+            return true;
+        }
+
+        return $this->spatieCheckPermissionTo($permission, $guardName);
+    }
+
+    public function hasAnyPermission(...$permissions): bool
+    {
+        if ($this->is_superadmin) {
+            return true;
+        }
+
+        return $this->spatieHasAnyPermission(...$permissions);
+    }
+
+    public function hasAllPermissions(...$permissions): bool
+    {
+        if ($this->is_superadmin) {
+            return true;
+        }
+
+        return $this->spatieHasAllPermissions(...$permissions);
+    }
+
+    public function hasRole($roles, ?string $guard = null): bool
+    {
+        if ($this->is_superadmin) {
+            return true;
+        }
+
+        return $this->spatieHasRole($roles, $guard);
+    }
+
+    public function hasAnyRole(...$roles): bool
+    {
+        if ($this->is_superadmin) {
+            return true;
+        }
+
+        return $this->spatieHasAnyRole(...$roles);
     }
 
     /**
