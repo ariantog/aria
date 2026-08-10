@@ -147,6 +147,7 @@ it('renders migrated GET pages with a 200', function (string $route) {
     'users' => 'users',
     'roles' => 'roles',
     'system-settings' => 'system-settings',
+    'cron manager' => 'cron-manager',
     'invoice branding settings' => 'system-settings/invoice/branding',
     'jubelio index' => 'jubelio',
     'jubelio get orders' => 'jubelio-get-orders',

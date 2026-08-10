@@ -152,6 +152,7 @@ class LegacyAclMapper
     {
         return match ($action) {
             'index' => ['setting-general-view'],
+            'cron-runner', 'cronrunner' => ['setting-cron-manager-view', 'setting-cron-manager-edit'],
             default => [],
         };
     }

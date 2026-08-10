@@ -41,10 +41,6 @@ class Setting extends Model
             'edit' => 'setting-general-edit',
             'create' => 'setting-general-create',
             'delete' => 'setting-general-delete',
-
-            // Cron Manager
-            'cron-view' => 'setting-cron-manager-view',
-            'cron-edit' => 'setting-cron-manager-edit',
         ];
     }
 

@@ -4,10 +4,10 @@
 
 @section('content')
 @php
-$breadcrumbs = [
-    ['title' => 'System Settings', 'href' => route('system-settings.index')],
+$breadcrumbs = array_values(array_filter([
+    ($can['general_settings'] ?? false) ? ['title' => 'System Settings', 'href' => route('system-settings.index')] : null,
     ['title' => 'Cron Manager', 'href' => route('scheduled-tasks.index')],
-];
+]));
 $frequencyOptions = [
     'everyMinute' => 'Every Minute',
     'everyTwoMinutes' => 'Every Two Minutes',
