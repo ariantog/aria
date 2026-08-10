@@ -38,7 +38,12 @@
         <div>
             <h2 class="text-2xl font-bold tracking-tight text-gray-900">Legacy Item Identity Converter</h2>
             <p class="mt-0.5 text-sm text-gray-500">
-                Convert legacy SKUs page by page (up to {{ number_format($pageSize) }} per page; {{ number_format($pendingCount) }} {{ strtolower($typeLabel) }} pending).
+                Convert legacy SKUs page by page (up to {{ number_format($pageSize) }} per page).
+                {{ number_format($pendingCount) }} {{ strtolower($typeLabel) }} ready to convert
+                @if(($candidateCount ?? 0) > $pendingCount)
+                    ({{ number_format($candidateCount) }} in queue before structure filter)
+                @endif
+                .
                 @if($tab === 'pending' && $currentPageCount > 0)
                     Page {{ $currentPage }} shows {{ number_format($currentPageCount) }} item(s); {{ number_format($convertiblePageCount) }} ready to convert (Legacy column empty).
                 @endif

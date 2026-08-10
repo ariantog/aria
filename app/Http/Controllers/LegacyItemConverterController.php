@@ -26,10 +26,10 @@ class LegacyItemConverterController extends Controller
             ?? ItemType::ASSET_LANCAR;
         $currentPage = max(1, (int) $request->query('page', 1));
 
-        $pendingCount = $this->converterService->countEligible($itemType);
+        $queueStats = $this->converterService->queueStats($itemType);
         $uselessCount = $this->converterService->uselessQuery($itemType)->count();
         $superOldCount = $this->converterService->superOldQuery($itemType)->count();
-        $unparseableCount = $this->converterService->countStructurallyUnparseable($itemType);
+        $unparseableCount = $queueStats['unparseable'];
         $latestRun = ItemIdentityConversionRun::query()
             ->where('item_type', $itemType)
             ->latest('id')
@@ -38,13 +38,14 @@ class LegacyItemConverterController extends Controller
         $data = match ($tab) {
             'completed' => $this->completedResults($itemType),
             'failed' => $this->failedResults($itemType),
-            default => $this->pendingItems($itemType),
+            default => $this->pendingItems($itemType, $queueStats['eligible']),
         };
 
         return view('items.legacy-converter', [
             'tab' => $tab,
             'itemType' => $itemType,
-            'pendingCount' => $pendingCount,
+            'pendingCount' => $queueStats['eligible'],
+            'candidateCount' => $queueStats['candidates'],
             'uselessCount' => $uselessCount,
             'superOldCount' => $superOldCount,
             'unparseableCount' => $unparseableCount,
@@ -122,10 +123,10 @@ class LegacyItemConverterController extends Controller
             ->with('success', "Hard-deleted {$deleted} useless SKU(s) (created >1 year ago, never used in transactions).");
     }
 
-    protected function pendingItems(ItemType $itemType)
+    protected function pendingItems(ItemType $itemType, ?int $eligibleTotal = null)
     {
         return $this->converterService
-            ->paginateEligible($itemType, LegacyItemConverterService::PENDING_PAGE_SIZE)
+            ->paginateEligible($itemType, LegacyItemConverterService::PENDING_PAGE_SIZE, $eligibleTotal)
             ->withQueryString();
     }
 
