@@ -25,6 +25,7 @@ class StoreAddrbookRequest extends FormRequest
             'type' => ['required', 'integer'], // No longer validation exists:addrbook_types,id
             'name' => ['required', 'string', 'max:255'],
             'address' => 'nullable|string',
+            'description' => 'nullable|string|max:2000',
             'phone' => ['nullable', 'string', 'max:20'],
             'email' => 'nullable|email|max:255', // Removed unique check for now, or should be unique:addrbooks,email
             'contact_person' => ['nullable', 'string', 'max:255'],

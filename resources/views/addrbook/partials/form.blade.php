@@ -83,6 +83,15 @@
                           class="min-h-[100px] w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 @error('address') border-red-500 @enderror">{{ $val('address') }}</textarea>
                 @error('address')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
             </div>
+
+            <div>
+                <label for="description" class="mb-1 block text-sm font-medium text-gray-700">Invoice Header</label>
+                <textarea id="description" name="description" rows="4"
+                          placeholder="Store name on first line&#10;Address line 1&#10;Address line 2"
+                          class="min-h-[100px] w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 @error('description') border-red-500 @enderror">{{ $val('description') }}</textarea>
+                <p class="mt-1 text-xs text-gray-500">Used on invoices when this contact is the transaction sender. First line = store name, following lines = address. Phone above is also shown.</p>
+                @error('description')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
+            </div>
         </div>
     </div>
 

@@ -298,28 +298,31 @@ class TransactionsController extends Controller
     public function storePdf(Transaction $transaction, TransactionInvoiceService $invoiceService)
     {
         $this->authorizeTransactionView($transaction);
+        $existed = $invoiceService->invoicePdfExists($transaction);
         $invoiceService->createInvoicePdf($transaction, regenerate: true);
 
         return redirect()
             ->route('transactions.show', $transaction)
-            ->with('success', 'Invoice PDF saved.');
+            ->with('success', $existed ? 'Invoice PDF regenerated.' : 'Invoice PDF saved.');
     }
 
-    public function receipt(Transaction $transaction)
+    public function receipt(Transaction $transaction, \App\Services\InvoiceBrandingService $brandingService)
     {
         $this->authorizeTransactionView($transaction);
         $transaction->load(['details.item.group', 'sender', 'receiver']);
+        $branding = $brandingService->forTransaction($transaction);
 
-        return view('transactions.receipt', compact('transaction'));
+        return view('transactions.receipt', compact('transaction', 'branding'));
     }
 
-    public function printInvoice(Transaction $transaction)
+    public function printInvoice(Transaction $transaction, \App\Services\InvoiceBrandingService $brandingService)
     {
         $this->authorizeTransactionView($transaction);
         $transaction->load(['details.item.group', 'sender', 'receiver']);
         $typeLabel = $transaction->getTypeLabel();
+        $branding = $brandingService->forTransaction($transaction);
 
-        return view('transactions.print', compact('transaction', 'typeLabel'));
+        return view('transactions.print', compact('transaction', 'typeLabel', 'branding'));
     }
 
     public function sendWhatsapp(Request $request, Transaction $transaction, TransactionInvoiceService $invoiceService)

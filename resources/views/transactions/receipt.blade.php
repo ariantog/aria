@@ -7,8 +7,11 @@
 </head>
 <body onload="window.print()">
 <div class="receipt">
-    <div class="center title-main">CORENATION</div>
-    <div class="center title-sub">CILANDAK TOWN SQUARE no.171</div>
+    <div class="center title-main">{{ $branding['company_name'] }}</div>
+    <div class="center title-sub">{{ $branding['address'] }}</div>
+    @if($branding['phone'])
+    <div class="center title-sub">Tel: {{ $branding['phone'] }}</div>
+    @endif
     <br>
     <div class="center invoice-label">Retail Invoice</div>
     <br>

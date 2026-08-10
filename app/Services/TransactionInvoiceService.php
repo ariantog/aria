@@ -67,7 +67,7 @@ class TransactionInvoiceService
         }
 
         $typeLabel = $transaction->getTypeLabel();
-        $branding = $this->brandingService->branding();
+        $branding = $this->brandingService->forTransaction($transaction);
 
         Pdf::loadView('transactions.pdf.invoice', compact('transaction', 'typeLabel', 'branding'))
             ->setPaper('a4', 'portrait')
