@@ -5,6 +5,8 @@ namespace App\Services\Items;
 use App\Enums\AddrbookType;
 use App\Enums\ItemType;
 use App\Models\Item;
+use App\Models\ItemGroup;
+use App\Models\Tag;
 use App\Services\JubelioService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
@@ -26,17 +28,86 @@ class ItemGroupHierarchyService
      */
     public function paginateParents(array $filters, int $perPage = 20): LengthAwarePaginator
     {
-        $parents = $this->buildParentSummaries($filters);
-        $page = max(1, (int) request()->query('page', 1));
-        $slice = $parents->slice(($page - 1) * $perPage, $perPage)->values();
+        $warehouseTypes = [
+            AddrbookType::Warehouse->value,
+            AddrbookType::VirtualWarehouse->value,
+        ];
 
-        return new Paginator(
-            $slice,
-            $parents->count(),
-            $perPage,
-            $page,
-            ['path' => request()->url(), 'query' => request()->query()],
+        $query = ItemGroup::query()
+            ->select([
+                'item_groups.master',
+                DB::raw('MIN(item_groups.name) as product_name'),
+                DB::raw('MIN(item_groups.description) as description'),
+                DB::raw('MIN(item_groups.id) as sample_group_id'),
+                DB::raw('COUNT(DISTINCT item_groups.id) as variant_count'),
+                DB::raw('COUNT(DISTINCT items.id) as sku_count'),
+                DB::raw('COALESCE(SUM(warehouse_items.quantity), 0) as in_warehouse_qty'),
+            ])
+            ->leftJoin('items', function ($join) {
+                $join->on('items.group_id', '=', 'item_groups.id')
+                    ->whereNull('items.deleted_at');
+            })
+            ->leftJoin('warehouse_items', function ($join) use ($warehouseTypes) {
+                $join->on('warehouse_items.item_id', '=', 'items.id')
+                    ->whereIn('warehouse_items.warehouse_id', function ($sub) use ($warehouseTypes) {
+                        $sub->select('id')->from('addrbooks')->whereIn('type', $warehouseTypes);
+                    });
+            })
+            ->whereNotNull('item_groups.master')
+            ->where('item_groups.master', '!=', '')
+            ->when(! empty($filters['kode']), fn (Builder $q) => $q->where(
+                'item_groups.master',
+                'like',
+                '%'.$filters['kode'].'%'
+            ))
+            ->when(! empty($filters['product_name']), fn (Builder $q) => $q->where(
+                'item_groups.name',
+                'like',
+                '%'.$filters['product_name'].'%'
+            ))
+            ->when(! empty($filters['desc']), fn (Builder $q) => $q->where(
+                'item_groups.description',
+                'like',
+                '%'.$filters['desc'].'%'
+            ))
+            ->groupBy('item_groups.master')
+            ->orderBy('item_groups.master');
+
+        /** @var LengthAwarePaginator $paginator */
+        $paginator = $query->paginate($perPage)->withQueryString();
+
+        $sampleGroupIds = collect($paginator->items())->pluck('sample_group_id')->filter()->all();
+        $samplesByGroupId = $this->sampleItemsByGroupId($sampleGroupIds);
+
+        $paginator->setCollection(
+            collect($paginator->items())->map(function ($row) use ($samplesByGroupId) {
+                $master = (string) $row->master;
+                $sample = $samplesByGroupId[$row->sample_group_id] ?? null;
+                $isAsset = $this->isAssetMaster($master, $sample);
+                $parentKey = $this->parentKeyForMaster($master, $sample, $isAsset);
+                $label = $isAsset
+                    ? $master
+                    : trim(($sample ? $this->identityBuilder->manufacturedTypeCode($sample) : 'UNK').' '.$master);
+
+                return [
+                    'parent_key' => $parentKey,
+                    'parent_slug' => $this->identityBuilder->parentKeyToSlug($parentKey),
+                    'label' => $label,
+                    'product_name' => $this->resolveListProductName(
+                        (string) ($row->product_name ?? ''),
+                        $master,
+                        $isAsset,
+                    ),
+                    'description' => (string) ($row->description ?? ''),
+                    'is_asset' => $isAsset,
+                    'sku_count' => (int) $row->sku_count,
+                    'variant_count' => (int) $row->variant_count,
+                    'in_warehouse_qty' => (float) $row->in_warehouse_qty,
+                ];
+            })
         );
+
+        return $paginator;
     }
 
     /**
@@ -44,7 +115,12 @@ class ItemGroupHierarchyService
      */
     public function parentDetail(string $parentKey, bool $fetchJubelio = true): ?array
     {
-        $items = $this->itemsForParentKey($parentKey);
+        $groups = $this->groupsForParentKey($parentKey);
+        if ($groups->isEmpty()) {
+            return null;
+        }
+
+        $items = $groups->flatMap(fn (ItemGroup $group) => $group->items);
         if ($items->isEmpty()) {
             return null;
         }
@@ -52,7 +128,7 @@ class ItemGroupHierarchyService
         $sample = $items->first();
         $itemType = $sample->type;
         $label = $this->identityBuilder->itemParentLabel($sample);
-        $productName = $this->resolveProductName($items, $parentKey, $itemType);
+        $productName = $this->resolveProductName($groups, $parentKey, $itemType);
         $usesPlaceholder = $itemType === ItemType::ITEM
             && $productName !== ''
             && strtoupper($productName) === strtoupper($this->identityBuilder->manufacturedParentMaster($sample));
@@ -63,8 +139,7 @@ class ItemGroupHierarchyService
             )
             : [];
 
-        $colors = $this->buildColorSections($items, $jubelioStocks);
-        $groupIds = $items->pluck('group_id')->filter()->unique()->values()->all();
+        $colors = $this->buildColorSectionsFromGroups($groups, $jubelioStocks, $items);
 
         return [
             'parent_key' => $parentKey,
@@ -74,247 +149,144 @@ class ItemGroupHierarchyService
             'is_asset' => $itemType === ItemType::ASSET_LANCAR,
             'product_name' => $productName,
             'uses_placeholder' => $usesPlaceholder,
-            'description' => $this->resolveDescription($items),
-            'image_url' => $sample->group?->image_url ?? $sample->image_url,
-            'group_ids' => $groupIds,
+            'description' => $this->resolveDescription($groups),
+            'image_url' => $groups->first()?->image_url,
+            'group_ids' => $groups->pluck('id')->all(),
             'colors' => $colors,
             'total_warehouse_qty' => $items->sum(fn (Item $item) => $item->warehouseItems->sum('quantity')),
         ];
     }
 
     /**
-     * @return Collection<int, array<string, mixed>>
+     * @return Collection<int, ItemGroup>
      */
-    protected function buildParentSummaries(array $filters): Collection
-    {
-        /** @var array<string, array<string, mixed>> $parents */
-        $parents = [];
-
-        $this->listItemQuery()
-            ->select([
-                'id',
-                'type',
-                'code',
-                'pcode',
-                'group_id',
-                'image_url',
-            ])
-            ->chunkById(300, function ($items) use (&$parents) {
-                $warehouseQty = $this->warehouseQtyByItemId($items->pluck('id')->all());
-
-                foreach ($items as $item) {
-                    $parentKey = $this->identityBuilder->itemParentKey($item);
-
-                    if (! isset($parents[$parentKey])) {
-                        $parents[$parentKey] = [
-                            'parent_key' => $parentKey,
-                            'parent_slug' => $this->identityBuilder->parentKeyToSlug($parentKey),
-                            'label' => $this->identityBuilder->itemParentLabel($item),
-                            'product_name' => '',
-                            'description' => '',
-                            'image_url' => $item->group?->image_url ?? $item->image_url,
-                            'is_asset' => $item->type === ItemType::ASSET_LANCAR,
-                            'sku_count' => 0,
-                            'in_warehouse_qty' => 0.0,
-                            '_group_names' => [],
-                            '_descriptions' => [],
-                        ];
-                    }
-
-                    $parents[$parentKey]['sku_count']++;
-                    $parents[$parentKey]['in_warehouse_qty'] += (float) ($warehouseQty[$item->id] ?? 0);
-
-                    if ($item->group?->name) {
-                        $parents[$parentKey]['_group_names'][$item->group->name] = true;
-                    }
-
-                    if ($item->group?->description) {
-                        $parents[$parentKey]['_descriptions'][$item->group->description] = true;
-                    }
-
-                    if (! $parents[$parentKey]['image_url'] && $item->image_url) {
-                        $parents[$parentKey]['image_url'] = $item->image_url;
-                    }
-                }
-            });
-
-        return collect($parents)
-            ->map(function (array $parent) {
-                $groupNames = array_keys($parent['_group_names']);
-                $itemType = $parent['is_asset'] ? ItemType::ASSET_LANCAR : ItemType::ITEM;
-                $parent['product_name'] = $this->resolveProductNameFromNames(
-                    $groupNames,
-                    $parent['parent_key'],
-                    $itemType,
-                );
-                $parent['description'] = array_key_first($parent['_descriptions']) ?? '';
-                unset($parent['_group_names'], $parent['_descriptions']);
-
-                return $parent;
-            })
-            ->filter(function (array $parent) use ($filters) {
-                if (! empty($filters['kode']) && ! str_contains(strtoupper($parent['label']), strtoupper($filters['kode']))) {
-                    return false;
-                }
-                if (! empty($filters['product_name']) && ! str_contains(strtoupper($parent['product_name']), strtoupper($filters['product_name']))) {
-                    return false;
-                }
-                if (! empty($filters['desc']) && ! str_contains(strtoupper($parent['description'] ?? ''), strtoupper($filters['desc']))) {
-                    return false;
-                }
-
-                return true;
-            })
-            ->sortBy('label')
-            ->values();
-    }
-
-    /**
-     * @return Collection<int, Item>
-     */
-    protected function itemsForParentKey(string $parentKey): Collection
-    {
-        return $this->itemsQueryForParentKey($parentKey)
-            ->get()
-            ->filter(fn (Item $item) => $this->identityBuilder->itemParentKey($item) === $parentKey)
-            ->values();
-    }
-
-    protected function itemsQueryForParentKey(string $parentKey): Builder
+    protected function groupsForParentKey(string $parentKey): Collection
     {
         $parts = explode(':', $parentKey);
         $itemType = ItemType::from((int) ($parts[0] ?? ItemType::ITEM->value));
 
-        $query = $this->detailItemQuery()->where('items.type', $itemType);
+        $query = ItemGroup::query()
+            ->with([
+                'items' => fn ($q) => $q
+                    ->where('type', $itemType)
+                    ->whereNull('deleted_at')
+                    ->with([
+                        'tags',
+                        'warehouseItems' => fn ($wq) => $wq
+                            ->whereIn('warehouse_id', fn ($sq) => $sq->select('id')->from('addrbooks')->whereIn('type', [
+                                AddrbookType::Warehouse->value,
+                                AddrbookType::VirtualWarehouse->value,
+                            ]))
+                            ->with('warehouse'),
+                    ]),
+            ])
+            ->whereHas('items', fn (Builder $q) => $q->where('type', $itemType)->whereNull('deleted_at'));
 
         if ($itemType === ItemType::ASSET_LANCAR) {
-            $parentPcode = strtoupper($parts[1] ?? '');
-
-            $query->where(function (Builder $q) use ($parentPcode) {
-                $q->whereRaw('UPPER(items.pcode) = ?', [$parentPcode])
-                    ->orWhereRaw('UPPER(items.code) LIKE ?', [$parentPcode.'-%']);
-            });
+            $master = strtoupper($parts[1] ?? '');
+            $query->whereRaw('UPPER(item_groups.master) = ?', [$master]);
         } else {
             $typeCode = strtoupper($parts[1] ?? '');
             $master = strtoupper($parts[2] ?? '');
-
-            $query->where(function (Builder $q) use ($typeCode, $master) {
-                $q->whereHas('group', fn (Builder $g) => $g->whereRaw('UPPER(master) = ?', [$master]))
-                    ->where(function (Builder $inner) use ($typeCode) {
+            $query->whereRaw('UPPER(item_groups.master) = ?', [$master])
+                ->whereHas('items', function (Builder $q) use ($typeCode) {
+                    $q->where(function (Builder $inner) use ($typeCode) {
                         $inner->whereHas('tags', fn (Builder $t) => $t
-                            ->where('tags.type', \App\Models\Tag::TYPE_TYPE)
+                            ->where('tags.type', Tag::TYPE_TYPE)
                             ->whereRaw('UPPER(tags.code) = ?', [$typeCode]))
                             ->orWhereRaw('UPPER(items.code) LIKE ?', [$typeCode.'-%']);
                     });
-            });
+                });
         }
 
-        return $query;
-    }
-
-    protected function listItemQuery(): Builder
-    {
-        return Item::query()
-            ->with([
-                'group:id,master,variant,name,description,image_url',
-                'tags:id,code,type,name',
-            ])
-            ->whereIn('type', [ItemType::ITEM->value, ItemType::ASSET_LANCAR->value])
-            ->whereNotNull('group_id');
-    }
-
-    protected function detailItemQuery(): Builder
-    {
-        return Item::query()
-            ->with([
-                'group',
-                'tags',
-                'warehouseItems' => fn ($q) => $q
-                    ->whereIn('warehouse_id', fn ($sq) => $sq->select('id')->from('addrbooks')->whereIn('type', [
-                        AddrbookType::Warehouse->value,
-                        AddrbookType::VirtualWarehouse->value,
-                    ]))
-                    ->with('warehouse'),
-            ])
-            ->whereIn('type', [ItemType::ITEM->value, ItemType::ASSET_LANCAR->value])
-            ->whereNotNull('group_id');
+        return $query->orderBy('variant')->get();
     }
 
     /**
-     * @param  list<int>  $itemIds
-     * @return array<int, float>
+     * @param  list<int>  $groupIds
+     * @return array<int, Item>
      */
-    protected function warehouseQtyByItemId(array $itemIds): array
+    protected function sampleItemsByGroupId(array $groupIds): array
     {
-        if ($itemIds === []) {
+        if ($groupIds === []) {
             return [];
         }
 
-        return DB::table('warehouse_items')
-            ->selectRaw('item_id, SUM(quantity) as total')
-            ->whereIn('item_id', $itemIds)
-            ->whereIn('warehouse_id', function ($query) {
-                $query->select('id')
-                    ->from('addrbooks')
-                    ->whereIn('type', [
-                        AddrbookType::Warehouse->value,
-                        AddrbookType::VirtualWarehouse->value,
-                    ]);
-            })
-            ->groupBy('item_id')
-            ->pluck('total', 'item_id')
-            ->map(fn ($qty) => (float) $qty)
+        return Item::query()
+            ->whereIn('group_id', $groupIds)
+            ->whereNull('deleted_at')
+            ->with(['tags' => fn ($q) => $q->where('type', Tag::TYPE_TYPE)])
+            ->orderBy('id')
+            ->get()
+            ->unique('group_id')
+            ->keyBy('group_id')
             ->all();
     }
 
-    /**
-     * @param  array<int, string>  $groupNames
-     */
-    protected function resolveProductNameFromNames(array $groupNames, string $parentKey, ItemType $itemType): string
+    protected function isAssetMaster(string $master, ?Item $sample): bool
     {
-        $names = collect($groupNames)->filter()->unique()->values();
-
-        if ($itemType === ItemType::ITEM) {
-            $parts = explode(':', $parentKey);
-            $master = strtoupper($parts[2] ?? '');
-
-            $preferred = $names->first(
-                fn (?string $name) => $name && strtoupper(trim($name)) !== $master
-            );
-
-            return $preferred ?? $names->first() ?? $master;
+        if ($sample) {
+            return $sample->type === ItemType::ASSET_LANCAR;
         }
 
-        $parentLabel = explode(':', $parentKey, 2)[1] ?? '';
+        return (bool) preg_match('/^[A-Za-z0-9]+-[A-Za-z0-9]+$/', $master)
+            && ! preg_match('/^[A-Z]{2,3}[0-9]{5}$/i', $master);
+    }
 
-        $preferred = $names->first(
-            fn (?string $name) => $name && strtoupper(trim($name)) !== strtoupper($parentLabel)
-        );
+    protected function parentKeyForMaster(string $master, ?Item $sample, bool $isAsset): string
+    {
+        if ($isAsset) {
+            return ItemType::ASSET_LANCAR->value.':'.strtoupper($master);
+        }
 
-        return $preferred ?? $names->first() ?? $parentLabel;
+        $typeCode = $sample
+            ? $this->identityBuilder->manufacturedTypeCode($sample)
+            : 'UNK';
+
+        return ItemType::ITEM->value.':'.strtoupper($typeCode).':'.strtoupper($master);
+    }
+
+    protected function resolveListProductName(string $name, string $master, bool $isAsset): string
+    {
+        $name = trim($name);
+        $masterUpper = strtoupper($master);
+
+        if ($name === '' || strtoupper($name) === $masterUpper) {
+            return $isAsset ? $master : '';
+        }
+
+        return $name;
     }
 
     /**
-     * @param  Collection<int, Item>  $items
+     * @param  Collection<int, ItemGroup>  $groups
      * @param  array<int, array<string, mixed>>  $jubelioStocks
      * @return list<array<string, mixed>>
      */
-    protected function buildColorSections(Collection $items, array $jubelioStocks): array
-    {
-        $allSizeCodes = $this->orderedSizeCodes($items);
+    protected function buildColorSectionsFromGroups(
+        Collection $groups,
+        array $jubelioStocks,
+        Collection $allItems,
+    ): array {
+        $allSizeCodes = $this->orderedSizeCodes($allItems);
         $hasSizes = $allSizeCodes !== ['—'];
 
-        return $items
-            ->groupBy(fn (Item $item) => $this->identityBuilder->itemColorGroupKey($item))
-            ->map(function (Collection $colorItems) use ($allSizeCodes, $hasSizes, $jubelioStocks) {
+        return $groups
+            ->map(function (ItemGroup $group) use ($allSizeCodes, $hasSizes, $jubelioStocks) {
+                $colorItems = $group->items;
                 $sample = $colorItems->first();
+
+                if (! $sample) {
+                    return null;
+                }
+
                 $color = $this->identityBuilder->itemColorInfo($sample);
 
                 $section = [
                     'code' => $color['code'],
                     'name' => $color['name'],
                     'pcode' => $sample->pcode,
-                    'group_id' => $sample->group_id,
+                    'group_id' => $group->id,
                     'has_sizes' => $hasSizes,
                     'size_rows' => [],
                     'no_size_items' => [],
@@ -340,6 +312,7 @@ class ItemGroupHierarchyService
 
                 return $section;
             })
+            ->filter()
             ->sortBy('code')
             ->values()
             ->all();
@@ -383,24 +356,51 @@ class ItemGroupHierarchyService
     }
 
     /**
-     * @param  Collection<int, Item>  $items
+     * @param  Collection<int, ItemGroup>  $groups
      */
-    protected function resolveProductName(Collection $items, string $parentKey, ItemType $itemType): string
+    protected function resolveProductName(Collection $groups, string $parentKey, ItemType $itemType): string
     {
         return $this->resolveProductNameFromNames(
-            $items->map(fn (Item $item) => $item->group?->name)->filter()->unique()->values()->all(),
+            $groups->map(fn (ItemGroup $group) => $group->name)->filter()->unique()->values()->all(),
             $parentKey,
             $itemType,
         );
     }
 
     /**
-     * @param  Collection<int, Item>  $items
+     * @param  array<int, string>  $groupNames
      */
-    protected function resolveDescription(Collection $items): string
+    protected function resolveProductNameFromNames(array $groupNames, string $parentKey, ItemType $itemType): string
     {
-        return $items
-            ->map(fn (Item $item) => $item->group?->description)
+        $names = collect($groupNames)->filter()->unique()->values();
+
+        if ($itemType === ItemType::ITEM) {
+            $parts = explode(':', $parentKey);
+            $master = strtoupper($parts[2] ?? '');
+
+            $preferred = $names->first(
+                fn (?string $name) => $name && strtoupper(trim($name)) !== $master
+            );
+
+            return $preferred ?? $names->first() ?? $master;
+        }
+
+        $parentLabel = explode(':', $parentKey, 2)[1] ?? '';
+
+        $preferred = $names->first(
+            fn (?string $name) => $name && strtoupper(trim($name)) !== strtoupper($parentLabel)
+        );
+
+        return $preferred ?? $names->first() ?? $parentLabel;
+    }
+
+    /**
+     * @param  Collection<int, ItemGroup>  $groups
+     */
+    protected function resolveDescription(Collection $groups): string
+    {
+        return $groups
+            ->map(fn (ItemGroup $group) => $group->description)
             ->filter()
             ->first() ?? '';
     }
