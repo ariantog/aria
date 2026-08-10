@@ -54,6 +54,9 @@ class LegacyItemConverterController extends Controller
             'pageSize' => LegacyItemConverterService::PENDING_PAGE_SIZE,
             'currentPage' => $currentPage,
             'currentPageCount' => $tab === 'pending' ? $data->count() : 0,
+            'convertiblePageCount' => $tab === 'pending'
+                ? collect($data->items())->filter(fn (Item $item) => $this->converterService->isPendingConversion($item))->count()
+                : 0,
             'flash' => [
                 'success' => session('success'),
                 'error' => session('error'),
@@ -122,7 +125,7 @@ class LegacyItemConverterController extends Controller
     protected function pendingItems(ItemType $itemType)
     {
         return $this->converterService
-            ->paginateEligible($itemType, 50)
+            ->paginateEligible($itemType, LegacyItemConverterService::PENDING_PAGE_SIZE)
             ->withQueryString();
     }
 
@@ -182,7 +185,7 @@ class LegacyItemConverterController extends Controller
         );
 
         if ($items->isEmpty()) {
-            abort(422, 'No eligible items selected for conversion.');
+            abort(422, 'No convertible items selected (empty Legacy column required).');
         }
 
         return $items;

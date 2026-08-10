@@ -18,7 +18,7 @@ class LegacyItemConverterService
 {
     public const DEFAULT_BATCH_SIZE = 1000;
 
-    public const PENDING_PAGE_SIZE = 50;
+    public const PENDING_PAGE_SIZE = 500;
 
     public function __construct(
         protected ItemIdentityBuilder $identityBuilder,
@@ -69,7 +69,33 @@ class LegacyItemConverterService
                         ItemIdentityConversionResult::STATUS_SKIPPED,
                     ]);
             })
+            ->where(fn (Builder $query) => $this->applyPendingConversionScope($query))
             ->orderBy('id');
+    }
+
+    /**
+     * Items still needing conversion: no preserved legacy SKU (empty legacy_code, or legacy still equals code).
+     */
+    public function hasPreservedLegacyCode(Item $item): bool
+    {
+        $legacy = strtoupper(trim((string) ($item->legacy_code ?? '')));
+        $code = strtoupper(trim((string) ($item->code ?? '')));
+
+        return $legacy !== '' && $legacy !== $code;
+    }
+
+    public function isPendingConversion(Item $item): bool
+    {
+        return ! $this->hasPreservedLegacyCode($item);
+    }
+
+    protected function applyPendingConversionScope(Builder $query): void
+    {
+        $query->where(function (Builder $pending) {
+            $pending->whereNull('items.legacy_code')
+                ->orWhere('items.legacy_code', '')
+                ->orWhereColumn('items.legacy_code', 'items.code');
+        });
     }
 
     /** @deprecated Use candidateQuery() or countEligible() */
@@ -277,6 +303,7 @@ class LegacyItemConverterService
         $parser = $this->makeParser();
         $items = $items
             ->filter(fn (Item $item) => $item->type === $itemType)
+            ->filter(fn (Item $item) => $this->isPendingConversion($item))
             ->filter(fn (Item $item) => $this->isStructurallyEligible($item, $parser))
             ->values();
 
@@ -385,6 +412,16 @@ class LegacyItemConverterService
 
         if (! $parse->success) {
             return $this->recordResult($run, $item, ItemIdentityConversionResult::STATUS_FAILED, $parse, $dryRun);
+        }
+
+        if ($this->hasPreservedLegacyCode($item)) {
+            $skipped = LegacyParseResult::failure(
+                'ALREADY_CONVERTED',
+                'Item already has a preserved legacy_code; skipping re-conversion.',
+                $parse->snapshot,
+            );
+
+            return $this->recordResult($run, $item, ItemIdentityConversionResult::STATUS_SKIPPED, $skipped, $dryRun);
         }
 
         if ($this->isAlreadyCanonical($item, $parse)) {

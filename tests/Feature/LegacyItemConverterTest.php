@@ -406,3 +406,37 @@ it('converts current page via controller and preserves legacy_code on sku change
     expect($item->code)->toBe('AJJ-PL25129-06-XL')
         ->and($item->legacy_code)->toBe('AJJPL2512906XL');
 });
+
+it('skips items that already have a preserved legacy_code', function () {
+    $converted = Item::factory()->create([
+        'type' => ItemType::ASSET_LANCAR,
+        'group_id' => \App\Models\ItemGroup::factory()->create()->id,
+        'code' => 'GLOVE-01-BLACK-S',
+        'legacy_code' => 'OLD-GLOVE-CODE',
+        'pcode' => 'GLOVE-01',
+        'name' => 'BOXING GLOVE - BLACK - S',
+    ]);
+    $converted->tags()->sync([
+        Tag::where('code', 'BLACK')->first()->id,
+        Tag::where('code', 'S')->first()->id,
+    ]);
+
+    $pending = Item::factory()->create([
+        'type' => ItemType::ASSET_LANCAR,
+        'group_id' => null,
+        'code' => 'GLOVE-02-BLACK-S',
+        'legacy_code' => null,
+        'pcode' => 'GLOVE-02',
+        'name' => 'GLOVE 2 - BLACK - S',
+    ]);
+
+    expect($this->service->hasPreservedLegacyCode($converted))->toBeTrue()
+        ->and($this->service->isPendingConversion($pending))->toBeTrue()
+        ->and($this->service->countEligible(ItemType::ASSET_LANCAR))->toBe(1);
+
+    $run = $this->service->runItems(ItemType::ASSET_LANCAR, collect([$converted, $pending]), $this->user);
+
+    expect($run->batch_size)->toBe(1)
+        ->and($run->success_count)->toBe(1)
+        ->and($converted->fresh()->code)->toBe('GLOVE-01-BLACK-S');
+});
