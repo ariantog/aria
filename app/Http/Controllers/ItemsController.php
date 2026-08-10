@@ -12,6 +12,8 @@ use App\Models\ItemGroup;
 use App\Models\Tag;
 use App\Models\TransactionDetail;
 use App\Services\ItemService;
+use App\Services\Items\ItemGroupHierarchyService;
+use App\Services\Items\ItemIdentityBuilder;
 use App\Services\ProductPerformanceService;
 use App\Services\JubelioService;
 use Illuminate\Http\Request;
@@ -22,6 +24,8 @@ class ItemsController extends Controller
     public function __construct(
         protected ItemService $itemService,
         protected ProductPerformanceService $performance,
+        protected ItemGroupHierarchyService $groupHierarchy,
+        protected ItemIdentityBuilder $identityBuilder,
     ) {}
 
     public function index(Request $request, ?ItemType $type = null)
@@ -280,44 +284,74 @@ class ItemsController extends Controller
     {
         Gate::authorize(ItemGroup::getPermissions()['view']);
 
-        $query = ItemGroup::query()
-            ->when($request->filled('kode'), fn ($q) => $q->where('name', 'like', "%{$request->kode}%"))
-            ->when($request->filled('product_name'), fn ($q) => $q->where('name', 'like', "%{$request->product_name}%"))
-            ->when($request->filled('desc'), fn ($q) => $q->where('description', 'like', "%{$request->desc}%"));
+        $filters = $request->only(['kode', 'product_name', 'desc']);
 
         return view('items.group', [
-            'groups' => $query->orderBy('id', 'desc')->paginate(20)->withQueryString(),
-            'filters' => $request->only(['kode', 'product_name', 'desc']),
+            'parents' => $this->groupHierarchy->paginateParents($filters, 20),
+            'filters' => $filters,
             'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
+    }
+
+    public function groupParentDetail(string $parentSlug)
+    {
+        Gate::authorize(ItemGroup::getPermissions()['view']);
+
+        $parentKey = $this->identityBuilder->parentKeyFromSlug($parentSlug);
+        $detail = $this->groupHierarchy->parentDetail($parentKey);
+
+        abort_if($detail === null, 404);
+
+        return view('items.group-parent-detail', [
+            'detail' => $detail,
+            'canEditGroup' => auth()->user()->can(ItemGroup::getPermissions()['edit']),
+            'flash' => ['success' => session('success'), 'error' => session('error')],
+        ]);
+    }
+
+    public function updateGroupParent(Request $request, string $parentSlug)
+    {
+        Gate::authorize(ItemGroup::getPermissions()['edit']);
+
+        $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+        ], [
+            'name.required' => 'Product name is required.',
+        ]);
+
+        $parentKey = $this->identityBuilder->parentKeyFromSlug($parentSlug);
+        $detail = $this->groupHierarchy->parentDetail($parentKey, fetchJubelio: false);
+
+        abort_if($detail === null, 404);
+
+        try {
+            foreach ($detail['group_ids'] as $groupId) {
+                $group = ItemGroup::findOrFail($groupId);
+                $this->itemService->renameGroupProductName($group, $request->input('name'));
+            }
+
+            return redirect()
+                ->route('items.group-parent-detail', $parentSlug)
+                ->with('success', 'Product name updated for all colors in this group.');
+        } catch (\Exception $e) {
+            return back()->withErrors(['message' => $e->getMessage()])->withInput();
+        }
     }
 
     public function groupDetail(ItemGroup $group)
     {
         Gate::authorize(ItemGroup::getPermissions()['view']);
 
-        $group->load(['items.warehouseItems' => fn ($q) => $q
-            ->whereIn('warehouse_id', fn ($sq) => $sq->select('id')->from('addrbooks')->whereIn('type', [
-                AddrbookType::Warehouse->value,
-                AddrbookType::VirtualWarehouse->value,
-            ]))
-            ->with('warehouse'),
-        ]);
+        $group->load(['items.tags']);
+        $sample = $group->items->first();
 
-        $sampleItem = $group->items->first();
-        $isManufacturedGroup = $sampleItem && $sampleItem->type === ItemType::ITEM;
-        $pcode = $sampleItem?->pcode ?? '';
-        $usesPlaceholder = $isManufacturedGroup
-            && $pcode !== ''
-            && strtoupper($group->name) === strtoupper($pcode);
+        abort_if($sample === null, 404);
 
-        return view('items.group-detail', [
-            'group' => $group,
-            'pcode' => $pcode,
-            'usesPlaceholder' => $usesPlaceholder,
-            'canEditGroup' => auth()->user()->can(ItemGroup::getPermissions()['edit']),
-            'flash' => ['success' => session('success'), 'error' => session('error')],
-        ]);
+        $slug = $this->identityBuilder->parentKeyToSlug(
+            $this->identityBuilder->itemParentKey($sample)
+        );
+
+        return redirect()->route('items.group-parent-detail', $slug);
     }
 
     public function updateGroup(Request $request, ItemGroup $group)
@@ -333,8 +367,15 @@ class ItemsController extends Controller
         try {
             $this->itemService->renameGroupProductName($group, $request->input('name'));
 
+            $sample = $group->items()->with('tags')->first();
+            $redirect = $sample
+                ? route('items.group-parent-detail', $this->identityBuilder->parentKeyToSlug(
+                    $this->identityBuilder->itemParentKey($sample)
+                ))
+                : route('items.group');
+
             return redirect()
-                ->route('items.group-detail', $group->id)
+                ->to($redirect)
                 ->with('success', 'Product name updated for all items in this group.');
         } catch (\Exception $e) {
             return back()->withErrors(['message' => $e->getMessage()])->withInput();

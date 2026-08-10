@@ -220,4 +220,150 @@ class ItemIdentityBuilder
 
         return null;
     }
+
+    /**
+     * Parent group key for list/detail hierarchy.
+     * Manufactured: 1:{TYPE}:{master pcode}  e.g. 1:AJD:CX93024
+     * Asset lancar:  2:{parent pcode}        e.g. 2:GLOVE-01
+     */
+    public function itemParentKey(Item $item): string
+    {
+        if ($item->type === ItemType::ASSET_LANCAR) {
+            return ItemType::ASSET_LANCAR->value.':'.$this->assetLancarParentPcode($item);
+        }
+
+        $typeCode = $this->manufacturedTypeCode($item);
+
+        return ItemType::ITEM->value.':'.$typeCode.':'.$this->manufacturedParentMaster($item);
+    }
+
+    /**
+     * Parent group display label: TYPE + master pcode (manufactured) or parent pcode (asset).
+     */
+    public function itemParentLabel(Item $item): string
+    {
+        if ($item->type === ItemType::ASSET_LANCAR) {
+            return $this->assetLancarParentPcode($item);
+        }
+
+        return $this->manufacturedTypeCode($item).' '.$this->manufacturedParentMaster($item);
+    }
+
+    public function parentKeyToSlug(string $parentKey): string
+    {
+        return str_replace(':', '__', $parentKey);
+    }
+
+    public function parentKeyFromSlug(string $slug): string
+    {
+        return str_replace('__', ':', $slug);
+    }
+
+    public function itemColorGroupKey(Item $item): string
+    {
+        if ($item->type === ItemType::ASSET_LANCAR) {
+            return $this->assetLancarColorGroupKey($item);
+        }
+
+        $warna = $item->relationLoaded('tags')
+            ? $item->tags->firstWhere('type', Tag::TYPE_WARNA)
+            : null;
+
+        if ($warna) {
+            return 'tag:'.$warna->id;
+        }
+
+        if ($item->group?->variant) {
+            return 'variant:'.$item->group->variant;
+        }
+
+        return 'none';
+    }
+
+    /**
+     * @return array{code: string, name: string}
+     */
+    public function itemColorInfo(Item $item): array
+    {
+        $warna = $item->relationLoaded('tags')
+            ? $item->tags->firstWhere('type', Tag::TYPE_WARNA)
+            : null;
+
+        if ($warna) {
+            return [
+                'code' => strtoupper($warna->code),
+                'name' => $warna->name,
+            ];
+        }
+
+        if ($item->type === ItemType::ITEM && $item->group?->variant) {
+            return [
+                'code' => strtoupper($item->group->variant),
+                'name' => 'Color '.$item->group->variant,
+            ];
+        }
+
+        $code = $this->assetLancarColorLabel($item);
+
+        return [
+            'code' => $code,
+            'name' => $code,
+        ];
+    }
+
+    public function itemSizeCode(Item $item): ?string
+    {
+        if ($item->type === ItemType::ASSET_LANCAR) {
+            return $this->assetLancarSizeCode($item);
+        }
+
+        $sizeTag = $item->relationLoaded('tags')
+            ? $item->tags->firstWhere('type', Tag::TYPE_SIZE)
+            : null;
+
+        if ($sizeTag) {
+            return $this->isAllSize($sizeTag) ? null : strtoupper($sizeTag->code);
+        }
+
+        $parts = explode('-', strtoupper(trim($item->code ?? '')));
+        if (count($parts) >= 4) {
+            return $parts[3];
+        }
+
+        return null;
+    }
+
+    public function manufacturedTypeCode(Item $item): string
+    {
+        $typeTag = $item->relationLoaded('tags')
+            ? $item->tags->firstWhere('type', Tag::TYPE_TYPE)
+            : null;
+
+        if ($typeTag) {
+            return strtoupper($typeTag->code);
+        }
+
+        $parts = explode('-', strtoupper(trim($item->code ?? '')));
+
+        return $parts[0] ?? 'UNK';
+    }
+
+    public function manufacturedParentMaster(Item $item): string
+    {
+        if ($item->group?->master) {
+            return strtoupper($item->group->master);
+        }
+
+        $pcode = strtoupper(trim($item->pcode ?? ''));
+        if ($pcode !== '' && preg_match(self::ITEM_PCODE_PATTERN, $pcode)) {
+            return $this->parsePcode(ItemType::ITEM, $pcode)['master'];
+        }
+
+        $parts = explode('-', strtoupper(trim($item->code ?? '')));
+        if (count($parts) >= 2) {
+            return $parts[1];
+        }
+
+        return $pcode !== '' ? $pcode : 'UNKNOWN';
+    }
 }

@@ -306,4 +306,45 @@ class JubelioService
 
         return null;
     }
+
+    /**
+     * Batch-fetch Jubelio stock totals for item IDs.
+     *
+     * @param  list<int>  $jubelioItemIds
+     * @return array<int, array<string, mixed>> keyed by Jubelio item_id
+     */
+    public function fetchItemStocks(array $jubelioItemIds): array
+    {
+        $ids = array_values(array_unique(array_filter(array_map('intval', $jubelioItemIds), fn ($id) => $id > 0)));
+
+        if ($ids === []) {
+            return [];
+        }
+
+        $http = $this->authenticatedRequest();
+        if (! $http) {
+            return [];
+        }
+
+        try {
+            $response = $http->post('https://api2.jubelio.com/inventory/items/all-stocks/', [
+                'ids' => $ids,
+            ]);
+
+            if (! $response->successful()) {
+                return [];
+            }
+
+            $rows = $response->json('data') ?? [];
+
+            return collect($rows)
+                ->filter(fn ($row) => isset($row['item_id']))
+                ->keyBy(fn ($row) => (int) $row['item_id'])
+                ->all();
+        } catch (\Exception $e) {
+            Log::error('Jubelio batch stock fetch error: '.$e->getMessage());
+
+            return [];
+        }
+    }
 }
