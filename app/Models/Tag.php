@@ -108,6 +108,24 @@ class Tag extends Model
     }
 
     /**
+     * Item / asset lancar index URL filtered to items carrying this tag.
+     */
+    public function itemsIndexFilterUrl(ItemType $itemType): string
+    {
+        $routeName = $itemType === ItemType::ASSET_LANCAR ? 'assetlancar.index' : 'items.index';
+
+        $params = match ((int) $this->type) {
+            self::TYPE_TYPE => ['item_type' => $this->id],
+            self::TYPE_SIZE => ['size' => $this->id],
+            self::TYPE_WARNA => ['warna' => $this->id],
+            self::TYPE_JAHIT => ['jahit' => $this->id],
+            default => ['tag_ids' => [$this->id]],
+        };
+
+        return route($routeName, $params);
+    }
+
+    /**
      * Warna tags use code identical to name (uppercase) for universal SKU generation.
      */
     public static function normalizeWarnaAttributes(array $attributes): array
