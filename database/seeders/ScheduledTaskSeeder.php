@@ -42,11 +42,12 @@ class ScheduledTaskSeeder extends Seeder
         );
 
         \App\Models\ScheduledTask::updateOrCreate(
+            ['command' => 'jubelio:order-jubelio-to-aria'],
             [
                 'name' => 'Sync Jubelio Orders',
                 'frequency' => 'everyMinute',
                 'is_active' => true,
-                'description' => 'Processes pending Jubelio orders into Aria transactions.',
+                'description' => 'Processes pending Jubelio orders into Aria transactions (one per minute).',
             ]
         );
 

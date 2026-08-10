@@ -1,8 +1,6 @@
 <?php
 
 use App\Models\Jubelioorder;
-use Illuminate\Support\Facades\Queue;
-use App\Jobs\ProcessJubelioOrderJob;
 
 function jubelioWebhookSign(string $body, string $secret): string
 {
@@ -56,18 +54,13 @@ it('accepts jubelio webhook with valid signature and stores shipped order', func
     expect(Jubelioorder::where('invoice', 'INV-WEBHOOK-TEST')->exists())->toBeTrue();
 });
 
-it('dispatches queue job when jubelio webhook auto process is enabled', function () {
-    config([
-        'services.jubelio.webhook_secret' => 'test-secret',
-        'services.jubelio.webhook_auto_process' => true,
-    ]);
-
-    Queue::fake();
+it('leaves shipped webhook orders pending for cron processing', function () {
+    config(['services.jubelio.webhook_secret' => 'test-secret']);
 
     $body = json_encode([
         'status' => 'SHIPPED',
-        'salesorder_id' => 'wh-queue-1',
-        'salesorder_no' => 'INV-QUEUE-TEST',
+        'salesorder_id' => 'wh-cron-1',
+        'salesorder_no' => 'INV-CRON-TEST',
         'transaction_date' => '2026-05-10',
     ]);
 
@@ -83,40 +76,10 @@ it('dispatches queue job when jubelio webhook auto process is enabled', function
         $body,
     )->assertSuccessful();
 
-    $order = Jubelioorder::where('invoice', 'INV-QUEUE-TEST')->first();
+    $order = Jubelioorder::where('invoice', 'INV-CRON-TEST')->first();
     expect($order)->not->toBeNull();
-
-    Queue::assertPushed(ProcessJubelioOrderJob::class, fn ($job) => $job->jubelioOrderId === $order->id);
-});
-
-it('does not dispatch queue job when jubelio webhook auto process is disabled', function () {
-    config([
-        'services.jubelio.webhook_secret' => 'test-secret',
-        'services.jubelio.webhook_auto_process' => false,
-    ]);
-
-    Queue::fake();
-
-    $body = json_encode([
-        'status' => 'SHIPPED',
-        'salesorder_id' => 'wh-noqueue-1',
-        'salesorder_no' => 'INV-NOQUEUE-TEST',
-        'transaction_date' => '2026-05-10',
-    ]);
-
-    $sign = jubelioWebhookSign($body, 'test-secret');
-
-    $this->call(
-        'POST',
-        route('jubelio.webhook.order'),
-        [],
-        [],
-        [],
-        ['HTTP_SIGN' => $sign, 'CONTENT_TYPE' => 'application/json'],
-        $body,
-    )->assertSuccessful();
-
-    Queue::assertNothingPushed();
+    expect($order->status)->toBe(0);
+    expect($order->run_count)->toBe(0);
 });
 
 it('allows jubelio webhook without authentication session', function () {

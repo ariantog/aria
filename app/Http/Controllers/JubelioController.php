@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Actions\Jubelio\AdjustStock;
 use App\Actions\Jubelio\ProcessJubelioOrder;
 use App\Enums\TransactionType;
-use App\Jobs\ProcessJubelioOrderJob;
 use App\Models\Jubelio;
 use App\Models\Jubelioorder;
 use App\Models\Jubelioreturn;
@@ -181,10 +180,6 @@ class JubelioController extends Controller
                 'payload' => json_encode($d),
                 'status' => 0,
             ]);
-
-            if (config('services.jubelio.webhook_auto_process')) {
-                ProcessJubelioOrderJob::dispatch($order->id);
-            }
 
             return response()->json(['status' => 'ok', 'message' => 'Saved']);
         }
