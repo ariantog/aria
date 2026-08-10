@@ -7,8 +7,10 @@ use App\Enums\ItemType;
 use App\Models\Item;
 use App\Services\JubelioService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Pagination\LengthAwarePaginator as Paginator;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 class ItemGroupHierarchyService
 {
@@ -85,24 +87,70 @@ class ItemGroupHierarchyService
      */
     protected function buildParentSummaries(array $filters): Collection
     {
-        $items = $this->baseItemQuery()->get();
+        /** @var array<string, array<string, mixed>> $parents */
+        $parents = [];
 
-        return $items
-            ->groupBy(fn (Item $item) => $this->identityBuilder->itemParentKey($item))
-            ->map(function (Collection $groupItems, string $parentKey) {
-                $sample = $groupItems->first();
+        $this->listItemQuery()
+            ->select([
+                'id',
+                'type',
+                'code',
+                'pcode',
+                'group_id',
+                'image_url',
+            ])
+            ->chunkById(300, function ($items) use (&$parents) {
+                $warehouseQty = $this->warehouseQtyByItemId($items->pluck('id')->all());
 
-                return [
-                    'parent_key' => $parentKey,
-                    'parent_slug' => $this->identityBuilder->parentKeyToSlug($parentKey),
-                    'label' => $this->identityBuilder->itemParentLabel($sample),
-                    'product_name' => $this->resolveProductName($groupItems, $parentKey, $sample->type),
-                    'description' => $this->resolveDescription($groupItems),
-                    'image_url' => $sample->group?->image_url ?? $sample->image_url,
-                    'is_asset' => $sample->type === ItemType::ASSET_LANCAR,
-                    'sku_count' => $groupItems->count(),
-                    'in_warehouse_qty' => $groupItems->sum(fn (Item $item) => $item->warehouseItems->sum('quantity')),
-                ];
+                foreach ($items as $item) {
+                    $parentKey = $this->identityBuilder->itemParentKey($item);
+
+                    if (! isset($parents[$parentKey])) {
+                        $parents[$parentKey] = [
+                            'parent_key' => $parentKey,
+                            'parent_slug' => $this->identityBuilder->parentKeyToSlug($parentKey),
+                            'label' => $this->identityBuilder->itemParentLabel($item),
+                            'product_name' => '',
+                            'description' => '',
+                            'image_url' => $item->group?->image_url ?? $item->image_url,
+                            'is_asset' => $item->type === ItemType::ASSET_LANCAR,
+                            'sku_count' => 0,
+                            'in_warehouse_qty' => 0.0,
+                            '_group_names' => [],
+                            '_descriptions' => [],
+                        ];
+                    }
+
+                    $parents[$parentKey]['sku_count']++;
+                    $parents[$parentKey]['in_warehouse_qty'] += (float) ($warehouseQty[$item->id] ?? 0);
+
+                    if ($item->group?->name) {
+                        $parents[$parentKey]['_group_names'][$item->group->name] = true;
+                    }
+
+                    if ($item->group?->description) {
+                        $parents[$parentKey]['_descriptions'][$item->group->description] = true;
+                    }
+
+                    if (! $parents[$parentKey]['image_url'] && $item->image_url) {
+                        $parents[$parentKey]['image_url'] = $item->image_url;
+                    }
+                }
+            });
+
+        return collect($parents)
+            ->map(function (array $parent) {
+                $groupNames = array_keys($parent['_group_names']);
+                $itemType = $parent['is_asset'] ? ItemType::ASSET_LANCAR : ItemType::ITEM;
+                $parent['product_name'] = $this->resolveProductNameFromNames(
+                    $groupNames,
+                    $parent['parent_key'],
+                    $itemType,
+                );
+                $parent['description'] = array_key_first($parent['_descriptions']) ?? '';
+                unset($parent['_group_names'], $parent['_descriptions']);
+
+                return $parent;
             })
             ->filter(function (array $parent) use ($filters) {
                 if (! empty($filters['kode']) && ! str_contains(strtoupper($parent['label']), strtoupper($filters['kode']))) {
@@ -126,13 +174,56 @@ class ItemGroupHierarchyService
      */
     protected function itemsForParentKey(string $parentKey): Collection
     {
-        return $this->baseItemQuery()
+        return $this->itemsQueryForParentKey($parentKey)
             ->get()
             ->filter(fn (Item $item) => $this->identityBuilder->itemParentKey($item) === $parentKey)
             ->values();
     }
 
-    protected function baseItemQuery()
+    protected function itemsQueryForParentKey(string $parentKey): Builder
+    {
+        $parts = explode(':', $parentKey);
+        $itemType = ItemType::from((int) ($parts[0] ?? ItemType::ITEM->value));
+
+        $query = $this->detailItemQuery()->where('items.type', $itemType);
+
+        if ($itemType === ItemType::ASSET_LANCAR) {
+            $parentPcode = strtoupper($parts[1] ?? '');
+
+            $query->where(function (Builder $q) use ($parentPcode) {
+                $q->whereRaw('UPPER(items.pcode) = ?', [$parentPcode])
+                    ->orWhereRaw('UPPER(items.code) LIKE ?', [$parentPcode.'-%']);
+            });
+        } else {
+            $typeCode = strtoupper($parts[1] ?? '');
+            $master = strtoupper($parts[2] ?? '');
+
+            $query->where(function (Builder $q) use ($typeCode, $master) {
+                $q->whereHas('group', fn (Builder $g) => $g->whereRaw('UPPER(master) = ?', [$master]))
+                    ->where(function (Builder $inner) use ($typeCode) {
+                        $inner->whereHas('tags', fn (Builder $t) => $t
+                            ->where('tags.type', \App\Models\Tag::TYPE_TYPE)
+                            ->whereRaw('UPPER(tags.code) = ?', [$typeCode]))
+                            ->orWhereRaw('UPPER(items.code) LIKE ?', [$typeCode.'-%']);
+                    });
+            });
+        }
+
+        return $query;
+    }
+
+    protected function listItemQuery(): Builder
+    {
+        return Item::query()
+            ->with([
+                'group:id,master,variant,name,description,image_url',
+                'tags:id,code,type,name',
+            ])
+            ->whereIn('type', [ItemType::ITEM->value, ItemType::ASSET_LANCAR->value])
+            ->whereNotNull('group_id');
+    }
+
+    protected function detailItemQuery(): Builder
     {
         return Item::query()
             ->with([
@@ -147,6 +238,60 @@ class ItemGroupHierarchyService
             ])
             ->whereIn('type', [ItemType::ITEM->value, ItemType::ASSET_LANCAR->value])
             ->whereNotNull('group_id');
+    }
+
+    /**
+     * @param  list<int>  $itemIds
+     * @return array<int, float>
+     */
+    protected function warehouseQtyByItemId(array $itemIds): array
+    {
+        if ($itemIds === []) {
+            return [];
+        }
+
+        return DB::table('warehouse_items')
+            ->selectRaw('item_id, SUM(quantity) as total')
+            ->whereIn('item_id', $itemIds)
+            ->whereIn('warehouse_id', function ($query) {
+                $query->select('id')
+                    ->from('addrbooks')
+                    ->whereIn('type', [
+                        AddrbookType::Warehouse->value,
+                        AddrbookType::VirtualWarehouse->value,
+                    ]);
+            })
+            ->groupBy('item_id')
+            ->pluck('total', 'item_id')
+            ->map(fn ($qty) => (float) $qty)
+            ->all();
+    }
+
+    /**
+     * @param  array<int, string>  $groupNames
+     */
+    protected function resolveProductNameFromNames(array $groupNames, string $parentKey, ItemType $itemType): string
+    {
+        $names = collect($groupNames)->filter()->unique()->values();
+
+        if ($itemType === ItemType::ITEM) {
+            $parts = explode(':', $parentKey);
+            $master = strtoupper($parts[2] ?? '');
+
+            $preferred = $names->first(
+                fn (?string $name) => $name && strtoupper(trim($name)) !== $master
+            );
+
+            return $preferred ?? $names->first() ?? $master;
+        }
+
+        $parentLabel = explode(':', $parentKey, 2)[1] ?? '';
+
+        $preferred = $names->first(
+            fn (?string $name) => $name && strtoupper(trim($name)) !== strtoupper($parentLabel)
+        );
+
+        return $preferred ?? $names->first() ?? $parentLabel;
     }
 
     /**
@@ -242,30 +387,11 @@ class ItemGroupHierarchyService
      */
     protected function resolveProductName(Collection $items, string $parentKey, ItemType $itemType): string
     {
-        $names = $items
-            ->map(fn (Item $item) => $item->group?->name)
-            ->filter()
-            ->unique()
-            ->values();
-
-        if ($itemType === ItemType::ITEM) {
-            $sample = $items->first();
-            $master = $this->identityBuilder->manufacturedParentMaster($sample);
-
-            $preferred = $names->first(
-                fn (?string $name) => $name && strtoupper(trim($name)) !== strtoupper($master)
-            );
-
-            return $preferred ?? $names->first() ?? $master;
-        }
-
-        $parentLabel = explode(':', $parentKey, 2)[1] ?? '';
-
-        $preferred = $names->first(
-            fn (?string $name) => $name && strtoupper(trim($name)) !== strtoupper($parentLabel)
+        return $this->resolveProductNameFromNames(
+            $items->map(fn (Item $item) => $item->group?->name)->filter()->unique()->values()->all(),
+            $parentKey,
+            $itemType,
         );
-
-        return $preferred ?? $names->first() ?? $parentLabel;
     }
 
     /**
