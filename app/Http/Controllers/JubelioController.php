@@ -12,6 +12,7 @@ use App\Models\Jubeliosync;
 use App\Models\Transaction;
 use App\Services\Jubelio\JubelioOrderWarehouseResolver;
 use App\Services\Jubelio\JubelioTransactionSyncPresenter;
+use App\Services\JubelioGetOrdersService;
 use App\Services\JubelioService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -23,6 +24,56 @@ use Illuminate\View\View;
 
 class JubelioController extends Controller
 {
+    public function cekOrder(Request $request, JubelioGetOrdersService $getOrdersService): View
+    {
+        Gate::authorize(Jubelio::getPermissions()['view']);
+
+        $orderId = trim((string) $request->query('order_id', old('order_id', '')));
+        $lookup = null;
+        $lookupError = null;
+
+        if ($orderId !== '') {
+            $apiData = $getOrdersService->lookupOrder($orderId);
+            if ($apiData) {
+                $lookup = [
+                    'api' => $apiData,
+                    'inspection' => $getOrdersService->inspectApiOrder($apiData),
+                ];
+            } else {
+                $lookupError = 'Order tidak ditemukan di Jubelio API.';
+            }
+        }
+
+        return view('jubelio.cek.index', [
+            'orderId' => $orderId,
+            'lookup' => $lookup,
+            'lookupError' => $lookupError,
+            'flash' => ['success' => session('success'), 'error' => session('error')],
+        ]);
+    }
+
+    public function queueCekOrder(Request $request, JubelioGetOrdersService $getOrdersService): RedirectResponse
+    {
+        Gate::authorize(Jubelio::getPermissions()['view']);
+
+        $validated = $request->validate([
+            'order_id' => ['required', 'string', 'max:255'],
+        ]);
+
+        $apiData = $getOrdersService->lookupOrder($validated['order_id']);
+        if (! $apiData) {
+            return redirect()
+                ->route('jubelio.order.cek', ['order_id' => $validated['order_id']])
+                ->with('error', 'Order tidak ditemukan di Jubelio API.');
+        }
+
+        $result = $getOrdersService->queueApiOrder($apiData);
+
+        return redirect()
+            ->route('jubelio.order.cek', ['order_id' => $validated['order_id']])
+            ->with($result['success'] ? 'success' : 'error', $result['message']);
+    }
+
     public function index(Request $request): View
     {
         Gate::authorize(Jubelio::getPermissions()['view']);

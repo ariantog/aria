@@ -151,5 +151,6 @@ it('renders migrated GET pages with a 200', function (string $route) {
     'invoice branding settings' => 'system-settings/invoice/branding',
     'jubelio index' => 'jubelio',
     'jubelio get orders' => 'jubelio-get-orders',
+    'jubelio cek order' => 'jubelio/order/cek',
     'restock index' => 'restock',
 ]);
