@@ -24,6 +24,7 @@ class LegacyItemConverterController extends Controller
         $tab = $request->query('tab', 'pending');
         $itemType = ItemType::tryFrom((int) $request->query('type', ItemType::ASSET_LANCAR->value))
             ?? ItemType::ASSET_LANCAR;
+        $currentPage = max(1, (int) $request->query('page', 1));
 
         $pendingCount = $this->converterService->countEligible($itemType);
         $uselessCount = $this->converterService->uselessQuery($itemType)->count();
@@ -50,6 +51,12 @@ class LegacyItemConverterController extends Controller
             'latestRun' => $latestRun,
             'dataList' => $data,
             'batchSize' => LegacyItemConverterService::DEFAULT_BATCH_SIZE,
+            'pageSize' => LegacyItemConverterService::PENDING_PAGE_SIZE,
+            'currentPage' => $currentPage,
+            'currentPageCount' => $tab === 'pending' ? $data->count() : 0,
+            'convertiblePageCount' => $tab === 'pending'
+                ? collect($data->items())->filter(fn (Item $item) => $this->converterService->isPendingConversion($item))->count()
+                : 0,
             'flash' => [
                 'success' => session('success'),
                 'error' => session('error'),
@@ -62,17 +69,20 @@ class LegacyItemConverterController extends Controller
         $this->authorizeConverter();
 
         $itemType = $this->validatedItemType($request);
-        $preview = $this->converterService->previewBatch($itemType);
+        $items = $this->validatedPageItems($request, $itemType);
+        $preview = $this->converterService->previewItems($items);
 
         $successes = $preview->filter(fn (array $row) => $row['parse']->success)->count();
         $failures = $preview->count() - $successes;
+        $page = $this->validatedPage($request);
 
         return redirect()
             ->route('items.legacy-converter', [
                 'tab' => 'pending',
                 'type' => $itemType->value,
+                'page' => $page,
             ])
-            ->with('success', "Preview: {$preview->count()} items — {$successes} parseable, {$failures} would fail.");
+            ->with('success', "Page {$page} preview: {$preview->count()} items — {$successes} parseable, {$failures} would fail.");
     }
 
     public function run(Request $request): RedirectResponse
@@ -80,14 +90,21 @@ class LegacyItemConverterController extends Controller
         $this->authorizeConverter();
 
         $itemType = $this->validatedItemType($request);
-        $run = $this->converterService->runBatch($itemType, $request->user(), dryRun: false);
+        $items = $this->validatedPageItems($request, $itemType);
+        $page = $this->validatedPage($request);
+        $run = $this->converterService->runItems($itemType, $items, $request->user());
+
+        $redirectTab = $run->failed_count > 0 && $run->success_count === 0 && $run->skipped_count === 0
+            ? 'failed'
+            : 'pending';
 
         return redirect()
             ->route('items.legacy-converter', [
-                'tab' => $run->failed_count > 0 ? 'failed' : 'completed',
+                'tab' => $redirectTab,
                 'type' => $itemType->value,
+                'page' => $page,
             ])
-            ->with('success', "Batch complete: {$run->success_count} converted, {$run->failed_count} failed, {$run->skipped_count} skipped.");
+            ->with('success', "Converted {$run->success_count} item(s): {$run->failed_count} failed, {$run->skipped_count} skipped.");
     }
 
     public function purgeUseless(Request $request): RedirectResponse
@@ -108,7 +125,7 @@ class LegacyItemConverterController extends Controller
     protected function pendingItems(ItemType $itemType)
     {
         return $this->converterService
-            ->paginateEligible($itemType, 50)
+            ->paginateEligible($itemType, LegacyItemConverterService::PENDING_PAGE_SIZE)
             ->withQueryString();
     }
 
@@ -141,6 +158,37 @@ class LegacyItemConverterController extends Controller
         ]);
 
         return ItemType::from((int) $request->input('type'));
+    }
+
+    protected function validatedPage(Request $request): int
+    {
+        $request->validate([
+            'page' => 'nullable|integer|min:1',
+        ]);
+
+        return max(1, (int) $request->input('page', 1));
+    }
+
+    /**
+     * @return \Illuminate\Support\Collection<int, Item>
+     */
+    protected function validatedPageItems(Request $request, ItemType $itemType): \Illuminate\Support\Collection
+    {
+        $request->validate([
+            'item_ids' => 'required|array|min:1|max:'.LegacyItemConverterService::PENDING_PAGE_SIZE,
+            'item_ids.*' => 'integer|distinct',
+        ]);
+
+        $items = $this->converterService->itemsForIds(
+            $itemType,
+            array_map('intval', $request->input('item_ids')),
+        );
+
+        if ($items->isEmpty()) {
+            abort(422, 'No convertible items selected (empty Legacy column required).');
+        }
+
+        return $items;
     }
 
     protected function authorizeConverter(): void

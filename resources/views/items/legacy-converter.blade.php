@@ -11,6 +11,9 @@
         'failed' => 'Failed',
     ];
     $baseParams = ['type' => $itemType->value];
+    if ($tab === 'pending') {
+        $baseParams['page'] = $currentPage;
+    }
     $itemShowUrl = function ($item) use ($itemType) {
         if (! $item) {
             return null;
@@ -22,6 +25,12 @@
             ? route('assetlancar.show', $item)
             : route('items.show', $item);
     };
+    $preservedLegacyCode = function ($item) {
+        $legacy = strtoupper(trim((string) ($item->legacy_code ?? '')));
+        $code = strtoupper(trim((string) ($item->code ?? '')));
+
+        return $legacy !== '' && $legacy !== $code ? $legacy : null;
+    };
 @endphp
 
 <div class="flex flex-col gap-4 p-3 sm:p-4">
@@ -29,7 +38,10 @@
         <div>
             <h2 class="text-2xl font-bold tracking-tight text-gray-900">Legacy Item Identity Converter</h2>
             <p class="mt-0.5 text-sm text-gray-500">
-                Batch-convert legacy SKUs into canonical identity ({{ number_format($pendingCount) }} {{ strtolower($typeLabel) }} pending).
+                Convert legacy SKUs page by page (up to {{ number_format($pageSize) }} per page; {{ number_format($pendingCount) }} {{ strtolower($typeLabel) }} pending).
+                @if($tab === 'pending' && $currentPageCount > 0)
+                    Page {{ $currentPage }} shows {{ number_format($currentPageCount) }} item(s); {{ number_format($convertiblePageCount) }} ready to convert (Legacy column empty).
+                @endif
             </p>
         </div>
         <div class="flex flex-wrap items-center gap-2">
@@ -88,22 +100,39 @@
                 </a>
             @endforeach
         </div>
+        @if($tab === 'pending' && $convertiblePageCount > 0)
         <div class="flex flex-wrap gap-2">
             <form method="POST" action="{{ route('items.legacy-converter.preview') }}">
                 @csrf
                 <input type="hidden" name="type" value="{{ $itemType->value }}">
+                <input type="hidden" name="page" value="{{ $currentPage }}">
+                @foreach($dataList as $item)
+                    @if($preservedLegacyCode($item) === null)
+                <input type="hidden" name="item_ids[]" value="{{ $item->id }}">
+                    @endif
+                @endforeach
                 <button type="submit" class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
-                    Preview next batch ({{ number_format($batchSize) }})
+                    Preview convertible ({{ number_format($convertiblePageCount) }})
                 </button>
             </form>
-            <form method="POST" action="{{ route('items.legacy-converter.run') }}" onsubmit="return confirm('Run conversion for up to {{ number_format($batchSize) }} {{ strtolower($typeLabel) }} items?');">
+            <form method="POST" action="{{ route('items.legacy-converter.run') }}"
+                  onsubmit="return confirm('Convert {{ number_format($convertiblePageCount) }} item(s) with empty Legacy column on page {{ $currentPage }}? Original codes are kept in legacy_code when the SKU changes.');">
                 @csrf
                 <input type="hidden" name="type" value="{{ $itemType->value }}">
+                <input type="hidden" name="page" value="{{ $currentPage }}">
+                @foreach($dataList as $item)
+                    @if($preservedLegacyCode($item) === null)
+                <input type="hidden" name="item_ids[]" value="{{ $item->id }}">
+                    @endif
+                @endforeach
                 <button type="submit" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
-                    Run next batch
+                    Convert this page ({{ number_format($convertiblePageCount) }})
                 </button>
             </form>
         </div>
+        @elseif($tab === 'pending')
+        <p class="text-sm text-gray-500">No convertible items on this page (Legacy column already filled).</p>
+        @endif
     </div>
 
     @if($latestRun)
@@ -125,14 +154,18 @@
                     <tr>
                         <th class="px-4 py-3">ID</th>
                         <th class="px-4 py-3">Code</th>
+                        <th class="px-4 py-3">Legacy</th>
                         <th class="px-4 py-3">Name</th>
                         <th class="px-4 py-3">Group</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100">
                     @forelse($dataList as $item)
-                        @php $showUrl = $itemShowUrl($item); @endphp
-                        <tr class="hover:bg-gray-50">
+                        @php
+                            $showUrl = $itemShowUrl($item);
+                            $legacy = $preservedLegacyCode($item);
+                        @endphp
+                        <tr class="hover:bg-gray-50 {{ $legacy ? 'bg-gray-50/80' : '' }}">
                             <td class="px-4 py-2 text-gray-500">
                                 @if($showUrl)
                                     <a href="{{ $showUrl }}" class="font-medium text-blue-600 hover:underline">#{{ $item->id }}</a>
@@ -147,6 +180,7 @@
                                     <span class="text-gray-900">{{ $item->code }}</span>
                                 @endif
                             </td>
+                            <td class="px-4 py-2 font-mono text-xs {{ $legacy ? 'text-amber-700' : 'text-gray-400' }}">{{ $legacy ?? '—' }}</td>
                             <td class="px-4 py-2 text-gray-700">
                                 @if($showUrl)
                                     <a href="{{ $showUrl }}" class="hover:text-blue-600 hover:underline">{{ $item->name }}</a>
@@ -157,7 +191,7 @@
                             <td class="px-4 py-2 text-gray-500">{{ $item->group_id ?? '—' }}</td>
                         </tr>
                     @empty
-                        <tr><td colspan="4" class="px-4 py-8 text-center text-gray-500">No pending items.</td></tr>
+                        <tr><td colspan="5" class="px-4 py-8 text-center text-gray-500">No pending items.</td></tr>
                     @endforelse
                 </tbody>
             </table>
