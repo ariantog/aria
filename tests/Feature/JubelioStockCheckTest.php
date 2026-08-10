@@ -26,7 +26,7 @@ function seedStockCheckSync(Addrbook $warehouse, int $locationId = 10, string $l
     ]);
 }
 
-it('compares aria qty against jubelio on-hand plus on-order', function () {
+it('compares aria qty against jubelio on-hand only', function () {
     $warehouse = Addrbook::factory()->warehouse()->create();
     seedStockCheckSync($warehouse);
 
@@ -71,11 +71,11 @@ it('compares aria qty against jubelio on-hand plus on-order', function () {
     expect((float) $discrepancy->aria_qty)->toBe(50.0);
     expect((float) $discrepancy->jubelio_on_hand)->toBe(40.0);
     expect((float) $discrepancy->jubelio_on_order)->toBe(5.0);
-    expect((float) $discrepancy->jubelio_qty)->toBe(45.0);
+    expect((float) $discrepancy->jubelio_qty)->toBe(40.0);
     expect($job->fresh()->status)->toBe('completed');
 });
 
-it('does not flag a match when aria equals on-hand plus on-order', function () {
+it('does not flag a match when aria equals jubelio on-hand', function () {
     $warehouse = Addrbook::factory()->warehouse()->create();
     seedStockCheckSync($warehouse);
 
@@ -88,7 +88,7 @@ it('does not flag a match when aria equals on-hand plus on-order', function () {
         'item_id' => $item->id,
         'warehouse_id' => $warehouse->id,
         'warehouse_type' => Addrbook::class,
-        'quantity' => 45,
+        'quantity' => 40,
     ]);
 
     $job = JubelioStockCheck::create([

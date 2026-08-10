@@ -12,7 +12,7 @@ class JubelioStockCheckCommand extends Command
     protected $signature = 'app:jubelio-stock-check
                             {--sync : Process all remaining synced warehouses in one run}';
 
-    protected $description = 'Compare Aria warehouse stock with Jubelio (on-hand + on-order) for high-demand SKUs';
+    protected $description = 'Compare Aria warehouse stock with Jubelio on-hand for high-demand SKUs';
 
     public function handle(JubelioStockCheckService $service): int
     {

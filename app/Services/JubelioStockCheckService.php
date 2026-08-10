@@ -173,7 +173,7 @@ class JubelioStockCheckService
 
             $onHand = (float) ($locationStock['on_hand'] ?? 0);
             $onOrder = (float) ($locationStock['on_order'] ?? 0);
-            $jubelioQty = $onHand + $onOrder;
+            $jubelioQty = $onHand;
             $ariaQty = (float) ($ariaQtyByItemId[$item->id] ?? 0);
 
             if ($ariaQty === $jubelioQty) {

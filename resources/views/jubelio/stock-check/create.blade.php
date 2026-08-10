@@ -60,7 +60,7 @@ $breadcrumbs = [
 
                 <div class="rounded-lg bg-gray-50 p-4 text-sm text-gray-600">
                     <p class="font-medium text-gray-800">Perbandingan stok</p>
-                    <p class="mt-1">Aria qty di gudang dibandingkan dengan Jubelio <strong>on-hand + on-order</strong> (bukan on-hand saja), karena pesanan yang sudah masuk tapi belum dikirim tetap mengurangi stok tersedia.</p>
+                    <p class="mt-1">Aria qty di gudang dibandingkan dengan Jubelio <strong>on-hand</strong> (bukan <code class="text-xs">available</code>). Kolom on-order ditampilkan hanya sebagai referensi.</p>
                 </div>
 
                 @error('active_job')<p class="text-sm text-red-500">{{ $message }}</p>@enderror

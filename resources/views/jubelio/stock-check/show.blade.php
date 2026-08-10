@@ -42,7 +42,7 @@ $breadcrumbs = [
         </div>
         <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
             <p class="text-sm font-medium text-gray-700">Perbandingan</p>
-            <p class="mt-2 text-sm text-gray-600">Aria qty vs Jubelio <strong>on-hand + on-order</strong></p>
+            <p class="mt-2 text-sm text-gray-600">Aria qty vs Jubelio <strong>on-hand</strong></p>
         </div>
     </div>
 
@@ -61,8 +61,7 @@ $breadcrumbs = [
                             <th class="px-4 py-3">Location (Jubelio)</th>
                             <th class="px-4 py-3 text-center">Qty Aria</th>
                             <th class="px-4 py-3 text-center">Jubelio On Hand</th>
-                            <th class="px-4 py-3 text-center">Jubelio On Order</th>
-                            <th class="px-4 py-3 text-center">Jubelio Total</th>
+                            <th class="px-4 py-3 text-center">On Order (ref)</th>
                             <th class="px-4 py-3 text-center">Selisih</th>
                         </tr>
                     </thead>
@@ -89,9 +88,8 @@ $breadcrumbs = [
                                 </div>
                             </td>
                             <td class="px-4 py-3 text-center font-bold">{{ $item->aria_qty }}</td>
-                            <td class="px-4 py-3 text-center">{{ $item->jubelio_on_hand ?? '—' }}</td>
-                            <td class="px-4 py-3 text-center">{{ $item->jubelio_on_order ?? '—' }}</td>
-                            <td class="px-4 py-3 text-center font-bold text-blue-600">{{ $item->jubelio_qty }}</td>
+                            <td class="px-4 py-3 text-center font-bold text-blue-600">{{ $item->jubelio_on_hand ?? $item->jubelio_qty }}</td>
+                            <td class="px-4 py-3 text-center text-gray-500">{{ $item->jubelio_on_order ?? '—' }}</td>
                             <td class="px-4 py-3 text-center">
                                 <span class="inline-flex rounded px-2 py-0.5 text-xs font-medium {{ $diff < 0 ? 'bg-red-600 text-white' : ($diff > 0 ? 'bg-yellow-500 text-white' : 'bg-gray-800 text-white') }}">
                                     {{ $diff > 0 ? '+' . number_format($diff, 2) : number_format($diff, 2) }}
@@ -100,7 +98,7 @@ $breadcrumbs = [
                         </tr>
                         @empty
                         <tr>
-                            <td colspan="9" class="px-4 py-8 text-center italic text-gray-500">Tidak ada ketidakcocokan ditemukan pada pengecekan ini.</td>
+                            <td colspan="8" class="px-4 py-8 text-center italic text-gray-500">Tidak ada ketidakcocokan ditemukan pada pengecekan ini.</td>
                         </tr>
                         @endforelse
                     </tbody>
