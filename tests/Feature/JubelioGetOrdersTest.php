@@ -1,21 +1,22 @@
 <?php
 
+use App\Jobs\SyncJubelioMissingOrders;
 use App\Models\Addrbook;
 use App\Models\Crongetorder;
-use App\Models\Crongetorderdetail;
 use App\Models\Jubelioorder;
 use App\Models\ScheduledTask;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Services\JubelioGetOrdersService;
 use App\Services\JubelioService;
+use Illuminate\Support\Facades\Queue;
 use Mockery\MockInterface;
 
 function seedGetOrdersScheduledTask(): ScheduledTask
 {
     return ScheduledTask::create([
         'command' => 'jubelio:get-orders',
-        'name' => 'Jubelio Get Orders (API backfill)',
+        'name' => 'Jubelio Get Orders (legacy resume)',
         'frequency' => 'everyMinute',
         'is_active' => false,
         'description' => 'Test task',
@@ -29,25 +30,29 @@ it('renders get orders page with start form when no import exists', function () 
         ->get(route('jubelio.get-orders.index'))
         ->assertSuccessful()
         ->assertSee('Jubelio Get Orders')
-        ->assertSee('Mulai Import');
+        ->assertSee('Mulai Sinkronisasi');
 });
 
-it('starts a get orders import and enables the scheduled task', function () {
+it('starts a get orders sync and dispatches background job', function () {
+    Queue::fake();
     $user = User::factory()->create();
-    $task = seedGetOrdersScheduledTask();
 
     $this->actingAs($user)
         ->post(route('jubelio.get-orders.store'), [
-            'from' => '2026-08-01',
-            'to' => 2,
+            'date_from' => '2026-08-01',
+            'date_to' => '2026-08-03',
         ])
         ->assertRedirect(route('jubelio.get-orders.index'));
 
     expect(Crongetorder::count())->toBe(1);
-    expect($task->fresh()->is_active)->toBeTrue();
+    $import = Crongetorder::first();
+    expect($import->from->toDateString())->toBe('2026-08-01');
+    expect($import->to)->toBe(2);
+
+    Queue::assertPushed(SyncJubelioMissingOrders::class, fn ($job) => $job->importId === $import->id);
 });
 
-it('fetches api pages and skips ineligible orders at insert time', function () {
+it('fetches api pages and queues only eligible missing orders', function () {
     $import = Crongetorder::create([
         'from' => '2026-08-01',
         'to' => 0,
@@ -82,14 +87,19 @@ it('fetches api pages and skips ineligible orders at insert time', function () {
             ]);
     });
 
-    $this->artisan('jubelio:get-orders')->assertSuccessful();
+    $this->artisan('jubelio:get-orders', ['--sync' => true])->assertSuccessful();
 
     $import->refresh();
     expect($import->status)->toBe(1);
-    expect(Crongetorderdetail::pluck('invoice')->all())->toBe(['INV-SHIPPED']);
+    expect($import->orders_queued)->toBe(1);
+
+    $order = Jubelioorder::where('invoice', 'INV-SHIPPED')->first();
+    expect($order)->not->toBeNull();
+    expect($order->source)->toBe(2);
+    expect(Jubelioorder::where('invoice', 'INV-DRAFT')->exists())->toBeFalse();
 });
 
-it('reconciles against existing aria records when fetch completes', function () {
+it('skips orders already present in aria when syncing', function () {
     seedGetOrdersScheduledTask();
 
     $import = Crongetorder::create([
@@ -133,12 +143,13 @@ it('reconciles against existing aria records when fetch completes', function () 
         'date' => '2026-08-01',
     ]);
 
-    $this->artisan('jubelio:get-orders')->assertSuccessful();
+    $this->artisan('jubelio:get-orders', ['--sync' => true])->assertSuccessful();
 
     $import->refresh();
     expect($import->status)->toBe(1);
-    expect(Crongetorderdetail::pluck('invoice')->all())->toBe(['INV-MISSING']);
-    expect(ScheduledTask::where('command', 'jubelio:get-orders')->value('is_active'))->toBeFalse();
+    expect($import->orders_queued)->toBe(1);
+    expect(Jubelioorder::where('invoice', 'INV-MISSING')->exists())->toBeTrue();
+    expect(Jubelioorder::where('invoice', 'INV-EXISTS')->exists())->toBeFalse();
 });
 
 it('can fetch multiple pages in one cron run', function () {
@@ -178,53 +189,14 @@ it('can fetch multiple pages in one cron run', function () {
     expect($import->count)->toBe(2);
     expect($import->total)->toBe(2);
     expect($import->status)->toBe(1);
-    expect(Crongetorderdetail::pluck('invoice')->sort()->values()->all())->toBe(['INV-P1', 'INV-P2']);
+    expect($import->orders_queued)->toBe(2);
+    expect(Jubelioorder::whereIn('invoice', ['INV-P1', 'INV-P2'])->count())->toBe(2);
 });
 
-it('imports remaining details into jubelio orders with source 2', function () {
-    seedGetOrdersScheduledTask();
-
+it('resets an import', function () {
     $import = Crongetorder::create([
         'from' => '2026-08-01',
         'to' => 0,
-        'total' => 1,
-        'count' => 1,
-        'status' => 1,
-    ]);
-
-    Crongetorderdetail::create([
-        'crongetorder_id' => $import->id,
-        'jubelio_order_id' => 'so-200',
-        'invoice' => 'INV-BACKFILL-200',
-        'order_status' => 'SHIPPED',
-    ]);
-
-    $user = User::factory()->create();
-
-    $this->actingAs($user)
-        ->post(route('jubelio.get-orders.import'))
-        ->assertRedirect(route('jubelio.index'));
-
-    $order = Jubelioorder::where('invoice', 'INV-BACKFILL-200')->first();
-    expect($order)->not->toBeNull();
-    expect($order->source)->toBe(2);
-    expect($order->payload)->toBe('{}');
-    expect($order->status)->toBe(0);
-    expect(Crongetorder::count())->toBe(0);
-    expect(ScheduledTask::where('command', 'jubelio:get-orders')->value('is_active'))->toBeFalse();
-});
-
-it('resets an import and disables the scheduled task', function () {
-    $task = seedGetOrdersScheduledTask();
-    $task->update(['is_active' => true]);
-
-    $import = Crongetorder::create([
-        'from' => '2026-08-01',
-        'to' => 0,
-    ]);
-    Crongetorderdetail::create([
-        'crongetorder_id' => $import->id,
-        'invoice' => 'INV-RESET',
     ]);
 
     $user = User::factory()->create();
@@ -234,26 +206,54 @@ it('resets an import and disables the scheduled task', function () {
         ->assertRedirect();
 
     expect(Crongetorder::count())->toBe(0);
-    expect(Crongetorderdetail::count())->toBe(0);
-    expect($task->fresh()->is_active)->toBeFalse();
 });
 
-it('bulk reconciles via service without correlated subqueries', function () {
-    $import = Crongetorder::create(['from' => '2026-08-01', 'to' => 0]);
+it('polls recent days via dedicated command', function () {
+    config(['services.jubelio.active' => true, 'services.jubelio.poll_days' => 7]);
 
-    Crongetorderdetail::create([
-        'crongetorder_id' => $import->id,
-        'invoice' => 'INV-KEEP',
-        'order_status' => 'SHIPPED',
-        'is_canceled' => 'N',
-    ]);
-    Crongetorderdetail::create([
-        'crongetorder_id' => $import->id,
-        'invoice' => 'INV-DROP-STATUS',
-        'order_status' => 'DRAFT',
-        'is_canceled' => 'N',
+    $this->mock(JubelioService::class, function (MockInterface $mock) {
+        $mock->shouldReceive('fetchSalesOrders')
+            ->once()
+            ->andReturn([
+                'totalCount' => 1,
+                'data' => [[
+                    'salesorder_id' => 'so-poll',
+                    'salesorder_no' => 'INV-POLL',
+                    'internal_status' => 'SHIPPED',
+                    'is_canceled' => 'N',
+                ]],
+            ]);
+    });
+
+    $this->artisan('jubelio:poll-missing-orders')->assertSuccessful();
+
+    expect(Jubelioorder::where('invoice', 'INV-POLL')->exists())->toBeTrue();
+});
+
+it('skips ineligible orders during service reconcile helper', function () {
+    $service = app(JubelioGetOrdersService::class);
+
+    $queued = $service->queueEligibleRows([
+        [
+            'salesorder_id' => 'so-keep',
+            'salesorder_no' => 'INV-KEEP',
+            'internal_status' => 'SHIPPED',
+            'is_canceled' => 'N',
+        ],
+        [
+            'salesorder_id' => 'so-drop',
+            'salesorder_no' => 'INV-DROP-STATUS',
+            'internal_status' => 'DRAFT',
+            'is_canceled' => 'N',
+        ],
     ]);
 
+    expect($queued)->toBe(1);
+    expect(Jubelioorder::where('invoice', 'INV-KEEP')->exists())->toBeTrue();
+    expect(Jubelioorder::where('invoice', 'INV-DROP-STATUS')->exists())->toBeFalse();
+});
+
+it('does not duplicate when order already in jubelioorders', function () {
     Jubelioorder::create([
         'jubelio_order_id' => 'jo-1',
         'source' => 1,
@@ -264,15 +264,17 @@ it('bulk reconciles via service without correlated subqueries', function () {
         'payload' => '{}',
         'status' => 0,
     ]);
-    Crongetorderdetail::create([
-        'crongetorder_id' => $import->id,
-        'invoice' => 'INV-DROP-JO',
-        'order_status' => 'SHIPPED',
-        'is_canceled' => 'N',
+
+    $service = app(JubelioGetOrdersService::class);
+    $queued = $service->queueEligibleRows([
+        [
+            'salesorder_id' => 'so-dup',
+            'salesorder_no' => 'INV-DROP-JO',
+            'internal_status' => 'SHIPPED',
+            'is_canceled' => 'N',
+        ],
     ]);
 
-    $removed = app(JubelioGetOrdersService::class)->reconcile($import);
-
-    expect($removed)->toBe(2);
-    expect(Crongetorderdetail::pluck('invoice')->all())->toBe(['INV-KEEP']);
+    expect($queued)->toBe(0);
+    expect(Jubelioorder::where('invoice', 'INV-DROP-JO')->count())->toBe(1);
 });
