@@ -39,9 +39,27 @@ class Crongetorder extends Model
 
     public function dateRangeIso(): array
     {
-        $from = Carbon::parse($this->from)->utc()->startOfDay()->format('Y-m-d\TH:i:s\Z');
-        $to = Carbon::parse($this->from)->utc()->addDays($this->to)->endOfDay()->format('Y-m-d\TH:i:s\Z');
+        $range = $this->dateRangeCarbon();
+
+        return [
+            'from' => $range['from']->utc()->format('Y-m-d\TH:i:s\Z'),
+            'to' => $range['to']->utc()->format('Y-m-d\TH:i:s\Z'),
+        ];
+    }
+
+    /**
+     * @return array{from: Carbon, to: Carbon}
+     */
+    public function dateRangeCarbon(): array
+    {
+        $from = Carbon::parse($this->from)->startOfDay();
+        $to = Carbon::parse($this->from)->addDays($this->to)->endOfDay();
 
         return ['from' => $from, 'to' => $to];
+    }
+
+    public function endDateLabel(): string
+    {
+        return Carbon::parse($this->from)->addDays($this->to)->toDateString();
     }
 }
