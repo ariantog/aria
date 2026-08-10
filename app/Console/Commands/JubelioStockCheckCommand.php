@@ -2,167 +2,78 @@
 
 namespace App\Console\Commands;
 
-use App\Models\Item;
 use App\Models\JubelioStockCheck;
-use App\Models\JubelioStockDiscrepancy;
-use App\Models\Jubeliosync;
-use App\Models\WarehouseItem;
-use App\Services\JubelioService;
+use App\Services\JubelioStockCheckService;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Log;
 
 class JubelioStockCheckCommand extends Command
 {
-    /**
-     * The name and signature of the console command.
-     *
-     * @var string
-     */
-    protected $signature = 'app:jubelio-stock-check {--page= : Start from a specific page}';
+    protected $signature = 'app:jubelio-stock-check
+                            {--sync : Process all remaining synced warehouses in one run}';
 
-    /**
-     * The console command description.
-     *
-     * @var string
-     */
-    protected $description = 'Penyocokan stok Aria dengan Jubelio';
+    protected $description = 'Compare Aria warehouse stock with Jubelio (on-hand + on-order) for high-demand SKUs';
 
-    /**
-     * Execute the console command.
-     */
-    public function handle(JubelioService $jubelioService): int
+    public function handle(JubelioStockCheckService $service): int
     {
         $this->info('Memulai pengecekan stok Jubelio...');
 
-        // Force enable service and disable SSL verification for this command
         config(['services.jubelio.active' => true]);
-        config(['services.jubelio.verify_ssl' => false]);
 
-        // 1. Dapatkan atau buat job master
-        $job = JubelioStockCheck::whereIn('status', ['created', 'processing'])->orderBy('created_at', 'desc')->first();
+        $job = JubelioStockCheck::whereIn('status', ['created', 'processing'])
+            ->orderByDesc('created_at')
+            ->first();
 
         if (! $job) {
-            $job = JubelioStockCheck::create([
-                'page_tracking' => $this->option('page') ?: 1,
-                'status' => 'processing',
-            ]);
-        } elseif ($this->option('page')) {
-            $job->update(['page_tracking' => $this->option('page')]);
+            $this->comment('Tidak ada job pengecekan aktif.');
+
+            return self::SUCCESS;
         }
 
         if ($job->status === 'created') {
             $job->update(['status' => 'processing']);
         }
 
-        $pageSize = 50;
-        $totalDiscrepancies = $job->discrepancies()->count();
-
-        if ($totalDiscrepancies >= 200) {
-            $this->warn('Job sudah memiliki 200 atau lebih ketidakcocokan. Menghentikan.');
-            $job->update(['status' => 'stopped']);
-
-            return 0;
-        }
-
-        // PROSES HANYA SATU HALAMAN (UNTUK CRON)
-        $this->info("Menghubungi Jubelio API (Halaman: {$job->page_tracking})...");
-
-        $response = $jubelioService->fetchInventory($job->page_tracking, $pageSize);
-
-        if (! $response) {
-            $this->error('Gagal: Koneksi ke Jubelio API tidak mengembalikan respon (null).');
-
-            return 1;
-        }
-
-        if (isset($response['error'])) {
-            $this->error('Gagal dari Jubelio: '.($response['error']['message'] ?? 'Unknown Error'));
-            if (isset($response['error']['raw'])) {
-                $this->warn('Raw Error Message: '.$response['error']['raw']);
-            }
-            if (isset($response['statusCode'])) {
-                $this->error('Status Code: '.$response['statusCode']);
-            }
-
-            return 1;
-        }
-
-        if (! isset($response['data'])) {
-            $this->warn('Koneksi Berhasil, tapi format data tidak sesuai: '.json_encode($response));
-
-            return 1;
-        }
-
-        $itemCount = count($response['data']);
-        $this->info("Koneksi Berhasil! Diterima {$itemCount} item dari Jubelio.");
-
-        if ($itemCount === 0) {
-            $this->info('Pengecekan selesai: Tidak ada data lagi untuk diproses dari Jubelio.');
+        $syncs = $service->syncedWarehouses();
+        if ($syncs === []) {
+            $this->warn('Tidak ada warehouse yang tersinkron di jubeliosyncs.');
             $job->update(['status' => 'completed']);
 
-            return 0;
+            return self::SUCCESS;
         }
 
-        foreach ($response['data'] as $jubelioItem) {
-            $jubelioItemId = $jubelioItem['item_id'];
+        try {
+            do {
+                $result = $service->processNextWarehouse($job);
+                $job->refresh();
 
-            // Cari item di Aria berdasarkan jubelio_item_id
-            $ariaItem = Item::where('jubelio_item_id', $jubelioItemId)->first();
+                if ($result['warehouse']) {
+                    $this->info(sprintf(
+                        'Gudang %s: %d SKU dicek, %d selisih.',
+                        $result['warehouse'],
+                        $result['checked'],
+                        $result['discrepancies'],
+                    ));
+                }
+            } while ($this->option('sync') && ! $result['done']);
 
-            if (! $ariaItem) {
-                continue;
+            if ($result['done']) {
+                $this->info('Pengecekan selesai untuk semua gudang tersinkron.');
+            } else {
+                $remaining = count($syncs) - $job->sync_cursor;
+                $this->comment("{$remaining} gudang tersisa — lanjutkan cron berikutnya.");
             }
 
-            foreach ($jubelioItem['location_stocks'] as $locStock) {
-                $jubelioLocId = $locStock['location_id'];
-                $jubelioQty = $locStock['on_hand'];
+            return self::SUCCESS;
+        } catch (\Exception $e) {
+            Log::error('app:jubelio-stock-check failed', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
 
-                // Cari pemetaan warehouse di Jubeliosync
-                $sync = Jubeliosync::where('jubelio_location_id', $jubelioLocId)->first();
+            $this->error($e->getMessage());
 
-                if (! $sync) {
-                    continue;
-                }
-
-                $warehouseId = $sync->warehouse_id;
-
-                // Ambil qty di Aria
-                $ariaQty = WarehouseItem::where('item_id', $ariaItem->id)
-                    ->where('warehouse_id', $warehouseId)
-                    ->first()?->quantity ?? 0;
-
-                if ((float) $ariaQty != (float) $jubelioQty) {
-                    JubelioStockDiscrepancy::create([
-                        'jubelio_stock_check_id' => $job->id,
-                        'item_id' => $ariaItem->id,
-                        'jubelio_item_id' => $jubelioItemId,
-                        'jubelio_location_id' => $jubelioLocId,
-                        'jubelio_location_name' => $sync->jubelio_location_name,
-                        'warehouse_id' => $warehouseId,
-                        'aria_qty' => $ariaQty,
-                        'jubelio_qty' => $jubelioQty,
-                    ]);
-
-                    $totalDiscrepancies++;
-
-                    if ($totalDiscrepancies >= 200) {
-                        $this->warn('Mencapai batas 200 ketidakcocokan. Menghentikan.');
-                        $job->update([
-                            'status' => 'stopped',
-                            'page_tracking' => $job->page_tracking + 1, // Tetap simpan progress halaman terakhir
-                        ]);
-
-                        return 0;
-                    }
-                }
-            }
+            return self::FAILURE;
         }
-
-        // Update page tracking untuk dijalankan cron berikutnya
-        $job->increment('page_tracking');
-
-        $this->info('Halaman '.($job->page_tracking - 1).' selesai diproses. Page tracking sekarang: '.$job->page_tracking);
-        $this->info("Total ketidakcocokan saat ini: {$totalDiscrepancies}");
-
-        return 0;
     }
 }

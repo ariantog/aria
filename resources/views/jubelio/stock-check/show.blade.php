@@ -17,31 +17,32 @@ $breadcrumbs = [
         </a>
         <div>
             <h1 class="text-2xl font-bold">Pengecekan Stok #{{ $stockCheck->id }}</h1>
-            <p class="text-sm text-gray-500">Status: <span class="font-bold uppercase">{{ $stockCheck->status }}</span> | Dibuat: {{ \Carbon\Carbon::parse($stockCheck->created_at)->translatedFormat('d/m/Y H:i') }}</p>
+            <p class="text-sm text-gray-500">
+                Status: <span class="font-bold uppercase">{{ $stockCheck->status }}</span>
+                | Gudang {{ $stockCheck->sync_cursor }}/{{ $syncedWarehouseCount }}
+                | {{ $stockCheck->per_type_limit }} item + {{ $stockCheck->per_type_limit }} aset lancar/gudang
+                | Permintaan {{ $stockCheck->demand_days }} hari
+            </p>
         </div>
     </div>
 
     <div class="grid gap-6 md:grid-cols-3">
         <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-            <div class="flex items-center justify-between pb-2">
-                <p class="text-sm font-medium text-gray-700">Halaman Terakhir</p>
-                <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14"/></svg>
+            <p class="text-sm font-medium text-gray-700">Progress Gudang</p>
+            <div class="mt-2 text-2xl font-bold">{{ $stockCheck->sync_cursor }} / {{ $syncedWarehouseCount }}</div>
+            @if($syncedWarehouseCount > 0)
+            <div class="mt-3 h-2 overflow-hidden rounded-full bg-gray-100">
+                <div class="h-full rounded-full bg-blue-600" style="width: {{ min(100, (int) round(($stockCheck->sync_cursor / $syncedWarehouseCount) * 100)) }}%"></div>
             </div>
-            <div class="text-2xl font-bold">{{ $stockCheck->page_tracking }}</div>
+            @endif
         </div>
         <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-            <div class="flex items-center justify-between pb-2">
-                <p class="text-sm font-medium text-gray-700">Total Ketidakcocokan</p>
-                <svg class="h-4 w-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
-            </div>
-            <div class="text-2xl font-bold text-red-600">{{ $stockCheck->discrepancies->count() }}</div>
+            <p class="text-sm font-medium text-gray-700">Total Ketidakcocokan</p>
+            <div class="mt-2 text-2xl font-bold text-red-600">{{ $stockCheck->discrepancies->count() }}</div>
         </div>
         <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-            <div class="flex items-center justify-between pb-2">
-                <p class="text-sm font-medium text-gray-700">Batas Ketidakcocokan</p>
-                <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
-            </div>
-            <div class="text-2xl font-bold">200</div>
+            <p class="text-sm font-medium text-gray-700">Perbandingan</p>
+            <p class="mt-2 text-sm text-gray-600">Aria qty vs Jubelio <strong>on-hand + on-order</strong></p>
         </div>
     </div>
 
@@ -55,11 +56,13 @@ $breadcrumbs = [
                     <thead class="bg-gray-50 font-semibold text-gray-600 uppercase">
                         <tr>
                             <th class="px-4 py-3">Item (Aria)</th>
-                            <th class="px-4 py-3">Jubelio Item ID</th>
+                            <th class="px-4 py-3">Tipe</th>
                             <th class="px-4 py-3">Warehouse (Aria)</th>
                             <th class="px-4 py-3">Location (Jubelio)</th>
                             <th class="px-4 py-3 text-center">Qty Aria</th>
-                            <th class="px-4 py-3 text-center">Qty Jubelio</th>
+                            <th class="px-4 py-3 text-center">Jubelio On Hand</th>
+                            <th class="px-4 py-3 text-center">Jubelio On Order</th>
+                            <th class="px-4 py-3 text-center">Jubelio Total</th>
                             <th class="px-4 py-3 text-center">Selisih</th>
                         </tr>
                     </thead>
@@ -74,23 +77,20 @@ $breadcrumbs = [
                                     <span class="font-mono text-xs text-gray-500">{{ $item->item->code }}</span>
                                 </div>
                                 @else
-                                <span class="text-gray-500 italic">Item tidak ditemukan</span>
+                                <span class="italic text-gray-500">Item tidak ditemukan</span>
                                 @endif
                             </td>
-                            <td class="px-4 py-3 font-mono">{{ $item->jubelio_item_id }}</td>
-                            <td class="px-4 py-3">
-                                <div class="flex items-center gap-2">
-                                    <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
-                                    <span>{{ $item->warehouse->name ?? ('ID: ' . $item->warehouse_id) }}</span>
-                                </div>
-                            </td>
+                            <td class="px-4 py-3 text-xs">{{ $item->item?->type?->label() ?? '—' }}</td>
+                            <td class="px-4 py-3">{{ $item->warehouse->name ?? ('ID: '.$item->warehouse_id) }}</td>
                             <td class="px-4 py-3">
                                 <div class="flex flex-col">
-                                    <span>{{ $item->jubelio_location_name ?: '-' }}</span>
+                                    <span>{{ $item->jubelio_location_name ?: '—' }}</span>
                                     <span class="font-mono text-xs text-gray-500">ID: {{ $item->jubelio_location_id }}</span>
                                 </div>
                             </td>
                             <td class="px-4 py-3 text-center font-bold">{{ $item->aria_qty }}</td>
+                            <td class="px-4 py-3 text-center">{{ $item->jubelio_on_hand ?? '—' }}</td>
+                            <td class="px-4 py-3 text-center">{{ $item->jubelio_on_order ?? '—' }}</td>
                             <td class="px-4 py-3 text-center font-bold text-blue-600">{{ $item->jubelio_qty }}</td>
                             <td class="px-4 py-3 text-center">
                                 <span class="inline-flex rounded px-2 py-0.5 text-xs font-medium {{ $diff < 0 ? 'bg-red-600 text-white' : ($diff > 0 ? 'bg-yellow-500 text-white' : 'bg-gray-800 text-white') }}">
@@ -100,7 +100,7 @@ $breadcrumbs = [
                         </tr>
                         @empty
                         <tr>
-                            <td colspan="7" class="px-4 py-8 text-center text-gray-500 italic">Tidak ada ketidakcocokan ditemukan pada pengecekan ini.</td>
+                            <td colspan="9" class="px-4 py-8 text-center italic text-gray-500">Tidak ada ketidakcocokan ditemukan pada pengecekan ini.</td>
                         </tr>
                         @endforelse
                     </tbody>

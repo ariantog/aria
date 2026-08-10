@@ -59,5 +59,15 @@ class ScheduledTaskSeeder extends Seeder
                 'description' => 'Pulls Jubelio sales orders by date range to find missing webhooks. Enabled when a Get Orders import is started.',
             ]
         );
+
+        \App\Models\ScheduledTask::updateOrCreate(
+            ['command' => 'app:jubelio-stock-check'],
+            [
+                'name' => 'Jubelio Stock Check',
+                'frequency' => 'everyMinute',
+                'is_active' => true,
+                'description' => 'Compares Aria vs Jubelio stock per synced warehouse (demand-based SKUs).',
+            ]
+        );
     }
 }
