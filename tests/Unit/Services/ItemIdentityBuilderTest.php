@@ -154,6 +154,46 @@ describe('groupVariant', function () {
     });
 });
 
+describe('parent grouping', function () {
+    it('builds manufactured parent key and label', function () {
+        $group = \App\Models\ItemGroup::factory()->create([
+            'master' => 'CX93024',
+            'variant' => '05',
+            'name' => 'RUNNING SHIRT',
+        ]);
+
+        $item = Item::factory()->create([
+            'group_id' => $group->id,
+            'type' => ItemType::ITEM,
+            'pcode' => 'CX93024-05',
+            'code' => 'AJD-CX93024-05-S',
+        ]);
+        $item->tags()->attach($this->typeTag->id);
+
+        expect($this->builder->itemParentKey($item))->toBe('1:AJD:CX93024');
+        expect($this->builder->itemParentLabel($item))->toBe('AJD CX93024');
+    });
+
+    it('builds asset lancar parent key and label', function () {
+        $group = \App\Models\ItemGroup::factory()->create([
+            'master' => 'GLOVE-01',
+            'variant' => 'BLACK',
+            'name' => 'BOXING GLOVE',
+        ]);
+
+        $item = Item::factory()->create([
+            'group_id' => $group->id,
+            'type' => ItemType::ASSET_LANCAR,
+            'pcode' => 'GLOVE-01',
+            'code' => 'GLOVE-01-BLACK-S',
+        ]);
+        $item->tags()->attach($this->warnaTag->id);
+
+        expect($this->builder->itemParentKey($item))->toBe('2:GLOVE-01');
+        expect($this->builder->itemParentLabel($item))->toBe('GLOVE-01');
+    });
+});
+
 describe('Item SKU resolution', function () {
     it('finds items by canonical code', function () {
         $item = Item::factory()->create([

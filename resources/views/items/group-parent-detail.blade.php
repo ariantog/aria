@@ -1,0 +1,196 @@
+@extends('layouts.app')
+
+@section('title', 'Group: ' . $detail['label'])
+
+@section('content')
+@php
+$breadcrumbs = [
+    ['title' => $detail['is_asset'] ? 'Assets' : 'Items', 'href' => $detail['is_asset'] ? '/assetlancar' : '/items'],
+    ['title' => 'Groups', 'href' => route('items.group')],
+    ['title' => $detail['label'], 'href' => '#'],
+];
+$fmt = fn ($v) => number_format((float) $v, 0, ',', '.');
+@endphp
+
+<div class="p-4 sm:p-6" x-data="{ showZero: false }">
+    <div class="mb-4">
+        <a href="{{ route('items.group') }}" class="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-gray-600 hover:bg-gray-100">
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+            Back to Group List
+        </a>
+    </div>
+
+    @if(session('success'))
+    <div class="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">{{ session('success') }}</div>
+    @endif
+
+    <div class="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div class="overflow-hidden rounded-xl border border-gray-200 bg-white lg:col-span-1">
+            <div class="flex min-h-[280px] items-center justify-center p-4">
+                @if($detail['image_url'])
+                    <img src="{{ $detail['image_url'] }}" alt="{{ $detail['label'] }}" class="max-h-[360px] w-auto object-contain">
+                @else
+                    <svg class="h-20 w-20 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+                @endif
+            </div>
+        </div>
+        <div class="rounded-xl border border-gray-200 bg-white lg:col-span-2">
+            <div class="border-b border-gray-100 px-6 py-4">
+                <h2 class="text-2xl font-bold text-gray-900">{{ $detail['label'] }}</h2>
+                <p class="mt-1 font-mono text-sm text-gray-500">Parent group</p>
+            </div>
+            <div class="p-6">
+                <div class="grid grid-cols-1 gap-x-12 gap-y-6 md:grid-cols-2">
+                    <div>
+                        <p class="text-sm font-semibold uppercase tracking-wider text-gray-500">Product Name</p>
+                        <p class="text-xl font-medium text-gray-900">
+                            {{ $detail['product_name'] }}
+                            @if($detail['uses_placeholder'])
+                                <span class="ml-2 rounded bg-amber-100 px-2 py-0.5 text-xs font-normal text-amber-800">pcode placeholder</span>
+                            @endif
+                        </p>
+                    </div>
+                    <div>
+                        <p class="text-sm font-semibold uppercase tracking-wider text-gray-500">Total in Warehouse</p>
+                        <p class="text-xl font-bold text-green-600">{{ $fmt($detail['total_warehouse_qty']) }}</p>
+                    </div>
+                    @if($detail['description'])
+                    <div class="border-t border-gray-100 pt-4 md:col-span-2">
+                        <p class="text-sm font-semibold uppercase tracking-wider text-gray-500">Description</p>
+                        <p class="leading-relaxed text-gray-700">{{ $detail['description'] }}</p>
+                    </div>
+                    @endif
+
+                    @if($canEditGroup)
+                    <div class="border-t border-gray-100 pt-4 md:col-span-2">
+                        <p class="mb-2 text-sm font-semibold uppercase tracking-wider text-gray-500">Rename Product</p>
+                        <p class="mb-3 text-sm text-gray-600">Updates the product name for every color variant under this parent group.</p>
+                        <form method="POST" action="{{ route('items.group-parent-update', $detail['parent_slug']) }}" class="flex flex-col gap-3 sm:flex-row sm:items-end">
+                            @csrf
+                            @method('PUT')
+                            <div class="flex-1">
+                                <label for="group-product-name" class="sr-only">Product name</label>
+                                <input id="group-product-name" type="text" name="name"
+                                       value="{{ old('name', $detail['uses_placeholder'] ? '' : $detail['product_name']) }}"
+                                       placeholder="{{ $detail['label'] }}"
+                                       class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 @error('name') border-red-500 @enderror">
+                                @error('name')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
+                            </div>
+                            <button type="submit" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Save Product Name</button>
+                        </form>
+                    </div>
+                    @endif
+
+                    <div class="flex flex-wrap items-center gap-4 border-t border-gray-100 pt-4 md:col-span-2">
+                        <label class="flex items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600">
+                            <input type="checkbox" x-model="showZero" class="rounded border-gray-300"> Show 0 Quantity
+                        </label>
+                        @if($detail['is_asset'])
+                        <a href="{{ route('restock.index') }}" class="inline-flex items-center gap-2 rounded-lg border border-blue-200 px-4 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50">Restock</a>
+                        @endif
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <h2 class="mb-4 text-xl font-bold text-gray-900">Colors &amp; Sizes</h2>
+
+    <div class="space-y-8">
+        @foreach($detail['colors'] as $color)
+        <section class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+            <div class="border-b-4 border-purple-300 bg-purple-50 px-6 py-4">
+                <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                    <h3 class="text-lg font-bold uppercase tracking-wide text-purple-900">{{ $color['code'] }}</h3>
+                    <span class="text-sm text-purple-700">{{ $color['name'] }}</span>
+                    @if($color['pcode'])
+                    <span class="font-mono text-xs text-purple-500">{{ $color['pcode'] }}</span>
+                    @endif
+                </div>
+            </div>
+
+            <div class="p-4">
+                @if($color['has_sizes'])
+                <div class="overflow-x-auto">
+                    <table class="min-w-full text-sm">
+                        <thead class="border-b border-gray-200 bg-gray-50 text-xs uppercase text-gray-500">
+                            <tr>
+                                <th class="px-4 py-3 text-left font-semibold">Size</th>
+                                <th class="px-4 py-3 text-left font-semibold">SKU</th>
+                                <th class="px-4 py-3 text-right font-semibold">Aria Qty</th>
+                                <th class="px-4 py-3 text-right font-semibold">Jubelio On Hand</th>
+                                <th class="px-4 py-3 text-right font-semibold">On Order</th>
+                                <th class="px-4 py-3 text-right font-semibold">Reserved</th>
+                                <th class="px-4 py-3 text-right font-semibold">Available</th>
+                                <th class="px-4 py-3 text-right font-semibold"></th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-100">
+                            @foreach($color['size_rows'] as $row)
+                            <tr class="hover:bg-gray-50/50" @if($row['warehouse_qty'] < 1) x-show="showZero" @endif>
+                                <td class="px-4 py-3 font-semibold text-gray-900">{{ $row['size'] }}</td>
+                                <td class="px-4 py-3">
+                                    <a href="{{ $row['show_url'] }}" class="font-mono text-blue-600 hover:underline">{{ $row['code'] }}</a>
+                                    <div class="text-xs text-gray-500">{{ $row['name'] }}</div>
+                                </td>
+                                <td class="px-4 py-3 text-right font-mono font-bold {{ $row['warehouse_qty'] > 0 ? 'text-green-600' : 'text-gray-400' }}">{{ $fmt($row['warehouse_qty']) }}</td>
+                                <td class="px-4 py-3 text-right font-mono {{ $row['jubelio']['linked'] ? 'text-blue-600' : 'text-gray-300' }}">
+                                    {{ $row['jubelio']['linked'] ? $fmt($row['jubelio']['on_hand']) : '—' }}
+                                </td>
+                                <td class="px-4 py-3 text-right font-mono text-orange-600">
+                                    {{ $row['jubelio']['linked'] ? $fmt($row['jubelio']['on_order']) : '—' }}
+                                </td>
+                                <td class="px-4 py-3 text-right font-mono text-gray-600">
+                                    {{ $row['jubelio']['linked'] ? $fmt($row['jubelio']['reserved']) : '—' }}
+                                </td>
+                                <td class="px-4 py-3 text-right font-mono text-green-600">
+                                    {{ $row['jubelio']['linked'] ? $fmt($row['jubelio']['available']) : '—' }}
+                                </td>
+                                <td class="px-4 py-3 text-right">
+                                    <a href="{{ $row['show_url'] }}/edit" class="text-xs text-gray-500 hover:text-gray-800">Edit</a>
+                                </td>
+                            </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+                @else
+                <div class="space-y-4">
+                    @foreach($color['no_size_items'] as $row)
+                    <div class="rounded-lg border border-gray-100 bg-gray-50/50 p-4" @if($row['warehouse_qty'] < 1) x-show="showZero" @endif>
+                        <div class="mb-3 flex flex-wrap items-start justify-between gap-2">
+                            <div>
+                                <a href="{{ $row['show_url'] }}" class="font-mono font-semibold text-blue-600 hover:underline">{{ $row['code'] }}</a>
+                                <p class="text-sm text-gray-600">{{ $row['name'] }}</p>
+                            </div>
+                            <div class="text-right text-sm">
+                                <div class="text-gray-500">Jubelio available</div>
+                                <div class="font-mono font-bold {{ $row['jubelio']['linked'] ? 'text-green-600' : 'text-gray-300' }}">
+                                    {{ $row['jubelio']['linked'] ? $fmt($row['jubelio']['available']) : '—' }}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="divide-y divide-gray-200 rounded-md border border-gray-200 bg-white">
+                            @forelse($row['warehouses'] as $wh)
+                            <div class="flex justify-between px-4 py-2 text-sm" @if($wh['quantity'] < 1) x-show="showZero" @endif>
+                                <span class="text-gray-700">{{ $wh['name'] }}</span>
+                                <span class="font-mono font-semibold {{ $wh['quantity'] > 0 ? 'text-green-600' : 'text-gray-400' }}">{{ $fmt($wh['quantity']) }}</span>
+                            </div>
+                            @empty
+                            <div class="px-4 py-3 text-sm italic text-gray-400">No warehouse stock.</div>
+                            @endforelse
+                            <div class="flex justify-between border-t border-gray-200 bg-gray-50 px-4 py-2 text-sm font-bold">
+                                <span>Total Aria</span>
+                                <span class="font-mono text-green-600">{{ $fmt($row['warehouse_qty']) }}</span>
+                            </div>
+                        </div>
+                    </div>
+                    @endforeach
+                </div>
+                @endif
+            </div>
+        </section>
+        @endforeach
+    </div>
+</div>
+@endsection
