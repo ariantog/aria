@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Models\Addrbook;
+use App\Models\User;
 use App\Models\Transaction;
 use App\Observers\TransactionObserver;
 use App\View\Composers\AppComposer;
@@ -44,8 +45,7 @@ class AppServiceProvider extends ServiceProvider
         ]);
 
         Gate::before(function ($user, $ability) {
-            // User ID 1 is the one and only superadmin — bypass all authorization checks
-            if ($user->is_superadmin) {
+            if ($user instanceof User && User::isSuperadmin($user)) {
                 return true;
             }
 

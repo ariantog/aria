@@ -2,10 +2,13 @@
 
 namespace App\Services;
 
+use App\Enums\AddrbookType;
 use App\Models\Addrbook;
+use App\Models\Location;
 use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Collection;
 
 class LocationAccessService
 {
@@ -18,7 +21,11 @@ class LocationAccessService
             return false;
         }
 
-        return $user->is_superadmin || $user->location_id === null;
+        if (User::isSuperadmin($user)) {
+            return true;
+        }
+
+        return $user->location_id === null;
     }
 
     public function applyAddrbookScope(Builder $query, ?User $user): Builder
@@ -75,5 +82,41 @@ class LocationAccessService
         }
 
         return false;
+    }
+
+    /**
+     * Jubelio sell/return transactions use a synced warehouse + customer pair. Users only
+     * see transactions when the sender OR receiver is linked to their location, but
+     * warehouses could not be assigned to locations until this helper runs.
+     */
+    public function ensureJubelioPartyLocations(Addrbook $warehouse, Addrbook $customer): void
+    {
+        $locationIds = $this->resolveJubelioPartyLocationIds($warehouse, $customer);
+
+        if ($locationIds->isEmpty()) {
+            return;
+        }
+
+        $ids = $locationIds->all();
+
+        $warehouse->locations()->syncWithoutDetaching($ids);
+        $customer->locations()->syncWithoutDetaching($ids);
+    }
+
+    /**
+     * @return Collection<int, int>
+     */
+    private function resolveJubelioPartyLocationIds(Addrbook $warehouse, Addrbook $customer): Collection
+    {
+        $locationIds = $warehouse->locations()->pluck('locations.id')
+            ->merge($customer->locations()->pluck('locations.id'))
+            ->unique()
+            ->values();
+
+        if ($locationIds->isNotEmpty()) {
+            return $locationIds;
+        }
+
+        return Location::query()->orderBy('id')->pluck('id');
     }
 }
