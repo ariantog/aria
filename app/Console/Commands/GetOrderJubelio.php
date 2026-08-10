@@ -15,7 +15,7 @@ class GetOrderJubelio extends Command
                             {--timeout=50 : Max seconds per run}
                             {--sync : Fetch all remaining pages in one run}';
 
-    protected $description = 'Pull Jubelio sales orders by date range and reconcile missing webhooks';
+    protected $description = 'Resume a manual Jubelio missing-order import (prefer the queued job after starting from UI)';
 
     public function handle(JubelioGetOrdersService $service): int
     {
@@ -37,9 +37,9 @@ class GetOrderJubelio extends Command
 
         try {
             if ($this->option('sync')) {
-                $service->processSync($import, (int) $this->option('pages'));
+                $queued = $service->runImport($import);
                 $import->refresh();
-                $this->info('Sync complete. '.$import->details()->count().' missing orders remain.');
+                $this->info("Sync complete. {$queued} order(s) queued for processing.");
             } else {
                 $result = $service->processBatch(
                     $import,
@@ -48,11 +48,11 @@ class GetOrderJubelio extends Command
                 );
 
                 if ($result['fetched_pages'] > 0) {
-                    $this->info("Fetched {$result['fetched_pages']} page(s).");
+                    $this->info("Fetched {$result['fetched_pages']} page(s), queued {$result['orders_queued']} order(s).");
                 }
 
                 if ($result['completed']) {
-                    $this->info('Import complete — remaining rows are missing from Aria.');
+                    $this->info('Import complete — missing orders were queued to Jubelio Orders.');
                 } elseif ($result['remaining'] !== null && $result['remaining'] > 0) {
                     $this->comment("{$result['remaining']} page(s) remaining.");
                 }

@@ -52,12 +52,22 @@ class ScheduledTaskSeeder extends Seeder
         );
 
         \App\Models\ScheduledTask::updateOrCreate(
+            ['command' => 'jubelio:poll-missing-orders'],
+            [
+                'name' => 'Jubelio Poll Missing Orders',
+                'frequency' => 'hourly',
+                'is_active' => true,
+                'description' => 'Polls Jubelio for recent orders missing from Aria (catches failed webhooks).',
+            ]
+        );
+
+        \App\Models\ScheduledTask::updateOrCreate(
             ['command' => 'jubelio:get-orders'],
             [
-                'name' => 'Jubelio Get Orders (API backfill)',
+                'name' => 'Jubelio Get Orders (legacy resume)',
                 'frequency' => 'everyMinute',
                 'is_active' => false,
-                'description' => 'Pulls Jubelio sales orders by date range to find missing webhooks. Enabled when a Get Orders import is started.',
+                'description' => 'Legacy fallback to resume interrupted manual imports. Prefer the queued sync job from Get Orders UI.',
             ]
         );
 

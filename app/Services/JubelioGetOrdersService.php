@@ -3,9 +3,10 @@
 namespace App\Services;
 
 use App\Models\Crongetorder;
-use App\Models\Crongetorderdetail;
 use App\Models\Jubelioorder;
 use App\Models\Transaction;
+use Carbon\Carbon;
+use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\DB;
 
 class JubelioGetOrdersService
@@ -13,38 +14,64 @@ class JubelioGetOrdersService
     /** @var list<string> */
     private const ELIGIBLE_STATUSES = ['SHIPPED', 'COMPLETED', 'RETURNED'];
 
+    private const PAGE_SIZE = 200;
+
     public function __construct(
         private JubelioService $jubelioService,
     ) {}
 
     /**
-     * Fetch up to $maxPages API pages, then reconcile when the range is fully loaded.
+     * Poll recent days for missing orders (used by scheduled task).
+     */
+    public function pollRecentDays(?int $days = null): int
+    {
+        $days = $days ?? (int) config('services.jubelio.poll_days', 7);
+        $from = now()->subDays($days)->startOfDay();
+        $to = now()->endOfDay();
+
+        return $this->fetchAndQueueMissing($from, $to);
+    }
+
+    /**
+     * Run a tracked manual import (all pages in one pass).
+     */
+    public function runImport(Crongetorder $import): int
+    {
+        $import->refresh();
+        $range = $import->dateRangeCarbon();
+
+        return $this->fetchAndQueueMissing($range['from'], $range['to'], $import);
+    }
+
+    /**
+     * Fetch one cron batch (legacy entry point for incremental runs).
      *
-     * @return array{fetched_pages: int, completed: bool, remaining: int|null}
+     * @return array{fetched_pages: int, completed: bool, remaining: int|null, orders_queued: int}
      */
     public function processBatch(Crongetorder $import, int $maxPages = 10, int $maxSeconds = 50): array
     {
         $import->refresh();
         $deadline = microtime(true) + $maxSeconds;
         $fetchedPages = 0;
+        $ordersQueued = 0;
 
         while ($fetchedPages < $maxPages && microtime(true) < $deadline) {
             if ($import->total > 0 && $import->count >= $import->total) {
                 break;
             }
 
-            $hasMore = $this->fetchNextPage($import);
+            $result = $this->fetchNextPage($import);
             $fetchedPages++;
+            $ordersQueued += $result['queued'];
             $import->refresh();
 
-            if (! $hasMore) {
+            if (! $result['has_more']) {
                 break;
             }
         }
 
         $completed = false;
         if ($import->total > 0 && $import->count >= $import->total && $import->isRunning()) {
-            $this->reconcile($import);
             $import->update(['status' => 1, 'step' => 3]);
             $completed = true;
         }
@@ -53,26 +80,27 @@ class JubelioGetOrdersService
             'fetched_pages' => $fetchedPages,
             'completed' => $completed,
             'remaining' => $import->total > 0 ? max(0, $import->total - $import->count) : null,
+            'orders_queued' => $ordersQueued,
         ];
     }
 
     /**
-     * Run the full import synchronously (all pages + reconcile).
+     * Run the full import synchronously (all pages).
      */
-    public function processSync(Crongetorder $import, int $maxPagesPerBatch = 50): void
+    public function processSync(Crongetorder $import): int
     {
-        do {
-            $result = $this->processBatch($import, $maxPagesPerBatch, 300);
-            $import->refresh();
-        } while (! $result['completed'] && $import->isRunning());
+        return $this->runImport($import);
     }
 
-    public function fetchNextPage(Crongetorder $import): bool
+    /**
+     * @return array{has_more: bool, queued: int}
+     */
+    public function fetchNextPage(Crongetorder $import): array
     {
         $range = $import->dateRangeIso();
         $page = $import->count + 1;
 
-        $response = $this->jubelioService->fetchSalesOrders($page, 200, $range['from'], $range['to']);
+        $response = $this->jubelioService->fetchSalesOrders($page, self::PAGE_SIZE, $range['from'], $range['to']);
         if (! $response) {
             throw new \RuntimeException('Gagal mengambil data order dari API Jubelio.');
         }
@@ -82,98 +110,148 @@ class JubelioGetOrdersService
         if ($totalCount === 0) {
             $import->update(['total' => 0, 'count' => 0, 'status' => 1, 'step' => 3]);
 
-            return false;
+            return ['has_more' => false, 'queued' => 0];
         }
 
         if ($import->total < 1) {
-            $import->update(['total' => (int) ceil($totalCount / 200)]);
+            $import->update(['total' => (int) ceil($totalCount / self::PAGE_SIZE)]);
         }
 
         $rows = $response['data'] ?? [];
+        $queued = 0;
         if ($rows !== []) {
-            $this->insertListRows($import, $rows);
+            $queued = $this->queueEligibleRows($rows);
             $import->increment('count');
+            if ($queued > 0) {
+                $import->increment('orders_queued', $queued);
+            }
         }
 
-        return $import->fresh()->count < $import->total;
+        $import->refresh();
+
+        return [
+            'has_more' => $import->count < $import->total,
+            'queued' => $queued,
+        ];
+    }
+
+    /**
+     * Fetch all pages and queue missing orders in a single pass.
+     */
+    public function fetchAndQueueMissing(CarbonInterface $from, CarbonInterface $to, ?Crongetorder $import = null): int
+    {
+        $dateFrom = $from->utc()->format('Y-m-d\TH:i:s\Z');
+        $dateTo = $to->utc()->format('Y-m-d\TH:i:s\Z');
+        $page = 1;
+        $totalPages = null;
+        $totalQueued = 0;
+
+        while (true) {
+            $response = $this->jubelioService->fetchSalesOrders($page, self::PAGE_SIZE, $dateFrom, $dateTo);
+            if (! $response) {
+                throw new \RuntimeException('Gagal mengambil data order dari API Jubelio.');
+            }
+
+            $totalCount = (int) ($response['totalCount'] ?? 0);
+            if ($totalCount === 0) {
+                $import?->update(['total' => 0, 'count' => 0, 'status' => 1, 'step' => 3]);
+
+                return $totalQueued;
+            }
+
+            if ($totalPages === null) {
+                $totalPages = (int) ceil($totalCount / self::PAGE_SIZE);
+                $import?->update(['total' => $totalPages]);
+            }
+
+            $rows = $response['data'] ?? [];
+            if ($rows !== []) {
+                $queued = $this->queueEligibleRows($rows);
+                $totalQueued += $queued;
+
+                if ($import) {
+                    $import->increment('count');
+                    if ($queued > 0) {
+                        $import->increment('orders_queued', $queued);
+                    }
+                }
+            }
+
+            if ($page >= $totalPages) {
+                break;
+            }
+
+            $page++;
+        }
+
+        $import?->update(['status' => 1, 'step' => 3]);
+
+        return $totalQueued;
     }
 
     /**
      * @param  list<array<string, mixed>>  $rows
      */
-    public function insertListRows(Crongetorder $import, array $rows): int
+    public function queueEligibleRows(array $rows): int
     {
-        $now = now();
-        $batch = [];
-
+        $eligible = [];
         foreach ($rows as $row) {
             if (! $this->isEligibleListRow($row)) {
                 continue;
             }
 
+            $invoice = $row['salesorder_no'] ?? null;
+            if (! $invoice) {
+                continue;
+            }
+
+            $eligible[] = $row;
+        }
+
+        if ($eligible === []) {
+            return 0;
+        }
+
+        $invoices = array_values(array_unique(array_map(
+            fn (array $row) => $row['salesorder_no'],
+            $eligible,
+        )));
+
+        $existing = $this->existingInvoiceLookup($invoices);
+        $now = now();
+        $batch = [];
+
+        foreach ($eligible as $row) {
+            $invoice = $row['salesorder_no'];
+            if (isset($existing[$invoice])) {
+                continue;
+            }
+
+            $existing[$invoice] = true;
+
             $batch[] = [
-                'crongetorder_id' => $import->id,
                 'jubelio_order_id' => $row['salesorder_id'] ?? null,
-                'invoice' => $row['salesorder_no'] ?? null,
-                'location_name' => $row['location_name'] ?? null,
-                'store_name' => $row['store_name'] ?? null,
-                'order_status' => $row['internal_status'] ?? null,
-                'is_canceled' => $row['is_canceled'] ?? null,
-                'payload' => null,
+                'source' => 2,
+                'invoice' => $invoice,
+                'type' => 'SELL',
+                'order_status' => $row['internal_status'] ?? 'SHIPPED',
+                'run_count' => 0,
+                'payload' => '{}',
+                'status' => 0,
                 'created_at' => $now,
                 'updated_at' => $now,
             ];
         }
 
+        if ($batch === []) {
+            return 0;
+        }
+
         foreach (array_chunk($batch, 500) as $chunk) {
-            DB::table('crongetorderdetails')->insert($chunk);
+            DB::table('jubelioorders')->insert($chunk);
         }
 
         return count($batch);
-    }
-
-    /**
-     * Drop ineligible rows and orders already present in Aria (single reconcile pass).
-     */
-    public function reconcile(Crongetorder $import): int
-    {
-        $removed = Crongetorderdetail::where('crongetorder_id', $import->id)
-            ->where(function ($query) {
-                $query->whereNotIn('order_status', self::ELIGIBLE_STATUSES)
-                    ->orWhere('is_canceled', 'Y');
-            })
-            ->delete();
-
-        $removed += $this->removeInvoicesAlreadyInAria($import->id);
-
-        return $removed;
-    }
-
-    public function removeInvoicesAlreadyInAria(int $importId): int
-    {
-        $removed = 0;
-
-        Crongetorderdetail::where('crongetorder_id', $importId)
-            ->whereNotNull('invoice')
-            ->select('invoice')
-            ->orderBy('invoice')
-            ->chunk(1000, function ($details) use ($importId, &$removed) {
-                $invoices = $details->pluck('invoice')->filter()->all();
-                if ($invoices === []) {
-                    return;
-                }
-
-                $existing = $this->findInvoicesAlreadyInAria($invoices);
-                if ($existing === []) {
-                    return;
-                }
-
-                $removed += Crongetorderdetail::where('crongetorder_id', $importId)
-                    ->whereIn('invoice', $existing)
-                    ->delete();
-            });
-
-        return $removed;
     }
 
     /**
