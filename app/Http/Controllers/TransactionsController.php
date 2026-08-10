@@ -298,11 +298,12 @@ class TransactionsController extends Controller
     public function storePdf(Transaction $transaction, TransactionInvoiceService $invoiceService)
     {
         $this->authorizeTransactionView($transaction);
+        $existed = $invoiceService->invoicePdfExists($transaction);
         $invoiceService->createInvoicePdf($transaction, regenerate: true);
 
         return redirect()
             ->route('transactions.show', $transaction)
-            ->with('success', 'Invoice PDF saved.');
+            ->with('success', $existed ? 'Invoice PDF regenerated.' : 'Invoice PDF saved.');
     }
 
     public function receipt(Transaction $transaction, \App\Services\InvoiceBrandingService $brandingService)

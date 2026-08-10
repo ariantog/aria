@@ -78,6 +78,7 @@ it('shows view pdf on transaction detail when pdf already exists', function () {
         ->get(route('transactions.show', $transaction))
         ->assertOk()
         ->assertSee('View PDF', false)
+        ->assertSee('Regenerate PDF', false)
         ->assertSee(route('transactions.pdf.show', $transaction), false)
         ->assertDontSee('Save to PDF', false);
 });
@@ -91,6 +92,33 @@ it('serves invoice pdf via app route', function () {
         ->get(route('transactions.pdf.show', $transaction))
         ->assertOk()
         ->assertHeader('content-type', 'application/pdf');
+});
+
+it('regenerates an existing invoice pdf', function () {
+    $transaction = Transaction::factory()->create([
+        'invoice_number' => 'PDF-REGEN',
+        'grand_total' => 25_000,
+        'total' => 25_000,
+    ]);
+    TransactionDetail::factory()->create([
+        'transaction_id' => $transaction->id,
+        'quantity' => 1,
+        'price' => 25_000,
+        'total' => 25_000,
+    ]);
+    $service = app(TransactionInvoiceService::class);
+    $service->createInvoicePdf($transaction);
+    $filePath = $service->invoiceDiskPath('invoice_'.$transaction->id.'.pdf');
+    $mtimeBefore = File::lastModified($filePath);
+
+    sleep(1);
+
+    $this->actingAs($this->user)
+        ->post(route('transactions.pdf.store', $transaction))
+        ->assertRedirect(route('transactions.show', $transaction))
+        ->assertSessionHas('success', 'Invoice PDF regenerated.');
+
+    expect(File::lastModified($filePath))->toBeGreaterThan($mtimeBefore);
 });
 
 it('creates invoice pdf via save to pdf and shows view pdf', function () {
