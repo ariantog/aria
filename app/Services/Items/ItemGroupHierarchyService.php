@@ -28,11 +28,6 @@ class ItemGroupHierarchyService
      */
     public function paginateParents(array $filters, int $perPage = 20): LengthAwarePaginator
     {
-        $warehouseTypes = [
-            AddrbookType::Warehouse->value,
-            AddrbookType::VirtualWarehouse->value,
-        ];
-
         $query = ItemGroup::query()
             ->select([
                 'item_groups.master',
@@ -41,17 +36,10 @@ class ItemGroupHierarchyService
                 DB::raw('MIN(item_groups.id) as sample_group_id'),
                 DB::raw('COUNT(DISTINCT item_groups.id) as variant_count'),
                 DB::raw('COUNT(DISTINCT items.id) as sku_count'),
-                DB::raw('COALESCE(SUM(warehouse_items.quantity), 0) as in_warehouse_qty'),
             ])
             ->leftJoin('items', function ($join) {
                 $join->on('items.group_id', '=', 'item_groups.id')
                     ->whereNull('items.deleted_at');
-            })
-            ->leftJoin('warehouse_items', function ($join) use ($warehouseTypes) {
-                $join->on('warehouse_items.item_id', '=', 'items.id')
-                    ->whereIn('warehouse_items.warehouse_id', function ($sub) use ($warehouseTypes) {
-                        $sub->select('id')->from('addrbooks')->whereIn('type', $warehouseTypes);
-                    });
             })
             ->whereNotNull('item_groups.master')
             ->where('item_groups.master', '!=', '')
@@ -102,7 +90,6 @@ class ItemGroupHierarchyService
                     'is_asset' => $isAsset,
                     'sku_count' => (int) $row->sku_count,
                     'variant_count' => (int) $row->variant_count,
-                    'in_warehouse_qty' => (float) $row->in_warehouse_qty,
                 ];
             })
         );
