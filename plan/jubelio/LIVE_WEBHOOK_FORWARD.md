@@ -7,7 +7,9 @@ Use this while Jubelio still points at **production**. Production keeps handling
 ```
 Jubelio → production order() → save/process live DB
                 ↓ (replay same raw body + Sign header)
-         dev POST /jubelio/webhook/order → jubelioorders row → queue job → ProcessJubelioOrder
+         dev POST /jubelio/webhook/order → jubelioorders row (pending)
+                ↓ (cron every minute)
+         jubelio:order-jubelio-to-aria → ProcessJubelioOrder
 ```
 
 ## 1. Production `.env`
@@ -82,14 +84,13 @@ Optional: apply the same pattern to `retur()` → dev `POST /jubelio/webhook/ret
 
 ```env
 JUBELIO_WEBHOOK_SECRET=corenation2025   # same as production / Jubelio
-JUBELIO_WEBHOOK_AUTO_PROCESS=true        # dispatch queue job when order webhook saves
-QUEUE_CONNECTION=database                # or redis — run a worker
 ```
 
-Run a queue worker on dev:
+Ensure cron is active (system `schedule:run` every minute + **Sync Jubelio Orders** enabled in `/cron-manager`):
 
 ```bash
-php artisan queue:listen
+# One-off manual run:
+php artisan jubelio:order-jubelio-to-aria
 ```
 
 ## 4. Verify
@@ -97,7 +98,7 @@ php artisan queue:listen
 1. Trigger a real Jubelio SHIPPED webhook (or replay from production logs).
 2. Production: order appears in live `jubelioorders` as today.
 3. Dev: same invoice appears in `/jubelio` (pending → processed if stock OK).
-4. Check dev logs for `ProcessJubelioOrderJob finished`.
+4. Check dev logs for `V2 - Proses order Jubelio` or run `php artisan jubelio:order-jubelio-to-aria` manually.
 
 Manual replay from production (debug):
 
