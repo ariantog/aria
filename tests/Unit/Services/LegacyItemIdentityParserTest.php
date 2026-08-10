@@ -29,7 +29,12 @@ beforeEach(function () {
     ]);
 
     $this->typeTags = collect([
-        Tag::factory()->create(['type' => Tag::TYPE_TYPE, 'code' => 'AJJ', 'name' => 'Jacket']),
+        Tag::factory()->create([
+            'type' => Tag::TYPE_TYPE,
+            'item_type' => ItemType::ITEM->value,
+            'code' => 'AJJ',
+            'name' => 'Jacket',
+        ]),
     ]);
 
     $this->parser = new LegacyItemIdentityParser(

@@ -70,7 +70,7 @@ class LegacyItemIdentityParser
 
         $sizeTags ??= Tag::query()->where('type', Tag::TYPE_SIZE)->get();
         $warnaTags ??= Tag::query()->where('type', Tag::TYPE_WARNA)->get();
-        $typeTags ??= Tag::query()->where('type', Tag::TYPE_TYPE)->get();
+        $typeTags ??= Tag::manufacturedTypeTags();
 
         $this->sizeTags = $sizeTags
             ->sortByDesc(fn (Tag $tag) => strlen((string) $tag->code))
@@ -409,11 +409,7 @@ class LegacyItemIdentityParser
             $sizeTag,
         );
 
-        $groupName = strtoupper(trim((string) ($item->group?->name ?? '')));
-
-        if ($groupName === '') {
-            $groupName = $pcode;
-        }
+        $groupName = $this->deriveManufacturedGroupName($item, $pcode);
 
         return LegacyParseResult::success(
             pcode: $pcode,
@@ -600,5 +596,26 @@ class LegacyItemIdentityParser
         }
 
         return strtoupper($pcode);
+    }
+
+    protected function deriveManufacturedGroupName(Item $item, string $pcode): string
+    {
+        $existing = strtoupper(trim((string) ($item->group?->name ?? '')));
+
+        if ($existing !== '' && strtoupper($existing) !== strtoupper($pcode)) {
+            return $existing;
+        }
+
+        $name = trim((string) $item->name);
+
+        if ($name !== '' && str_contains($name, ' - ')) {
+            return strtoupper(trim(explode(' - ', $name, 2)[0]));
+        }
+
+        if ($name !== '') {
+            return strtoupper($name);
+        }
+
+        return $this->identityBuilder->manufacturedParentMaster($item) ?: strtoupper($pcode);
     }
 }

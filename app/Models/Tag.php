@@ -82,6 +82,32 @@ class Tag extends Model
     }
 
     /**
+     * Manufactured TYPE tags for parser/converter (prefers item_type=1, includes legacy item_type=0).
+     *
+     * @return Collection<int, Tag>
+     */
+    public static function manufacturedTypeTags(): Collection
+    {
+        return static::query()
+            ->where('type', self::TYPE_TYPE)
+            ->whereIn('item_type', [ItemType::ITEM->value, 0])
+            ->orderByDesc('item_type')
+            ->get()
+            ->unique(fn (Tag $tag) => strtoupper($tag->code))
+            ->values();
+    }
+
+    public static function findManufacturedTypeTag(string $code): ?Tag
+    {
+        return static::query()
+            ->where('type', self::TYPE_TYPE)
+            ->whereRaw('UPPER(code) = ?', [strtoupper(trim($code))])
+            ->whereIn('item_type', [ItemType::ITEM->value, 0])
+            ->orderByDesc('item_type')
+            ->first();
+    }
+
+    /**
      * Warna tags use code identical to name (uppercase) for universal SKU generation.
      */
     public static function normalizeWarnaAttributes(array $attributes): array
