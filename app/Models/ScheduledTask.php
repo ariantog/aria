@@ -22,4 +22,15 @@ class ScheduledTask extends Model
             'last_run_at' => 'datetime',
         ];
     }
+
+    /**
+     * @return array<string, string>
+     */
+    public static function getPermissions(): array
+    {
+        return [
+            'view' => 'setting-cron-manager-view',
+            'edit' => 'setting-cron-manager-edit',
+        ];
+    }
 }

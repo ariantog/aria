@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ScheduledTask;
 use App\Models\Setting;
 use Illuminate\Support\Facades\Gate;
 
@@ -18,6 +19,7 @@ class SettingController extends Controller
                 'create' => request()->user()?->can(Setting::getPermissions()['create']) ?? false,
                 'edit' => request()->user()?->can(Setting::getPermissions()['edit']) ?? false,
                 'delete' => request()->user()?->can(Setting::getPermissions()['delete']) ?? false,
+                'cron_view' => request()->user()?->can(ScheduledTask::getPermissions()['view']) ?? false,
             ],
         ]);
     }

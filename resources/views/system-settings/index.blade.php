@@ -18,6 +18,13 @@ $firstGroup = $groupList->first() ?? 'General';
             <p class="mt-0.5 text-sm text-gray-500">Configure application wide settings and parameters.</p>
         </div>
         <div class="flex flex-wrap gap-2">
+        @if($can['cron_view'] ?? false)
+        <a href="{{ route('scheduled-tasks.index') }}"
+           class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            Cron Manager
+        </a>
+        @endif
         @if($can['edit'])
         <a href="{{ route('invoice-settings.edit') }}"
            class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">

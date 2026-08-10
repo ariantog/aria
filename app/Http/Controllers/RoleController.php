@@ -99,8 +99,11 @@ class RoleController extends Controller
         foreach ($permissions as $permission) {
             $name = $permission->name;
 
+            if (str_starts_with($name, 'setting-cron-manager-')) {
+                $module = 'cron-manager';
+            }
             // Priority 1: Underscore (assetLancar_view -> assetLancar)
-            if (str_contains($name, '_')) {
+            elseif (str_contains($name, '_')) {
                 $module = explode('_', $name)[0];
             }
             // Priority 2: Hyphen (asset-lancar-create -> asset)

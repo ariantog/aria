@@ -28,3 +28,12 @@ it('returns empty array for unknown legacy ACL rows', function () {
 
     expect($mapper->map(9999, 'index'))->toBe([]);
 });
+
+it('maps legacy cron runner settings ACL to cron manager permissions', function () {
+    $mapper = new LegacyAclMapper;
+
+    expect($mapper->map(LegacyAclMapper::SETTINGS, 'cron-runner'))->toBe([
+        'setting-cron-manager-view',
+        'setting-cron-manager-edit',
+    ]);
+});
