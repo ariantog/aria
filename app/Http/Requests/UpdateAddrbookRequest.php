@@ -25,6 +25,7 @@ class UpdateAddrbookRequest extends FormRequest
             'name' => ['required', 'string', 'max:255'],
             'type' => ['required', 'integer'],
             'address' => 'nullable|string',
+            'description' => 'nullable|string|max:2000',
             'phone' => ['nullable', 'string', 'max:20'],
             'email' => 'nullable|email|max:255',
             'contact_person' => ['nullable', 'string', 'max:255'],

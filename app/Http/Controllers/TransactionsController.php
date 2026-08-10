@@ -305,21 +305,23 @@ class TransactionsController extends Controller
             ->with('success', 'Invoice PDF saved.');
     }
 
-    public function receipt(Transaction $transaction)
+    public function receipt(Transaction $transaction, \App\Services\InvoiceBrandingService $brandingService)
     {
         $this->authorizeTransactionView($transaction);
         $transaction->load(['details.item.group', 'sender', 'receiver']);
+        $branding = $brandingService->forTransaction($transaction);
 
-        return view('transactions.receipt', compact('transaction'));
+        return view('transactions.receipt', compact('transaction', 'branding'));
     }
 
-    public function printInvoice(Transaction $transaction)
+    public function printInvoice(Transaction $transaction, \App\Services\InvoiceBrandingService $brandingService)
     {
         $this->authorizeTransactionView($transaction);
         $transaction->load(['details.item.group', 'sender', 'receiver']);
         $typeLabel = $transaction->getTypeLabel();
+        $branding = $brandingService->forTransaction($transaction);
 
-        return view('transactions.print', compact('transaction', 'typeLabel'));
+        return view('transactions.print', compact('transaction', 'typeLabel', 'branding'));
     }
 
     public function sendWhatsapp(Request $request, Transaction $transaction, TransactionInvoiceService $invoiceService)

@@ -3,8 +3,11 @@
 @endphp
 
 <div id="invoice">
-    <h5>CORENATION</h5>
-    <div>CILANDAK TOWN SQUARE no.171</div>
+    <h5>{{ $branding['company_name'] }}</h5>
+    <div style="white-space: pre-line;">{{ $branding['address'] }}</div>
+    @if($branding['phone'])
+    <div>Tel: {{ $branding['phone'] }}</div>
+    @endif
     <br>
     <h5>{{ $typeLabel }} Invoice</h5>
     <table class="invoice" style="margin-top:8px;">

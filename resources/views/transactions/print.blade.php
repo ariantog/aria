@@ -7,6 +7,6 @@
     <link rel="stylesheet" href="{{ asset('css/print.css') }}">
 </head>
 <body onload="window.print()">
-    @include('transactions.partials.invoice-body', ['transaction' => $transaction, 'typeLabel' => $typeLabel])
+    @include('transactions.partials.invoice-body', ['transaction' => $transaction, 'typeLabel' => $typeLabel, 'branding' => $branding])
 </body>
 </html>

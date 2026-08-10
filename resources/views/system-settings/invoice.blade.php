@@ -13,7 +13,7 @@ $breadcrumbs = [
 <div class="flex flex-col gap-4 p-3 sm:p-4">
     <div>
         <h2 class="text-2xl font-bold tracking-tight text-gray-900">Invoice Settings</h2>
-        <p class="mt-0.5 text-sm text-gray-500">Logo, address, and phone shown on transaction invoice PDFs.</p>
+        <p class="mt-0.5 text-sm text-gray-500">Default logo and fallback header for invoices. Per-store headers are taken from each transaction sender's addrbook <strong>Invoice Header</strong> field (first line = store name, following lines = address) plus phone.</p>
     </div>
 
     @if(session('success'))
@@ -26,21 +26,21 @@ $breadcrumbs = [
             @method('PUT')
 
             <div>
-                <label for="company_name" class="mb-1 block text-sm font-medium text-gray-700">Company Name</label>
+                <label for="company_name" class="mb-1 block text-sm font-medium text-gray-700">Default Company Name</label>
                 <input type="text" id="company_name" name="company_name" value="{{ old('company_name', $branding['company_name']) }}" required
                        class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
                 @error('company_name')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
             </div>
 
             <div>
-                <label for="address" class="mb-1 block text-sm font-medium text-gray-700">Address</label>
+                <label for="address" class="mb-1 block text-sm font-medium text-gray-700">Default Address</label>
                 <textarea id="address" name="address" rows="4" required
                           class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">{{ old('address', $branding['address']) }}</textarea>
                 @error('address')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
             </div>
 
             <div>
-                <label for="phone" class="mb-1 block text-sm font-medium text-gray-700">Phone</label>
+                <label for="phone" class="mb-1 block text-sm font-medium text-gray-700">Default Phone</label>
                 <input type="text" id="phone" name="phone" value="{{ old('phone', $branding['phone']) }}" required
                        class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
                 @error('phone')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
