@@ -103,36 +103,74 @@ $fmt = fn ($v) => number_format((float) $v, 0, ',', '.');
         </div>
     </div>
 
-    <div class="mb-4 rounded-lg border border-gray-200 bg-white px-4 py-4">
-        <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-                <p class="text-sm font-semibold text-gray-900">Warehouse focus</p>
-                <p class="mt-0.5 text-sm text-gray-600">Pick warehouses to break out in the tables below. Selection is saved in this browser.</p>
+    <div class="mb-4 rounded-lg border border-gray-200 bg-white">
+        <button
+            type="button"
+            class="flex w-full items-start justify-between gap-3 px-4 py-3 text-left hover:bg-gray-50"
+            @click="warehouseFocusOpen = !warehouseFocusOpen"
+            :aria-expanded="warehouseFocusOpen"
+        >
+            <div class="min-w-0 flex-1">
+                <div class="flex flex-wrap items-center gap-2">
+                    <p class="text-sm font-semibold text-gray-900">Warehouse focus</p>
+                    <span
+                        class="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600"
+                        x-show="selectedWarehouses.length > 0"
+                        x-cloak
+                        x-text="selectedWarehouses.length + ' selected'"
+                    ></span>
+                    <span
+                        class="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600"
+                        x-show="selectedWarehouses.length === 0"
+                        x-cloak
+                    >Total only</span>
+                </div>
+                <p class="mt-0.5 text-sm text-gray-600" x-show="!warehouseFocusOpen" x-cloak>
+                    <span x-show="selectedWarehouses.length === 0">Stock tables show combined totals. Expand to pick warehouses.</span>
+                    <span x-show="selectedWarehouses.length > 0" x-cloak>
+                        Showing <span x-text="selectedWarehouses.join(', ')"></span> plus Others in the tables below.
+                    </span>
+                </p>
+                <p class="mt-0.5 text-sm text-gray-600" x-show="warehouseFocusOpen" x-cloak>
+                    Pick warehouses to break out in the tables below. Selection is saved in this browser.
+                </p>
             </div>
-            <div class="flex shrink-0 gap-2" x-show="warehouseNames.length > 0" x-cloak>
+            <svg
+                class="mt-0.5 h-5 w-5 shrink-0 text-gray-400 transition-transform"
+                :class="warehouseFocusOpen ? 'rotate-180' : ''"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+            >
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+            </svg>
+        </button>
+
+        <div x-show="warehouseFocusOpen" x-transition x-cloak class="border-t border-gray-100 px-4 py-4">
+            <div class="mb-3 flex flex-wrap justify-end gap-2" x-show="warehouseNames.length > 0" x-cloak>
                 <button type="button" @click="selectAllWarehouses()" class="rounded-md border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50">Select all</button>
                 <button type="button" @click="clearWarehouses()" class="rounded-md border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50">Clear</button>
             </div>
+            @if(count($detail['warehouse_names']) > 0)
+            <div class="flex flex-wrap gap-2">
+                @foreach($detail['warehouse_names'] as $warehouseName)
+                <label class="inline-flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-1.5 text-sm transition-colors"
+                       :class="isWarehouseSelected(@js($warehouseName)) ? 'border-blue-300 bg-blue-50 text-blue-800' : 'border-gray-200 bg-gray-50 text-gray-700 hover:border-gray-300'">
+                    <input type="checkbox" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                           :checked="isWarehouseSelected(@js($warehouseName))"
+                           @change="toggleWarehouse(@js($warehouseName))">
+                    <span>{{ $warehouseName }}</span>
+                </label>
+                @endforeach
+            </div>
+            <p class="mt-2 text-xs text-gray-500" x-show="selectedWarehouses.length === 0" x-cloak>Showing total stock only. Select one or more warehouses to see a breakdown with an Others line.</p>
+            <p class="mt-2 text-xs text-blue-700" x-show="selectedWarehouses.length > 0" x-cloak>
+                Showing <span x-text="selectedWarehouses.length"></span> selected warehouse<span x-show="selectedWarehouses.length !== 1" x-cloak>s</span> plus Others.
+            </p>
+            @else
+            <p class="text-sm italic text-gray-500">No warehouse stock recorded for this group.</p>
+            @endif
         </div>
-        @if(count($detail['warehouse_names']) > 0)
-        <div class="mt-3 flex flex-wrap gap-2">
-            @foreach($detail['warehouse_names'] as $warehouseName)
-            <label class="inline-flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-1.5 text-sm transition-colors"
-                   :class="isWarehouseSelected(@js($warehouseName)) ? 'border-blue-300 bg-blue-50 text-blue-800' : 'border-gray-200 bg-gray-50 text-gray-700 hover:border-gray-300'">
-                <input type="checkbox" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                       :checked="isWarehouseSelected(@js($warehouseName))"
-                       @change="toggleWarehouse(@js($warehouseName))">
-                <span>{{ $warehouseName }}</span>
-            </label>
-            @endforeach
-        </div>
-        <p class="mt-2 text-xs text-gray-500" x-show="selectedWarehouses.length === 0" x-cloak>Showing total stock only. Select one or more warehouses to see a breakdown with an Others line.</p>
-        <p class="mt-2 text-xs text-blue-700" x-show="selectedWarehouses.length > 0" x-cloak>
-            Showing <span x-text="selectedWarehouses.length"></span> selected warehouse<span x-show="selectedWarehouses.length !== 1" x-cloak>s</span> plus Others.
-        </p>
-        @else
-        <p class="mt-2 text-sm italic text-gray-500">No warehouse stock recorded for this group.</p>
-        @endif
     </div>
 
     <div class="mb-4 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-900">
@@ -273,9 +311,11 @@ $fmt = fn ($v) => number_format((float) $v, 0, ',', '.');
 function groupWarehousePicker(warehouseNames, parentSlug) {
     return {
         showZero: false,
+        warehouseFocusOpen: false,
         warehouseNames,
         selectedWarehouses: [],
         storageKey: 'aria-item-group-wh-' + parentSlug,
+        openStorageKey: 'aria-item-group-wh-open-' + parentSlug,
         init() {
             try {
                 const saved = JSON.parse(localStorage.getItem(this.storageKey) || '[]');
@@ -286,8 +326,15 @@ function groupWarehousePicker(warehouseNames, parentSlug) {
                 this.selectedWarehouses = [];
             }
 
+            const savedOpen = localStorage.getItem(this.openStorageKey);
+            this.warehouseFocusOpen = savedOpen === '1';
+
             this.$watch('selectedWarehouses', (value) => {
                 localStorage.setItem(this.storageKey, JSON.stringify(value));
+            });
+
+            this.$watch('warehouseFocusOpen', (value) => {
+                localStorage.setItem(this.openStorageKey, value ? '1' : '0');
             });
         },
         isWarehouseSelected(name) {
