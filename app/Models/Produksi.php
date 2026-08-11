@@ -72,6 +72,25 @@ class Produksi extends Model
         return $this->belongsTo(Worker::class, 'qc_id');
     }
 
+    public function original()
+    {
+        return $this->belongsTo(self::class, 'original_id');
+    }
+
+    public function splits()
+    {
+        return $this->hasMany(self::class, 'original_id');
+    }
+
+    public function parentSerial(): ?string
+    {
+        if (! $this->original_id) {
+            return null;
+        }
+
+        return strtoupper(base_convert((string) $this->original_id, 10, 36));
+    }
+
     public static function getPermissions(): array
     {
         return [
@@ -82,6 +101,7 @@ class Produksi extends Model
             'setor' => 'production-setor',
             'setoran-view' => 'production-setoran-list',
             'gudang' => 'production-gudang',
+            'revert' => 'production-setoran-revert',
         ];
     }
 }

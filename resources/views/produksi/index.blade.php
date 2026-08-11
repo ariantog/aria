@@ -54,7 +54,16 @@ $f = $filters;
                 <tbody>
                     @forelse($produksis as $p)
                     <tr class="transition-colors hover:bg-gray-50/50">
-                        <td class="sticky left-0 z-10 border-r bg-white px-2 py-1 font-mono text-[11px] text-blue-600">{{ $p->serial }}</td>
+                        <td class="sticky left-0 z-10 border-r bg-white px-2 py-1 font-mono text-[11px]">
+                            <a href="{{ route('produksi.edit', $p->id) }}" class="font-bold text-blue-600 hover:underline">{{ $p->serial }}</a>
+                            @if($p->original_id)
+                            <div class="mt-0.5 text-[9px] font-medium text-orange-600" title="Split from parent kitir">
+                                ↳ split of <a href="{{ route('produksi.edit', $p->original_id) }}" class="underline">{{ $p->parentSerial() }}</a>
+                            </div>
+                            @elseif(isset($splitParentIds[$p->id]))
+                            <div class="mt-0.5 text-[9px] font-medium text-purple-600">parent</div>
+                            @endif
+                        </td>
                         <td class="px-2 py-1"><span class="inline-flex items-center gap-1.5 rounded-md border border-blue-200 bg-blue-100 px-2.5 py-0.5 text-[10px] font-semibold text-blue-700">{{ $p->temp_name }}</span></td>
                         <td class="px-2 py-1 text-[11px] font-bold tabular-nums text-gray-900">{{ $p->quantity }}</td>
                         <td class="px-2 py-1 text-[11px] text-gray-600">{{ $p->surat_jalan_potong ?: '-' }}</td>

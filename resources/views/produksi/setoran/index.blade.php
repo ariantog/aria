@@ -107,8 +107,8 @@ $hasFilters = collect($filters)->filter(fn($v) => $v !== null && $v !== '')->isN
                         $isGudangOrBoth = $p->status === $statusGudang || $p->status === $statusBoth;
                         $rowColor = $p->status === $statusGudang ? 'bg-teal-100 hover:bg-teal-200' : ($p->status === $statusBoth ? 'bg-lime-200 hover:bg-lime-300' : 'hover:bg-gray-50/50');
                         $canEditItem = $can['edit_setoran']
-                            && empty($p->invoice)
-                            && in_array($p->status, [\App\Models\Produksi::STATUS_PRODUKSI, \App\Models\Produksi::STATUS_SETOR], true);
+                            && $p->status === \App\Models\Produksi::STATUS_SETOR
+                            && empty($p->invoice);
                     @endphp
                     <tr class="transition-colors {{ $rowColor }}">
                         <td class="px-4 py-3 text-sm font-bold whitespace-nowrap text-blue-600">
@@ -141,7 +141,22 @@ $hasFilters = collect($filters)->filter(fn($v) => $v !== null && $v !== '')->isN
                             </div>
                         </td>
                         <td class="px-4 py-3 text-center text-sm whitespace-nowrap">
-                            @if($p->qc)<span class="rounded bg-indigo-50 px-2 py-0.5 font-semibold text-indigo-700">{{ $p->qc->name }}</span>@else<span class="font-medium text-gray-400">—</span>@endif
+                            @if($can['assign_qc'])
+                            <form method="POST" action="{{ route('produksi.assign-qc', $p->id) }}" class="inline-block min-w-[120px]">
+                                @csrf
+                                @method('PATCH')
+                                <select name="qc_id" onchange="this.form.submit()" class="w-full max-w-[140px] rounded-md border border-gray-300 bg-white px-2 py-1 text-xs font-medium">
+                                    <option value="">— QC —</option>
+                                    @foreach($qcList as $qc)
+                                    <option value="{{ $qc->id }}" @selected($p->qc_id == $qc->id)>{{ $qc->name }}</option>
+                                    @endforeach
+                                </select>
+                            </form>
+                            @elseif($p->qc)
+                            <span class="rounded bg-indigo-50 px-2 py-0.5 font-semibold text-indigo-700">{{ $p->qc->name }}</span>
+                            @else
+                            <span class="font-medium text-gray-400">—</span>
+                            @endif
                         </td>
                         <td class="px-4 py-3 whitespace-nowrap">
                             @if($isGudangOrBoth)
@@ -176,7 +191,7 @@ $hasFilters = collect($filters)->filter(fn($v) => $v !== null && $v !== '')->isN
                 @method('PATCH')
                 <div class="space-y-2">
                     <label class="text-sm font-medium">Select Item</label>
-                    <div class="relative" x-data="asyncCombobox({ endpoint: '{{ route('items.index') }}', placeholder: 'Search item...', hiddenField: 'update_item_id' })">
+                    <div class="relative" x-data="asyncCombobox({ endpoint: '{{ route('items.index') }}', additionalParams: { json: '1', type: '1' }, placeholder: 'Search manufactured item...', hiddenField: 'update_item_id' })">
                         <input type="text" x-model="query" @input="handleInput()" @focus="handleFocus()" @keydown="handleKeydown($event)" :placeholder="placeholder" autocomplete="off" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
                         <input type="hidden" id="update_item_id" name="item_id">
                         <div x-show="open" x-cloak class="combobox-options" x-ref="optionsList">

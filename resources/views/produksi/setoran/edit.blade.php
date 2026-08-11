@@ -57,7 +57,7 @@ $canEdit = $can['edit_setoran'];
         {{-- Right: edit forms --}}
         <div class="space-y-8 lg:col-span-2">
             @include('produksi.setoran._basic-form', ['produksi' => $produksi, 'canEdit' => $canEdit])
-            @include('produksi.setoran._worker-forms', ['produksi' => $produksi, 'canEdit' => $canEdit])
+            @include('produksi.setoran._jahit-form', ['produksi' => $produksi, 'canEdit' => $canEdit])
 
             @if($produksi->status === \App\Models\Produksi::STATUS_SETOR)
             <div class="rounded-xl border border-l-4 border-gray-200 border-l-red-500 bg-white p-6 shadow-sm">
@@ -66,14 +66,18 @@ $canEdit = $can['edit_setoran'];
                     Status Management
                 </h3>
                 <p class="mt-1 text-sm text-gray-500">Revert this entry's status back to the production stage.</p>
+                @if($can['revert_setoran'])
                 <form method="POST" action="{{ route('produksi.setoran.status-produksi', $produksi->id) }}" class="mt-4" onsubmit="return confirm('Are you sure you want to revert this to Produksi status?')">
                     @csrf
                     @method('PATCH')
                     <div class="flex flex-col items-center justify-between gap-4 sm:flex-row">
                         <p class="text-sm text-gray-600">Return this item to the production list for further processing.</p>
-                        <button type="submit" @unless($canEdit) disabled @endunless class="rounded-md bg-red-600 px-4 py-2 text-sm font-bold text-white hover:bg-red-700 disabled:opacity-50">Kembalikan ke Produksi</button>
+                        <button type="submit" class="rounded-md bg-red-600 px-4 py-2 text-sm font-bold text-white hover:bg-red-700">Kembalikan ke Produksi</button>
                     </div>
                 </form>
+                @else
+                <p class="mt-4 text-sm text-gray-500">You do not have permission to revert setoran entries to produksi.</p>
+                @endif
             </div>
             @endif
         </div>

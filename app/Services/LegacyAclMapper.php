@@ -390,7 +390,8 @@ class LegacyAclMapper
     private function mapSetoran(string $action): array
     {
         return match ($action) {
-            'index', 'edit-item', 'edit-jahit', 'edit', 'edit-status' => ['production-setoran-list'],
+            'index', 'edit-item', 'edit-jahit', 'edit' => ['production-setoran-list'],
+            'edit-status' => ['production-setoran-revert'],
             'gudang' => ['production-gudang'],
             'delete' => ['production-edit'],
             default => [],

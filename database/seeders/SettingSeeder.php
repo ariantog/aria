@@ -67,6 +67,12 @@ class SettingSeeder extends Seeder
                 'value' => [],
             ],
             [
+                'group' => 'Produksi',
+                'name' => 'Default Gudang (Warehouse)',
+                'slug' => 'produksi.default_warehouse_id',
+                'value' => null,
+            ],
+            [
                 'group' => 'Invoice',
                 'name' => 'Invoice Company Name',
                 'slug' => 'invoice_company_name',
