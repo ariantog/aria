@@ -123,6 +123,7 @@ class LegacyAclMapper
             self::SETORAN => $this->mapSetoran($action),
             self::CONTRIBUTORS => ['report-product-performance'],
             self::HIDE => $this->mapHide($action),
+            self::PRINTER => $this->mapPrinter($action),
             self::TRANSACTION_FILTERS => ['transactions-list'],
             self::VITEM => $this->mapItems($action),
             default => [],
@@ -235,7 +236,7 @@ class LegacyAclMapper
             'return-supplier' => ['transactions-type-return-supplier'],
             'use' => ['transactions-list'],
             'delete' => ['transactions-delete'],
-            'detail', 'image' => ['transactions-show'],
+            'detail', 'image' => ['transactions-show', 'transactions-transaction-sync'],
             default => [],
         };
     }
@@ -392,6 +393,17 @@ class LegacyAclMapper
             'index', 'edit-item', 'edit-jahit', 'edit', 'edit-status' => ['production-setoran-list'],
             'gudang' => ['production-gudang'],
             'delete' => ['production-edit'],
+            default => [],
+        };
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function mapPrinter(string $action): array
+    {
+        return match ($action) {
+            'transaction' => ['transactions-transaction-sync', 'transactions-show'],
             default => [],
         };
     }

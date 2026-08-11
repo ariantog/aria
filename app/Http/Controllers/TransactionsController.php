@@ -248,7 +248,7 @@ class TransactionsController extends Controller
         $jubelioSync = $jubelioSyncPresenter->applyToTransaction($transaction);
         $jubelioSync['show_ui'] = $jubelioSync['can_sync']
             && $jubelioSync['sync_cek']
-            && Gate::allows(Jubelio::getPermissions()['sync']);
+            && Transaction::userCanJubelioTransactionSync(Auth::user());
         $invoiceService = app(TransactionInvoiceService::class);
 
         return view('transactions.show', [
@@ -260,6 +260,7 @@ class TransactionsController extends Controller
                 'edit_transaction' => Auth::user()->can(Transaction::getPermissions()['edit']),
                 'bank_hidden_balance' => ! Auth::user()->is_superadmin && Auth::user()->can('addrbook-bank-account-hidden-balance'),
                 'return_draft' => $this->canDraftReturn($transaction),
+                'jubelio_transaction_sync' => Transaction::userCanJubelioTransactionSync(Auth::user()),
             ],
             'flash' => ['success' => session('success'), 'error' => session('error')],
             'hasInvoicePdf' => $invoiceService->invoicePdfExists($transaction),
