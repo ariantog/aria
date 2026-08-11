@@ -102,11 +102,55 @@ it('can store bulk production entries', function () {
     ]);
 });
 
+it('can store production entries without selecting a potong worker', function () {
+    $size = Tag::create(['name' => 'XL', 'type' => Tag::TYPE_SIZE, 'item_type' => 0]);
+
+    $response = $this->actingAs($this->user)->post('/produksi', [
+        'date' => now()->toDateString(),
+        'potong_id' => '',
+        'surat_jalan_potong' => 'SJ-002',
+        'items' => [
+            [
+                'name' => 'T-Shirt C',
+                'size_id' => $size->id,
+                'qty' => 7,
+                'customer' => 'Client Z',
+                'warna' => 'Green',
+            ],
+        ],
+    ]);
+
+    $response->assertRedirect('/produksi');
+    $response->assertSessionHasNoErrors();
+
+    $this->assertDatabaseHas('produksis', [
+        'temp_name' => 'T-Shirt C',
+        'quantity' => 7,
+        'potong_id' => null,
+    ]);
+});
+
+it('rejects a potong worker that does not exist', function () {
+    $size = Tag::create(['name' => 'S', 'type' => Tag::TYPE_SIZE, 'item_type' => 0]);
+
+    $response = $this->actingAs($this->user)->from('/produksi/create')->post('/produksi', [
+        'date' => now()->toDateString(),
+        'potong_id' => 999999,
+        'items' => [
+            ['name' => 'Bad Worker Item', 'size_id' => $size->id, 'qty' => 1],
+        ],
+    ]);
+
+    $response->assertRedirect(route('produksi.create'));
+    $response->assertSessionHasErrors('potong_id');
+    $this->assertDatabaseMissing('produksis', ['temp_name' => 'Bad Worker Item']);
+});
+
 it('retains production items when store validation fails', function () {
     $size = Tag::create(['name' => 'M', 'type' => Tag::TYPE_SIZE, 'item_type' => 0]);
 
     $response = $this->actingAs($this->user)->from('/produksi/create')->post('/produksi', [
-        'date' => now()->toDateString(),
+        'date' => '',
         'potong_id' => '',
         'surat_jalan_potong' => 'SJ-KEEP',
         'items' => [
@@ -121,7 +165,7 @@ it('retains production items when store validation fails', function () {
     ]);
 
     $response->assertRedirect(route('produksi.create'));
-    $response->assertSessionHasErrors('potong_id');
+    $response->assertSessionHasErrors('date');
     expect(old('items.0.name'))->toBe('Kept Item');
     expect(old('items.0.customer'))->toBe('Client Keep');
     expect(old('surat_jalan_potong'))->toBe('SJ-KEEP');
