@@ -253,15 +253,14 @@ class ItemsController extends Controller
     {
         Gate::authorize(Item::getPermissions()['edit']);
 
-        $http = $jubelioService->authenticatedRequest();
-        if (! $http) {
-            return back()->withErrors(['message' => 'Gagal otentikasi Jubelio']);
-        }
-
         try {
-            $response = $http->get('https://api2.jubelio.com/inventory/items/to-stock/', [
+            $response = $jubelioService->get('https://api2.jubelio.com/inventory/items/to-stock/', [
                 'q' => $request->input('q', $item->code),
             ]);
+
+            if (! $response) {
+                return back()->withErrors(['message' => 'Gagal otentikasi Jubelio']);
+            }
 
             if ($response->successful()) {
                 return view('items.jubelio-search', [
@@ -557,15 +556,14 @@ class ItemsController extends Controller
             return ['Item belum terhubung', []];
         }
 
-        $http = $s->authenticatedRequest();
-        if (! $http) {
-            return ['Gagal otentikasi', []];
-        }
-
         try {
-            $r = $http->post('https://api2.jubelio.com/inventory/items/all-stocks/', [
+            $r = $s->post('https://api2.jubelio.com/inventory/items/all-stocks/', [
                 'ids' => [$item->jubelio_item_id],
             ]);
+
+            if (! $r) {
+                return ['Gagal otentikasi', []];
+            }
 
             if ($r->successful()) {
                 $j = $r->json();

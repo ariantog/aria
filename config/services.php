@@ -38,6 +38,7 @@ return [
     'jubelio' => [
         'active' => env('JUBELIO_ACTIVE', false),
         'poll_days' => (int) env('JUBELIO_POLL_DAYS', 7),
+        'token_ttl_hours' => (int) env('JUBELIO_TOKEN_TTL_HOURS', 10),
         'url' => env('JUBELIO_URL'),
         'email' => env('JUBELIO_EMAIL'),
         'password' => env('JUBELIO_PASSWORD'),

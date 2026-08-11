@@ -152,5 +152,6 @@ it('renders migrated GET pages with a 200', function (string $route) {
     'jubelio index' => 'jubelio',
     'jubelio get orders' => 'jubelio-get-orders',
     'jubelio cek order' => 'jubelio/order/cek',
+    'jubelio connection' => 'jubelio/token',
     'restock index' => 'restock',
 ]);
