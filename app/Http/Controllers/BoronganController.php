@@ -63,10 +63,8 @@ class BoronganController extends Controller
 
         $from = Carbon::now()->subDays(7)->toDateString();
         $to = Carbon::now()->toDateString();
-        $jahitList = Worker::jahit()->get();
 
         return view('borongan.create', [
-            'jahitList' => $jahitList,
             'defaultFrom' => $from,
             'defaultTo' => $to,
             'flash' => ['success' => session('success'), 'error' => session('error')],
@@ -74,7 +72,7 @@ class BoronganController extends Controller
     }
 
     /**
-     * Store a newly created resource in storage.
+     * Store newly created borongan records — one per jahit worker in the date range.
      */
     public function store(Request $request)
     {
@@ -83,64 +81,74 @@ class BoronganController extends Controller
         $request->validate([
             'from' => 'required|date',
             'to' => 'required|date',
-            'jahit_id' => 'required|exists:workers,id',
-            'permak' => 'nullable|numeric|min:0',
-            'tres' => 'nullable|numeric|min:0',
-            'lain2' => 'nullable|numeric|min:0',
+            'batches' => 'required|array|min:1',
+            'batches.*.jahit_id' => 'required|exists:workers,id',
+            'batches.*.permak' => 'nullable|numeric|min:0',
+            'batches.*.tres' => 'nullable|numeric|min:0',
+            'batches.*.lain2' => 'nullable|numeric|min:0',
         ]);
 
         try {
             DB::beginTransaction();
 
-            $boronganItems = $this->findBorongan($request->from, $request->to, $request->jahit_id);
+            $created = 0;
 
-            if (empty($boronganItems)) {
-                return back()->with('error', 'Tidak ada data produksi yang bisa diborongan pada rentang tanggal tersebut.');
-            }
+            foreach ($request->input('batches', []) as $batch) {
+                $jahitId = (int) $batch['jahit_id'];
+                $boronganItems = $this->findBorongan($request->from, $request->to, $jahitId);
 
-            $permak = $request->input('permak', 0);
-            $tres = $request->input('tres', 0);
-            $lain2 = $request->input('lain2', 0);
-
-            $borongan = new Borongan;
-            $borongan->date = Carbon::now()->toDateString();
-            $borongan->user_id = $request->user()->id;
-            $borongan->jahit_id = $request->jahit_id;
-            $borongan->permak = $permak;
-            $borongan->tres = $tres;
-            $borongan->lain2 = $lain2;
-            $borongan->from = $request->from;
-            $borongan->to = $request->to;
-            $borongan->total_items = 0;
-            $borongan->total = bcadd($permak, bcadd($tres, $lain2, 2), 2);
-            $borongan->save();
-
-            foreach ($boronganItems as $value) {
-                $detail = new BoronganDetail;
-                $detail->borongan_id = $borongan->id;
-                $detail->item_id = $value['item_id'];
-                $detail->produksi_id = $value['produksi_id'];
-                $detail->ongkos = $value['ongkos'];
-                $detail->quantity = $value['quantity'];
-                $detail->total = $value['total'];
-                $detail->save();
-
-                // Update produksi status
-                $produksi = Produksi::find($value['produksi_id']);
-                if ($produksi) {
-                    $produksi->status = Produksi::STATUS_BOTH;
-                    $produksi->save();
+                if (empty($boronganItems)) {
+                    continue;
                 }
 
-                $borongan->total = bcadd((string) $borongan->total, (string) $value['total'], 2);
-                $borongan->total_items += $value['quantity'];
-            }
+                $permak = (float) ($batch['permak'] ?? 0);
+                $tres = (float) ($batch['tres'] ?? 0);
+                $lain2 = (float) ($batch['lain2'] ?? 0);
 
-            $borongan->save();
+                $borongan = new Borongan;
+                $borongan->date = Carbon::now()->toDateString();
+                $borongan->user_id = $request->user()->id;
+                $borongan->jahit_id = $jahitId;
+                $borongan->permak = $permak;
+                $borongan->tres = $tres;
+                $borongan->lain2 = $lain2;
+                $borongan->from = $request->from;
+                $borongan->to = $request->to;
+                $borongan->total_items = 0;
+                $borongan->total = bcadd((string) $permak, bcadd((string) $tres, (string) $lain2, 2), 2);
+                $borongan->save();
+
+                foreach ($boronganItems as $value) {
+                    $detail = new BoronganDetail;
+                    $detail->borongan_id = $borongan->id;
+                    $detail->item_id = $value['item_id'];
+                    $detail->produksi_id = $value['produksi_id'];
+                    $detail->ongkos = $value['ongkos'];
+                    $detail->quantity = $value['quantity'];
+                    $detail->total = $value['total'];
+                    $detail->save();
+
+                    $produksi = Produksi::find($value['produksi_id']);
+                    if ($produksi) {
+                        $produksi->status = Produksi::STATUS_BOTH;
+                        $produksi->save();
+                    }
+
+                    $borongan->total = bcadd((string) $borongan->total, (string) $value['total'], 2);
+                    $borongan->total_items += $value['quantity'];
+                }
+
+                $borongan->save();
+                $created++;
+            }
 
             DB::commit();
 
-            return redirect()->route('borongan.index')->with('success', 'Data Borongan berhasil disimpan.');
+            if ($created === 0) {
+                return back()->withInput()->with('error', 'Tidak ada data produksi yang bisa diborongan pada rentang tanggal tersebut.');
+            }
+
+            return redirect()->route('borongan.index')->with('success', "Berhasil menyimpan {$created} borongan (satu per penjahit).");
 
         } catch (\Exception $e) {
             DB::rollBack();
@@ -167,7 +175,7 @@ class BoronganController extends Controller
     }
 
     /**
-     * Provide Ajax Data for Create Form
+     * Provide Ajax Data for Create Form — grouped by jahit worker.
      */
     public function getAjaxBorongan(Request $request)
     {
@@ -176,20 +184,76 @@ class BoronganController extends Controller
         $request->validate([
             'from' => 'required|date',
             'to' => 'required|date',
-            'jahit_id' => 'required|exists:workers,id',
         ]);
 
         try {
-            $data = $this->findBorongan($request->from, $request->to, $request->jahit_id);
-
-            return response()->json($data);
+            return response()->json($this->findBoronganGrouped($request->from, $request->to));
         } catch (\Exception $e) {
             return response()->json(['error' => $e->getMessage()], 400);
         }
     }
 
     /**
-     * Helper to find produksis
+     * @return list<array{jahit_id: int, jahit_name: string, items: list<array<string, mixed>>, subtotal: float, total_qty: int}>
+     */
+    protected function findBoronganGrouped(string $from, string $to): array
+    {
+        if (! $from || ! $to) {
+            throw new \Exception('Tanggal error');
+        }
+
+        $rows = Produksi::with(['item', 'jahit'])
+            ->whereDate('gudang_date', '>=', $from)
+            ->whereDate('gudang_date', '<=', $to)
+            ->where('status', Produksi::STATUS_GUDANG)
+            ->where('item_id', '>', 0)
+            ->orderBy('jahit_id')
+            ->get();
+
+        $grouped = [];
+
+        foreach ($rows as $val) {
+            $jahitId = (int) $val->jahit_id;
+            if (! $jahitId) {
+                continue;
+            }
+
+            if (! isset($grouped[$jahitId])) {
+                $grouped[$jahitId] = [
+                    'jahit_id' => $jahitId,
+                    'jahit_name' => $val->jahit->name ?? 'Unknown',
+                    'items' => [],
+                    'subtotal' => 0.0,
+                    'total_qty' => 0,
+                ];
+            }
+
+            $ongkos = $this->ongkos($val->item);
+            $total = (float) bcmul((string) $val->quantity, (string) $ongkos, 2);
+            $code = $val->item ? $val->item->getItemCode() : $val->temp_name;
+
+            $grouped[$jahitId]['items'][] = [
+                'produksi_id' => $val->id,
+                'item_id' => $val->item_id,
+                'item' => $val->item ? $val->item->toArray() : null,
+                'quantity' => $val->quantity,
+                'serial' => $val->serial,
+                'ongkos' => $ongkos,
+                'total' => $total,
+                'code' => $code,
+                'edit_link' => route('produksi.setoran.edit', ['produksi' => $val->id]),
+            ];
+            $grouped[$jahitId]['subtotal'] += $total;
+            $grouped[$jahitId]['total_qty'] += (int) $val->quantity;
+        }
+
+        return array_values($grouped);
+    }
+
+    /**
+     * Helper to find produksis for one jahit worker.
+     *
+     * @return list<array<string, mixed>>
      */
     protected function findBorongan($from, $to, $jahit_id)
     {
@@ -202,19 +266,18 @@ class BoronganController extends Controller
         }
 
         $data = Produksi::with(['item'])
-            ->where('gudang_date', '>=', $from)
-            ->where('gudang_date', '<=', $to)
+            ->whereDate('gudang_date', '>=', $from)
+            ->whereDate('gudang_date', '<=', $to)
             ->where('status', '=', Produksi::STATUS_GUDANG)
             ->where('jahit_id', '=', $jahit_id)
-            ->where('item_id', '>', 0) // fail-safe (pastikan bukan nama temp)
+            ->where('item_id', '>', 0)
             ->get();
 
         $boronganArray = [];
 
-        foreach ($data as $key => $val) {
+        foreach ($data as $val) {
             $ongkos = $this->ongkos($val->item);
             $total = (float) bcmul((string) $val->quantity, (string) $ongkos, 2);
-
             $code = $val->item ? $val->item->getItemCode() : $val->temp_name;
 
             $boronganArray[] = [
@@ -222,7 +285,7 @@ class BoronganController extends Controller
                 'item_id' => $val->item_id,
                 'item' => $val->item ? $val->item->toArray() : null,
                 'quantity' => $val->quantity,
-                'serial' => $val->serial, // Menggunakan attribute accessor
+                'serial' => $val->serial,
                 'ongkos' => $ongkos,
                 'total' => $total,
                 'code' => $code,

@@ -9,11 +9,15 @@ use App\Models\Produksi;
 use App\Models\Transaction;
 use App\Models\TransactionDetail;
 use App\Services\InventoryService;
+use App\Services\Produksi\ProduksiSettingsService;
 use Illuminate\Support\Facades\DB;
 
 class SendToWarehouse
 {
-    public function __construct(private readonly InventoryService $inventoryService) {}
+    public function __construct(
+        private readonly InventoryService $inventoryService,
+        private readonly ProduksiSettingsService $produksiSettings,
+    ) {}
 
     public function execute(Produksi $produksi, string $invoice, int $userId): void
     {
@@ -22,8 +26,8 @@ class SendToWarehouse
             if ($produksi->transaction_id > 0 || $produksi->detail_id > 0 || ! empty($produksi->invoice)) throw new \RuntimeException('Sudah masuk invoice/gudang');
             if ($produksi->status == Produksi::STATUS_GUDANG) throw new \RuntimeException('Status sudah gudang');
 
-            $warehouse = Addrbook::where('type', AddrbookType::Warehouse->value)->first();
-            if (! $warehouse) throw new \RuntimeException('Gudang tujuan tidak ditemukan.');
+            $warehouse = $this->produksiSettings->resolveWarehouse();
+            if (! $warehouse) throw new \RuntimeException('Gudang tujuan tidak ditemukan. Atur produksi.default_warehouse_id di System Settings.');
 
             $transaction = Transaction::where('invoice_number', $invoice)->where('type', TransactionType::Production->value)->first();
             if (! $transaction) {
