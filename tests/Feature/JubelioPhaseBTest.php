@@ -9,6 +9,7 @@ use App\Models\Transaction;
 use App\Models\User;
 use App\Services\JubelioService;
 use Mockery\MockInterface;
+use Spatie\Permission\Models\Permission;
 
 it('accepts jubelio return webhook and stores return order', function () {
     config(['services.jubelio.webhook_secret' => 'test-secret']);
@@ -189,7 +190,10 @@ it('rejects duplicate jubelio cancel webhook payloads', function () {
 });
 
 it('shows jubelio sync push buttons on transaction detail page', function () {
+    User::factory()->create();
     $user = User::factory()->create();
+    Permission::firstOrCreate(['name' => 'transactions-show']);
+    $user->givePermissionTo('transactions-show');
     $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'WH Sync Test']);
     $customer = Addrbook::factory()->create(['type' => Addrbook::TYPE_CUSTOMER]);
     $item = Item::factory()->create(['jubelio_item_id' => 999]);
@@ -229,6 +233,57 @@ it('shows jubelio sync push buttons on transaction detail page', function () {
         ->assertSuccessful()
         ->assertSee('Sinkron Jubelio')
         ->assertSee('Push to Jubelio');
+});
+
+it('shows jubelio sync for transactions-show without jubelio-sync permission', function () {
+    User::factory()->create();
+    $user = User::factory()->create();
+    Permission::firstOrCreate(['name' => 'transactions-show']);
+    Permission::firstOrCreate(['name' => 'jubelio-sync']);
+    $user->givePermissionTo('transactions-show');
+
+    $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'WH Legacy Sync']);
+    $customer = Addrbook::factory()->create(['type' => Addrbook::TYPE_CUSTOMER]);
+    $item = Item::factory()->create(['jubelio_item_id' => 888]);
+
+    Jubeliosync::create([
+        'jubelio_store_id' => 1,
+        'jubelio_store_name' => 'Store',
+        'jubelio_location_id' => 2,
+        'jubelio_location_name' => 'Jubelio WH',
+        'warehouse_id' => $warehouse->id,
+        'customer_id' => $customer->id,
+        'bin_id' => 0,
+    ]);
+
+    $transaction = Transaction::factory()->create([
+        'type' => Transaction::TYPE_SELL,
+        'submit_type' => Transaction::SUBMIT_TYPE_MANUAL,
+        'sender_id' => $warehouse->id,
+        'receiver_id' => $customer->id,
+        'total_items' => 1,
+    ]);
+
+    $transaction->details()->create([
+        'date' => $transaction->date,
+        'transaction_type' => Transaction::TYPE_SELL,
+        'sender_id' => $warehouse->id,
+        'receiver_id' => $customer->id,
+        'item_id' => $item->id,
+        'quantity' => 1,
+        'price' => 10000,
+        'discount' => 0,
+        'total' => 10000,
+    ]);
+
+    expect($user->can('jubelio-sync'))->toBeFalse();
+    expect(Transaction::userCanJubelioTransactionSync($user))->toBeTrue();
+
+    $this->actingAs($user)
+        ->get(route('transactions.show', $transaction))
+        ->assertSuccessful()
+        ->assertSee('Sinkron Jubelio', false)
+        ->assertSee('Push to Jubelio', false);
 });
 
 it('lists pending jubelio cancellations by default', function () {
@@ -362,7 +417,10 @@ it('refetches jubelio order payload when source is not webhook', function () {
 });
 
 it('can confirm and clear jubelio sync warnings', function () {
+    User::factory()->create();
     $user = User::factory()->create();
+    Permission::firstOrCreate(['name' => 'transactions-show']);
+    $user->givePermissionTo('transactions-show');
 
     $transaction = Transaction::factory()->create([
         'submit_type' => Transaction::SUBMIT_TYPE_MANUAL,

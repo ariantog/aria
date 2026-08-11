@@ -227,7 +227,7 @@ class JubelioController extends Controller
 
     public function confirmSyncWarning(Request $request, Transaction $transaction): RedirectResponse
     {
-        Gate::authorize(Jubelio::getPermissions()['sync']);
+        Transaction::authorizeJubelioTransactionSync();
 
         $validated = $request->validate([
             'side' => ['required', 'in:1,2'],
@@ -259,7 +259,7 @@ class JubelioController extends Controller
 
     public function clearSyncWarning(Request $request, Transaction $transaction): RedirectResponse
     {
-        Gate::authorize(Jubelio::getPermissions()['sync']);
+        Transaction::authorizeJubelioTransactionSync();
 
         $validated = $request->validate([
             'side' => ['required', 'in:1,2'],
@@ -296,7 +296,7 @@ class JubelioController extends Controller
 
     public function detailJubelioSync(Transaction $t, JubelioTransactionSyncPresenter $presenter): View
     {
-        Gate::authorize(Jubelio::getPermissions()['sync']);
+        Transaction::authorizeJubelioTransactionSync();
         $t->load(['receiver', 'sender', 'user', 'submitByA', 'submitByB', 'details.item.group']);
         $sync = $presenter->present($t);
         $t->setAttribute('item_with_jubelio_count', $sync['mapping_missing']);
@@ -322,7 +322,7 @@ class JubelioController extends Controller
 
     public function adjustStok(Request $r, $id, AdjustStock $a): RedirectResponse
     {
-        Gate::authorize(Jubelio::getPermissions()['sync']);
+        Transaction::authorizeJubelioTransactionSync();
         $t = Transaction::with(['details.item'])->findOrFail($id);
         try { $res = $a->execute($t,(int)$r->side,(int)$r->adjustType,(int)$r->whType); return $res['success'] ? back()->with('success',$res['message']) : back()->with('errorMessage',$res['message']); }
         catch(\RuntimeException $e) { return back()->with('errorMessage',$e->getMessage()); }

@@ -195,6 +195,32 @@ class Transaction extends Model
         return $user->can($permissions['view']) || $user->can($permissions['create']);
     }
 
+    public static function userCanJubelioTransactionSync(?User $user): bool
+    {
+        if (! $user) {
+            return false;
+        }
+
+        if ($user->is_superadmin) {
+            return true;
+        }
+
+        $permissions = self::getPermissions();
+
+        return $user->can($permissions['transaction-sync'])
+            || $user->can($permissions['show'])
+            || $user->can(Jubelio::getPermissions()['sync']);
+    }
+
+    public static function authorizeJubelioTransactionSync(): void
+    {
+        if (self::userCanJubelioTransactionSync(auth()->user())) {
+            return;
+        }
+
+        Gate::authorize(self::getPermissions()['transaction-sync']);
+    }
+
     public static function authorizeTypeAccess(string $typeSlug): void
     {
         if (self::userCanAccessType(auth()->user(), $typeSlug)) {
