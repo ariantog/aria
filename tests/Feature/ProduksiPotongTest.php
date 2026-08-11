@@ -102,10 +102,10 @@ it('can store bulk production entries', function () {
     ]);
 });
 
-it('can store production entries without selecting a potong worker', function () {
+it('requires a potong worker to store production entries', function () {
     $size = Tag::create(['name' => 'XL', 'type' => Tag::TYPE_SIZE, 'item_type' => 0]);
 
-    $response = $this->actingAs($this->user)->post('/produksi', [
+    $response = $this->actingAs($this->user)->from('/produksi/create')->post('/produksi', [
         'date' => now()->toDateString(),
         'potong_id' => '',
         'surat_jalan_potong' => 'SJ-002',
@@ -120,14 +120,9 @@ it('can store production entries without selecting a potong worker', function ()
         ],
     ]);
 
-    $response->assertRedirect('/produksi');
-    $response->assertSessionHasNoErrors();
-
-    $this->assertDatabaseHas('produksis', [
-        'temp_name' => 'T-Shirt C',
-        'quantity' => 7,
-        'potong_id' => null,
-    ]);
+    $response->assertRedirect(route('produksi.create'));
+    $response->assertSessionHasErrors('potong_id');
+    $this->assertDatabaseMissing('produksis', ['temp_name' => 'T-Shirt C']);
 });
 
 it('rejects a potong worker that does not exist', function () {

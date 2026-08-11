@@ -41,14 +41,17 @@ if (empty($oldItems)) {
                     @error('date')<p class="text-sm text-red-500">{{ $message }}</p>@enderror
                 </div>
                 <div class="space-y-2">
-                    <label class="text-sm font-medium">Worker (Potong) <span class="font-normal text-gray-400">(optional)</span></label>
-                    <select name="potong_id" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
-                        <option value="">No worker selected</option>
+                    <label class="text-sm font-medium">Worker (Potong)</label>
+                    <select name="potong_id" required class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
+                        <option value="">Select worker</option>
                         @foreach($workers as $w)
                         <option value="{{ $w->id }}" @selected(old('potong_id') == $w->id)>{{ $w->name }}</option>
                         @endforeach
                     </select>
-                    @error('potong_id')<p class="text-sm text-red-500">{{ $message }}</p>@enderror
+                    @error('potong_id')<p class="text-sm text-red-500">The Potong worker is required.</p>@enderror
+                    @if($workers->isEmpty())
+                    <p class="text-sm text-amber-600">No Potong workers exist yet — <a href="{{ route('produksi.potong.index') }}" class="font-medium underline">add one here</a> first, then create the entry.</p>
+                    @endif
                 </div>
                 <div class="space-y-2">
                     <label class="text-sm font-medium">Surat Jalan Potong</label>
