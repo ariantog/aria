@@ -41,9 +41,9 @@ if (empty($oldItems)) {
                     @error('date')<p class="text-sm text-red-500">{{ $message }}</p>@enderror
                 </div>
                 <div class="space-y-2">
-                    <label class="text-sm font-medium">Worker (Potong)</label>
+                    <label class="text-sm font-medium">Worker (Potong) <span class="font-normal text-gray-400">(optional)</span></label>
                     <select name="potong_id" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
-                        <option value="">Select worker</option>
+                        <option value="">No worker selected</option>
                         @foreach($workers as $w)
                         <option value="{{ $w->id }}" @selected(old('potong_id') == $w->id)>{{ $w->name }}</option>
                         @endforeach
