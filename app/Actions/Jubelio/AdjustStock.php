@@ -39,10 +39,7 @@ class AdjustStock
             }
 
             config(['services.jubelio.active' => true, 'services.jubelio.verify_ssl' => false]);
-            $http = app(JubelioService::class)->authenticatedRequest();
-            if (! $http) {
-                throw new \RuntimeException('Jubelio auth failed.');
-            }
+            $jubelioService = app(JubelioService::class);
 
             $transaction->loadMissing('details.item');
             $items = [];
@@ -71,7 +68,7 @@ class AdjustStock
                 throw new \RuntimeException('No linked Jubelio items to sync.');
             }
 
-            $response = $http->post('https://api2.jubelio.com/inventory/adjustments/warehouse', [
+            $response = $jubelioService->post('https://api2.jubelio.com/inventory/adjustments/warehouse', [
                 'item_adj_id' => 0,
                 'item_adj_no' => '[auto]',
                 'transaction_date' => now()->toIso8601ZuluString(),
@@ -80,6 +77,10 @@ class AdjustStock
                 'is_opening_balance' => false,
                 'items' => $items,
             ]);
+
+            if (! $response) {
+                throw new \RuntimeException('Jubelio auth failed.');
+            }
 
             if ($response->successful()) {
                 $result = $response->json();

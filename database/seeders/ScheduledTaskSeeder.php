@@ -52,6 +52,16 @@ class ScheduledTaskSeeder extends Seeder
         );
 
         \App\Models\ScheduledTask::updateOrCreate(
+            ['command' => 'jubelio:check-connection'],
+            [
+                'name' => 'Jubelio Check Connection',
+                'frequency' => 'hourly',
+                'is_active' => true,
+                'description' => 'Refreshes Jubelio token and pings the API to detect auth/connectivity issues.',
+            ]
+        );
+
+        \App\Models\ScheduledTask::updateOrCreate(
             ['command' => 'jubelio:poll-missing-orders'],
             [
                 'name' => 'Jubelio Poll Missing Orders',

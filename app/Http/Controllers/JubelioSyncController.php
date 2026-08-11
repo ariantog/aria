@@ -48,17 +48,13 @@ class JubelioSyncController extends Controller
         Gate::authorize(Jubelio::getPermissions()['sync']);
 
         $dataList = ['data' => []];
-        $request = $this->jubelioService->authenticatedRequest();
+        $response = $this->jubelioService->get('https://api2.jubelio.com/locations/', [
+            'page' => 1,
+            'pageSize' => 200,
+        ]);
 
-        if ($request) {
-            $response = $request->get('https://api2.jubelio.com/locations/', [
-                'page' => 1,
-                'pageSize' => 200,
-            ]);
-
-            if ($response->successful()) {
-                $dataList = $response->json();
-            }
+        if ($response && $response->successful()) {
+            $dataList = $response->json();
         }
 
         return view('jubelio.sync.create', [
@@ -84,14 +80,9 @@ class JubelioSyncController extends Controller
             'warehouse_id' => 'required|exists:addrbooks,id',
         ]);
 
-        $http = $this->jubelioService->authenticatedRequest();
-        if (! $http) {
-            return back()->with('errorMessage', 'Jubelio authentication failed.');
-        }
+        $response = $this->jubelioService->get('https://api2.jubelio.com/locations/'.$request->location_id);
 
-        $response = $http->get('https://api2.jubelio.com/locations/'.$request->location_id);
-
-        if (! $response->successful()) {
+        if (! $response || ! $response->successful()) {
             return back()->with('errorMessage', 'Failed to fetch location details from Jubelio.');
         }
 
@@ -178,12 +169,11 @@ class JubelioSyncController extends Controller
     {
         Gate::authorize(Jubelio::getPermissions()['sync']);
 
-        $http = $this->jubelioService->authenticatedRequest();
-        if (! $http) {
+        $response = $this->jubelioService->get('https://api2.jubelio.com/wms/default-bin/'.$sync->jubelio_location_id);
+
+        if (! $response) {
             return back()->with('errorMessage', 'Jubelio authentication failed.');
         }
-
-        $response = $http->get('https://api2.jubelio.com/wms/default-bin/'.$sync->jubelio_location_id);
 
         if ($response->successful()) {
             $result = $response->json();

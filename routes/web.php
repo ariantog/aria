@@ -50,6 +50,9 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::resource('items', App\Http\Controllers\ItemsController::class);
     Route::get('jubelio/order/cek', [App\Http\Controllers\JubelioController::class, 'cekOrder'])->name('jubelio.order.cek');
     Route::post('jubelio/order/cek/queue', [App\Http\Controllers\JubelioController::class, 'queueCekOrder'])->name('jubelio.order.cek.queue');
+    Route::get('jubelio/token', [App\Http\Controllers\JubelioTokenController::class, 'index'])->name('jubelio.token.index');
+    Route::post('jubelio/token/refresh', [App\Http\Controllers\JubelioTokenController::class, 'refresh'])->name('jubelio.token.refresh');
+    Route::post('jubelio/token/check', [App\Http\Controllers\JubelioTokenController::class, 'check'])->name('jubelio.token.check');
     Route::get('jubelio/{jubelio}/payload', [App\Http\Controllers\JubelioController::class, 'payload'])->name('jubelio.payload');
     Route::post('jubelio/{jubelio}/process', [App\Http\Controllers\JubelioController::class, 'processOrder'])->name('jubelio.process');
     Route::post('jubelio/{jubelio}/solve', [App\Http\Controllers\JubelioController::class, 'markSolved'])->name('jubelio.solve');
