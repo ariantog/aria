@@ -133,7 +133,7 @@
 @endif
 
 {{-- ── Reports ───────────────────────────────────────────────────────── --}}
-@if($hasPerm('report-nett-cash') || $hasPerm('report-product-performance') || $hasPerm('report-inventory-health') || $isSuperAdmin)
+@if($hasPerm('report-nett-cash') || $hasPerm('report-product-performance') || $hasPerm('report-inventory-health') || $hasPerm('report-produksi-potong') || $hasPerm('report-produksi-qc') || $isSuperAdmin)
 @php $repActive = $isActive('/reports'); @endphp
 <div x-data="{ open: {{ $repActive ? 'true' : 'false' }} }" class="mb-1">
     <button @click="open = !open"
@@ -171,6 +171,12 @@
         @endif
         @if($hasPerm('report-inventory-health') || $isSuperAdmin)
         <a href="{{ route('reports.inventory-health') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/inventory-health') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Inventory Health</a>
+        @endif
+        @if($hasPerm('report-produksi-potong') || $isSuperAdmin)
+        <a href="{{ route('reports.produksi-potong') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/produksi-potong') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Statistik Potong</a>
+        @endif
+        @if($hasPerm('report-produksi-qc') || $isSuperAdmin)
+        <a href="{{ route('reports.produksi-qc') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/produksi-qc') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Statistik QC</a>
         @endif
     </div>
 </div>
