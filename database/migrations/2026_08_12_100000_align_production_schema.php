@@ -26,17 +26,28 @@ return new class extends Migration
         // Irreversible on production — column adds are kept.
     }
 
+    /**
+     * L10 schemas often use DEFAULT '0000-00-00 00:00:00' on timestamps, which makes
+     * any subsequent ALTER fail under strict SQL mode. Normalize before adding columns.
+     */
+    private function fixLegacyZeroDateTimestamps(string $table): void
+    {
+        if (Schema::getConnection()->getDriverName() !== 'mysql' || ! Schema::hasTable($table)) {
+            return;
+        }
+
+        foreach (['created_at', 'updated_at'] as $column) {
+            if (! Schema::hasColumn($table, $column)) {
+                continue;
+            }
+
+            DB::statement("ALTER TABLE `{$table}` MODIFY `{$column}` TIMESTAMP NULL DEFAULT NULL");
+        }
+    }
+
     private function addrbookTable(): ?string
     {
-        if (Schema::hasTable('customers')) {
-            return 'customers';
-        }
-
-        if (Schema::hasTable('customers')) {
-            return 'customers';
-        }
-
-        return null;
+        return Schema::hasTable('customers') ? 'customers' : null;
     }
 
     private function alignAddrbookTable(): void
@@ -45,6 +56,8 @@ return new class extends Migration
         if (! $table) {
             return;
         }
+
+        $this->fixLegacyZeroDateTimestamps($table);
 
         Schema::table($table, function (Blueprint $blueprint) use ($table) {
             if ($table === 'customers' && ! Schema::hasColumn($table, 'operation_id')) {
@@ -64,6 +77,8 @@ return new class extends Migration
         if (! Schema::hasTable('items')) {
             return;
         }
+
+        $this->fixLegacyZeroDateTimestamps('items');
 
         Schema::table('items', function (Blueprint $blueprint) {
             if (! Schema::hasColumn('items', 'qty')) {
@@ -86,15 +101,7 @@ return new class extends Migration
 
     private function warehouseItemTable(): ?string
     {
-        if (Schema::hasTable('warehouse_item')) {
-            return 'warehouse_item';
-        }
-
-        if (Schema::hasTable('warehouse_item')) {
-            return 'warehouse_item';
-        }
-
-        return null;
+        return Schema::hasTable('warehouse_item') ? 'warehouse_item' : null;
     }
 
     private function alignWarehouseItemTable(): void
@@ -103,6 +110,8 @@ return new class extends Migration
         if (! $table) {
             return;
         }
+
+        $this->fixLegacyZeroDateTimestamps($table);
 
         Schema::table($table, function (Blueprint $blueprint) use ($table) {
             if (! Schema::hasColumn($table, 'warehouse_type')) {
@@ -119,15 +128,7 @@ return new class extends Migration
 
     private function produksiTable(): ?string
     {
-        if (Schema::hasTable('prod_produksi')) {
-            return 'prod_produksi';
-        }
-
-        if (Schema::hasTable('prod_produksi')) {
-            return 'prod_produksi';
-        }
-
-        return null;
+        return Schema::hasTable('prod_produksi') ? 'prod_produksi' : null;
     }
 
     private function alignProdProduksiTable(): void
@@ -136,6 +137,8 @@ return new class extends Migration
         if (! $table) {
             return;
         }
+
+        $this->fixLegacyZeroDateTimestamps($table);
 
         Schema::table($table, function (Blueprint $blueprint) use ($table) {
             $columns = [
@@ -161,6 +164,8 @@ return new class extends Migration
         if (! Schema::hasTable('transactions')) {
             return;
         }
+
+        $this->fixLegacyZeroDateTimestamps('transactions');
 
         Schema::table('transactions', function (Blueprint $blueprint) {
             if (! Schema::hasColumn('transactions', 'real_total')) {
