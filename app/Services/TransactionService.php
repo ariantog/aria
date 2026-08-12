@@ -146,6 +146,8 @@ class TransactionService
         ], [
             'customer_type' => $type instanceof AddrbookType ? $type->value : $type,
             'class' => '',
+            'adjust' => 0,
+            'depreciation' => 0,
         ]);
 
         if ($daily->customer_type === null && $type !== null) {
@@ -193,7 +195,10 @@ class TransactionService
     protected function updateStat($entity, $amount, $date)
     {
         if ($entity instanceof Addrbook) {
-            $stat = AddrbookStat::firstOrCreate(['customer_id' => $entity->id]);
+            $stat = AddrbookStat::firstOrCreate(
+                ['customer_id' => $entity->id],
+                ['balance' => 0]
+            );
             $stat->balance += $amount;
             $stat->save();
         }

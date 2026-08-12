@@ -2,12 +2,13 @@
 
 namespace App\Models;
 
+use App\Support\FillsProductionColumnDefaults;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class AddrbookDaily extends Model
 {
-    use HasFactory;
+    use HasFactory, FillsProductionColumnDefaults;
 
     protected $table = 'customer_class';
 

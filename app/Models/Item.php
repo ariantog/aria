@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\ItemBrand;
 use App\Enums\ItemType;
+use App\Support\FillsProductionColumnDefaults;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -16,7 +17,7 @@ use Illuminate\Support\Facades\DB;
 
 class Item extends Model
 {
-    use HasFactory, SoftDeletes;
+    use HasFactory, SoftDeletes, FillsProductionColumnDefaults;
 
     protected $fillable = [
         'group_id',

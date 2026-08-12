@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\ItemType;
+use App\Support\FillsProductionColumnDefaults;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -10,7 +11,7 @@ use Illuminate\Support\Collection;
 
 class Tag extends Model
 {
-    use HasFactory;
+    use HasFactory, FillsProductionColumnDefaults;
 
     protected $fillable = [
         'name',

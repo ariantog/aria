@@ -2,10 +2,12 @@
 
 namespace App\Models;
 
+use App\Support\FillsProductionColumnDefaults;
 use Illuminate\Database\Eloquent\Model;
 
 class DeletedTransactionDetail extends Model
 {
+    use FillsProductionColumnDefaults;
     protected $table = 'deleted_details';
 
     public $incrementing = false;

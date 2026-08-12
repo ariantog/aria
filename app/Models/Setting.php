@@ -2,13 +2,14 @@
 
 namespace App\Models;
 
+use App\Support\FillsProductionColumnDefaults;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class Setting extends Model
 {
     /** @use HasFactory<\Database\Factories\SettingFactory> */
-    use HasFactory;
+    use HasFactory, FillsProductionColumnDefaults;
 
     protected $fillable = ['group', 'name', 'slug', 'value', 'location_id'];
 

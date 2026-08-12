@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\AddrbookType;
+use App\Support\FillsProductionColumnDefaults;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -11,7 +12,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Addrbook extends Model
 {
-    use HasFactory, SoftDeletes;
+    use HasFactory, SoftDeletes, FillsProductionColumnDefaults;
 
     /** @deprecated Use AddrbookType::Customer */
     const TYPE_CUSTOMER = 1;

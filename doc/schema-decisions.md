@@ -26,6 +26,7 @@ L12 does not need these columns removed from production. L10 may still write the
 |--------|-----------|
 | `customer_id`, `customer_type`, `date`, bucket cols (`sell`, `buy`, `cash_in`, …) | Used |
 | `class` | Written as empty string on create (production NOT NULL) |
+| `adjust`, `depreciation` | Default `0` on create; production align adds DB defaults |
 | `rating` | **Ignored** |
 
 ## warehouse_item (L12 model: `WarehouseItem`)
