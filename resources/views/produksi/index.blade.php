@@ -59,7 +59,7 @@ $f = $filters;
                         </td>
                         <td class="px-4 py-3 text-sm font-bold whitespace-nowrap">
                             @if($p->original_id)
-                            <a href="{{ route('produksi.edit', $p->original_id) }}" class="text-blue-600 hover:underline">{{ $p->parentSerial() }}</a>
+                            @include('partials.filter-link', ['route' => 'produksi.index', 'param' => 'serial', 'value' => $p->parentSerial(), 'filters' => $f])
                             @else
                             <span class="font-medium text-gray-400">-</span>
                             @endif
@@ -68,22 +68,20 @@ $f = $filters;
                             <span class="inline-flex items-center gap-1.5 rounded-md border border-blue-200 bg-blue-100 px-2.5 py-1 text-xs font-semibold text-blue-700">{{ $p->temp_name }}</span>
                         </td>
                         <td class="px-4 py-3 text-sm font-black whitespace-nowrap tabular-nums text-gray-900">{{ $p->quantity }}</td>
-                        <td class="px-4 py-3 text-sm font-bold whitespace-nowrap text-gray-900">{{ $p->surat_jalan_potong ?: '-' }}</td>
+                        <td class="px-4 py-3 text-sm font-bold whitespace-nowrap">
+                            @include('partials.filter-link', ['route' => 'produksi.index', 'param' => 'surat_jalan_potong', 'value' => $p->surat_jalan_potong, 'filters' => $f, 'class' => 'text-gray-900 hover:text-blue-600 hover:underline'])
+                        </td>
                         <td class="px-4 py-3 text-center whitespace-nowrap">
-                            <div class="flex flex-col items-center justify-center rounded-md border border-gray-200 bg-gray-50 p-1.5">
-                                <span class="mb-0.5 text-[11px] font-medium text-gray-500 whitespace-nowrap">{{ $p->potong_date ? \Carbon\Carbon::parse($p->potong_date)->translatedFormat('d M Y') : '-' }}</span>
-                                @if($p->potong)<span class="w-full max-w-[100px] truncate rounded border border-gray-100 bg-white px-1.5 py-0.5 text-center text-xs font-bold text-gray-900 shadow-sm" title="{{ $p->potong->name }}">{{ $p->potong->name }}</span>@endif
-                            </div>
+                            @include('produksi.partials.worker-cell', ['worker' => $p->potong, 'type' => 'potong', 'date' => $p->potong_date])
                         </td>
                         <td class="px-4 py-3 whitespace-nowrap"><span class="w-fit rounded border border-gray-300 bg-white px-2 py-0.5 font-mono text-[10px]">{{ $p->size->name ?? '-' }}</span></td>
                         <td class="px-4 py-3 text-xs font-bold whitespace-nowrap text-gray-600">{{ $p->warna ?: '-' }}</td>
-                        <td class="px-4 py-3 text-sm font-bold whitespace-nowrap text-gray-900">{{ $p->customer ?: '-' }}</td>
+                        <td class="px-4 py-3 text-sm font-bold whitespace-nowrap">
+                            @include('partials.filter-link', ['route' => 'produksi.index', 'param' => 'customer', 'value' => $p->customer, 'filters' => $f, 'class' => 'text-gray-900 hover:text-blue-600 hover:underline'])
+                        </td>
                         <td class="px-4 py-3 text-center whitespace-nowrap">
                             @if($p->jahit_date)
-                            <div class="flex flex-col items-center justify-center rounded-md border border-gray-200 bg-gray-50 p-1.5">
-                                <span class="mb-0.5 text-[11px] font-medium text-gray-500 whitespace-nowrap">{{ \Carbon\Carbon::parse($p->jahit_date)->translatedFormat('d M Y') }}</span>
-                                @if($p->jahit)<span class="w-full max-w-[100px] truncate rounded border border-gray-100 bg-white px-1.5 py-0.5 text-center text-xs font-bold text-gray-900 shadow-sm" title="{{ $p->jahit->name }}">{{ $p->jahit->name }}</span>@endif
-                            </div>
+                            @include('produksi.partials.worker-cell', ['worker' => $p->jahit, 'type' => 'jahit', 'date' => $p->jahit_date])
                             @elseif($can['setor_produksi'])
                             <button @click="openAssign({{ $p->id }}, @js($p->temp_name), @js($p->serial))" class="inline-flex h-7 items-center gap-1.5 rounded-md border border-emerald-200 px-3 text-xs font-bold text-emerald-700 shadow-sm hover:bg-emerald-50">
                                 <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.121 14.121L19 19m-7-7l7-7m-7 7l-2.879 2.879M12 12L9.121 9.121m0 0a3 3 0 10-4.243-4.243 3 3 0 004.243 4.243z"/></svg>

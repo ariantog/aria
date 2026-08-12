@@ -32,6 +32,18 @@ $breadcrumbs = [
         @endif
     </div>
 
+    <form method="GET" action="{{ route('permissions.index') }}" class="flex flex-wrap items-end gap-2 rounded-xl border border-gray-200 bg-white p-3">
+        <div class="min-w-[240px] flex-1">
+            <label class="mb-1 block text-xs font-medium uppercase text-gray-500">Search permission</label>
+            <input type="search" name="search" value="{{ $search ?? '' }}" placeholder="e.g. production-setoran-revert"
+                   class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
+        </div>
+        <button type="submit" class="rounded-lg bg-blue-700 px-4 py-2 text-sm font-medium text-white hover:bg-blue-800">Search</button>
+        @if(filled($search ?? null))
+        <a href="{{ route('permissions.index') }}" class="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50">Clear</a>
+        @endif
+    </form>
+
     <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
         <div class="overflow-x-auto">
             <table class="min-w-full divide-y divide-gray-200 text-sm">
