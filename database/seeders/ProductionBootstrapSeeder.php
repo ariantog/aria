@@ -20,6 +20,15 @@ class ProductionBootstrapSeeder extends Seeder
     {
         PermissionTableConfig::apply();
 
+        $permissionsTable = config('permission.table_names.permissions');
+        if ($permissionsTable !== 'aria_permissions' && ! \Illuminate\Support\Facades\Schema::hasTable($permissionsTable)) {
+            throw new \RuntimeException(
+                "Spatie permissions table [{$permissionsTable}] not found. "
+                .'On production MySQL, set PERMISSION_TABLE_PERMISSIONS=aria_permissions and '
+                .'PERMISSION_TABLE_ROLES=aria_roles in .env, then run php artisan config:clear.'
+            );
+        }
+
         $this->seedPermissions();
         $this->migrateContributorPermission();
         $this->syncSuperadminRolePermissions();
