@@ -1,19 +1,19 @@
 @extends('layouts.app')
 
-@section('title', 'Invoice Settings')
+@section('title', 'Invoice Logo')
 
 @section('content')
 @php
 $breadcrumbs = [
     ['title' => 'System Settings', 'href' => route('system-settings.index')],
-    ['title' => 'Invoice', 'href' => route('invoice-settings.edit')],
+    ['title' => 'Invoice Logo', 'href' => route('invoice-settings.edit')],
 ];
 @endphp
 
 <div class="flex flex-col gap-4 p-3 sm:p-4">
     <div>
-        <h2 class="text-2xl font-bold tracking-tight text-gray-900">Invoice Settings</h2>
-        <p class="mt-0.5 text-sm text-gray-500">Default logo and fallback header for invoices. Per-store headers are taken from each transaction sender's addrbook <strong>Invoice Header</strong> field (first line = store name, following lines = address) plus phone.</p>
+        <h2 class="text-2xl font-bold tracking-tight text-gray-900">Invoice Logo</h2>
+        <p class="mt-0.5 text-sm text-gray-500">Upload the default logo shown on invoices. Store name and address are taken from each transaction sender warehouse's <strong>Invoice Header</strong> field (first line = store name, following lines = address) plus phone.</p>
     </div>
 
     @if(session('success'))
@@ -24,27 +24,6 @@ $breadcrumbs = [
         <form method="POST" action="{{ route('invoice-settings.update') }}" enctype="multipart/form-data" class="p-6 space-y-4">
             @csrf
             @method('PUT')
-
-            <div>
-                <label for="company_name" class="mb-1 block text-sm font-medium text-gray-700">Default Company Name</label>
-                <input type="text" id="company_name" name="company_name" value="{{ old('company_name', $branding['company_name']) }}" required
-                       class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
-                @error('company_name')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
-            </div>
-
-            <div>
-                <label for="address" class="mb-1 block text-sm font-medium text-gray-700">Default Address</label>
-                <textarea id="address" name="address" rows="4" required
-                          class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">{{ old('address', $branding['address']) }}</textarea>
-                @error('address')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
-            </div>
-
-            <div>
-                <label for="phone" class="mb-1 block text-sm font-medium text-gray-700">Default Phone</label>
-                <input type="text" id="phone" name="phone" value="{{ old('phone', $branding['phone']) }}" required
-                       class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
-                @error('phone')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
-            </div>
 
             <div>
                 <label for="logo" class="mb-1 block text-sm font-medium text-gray-700">Logo</label>

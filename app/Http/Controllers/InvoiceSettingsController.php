@@ -22,15 +22,16 @@ class InvoiceSettingsController extends Controller
     {
         Gate::authorize(Setting::getPermissions()['edit']);
 
-        $validated = $request->validate([
-            'company_name' => ['required', 'string', 'max:120'],
-            'address' => ['required', 'string', 'max:1000'],
-            'phone' => ['required', 'string', 'max:40'],
+        $request->validate([
             'logo' => ['nullable', 'image', 'max:2048'],
         ]);
 
-        $brandingService->update($validated, $request->file('logo'));
+        if (! $request->file('logo')) {
+            return redirect()->route('invoice-settings.edit')->with('success', 'No changes made.');
+        }
 
-        return redirect()->route('invoice-settings.edit')->with('success', 'Invoice settings saved.');
+        $brandingService->update($request->file('logo'));
+
+        return redirect()->route('invoice-settings.edit')->with('success', 'Invoice logo saved.');
     }
 }

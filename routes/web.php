@@ -90,6 +90,7 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::get('addrbook/{addrbook}/stats', [App\Http\Controllers\AddrbookController::class, 'stat'])->name('addrbook.stats');
     Route::get('system-settings/invoice/branding', [App\Http\Controllers\InvoiceSettingsController::class, 'edit'])->name('invoice-settings.edit');
     Route::put('system-settings/invoice/branding', [App\Http\Controllers\InvoiceSettingsController::class, 'update'])->name('invoice-settings.update');
+    Route::get('system-settings/lookup/{type}', [App\Http\Controllers\SettingController::class, 'lookup'])->name('system-settings.lookup');
     Route::resource('system-settings', App\Http\Controllers\SettingController::class)->except(['show']);
 
     // Cron Manager

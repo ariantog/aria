@@ -23,7 +23,7 @@ class StoreSettingRequest extends FormRequest
     {
         return [
             'group' => 'required|string|max:255',
-            'name' => 'required|string|max:255',
+            'name' => 'required|string|max:255|unique:settings,name',
             'slug' => 'required|string|max:255|unique:settings,slug',
             'value' => 'nullable|string',
         ];

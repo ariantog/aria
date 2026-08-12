@@ -1,23 +1,22 @@
 <?php
 
+use App\Models\Addrbook;
 use App\Models\Setting;
 use App\Models\User;
+use App\Support\SettingRegistry;
+use Database\Seeders\SettingSeeder;
 use Spatie\Permission\Models\Permission;
 
-
 beforeEach(function () {
-    // The first user created gets id 1, which bypasses all Gate checks
-    // (see AppServiceProvider::boot Gate::before). Create a throwaway user
-    // first so the acting user does NOT have id 1.
     User::factory()->create();
 
     $this->user = User::factory()->create();
 
-    // Create permissions
-    $permissions = Setting::getPermissions();
-    foreach ($permissions as $permission) {
+    foreach (Setting::getPermissions() as $permission) {
         Permission::firstOrCreate(['name' => $permission]);
     }
+
+    $this->seed(SettingSeeder::class);
 });
 
 test('unauthorized user cannot view settings', function () {
@@ -31,7 +30,26 @@ test('authorized user can view settings', function () {
 
     $this->actingAs($this->user)
         ->get(route('system-settings.index'))
-        ->assertStatus(200);
+        ->assertStatus(200)
+        ->assertSee('PPN Rate', false)
+        ->assertDontSee('start_time', false);
+});
+
+test('settings index only shows managed settings', function () {
+    Setting::create([
+        'group' => 'General',
+        'name' => 'Legacy Start Time',
+        'slug' => 'start_time',
+        'value' => '08:00',
+    ]);
+
+    $this->user->givePermissionTo(Setting::getPermissions()['view']);
+
+    $this->actingAs($this->user)
+        ->get(route('system-settings.index'))
+        ->assertOk()
+        ->assertDontSee('Legacy Start Time', false)
+        ->assertDontSee('start_time', false);
 });
 
 test('authorized user can view create setting page', function () {
@@ -42,28 +60,63 @@ test('authorized user can view create setting page', function () {
         ->assertStatus(200);
 });
 
-test('authorized user can view invoice branding settings', function () {
+test('authorized user can view invoice logo settings', function () {
     $this->user->givePermissionTo(Setting::getPermissions()['edit']);
 
     $this->actingAs($this->user)
         ->get(route('invoice-settings.edit'))
         ->assertOk()
-        ->assertSee('Invoice Settings', false)
-        ->assertSee('CORENATION', false);
+        ->assertSee('Invoice Logo', false)
+        ->assertDontSee('Default Address', false);
 });
 
-test('authorized user can update invoice branding settings', function () {
+test('settings lookup returns suppliers and warehouses', function () {
+    $supplier = Addrbook::factory()->supplier()->create(['name' => 'Beta Supplier']);
+
+    $this->user->givePermissionTo(Setting::getPermissions()['view']);
+
+    $this->actingAs($this->user)
+        ->getJson(route('system-settings.lookup', ['type' => 'supplier', 'search' => 'Beta']))
+        ->assertSuccessful()
+        ->assertJsonFragment(['id' => $supplier->id, 'name' => 'Beta Supplier']);
+});
+
+test('authorized user can update restock warehouse ids from system settings', function () {
+    $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'Display WH']);
+    $setting = Setting::where('slug', 'restock.default_warehouse_ids')->firstOrFail();
+
     $this->user->givePermissionTo(Setting::getPermissions()['edit']);
 
     $this->actingAs($this->user)
-        ->put(route('invoice-settings.update'), [
-            'company_name' => 'Test Co',
-            'address' => 'Jl. Test 123',
-            'phone' => '08123456789',
+        ->put(route('system-settings.update', $setting->id), [
+            'group' => $setting->group,
+            'name' => $setting->name,
+            'warehouse_ids' => [$warehouse->id],
         ])
-        ->assertRedirect(route('invoice-settings.edit'));
+        ->assertRedirect(route('system-settings.index'));
 
-    expect(Setting::getValue('invoice_company_name'))->toBe('Test Co');
-    expect(Setting::getValue('invoice_address'))->toBe('Jl. Test 123');
-    expect(Setting::getValue('invoice_phone'))->toBe('08123456789');
+    expect(Setting::getValue('restock.default_warehouse_ids'))->toBe([$warehouse->id]);
+});
+
+test('authorized user can update produksi default warehouse via autocomplete value', function () {
+    $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'Prod WH']);
+    $setting = Setting::where('slug', 'produksi.default_warehouse_id')->firstOrFail();
+
+    $this->user->givePermissionTo(Setting::getPermissions()['edit']);
+
+    $this->actingAs($this->user)
+        ->put(route('system-settings.update', $setting->id), [
+            'group' => $setting->group,
+            'name' => $setting->name,
+            'value' => $warehouse->id,
+        ])
+        ->assertRedirect(route('system-settings.index'));
+
+    expect(Setting::getValue('produksi.default_warehouse_id'))->toBe($warehouse->id);
+});
+
+test('managed setting slugs are unique in registry', function () {
+    $slugs = SettingRegistry::slugs();
+
+    expect(count($slugs))->toBe(count(array_unique($slugs)));
 });
