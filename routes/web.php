@@ -270,6 +270,8 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
         Route::get('/warehouse-arrangement/export', [\App\Http\Controllers\Reports\WarehouseArrangementController::class, 'export'])->name('warehouse-arrangement.export');
         Route::post('/warehouse-arrangement/draft-move', [\App\Http\Controllers\Reports\WarehouseArrangementController::class, 'draftMove'])->name('warehouse-arrangement.draft-move');
         Route::get('/product-performance', [\App\Http\Controllers\Reports\ProductPerformanceController::class, 'index'])->name('product-performance');
+        Route::get('/produksi-potong', \App\Http\Controllers\Reports\ProduksiPotongReportController::class)->name('produksi-potong');
+        Route::get('/produksi-qc', \App\Http\Controllers\Reports\ProduksiQcReportController::class)->name('produksi-qc');
     });
 
     // Restock Module

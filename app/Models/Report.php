@@ -23,6 +23,8 @@ class Report
             'view-item-sales' => 'report-item-sales',
             'view-warehouse-arrangement' => 'report-warehouse-arrangement',
             'view-product-performance' => 'report-product-performance',
+            'view-produksi-potong' => 'report-produksi-potong',
+            'view-produksi-qc' => 'report-produksi-qc',
         ];
     }
 }
