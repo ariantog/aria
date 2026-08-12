@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Schema;
 
 class AddrbookDaily extends Model
 {
@@ -14,6 +15,23 @@ class AddrbookDaily extends Model
     public $timestamps = false;
 
     protected $guarded = ['id'];
+
+    protected static function booted(): void
+    {
+        static::creating(function (AddrbookDaily $daily): void {
+            $table = $daily->getTable();
+
+            if (Schema::hasColumn($table, 'class') && $daily->class === null) {
+                $daily->class = '';
+            }
+
+            foreach (['adjust', 'depreciation', 'rating', 'cash_in', 'cash_out', 'sell', 'buy', 'return', 'return_supplier', 'use', 'move', 'transfer'] as $column) {
+                if (Schema::hasColumn($table, $column) && $daily->{$column} === null) {
+                    $daily->{$column} = 0;
+                }
+            }
+        });
+    }
 
     protected $casts = [
         'date' => 'date:Y-m-d',

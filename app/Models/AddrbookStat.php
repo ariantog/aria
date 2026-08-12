@@ -17,6 +17,15 @@ class AddrbookStat extends Model
 
     protected $guarded = [];
 
+    protected static function booted(): void
+    {
+        static::creating(function (AddrbookStat $stat): void {
+            if ($stat->balance === null) {
+                $stat->balance = 0;
+            }
+        });
+    }
+
     public function addrbook()
     {
         return $this->belongsTo(Addrbook::class, 'customer_id');

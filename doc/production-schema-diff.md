@@ -61,6 +61,8 @@ Prod keeps legacy `restocks` / `restock_histories` — L12 restock uses the new 
 | `warehouse_compares` | rename `werehouse_id` → `warehouse_id` |
 | `karyawans`, `cutis` | `deleted_at` |
 
+Production bootstrap also runs `2026_08_13_120000_add_production_not_null_column_defaults` — adds `DEFAULT` on every MySQL `NOT NULL` column that lacks one (except `users` and primary keys). Prevents MySQL 1364 errors when L12 inserts partial rows.
+
 L10 columns that L12 **ignores** but leaves in place: `customers.phone2`, `category`, `customerstat.rating`, etc. See `doc/schema-decisions.md`.
 
 ---

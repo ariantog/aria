@@ -44,6 +44,15 @@ test('cash out transaction can be stored', function () {
         'customer_id' => $recipient->id,
         'balance' => -1000,
     ]);
+
+    $this->assertDatabaseHas('customer_class', [
+        'customer_id' => $bank->id,
+        'date' => now()->format('Y-m-d'),
+        'buy' => 1000,
+        'adjust' => 0,
+        'depreciation' => 0,
+        'class' => '',
+    ]);
 });
 
 test('multiple cash out rows create multiple transactions', function () {
