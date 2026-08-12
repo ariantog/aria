@@ -50,6 +50,9 @@ $f = $filters;
                         <th class="h-12 px-4 font-medium">Permak</th>
                         <th class="h-12 px-4 font-medium">Lain2</th>
                         <th class="h-12 px-4 font-medium">Total</th>
+                        @if($can['edit_borongan'] ?? false)
+                        <th class="h-12 px-4 font-medium"></th>
+                        @endif
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100">
@@ -62,15 +65,26 @@ $f = $filters;
                             <span class="font-medium">{{ $item->date ? \Carbon\Carbon::parse($item->date)->format('Y-m-d') : '-' }}</span>
                             @endif
                         </td>
-                        <td class="p-4">{{ $item->jahit->name ?? '-' }}</td>
+                        <td class="p-4">
+                            @if($item->jahit)
+                            <a href="{{ route('produksi.jahit.show', $item->jahit_id) }}" class="font-medium text-blue-600 hover:underline">{{ $item->jahit->name }}</a>
+                            @else
+                            -
+                            @endif
+                        </td>
                         <td class="p-4">{{ $item->total_items }}</td>
                         <td class="p-4">{{ $fmt($item->tres) }}</td>
                         <td class="p-4">{{ $fmt($item->permak) }}</td>
                         <td class="p-4">{{ $fmt($item->lain2) }}</td>
                         <td class="p-4 font-semibold">{{ $fmt($item->total) }}</td>
+                        @if($can['edit_borongan'] ?? false)
+                        <td class="p-4">
+                            <a href="{{ route('borongan.edit', $item->id) }}" class="text-sm font-medium text-blue-600 hover:underline">Edit</a>
+                        </td>
+                        @endif
                     </tr>
                     @empty
-                    <tr><td colspan="7" class="p-4 text-center text-gray-500">Data Empty</td></tr>
+                    <tr><td colspan="{{ ($can['edit_borongan'] ?? false) ? 8 : 7 }}" class="p-4 text-center text-gray-500">Data Empty</td></tr>
                     @endforelse
                 </tbody>
             </table>

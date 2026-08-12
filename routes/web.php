@@ -243,6 +243,8 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
         Route::get('/create', [App\Http\Controllers\BoronganController::class, 'create'])->name('create');
         Route::post('/', [App\Http\Controllers\BoronganController::class, 'store'])->name('store');
         Route::get('/ajax', [App\Http\Controllers\BoronganController::class, 'getAjaxBorongan'])->name('ajax');
+        Route::get('/{borongan}/edit', [App\Http\Controllers\BoronganController::class, 'edit'])->name('edit');
+        Route::patch('/{borongan}', [App\Http\Controllers\BoronganController::class, 'update'])->name('update');
         Route::get('/{borongan}', [App\Http\Controllers\BoronganController::class, 'show'])->name('show');
     });
 
