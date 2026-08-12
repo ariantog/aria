@@ -12,6 +12,16 @@ class ScheduledTaskSeeder extends Seeder
     public function run(): void
     {
         \App\Models\ScheduledTask::updateOrCreate(
+            ['command' => 'queue:work --stop-when-empty --max-time=55'],
+            [
+                'name' => 'Process Queue Jobs',
+                'frequency' => 'everyMinute',
+                'active' => true,
+                'description' => 'Drains the jobs table (transaction report aggregates, Jubelio import jobs, etc.).',
+            ]
+        );
+
+        \App\Models\ScheduledTask::updateOrCreate(
             ['command' => 'app:recalculate-warehouse-item-stats'],
             [
                 'name' => 'Recalculate Warehouse Item Stats',
