@@ -74,7 +74,9 @@ $config = [
                         })" class="relative">
                             <input type="hidden" name="account_id" :value="form.account_id">
                             <div class="relative flex h-10 overflow-hidden rounded-lg border border-gray-300 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500">
-                                <input type="text" x-model="query" @input="handleInput()" @focus="handleFocus()" @keydown="handleKeydown($event)"
+                                <input type="text" x-model="query" @input="handleInput()" @focus="handleFocus()"
+                                       @keydown="handleKeydown($event)" @keyup="handleKeyup($event)"
+                                       :readonly="keyboardNavLock()"
                                        :placeholder="placeholder" class="flex-1 border-none bg-transparent px-3 text-sm outline-none" autocomplete="off">
                                 <span x-show="loading" class="flex items-center pr-2"><svg class="h-4 w-4 animate-spin text-gray-400" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg></span>
                             </div>
@@ -134,7 +136,9 @@ $config = [
                                  })">
                                 <div class="relative flex h-9 overflow-hidden rounded-lg border focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500"
                                      :class="rowInvalid(row) && !row.customer_id ? 'border-red-400 bg-red-50' : 'border-gray-300'">
-                                    <input type="text" x-model="query" @input="handleInput()" @focus="handleFocus()" @keydown="handleKeydown($event)"
+                                    <input type="text" x-model="query" @input="handleInput()" @focus="handleFocus()"
+                                           @keydown="handleKeydown($event)" @keyup="handleKeyup($event)"
+                                           :readonly="keyboardNavLock()"
                                            :id="'source_' + idx"
                                            :placeholder="placeholder" class="flex-1 border-none bg-transparent px-2 text-sm outline-none" autocomplete="off">
                                     <span x-show="loading" class="flex items-center pr-1.5"><svg class="h-3.5 w-3.5 animate-spin text-gray-400" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg></span>
@@ -150,19 +154,22 @@ $config = [
                             </div>
                             <div class="md:col-span-3">
                                 <input type="text" x-model="row.invoice" placeholder="Invoice #"
-                                       @keydown.enter.prevent="focusNext(idx, 'note')"
+                                       @keydown="fieldKeydown(idx, 'invoice', $event)"
+                                       @keyup="fieldKeyup(idx, 'invoice', $event)"
                                        :id="'invoice_' + idx"
                                        class="w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
                             </div>
                             <div class="md:col-span-2">
                                 <input type="text" x-model="row.note" placeholder="Note"
-                                       @keydown.enter.prevent="focusNext(idx, 'total')"
+                                       @keydown="fieldKeydown(idx, 'note', $event)"
+                                       @keyup="fieldKeyup(idx, 'note', $event)"
                                        :id="'note_' + idx"
                                        class="w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
                             </div>
                             <div class="md:col-span-2">
                                 <input type="number" x-model.number="row.total" placeholder="0" min="0"
-                                       @keydown.enter.prevent="focusNext(idx, 'next')"
+                                       @keydown="fieldKeydown(idx, 'total', $event)"
+                                       @keyup="fieldKeyup(idx, 'total', $event)"
                                        :id="'total_' + idx"
                                        class="w-full rounded-lg border px-2 py-1.5 text-right text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                                        :class="rowInvalid(row) && !(Number(row.total) >= 0.01) ? 'border-red-400 bg-red-50' : 'border-gray-300'">
@@ -217,6 +224,7 @@ function cashForm() {
         submitting: false,
         touched: false,
         serverErrors: [],
+        _fieldKeyHandled: false,
         form: {
             date: startDate,
             account_id: '',
@@ -283,6 +291,33 @@ function cashForm() {
                 const el = document.getElementById(id);
                 if (el) { el.focus(); if (el.select) el.select(); }
             });
+        },
+
+        // Bare keydown/keyup (not Alpine .enter) so Android/IME keyboards work.
+        fieldKeydown(idx, field, e) {
+            this._fieldKeyHandled = false;
+            if (this._processFieldKey(idx, field, e)) {
+                this._fieldKeyHandled = true;
+                e.preventDefault();
+            }
+        },
+
+        fieldKeyup(idx, field, e) {
+            if (this._fieldKeyHandled) {
+                this._fieldKeyHandled = false;
+                return;
+            }
+            if (this._processFieldKey(idx, field, e)) {
+                e.preventDefault();
+            }
+        },
+
+        _processFieldKey(idx, field, e) {
+            if (normalizeNavigationKey(e) !== 'Enter') return false;
+            if (field === 'invoice') { this.focusNext(idx, 'note'); return true; }
+            if (field === 'note') { this.focusNext(idx, 'total'); return true; }
+            if (field === 'total') { this.focusNext(idx, 'next'); return true; }
+            return false;
         },
 
         async handleSubmit() {
