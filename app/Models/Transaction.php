@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Schema;
 
 class Transaction extends Model
 {
@@ -227,5 +228,32 @@ class Transaction extends Model
         }
 
         Gate::authorize(self::permissionNameForType($typeSlug) ?? self::getPermissions()['create']);
+    }
+
+    protected static function booted(): void
+    {
+        static::creating(function (Transaction $transaction): void {
+            $table = $transaction->getTable();
+
+            if (Schema::hasColumn($table, 'description')) {
+                $transaction->description ??= $transaction->notes ?? '';
+            }
+
+            if (Schema::hasColumn($table, 'due') && $transaction->due === null && $transaction->date !== null) {
+                $transaction->due = $transaction->date;
+            }
+
+            if (Schema::hasColumn($table, 'detail_ids') && ($transaction->detail_ids === null || $transaction->detail_ids === '')) {
+                $transaction->detail_ids = '';
+            }
+
+            if (Schema::hasColumn($table, 'cogs') && $transaction->cogs === null) {
+                $transaction->cogs = 0;
+            }
+
+            if (Schema::hasColumn($table, 'location_id') && $transaction->location_id === null) {
+                $transaction->location_id = auth()->user()?->location_id ?? 0;
+            }
+        });
     }
 }

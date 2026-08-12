@@ -21,6 +21,12 @@ return new class extends Migration
         $this->alignTransactionsTable();
         $this->alignSessionsTable();
         $this->alignSettingsTable();
+        $this->alignUsersTable();
+        $this->alignTransactionDetailsTable();
+        $this->alignOperationsTable();
+        $this->alignTagsTable();
+        $this->alignWarehouseComparesTable();
+        $this->alignSoftDeleteColumns();
     }
 
     public function down(): void
@@ -273,6 +279,108 @@ return new class extends Migration
         if (Schema::getConnection()->getDriverName() === 'mysql') {
             DB::statement('ALTER TABLE `settings` MODIFY `name` VARCHAR(191) NOT NULL');
             DB::statement('ALTER TABLE `settings` MODIFY `value` TEXT NULL');
+        }
+    }
+
+    private function alignUsersTable(): void
+    {
+        if (! Schema::hasTable('users')) {
+            return;
+        }
+
+        $this->fixLegacyZeroDateTimestamps('users');
+
+        Schema::table('users', function (Blueprint $blueprint) {
+            if (! Schema::hasColumn('users', 'name')) {
+                $blueprint->string('name')->nullable()->after('id');
+            }
+            if (! Schema::hasColumn('users', 'email')) {
+                $blueprint->string('email')->nullable()->after('username');
+            }
+            if (! Schema::hasColumn('users', 'email_verified_at')) {
+                $blueprint->timestamp('email_verified_at')->nullable()->after('email');
+            }
+            if (! Schema::hasColumn('users', 'two_factor_secret')) {
+                $blueprint->text('two_factor_secret')->nullable();
+            }
+            if (! Schema::hasColumn('users', 'two_factor_recovery_codes')) {
+                $blueprint->text('two_factor_recovery_codes')->nullable();
+            }
+            if (! Schema::hasColumn('users', 'two_factor_confirmed_at')) {
+                $blueprint->timestamp('two_factor_confirmed_at')->nullable();
+            }
+        });
+
+        if (Schema::hasColumn('users', 'name')) {
+            DB::statement("UPDATE `users` SET `name` = `username` WHERE `name` IS NULL OR `name` = ''");
+        }
+    }
+
+    private function alignTransactionDetailsTable(): void
+    {
+        if (! Schema::hasTable('transaction_details')) {
+            return;
+        }
+
+        Schema::table('transaction_details', function (Blueprint $blueprint) {
+            if (! Schema::hasColumn('transaction_details', 'deleted_at')) {
+                $blueprint->softDeletes();
+            }
+        });
+    }
+
+    private function alignOperationsTable(): void
+    {
+        if (! Schema::hasTable('operations')) {
+            return;
+        }
+
+        Schema::table('operations', function (Blueprint $blueprint) {
+            if (! Schema::hasColumn('operations', 'created_at')) {
+                $blueprint->timestamps();
+            }
+            if (! Schema::hasColumn('operations', 'deleted_at')) {
+                $blueprint->softDeletes();
+            }
+        });
+    }
+
+    private function alignTagsTable(): void
+    {
+        if (! Schema::hasTable('tags')) {
+            return;
+        }
+
+        $this->fixLegacyZeroDateTimestamps('tags');
+
+        Schema::table('tags', function (Blueprint $blueprint) {
+            if (! Schema::hasColumn('tags', 'created_at')) {
+                $blueprint->timestamps();
+            }
+        });
+    }
+
+    private function alignWarehouseComparesTable(): void
+    {
+        if (! Schema::hasTable('warehouse_compares')) {
+            return;
+        }
+
+        if (Schema::hasColumn('warehouse_compares', 'werehouse_id') && ! Schema::hasColumn('warehouse_compares', 'warehouse_id')) {
+            DB::statement('ALTER TABLE `warehouse_compares` CHANGE `werehouse_id` `warehouse_id` INT(11) NOT NULL');
+        }
+    }
+
+    private function alignSoftDeleteColumns(): void
+    {
+        foreach (['karyawans', 'cutis'] as $table) {
+            if (! Schema::hasTable($table) || Schema::hasColumn($table, 'deleted_at')) {
+                continue;
+            }
+
+            Schema::table($table, function (Blueprint $blueprint) {
+                $blueprint->softDeletes();
+            });
         }
     }
 };
