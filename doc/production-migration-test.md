@@ -85,7 +85,10 @@ Do **not** run `php artisan migrate` (full history). Use these two paths only:
 # 1. ALTER existing prod tables (customers, items, transactions, prod_produksi, …)
 php artisan migrate --path=database/migrations/2026_08_12_100000_align_production_schema.php --force
 
-# 2. CREATE L12-only tables (guarded — skips tables that already exist)
+# 2. Settings table (run if slug column missing — safe even if align step 1 already ran earlier)
+php artisan migrate --path=database/migrations/2026_08_12_210000_align_settings_table_for_l12.php --force
+
+# 3. CREATE L12-only tables (guarded — skips tables that already exist)
 php artisan migrate --path=database/migrations/2026_08_12_200000_install_l12_production_tables.php --force
 ```
 
@@ -94,6 +97,7 @@ php artisan migrate --path=database/migrations/2026_08_12_200000_install_l12_pro
 | Migration | Purpose |
 |-----------|---------|
 | `2026_08_12_100000_align_production_schema` | Adds L12 columns to **existing** prod tables (`operation_id`, `arrangement_enabled` on `customers`; `legacy_code`, `restock_urgent_threshold` on `items`; etc.) |
+| `2026_08_12_210000_align_settings_table_for_l12` | Adds `id`, `slug`, `group` to legacy `settings` (`name` was the L10 key) |
 | `2026_08_12_200000_install_l12_production_tables` | Creates **new** L12 tables only if missing |
 
 **Tables created by `install_l12_production_tables`** (not in `database/old.sql`):
@@ -244,6 +248,7 @@ SET SESSION sql_mode = @old_mode;
 # After DB clone + .env configured:
 php artisan config:clear
 php artisan migrate --path=database/migrations/2026_08_12_100000_align_production_schema.php --force
+php artisan migrate --path=database/migrations/2026_08_12_210000_align_settings_table_for_l12.php --force
 php artisan migrate --path=database/migrations/2026_08_12_200000_install_l12_production_tables.php --force
 php artisan app:backfill-items-qty                    # optional
 php artisan db:seed --class=ProductionBootstrapSeeder
