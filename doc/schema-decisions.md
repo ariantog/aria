@@ -77,6 +77,8 @@ Single table `items`, `type` `1` = item, `2` = asset lancar. No separate asset t
 | `value`, `location_id`, timestamps | Used — L12 seeds new keys with `location_id = 0` |
 | `id`, `slug`, `group` | L12-only — added by align migration |
 
+Production also has `description` (NOT NULL), `detail_ids`, `due`, `cogs`, `location_id` on `transactions`. L12 sets these in `Transaction::creating` when missing (`description` copies from `notes`).
+
 ## Seeders on production copy
 
 | Seeder | On prod DB copy? |
