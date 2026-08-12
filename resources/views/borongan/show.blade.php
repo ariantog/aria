@@ -21,10 +21,15 @@ $totalQty = $details->sum(fn($d) => (int)$d->quantity);
             </a>
             <h1 class="text-2xl font-bold tracking-tight">Detail Borongan #{{ $borongan->id }}</h1>
         </div>
-        <button onclick="window.print()" class="inline-flex items-center gap-2 rounded-md bg-gray-100 px-4 py-2 text-sm font-medium hover:bg-gray-200">
-            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
-            Cetak
-        </button>
+        <div class="flex items-center gap-2">
+            <button onclick="window.print()" class="inline-flex items-center gap-2 rounded-md bg-gray-100 px-4 py-2 text-sm font-medium hover:bg-gray-200">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+                Cetak
+            </button>
+            @if($can['edit_borongan'] ?? false)
+            <a href="{{ route('borongan.edit', $borongan->id) }}" class="inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Edit</a>
+            @endif
+        </div>
     </div>
 
     <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -47,7 +52,7 @@ $totalQty = $details->sum(fn($d) => (int)$d->quantity);
         <div class="rounded-xl border border-gray-200 bg-white shadow-sm">
             <div class="px-6 pt-4 pb-2"><h2 class="text-sm font-medium uppercase tracking-wider text-gray-500">Informasi Pihak</h2></div>
             <div class="grid grid-cols-2 gap-1 px-6 pb-6 text-sm">
-                <span class="text-gray-500">Penjahit</span><span class="text-base font-semibold text-blue-600">{{ $borongan->jahit->name ?? '-' }}</span>
+                <span class="text-gray-500">Penjahit</span><span class="text-base font-semibold"><a href="{{ route('produksi.jahit.show', $borongan->jahit_id) }}" class="text-blue-600 hover:underline">{{ $borongan->jahit->name ?? '-' }}</a></span>
                 <span class="text-gray-500">Dibuat Oleh</span><span class="font-medium">{{ $borongan->user->name ?? '-' }}</span>
             </div>
         </div>

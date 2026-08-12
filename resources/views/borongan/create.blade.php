@@ -33,9 +33,6 @@ $breadcrumbs = [
         <input type="hidden" name="to" :value="to">
         <template x-for="(group, gi) in groups" :key="group.jahit_id">
             <input type="hidden" :name="`batches[${gi}][jahit_id]`" :value="group.jahit_id">
-            <input type="hidden" :name="`batches[${gi}][permak]`" :value="group.permak">
-            <input type="hidden" :name="`batches[${gi}][tres]`" :value="group.tres">
-            <input type="hidden" :name="`batches[${gi}][lain2]`" :value="group.lain2">
         </template>
 
         <div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
@@ -67,21 +64,28 @@ $breadcrumbs = [
                     <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
                         <div class="flex flex-col gap-3 border-b border-gray-100 bg-gray-50 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
                             <div>
-                                <h2 class="text-base font-semibold" x-text="group.jahit_name"></h2>
-                                <p class="text-sm text-gray-500"><span x-text="group.total_qty"></span> pcs &bull; Subtotal <span x-text="fmt(group.subtotal)"></span></p>
+                                <h2 class="text-base font-semibold">
+                                    <a :href="group.jahit_link" class="text-blue-600 hover:underline" x-text="group.jahit_name"></a>
+                                </h2>
+                                <p class="text-sm text-gray-500">
+                                    <span x-text="group.total_qty"></span> pcs &bull; Subtotal <span x-text="fmt(group.subtotal)"></span>
+                                    <template x-if="group.is_append">
+                                        <span class="ml-2 rounded bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">Tambah ke borongan #<span x-text="group.borongan_id"></span></span>
+                                    </template>
+                                </p>
                             </div>
                             <div class="grid grid-cols-3 gap-3">
                                 <div class="space-y-1">
                                     <label class="text-xs font-medium uppercase text-gray-500">Permak</label>
-                                    <input type="number" min="0" x-model.number="group.permak" class="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm">
+                                    <input type="number" min="0" step="0.01" :name="`batches[${gi}][permak]`" x-model.number="group.permak" class="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm">
                                 </div>
                                 <div class="space-y-1">
                                     <label class="text-xs font-medium uppercase text-gray-500">Tres</label>
-                                    <input type="number" min="0" x-model.number="group.tres" class="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm">
+                                    <input type="number" min="0" step="0.01" :name="`batches[${gi}][tres]`" x-model.number="group.tres" class="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm">
                                 </div>
                                 <div class="space-y-1">
                                     <label class="text-xs font-medium uppercase text-gray-500">Lain-Lain</label>
-                                    <input type="number" min="0" x-model.number="group.lain2" class="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm">
+                                    <input type="number" min="0" step="0.01" :name="`batches[${gi}][lain2]`" x-model.number="group.lain2" class="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm">
                                 </div>
                             </div>
                         </div>
@@ -170,9 +174,9 @@ function boronganCreate(cfg) {
                 const rows = Array.isArray(data) ? data : [];
                 this.groups = rows.map((g) => ({
                     ...g,
-                    permak: 0,
-                    tres: 0,
-                    lain2: 0,
+                    permak: g.is_append ? Number(g.existing_permak) || 0 : 0,
+                    tres: g.is_append ? Number(g.existing_tres) || 0 : 0,
+                    lain2: g.is_append ? Number(g.existing_lain2) || 0 : 0,
                 }));
             } catch (e) {
                 console.error(e);

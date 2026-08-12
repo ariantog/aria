@@ -56,6 +56,7 @@ class Borongan extends Model
             'view' => 'borongan-list',
             'create' => 'borongan-create',
             'view-details' => 'borongan-view',
+            'edit' => 'borongan-edit',
             'delete' => 'borongan-delete',
         ];
     }

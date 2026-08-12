@@ -364,6 +364,7 @@ class LegacyAclMapper
             'index', 'load', 'stat' => ['borongan-list'],
             'add' => ['borongan-create'],
             'detail' => ['borongan-view'],
+            'edit' => ['borongan-edit'],
             'delete' => ['borongan-delete'],
             default => [],
         };

@@ -48,6 +48,7 @@ class BoronganController extends Controller
             'can' => [
                 'create_borongan' => auth()->user()->can(Borongan::getPermissions()['create']),
                 'view_borongan' => auth()->user()->can(Borongan::getPermissions()['view-details']),
+                'edit_borongan' => auth()->user()->can(Borongan::getPermissions()['edit']),
                 'delete_borongan' => auth()->user()->can(Borongan::getPermissions()['delete']),
             ],
             'flash' => ['success' => session('success'), 'error' => session('error')],
@@ -92,18 +93,45 @@ class BoronganController extends Controller
             DB::beginTransaction();
 
             $created = 0;
+            $updated = 0;
 
             foreach ($request->input('batches', []) as $batch) {
                 $jahitId = (int) $batch['jahit_id'];
                 $boronganItems = $this->findBorongan($request->from, $request->to, $jahitId);
 
-                if (empty($boronganItems)) {
-                    continue;
-                }
-
                 $permak = (float) ($batch['permak'] ?? 0);
                 $tres = (float) ($batch['tres'] ?? 0);
                 $lain2 = (float) ($batch['lain2'] ?? 0);
+
+                $existing = $this->findExistingBorongan($request->from, $request->to, $jahitId);
+
+                if ($existing) {
+                    if (empty($boronganItems)) {
+                        $existing->update([
+                            'permak' => $permak,
+                            'tres' => $tres,
+                            'lain2' => $lain2,
+                        ]);
+                        $this->recalculateBoronganTotal($existing);
+                        $updated++;
+
+                        continue;
+                    }
+
+                    $borongan = $existing;
+                    $borongan->permak = $permak;
+                    $borongan->tres = $tres;
+                    $borongan->lain2 = $lain2;
+                    $borongan->save();
+                    $this->appendBoronganItems($borongan, $boronganItems);
+                    $updated++;
+
+                    continue;
+                }
+
+                if (empty($boronganItems)) {
+                    continue;
+                }
 
                 $borongan = new Borongan;
                 $borongan->date = Carbon::now()->toDateString();
@@ -118,37 +146,22 @@ class BoronganController extends Controller
                 $borongan->total = bcadd((string) $permak, bcadd((string) $tres, (string) $lain2, 2), 2);
                 $borongan->save();
 
-                foreach ($boronganItems as $value) {
-                    $detail = new BoronganDetail;
-                    $detail->borongan_id = $borongan->id;
-                    $detail->item_id = $value['item_id'];
-                    $detail->produksi_id = $value['produksi_id'];
-                    $detail->ongkos = $value['ongkos'];
-                    $detail->quantity = $value['quantity'];
-                    $detail->total = $value['total'];
-                    $detail->save();
-
-                    $produksi = Produksi::find($value['produksi_id']);
-                    if ($produksi) {
-                        $produksi->status = Produksi::STATUS_BOTH;
-                        $produksi->save();
-                    }
-
-                    $borongan->total = bcadd((string) $borongan->total, (string) $value['total'], 2);
-                    $borongan->total_items += $value['quantity'];
-                }
-
-                $borongan->save();
+                $this->appendBoronganItems($borongan, $boronganItems);
                 $created++;
             }
 
             DB::commit();
 
-            if ($created === 0) {
+            if ($created === 0 && $updated === 0) {
                 return back()->withInput()->with('error', 'Tidak ada data produksi yang bisa diborongan pada rentang tanggal tersebut.');
             }
 
-            return redirect()->route('borongan.index')->with('success', "Berhasil menyimpan {$created} borongan (satu per penjahit).");
+            $message = collect([
+                $created > 0 ? "{$created} borongan baru" : null,
+                $updated > 0 ? "{$updated} borongan diperbarui" : null,
+            ])->filter()->implode(', ');
+
+            return redirect()->route('borongan.index')->with('success', "Berhasil menyimpan: {$message}.");
 
         } catch (\Exception $e) {
             DB::rollBack();
@@ -170,8 +183,46 @@ class BoronganController extends Controller
         return view('borongan.show', [
             'borongan' => $borongan,
             'details' => $details,
+            'can' => [
+                'edit_borongan' => auth()->user()->can(Borongan::getPermissions()['edit']),
+            ],
             'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
+    }
+
+    public function edit(Borongan $borongan)
+    {
+        Gate::authorize(Borongan::getPermissions()['edit']);
+
+        $borongan->load(['jahit', 'user']);
+        $details = $borongan->details()->with(['item', 'produksi'])->get();
+
+        return view('borongan.edit', [
+            'borongan' => $borongan,
+            'details' => $details,
+            'flash' => ['success' => session('success'), 'error' => session('error')],
+        ]);
+    }
+
+    public function update(Request $request, Borongan $borongan)
+    {
+        Gate::authorize(Borongan::getPermissions()['edit']);
+
+        $validated = $request->validate([
+            'permak' => 'nullable|numeric|min:0',
+            'tres' => 'nullable|numeric|min:0',
+            'lain2' => 'nullable|numeric|min:0',
+        ]);
+
+        $borongan->update([
+            'permak' => (float) ($validated['permak'] ?? 0),
+            'tres' => (float) ($validated['tres'] ?? 0),
+            'lain2' => (float) ($validated['lain2'] ?? 0),
+        ]);
+
+        $this->recalculateBoronganTotal($borongan);
+
+        return redirect()->route('borongan.show', $borongan)->with('success', 'Borongan berhasil diperbarui.');
     }
 
     /**
@@ -219,9 +270,16 @@ class BoronganController extends Controller
             }
 
             if (! isset($grouped[$jahitId])) {
+                $existing = $this->findExistingBorongan($from, $to, $jahitId);
                 $grouped[$jahitId] = [
                     'jahit_id' => $jahitId,
                     'jahit_name' => $val->jahit->name ?? 'Unknown',
+                    'jahit_link' => route('produksi.jahit.show', $jahitId),
+                    'borongan_id' => $existing?->id,
+                    'existing_permak' => (float) ($existing?->permak ?? 0),
+                    'existing_tres' => (float) ($existing?->tres ?? 0),
+                    'existing_lain2' => (float) ($existing?->lain2 ?? 0),
+                    'is_append' => $existing !== null,
                     'items' => [],
                     'subtotal' => 0.0,
                     'total_qty' => 0,
@@ -311,5 +369,56 @@ class BoronganController extends Controller
         }
 
         return $ongkosTag->price ?? 0;
+    }
+
+    protected function findExistingBorongan(string $from, string $to, int $jahitId): ?Borongan
+    {
+        return Borongan::query()
+            ->where('jahit_id', $jahitId)
+            ->whereDate('from', $from)
+            ->whereDate('to', $to)
+            ->first();
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $boronganItems
+     */
+    protected function appendBoronganItems(Borongan $borongan, array $boronganItems): void
+    {
+        $existingProduksiIds = $borongan->details()->pluck('produksi_id')->all();
+
+        foreach ($boronganItems as $value) {
+            if (in_array($value['produksi_id'], $existingProduksiIds, true)) {
+                continue;
+            }
+
+            BoronganDetail::create([
+                'borongan_id' => $borongan->id,
+                'item_id' => $value['item_id'],
+                'produksi_id' => $value['produksi_id'],
+                'ongkos' => $value['ongkos'],
+                'quantity' => $value['quantity'],
+                'total' => $value['total'],
+            ]);
+
+            $produksi = Produksi::find($value['produksi_id']);
+            if ($produksi) {
+                $produksi->status = Produksi::STATUS_BOTH;
+                $produksi->save();
+            }
+        }
+
+        $this->recalculateBoronganTotal($borongan);
+    }
+
+    protected function recalculateBoronganTotal(Borongan $borongan): void
+    {
+        $itemTotal = (string) $borongan->details()->sum('total');
+        $fees = bcadd((string) $borongan->permak, bcadd((string) $borongan->tres, (string) $borongan->lain2, 2), 2);
+
+        $borongan->update([
+            'total' => bcadd($itemTotal, $fees, 2),
+            'total_items' => (int) $borongan->details()->sum('quantity'),
+        ]);
     }
 }
