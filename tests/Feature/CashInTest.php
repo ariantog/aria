@@ -74,3 +74,21 @@ test('multiple cash in rows create multiple transactions', function () {
         'balance' => 2000,
     ]);
 });
+
+test('cash in rejects more than seven rows', function () {
+    $user = User::factory()->create();
+    $bank = Addrbook::factory()->create(['type' => Addrbook::TYPE_BANK]);
+    $customers = Addrbook::factory()->count(8)->create(['type' => Addrbook::TYPE_CUSTOMER]);
+
+    $response = $this->actingAs($user)->postJson(route('transactions.cash-in.store'), [
+        'date' => now()->format('Y-m-d'),
+        'account_id' => $bank->id,
+        'items' => $customers->map(fn ($customer) => [
+            'customer_id' => $customer->id,
+            'total' => 100,
+        ])->all(),
+    ]);
+
+    $response->assertUnprocessable()
+        ->assertJsonValidationErrors(['items']);
+});
