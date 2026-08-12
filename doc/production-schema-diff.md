@@ -51,11 +51,11 @@ Prod keeps legacy `restocks` / `restock_histories` — L12 restock uses the new 
 | `items` | `qty`, `legacy_code`, `url`, `image_path`, `restock_urgent_threshold` |
 | `warehouse_item` | `warehouse_type`, `note`, `created_at`, `updated_at` |
 | `prod_produksi` | `user_id`, `qc_*`, `pritil_*`, `original_id`, `transaction_id` |
-| `transactions` | `notes`, `reference_number`, `deleted_at` (uses prod cols `invoice`, `due`, `ppn`, `real_total`) |
+| `transactions` | `notes`, `reference_number` (uses prod cols `invoice`, `due`, `ppn`, `real_total`) |
 | `sessions` | `user_id`, `ip_address`, `user_agent` |
 | `settings` | `id`, `slug`, `group`; backfill `slug` from `name`; widen `name`/`value` |
 | `users` | `name`, `email`, Fortify 2FA columns; backfill `name` from `username` |
-| `transaction_details` | `deleted_at` (soft deletes) |
+| `transaction_details` | — (hard delete; archive in `deleted_details`) |
 | `operations` | `created_at`, `updated_at`, `deleted_at` |
 | `tags` | `created_at`, `updated_at` |
 | `warehouse_compares` | rename `werehouse_id` → `warehouse_id` |

@@ -293,8 +293,7 @@ class LegacyItemConverterService
         return function ($query) {
             $query->select(DB::raw(1))
                 ->from('transaction_details')
-                ->whereColumn('transaction_details.item_id', 'items.id')
-                ->whereNull('transaction_details.deleted_at');
+                ->whereColumn('transaction_details.item_id', 'items.id');
         };
     }
 
@@ -306,7 +305,6 @@ class LegacyItemConverterService
             $query->select(DB::raw(1))
                 ->from('transaction_details')
                 ->whereColumn('transaction_details.item_id', 'items.id')
-                ->whereNull('transaction_details.deleted_at')
                 ->where(function ($dateQuery) use ($sinceDate) {
                     $dateQuery->where('transaction_details.date', '>=', $sinceDate)
                         ->orWhereIn('transaction_details.transaction_id', function ($tx) use ($sinceDate) {

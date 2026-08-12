@@ -420,8 +420,8 @@ class TransactionsController extends Controller
                 DeletedTransactionDetail::create($detailData);
             }
 
-            $transaction->details()->forceDelete();
-            $transaction->forceDelete();
+            $transaction->details()->delete();
+            $transaction->delete();
         });
 
         return redirect()->route('transactions.index')->with('success', 'Transaction moved to deleted.');

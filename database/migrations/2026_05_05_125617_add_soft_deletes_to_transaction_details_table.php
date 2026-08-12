@@ -1,28 +1,19 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
 
+/**
+ * Retired: transactions are hard-deleted (archived to deleted_transactions tables), not soft-deleted.
+ */
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
-        Schema::table('transaction_details', function (Blueprint $table) {
-            $table->softDeletes();
-        });
+        // No-op — kept so existing migration history stays valid.
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
-        Schema::table('transaction_details', function (Blueprint $table) {
-            $table->dropSoftDeletes();
-        });
+        // No-op
     }
 };

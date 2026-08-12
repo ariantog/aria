@@ -18,7 +18,6 @@ return new class extends Migration
     {
         (require __DIR__.'/2026_08_12_100000_align_production_schema.php')->up();
         (require __DIR__.'/2026_08_12_200000_install_l12_production_tables.php')->up();
-        (require __DIR__.'/2026_08_13_110000_add_deleted_at_to_transaction_details_table.php')->up();
     }
 
     public function down(): void
