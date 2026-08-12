@@ -19,6 +19,7 @@ return new class extends Migration
             $table->string('customer')->nullable();
             $table->string('warna')->nullable();
             $table->foreignId('potong_id')->nullable();
+            $table->unsignedBigInteger('user_id')->nullable();
             $table->date('potong_date')->nullable();
             $table->string('surat_jalan_potong')->nullable();
             $table->integer('status')->default(1)->comment('1: Produksi, 2: Setor');
