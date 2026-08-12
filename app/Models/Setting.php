@@ -55,7 +55,7 @@ class Setting extends Model
             $query->where('name', $slug);
         }
 
-        $setting = $query->first();
+        $setting = $query->orderByDesc('id')->first();
 
         return $setting ? $setting->value : $default;
     }

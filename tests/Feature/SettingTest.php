@@ -5,6 +5,7 @@ use App\Models\Setting;
 use App\Models\User;
 use App\Support\SettingRegistry;
 use Database\Seeders\SettingSeeder;
+use Illuminate\Support\Facades\Schema;
 use Spatie\Permission\Models\Permission;
 
 beforeEach(function () {
@@ -119,4 +120,46 @@ test('managed setting slugs are unique in registry', function () {
     $slugs = SettingRegistry::slugs();
 
     expect(count($slugs))->toBe(count(array_unique($slugs)));
+});
+
+test('settings cleanup command removes duplicate slug rows', function () {
+    Setting::query()->where('slug', 'start_time')->delete();
+
+    Setting::create([
+        'group' => 'General',
+        'name' => 'Start Time Old',
+        'slug' => 'start_time',
+        'value' => '08:00',
+    ]);
+
+    $this->artisan('settings:cleanup')
+        ->assertSuccessful();
+
+    expect(Setting::where('slug', 'start_time')->count())->toBe(0);
+    expect(Setting::where('slug', 'produksi.default_warehouse_id')->count())->toBe(1);
+});
+
+test('getValue reads the newest row when duplicate slug rows exist', function () {
+    if (Schema::hasColumn('settings', 'slug')) {
+        Schema::table('settings', function ($table) {
+            $table->dropUnique(['slug']);
+        });
+    }
+
+    Setting::query()->where('slug', 'produksi.default_warehouse_id')->delete();
+
+    Setting::create([
+        'group' => 'Produksi',
+        'name' => 'Default Gudang (Warehouse) Old',
+        'slug' => 'produksi.default_warehouse_id',
+        'value' => 1,
+    ]);
+    Setting::create([
+        'group' => 'Produksi',
+        'name' => 'Default Gudang (Warehouse)',
+        'slug' => 'produksi.default_warehouse_id',
+        'value' => 99,
+    ]);
+
+    expect(Setting::getValue('produksi.default_warehouse_id'))->toBe(99);
 });
