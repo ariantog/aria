@@ -1,26 +1,11 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
 
+/** Production `deleted` table uses `discount` for percent — no discount_percent column. */
 return new class extends Migration
 {
-    public function up(): void
-    {
-        Schema::table('deleted', function (Blueprint $table) {
-            if (! Schema::hasColumn('deleted', 'discount_percent')) {
-                $table->decimal('discount_percent', 5, 2)->default(0)->after('discount');
-            }
-        });
-    }
+    public function up(): void {}
 
-    public function down(): void
-    {
-        Schema::table('deleted', function (Blueprint $table) {
-            if (Schema::hasColumn('deleted', 'discount_percent')) {
-                $table->dropColumn('discount_percent');
-            }
-        });
-    }
+    public function down(): void {}
 };

@@ -80,6 +80,11 @@ class Produksi extends Model
         return $this->belongsTo(Worker::class, 'pritil_id');
     }
 
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
+
     public function original()
     {
         return $this->belongsTo(self::class, 'original_id');

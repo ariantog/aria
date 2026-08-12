@@ -16,8 +16,10 @@ return new class extends Migration
             $table->date('date');
             $table->unsignedTinyInteger('type');
             $table->date('due')->nullable();
-            $table->nullableMorphs('sender');
-            $table->nullableMorphs('receiver');
+            $table->unsignedBigInteger('sender_id')->nullable();
+            $table->unsignedTinyInteger('sender_type')->default(0);
+            $table->unsignedBigInteger('receiver_id')->nullable();
+            $table->unsignedTinyInteger('receiver_type')->default(0);
             $table->string('invoice')->nullable();
             $table->string('reference_number')->nullable();
             $table->text('description')->nullable();

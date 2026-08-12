@@ -3,6 +3,8 @@
 Aria runs on the **same MySQL database** as the legacy Laravel 10 app until L10 is retired.
 L12 code uses production table and column names directly (`customers`, `warehouse_item`, `invoice`, `due`, `ppn`, `real_total`, etc.).
 
+**See also:** `doc/schema-decisions.md` (column usage) · `doc/production-migration-test.md` (clone prod DB → test migrate on dev)
+
 ## Prerequisites
 
 - Full database backup
@@ -12,9 +14,8 @@ L12 code uses production table and column names directly (`customers`, `warehous
 ## Phase 1 — Schema alignment (one time)
 
 ```bash
-php artisan migrate
-# Runs 2026_08_12_100000_align_production_schema.php
-# Adds items.qty, legacy_code, warehouse_item.note, prod_produksi qc/pritil cols, etc.
+php artisan migrate --path=database/migrations/2026_08_12_100000_align_production_schema.php --force
+# On existing production DB — do NOT run full migrate; see production-migration-test.md
 ```
 
 Optional manual backfill if `items.qty` needs a full refresh:

@@ -139,6 +139,7 @@ return new class extends Migration
 
         Schema::table($table, function (Blueprint $blueprint) use ($table) {
             $columns = [
+                'user_id' => fn (Blueprint $b) => $b->unsignedInteger('user_id')->nullable(),
                 'qc_id' => fn (Blueprint $b) => $b->unsignedBigInteger('qc_id')->nullable(),
                 'qc_date' => fn (Blueprint $b) => $b->dateTime('qc_date')->nullable(),
                 'pritil_id' => fn (Blueprint $b) => $b->unsignedBigInteger('pritil_id')->nullable(),
