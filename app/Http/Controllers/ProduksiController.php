@@ -35,13 +35,8 @@ class ProduksiController extends Controller
             ->when($request->filled('warna'), fn ($q) => $q->where('warna', 'like', '%'.$request->warna.'%'))
             ->when($request->filled('serial'), fn ($q) => $q->where(fn ($s) => $s->where('id', base_convert($request->serial, 36, 10))->orWhere('original_id', base_convert($request->serial, 36, 10))));
         $produksis = $query->latest('id')->paginate(20)->withQueryString();
-        $splitParentIds = Produksi::query()
-            ->whereIn('original_id', $produksis->pluck('id'))
-            ->pluck('original_id')
-            ->unique()
-            ->flip();
 
-        return view('produksi.index', ['produksis' => $produksis, 'splitParentIds' => $splitParentIds, 'filters' => $request->only(['from', 'to', 'kode', 'customer', 'potong_id', 'jahit_id', 'serial', 'surat_jalan_potong', 'warna']), 'jahitList' => Worker::jahit()->get(), 'can' => $this->produksiPermissions(), 'flash' => ['success' => session('success'), 'error' => session('error')]]);
+        return view('produksi.index', ['produksis' => $produksis, 'filters' => $request->only(['from', 'to', 'kode', 'customer', 'potong_id', 'jahit_id', 'serial', 'surat_jalan_potong', 'warna']), 'jahitList' => Worker::jahit()->get(), 'can' => $this->produksiPermissions(), 'flash' => ['success' => session('success'), 'error' => session('error')]]);
     }
 
     public function create() { Gate::authorize(Produksi::getPermissions()['create']); return view('produksi.create', ['workers' => Worker::potong()->get(), 'sizes' => Tag::where('type', Tag::TYPE_SIZE)->get()]); }
