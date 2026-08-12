@@ -11,7 +11,7 @@ class StoreCashTransactionRequest extends FormRequest
         return [
             'date' => ['required', 'date'],
             'account_id' => ['required', 'integer', 'exists:customers,id'],
-            'items' => ['required', 'array', 'min:1'],
+            'items' => ['required', 'array', 'min:1', 'max:7'],
             'items.*.customer_id' => ['required', 'integer', 'exists:customers,id'],
             'items.*.invoice' => ['nullable', 'string', 'max:255'],
             'items.*.note' => ['nullable', 'string', 'max:5000'],

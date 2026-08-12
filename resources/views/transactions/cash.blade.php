@@ -110,7 +110,8 @@ $config = [
                 <div class="flex items-center justify-between border-b border-gray-100 px-5 py-4">
                     <h3 class="text-sm font-semibold text-gray-900">Cash Entries</h3>
                     <button type="button" @click="addRow()"
-                            class="flex items-center gap-1.5 rounded-lg bg-blue-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-800">
+                            :disabled="!canAddRow()"
+                            class="flex items-center gap-1.5 rounded-lg bg-blue-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500">
                         <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
                         Add Row
                     </button>
@@ -220,6 +221,7 @@ const _CashMinDate = '{{ $min_date ?? '' }}';
 const _CashEndpoint = @js($config['endpoint']);
 const _CashCsrf = '{{ csrf_token() }}';
 const _TxIndex = '{{ route('transactions.index') }}';
+const _CashMaxRows = 7;
 
 function cashForm() {
     const today = new Date().toISOString().split('T')[0];
@@ -239,7 +241,12 @@ function cashForm() {
         init() {},
 
         addRow() {
+            if (!this.canAddRow()) return;
             this.form.items.push(newRow());
+        },
+
+        canAddRow() {
+            return this.form.items.length < _CashMaxRows;
         },
 
         onRowSourceSelect(idx, row, item) {
@@ -283,15 +290,17 @@ function cashForm() {
         focusNext(idx, field) {
             let id;
             if (field === 'next') {
-                // Move to next row or add row
+                // Move to next row or add row (capped at _CashMaxRows)
                 if (idx < this.form.items.length - 1) {
                     id = 'source_' + (idx + 1);
-                } else {
+                } else if (this.canAddRow()) {
                     this.addRow();
                     this.$nextTick(() => {
                         const el = document.getElementById('source_' + (idx + 1));
                         if (el) el.focus();
                     });
+                    return;
+                } else {
                     return;
                 }
             } else {
