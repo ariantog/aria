@@ -126,7 +126,7 @@ php artisan app:backfill-items-qty
 
 **Do not run** `DemoDataSeeder` or `SuperAdminSeeder` on a prod copy.
 
-Set Spatie table names in `.env` for production MySQL:
+Set Spatie table names in `.env` for production MySQL (optional — auto-detected when `aria_permissions` exists):
 
 ```env
 PERMISSION_TABLE_PERMISSIONS=aria_permissions
@@ -136,9 +136,11 @@ PERMISSION_TABLE_ROLES=aria_roles
 Then run the idempotent bootstrap seeder (permissions, scheduled tasks, missing settings):
 
 ```bash
-php artisan config:clear
-php artisan db:seed --class=ProductionBootstrapSeeder
+php artisan config:clear   # required — drops cached config still pointing at `permissions`
+php artisan db:seed --class=ProductionBootstrapSeeder --force
 ```
+
+On MySQL, table names default to `aria_permissions` / `aria_roles` when `DB_CONNECTION=mysql`.
 
 This will:
 

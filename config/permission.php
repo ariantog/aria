@@ -36,17 +36,19 @@ return [
          * default value but you may easily change it to any table you like.
          */
 
-        'roles' => env('PERMISSION_TABLE_ROLES', 'roles'),
+        /*
+         * Production L10 MySQL uses aria_permissions / aria_roles.
+         * Greenfield SQLite uses permissions / roles.
+         */
+        'roles' => env('PERMISSION_TABLE_ROLES', env('DB_CONNECTION', 'sqlite') === 'mysql' ? 'aria_roles' : 'roles'),
 
         /*
          * When using the "HasPermissions" trait from this package, we need to know which
          * table should be used to retrieve your permissions. We have chosen a basic
          * default value but you may easily change it to any table you like.
-         *
-         * Production L10 uses aria_roles / aria_permissions (set via .env).
          */
 
-        'permissions' => env('PERMISSION_TABLE_PERMISSIONS', 'permissions'),
+        'permissions' => env('PERMISSION_TABLE_PERMISSIONS', env('DB_CONNECTION', 'sqlite') === 'mysql' ? 'aria_permissions' : 'permissions'),
 
         /*
          * When using the "HasPermissions" trait from this package, we need to know which
