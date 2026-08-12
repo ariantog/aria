@@ -19,6 +19,7 @@ return new class extends Migration
         $this->alignWarehouseItemTable();
         $this->alignProdProduksiTable();
         $this->alignTransactionsTable();
+        $this->alignSessionsTable();
     }
 
     public function down(): void
@@ -213,14 +214,29 @@ return new class extends Migration
                 ), 0)
                 WHERE qty = 0 OR qty IS NULL
             ');
-        } elseif (Schema::hasColumn('items', 'qty') && Schema::hasTable('warehouse_item')) {
-            DB::statement('
-                UPDATE items
-                SET qty = COALESCE((
-                    SELECT SUM(quantity) FROM warehouse_item wi WHERE wi.item_id = items.id
-                ), 0)
-                WHERE qty = 0 OR qty IS NULL
-            ');
         }
+    }
+
+    /**
+     * L10 sessions table only has id, payload, last_activity.
+     * Laravel 12 database sessions also need user_id, ip_address, user_agent.
+     */
+    private function alignSessionsTable(): void
+    {
+        if (! Schema::hasTable('sessions')) {
+            return;
+        }
+
+        Schema::table('sessions', function (Blueprint $blueprint) {
+            if (! Schema::hasColumn('sessions', 'user_id')) {
+                $blueprint->integer('user_id')->nullable()->index()->after('id');
+            }
+            if (! Schema::hasColumn('sessions', 'ip_address')) {
+                $blueprint->string('ip_address', 45)->nullable()->after('user_id');
+            }
+            if (! Schema::hasColumn('sessions', 'user_agent')) {
+                $blueprint->text('user_agent')->nullable()->after('ip_address');
+            }
+        });
     }
 };

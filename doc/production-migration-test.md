@@ -181,6 +181,19 @@ Login with an **existing production user** (username + password from prod DB). U
 
 ## Step 7 — If something breaks
 
+### Foreign key errno 150 on new L12 tables
+
+Production legacy tables use signed `INT(11)` primary keys (`customers.id`, `items.id`, etc.).
+Laravel's default `foreignId()` is `BIGINT UNSIGNED`, which MySQL rejects as a FK target.
+
+The install migration uses `integer()` for legacy FK columns. If a previous run failed partway,
+re-run the install migration — it auto-drops any new tables that still have `BIGINT` FK columns.
+
+### Unknown column `user_id` on `sessions`
+
+L10 `sessions` only has `id`, `payload`, `last_activity`. Re-run the align migration (or install
+migration, which includes the same guarded ALTER) to add `user_id`, `ip_address`, `user_agent`.
+
 ### Invalid default value for `updated_at` (MySQL 1067)
 
 Legacy L10 tables use `DEFAULT '0000-00-00 00:00:00'` on timestamps. Strict MySQL rejects any `ALTER` on that table until fixed.
