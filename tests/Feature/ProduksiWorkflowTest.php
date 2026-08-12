@@ -36,11 +36,13 @@ it('shows split lineage on produksi index', function () {
         'original_id' => $parent->id,
     ]);
 
+    $parentSerial = strtoupper(base_convert((string) $parent->id, 10, 36));
+
     $response = $this->actingAs($this->user)->get('/produksi');
 
     $response->assertSuccessful();
-    $response->assertSee('split of');
-    $response->assertSee('parent');
+    $response->assertSee($parentSerial);
+    $response->assertSee('Parent', false);
     $response->assertSee(route('produksi.edit', $parent->id), false);
 });
 
