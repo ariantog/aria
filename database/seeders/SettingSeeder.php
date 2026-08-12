@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Schema;
 
 class SettingSeeder extends Seeder
 {
@@ -11,6 +12,16 @@ class SettingSeeder extends Seeder
      */
     public function run(): void
     {
+        if (! Schema::hasTable('settings')) {
+            return;
+        }
+
+        if (! Schema::hasColumn('settings', 'slug')) {
+            $this->command?->warn('settings.slug missing — run align_production_schema migration first.');
+
+            return;
+        }
+
         $settings = [
             [
                 'group' => 'Accounting',
@@ -93,13 +104,19 @@ class SettingSeeder extends Seeder
         ];
 
         foreach ($settings as $setting) {
+            $attributes = [
+                'group' => $setting['group'],
+                'name' => $setting['name'],
+                'value' => $setting['value'],
+            ];
+
+            if (Schema::hasColumn('settings', 'location_id')) {
+                $attributes['location_id'] = 0;
+            }
+
             \App\Models\Setting::updateOrCreate(
                 ['slug' => $setting['slug']],
-                [
-                    'group' => $setting['group'],
-                    'name' => $setting['name'],
-                    'value' => $setting['value'],
-                ]
+                $attributes
             );
         }
     }

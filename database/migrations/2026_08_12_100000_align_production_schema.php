@@ -20,6 +20,7 @@ return new class extends Migration
         $this->alignProdProduksiTable();
         $this->alignTransactionsTable();
         $this->alignSessionsTable();
+        $this->alignSettingsTable();
     }
 
     public function down(): void
@@ -238,5 +239,40 @@ return new class extends Migration
                 $blueprint->text('user_agent')->nullable()->after('ip_address');
             }
         });
+    }
+
+    /**
+     * L10 settings: name (key), value, location_id — no id/slug/group.
+     * L12 uses id, slug, group, name (label), value (JSON).
+     */
+    private function alignSettingsTable(): void
+    {
+        if (! Schema::hasTable('settings')) {
+            return;
+        }
+
+        $this->fixLegacyZeroDateTimestamps('settings');
+
+        if (! Schema::hasColumn('settings', 'id')) {
+            DB::statement('ALTER TABLE `settings` ADD COLUMN `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY FIRST');
+        }
+
+        Schema::table('settings', function (Blueprint $blueprint) {
+            if (! Schema::hasColumn('settings', 'slug')) {
+                $blueprint->string('slug', 100)->nullable()->after('name');
+            }
+            if (! Schema::hasColumn('settings', 'group')) {
+                $blueprint->string('group')->nullable()->after('id');
+            }
+        });
+
+        if (Schema::hasColumn('settings', 'slug')) {
+            DB::statement("UPDATE `settings` SET `slug` = `name` WHERE `slug` IS NULL OR `slug` = ''");
+        }
+
+        if (Schema::getConnection()->getDriverName() === 'mysql') {
+            DB::statement('ALTER TABLE `settings` MODIFY `name` VARCHAR(191) NOT NULL');
+            DB::statement('ALTER TABLE `settings` MODIFY `value` TEXT NULL');
+        }
     }
 };
