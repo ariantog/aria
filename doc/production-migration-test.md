@@ -77,28 +77,35 @@ php artisan migrate:status
 
 You will see many migrations as “Pending”. That is expected.
 
-### 3b. Run the two production-safe migrations
-
-Do **not** run `php artisan migrate` (full history). Use these two paths only:
+### 3b. Run the production bootstrap migration (one command)
 
 ```bash
-# 1. ALTER existing prod tables (customers, items, transactions, prod_produksi, …)
-php artisan migrate --path=database/migrations/2026_08_12_100000_align_production_schema.php --force
-
-# 2. Settings table (run if slug column missing — safe even if align step 1 already ran earlier)
-php artisan migrate --path=database/migrations/2026_08_12_210000_align_settings_table_for_l12.php --force
-
-# 3. CREATE L12-only tables (guarded — skips tables that already exist)
-php artisan migrate --path=database/migrations/2026_08_12_200000_install_l12_production_tables.php --force
+php artisan migrate --path=database/migrations/2026_08_13_100000_production_database_bootstrap.php --force
 ```
+
+This runs **align** (guarded ALTERs on existing prod tables) then **install** (guarded CREATEs for L12-only tables). Fully idempotent.
+
+<details>
+<summary>Or run align + install separately (same result)</summary>
+
+```bash
+php artisan migrate --path=database/migrations/2026_08_13_100000_production_database_bootstrap.php --force
+```
+
+Use the separate settings migration only if align was recorded **before** settings alignment was added and bootstrap is not used.
+
+</details>
+
+Schema reference: `doc/production-schema-diff.md` (`database/old.sql` = prod, `database/new.sql` = greenfield L12 export).
 
 ### 3c. What each migration does
 
 | Migration | Purpose |
 |-----------|---------|
-| `2026_08_12_100000_align_production_schema` | Adds L12 columns to **existing** prod tables (`operation_id`, `arrangement_enabled` on `customers`; `legacy_code`, `restock_urgent_threshold` on `items`; etc.) |
-| `2026_08_12_210000_align_settings_table_for_l12` | Adds `id`, `slug`, `group` to legacy `settings` (`name` was the L10 key) |
-| `2026_08_12_200000_install_l12_production_tables` | Creates **new** L12 tables only if missing |
+| `2026_08_13_100000_production_database_bootstrap` | **Recommended** — align + install in one step |
+| `2026_08_12_100000_align_production_schema` | ALTER existing prod tables |
+| `2026_08_12_210000_align_settings_table_for_l12` | Settings-only (if align already migrated earlier) |
+| `2026_08_12_200000_install_l12_production_tables` | CREATE L12-only tables |
 
 **Tables created by `install_l12_production_tables`** (not in `database/old.sql`):
 
@@ -252,9 +259,7 @@ SET SESSION sql_mode = @old_mode;
 ```bash
 # After DB clone + .env configured:
 php artisan config:clear
-php artisan migrate --path=database/migrations/2026_08_12_100000_align_production_schema.php --force
-php artisan migrate --path=database/migrations/2026_08_12_210000_align_settings_table_for_l12.php --force
-php artisan migrate --path=database/migrations/2026_08_12_200000_install_l12_production_tables.php --force
+php artisan migrate --path=database/migrations/2026_08_13_100000_production_database_bootstrap.php --force
 php artisan app:backfill-items-qty                    # optional
 php artisan db:seed --class=ProductionBootstrapSeeder --force
 php artisan serve --host=0.0.0.0 --port=5000   # dev only; prod uses nginx/apache
