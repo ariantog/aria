@@ -159,12 +159,17 @@ This will:
 ## Step 5 — Runtime services
 
 ```bash
-# Web (adjust host/port)
+# Web (adjust host/port for local dev)
 php artisan serve --host=0.0.0.0 --port=5000
-
-# Queue worker (balance / summary jobs)
-php artisan queue:listen
 ```
+
+**Cron (production):** one OS cron entry is enough — L12 loads tasks from `scheduled_tasks` (including queue draining):
+
+```cron
+* * * * * cd /path/to/aria && php artisan schedule:run >> /dev/null 2>&1
+```
+
+No separate long-running `queue:listen` process is required when **Process Queue Jobs** is active in `/cron-manager` (seeded every minute via `queue:work --stop-when-empty`).
 
 Login with an **existing production user** (username + password from prod DB). User id `1` is superadmin.
 
@@ -237,7 +242,7 @@ SET SESSION sql_mode = @old_mode;
 3. Same `.env` + deploy as tested on dev clone.
 4. Same additive `migrate --path=...` commands.
 5. Permission sync.
-6. `queue:listen` on L12.
+6. OS cron → `schedule:run` every minute (no separate queue daemon).
 7. Parallel L10 + L12 until L10 retired.
 
 ---
@@ -251,7 +256,7 @@ php artisan migrate --path=database/migrations/2026_08_12_100000_align_productio
 php artisan migrate --path=database/migrations/2026_08_12_210000_align_settings_table_for_l12.php --force
 php artisan migrate --path=database/migrations/2026_08_12_200000_install_l12_production_tables.php --force
 php artisan app:backfill-items-qty                    # optional
-php artisan db:seed --class=ProductionBootstrapSeeder
-php artisan queue:listen &
-php artisan serve --host=0.0.0.0 --port=5000
+php artisan db:seed --class=ProductionBootstrapSeeder --force
+php artisan serve --host=0.0.0.0 --port=5000   # dev only; prod uses nginx/apache
+# Prod cron: * * * * * cd /path/to/aria && php artisan schedule:run
 ```
