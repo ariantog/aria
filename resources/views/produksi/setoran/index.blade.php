@@ -112,11 +112,11 @@ $hasFilters = collect($filters)->filter(fn($v) => $v !== null && $v !== '')->isN
                     @endphp
                     <tr class="transition-colors {{ $rowColor }}">
                         <td class="px-2 py-2 whitespace-nowrap">
-                            <div class="flex flex-col gap-0.5">
+                            <div class="flex flex-col">
                                 <a href="{{ route('produksi.setoran.edit', $p->id) }}" class="text-sm font-bold text-blue-600 hover:underline">{{ $p->serial }}</a>
-                                <div class="text-xs leading-tight">
+                                <div class="mt-1 border-t border-gray-300 pt-1 text-xs leading-tight">
                                     @if($p->original_id)
-                                    @include('partials.filter-link', ['route' => 'produksi.setoran.index', 'param' => 'serial', 'value' => $p->parentSerial(), 'filters' => $filters, 'class' => 'text-blue-600 hover:underline'])
+                                    @include('partials.filter-link', ['route' => 'produksi.setoran.index', 'param' => 'serial', 'value' => $p->parentSerial(), 'filters' => $filters, 'class' => 'font-semibold text-violet-600 hover:text-violet-800 hover:underline'])
                                     @else
                                     <span class="font-medium text-gray-400">-</span>
                                     @endif
