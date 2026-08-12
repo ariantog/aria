@@ -2,10 +2,26 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\MapsProductionColumns;
+use App\Models\Concerns\UsesProductionTable;
 use Illuminate\Database\Eloquent\Model;
 
 class DeletedTransaction extends Model
 {
+    use MapsProductionColumns, UsesProductionTable;
+
+    protected $table = 'deleted_transactions';
+
+    protected static function productionTableKey(): string
+    {
+        return 'deleted_transaction';
+    }
+
+    protected static function productionColumnKey(): string
+    {
+        return 'transactions';
+    }
+
     public $incrementing = false;
 
     protected $guarded = [];

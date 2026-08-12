@@ -2,13 +2,22 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\UsesProductionTable;
+use App\Support\ProductionSchema;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ItemGroup extends Model
 {
-    use HasFactory;
+    use HasFactory, UsesProductionTable;
+
+    protected $table = 'item_groups';
+
+    protected static function productionTableKey(): string
+    {
+        return 'item_group';
+    }
 
     protected $appends = ['image_url', 'in_warehouse_qty'];
 
@@ -50,6 +59,8 @@ class ItemGroup extends Model
 
     public function getInWarehouseQtyAttribute(): float
     {
-        return $this->items()->join('warehouse_items', 'items.id', '=', 'warehouse_items.item_id')->sum('warehouse_items.quantity');
+        $warehouseItems = ProductionSchema::table('warehouse_item');
+
+        return $this->items()->join($warehouseItems, 'items.id', '=', "{$warehouseItems}.item_id")->sum("{$warehouseItems}.quantity");
     }
 }

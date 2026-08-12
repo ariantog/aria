@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\TransactionStatus;
 use App\Enums\TransactionType;
+use App\Models\Concerns\MapsProductionColumns;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -13,9 +14,14 @@ use Illuminate\Support\Facades\Gate;
 
 class Transaction extends Model
 {
-    use HasFactory, SoftDeletes;
+    use HasFactory, MapsProductionColumns, SoftDeletes;
 
     protected $guarded = ['id'];
+
+    protected static function productionColumnKey(): string
+    {
+        return 'transactions';
+    }
 
     /** @deprecated Use TransactionType enum */
     const TYPE_BUY = 1;

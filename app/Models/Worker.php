@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\UsesProductionTable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -10,7 +11,14 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class Worker extends Model
 {
     /** @use HasFactory<\Database\Factories\WorkerFactory> */
-    use HasFactory, SoftDeletes;
+    use HasFactory, SoftDeletes, UsesProductionTable;
+
+    protected $table = 'workers';
+
+    protected static function productionTableKey(): string
+    {
+        return 'worker';
+    }
 
     const TYPE_POTONG = 1;
 
