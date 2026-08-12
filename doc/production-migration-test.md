@@ -170,6 +170,21 @@ Login with an **existing production user** (username + password from prod DB). U
 
 ## Step 7 — If something breaks
 
+### Invalid default value for `updated_at` (MySQL 1067)
+
+Legacy L10 tables use `DEFAULT '0000-00-00 00:00:00'` on timestamps. Strict MySQL rejects any `ALTER` on that table until fixed.
+
+The align migration (`2026_08_12_100000`) now normalizes `created_at`/`updated_at` to `TIMESTAMP NULL` before adding columns. Pull latest `cursor/migration` and re-run.
+
+Manual fix if needed before migrate:
+
+```sql
+ALTER TABLE `customers` MODIFY `updated_at` TIMESTAMP NULL DEFAULT NULL;
+ALTER TABLE `customers` MODIFY `created_at` TIMESTAMP NULL DEFAULT NULL;
+```
+
+### Other errors
+
 1. Note the exact error (SQL column/table name).
 2. Fix L12 code or add a **guarded** migration (`hasColumn` / `hasTable`).
 3. Re-test from Step 3 on a **fresh** prod copy (or restore snapshot).
