@@ -252,7 +252,13 @@ function cashForm() {
         onRowSourceSelect(idx, row, item) {
             row.customer_id = item ? String(item.id) : '';
             row.customer = item;
-            if (item) this.focusNext(idx, 'invoice');
+            if (!item) return;
+            // Defer focus until after keyup: if we move focus synchronously on
+            // keydown, the same Enter's keyup lands on invoice and advances to note.
+            setTimeout(() => {
+                const el = document.getElementById('invoice_' + idx);
+                if (el) { el.focus(); el.select?.(); }
+            }, 0);
         },
 
         removeRow(idx) {
