@@ -126,7 +126,7 @@ php artisan app:backfill-items-qty
 
 **Do not run** `DemoDataSeeder` or `SuperAdminSeeder` on a prod copy.
 
-Set Spatie table names in `.env` for production MySQL:
+Set Spatie table names in `.env` for production MySQL (optional — auto-detected when `aria_permissions` exists):
 
 ```env
 PERMISSION_TABLE_PERMISSIONS=aria_permissions

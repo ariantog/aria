@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\User;
 use App\Services\PermissionGenerator;
+use App\Support\PermissionTableConfig;
 use Illuminate\Database\Seeder;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
@@ -17,6 +18,8 @@ class ProductionBootstrapSeeder extends Seeder
 {
     public function run(): void
     {
+        PermissionTableConfig::apply();
+
         $this->seedPermissions();
         $this->migrateContributorPermission();
         $this->syncSuperadminRolePermissions();
