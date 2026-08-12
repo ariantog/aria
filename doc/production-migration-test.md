@@ -77,33 +77,44 @@ php artisan migrate:status
 
 You will see many migrations as “Pending”. That is expected.
 
-### 3b. Mark greenfield history as already applied (recommended)
+### 3b. Run the two production-safe migrations
 
-Production already has `customers`, `transactions`, `warehouse_item`, etc. Insert rows into the `migrations` table for all **create** migrations that would duplicate existing tables, **or** use the helper script below.
-
-**Safer approach — run only additive paths:**
+Do **not** run `php artisan migrate` (full history). Use these two paths only:
 
 ```bash
-# 1. Schema alignment (guarded ALTERs — safe on prod copy)
+# 1. ALTER existing prod tables (customers, items, transactions, prod_produksi, …)
 php artisan migrate --path=database/migrations/2026_08_12_100000_align_production_schema.php --force
 
-# 2. L12-only tables (run only if migrate:status shows pending AND table missing in DB)
-# Check in phpMyAdmin first; examples:
-php artisan migrate --path=database/migrations/2026_08_08_120000_create_item_identity_conversion_tables.php --force
-php artisan migrate --path=database/migrations/2026_08_08_120000_create_warehouse_arrangement_tables.php --force
-php artisan migrate --path=database/migrations/2026_08_06_100000_create_restock_sheets_table.php --force
-php artisan migrate --path=database/migrations/2026_08_08_052101_create_warehouse_item_monthly_stats_table.php --force
-php artisan migrate --path=database/migrations/2026_08_08_120000_create_product_performance_rollups_table.php --force
-# ... other create_* migrations for tables NOT in old.sql
+# 2. CREATE L12-only tables (guarded — skips tables that already exist)
+php artisan migrate --path=database/migrations/2026_08_12_200000_install_l12_production_tables.php --force
 ```
 
-### 3c. Tables that already exist in production (do NOT re-create)
+### 3c. What each migration does
+
+| Migration | Purpose |
+|-----------|---------|
+| `2026_08_12_100000_align_production_schema` | Adds L12 columns to **existing** prod tables (`operation_id`, `arrangement_enabled` on `customers`; `legacy_code`, `restock_urgent_threshold` on `items`; etc.) |
+| `2026_08_12_200000_install_l12_production_tables` | Creates **new** L12 tables only if missing |
+
+**Tables created by `install_l12_production_tables`** (not in `database/old.sql`):
+
+- `scheduled_tasks` — L12 cron manager (replaces legacy `cron` table usage)
+- `jobs`, `job_batches`, `cache`, `cache_locks` — queue/cache drivers (prod already has `failed_jobs`)
+- `monthly_account_summaries`, `monthly_category_summaries`, `daily_inventory_summaries`
+- `monthly_item_sales`
+- `stok_reports`, `stock_data`
+- `warehouse_item_monthly_stats`, `product_performance_rollups`
+- `warehouse_arrangement_*` (4 tables)
+- `item_identity_conversion_runs`, `item_identity_conversion_results`
+- `restock_sheets`, `restock_cells`, `restock_cell_histories` (L12 restock UI; prod keeps legacy `restocks` / `restock_histories`)
+
+### 3d. Tables that already exist in production (do NOT re-create)
 
 Skip `CREATE` migrations for: `customers`, `customerstat`, `customer_class`, `warehouse_item`, `item_group`, `items`, `tags`, `item_tag`, `transactions`, `transaction_details`, `users`, `prod_produksi`, `prod_worker`, `prod_borongan`, `prod_borongandetail`, `deleted`, `deleted_details`, `location_customer`, `locations`, `settings`, `jubelio*`, `stat_sells`, `warehouse_compares`, etc.
 
 Reference: `database/old.sql`.
 
-### 3d. Optional backfill
+### 3e. Optional backfill
 
 ```bash
 php artisan app:backfill-items-qty
@@ -111,31 +122,31 @@ php artisan app:backfill-items-qty
 
 ---
 
-## Step 4 — Permissions (not full seed)
+## Step 4 — Bootstrap seeder (permissions + crons)
 
 **Do not run** `DemoDataSeeder` or `SuperAdminSeeder` on a prod copy.
 
-Sync L12 permission names onto existing roles:
+Set Spatie table names in `.env` for production MySQL:
 
-```bash
-php artisan tinker --execute="
-app(App\Services\PermissionGenerator::class)->generateAll();
-\$role = Spatie\Permission\Models\Role::where('name', 'superadmin')->first()
-    ?? Spatie\Permission\Models\Role::where('name', 'Super Admin')->first();
-if (\$role) {
-    \$role->syncPermissions(Spatie\Permission\Models\Permission::all());
-    echo 'Synced permissions to: ' . \$role->name;
-} else {
-    echo 'No superadmin role found — assign permissions manually';
-}
-"
+```env
+PERMISSION_TABLE_PERMISSIONS=aria_permissions
+PERMISSION_TABLE_ROLES=aria_roles
 ```
 
-If `settings` rows are missing for L12 keys only:
+Then run the idempotent bootstrap seeder (permissions, scheduled tasks, missing settings):
 
 ```bash
-php artisan db:seed --class=SettingSeeder
+php artisan config:clear
+php artisan db:seed --class=ProductionBootstrapSeeder
 ```
+
+This will:
+
+1. `PermissionGenerator::generateAll()` — create any missing L12 permission rows
+2. Migrate `items-contributor` → `report-product-performance` on roles that had the old permission
+3. `syncPermissions()` on the superadmin Spatie role (user id 1 bypasses ACL regardless)
+4. Seed `scheduled_tasks` rows for the cron manager
+5. `SettingSeeder` — `updateOrCreate` only; safe if settings already exist
 
 ---
 
@@ -218,8 +229,9 @@ SET SESSION sql_mode = @old_mode;
 # After DB clone + .env configured:
 php artisan config:clear
 php artisan migrate --path=database/migrations/2026_08_12_100000_align_production_schema.php --force
+php artisan migrate --path=database/migrations/2026_08_12_200000_install_l12_production_tables.php --force
 php artisan app:backfill-items-qty                    # optional
-php artisan tinker --execute="app(App\Services\PermissionGenerator::class)->generateAll(); /* sync roles */"
+php artisan db:seed --class=ProductionBootstrapSeeder
 php artisan queue:listen &
 php artisan serve --host=0.0.0.0 --port=5000
 ```

@@ -36,15 +36,17 @@ return [
          * default value but you may easily change it to any table you like.
          */
 
-        'roles' => 'roles',
+        'roles' => env('PERMISSION_TABLE_ROLES', 'roles'),
 
         /*
          * When using the "HasPermissions" trait from this package, we need to know which
          * table should be used to retrieve your permissions. We have chosen a basic
          * default value but you may easily change it to any table you like.
+         *
+         * Production L10 uses aria_roles / aria_permissions (set via .env).
          */
 
-        'permissions' => 'permissions',
+        'permissions' => env('PERMISSION_TABLE_PERMISSIONS', 'permissions'),
 
         /*
          * When using the "HasPermissions" trait from this package, we need to know which
