@@ -16,14 +16,14 @@ return new class extends Migration
             $table->id();
             $table->smallInteger('year');
             $table->tinyInteger('month');
-            $table->foreignId('addrbook_id')->constrained('addrbooks')->onDelete('cascade');
+            $table->foreignId('customer_id')->constrained('customers')->onDelete('cascade');
             $table->decimal('cash_in', 15, 2)->default(0);
             $table->decimal('cash_out', 15, 2)->default(0);
             $table->decimal('sell', 15, 2)->default(0);
             $table->decimal('return', 15, 2)->default(0);
             $table->timestamps();
 
-            $table->unique(['year', 'month', 'addrbook_id'], 'account_summary_unique');
+            $table->unique(['year', 'month', 'customer_id'], 'account_summary_unique');
             $table->index(['year', 'month']);
         });
 
@@ -49,7 +49,7 @@ return new class extends Migration
         Schema::create('daily_inventory_summaries', function (Blueprint $table) {
             $table->id();
             $table->date('date');
-            $table->foreignId('warehouse_id')->constrained('addrbooks')->onDelete('cascade');
+            $table->foreignId('warehouse_id')->constrained('customers')->onDelete('cascade');
             $table->foreignId('item_id')->constrained('items')->onDelete('cascade');
 
             $table->decimal('qty_sell', 15, 2)->default(0);

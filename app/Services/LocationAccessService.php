@@ -13,7 +13,7 @@ use Illuminate\Support\Collection;
 class LocationAccessService
 {
     /**
-     * Superadmin and users without a location see all addrbooks / transactions.
+     * Superadmin and users without a location see all customers / transactions.
      */
     public function hasUnrestrictedLocationAccess(?User $user): bool
     {

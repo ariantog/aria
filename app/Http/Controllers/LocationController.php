@@ -16,7 +16,7 @@ class LocationController extends Controller
     {
         Gate::authorize(Location::getPermissions()['view']);
 
-        $query = Location::query()->withCount('addrbooks');
+        $query = Location::query()->withCount('customers');
 
         if ($search = request('search')) {
             $query->where('name', 'like', "%{$search}%");
@@ -79,13 +79,13 @@ class LocationController extends Controller
         return redirect()->route('locations.index')->with('success', 'Location deleted successfully.');
     }
 
-    public function addrbooks(Location $location)
+    public function customers(Location $location)
     {
         Gate::authorize(Location::getPermissions()['edit']);
 
         $search = trim((string) request()->query('q', ''));
 
-        $assigned = $location->addrbooks()
+        $assigned = $location->customers()
             ->where('type', AddrbookType::Customer)
             ->orderBy('name')
             ->get();
@@ -98,14 +98,14 @@ class LocationController extends Controller
                 ->where(fn ($q) => $q
                     ->where('name', 'like', "%{$search}%")
                     ->orWhere('phone', 'like', "%{$search}%")
-                    ->orWhere('member_id', 'like', "%{$search}%")
+                    ->orWhere('memberId', 'like', "%{$search}%")
                 )
                 ->orderBy('name')
                 ->limit(20)
                 ->get();
         }
 
-        return view('locations.addrbooks', [
+        return view('locations.customers', [
             'location' => $location,
             'assigned' => $assigned,
             'candidates' => $candidates,
@@ -118,20 +118,20 @@ class LocationController extends Controller
         Gate::authorize(Location::getPermissions()['edit']);
 
         $data = $request->validate([
-            'addrbook_id' => ['required', 'integer', 'exists:addrbooks,id'],
+            'customer_id' => ['required', 'integer', 'exists:customers,id'],
         ]);
 
-        $addrbook = Addrbook::query()->findOrFail($data['addrbook_id']);
+        $addrbook = Addrbook::query()->findOrFail($data['customer_id']);
         if ($addrbook->type !== AddrbookType::Customer) {
             return redirect()
-                ->route('locations.addrbooks', $location)
+                ->route('locations.customers', $location)
                 ->with('error', 'Only customers can be linked to a location.');
         }
 
-        $location->addrbooks()->syncWithoutDetaching([$addrbook->id]);
+        $location->customers()->syncWithoutDetaching([$addrbook->id]);
 
         return redirect()
-            ->route('locations.addrbooks', $location)
+            ->route('locations.customers', $location)
             ->with('success', 'Customer linked to location.');
     }
 
@@ -139,10 +139,10 @@ class LocationController extends Controller
     {
         Gate::authorize(Location::getPermissions()['edit']);
 
-        $location->addrbooks()->detach($addrbook->id);
+        $location->customers()->detach($addrbook->id);
 
         return redirect()
-            ->route('locations.addrbooks', $location)
+            ->route('locations.customers', $location)
             ->with('success', 'Customer removed from location.');
     }
 }

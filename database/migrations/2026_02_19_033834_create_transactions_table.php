@@ -15,10 +15,10 @@ return new class extends Migration
             $table->id();
             $table->date('date');
             $table->unsignedTinyInteger('type');
-            $table->date('due_date')->nullable();
+            $table->date('due')->nullable();
             $table->nullableMorphs('sender');
             $table->nullableMorphs('receiver');
-            $table->string('invoice_number')->nullable();
+            $table->string('invoice')->nullable();
             $table->string('reference_number')->nullable();
             $table->text('description')->nullable();
             $table->text('notes')->nullable();
@@ -26,15 +26,14 @@ return new class extends Migration
             $table->decimal('total', 15, 2)->default(0);
             $table->decimal('discount', 15, 2)->default(0);
             $table->decimal('adjustment', 15, 2)->default(0);
-            $table->decimal('tax_amount', 15, 2)->default(0);
-            $table->decimal('grand_total', 15, 2)->default(0);
+            $table->decimal('ppn', 15, 2)->default(0);
+            $table->decimal('real_total', 15, 2)->default(0);
             $table->decimal('total_items', 15, 2)->default(0);
             $table->decimal('sender_balance', 15, 2)->default(0);
             $table->decimal('receiver_balance', 15, 2)->default(0);
             $table->unsignedTinyInteger('status')->default(0);
             $table->foreignId('user_id')->constrained('users');
             $table->timestamps();
-            $table->softDeletes();
         });
     }
 

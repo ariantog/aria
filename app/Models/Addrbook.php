@@ -3,9 +3,6 @@
 namespace App\Models;
 
 use App\Enums\AddrbookType;
-use App\Models\Concerns\MapsProductionColumns;
-use App\Models\Concerns\UsesProductionTable;
-use App\Support\ProductionSchema;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -14,7 +11,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Addrbook extends Model
 {
-    use HasFactory, MapsProductionColumns, SoftDeletes, UsesProductionTable;
+    use HasFactory, SoftDeletes;
 
     /** @deprecated Use AddrbookType::Customer */
     const TYPE_CUSTOMER = 1;
@@ -43,19 +40,9 @@ class Addrbook extends Model
     /** @deprecated Use AddrbookType::Other */
     const TYPE_OTHER = 99;
 
-    protected $table = 'addrbooks';
+    protected $table = 'customers';
 
     protected $guarded = ['id'];
-
-    protected static function productionTableKey(): string
-    {
-        return 'addrbook';
-    }
-
-    protected static function productionColumnKey(): string
-    {
-        return 'addrbooks';
-    }
 
     protected function casts(): array
     {
@@ -127,26 +114,22 @@ class Addrbook extends Model
 
     public function stat()
     {
-        $foreignKey = ProductionSchema::column('addrbook_stat', 'addrbook_id');
-
-        return $this->hasOne(AddrbookStat::class, $foreignKey);
+        return $this->hasOne(AddrbookStat::class, 'customer_id');
     }
 
     public function dailies()
     {
-        $foreignKey = ProductionSchema::column('addrbook_daily', 'addrbook_id');
-
-        return $this->hasMany(AddrbookDaily::class, $foreignKey);
+        return $this->hasMany(AddrbookDaily::class, 'customer_id');
     }
 
     public function items(): BelongsToMany
     {
         return $this->belongsToMany(
             Item::class,
-            ProductionSchema::table('warehouse_item'),
+            'warehouse_item',
             'warehouse_id',
             'item_id',
-        )->withPivot('quantity')->withTimestamps();
+        )->withPivot('quantity');
     }
 
     public function operation()
@@ -156,12 +139,9 @@ class Addrbook extends Model
 
     public function locations(): BelongsToMany
     {
-        return $this->belongsToMany(Location::class, 'addrbook_location');
+        return $this->belongsToMany(Location::class, 'location_customer', 'customer_id', 'location_id');
     }
 
-    /**
-     * Physical warehouses that can supply stock to this arrangement destination.
-     */
     public function arrangementSources(): BelongsToMany
     {
         return $this->belongsToMany(

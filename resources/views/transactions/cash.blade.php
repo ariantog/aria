@@ -149,7 +149,7 @@ $config = [
                                 </div>
                             </div>
                             <div class="md:col-span-3">
-                                <input type="text" x-model="row.invoice_number" placeholder="Invoice #"
+                                <input type="text" x-model="row.invoice" placeholder="Invoice #"
                                        @keydown.enter.prevent="focusNext(idx, 'note')"
                                        :id="'invoice_' + idx"
                                        class="w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
@@ -248,7 +248,7 @@ function cashForm() {
         accountValid() { return !!this.form.account_id; },
         rowEmpty(row) {
             return !row.customer_id && (row.total === null || row.total === '' || Number(row.total) === 0)
-                && !row.invoice_number && !row.note;
+                && !row.invoice && !row.note;
         },
         rowValid(row) {
             return !!row.customer_id && Number(row.total) >= 0.01;
@@ -296,7 +296,7 @@ function cashForm() {
                 account_id: this.form.account_id,
                 items: this.filledRows().map(r => ({
                     customer_id: r.customer_id,
-                    invoice_number: r.invoice_number,
+                    invoice: r.invoice,
                     note: r.note,
                     total: Number(r.total || 0),
                 })),
@@ -342,7 +342,7 @@ function newRow() {
         id: Math.random().toString(36).substr(2, 9),
         customer_id: '',
         customer: null,
-        invoice_number: '',
+        invoice: '',
         note: '',
         total: null,
     };

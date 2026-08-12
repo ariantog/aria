@@ -12,7 +12,7 @@ Artisan::command('inspire', function () {
 
 try {
     if (Schema::hasTable('scheduled_tasks')) {
-        $tasks = ScheduledTask::where('is_active', true)->get();
+        $tasks = ScheduledTask::where('active', true)->get();
 
         foreach ($tasks as $task) {
             $event = Schedule::command($task->command);

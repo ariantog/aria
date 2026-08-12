@@ -11,7 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('deleted_transaction_details', function (Blueprint $blueprint) {
+        Schema::create('deleted_details', function (Blueprint $blueprint) {
             $blueprint->unsignedBigInteger('id')->primary();
             $blueprint->unsignedBigInteger('transaction_id')->index();
             $blueprint->date('date')->nullable();
@@ -35,6 +35,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('deleted_transaction_details');
+        Schema::dropIfExists('deleted_details');
     }
 };

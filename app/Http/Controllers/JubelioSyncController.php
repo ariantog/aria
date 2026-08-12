@@ -77,7 +77,7 @@ class JubelioSyncController extends Controller
         $request->validate([
             'location_id' => 'required',
             'location_name' => 'required',
-            'warehouse_id' => 'required|exists:addrbooks,id',
+            'warehouse_id' => 'required|exists:customers,id',
         ]);
 
         $response = $this->jubelioService->get('https://api2.jubelio.com/locations/'.$request->location_id);
@@ -138,8 +138,8 @@ class JubelioSyncController extends Controller
         Gate::authorize(Jubelio::getPermissions()['sync']);
 
         $request->validate([
-            'warehouse_id' => 'required|exists:addrbooks,id',
-            'customer_id' => 'nullable|exists:addrbooks,id',
+            'warehouse_id' => 'required|exists:customers,id',
+            'customer_id' => 'nullable|exists:customers,id',
         ]);
 
         $sync->update([

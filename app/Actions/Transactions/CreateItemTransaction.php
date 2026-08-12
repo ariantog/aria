@@ -62,19 +62,19 @@ class CreateItemTransaction
     {
         $trx = Transaction::create([
             'date' => $data['date'], 'type' => $type->value,
-            'due_date' => $data['due_date'] ?? null,
+            'due' => $data['due'] ?? null,
             'sender_type' => $sender->type instanceof AddrbookType ? $sender->type->value : $sender->type,
             'sender_id' => $sender->id,
             'receiver_type' => $receiver->type instanceof AddrbookType ? $receiver->type->value : $receiver->type,
             'receiver_id' => $receiver->id,
             'notes' => $data['note'] ?? null, 'user_id' => Auth::id(),
             'status' => TransactionStatus::Completed->value,
-            'grand_total' => 0, 'total_items' => 0,
+            'real_total' => 0, 'total_items' => 0,
             'adjustment' => $data['adjustment'] ?? 0,
             'submit_type' => Transaction::SUBMIT_TYPE_MANUAL,
-            'invoice_number' => ! empty($data['invoice_number']) ? $data['invoice_number'] : null,
+            'invoice' => ! empty($data['invoice']) ? $data['invoice'] : null,
         ]);
-        if (empty($trx->invoice_number)) $trx->update(['invoice_number' => (string) $trx->id]);
+        if (empty($trx->invoice)) $trx->update(['invoice' => (string) $trx->id]);
         return $trx;
     }
 
@@ -106,9 +106,12 @@ class CreateItemTransaction
         $grandTotal = $totalBeforeTax + $taxAmount;
         if ($type->isNegative()) $grandTotal = -abs($grandTotal);
         $transaction->update([
-            'total' => $itemsTotal, 'discount' => $discountAmount,
-            'discount_percent' => $discountPercent, 'adjustment' => $adjustment,
-            'tax_amount' => $taxAmount, 'grand_total' => $grandTotal, 'total_items' => $totalItems,
+            'total' => $itemsTotal,
+            'discount' => $discountPercent,
+            'adjustment' => $adjustment,
+            'ppn' => $taxAmount,
+            'real_total' => $grandTotal,
+            'total_items' => $totalItems,
         ]);
     }
 }

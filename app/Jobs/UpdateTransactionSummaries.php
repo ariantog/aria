@@ -45,7 +45,7 @@ class UpdateTransactionSummaries implements ShouldQueue
             default => null,
         };
         if (! $targetId) return;
-        $summary = MonthlyAccountSummary::firstOrCreate(['year' => $year, 'month' => $month, 'addrbook_id' => $targetId]);
+        $summary = MonthlyAccountSummary::firstOrCreate(['year' => $year, 'month' => $month, 'customer_id' => $targetId]);
         $column = match ($transaction->type) {
             TransactionType::CashIn => 'cash_in', TransactionType::CashOut => 'cash_out',
             TransactionType::Sell => 'sell', TransactionType::Return => 'return', default => null,

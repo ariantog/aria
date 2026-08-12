@@ -19,7 +19,7 @@ it('accepts jubelio return webhook and stores return order', function () {
 
     Transaction::factory()->create([
         'type' => Transaction::TYPE_SELL,
-        'invoice_number' => 'INV-SELL-001',
+        'invoice' => 'INV-SELL-001',
         'sender_id' => $warehouse->id,
         'receiver_id' => $customer->id,
     ]);
@@ -35,7 +35,7 @@ it('accepts jubelio return webhook and stores return order', function () {
                 'store_id' => 1,
                 'location_id' => 2,
                 'sub_total' => 100000,
-                'grand_total' => 100000,
+                'real_total' => 100000,
                 'items' => [],
             ]);
     });
@@ -65,7 +65,7 @@ it('rejects duplicate jubelio return webhook payloads', function () {
 
     Transaction::factory()->create([
         'type' => Transaction::TYPE_SELL,
-        'invoice_number' => 'INV-SELL-002',
+        'invoice' => 'INV-SELL-002',
         'sender_id' => $warehouse->id,
         'receiver_id' => $customer->id,
     ]);
@@ -116,7 +116,7 @@ it('accepts jubelio cancel webhook and stores cancellation record', function () 
 
     $sell = Transaction::factory()->create([
         'type' => Transaction::TYPE_SELL,
-        'invoice_number' => 'INV-CANCEL-WH',
+        'invoice' => 'INV-CANCEL-WH',
         'sender_id' => $warehouse->id,
         'receiver_id' => $customer->id,
         'jubelio_return' => 0,
@@ -155,7 +155,7 @@ it('rejects duplicate jubelio cancel webhook payloads', function () {
 
     Transaction::factory()->create([
         'type' => Transaction::TYPE_SELL,
-        'invoice_number' => 'INV-CANCEL-DUP',
+        'invoice' => 'INV-CANCEL-DUP',
         'sender_id' => $warehouse->id,
         'receiver_id' => $customer->id,
     ]);
@@ -320,7 +320,7 @@ it('can process a jubelio cancellation into a return transaction', function () {
 
     $sell = Transaction::factory()->create([
         'type' => Transaction::TYPE_SELL,
-        'invoice_number' => 'INV-CANCEL-PROC',
+        'invoice' => 'INV-CANCEL-PROC',
         'sender_id' => $warehouse->id,
         'receiver_id' => $customer->id,
         'submit_type' => Transaction::SUBMIT_TYPE_MANUAL,
@@ -359,7 +359,7 @@ it('can process a jubelio cancellation into a return transaction', function () {
 
     expect($return->status)->toBe(1)
         ->and((int) $sell->jubelio_return)->toBe(2)
-        ->and(Transaction::where('type', Transaction::TYPE_RETURN)->where('invoice_number', 'INV-CANCEL-PROC')->exists())->toBeTrue();
+        ->and(Transaction::where('type', Transaction::TYPE_RETURN)->where('invoice', 'INV-CANCEL-PROC')->exists())->toBeTrue();
 });
 
 it('refetches jubelio order payload when source is not webhook', function () {
@@ -398,7 +398,7 @@ it('refetches jubelio order payload when source is not webhook', function () {
                 'store_id' => 11,
                 'location_id' => 22,
                 'sub_total' => 100000,
-                'grand_total' => 100000,
+                'real_total' => 100000,
                 'transaction_date' => '2026-05-10',
                 'items' => [
                     ['item_code' => 'SKU-REFETCH-1', 'qty' => 1, 'price' => 100000],

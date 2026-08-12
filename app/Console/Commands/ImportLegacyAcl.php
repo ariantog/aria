@@ -18,7 +18,7 @@ class ImportLegacyAcl extends Command
                             {--dry-run : Parse and report without writing}
                             {--skip-users : Do not import users}
                             {--skip-roles : Do not import roles}
-                            {--skip-locations : Do not import locations or addrbook_location pivot}
+                            {--skip-locations : Do not import locations or location_customer pivot}
                             {--preserve-user-1 : Skip overwriting user id 1}';
 
     protected $description = 'One-time import: convert legacy ACL SQL dump into Spatie permissions, roles, users, and location links';
@@ -169,12 +169,12 @@ class ImportLegacyAcl extends Command
      */
     private function importAddrbookLocations(array $rows): void
     {
-        $this->info('Importing addrbook_location pivot...');
+        $this->info('Importing location_customer pivot...');
 
         // TRUNCATE implicitly commits on MySQL and breaks surrounding transactions.
-        DB::table('addrbook_location')->delete();
+        DB::table('location_customer')->delete();
 
-        $existingAddrbookIds = DB::table('addrbooks')->pluck('id')->flip();
+        $existingAddrbookIds = DB::table('customers')->pluck('id')->flip();
         $batch = [];
         $skipped = 0;
 
@@ -187,16 +187,16 @@ class ImportLegacyAcl extends Command
 
             $batch[] = [
                 'location_id' => $row['location_id'],
-                'addrbook_id' => $row['customer_id'],
+                'customer_id' => $row['customer_id'],
             ];
         }
 
         foreach (array_chunk($batch, 500) as $chunk) {
-            DB::table('addrbook_location')->insert($chunk);
+            DB::table('location_customer')->insert($chunk);
         }
 
         if ($skipped > 0) {
-            $this->warn("Skipped {$skipped} location links for addrbooks not present in this database.");
+            $this->warn("Skipped {$skipped} location links for customers not present in this database.");
         }
     }
 
@@ -239,7 +239,7 @@ class ImportLegacyAcl extends Command
                     'username' => $user['username'],
                     'email' => $user['username'].'@mail.com',
                     'password' => $user['password'],
-                    'is_active' => (bool) $user['active'],
+                    'active' => (bool) $user['active'],
                     'location_id' => $user['location_id'] > 0 ? $user['location_id'] : null,
                     'created_at' => now(),
                     'updated_at' => now(),

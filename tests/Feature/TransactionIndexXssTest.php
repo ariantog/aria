@@ -20,7 +20,7 @@ it('escapes stored payloads in contact names, invoice numbers and descriptions',
 
     Transaction::factory()->create([
         'type'           => Transaction::TYPE_BUY,
-        'invoice_number' => $payload,
+        'invoice' => $payload,
         'description'    => $payload,
         'sender_type'    => (string) Addrbook::TYPE_SUPPLIER,
         'sender_id'      => $sender->id,
@@ -43,7 +43,7 @@ it('escapes a payload echoed back through the filter inputs', function () {
     $user = User::factory()->create();
 
     $response = $this->actingAs($user)->get(route('transactions.index', [
-        'invoice_number' => '"><script>alert(1)</script>',
+        'invoice' => '"><script>alert(1)</script>',
     ]));
 
     $response->assertOk();

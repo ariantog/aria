@@ -37,14 +37,14 @@ class TransactionListExportService
 
             $sheet->fromArray([
                 $tx->date ? \Illuminate\Support\Carbon::parse($tx->date)->format('d/m/Y') : '',
-                $tx->invoice_number,
+                $tx->invoice,
                 $typeLabel,
                 $tx->sender?->name ?? '',
                 ($hideBankBalances && $senderIsBank) ? '' : (float) $tx->sender_balance,
                 $tx->receiver?->name ?? '',
                 ($hideBankBalances && $receiverIsBank) ? '' : (float) $tx->receiver_balance,
                 (float) $tx->total_items,
-                (float) $tx->grand_total,
+                (float) $tx->real_total,
             ], null, 'A'.$rowNum);
 
             $rowNum++;

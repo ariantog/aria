@@ -77,7 +77,7 @@ class JubelioGetOrderController extends Controller
             $import->delete();
         }
 
-        ScheduledTask::where('command', 'jubelio:get-orders')->update(['is_active' => false]);
+        ScheduledTask::where('command', 'jubelio:get-orders')->update(['active' => false]);
 
         return back()->with('success', 'Sinkronisasi direset.');
     }

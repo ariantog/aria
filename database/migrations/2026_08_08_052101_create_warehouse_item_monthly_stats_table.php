@@ -14,7 +14,7 @@ return new class extends Migration
 
         Schema::create('warehouse_item_monthly_stats', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('warehouse_id')->constrained('addrbooks')->cascadeOnDelete();
+            $table->foreignId('warehouse_id')->constrained('customers')->cascadeOnDelete();
             $table->foreignId('item_id')->constrained('items')->cascadeOnDelete();
             $table->unsignedSmallInteger('month');
             $table->unsignedSmallInteger('year');

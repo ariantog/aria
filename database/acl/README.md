@@ -10,7 +10,7 @@ Spatie permission system. Nothing here is loaded or executed at runtime.
 | `acl` table | `permissions` + `role_has_permissions` |
 | `users.role_id` | `model_has_roles` (Spatie) |
 | `roles` (name only; sidebar/sidenav ignored) | `roles` + Spatie permissions |
-| `location_customer` | `addrbook_location` pivot |
+| `location_customer` | `location_customer` pivot |
 | `locations` (id + name only) | `locations` |
 
 ## How to run

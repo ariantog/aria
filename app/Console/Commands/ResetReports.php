@@ -27,7 +27,7 @@ class ResetReports extends Command
      */
     public function handle(): int
     {
-        if (! $this->option('force') && ! $this->confirm('Are you sure you want to reset all stock reports? This will empty warehouse_items and set all item quantities to zero.')) {
+        if (! $this->option('force') && ! $this->confirm('Are you sure you want to reset all stock reports? This will empty warehouse_item and set all item quantities to zero.')) {
             $this->info('Reset cancelled.');
 
             return Command::SUCCESS;
@@ -39,15 +39,15 @@ class ResetReports extends Command
 
         try {
             DB::transaction(function () {
-                $this->info('Emptying warehouse_items table...');
-                DB::table('warehouse_items')->truncate();
+                $this->info('Emptying warehouse_item table...');
+                DB::table('warehouse_item')->truncate();
 
                 $this->info('Resetting global item quantities to zero...');
                 DB::table('items')->update(['qty' => 0]);
 
                 // Optional: reset other report tables if needed
-                // DB::table('addrbook_stats')->update(['balance' => 0]);
-                // DB::table('addrbook_dailies')->truncate();
+                // DB::table('customerstat')->update(['balance' => 0]);
+                // DB::table('customer_class')->truncate();
             });
 
             $this->info('Reports data has been reset successfully!');

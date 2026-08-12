@@ -8,16 +8,16 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('addrbook_location', function (Blueprint $table) {
+        Schema::create('location_customer', function (Blueprint $table) {
             $table->foreignId('location_id')->constrained('locations')->cascadeOnDelete();
-            $table->foreignId('addrbook_id')->constrained('addrbooks')->cascadeOnDelete();
+            $table->foreignId('customer_id')->constrained('customers')->cascadeOnDelete();
 
-            $table->primary(['location_id', 'addrbook_id']);
+            $table->primary(['location_id', 'customer_id']);
         });
     }
 
     public function down(): void
     {
-        Schema::dropIfExists('addrbook_location');
+        Schema::dropIfExists('location_customer');
     }
 };

@@ -39,10 +39,10 @@ class RestockSettingsController extends Controller
         Gate::authorize(RestockSheet::getPermissions()['edit']);
 
         $validated = $request->validate([
-            'default_supplier_id' => ['required', 'integer', 'exists:addrbooks,id'],
-            'default_receiver_id' => ['required', 'integer', 'exists:addrbooks,id'],
+            'default_supplier_id' => ['required', 'integer', 'exists:customers,id'],
+            'default_receiver_id' => ['required', 'integer', 'exists:customers,id'],
             'default_warehouse_ids' => ['nullable', 'array'],
-            'default_warehouse_ids.*' => ['integer', 'exists:addrbooks,id'],
+            'default_warehouse_ids.*' => ['integer', 'exists:customers,id'],
         ]);
 
         try {

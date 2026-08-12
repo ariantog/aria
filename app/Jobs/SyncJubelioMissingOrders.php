@@ -34,7 +34,7 @@ class SyncJubelioMissingOrders implements ShouldQueue
 
             throw $e;
         } finally {
-            ScheduledTask::where('command', 'jubelio:get-orders')->update(['is_active' => false]);
+            ScheduledTask::where('command', 'jubelio:get-orders')->update(['active' => false]);
         }
     }
 }

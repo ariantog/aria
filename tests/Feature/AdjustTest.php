@@ -29,18 +29,18 @@ test('adjust transaction can be stored and updates balances', function () {
         'type' => Transaction::TYPE_ADJUST,
         'sender_id' => $account->id,
         'receiver_id' => $customer->id,
-        'grand_total' => 1000,
+        'real_total' => 1000,
     ]);
 
     // Check balance updates (AddrbookStat)
     // Sender decreases (-1000), Receiver increases (+1000)
-    $this->assertDatabaseHas('addrbook_stats', [
-        'addrbook_id' => $account->id,
+    $this->assertDatabaseHas('customerstat', [
+        'customer_id' => $account->id,
         'balance' => -1000,
     ]);
 
-    $this->assertDatabaseHas('addrbook_stats', [
-        'addrbook_id' => $customer->id,
+    $this->assertDatabaseHas('customerstat', [
+        'customer_id' => $customer->id,
         'balance' => 1000,
     ]);
 });

@@ -2,21 +2,15 @@
 
 namespace App\Models;
 
-use App\Models\Concerns\UsesProductionTable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class WarehouseItem extends Model
 {
-    use HasFactory, UsesProductionTable;
+    use HasFactory;
 
-    protected $table = 'warehouse_items';
-
-    protected static function productionTableKey(): string
-    {
-        return 'warehouse_item';
-    }
+    protected $table = 'warehouse_item';
 
     protected $fillable = [
         'item_id',
@@ -34,9 +28,6 @@ class WarehouseItem extends Model
         return $this->belongsTo(Item::class);
     }
 
-    /**
-     * warehouse_type stores the addrbook type (e.g. 2 = warehouse), not a morph class.
-     */
     public function warehouse(): BelongsTo
     {
         return $this->belongsTo(Addrbook::class, 'warehouse_id')->withTrashed();

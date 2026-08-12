@@ -16,7 +16,7 @@ test('cash out transaction can be stored', function () {
         'items' => [
             [
                 'customer_id' => $recipient->id,
-                'invoice_number' => 'CO-001',
+                'invoice' => 'CO-001',
                 'note' => 'Test payment',
                 'total' => 1000,
             ],
@@ -30,18 +30,18 @@ test('cash out transaction can be stored', function () {
         'type' => Transaction::TYPE_CASH_OUT,
         'sender_id' => $bank->id,    // Cashier/Bank is sender in Cash Out
         'receiver_id' => $recipient->id,
-        'grand_total' => -1000,
+        'real_total' => -1000,
     ]);
 
     // Check balance updates (AddrbookStat)
     // Both sides decrease balance in Cash Out
-    $this->assertDatabaseHas('addrbook_stats', [
-        'addrbook_id' => $bank->id,
+    $this->assertDatabaseHas('customerstat', [
+        'customer_id' => $bank->id,
         'balance' => -1000,
     ]);
 
-    $this->assertDatabaseHas('addrbook_stats', [
-        'addrbook_id' => $recipient->id,
+    $this->assertDatabaseHas('customerstat', [
+        'customer_id' => $recipient->id,
         'balance' => -1000,
     ]);
 });
@@ -69,8 +69,8 @@ test('multiple cash out rows create multiple transactions', function () {
 
     $this->assertEquals(2, Transaction::where('type', Transaction::TYPE_CASH_OUT)->count());
 
-    $this->assertDatabaseHas('addrbook_stats', [
-        'addrbook_id' => $bank->id,
+    $this->assertDatabaseHas('customerstat', [
+        'customer_id' => $bank->id,
         'balance' => -2000,
     ]);
 });

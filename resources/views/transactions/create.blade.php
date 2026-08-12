@@ -64,7 +64,7 @@
                     @if($type !== 'move')
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Due Date</label>
-                        <input type="date" x-model="form.due_date"
+                        <input type="date" x-model="form.due"
                                class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
                     </div>
                     @else
@@ -171,7 +171,7 @@
                 <div class="grid grid-cols-1 gap-5 p-5 md:grid-cols-2">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Invoice Number</label>
-                        <input type="text" x-model="form.invoice_number" placeholder="INV-202X-XXX"
+                        <input type="text" x-model="form.invoice" placeholder="INV-202X-XXX"
                                class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
                     </div>
                     <div>
@@ -356,7 +356,7 @@
                     </div>
                     <div class="border-t border-gray-100 pt-3 flex justify-between">
                         <span class="font-bold text-gray-900">Grand Total</span>
-                        <span class="text-lg font-bold tabular-nums text-blue-700" x-text="'Rp ' + Number(form.grand_total).toLocaleString('id-ID')"></span>
+                        <span class="text-lg font-bold tabular-nums text-blue-700" x-text="'Rp ' + Number(form.real_total).toLocaleString('id-ID')"></span>
                     </div>
                 </div>
                 <div class="border-t border-gray-100 p-5">
@@ -403,13 +403,13 @@ function createTransaction() {
         _lastScan: { idx: -1, code: '', at: 0 },
         form: {
             date: startDate,
-            due_date: '',
+            due: '',
             type: _TxType,
             sender_id: '',
             sender: null,
             receiver_id: '',
             receiver: null,
-            invoice_number: '',
+            invoice: '',
             note: '',
             items: [],
             discount_percent: 0,
@@ -419,7 +419,7 @@ function createTransaction() {
             total_before_discount: 0,
             total_before_ppn: 0,
             ppn_amount: 0,
-            grand_total: 0,
+            real_total: 0,
         },
 
         init() {
@@ -431,7 +431,7 @@ function createTransaction() {
                 this.form.sender = _Prefill.sender || null;
                 this.form.receiver_id = String(_Prefill.receiver_id || '');
                 this.form.receiver = _Prefill.receiver || null;
-                if (_Prefill.invoice_number) this.form.invoice_number = _Prefill.invoice_number;
+                if (_Prefill.invoice) this.form.invoice = _Prefill.invoice;
                 if (_Prefill.note) this.form.note = _Prefill.note;
                 if (_Prefill.discount_percent != null) this.form.discount_percent = Number(_Prefill.discount_percent);
                 if (_Prefill.adjustment != null) this.form.adjustment = Number(_Prefill.adjustment);
@@ -445,7 +445,7 @@ function createTransaction() {
                     row.price = Number(ci.price ?? ci[_PriceSource] ?? 0);
                     const gross = row.quantity * row.price;
                     row.discount = gross > 0 ? (Number(ci.discount || 0) / gross) * 100 : 0;
-                    row.warehouse_items = ci.warehouse_items || [];
+                    row.warehouse_item = ci.warehouse_item || [];
                     row.warehouse_stock = this.stockFor(row);
                     row.note = ci.note || '';
                     row.subtotal = gross - (gross * row.discount / 100);
@@ -493,7 +493,7 @@ function createTransaction() {
                 uid: Math.random().toString(36).slice(2),
                 item_id: '', code: '', name: '',
                 quantity: 1, price: 0, discount: 0,
-                warehouse_stock: null, warehouse_items: [],
+                warehouse_stock: null, warehouse_item: [],
                 subtotal: 0, note: '',
                 results: [], showDropdown: false, activeIndex: -1, searchTimer: null,
             };
@@ -519,7 +519,7 @@ function createTransaction() {
         stockFor(row) {
             const wid = String(this.warehouseId || '');
             if (!wid) return 0;
-            const wi = (row.warehouse_items || []).find(w => String(w.warehouse_id) === wid);
+            const wi = (row.warehouse_item || []).find(w => String(w.warehouse_id) === wid);
             return wi ? Number(wi.quantity || 0) : 0;
         },
 
@@ -537,7 +537,7 @@ function createTransaction() {
             row.code = source.code || source.item_code || String(source.id ?? '');
             row.name = source.name || source.product_name || '';
             row.price = Number(source[_PriceSource] ?? source.price ?? source.cost) || 0;
-            row.warehouse_items = source.warehouse_items || source.warehouseItems || [];
+            row.warehouse_item = source.warehouse_item || source.warehouseItems || [];
             if (!row.quantity || row.quantity < 1) row.quantity = 1;
             row.warehouse_stock = this.stockFor(row);
             row.results = [];
@@ -817,7 +817,7 @@ function createTransaction() {
             this.form.total_before_discount = afterRowDisc;
             this.form.total_before_ppn = withAdj;
             this.form.ppn_amount = ppn;
-            this.form.grand_total = withAdj + ppn;
+            this.form.real_total = withAdj + ppn;
         },
 
         isOverStock(item) {
@@ -856,7 +856,7 @@ function createTransaction() {
                     row.price = Number(ci.price ?? ci[_PriceSource] ?? 0);
                     const gross = row.quantity * row.price;
                     row.discount = gross > 0 ? (Number(ci.discount || 0) / gross) * 100 : 0;
-                    row.warehouse_items = ci.warehouse_items || [];
+                    row.warehouse_item = ci.warehouse_item || [];
                     row.warehouse_stock = this.stockFor(row);
                     row.note = ci.note || '';
                     row.subtotal = gross - (gross * row.discount / 100);
@@ -876,13 +876,13 @@ function createTransaction() {
 
             const payload = {
                 date: this.form.date,
-                due_date: this.form.due_date,
+                due: this.form.due,
                 type: this.form.type,
                 sender_id: this.form.sender_id,
                 sender_type: '{{ is_array($config['sender_type'] ?? null) ? implode(',', $config['sender_type']) : ($config['sender_type'] ?? '') }}',
                 receiver_id: this.form.receiver_id,
                 receiver_type: '{{ is_array($config['receiver_type'] ?? null) ? implode(',', $config['receiver_type']) : ($config['receiver_type'] ?? '') }}',
-                invoice_number: this.form.invoice_number,
+                invoice: this.form.invoice,
                 note: this.form.note,
                 items: this.validItems().map(i => {
                     const gross = Number(i.quantity || 0) * Number(i.price || 0);

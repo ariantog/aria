@@ -25,8 +25,8 @@ return new class extends Migration
 
                 $table->unique(['group_id', 'bulan', 'tahun', 'sender_id', 'type'], 'stat_sells_unique');
 
-                $table->foreign('group_id')->references('id')->on('item_groups')->onDelete('cascade');
-                $table->foreign('sender_id')->references('id')->on('addrbooks')->onDelete('cascade');
+                $table->foreign('group_id')->references('id')->on('item_group')->onDelete('cascade');
+                $table->foreign('sender_id')->references('id')->on('customers')->onDelete('cascade');
             });
         }
     }

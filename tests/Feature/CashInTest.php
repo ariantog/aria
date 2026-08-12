@@ -16,7 +16,7 @@ test('cash in transaction can be stored', function () {
         'items' => [
             [
                 'customer_id' => $customer->id,
-                'invoice_number' => 'INV-001',
+                'invoice' => 'INV-001',
                 'note' => 'Test payment',
                 'total' => 1000,
             ],
@@ -30,18 +30,18 @@ test('cash in transaction can be stored', function () {
         'type' => Transaction::TYPE_CASH_IN,
         'sender_id' => $customer->id,
         'receiver_id' => $bank->id,
-        'grand_total' => 1000,
+        'real_total' => 1000,
     ]);
 
     // Check balance updates
     // TransactionService uses AddrbookStat for overall balance
-    $this->assertDatabaseHas('addrbook_stats', [
-        'addrbook_id' => $bank->id,
+    $this->assertDatabaseHas('customerstat', [
+        'customer_id' => $bank->id,
         'balance' => 1000,
     ]);
 
-    $this->assertDatabaseHas('addrbook_stats', [
-        'addrbook_id' => $customer->id,
+    $this->assertDatabaseHas('customerstat', [
+        'customer_id' => $customer->id,
         'balance' => 1000,
     ]);
 });
@@ -69,8 +69,8 @@ test('multiple cash in rows create multiple transactions', function () {
 
     $this->assertEquals(2, Transaction::where('type', Transaction::TYPE_CASH_IN)->count());
 
-    $this->assertDatabaseHas('addrbook_stats', [
-        'addrbook_id' => $bank->id,
+    $this->assertDatabaseHas('customerstat', [
+        'customer_id' => $bank->id,
         'balance' => 2000,
     ]);
 });

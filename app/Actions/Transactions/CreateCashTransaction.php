@@ -36,14 +36,14 @@ class CreateCashTransaction
                     'sender_id' => $sender->id,
                     'receiver_type' => $receiver->type instanceof AddrbookType ? $receiver->type->value : $receiver->type,
                     'receiver_id' => $receiver->id,
-                    'invoice_number' => $item['invoice_number'] ?? null,
+                    'invoice' => $item['invoice'] ?? null,
                     'notes' => $item['note'] ?? null, 'user_id' => Auth::id(),
                     'status' => TransactionStatus::Completed->value,
-                    'grand_total' => $grandTotal, 'total_items' => 0,
-                    'adjustment' => 0, 'discount' => 0, 'tax_amount' => 0,
+                    'real_total' => $grandTotal, 'total_items' => 0,
+                    'adjustment' => 0, 'discount' => 0, 'ppn' => 0,
                     'submit_type' => Transaction::SUBMIT_TYPE_MANUAL,
                 ]);
-                if (empty($trx->invoice_number)) $trx->update(['invoice_number' => (string) $trx->id]);
+                if (empty($trx->invoice)) $trx->update(['invoice' => (string) $trx->id]);
                 $this->transactionService->handleTransaction($trx);
                 $createdIds[] = $trx->id;
             }

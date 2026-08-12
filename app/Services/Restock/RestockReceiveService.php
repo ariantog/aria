@@ -108,14 +108,14 @@ class RestockReceiveService
                 'notes' => 'Restock receive',
                 'user_id' => $user->id,
                 'status' => TransactionStatus::Completed->value,
-                'grand_total' => 0,
+                'real_total' => 0,
                 'total_items' => 0,
                 'submit_type' => Transaction::SUBMIT_TYPE_MANUAL,
-                'invoice_number' => $invoiceNumber ?: null,
+                'invoice' => $invoiceNumber ?: null,
             ]);
 
-            if (empty($transaction->invoice_number)) {
-                $transaction->update(['invoice_number' => (string) $transaction->id]);
+            if (empty($transaction->invoice)) {
+                $transaction->update(['invoice' => (string) $transaction->id]);
             }
 
             $itemsTotal = 0;
@@ -181,7 +181,7 @@ class RestockReceiveService
 
             $transaction->update([
                 'total' => $itemsTotal,
-                'grand_total' => $itemsTotal,
+                'real_total' => $itemsTotal,
                 'total_items' => $totalItems,
             ]);
 

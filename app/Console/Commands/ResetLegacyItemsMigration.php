@@ -27,7 +27,7 @@ class ResetLegacyItemsMigration extends Command
      */
     public function handle(): int
     {
-        if (! $this->option('force') && ! $this->confirm('Are you sure you want to reset the legacy items migration? This will truncate items, item_groups, tags, and item_tag tables.')) {
+        if (! $this->option('force') && ! $this->confirm('Are you sure you want to reset the legacy items migration? This will truncate items, item_group, tags, and item_tag tables.')) {
             $this->info('Reset cancelled.');
 
             return Command::SUCCESS;
@@ -44,8 +44,8 @@ class ResetLegacyItemsMigration extends Command
             $this->info('Truncating items...');
             DB::table('items')->truncate();
 
-            $this->info('Truncating item_groups...');
-            DB::table('item_groups')->truncate();
+            $this->info('Truncating item_group...');
+            DB::table('item_group')->truncate();
 
             $this->info('Truncating tags...');
             DB::table('tags')->truncate();

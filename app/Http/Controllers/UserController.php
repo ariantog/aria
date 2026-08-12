@@ -18,8 +18,8 @@ class UserController extends Controller
         $search = trim((string) $request->query('q', ''));
 
         $query = User::with(['location', 'roles'])
-            ->when($status === 'active', fn ($q) => $q->where('is_active', true))
-            ->when($status === 'banned', fn ($q) => $q->where('is_active', false))
+            ->when($status === 'active', fn ($q) => $q->where('active', true))
+            ->when($status === 'banned', fn ($q) => $q->where('active', false))
             ->when($search !== '', fn ($q) => $q->where(function ($sq) use ($search) {
                 $sq->where('name', 'like', "%{$search}%")
                     ->orWhere('username', 'like', "%{$search}%");
@@ -56,7 +56,7 @@ class UserController extends Controller
             'password' => 'required|string|min:8|confirmed',
             'role' => 'required|exists:roles,name',
             'location_id' => 'nullable|exists:locations,id',
-            'is_active' => 'boolean',
+            'active' => 'boolean',
         ]);
 
         $user = User::create([
@@ -64,7 +64,7 @@ class UserController extends Controller
             'username' => $data['username'],
             'password' => bcrypt($data['password']),
             'location_id' => $data['location_id'] ?? null,
-            'is_active' => $data['is_active'] ?? true,
+            'active' => $data['active'] ?? true,
         ]);
         $user->syncRoles([$data['role']]);
 
@@ -93,7 +93,7 @@ class UserController extends Controller
             'password' => 'nullable|string|min:8|confirmed',
             'role' => 'required|exists:roles,name',
             'location_id' => 'nullable|exists:locations,id',
-            'is_active' => 'boolean',
+            'active' => 'boolean',
         ]);
 
         $updates = [
@@ -103,7 +103,7 @@ class UserController extends Controller
         ];
 
         if (! $user->is_superadmin && $user->id !== Auth::id()) {
-            $updates['is_active'] = $data['is_active'] ?? true;
+            $updates['active'] = $data['active'] ?? true;
         }
 
         $user->update($updates);
@@ -128,11 +128,11 @@ class UserController extends Controller
             return redirect()->route('users.index')->with('error', 'You cannot ban your own account.');
         }
 
-        if (! $user->is_active) {
+        if (! $user->active) {
             return redirect()->route('users.index')->with('error', 'User is already banned.');
         }
 
-        $user->update(['is_active' => false]);
+        $user->update(['active' => false]);
 
         return redirect()->route('users.index')->with('success', 'User banned.');
     }
@@ -141,11 +141,11 @@ class UserController extends Controller
     {
         Gate::authorize(User::getPermissions()['edit']);
 
-        if ($user->is_active) {
+        if ($user->active) {
             return redirect()->route('users.index')->with('error', 'User is already active.');
         }
 
-        $user->update(['is_active' => true]);
+        $user->update(['active' => true]);
 
         return redirect()->route('users.index')->with('success', 'User unbanned.');
     }

@@ -11,16 +11,16 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('warehouse_items', function (Blueprint $table) {
+        Schema::create('warehouse_item', function (Blueprint $table) {
             $table->id();
             $table->foreignId('item_id')->constrained('items')->cascadeOnDelete();
-            $table->foreignId('warehouse_id')->constrained('addrbooks')->cascadeOnDelete();
+            $table->foreignId('warehouse_id')->constrained('customers')->cascadeOnDelete();
             $table->string('warehouse_type')->default('2'); // Default to Addrbook::TYPE_WAREHOUSE
             $table->decimal('quantity', 15, 2)->default(0);
             $table->timestamps();
 
             $table->index(['warehouse_id', 'warehouse_type']);
-            $table->unique(['item_id', 'warehouse_id', 'warehouse_type'], 'warehouse_items_item_warehouse_unique');
+            $table->unique(['item_id', 'warehouse_id', 'warehouse_type'], 'warehouse_item_item_warehouse_unique');
         });
     }
 
@@ -29,6 +29,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('warehouse_items');
+        Schema::dropIfExists('warehouse_item');
     }
 };

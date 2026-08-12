@@ -21,7 +21,7 @@ class MigrateLegacyAddrbook extends Command
      *
      * @var string
      */
-    protected $description = 'Migrate customers from legacy database to addrbooks table';
+    protected $description = 'Migrate customers from legacy database to customers table';
 
     /**
      * Execute the console command.
@@ -36,8 +36,8 @@ class MigrateLegacyAddrbook extends Command
             Schema::disableForeignKeyConstraints();
 
             // 1. Clear existing data
-            $this->warn('Clearing existing addrbooks...');
-            DB::table('addrbooks')->truncate();
+            $this->warn('Clearing existing customers...');
+            DB::table('customers')->truncate();
 
             // 2. Migrate Customers
             $this->info('Migrating Customers to Addrbooks...');
@@ -47,10 +47,10 @@ class MigrateLegacyAddrbook extends Command
 
             $legacyDb->table('customers')->orderBy('id')->chunk(100, function ($customers) use ($progressBar) {
                 foreach ($customers as $customer) {
-                    DB::table('addrbooks')->insert([
+                    DB::table('customers')->insert([
                         'id' => $customer->id,
                         'name' => $customer->name,
-                        'member_id' => $customer->memberId ?: null,
+                        'memberId' => $customer->memberId ?: null,
                         'address' => $customer->address,
                         'phone' => $customer->phone,
                         'email' => $customer->email,

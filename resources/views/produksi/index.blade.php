@@ -52,7 +52,7 @@ $f = $filters;
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-200">
-                    @forelse($produksis as $p)
+                    @forelse($prod_produksi as $p)
                     <tr class="transition-colors hover:bg-gray-50/50">
                         <td class="px-4 py-3 text-sm font-bold whitespace-nowrap text-blue-600">
                             <a href="{{ route('produksi.edit', $p->id) }}" class="hover:underline">{{ $p->serial }}</a>
@@ -115,7 +115,7 @@ $f = $filters;
                 </tbody>
             </table>
         </div>
-        @include('partials.pagination', ['paginator' => $produksis, 'label' => 'records'])
+        @include('partials.pagination', ['paginator' => $prod_produksi, 'label' => 'records'])
     </div>
 
     {{-- Assign Jahit Modal --}}

@@ -36,15 +36,15 @@ test('can create account list linked to operation', function () {
 
     $response->assertSessionHasNoErrors();
 
-    $this->assertDatabaseHas('addrbooks', [
+    $this->assertDatabaseHas('customers', [
         'name' => 'Bank BCA',
         'type' => Addrbook::TYPE_ACCOUNT,
         'operation_id' => $operation->id,
     ]);
 
     $account = Addrbook::where('name', 'Bank BCA')->first();
-    $this->assertDatabaseHas('addrbook_stats', [
-        'addrbook_id' => $account->id,
+    $this->assertDatabaseHas('customerstat', [
+        'customer_id' => $account->id,
         'balance' => 0,
     ]);
 });

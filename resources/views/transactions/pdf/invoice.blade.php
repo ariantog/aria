@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>Invoice #{{ $transaction->invoice_number }}</title>
+    <title>Invoice #{{ $transaction->invoice }}</title>
     <style>
         body { font-family: DejaVu Sans, sans-serif; font-size: 12px; color: #111; margin: 0; padding: 0; }
         .header { display: table; width: 100%; margin-bottom: 16px; }
@@ -37,7 +37,7 @@
         </div>
     </div>
 
-    <h2>{{ $typeLabel }} Invoice #{{ $transaction->invoice_number }}</h2>
+    <h2>{{ $typeLabel }} Invoice #{{ $transaction->invoice }}</h2>
 
     <table class="meta">
         <tr>
@@ -86,15 +86,15 @@
             <td class="right">-{{ number_format((float) $transaction->discount, 0, ',', '.') }}</td>
         </tr>
         @endif
-        @if((float) $transaction->tax_amount > 0)
+        @if((float) $transaction->ppn > 0)
         <tr>
             <td>PPN</td>
-            <td class="right">{{ number_format((float) $transaction->tax_amount, 0, ',', '.') }}</td>
+            <td class="right">{{ number_format((float) $transaction->ppn, 0, ',', '.') }}</td>
         </tr>
         @endif
         <tr>
             <td><strong>Grand Total</strong></td>
-            <td class="right"><strong>{{ number_format(abs((float) $transaction->grand_total), 0, ',', '.') }}</strong></td>
+            <td class="right"><strong>{{ number_format(abs((float) $transaction->real_total), 0, ',', '.') }}</strong></td>
         </tr>
     </table>
 

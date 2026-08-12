@@ -32,7 +32,7 @@ class UpdateAddrbookRequest extends FormRequest
             'is_online' => 'boolean',
             'arrangement_enabled' => 'boolean',
             'arrangement_source_ids' => 'nullable|array',
-            'arrangement_source_ids.*' => 'integer|exists:addrbooks,id',
+            'arrangement_source_ids.*' => 'integer|exists:customers,id',
             'ppn' => 'boolean',
             'location_ids' => 'nullable|array',
             'location_ids.*' => 'integer|exists:locations,id',

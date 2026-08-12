@@ -89,5 +89,5 @@ test('deleting a buy transaction reverts stock and balances then moves it to del
     expect((float) WarehouseItem::where('warehouse_id', $warehouse->id)->where('item_id', $item->id)->first()->quantity)->toBe(5.0);
     expect((float) $item->fresh()->qty)->toBe(5.0);
     expect((float) $laterTransaction->fresh()->sender_balance)->toBe(10000.0);
-    expect((float) AddrbookStat::where('addrbook_id', $supplier->id)->first()->balance)->toBe(10000.0);
+    expect((float) AddrbookStat::where('customer_id', $supplier->id)->first()->balance)->toBe(10000.0);
 });

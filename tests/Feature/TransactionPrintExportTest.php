@@ -25,8 +25,8 @@ afterEach(function () {
 
 it('renders the thermal receipt page for print pos', function () {
     $transaction = Transaction::factory()->create([
-        'invoice_number' => 'RCP-001',
-        'grand_total' => 100_000,
+        'invoice' => 'RCP-001',
+        'real_total' => 100_000,
         'total' => 100_000,
     ]);
     $item = Item::factory()->create(['name' => 'Test Shirt']);
@@ -49,7 +49,7 @@ it('renders the thermal receipt page for print pos', function () {
 });
 
 it('renders the dot matrix print page', function () {
-    $transaction = Transaction::factory()->create(['invoice_number' => 'PRT-001']);
+    $transaction = Transaction::factory()->create(['invoice' => 'PRT-001']);
     TransactionDetail::factory()->create(['transaction_id' => $transaction->id]);
 
     $this->actingAs($this->user)
@@ -60,7 +60,7 @@ it('renders the dot matrix print page', function () {
 });
 
 it('shows save to pdf on transaction detail when no pdf exists', function () {
-    $transaction = Transaction::factory()->create(['invoice_number' => 'PDF-NEW']);
+    $transaction = Transaction::factory()->create(['invoice' => 'PDF-NEW']);
 
     $this->actingAs($this->user)
         ->get(route('transactions.show', $transaction))
@@ -70,7 +70,7 @@ it('shows save to pdf on transaction detail when no pdf exists', function () {
 });
 
 it('shows view pdf on transaction detail when pdf already exists', function () {
-    $transaction = Transaction::factory()->create(['invoice_number' => 'PDF-EXISTS']);
+    $transaction = Transaction::factory()->create(['invoice' => 'PDF-EXISTS']);
     $filePath = app(TransactionInvoiceService::class)->invoiceDiskPath('invoice_'.$transaction->id.'.pdf');
     File::put($filePath, '%PDF-1.4 fake');
 
@@ -84,7 +84,7 @@ it('shows view pdf on transaction detail when pdf already exists', function () {
 });
 
 it('serves invoice pdf via app route', function () {
-    $transaction = Transaction::factory()->create(['invoice_number' => 'PDF-SERVE']);
+    $transaction = Transaction::factory()->create(['invoice' => 'PDF-SERVE']);
     $filePath = app(TransactionInvoiceService::class)->invoiceDiskPath('invoice_'.$transaction->id.'.pdf');
     File::put($filePath, '%PDF-1.4 fake');
 
@@ -96,8 +96,8 @@ it('serves invoice pdf via app route', function () {
 
 it('regenerates an existing invoice pdf', function () {
     $transaction = Transaction::factory()->create([
-        'invoice_number' => 'PDF-REGEN',
-        'grand_total' => 25_000,
+        'invoice' => 'PDF-REGEN',
+        'real_total' => 25_000,
         'total' => 25_000,
     ]);
     TransactionDetail::factory()->create([
@@ -123,8 +123,8 @@ it('regenerates an existing invoice pdf', function () {
 
 it('creates invoice pdf via save to pdf and shows view pdf', function () {
     $transaction = Transaction::factory()->create([
-        'invoice_number' => 'PDF-SAVE',
-        'grand_total' => 25_000,
+        'invoice' => 'PDF-SAVE',
+        'real_total' => 25_000,
         'total' => 25_000,
     ]);
     TransactionDetail::factory()->create([
@@ -150,8 +150,8 @@ it('creates invoice pdf via save to pdf and shows view pdf', function () {
 
 it('generates invoice pdf and redirects to whatsapp with cdn link', function () {
     $transaction = Transaction::factory()->create([
-        'invoice_number' => 'WA-001',
-        'grand_total' => 50_000,
+        'invoice' => 'WA-001',
+        'real_total' => 50_000,
         'total' => 50_000,
     ]);
     TransactionDetail::factory()->create([
@@ -174,7 +174,7 @@ it('generates invoice pdf and redirects to whatsapp with cdn link', function () 
 });
 
 it('reuses existing pdf for whatsapp without regenerating', function () {
-    $transaction = Transaction::factory()->create(['invoice_number' => 'WA-EXIST']);
+    $transaction = Transaction::factory()->create(['invoice' => 'WA-EXIST']);
     $service = app(TransactionInvoiceService::class);
     $filePath = $service->invoiceDiskPath('invoice_'.$transaction->id.'.pdf');
     File::put($filePath, '%PDF-1.4 existing');
@@ -200,7 +200,7 @@ it('paginates the transactions index with per_page 100 by default', function () 
 });
 
 it('exports the current transactions page to excel', function () {
-    Transaction::factory()->count(3)->create(['invoice_number' => 'EXP-001']);
+    Transaction::factory()->count(3)->create(['invoice' => 'EXP-001']);
 
     $response = $this->actingAs($this->user)->get(route('transactions.export'));
 

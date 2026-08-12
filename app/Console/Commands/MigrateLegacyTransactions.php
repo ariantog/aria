@@ -98,7 +98,7 @@ class MigrateLegacyTransactions extends Command
     protected function initializeState()
     {
         $this->info('Initializing current state from local database...');
-        $this->balances = DB::table('addrbook_stats')->pluck('balance', 'addrbook_id')->toArray();
+        $this->balances = DB::table('customerstat')->pluck('balance', 'customer_id')->toArray();
         $this->itemGlobalQty = DB::table('items')->pluck('qty', 'id')->toArray();
 
         // Stock initialization simplified to avoid memory bloat
@@ -123,7 +123,7 @@ class MigrateLegacyTransactions extends Command
         $bar = $this->output->createProgressBar($total);
         $bar->start();
 
-        $addrbookTypes = DB::table('addrbooks')->pluck('type', 'id')->toArray();
+        $addrbookTypes = DB::table('customers')->pluck('type', 'id')->toArray();
 
         // Reduce chunk size to avoid "Too many placeholders" error
         $query->chunkById(1000, function ($transactions) use ($bar) {
@@ -148,7 +148,7 @@ class MigrateLegacyTransactions extends Command
 
                 $lDiscountPercent = (float) ($data['discount'] ?? 0);
                 $lTotal = (float) ($data['total'] ?? 0);
-                $lPpn = (float) ($data['ppn'] ?? $data['tax_amount'] ?? 0);
+                $lPpn = (float) ($data['ppn'] ?? $data['ppn'] ?? 0);
 
                 $details = $allDetails[$data['id']] ?? collect();
                 $subtotal = $details->sum('total');
@@ -160,7 +160,7 @@ class MigrateLegacyTransactions extends Command
                 // Nominal discount calculation for the header
                 $nominalDiscount = $subtotal * ($lDiscountPercent / 100);
 
-                // grand_total is the final amount including tax.
+                // real_total is the final amount including tax.
                 $grandTotal = $lTotal;
                 if ($lPpn > 0) {
                     // Adjust grandTotal with tax (following the sign of total)
@@ -194,16 +194,16 @@ class MigrateLegacyTransactions extends Command
                     'receiver_id' => $receiverId,
                     'receiver_type' => $receiverType,
                     'receiver_balance' => (float) ($this->balances[$receiverId] ?? 0),
-                    'invoice_number' => $data['invoice'] ?? $data['invoice_number'] ?? (string) $data['id'],
-                    'due_date' => (isset($data['due']) && $data['due'] !== '0000-00-00') ? $data['due'] : null,
+                    'invoice' => $data['invoice'] ?? $data['invoice'] ?? (string) $data['id'],
+                    'due' => (isset($data['due']) && $data['due'] !== '0000-00-00') ? $data['due'] : null,
                     'description' => $data['description'] ?? null,
                     'notes' => $data['notes'] ?? $data['note'] ?? null,
-                    'grand_total' => $grandTotal,
+                    'real_total' => $grandTotal,
                     'total' => $total,
                     'discount' => $nominalDiscount,
                     'discount_percent' => $lDiscountPercent,
                     'adjustment' => (float) ($data['adjustment'] ?? 0),
-                    'tax_amount' => $lPpn,
+                    'ppn' => $lPpn,
                     'total_items' => (float) ($data['total_items'] ?? 0),
                     'user_id' => ($data['user_id'] < 0) ? 1 : $data['user_id'],
                     'status' => $data['status'] ?? 1,
@@ -273,9 +273,9 @@ class MigrateLegacyTransactions extends Command
             if (! empty($transactionBuffer)) {
                 DB::table('transactions')->upsert($transactionBuffer, ['id'], [
                     'date', 'type', 'sender_id', 'sender_type', 'sender_balance',
-                    'receiver_id', 'receiver_type', 'receiver_balance', 'invoice_number',
-                    'due_date', 'description', 'notes',
-                    'grand_total', 'total', 'discount', 'discount_percent', 'adjustment', 'tax_amount',
+                    'receiver_id', 'receiver_type', 'receiver_balance', 'invoice',
+                    'due', 'description', 'notes',
+                    'real_total', 'total', 'discount', 'discount_percent', 'adjustment', 'ppn',
                     'total_items', 'user_id', 'status', 'submit_type',
                     'sync_hide', 'a_submit_by', 'b_submit_by', 'a_reference_id', 'b_reference_id',
                     'submit_a_count', 'submit_b_count', 'jubelio_return',
@@ -382,8 +382,8 @@ class MigrateLegacyTransactions extends Command
             // 1. Save Addrbook Stats
             $this->info('Saving addrbook balances...');
             foreach ($this->balances as $id => $balance) {
-                DB::table('addrbook_stats')->updateOrInsert(
-                    ['addrbook_id' => $id],
+                DB::table('customerstat')->updateOrInsert(
+                    ['customer_id' => $id],
                     ['balance' => $balance, 'updated_at' => now()]
                 );
             }
@@ -400,7 +400,7 @@ class MigrateLegacyTransactions extends Command
             // 3. Save Warehouse Items (Stock per Warehouse)
             $this->info('Saving warehouse stocks...');
             $wsBuffer = [];
-            $addrbookTypes = DB::table('addrbooks')->pluck('type', 'id')->toArray();
+            $addrbookTypes = DB::table('customers')->pluck('type', 'id')->toArray();
             foreach ($this->stocks as $key => $qty) {
                 [$warehouseId, $itemId] = explode('.', $key);
                 $wsBuffer[] = [
@@ -412,7 +412,7 @@ class MigrateLegacyTransactions extends Command
                 ];
             }
             foreach (array_chunk($wsBuffer, 500) as $chunk) {
-                DB::table('warehouse_items')->upsert($chunk, ['warehouse_id', 'item_id', 'warehouse_type'], ['quantity', 'updated_at']);
+                DB::table('warehouse_item')->upsert($chunk, ['warehouse_id', 'item_id', 'warehouse_type'], ['quantity', 'updated_at']);
             }
 
             // 4. Save Daily Reports
@@ -421,14 +421,14 @@ class MigrateLegacyTransactions extends Command
             foreach ($this->dailies as $key => $cols) {
                 [$addrbookId, $date] = explode('.', $key);
                 $dailyBuffer[] = array_merge([
-                    'addrbook_id' => (int) $addrbookId,
+                    'customer_id' => (int) $addrbookId,
                     'date' => $date,
                     'type' => (int) ($addrbookTypes[$addrbookId] ?? 0),
                     'updated_at' => now(),
                 ], $cols);
             }
             foreach (array_chunk($dailyBuffer, 500) as $chunk) {
-                DB::table('addrbook_dailies')->upsert($chunk, ['addrbook_id', 'date'], [
+                DB::table('customer_class')->upsert($chunk, ['customer_id', 'date'], [
                     'buy', 'sell', 'return', 'return_supplier', 'move', 'transfer', 'adjust', 'use', 'type', 'updated_at',
                 ]);
             }

@@ -36,8 +36,8 @@ class SyncStatSells extends Command
 
         $query = DB::table('transaction_details as td')
             ->join('items as i', 'td.item_id', '=', 'i.id')
-            ->leftJoin('item_groups as ig', 'i.group_id', '=', 'ig.id')
-            ->leftJoin('addrbooks as a', 'td.sender_id', '=', 'a.id')
+            ->leftJoin('item_group as ig', 'i.group_id', '=', 'ig.id')
+            ->leftJoin('customers as a', 'td.sender_id', '=', 'a.id')
             ->whereIn('td.transaction_type', [Transaction::TYPE_SELL, Transaction::TYPE_RETURN])
             ->selectRaw('
                 ig.id as group_id,

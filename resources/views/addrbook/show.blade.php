@@ -25,7 +25,7 @@ $balance = (float) ($addrbook->stat->balance ?? 0);
                 </div>
                 <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-500">
                     <span class="font-mono">ID: #{{ $addrbook->id }}</span>
-                    @if($addrbook->member_id)<span class="font-mono">Member ID: {{ $addrbook->member_id }}</span>@endif
+                    @if($addrbook->memberId)<span class="font-mono">Member ID: {{ $addrbook->memberId }}</span>@endif
                     <span class="flex items-center gap-1.5">
                         <span class="h-2 w-2 rounded-full {{ $addrbook->is_online ? 'bg-emerald-500' : 'bg-gray-300' }}"></span>
                         {{ $addrbook->is_online ? 'Online' : 'Offline' }}

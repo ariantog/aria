@@ -142,7 +142,7 @@ $breadcrumbs = [
                 </div>
                 <div>
                     <label for="receive-invoice" class="block text-sm font-medium text-gray-700">Invoice (optional)</label>
-                    <input id="receive-invoice" type="text" x-model="receiveForm.invoice_number" placeholder="Invoice number"
+                    <input id="receive-invoice" type="text" x-model="receiveForm.invoice" placeholder="Invoice number"
                            class="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
                 </div>
             </div>
@@ -207,7 +207,7 @@ function restockSheetPage() {
         receiveLines: [],
         receiveForm: {
             date: @json(now()->toDateString()),
-            invoice_number: '',
+            invoice: '',
         },
         flash: '',
         error: '',
@@ -433,7 +433,7 @@ function restockSheetPage() {
                     },
                     body: JSON.stringify({
                         date: this.receiveForm.date,
-                        invoice_number: this.receiveForm.invoice_number || null,
+                        invoice: this.receiveForm.invoice || null,
                         cells,
                     }),
                 });

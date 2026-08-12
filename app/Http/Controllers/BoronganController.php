@@ -39,10 +39,10 @@ class BoronganController extends Controller
             $query->where('jahit_id', $jahitId);
         }
 
-        $borongans = $query->latest('id')->paginate(30)->withQueryString();
+        $prod_borongan = $query->latest('id')->paginate(30)->withQueryString();
 
         return view('borongan.index', [
-            'borongans' => $borongans,
+            'prod_borongan' => $prod_borongan,
             'filters' => $request->only(['from', 'to', 'jahit_id']),
             'jahitList' => Worker::jahit()->get(),
             'can' => [
@@ -83,7 +83,7 @@ class BoronganController extends Controller
             'from' => 'required|date',
             'to' => 'required|date',
             'batches' => 'required|array|min:1',
-            'batches.*.jahit_id' => 'required|exists:workers,id',
+            'batches.*.jahit_id' => 'required|exists:prod_worker,id',
             'batches.*.permak' => 'nullable|numeric|min:0',
             'batches.*.tres' => 'nullable|numeric|min:0',
             'batches.*.lain2' => 'nullable|numeric|min:0',
@@ -309,7 +309,7 @@ class BoronganController extends Controller
     }
 
     /**
-     * Helper to find produksis for one jahit worker.
+     * Helper to find prod_produksi for one jahit worker.
      *
      * @return list<array<string, mixed>>
      */

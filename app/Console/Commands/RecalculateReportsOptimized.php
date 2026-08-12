@@ -24,8 +24,8 @@ class RecalculateReportsOptimized extends Command
         try {
             DB::transaction(function () use ($legacyDb) {
                 // 1. Reset
-                $this->info('Clearing warehouse_items table (allowed for recalculation)...');
-                DB::table('warehouse_items')->delete();
+                $this->info('Clearing warehouse_item table (allowed for recalculation)...');
+                DB::table('warehouse_item')->delete();
 
                 $this->info('Resetting items quantities to zero (no rows deleted)...');
                 DB::table('items')->update(['qty' => 0]);
@@ -33,7 +33,7 @@ class RecalculateReportsOptimized extends Command
                 // 2. Load existing local references for note generation
                 $this->info('Loading local references...');
                 $existingItemIds = DB::table('items')->pluck('id')->flip()->toArray();
-                $existingAddrbooks = DB::table('addrbooks')->get(['id', 'type'])->keyBy('id');
+                $existingAddrbooks = DB::table('customers')->get(['id', 'type'])->keyBy('id');
 
                 // 3. Fetch and Batch Insert from Legacy
                 $this->info('Fetching data from legacy and syncing...');
@@ -79,26 +79,26 @@ class RecalculateReportsOptimized extends Command
                         }
 
                         if (count($insertBatch) >= 1000) {
-                            DB::table('warehouse_items')->insert($insertBatch);
+                            DB::table('warehouse_item')->insert($insertBatch);
                             $insertBatch = [];
                         }
                     });
 
                 // Final batch
                 if (! empty($insertBatch)) {
-                    DB::table('warehouse_items')->insert($insertBatch);
+                    DB::table('warehouse_item')->insert($insertBatch);
                 }
 
                 $bar->finish();
                 $this->newLine();
 
-                // 4. Update Global Stock (items.qty) based on synced warehouse_items
+                // 4. Update Global Stock (items.qty) based on synced warehouse_item
                 $this->info('Updating Global Stock in items table...');
                 DB::statement('
                     UPDATE items i 
                     SET i.qty = (
                         SELECT COALESCE(SUM(quantity), 0)
-                        FROM warehouse_items wi
+                        FROM warehouse_item wi
                         WHERE wi.item_id = i.id
                     )
                 ');

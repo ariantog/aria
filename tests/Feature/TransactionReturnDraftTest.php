@@ -28,15 +28,15 @@ it('drafts a return from a sell transaction with swapped parties and prefilled r
 
     $sell = Transaction::factory()->create([
         'type' => Transaction::TYPE_SELL,
-        'invoice_number' => 'INV-RET-001',
+        'invoice' => 'INV-RET-001',
         'notes' => 'Catatan penjualan',
         'sender_id' => $warehouse->id,
         'receiver_id' => $customer->id,
         'sender_type' => (string) Addrbook::TYPE_WAREHOUSE,
         'receiver_type' => (string) Addrbook::TYPE_CUSTOMER,
-        'discount_percent' => 0,
+        'discount' => 0,
         'adjustment' => 0,
-        'grand_total' => -100_000,
+        'real_total' => -100_000,
         'total' => 100_000,
     ]);
 
@@ -70,12 +70,12 @@ it('drafts a return supplier from a buy transaction', function () {
 
     $buy = Transaction::factory()->create([
         'type' => Transaction::TYPE_BUY,
-        'invoice_number' => 'PO-100',
+        'invoice' => 'PO-100',
         'sender_id' => $supplier->id,
         'receiver_id' => $warehouse->id,
         'sender_type' => (string) Addrbook::TYPE_SUPPLIER,
         'receiver_type' => (string) Addrbook::TYPE_WAREHOUSE,
-        'grand_total' => 100_000,
+        'real_total' => 100_000,
         'total' => 100_000,
     ]);
 
@@ -115,13 +115,13 @@ it('drafts an opposite move from a move transaction', function () {
 
     $move = Transaction::factory()->create([
         'type' => Transaction::TYPE_MOVE,
-        'invoice_number' => 'MOV-100',
+        'invoice' => 'MOV-100',
         'notes' => 'Pindah stok',
         'sender_id' => $source->id,
         'receiver_id' => $destination->id,
         'sender_type' => (string) Addrbook::TYPE_WAREHOUSE,
         'receiver_type' => (string) Addrbook::TYPE_WAREHOUSE,
-        'grand_total' => 50_000,
+        'real_total' => 50_000,
         'total' => 50_000,
     ]);
 
@@ -175,13 +175,13 @@ it('submits a drafted return transaction with the same invoice and line totals',
 
     $sell = Transaction::factory()->create([
         'type' => Transaction::TYPE_SELL,
-        'invoice_number' => 'INV-SUBMIT-1',
+        'invoice' => 'INV-SUBMIT-1',
         'notes' => 'Original note',
         'sender_id' => $warehouse->id,
         'receiver_id' => $customer->id,
         'sender_type' => (string) Addrbook::TYPE_WAREHOUSE,
         'receiver_type' => (string) Addrbook::TYPE_CUSTOMER,
-        'grand_total' => -80_000,
+        'real_total' => -80_000,
         'total' => 80_000,
     ]);
 
@@ -201,7 +201,7 @@ it('submits a drafted return transaction with the same invoice and line totals',
         'type' => 'return',
         'sender_id' => $customer->id,
         'receiver_id' => $warehouse->id,
-        'invoice_number' => 'INV-SUBMIT-1',
+        'invoice' => 'INV-SUBMIT-1',
         'note' => "return\nOriginal note",
         'items' => [
             [
@@ -211,7 +211,7 @@ it('submits a drafted return transaction with the same invoice and line totals',
                 'discount' => 0,
             ],
         ],
-        'discount_percent' => 0,
+        'discount' => 0,
         'adjustment' => 0,
     ]);
 
@@ -219,11 +219,11 @@ it('submits a drafted return transaction with the same invoice and line totals',
     $response->assertRedirect(route('transactions.show', $return));
 
     expect($return)->not->toBeNull()
-        ->and($return->invoice_number)->toBe('INV-SUBMIT-1')
+        ->and($return->invoice)->toBe('INV-SUBMIT-1')
         ->and($return->sender_id)->toBe($customer->id)
         ->and($return->receiver_id)->toBe($warehouse->id)
         ->and($return->notes)->toBe("return\nOriginal note")
-        ->and((float) $return->grand_total)->toBe(80_000.0);
+        ->and((float) $return->real_total)->toBe(80_000.0);
 });
 
 it('rejects drafting a return from unsupported transaction types', function () {

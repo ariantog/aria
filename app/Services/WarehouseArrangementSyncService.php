@@ -81,7 +81,7 @@ class WarehouseArrangementSyncService
     private function activeSourceWarehouseIdsForDestination(int $destinationWarehouseId): array
     {
         return DB::table('warehouse_arrangement_sources as was')
-            ->join('addrbooks as a', 'a.id', '=', 'was.source_warehouse_id')
+            ->join('customers as a', 'a.id', '=', 'was.source_warehouse_id')
             ->where('was.destination_warehouse_id', $destinationWarehouseId)
             ->where('a.type', AddrbookType::Warehouse->value)
             ->whereNull('a.deleted_at')
@@ -117,7 +117,7 @@ class WarehouseArrangementSyncService
 
         $familyRows = DB::table('warehouse_item_monthly_stats as w')
             ->join('items as i', 'w.item_id', '=', 'i.id')
-            ->join('item_groups as ig', 'i.group_id', '=', 'ig.id')
+            ->join('item_group as ig', 'i.group_id', '=', 'ig.id')
             ->where('w.warehouse_id', $destinationWarehouseId)
             ->where('i.type', ItemType::ITEM->value)
             ->whereNull('i.deleted_at')
@@ -142,7 +142,7 @@ class WarehouseArrangementSyncService
         $warnaByItem = $this->loadWarnaCodesForMasters($masters);
 
         $items = DB::table('items as i')
-            ->join('item_groups as ig', 'i.group_id', '=', 'ig.id')
+            ->join('item_group as ig', 'i.group_id', '=', 'ig.id')
             ->where('i.type', ItemType::ITEM->value)
             ->whereIn('ig.master', $masters)
             ->whereNull('i.deleted_at')
@@ -157,7 +157,7 @@ class WarehouseArrangementSyncService
 
         $itemIds = $items->pluck('id')->map(fn ($id) => (int) $id)->all();
 
-        $destStock = DB::table('warehouse_items')
+        $destStock = DB::table('warehouse_item')
             ->where('warehouse_id', $destinationWarehouseId)
             ->whereIn('item_id', $itemIds)
             ->where('quantity', '>', 0)
@@ -292,8 +292,8 @@ class WarehouseArrangementSyncService
 
         $itemIds = $candidates->pluck('item_id')->all();
 
-        $stockRows = DB::table('warehouse_items as wi')
-            ->join('addrbooks as a', 'a.id', '=', 'wi.warehouse_id')
+        $stockRows = DB::table('warehouse_item as wi')
+            ->join('customers as a', 'a.id', '=', 'wi.warehouse_id')
             ->whereIn('wi.item_id', $itemIds)
             ->whereIn('wi.warehouse_id', $sourceIds)
             ->where('wi.quantity', '>', 0)
@@ -427,7 +427,7 @@ class WarehouseArrangementSyncService
         return DB::table('item_tag')
             ->join('tags', 'tags.id', '=', 'item_tag.tag_id')
             ->join('items as i', 'i.id', '=', 'item_tag.item_id')
-            ->join('item_groups as ig', 'ig.id', '=', 'i.group_id')
+            ->join('item_group as ig', 'ig.id', '=', 'i.group_id')
             ->where('tags.type', Tag::TYPE_WARNA)
             ->whereIn('ig.master', $masters)
             ->whereNull('i.deleted_at')

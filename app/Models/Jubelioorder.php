@@ -39,7 +39,7 @@ class Jubelioorder extends Model
             'transaction_date' => $data['transaction_date'] ?? $data['created_date'] ?? null,
             'store_name' => $data['source_name'] ?? $data['store_name'] ?? null,
             'location_name' => $data['location_name'] ?? null,
-            'grand_total' => $data['grand_total'] ?? null,
+            'real_total' => $data['real_total'] ?? null,
             'sub_total' => $data['sub_total'] ?? null,
             'item_count' => count($items),
             'customer_name' => $data['customer_name'] ?? ($data['ship_to']['name'] ?? null),
@@ -66,7 +66,7 @@ class Jubelioorder extends Model
 
     public function transactionsSearchUrl(): string
     {
-        return route('transactions.index', ['invoice_number' => $this->invoice]);
+        return route('transactions.index', ['invoice' => $this->invoice]);
     }
 
     public function isSuccessful(): bool
@@ -99,6 +99,6 @@ class Jubelioorder extends Model
      */
     public function trx(): HasOne
     {
-        return $this->hasOne(Transaction::class, 'invoice_number', 'invoice');
+        return $this->hasOne(Transaction::class, 'invoice', 'invoice');
     }
 }

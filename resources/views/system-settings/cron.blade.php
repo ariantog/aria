@@ -63,20 +63,20 @@ $frequencyOptions = [
                             <form method="POST" action="{{ route('scheduled-tasks.toggle', $task->id) }}" class="inline">
                                 @csrf
                                 <button type="submit"
-                                        class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors {{ $task->is_active ? 'bg-blue-600' : 'bg-gray-300' }}">
-                                    <span class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform {{ $task->is_active ? 'translate-x-6' : 'translate-x-1' }}"></span>
+                                        class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors {{ $task->active ? 'bg-blue-600' : 'bg-gray-300' }}">
+                                    <span class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform {{ $task->active ? 'translate-x-6' : 'translate-x-1' }}"></span>
                                 </button>
                             </form>
                             @else
-                            <span class="inline-flex h-6 w-11 items-center rounded-full {{ $task->is_active ? 'bg-blue-600' : 'bg-gray-300' }}">
-                                <span class="inline-block h-4 w-4 transform rounded-full bg-white {{ $task->is_active ? 'translate-x-6' : 'translate-x-1' }}"></span>
+                            <span class="inline-flex h-6 w-11 items-center rounded-full {{ $task->active ? 'bg-blue-600' : 'bg-gray-300' }}">
+                                <span class="inline-block h-4 w-4 transform rounded-full bg-white {{ $task->active ? 'translate-x-6' : 'translate-x-1' }}"></span>
                             </span>
                             @endif
                         </td>
                         <td class="px-6 py-4 text-gray-700">{{ $task->last_run_at ? \Illuminate\Support\Carbon::parse($task->last_run_at)->format('d/m/Y H:i') : 'Never' }}</td>
                         <td class="px-6 py-4 text-right">
                             @if($can['edit'])
-                            @php $taskPayload = json_encode(['id' => $task->id, 'name' => $task->name, 'frequency' => $task->frequency, 'is_active' => (bool) $task->is_active, 'description' => $task->description], JSON_HEX_APOS | JSON_HEX_QUOT); @endphp
+                            @php $taskPayload = json_encode(['id' => $task->id, 'name' => $task->name, 'frequency' => $task->frequency, 'active' => (bool) $task->active, 'description' => $task->description], JSON_HEX_APOS | JSON_HEX_QUOT); @endphp
                             <button type="button" @click='openEdit({!! $taskPayload !!})'
                                     class="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">Edit</button>
                             @endif
@@ -98,7 +98,7 @@ $frequencyOptions = [
             <form method="POST" :action="updateUrl" class="mt-4 space-y-4">
                 @csrf
                 @method('PATCH')
-                <input type="hidden" name="is_active" :value="form.is_active ? 1 : 0">
+                <input type="hidden" name="active" :value="form.active ? 1 : 0">
                 <div>
                     <label class="mb-1 block text-sm font-medium text-gray-700">Name</label>
                     <input type="text" name="name" x-model="form.name" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500">
@@ -129,7 +129,7 @@ $frequencyOptions = [
 function cronManager() {
     return {
         editing: null,
-        form: { id: null, name: '', frequency: '', is_active: true, description: '' },
+        form: { id: null, name: '', frequency: '', active: true, description: '' },
         get updateUrl() {
             return this.form.id ? `/cron-manager/${this.form.id}` : '#';
         },
@@ -138,7 +138,7 @@ function cronManager() {
                 id: task.id,
                 name: task.name || '',
                 frequency: task.frequency || '',
-                is_active: !!task.is_active,
+                active: !!task.active,
                 description: task.description || '',
             };
             this.editing = task.id;

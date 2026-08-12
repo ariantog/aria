@@ -95,9 +95,9 @@ it('exposes warehouse stock so scanned rows can show on-hand quantity', function
     $response = $this->actingAs($this->user)
         ->getJson(route('transactions.item-by-id', ['type' => 'sell', 'id' => $item->id]))
         ->assertSuccessful()
-        ->assertJsonPath('item.warehouse_items.0.warehouse_id', (string) $warehouse->id);
+        ->assertJsonPath('item.warehouse_item.0.warehouse_id', (string) $warehouse->id);
 
-    expect((float) $response->json('item.warehouse_items.0.quantity'))->toBe(7.0);
+    expect((float) $response->json('item.warehouse_item.0.quantity'))->toBe(7.0);
 });
 
 it('finds an item by numeric id through the items search json endpoint', function () {

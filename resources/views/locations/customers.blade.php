@@ -6,7 +6,7 @@
 @php
 $breadcrumbs = [
     ['title' => 'Locations', 'href' => route('locations.index')],
-    ['title' => $location->name, 'href' => route('locations.addrbooks', $location)],
+    ['title' => $location->name, 'href' => route('locations.customers', $location)],
 ];
 @endphp
 
@@ -32,7 +32,7 @@ $breadcrumbs = [
     <div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
         <h3 class="text-sm font-semibold text-gray-900">Add customer</h3>
         <p class="mt-0.5 text-sm text-gray-500">Search by name, phone, or member ID.</p>
-        <form method="GET" action="{{ route('locations.addrbooks', $location) }}" class="mt-3 flex flex-wrap items-end gap-2">
+        <form method="GET" action="{{ route('locations.customers', $location) }}" class="mt-3 flex flex-wrap items-end gap-2">
             <div class="min-w-[16rem] flex-1">
                 <input type="search" name="q" value="{{ $filters['q'] ?? '' }}" placeholder="Search customers..."
                        class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
@@ -48,12 +48,12 @@ $breadcrumbs = [
                     <div class="font-medium text-gray-900">{{ $candidate->name }}</div>
                     <div class="text-xs text-gray-500">
                         @if($candidate->phone) {{ $candidate->phone }} @endif
-                        @if($candidate->member_id) · {{ $candidate->member_id }} @endif
+                        @if($candidate->memberId) · {{ $candidate->memberId }} @endif
                     </div>
                 </div>
-                <form method="POST" action="{{ route('locations.addrbooks.attach', $location) }}">
+                <form method="POST" action="{{ route('locations.customers.attach', $location) }}">
                     @csrf
-                    <input type="hidden" name="addrbook_id" value="{{ $candidate->id }}">
+                    <input type="hidden" name="customer_id" value="{{ $candidate->id }}">
                     <button type="submit" class="rounded-md bg-blue-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-800">Add</button>
                 </form>
             </div>
@@ -85,9 +85,9 @@ $breadcrumbs = [
                             <a href="{{ route('addrbook.type.show', ['type' => 'customer', 'addrbook' => $addrbook->id]) }}" class="text-blue-600 hover:underline">{{ $addrbook->name }}</a>
                         </td>
                         <td class="whitespace-nowrap px-6 py-4 text-gray-500">{{ $addrbook->phone ?: '—' }}</td>
-                        <td class="whitespace-nowrap px-6 py-4 text-gray-500">{{ $addrbook->member_id ?: '—' }}</td>
+                        <td class="whitespace-nowrap px-6 py-4 text-gray-500">{{ $addrbook->memberId ?: '—' }}</td>
                         <td class="whitespace-nowrap px-6 py-4 text-right">
-                            <form method="POST" action="{{ route('locations.addrbooks.detach', [$location, $addrbook]) }}" onsubmit="return confirm('Remove this customer from {{ $location->name }}?')">
+                            <form method="POST" action="{{ route('locations.customers.detach', [$location, $addrbook]) }}" onsubmit="return confirm('Remove this customer from {{ $location->name }}?')">
                                 @csrf
                                 @method('DELETE')
                                 <button type="submit" class="rounded-md border border-red-200 px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50">Remove</button>

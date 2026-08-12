@@ -59,7 +59,7 @@ $typeColors = [
                             <span class="inline-flex rounded border px-2 py-0.5 text-[10px] font-bold uppercase {{ $typeColors[$tt] ?? 'bg-gray-50 text-gray-600 border-gray-200' }}">{{ $typeLabels[$tt] ?? 'Other' }}</span>
                         </td>
                         <td class="whitespace-nowrap px-6 py-3">
-                            <a href="/transactions/{{ $td->transaction_id }}" class="font-mono text-blue-600 hover:underline">{{ optional($td->transaction)->invoice_number ?? '-' }}</a>
+                            <a href="/transactions/{{ $td->transaction_id }}" class="font-mono text-blue-600 hover:underline">{{ optional($td->transaction)->invoice ?? '-' }}</a>
                         </td>
                         <td class="whitespace-nowrap px-6 py-3 text-right font-medium text-gray-600">Rp {{ number_format($td->price, 0, ',', '.') }}</td>
                         <td class="px-6 py-3">

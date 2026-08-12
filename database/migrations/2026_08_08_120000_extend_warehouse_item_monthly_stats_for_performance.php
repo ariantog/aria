@@ -19,7 +19,7 @@ return new class extends Migration
                 $table->unsignedTinyInteger('item_type')->nullable()->after('returned_value');
             }
             if (! Schema::hasColumn('warehouse_item_monthly_stats', 'group_id')) {
-                $table->foreignId('group_id')->nullable()->after('item_type')->constrained('item_groups')->nullOnDelete();
+                $table->foreignId('group_id')->nullable()->after('item_type')->constrained('item_group')->nullOnDelete();
             }
             if (! Schema::hasColumn('warehouse_item_monthly_stats', 'pcode')) {
                 $table->string('pcode', 64)->nullable()->after('group_id');

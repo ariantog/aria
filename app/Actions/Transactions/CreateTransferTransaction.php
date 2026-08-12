@@ -31,20 +31,20 @@ class CreateTransferTransaction
                 'sender_id' => $sender->id,
                 'receiver_type' => $receiver->type instanceof AddrbookType ? $receiver->type->value : $receiver->type,
                 'receiver_id' => $receiver->id,
-                'invoice_number' => $data['invoice'] ?? null,
+                'invoice' => $data['invoice'] ?? null,
                 'notes' => $data['description'] ?? null,
                 'user_id' => Auth::id(),
                 'status' => TransactionStatus::Completed->value,
-                'grand_total' => (float) $data['total'],
+                'real_total' => (float) $data['total'],
                 'total_items' => 0,
                 'adjustment' => 0,
                 'discount' => 0,
-                'tax_amount' => 0,
+                'ppn' => 0,
                 'submit_type' => Transaction::SUBMIT_TYPE_MANUAL,
             ]);
 
-            if (empty($trx->invoice_number)) {
-                $trx->update(['invoice_number' => (string) $trx->id]);
+            if (empty($trx->invoice)) {
+                $trx->update(['invoice' => (string) $trx->id]);
             }
 
             $this->transactionService->handleTransaction($trx);

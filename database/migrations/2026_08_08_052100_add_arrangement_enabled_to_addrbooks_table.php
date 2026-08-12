@@ -8,8 +8,8 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::table('addrbooks', function (Blueprint $table) {
-            if (! Schema::hasColumn('addrbooks', 'arrangement_enabled')) {
+        Schema::table('customers', function (Blueprint $table) {
+            if (! Schema::hasColumn('customers', 'arrangement_enabled')) {
                 $table->boolean('arrangement_enabled')->default(false)->after('is_online');
             }
         });
@@ -17,8 +17,8 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::table('addrbooks', function (Blueprint $table) {
-            if (Schema::hasColumn('addrbooks', 'arrangement_enabled')) {
+        Schema::table('customers', function (Blueprint $table) {
+            if (Schema::hasColumn('customers', 'arrangement_enabled')) {
                 $table->dropColumn('arrangement_enabled');
             }
         });

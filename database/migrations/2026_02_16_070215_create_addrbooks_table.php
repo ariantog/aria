@@ -11,7 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('addrbooks', function (Blueprint $table) {
+        Schema::create('customers', function (Blueprint $table) {
             $table->id();
             $table->string('name');
             $table->text('address')->nullable();
@@ -20,7 +20,7 @@ return new class extends Migration
             $table->string('contact_person')->nullable();
             $table->boolean('is_online')->default(false);
             $table->boolean('ppn')->default(false);
-            $table->string('member_id')->nullable();
+            $table->string('memberId')->nullable();
             $table->integer('type')->nullable();
             $table->text('description')->nullable();
             $table->softDeletes();
@@ -33,6 +33,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('addrbooks');
+        Schema::dropIfExists('customers');
     }
 };

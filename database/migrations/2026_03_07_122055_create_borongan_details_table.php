@@ -11,11 +11,11 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('borongan_details', function (Blueprint $table) {
+        Schema::create('prod_borongandetail', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('borongan_id')->constrained('borongans')->cascadeOnDelete();
+            $table->foreignId('borongan_id')->constrained('prod_borongan')->cascadeOnDelete();
             $table->foreignId('item_id')->constrained('items');
-            $table->foreignId('produksi_id')->constrained('produksis');
+            $table->foreignId('produksi_id')->constrained('prod_produksi');
             $table->decimal('ongkos', 12, 2)->default(0);
             $table->integer('quantity')->default(0);
             $table->decimal('total', 15, 2)->default(0);
@@ -28,6 +28,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('borongan_details');
+        Schema::dropIfExists('prod_borongandetail');
     }
 };

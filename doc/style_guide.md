@@ -117,8 +117,8 @@ Use Color-coded Badges or Dots for status.
 **Dot Indicator (for boolean status):**
 ```tsx
 <div className="flex items-center gap-2">
-    <span className={`h-2 w-2 rounded-full ${user.is_active ? 'bg-emerald-500' : 'bg-red-500'}`}></span>
-    <span>{user.is_active ? 'Active' : 'Inactive'}</span>
+    <span className={`h-2 w-2 rounded-full ${user.active ? 'bg-emerald-500' : 'bg-red-500'}`}></span>
+    <span>{user.active ? 'Active' : 'Inactive'}</span>
 </div>
 ```
 

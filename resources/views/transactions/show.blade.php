@@ -1,12 +1,12 @@
 @extends('layouts.app')
 
-@section('title', 'Transaction #' . $transaction->invoice_number)
+@section('title', 'Transaction #' . $transaction->invoice)
 
 @section('content')
 @php
     $breadcrumbs = [
         ['title' => 'Transactions', 'href' => route('transactions.index')],
-        ['title' => 'Invoice #' . $transaction->invoice_number, 'href' => route('transactions.show', $transaction->id)],
+        ['title' => 'Invoice #' . $transaction->invoice, 'href' => route('transactions.show', $transaction->id)],
     ];
 
     $statuses = [
@@ -42,7 +42,7 @@
                 <h1 class="text-2xl font-bold tracking-tight">Detail Transaction</h1>
                 <p class="flex items-center gap-2 text-sm text-gray-500">
                     <svg class="h-3.5 w-3.5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-                    Invoice #{{ $transaction->invoice_number }}
+                    Invoice #{{ $transaction->invoice }}
                 </p>
             </div>
         </div>
@@ -108,7 +108,7 @@
                 <div class="text-sm font-medium tracking-wider text-gray-500 uppercase">Grand Total</div>
                 <div class="mt-1 flex items-baseline gap-1">
                     <span class="text-3xl font-black text-blue-600">IDR</span>
-                    <span class="text-4xl font-black tracking-tighter tabular-nums">{{ $fmt(abs($transaction->grand_total)) }}</span>
+                    <span class="text-4xl font-black tracking-tighter tabular-nums">{{ $fmt(abs($transaction->real_total)) }}</span>
                 </div>
             </div>
             <div class="space-y-4 p-6 pt-4">
@@ -358,7 +358,7 @@
                     <span class="font-bold">{{ $fmt($transaction->total) }}</span>
                 </div>
                 <div class="flex items-center justify-between text-sm">
-                    <span class="text-gray-500">Invoice Discount ({{ $transaction->discount_percent ?? 0 }}%)</span>
+                    <span class="text-gray-500">Invoice Discount ({{ $transaction->discount ?? 0 }}%)</span>
                     <span class="font-bold text-red-600">-{{ $fmt($transaction->discount) }}</span>
                 </div>
                 <hr class="border-dashed">
@@ -368,7 +368,7 @@
                 </div>
                 <div class="flex items-center justify-between text-sm">
                     <span class="text-gray-500">PPN / Tax</span>
-                    <span class="font-bold">{{ $fmt($transaction->tax_amount) }}</span>
+                    <span class="font-bold">{{ $fmt($transaction->ppn) }}</span>
                 </div>
                 <div class="pt-2">
                     <div class="flex items-center justify-between rounded-lg bg-blue-600 p-4 text-white shadow-lg shadow-blue-500/20">
@@ -376,7 +376,7 @@
                             <span class="text-[10px] font-black tracking-widest text-blue-100/70 uppercase">Grand Total</span>
                             <span class="text-xs font-medium italic text-blue-100">Net Amount Payable</span>
                         </div>
-                        <span class="text-2xl font-black">IDR {{ $fmt(abs($transaction->grand_total)) }}</span>
+                        <span class="text-2xl font-black">IDR {{ $fmt(abs($transaction->real_total)) }}</span>
                     </div>
                 </div>
             </div>

@@ -20,7 +20,7 @@ class TruncateItemsData extends Command
      *
      * @var string
      */
-    protected $description = 'Safely truncate all item-related tables (tags, item_groups, items, item_tag)';
+    protected $description = 'Safely truncate all item-related tables (tags, item_group, items, item_tag)';
 
     /**
      * Execute the console command.
@@ -44,8 +44,8 @@ class TruncateItemsData extends Command
             $this->info('Truncating items...');
             DB::table('items')->truncate();
 
-            $this->info('Truncating item_groups...');
-            DB::table('item_groups')->truncate();
+            $this->info('Truncating item_group...');
+            DB::table('item_group')->truncate();
 
             $this->info('Truncating tags...');
             DB::table('tags')->truncate();

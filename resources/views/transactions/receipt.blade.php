@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>Receipt #{{ $transaction->invoice_number }}</title>
+    <title>Receipt #{{ $transaction->invoice }}</title>
     <link rel="stylesheet" href="{{ asset('css/receipt.css') }}">
 </head>
 <body onload="window.print()">
@@ -16,7 +16,7 @@
     <div class="center invoice-label">Retail Invoice</div>
     <br>
     <div>Date : {{ $transaction->date?->format('d/m/Y') }}</div>
-    <div>Bill No: {{ $transaction->invoice_number }}</div>
+    <div>Bill No: {{ $transaction->invoice }}</div>
     <hr>
 
     <div class="receipt-line">Item              Qty      Amt</div>
@@ -45,13 +45,13 @@
         $stText = str_pad('SubTotal', 18);
         $stQty = str_pad((string) $subq, 3, ' ', STR_PAD_LEFT);
         $stAmt = str_pad($fmt($subtotal), 9, ' ', STR_PAD_LEFT);
-        $discount = max(0, $subtotal - abs((float) $transaction->grand_total));
+        $discount = max(0, $subtotal - abs((float) $transaction->real_total));
     @endphp
     <div class="receipt-line">{{ $stText }}{{ $stQty }}{{ $stAmt }}</div>
     <hr>
 
     <div>Discount : {{ $fmt($discount) }}</div>
-    <div><strong>TOTAL : {{ $fmt(abs($transaction->grand_total)) }}</strong></div>
+    <div><strong>TOTAL : {{ $fmt(abs($transaction->real_total)) }}</strong></div>
     <br>
     <div class="center thankyou">@corenationactive 082244226656</div>
 </div>

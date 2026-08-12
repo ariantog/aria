@@ -54,7 +54,7 @@ class TransactionTest extends TestCase
         // 2. Submit Data
         $response = $this->post(route('transactions.store'), [
             'date' => now()->toDateString(),
-            'due_date' => now()->addDays(30)->toDateString(),
+            'due' => now()->addDays(30)->toDateString(),
             'type' => 'buy',
             'sender_id' => $supplier->id,
             'receiver_id' => $warehouse->id,
@@ -79,11 +79,11 @@ class TransactionTest extends TestCase
             'sender_id' => $supplier->id,
             'receiver_id' => $warehouse->id,
             'total' => 50000, // 10 * 5000
-            'due_date' => now()->addDays(30)->startOfDay()->toDateTimeString(),
+            'due' => now()->addDays(30)->startOfDay()->toDateTimeString(),
         ]);
 
         // 5. Verify Stock Update (WarehouseItem)
-        $this->assertDatabaseHas('warehouse_items', [
+        $this->assertDatabaseHas('warehouse_item', [
             'warehouse_id' => $warehouse->id,
             'item_id' => $item->id,
             // 'quantity' => 10 // Can't check exact if previous stock existed.
@@ -150,11 +150,11 @@ class TransactionTest extends TestCase
             'type' => Transaction::TYPE_RETURN_SUPPLIER,
             'sender_id' => $warehouse->id,
             'receiver_id' => $reseller->id,
-            'grand_total' => -25000, // Negative for return supplier
+            'real_total' => -25000, // Negative for return supplier
         ]);
 
         // 5. Verify Stock Update (WarehouseItem)
-        $this->assertDatabaseHas('warehouse_items', [
+        $this->assertDatabaseHas('warehouse_item', [
             'warehouse_id' => $warehouse->id,
             'item_id' => $item->id,
             'quantity' => 15, // 20 - 5
@@ -164,8 +164,8 @@ class TransactionTest extends TestCase
         // Return-supplier transactions adjust stock/global qty but do NOT
         // update addrbook balances in the current TransactionService logic
         // (only buy/sell/return/cash/transfer/adjust touch balances).
-        $this->assertDatabaseMissing('addrbook_stats', [
-            'addrbook_id' => $reseller->id,
+        $this->assertDatabaseMissing('customerstat', [
+            'customer_id' => $reseller->id,
         ]);
     }
 }

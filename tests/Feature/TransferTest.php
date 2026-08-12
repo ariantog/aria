@@ -26,18 +26,18 @@ test('bank transfer can be stored and updates balances', function () {
         'type' => Transaction::TYPE_TRANSFER,
         'sender_id' => $bankSource->id,
         'receiver_id' => $bankDest->id,
-        'grand_total' => 5000,
+        'real_total' => 5000,
     ]);
 
     // Check balance updates (AddrbookStat)
     // Source decreases (-5000), Dest increases (+5000)
-    $this->assertDatabaseHas('addrbook_stats', [
-        'addrbook_id' => $bankSource->id,
+    $this->assertDatabaseHas('customerstat', [
+        'customer_id' => $bankSource->id,
         'balance' => -5000,
     ]);
 
-    $this->assertDatabaseHas('addrbook_stats', [
-        'addrbook_id' => $bankDest->id,
+    $this->assertDatabaseHas('customerstat', [
+        'customer_id' => $bankDest->id,
         'balance' => 5000,
     ]);
 });

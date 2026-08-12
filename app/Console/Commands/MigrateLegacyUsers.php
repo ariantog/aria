@@ -75,7 +75,7 @@ class MigrateLegacyUsers extends Command
                     'username' => $user->username,
                     'email' => $user->username.'@mail.com', // Dummy email to satisfy schema
                     'password' => $user->password,
-                    'is_active' => (bool) $user->active,
+                    'active' => (bool) $user->active,
                     'location_id' => $user->location_id ?: null,
                     'remember_token' => $user->remember_token,
                     'created_at' => $this->sanitizeDate($user->created_at),

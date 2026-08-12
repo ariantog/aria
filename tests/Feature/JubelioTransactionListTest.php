@@ -44,7 +44,7 @@ it('shows jubelio cron transactions on the transactions index for location-scope
             'store_id' => 10,
             'location_id' => 20,
             'sub_total' => 100000,
-            'grand_total' => 100000,
+            'real_total' => 100000,
             'transaction_date' => '2026-05-10',
             'items' => [
                 ['item_code' => 'SKU-JUB-LIST', 'qty' => 1, 'price' => 100000],
@@ -61,7 +61,7 @@ it('shows jubelio cron transactions on the transactions index for location-scope
     $hiddenUser = User::factory()->create(['location_id' => $otherLocation->id]);
     $hiddenUser->givePermissionTo('transactions-list');
 
-    expect(Transaction::where('invoice_number', 'INV-JUB-LIST-1')->exists())->toBeTrue();
+    expect(Transaction::where('invoice', 'INV-JUB-LIST-1')->exists())->toBeTrue();
 
     $this->actingAs($user)
         ->get(route('transactions.index'))
@@ -74,7 +74,7 @@ it('shows jubelio cron transactions on the transactions index for location-scope
         ->assertDontSee('INV-JUB-LIST-1');
 
     $this->actingAs($user)
-        ->get(route('transactions.index', ['invoice_number' => 'INV-JUB-LIST-1']))
+        ->get(route('transactions.index', ['invoice' => 'INV-JUB-LIST-1']))
         ->assertSuccessful()
         ->assertSee('INV-JUB-LIST-1');
 });

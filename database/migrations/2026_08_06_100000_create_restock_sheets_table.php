@@ -13,7 +13,7 @@ return new class extends Migration
             $table->string('pcode');
             $table->string('name');
             $table->foreignId('type_tag_id')->constrained('tags')->cascadeOnDelete();
-            $table->foreignId('representative_group_id')->nullable()->constrained('item_groups')->nullOnDelete();
+            $table->foreignId('representative_group_id')->nullable()->constrained('item_group')->nullOnDelete();
             $table->foreignId('created_by')->constrained('users')->cascadeOnDelete();
             $table->timestamp('last_saved_at')->nullable();
             $table->foreignId('last_saved_by')->nullable()->constrained('users')->nullOnDelete();

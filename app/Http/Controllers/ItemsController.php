@@ -158,7 +158,7 @@ class ItemsController extends Controller
             'group',
             'tags',
             'warehouseItems' => fn ($q) => $q
-                ->whereIn('warehouse_id', fn ($s) => $s->select('id')->from('addrbooks')->whereIn('type', [
+                ->whereIn('warehouse_id', fn ($s) => $s->select('id')->from('customers')->whereIn('type', [
                     AddrbookType::Warehouse->value,
                     AddrbookType::VirtualWarehouse->value,
                 ]))

@@ -72,7 +72,7 @@ class AdjustStock
                 'item_adj_id' => 0,
                 'item_adj_no' => '[auto]',
                 'transaction_date' => now()->toIso8601ZuluString(),
-                'note' => 'Adjust from Aria #'.$transaction->invoice_number,
+                'note' => 'Adjust from Aria #'.$transaction->invoice,
                 'location_id' => $jubSync->jubelio_location_id,
                 'is_opening_balance' => false,
                 'items' => $items,

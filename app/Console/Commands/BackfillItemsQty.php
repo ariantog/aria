@@ -10,7 +10,7 @@ class BackfillItemsQty extends Command
 {
     protected $signature = 'app:backfill-items-qty {--chunk=500 : Rows per chunk}';
 
-    protected $description = 'Backfill items.qty from per-warehouse stock (warehouse_item / warehouse_items).';
+    protected $description = 'Backfill items.qty from per-warehouse stock (warehouse_item / warehouse_item).';
 
     public function handle(): int
     {
@@ -22,10 +22,10 @@ class BackfillItemsQty extends Command
 
         $warehouseTable = Schema::hasTable('warehouse_item')
             ? 'warehouse_item'
-            : (Schema::hasTable('warehouse_items') ? 'warehouse_items' : null);
+            : (Schema::hasTable('warehouse_item') ? 'warehouse_item' : null);
 
         if (! $warehouseTable) {
-            $this->error('No warehouse_item / warehouse_items table found.');
+            $this->error('No warehouse_item / warehouse_item table found.');
 
             return self::FAILURE;
         }

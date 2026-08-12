@@ -70,16 +70,16 @@ class ProduksiController extends Controller
             ->when($request->filled('surat_jalan_potong'), fn ($q) => $q->where('surat_jalan_potong', 'like', '%'.$request->surat_jalan_potong.'%'))
             ->when($request->filled('warna'), fn ($q) => $q->where('warna', 'like', '%'.$request->warna.'%'))
             ->when($request->filled('serial'), fn ($q) => $q->where(fn ($s) => $s->where('id', base_convert($request->serial, 36, 10))->orWhere('original_id', base_convert($request->serial, 36, 10))));
-        $produksis = $query->latest('id')->paginate(20)->withQueryString();
+        $prod_produksi = $query->latest('id')->paginate(20)->withQueryString();
 
-        return view('produksi.index', ['produksis' => $produksis, 'filters' => $request->only(['from', 'to', 'kode', 'customer', 'potong_id', 'jahit_id', 'serial', 'surat_jalan_potong', 'warna']), 'jahitList' => Worker::jahit()->get(), 'can' => $this->produksiPermissions(), 'flash' => ['success' => session('success'), 'error' => session('error')]]);
+        return view('produksi.index', ['prod_produksi' => $prod_produksi, 'filters' => $request->only(['from', 'to', 'kode', 'customer', 'potong_id', 'jahit_id', 'serial', 'surat_jalan_potong', 'warna']), 'jahitList' => Worker::jahit()->get(), 'can' => $this->produksiPermissions(), 'flash' => ['success' => session('success'), 'error' => session('error')]]);
     }
 
     public function create() { Gate::authorize(Produksi::getPermissions()['create']); return view('produksi.create', ['workers' => Worker::potong()->get(), 'sizes' => Tag::where('type', Tag::TYPE_SIZE)->get()]); }
     public function store(StoreProduksiRequest $request) { Gate::authorize(Produksi::getPermissions()['create']); DB::transaction(function () use ($request) { foreach ($request->items as $item) { Produksi::create(['temp_name' => $item['name'], 'size_id' => $item['size_id'], 'quantity' => $item['qty'], 'customer' => $item['customer'] ? strtoupper($item['customer']) : null, 'warna' => $item['warna'] ? strtoupper($item['warna']) : null, 'potong_id' => $request->potong_id, 'potong_date' => $request->date, 'surat_jalan_potong' => $request->surat_jalan_potong, 'status' => Produksi::STATUS_PRODUKSI]); } }); return redirect()->route('produksi.index')->with('success', 'Production records created.'); }
-    public function postSaveRow(Request $request, Produksi $produksi) { Gate::authorize(Produksi::getPermissions()['edit']); $request->validate(['jahit_id' => 'required|exists:workers,id']); $w = Worker::where('id', $request->jahit_id)->where('type', Worker::TYPE_JAHIT)->firstOrFail(); $produksi->update(['jahit_id' => $w->id, 'jahit_date' => now()]); return back()->with('success', 'Assigned to Jahit.'); }
-    public function postSaveQc(Request $request, Produksi $produksi) { Gate::authorize(Produksi::getPermissions()['edit']); $request->validate(['qc_id' => 'required|exists:workers,id']); $w = Worker::where('id', $request->qc_id)->where('type', Worker::TYPE_QC)->firstOrFail(); $produksi->update(['qc_id' => $w->id, 'qc_date' => now()]); return back()->with('success', 'Assigned to QC.'); }
-    public function postSavePritil(Request $request, Produksi $produksi) { Gate::authorize(Produksi::getPermissions()['edit']); $request->validate(['pritil_id' => 'required|exists:workers,id']); $w = Worker::where('id', $request->pritil_id)->where('type', Worker::TYPE_PRITIL)->firstOrFail(); $produksi->update(['pritil_id' => $w->id, 'pritil_date' => now()]); return back()->with('success', 'Assigned to Pritil.'); }
+    public function postSaveRow(Request $request, Produksi $produksi) { Gate::authorize(Produksi::getPermissions()['edit']); $request->validate(['jahit_id' => 'required|exists:prod_worker,id']); $w = Worker::where('id', $request->jahit_id)->where('type', Worker::TYPE_JAHIT)->firstOrFail(); $produksi->update(['jahit_id' => $w->id, 'jahit_date' => now()]); return back()->with('success', 'Assigned to Jahit.'); }
+    public function postSaveQc(Request $request, Produksi $produksi) { Gate::authorize(Produksi::getPermissions()['edit']); $request->validate(['qc_id' => 'required|exists:prod_worker,id']); $w = Worker::where('id', $request->qc_id)->where('type', Worker::TYPE_QC)->firstOrFail(); $produksi->update(['qc_id' => $w->id, 'qc_date' => now()]); return back()->with('success', 'Assigned to QC.'); }
+    public function postSavePritil(Request $request, Produksi $produksi) { Gate::authorize(Produksi::getPermissions()['edit']); $request->validate(['pritil_id' => 'required|exists:prod_worker,id']); $w = Worker::where('id', $request->pritil_id)->where('type', Worker::TYPE_PRITIL)->firstOrFail(); $produksi->update(['pritil_id' => $w->id, 'pritil_date' => now()]); return back()->with('success', 'Assigned to Pritil.'); }
     public function postSetor(Produksi $produksi) { Gate::authorize(Produksi::getPermissions()['setor']); $produksi->update(['status' => Produksi::STATUS_SETOR, 'setor_date' => now()]); return back()->with('success', 'Moved to Setoran.'); }
     public function workerLookup(Request $request) { $q = Worker::query()->when($request->filled('search'), fn ($q) => $q->where('name', 'like', '%'.$request->search.'%')); if ($request->filled('type')) { $m = ['jahit' => Worker::TYPE_JAHIT, 'potong' => Worker::TYPE_POTONG, 'qc' => Worker::TYPE_QC, 'pritil' => Worker::TYPE_PRITIL]; $q->where('type', $m[$request->type] ?? $request->type); } return response()->json($q->limit(20)->get()); }
     public function setoranGudang(Request $request, Produksi $produksi, SendToWarehouse $action) { Gate::authorize(Produksi::getPermissions()['gudang']); $request->validate(['invoice' => 'required|string|max:255']); try { $action->execute($produksi, $request->invoice, auth()->id() ?? 1); return back()->with('success', "Serial: {$produksi->serial} masuk transaksi {$request->invoice}."); } catch (\RuntimeException $e) { return back()->withErrors(['error' => $e->getMessage()]); } }
@@ -144,7 +144,7 @@ class ProduksiController extends Controller
     public function gantiJahit(Request $request, Produksi $produksi)
     {
         Gate::authorize(Produksi::getPermissions()['edit']);
-        $request->validate(['jahit_id' => 'required|exists:workers,id']);
+        $request->validate(['jahit_id' => 'required|exists:prod_worker,id']);
         $w = Worker::where('id', $request->jahit_id)->where('type', Worker::TYPE_JAHIT)->firstOrFail();
         $produksi->update(['jahit_id' => $w->id, 'jahit_date' => $produksi->jahit_date ?: now()]);
 
@@ -171,7 +171,7 @@ class ProduksiController extends Controller
         $p = Produksi::getPermissions();
 
         return view('produksi.setoran.index', [
-            'produksis' => $query->latest('id')->paginate(20)->withQueryString(),
+            'prod_produksi' => $query->latest('id')->paginate(20)->withQueryString(),
             'filters' => $request->only(['from', 'to', 'kode', 'customer', 'warna', 'potong_id', 'jahit_id', 'surat_jalan_potong', 'serial', 'invoice', 'status']),
             'jahitList' => Worker::jahit()->get(),
             'potongList' => Worker::potong()->get(),

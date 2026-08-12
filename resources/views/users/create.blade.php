@@ -17,7 +17,7 @@ $breadcrumbs = [
     </div>
 
     <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-        <form method="POST" action="{{ route('users.store') }}" class="p-6" x-data="{ active: {{ old('is_active', 1) ? 'true' : 'false' }} }">
+        <form method="POST" action="{{ route('users.store') }}" class="p-6" x-data="{ active: {{ old('active', 1) ? 'true' : 'false' }} }">
             @csrf
             <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div>
@@ -71,7 +71,7 @@ $breadcrumbs = [
                     <p class="mt-0.5 max-w-sm text-sm text-gray-500">If active, the user will be able to log in.</p>
                 </div>
                 <label class="flex cursor-pointer items-center gap-2">
-                    <input type="hidden" name="is_active" :value="active ? 1 : 0">
+                    <input type="hidden" name="active" :value="active ? 1 : 0">
                     <button type="button" @click="active = !active"
                             :class="active ? 'bg-blue-600' : 'bg-gray-300'"
                             class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors">

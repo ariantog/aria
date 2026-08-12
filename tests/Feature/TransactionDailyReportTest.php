@@ -20,7 +20,7 @@ test('creating a transaction updates daily report for sender and receiver', func
         'receiver_type' => Addrbook::TYPE_WAREHOUSE,
         'type' => Transaction::TYPE_BUY,
         'date' => now(),
-        'grand_total' => 1000.00,
+        'real_total' => 1000.00,
         'status' => Transaction::STATUS_COMPLETED,
     ]);
 
@@ -31,10 +31,10 @@ test('creating a transaction updates daily report for sender and receiver', func
     $service = new ReflectionClass(TransactionService::class);
     $method = $service->getMethod('updateDailyReports');
     $method->setAccessible(true);
-    $method->invoke(new TransactionService, $transaction, 'sender', $transaction->grand_total);
+    $method->invoke(new TransactionService, $transaction, 'sender', $transaction->real_total);
 
     // 3. Assertion
-    $senderDaily = AddrbookDaily::where('addrbook_id', $sender->id)
+    $senderDaily = AddrbookDaily::where('customer_id', $sender->id)
         ->where('date', now()->format('Y-m-d'))
         ->first();
 
@@ -42,7 +42,7 @@ test('creating a transaction updates daily report for sender and receiver', func
         ->and($senderDaily->buy)->toEqual('1000.00');
 
     // Receiver (Warehouse) is NO LONGER updated for BUY transaction in the new logic
-    $receiverDaily = AddrbookDaily::where('addrbook_id', $receiver->id)
+    $receiverDaily = AddrbookDaily::where('customer_id', $receiver->id)
         ->where('date', now()->format('Y-m-d'))
         ->first();
 
@@ -61,7 +61,7 @@ test('subsequent transactions on the same day increment the daily total', functi
         'sender_id' => $sender->id,
         'type' => Transaction::TYPE_BUY,
         'date' => now(),
-        'grand_total' => 500.00,
+        'real_total' => 500.00,
     ]);
     $service->handleTransaction($t1);
 
@@ -71,11 +71,11 @@ test('subsequent transactions on the same day increment the daily total', functi
         'sender_id' => $sender->id,
         'type' => Transaction::TYPE_BUY,
         'date' => now(),
-        'grand_total' => 300.00,
+        'real_total' => 300.00,
     ]);
     $service->handleTransaction($t2);
 
-    $daily = AddrbookDaily::where('addrbook_id', $sender->id)
+    $daily = AddrbookDaily::where('customer_id', $sender->id)
         ->where('date', now()->format('Y-m-d'))
         ->first();
 

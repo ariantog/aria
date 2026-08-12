@@ -3,7 +3,6 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
-use App\Models\Concerns\MapsProductionColumns;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -12,7 +11,7 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
 class User extends Authenticatable
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasFactory, MapsProductionColumns, Notifiable, TwoFactorAuthenticatable;
+    use HasFactory, Notifiable, TwoFactorAuthenticatable;
     use \Spatie\Permission\Traits\HasRoles {
         hasPermissionTo as protected spatieHasPermissionTo;
         hasAnyPermission as protected spatieHasAnyPermission;
@@ -32,10 +31,6 @@ class User extends Authenticatable
         return $user !== null && $user->id === self::SUPERADMIN_ID;
     }
 
-    protected static function productionColumnKey(): string
-    {
-        return 'users';
-    }
 
     /**
      * User ID 1 is the one and only superadmin.
@@ -109,7 +104,7 @@ class User extends Authenticatable
         'username',
         'email',
         'password',
-        'is_active',
+        'active',
         'location_id',
     ];
 
@@ -136,7 +131,7 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'two_factor_confirmed_at' => 'datetime',
-            'is_active' => 'boolean',
+            'active' => 'boolean',
         ];
     }
 

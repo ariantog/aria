@@ -82,7 +82,7 @@
         </div>
         <div class="flex flex-col gap-1">
             <label class="text-xs font-medium uppercase text-gray-500">Invoice</label>
-            <input type="text" name="invoice_number" value="{{ $filters['invoice_number'] ?? '' }}" placeholder="Search invoice…"
+            <input type="text" name="invoice" value="{{ $filters['invoice'] ?? '' }}" placeholder="Search invoice…"
                    class="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
         </div>
         <div class="flex flex-col gap-1">

@@ -70,7 +70,7 @@ $breadcrumbs = [
                 @endforelse
             </tbody>
         </table>
-        @include('partials.pagination', ['paginator' => $workers, 'label' => 'workers'])
+        @include('partials.pagination', ['paginator' => $workers, 'label' => 'prod_worker'])
     </div>
 
     {{-- Modal --}}

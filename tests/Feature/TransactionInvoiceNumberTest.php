@@ -13,7 +13,7 @@ class TransactionInvoiceNumberTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_invoice_number_defaults_to_id_when_empty()
+    public function test_invoice_defaults_to_id_when_empty()
     {
         $user = User::factory()->create();
         $this->actingAs($user);
@@ -38,7 +38,7 @@ class TransactionInvoiceNumberTest extends TestCase
             'receiver_id' => $warehouse->id,
             'sender_type' => Addrbook::class,
             'receiver_type' => \App\Models\Location::class,
-            'invoice_number' => '', // Empty
+            'invoice' => '', // Empty
             'note' => 'Test transaction note',
             'items' => [
                 [
@@ -54,11 +54,11 @@ class TransactionInvoiceNumberTest extends TestCase
         $transaction = Transaction::first();
         $response->assertRedirect(route('transactions.show', $transaction));
 
-        $this->assertEquals($transaction->id, $transaction->invoice_number);
+        $this->assertEquals($transaction->id, $transaction->invoice);
         $this->assertEquals('Test transaction note', $transaction->notes);
     }
 
-    public function test_invoice_number_stays_as_provided_when_not_empty()
+    public function test_invoice_stays_as_provided_when_not_empty()
     {
         $user = User::factory()->create();
         $this->actingAs($user);
@@ -83,7 +83,7 @@ class TransactionInvoiceNumberTest extends TestCase
             'receiver_id' => $warehouse->id,
             'sender_type' => Addrbook::class,
             'receiver_type' => \App\Models\Location::class,
-            'invoice_number' => 'INV-12345',
+            'invoice' => 'INV-12345',
             'note' => 'Test transaction note',
             'items' => [
                 [
@@ -97,7 +97,7 @@ class TransactionInvoiceNumberTest extends TestCase
         ]);
 
         $transaction = Transaction::first();
-        $this->assertEquals('INV-12345', $transaction->invoice_number);
+        $this->assertEquals('INV-12345', $transaction->invoice);
     }
 
     public function test_gracefully_handles_missing_polymorphic_types()
@@ -108,7 +108,7 @@ class TransactionInvoiceNumberTest extends TestCase
         $supplier = Addrbook::create(['name' => 'S1', 'type' => Addrbook::TYPE_SUPPLIER, 'code' => 'C1']);
         $warehouse = Addrbook::create(['name' => 'W1', 'type' => Addrbook::TYPE_WAREHOUSE, 'code' => 'C2']);
 
-        // SQLite foreign key workaround: warehouse_items.warehouse_id is constrained to locations.id
+        // SQLite foreign key workaround: warehouse_item.warehouse_id is constrained to locations.id
         // Both sender and receiver might trigger stock updates, so both IDs must exist in locations.
         \App\Models\Location::forceCreate(['id' => $supplier->id, 'name' => 'D1']);
         \App\Models\Location::forceCreate(['id' => $warehouse->id, 'name' => 'D2']);
