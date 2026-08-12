@@ -148,7 +148,7 @@ This will:
 2. Migrate `items-contributor` → `report-product-performance` on roles that had the old permission
 3. `syncPermissions()` on the superadmin Spatie role (user id 1 bypasses ACL regardless)
 4. Seed `scheduled_tasks` rows for the cron manager
-5. `SettingSeeder` — `updateOrCreate` only; safe if settings already exist
+5. `SettingSeeder` — requires `settings.slug` (run align migration first); `updateOrCreate` only
 
 ---
 

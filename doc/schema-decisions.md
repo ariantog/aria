@@ -69,6 +69,14 @@ Production also has `detail_ids`, `cogs`, `location_id`, `real_total`, etc. L12 
 
 Single table `items`, `type` `1` = item, `2` = asset lancar. No separate asset table. See `doc/migration-runbook.md` for parallel L10/L12 notes.
 
+## settings
+
+| Production column | L12 usage |
+|-------------------|-----------|
+| `name` | L10 key (`ppn_rate`, …); after align, display label; `slug` holds the key |
+| `value`, `location_id`, timestamps | Used — L12 seeds new keys with `location_id = 0` |
+| `id`, `slug`, `group` | L12-only — added by align migration |
+
 ## Seeders on production copy
 
 | Seeder | On prod DB copy? |

@@ -10,7 +10,7 @@ class Setting extends Model
     /** @use HasFactory<\Database\Factories\SettingFactory> */
     use HasFactory;
 
-    protected $fillable = ['group', 'name', 'slug', 'value'];
+    protected $fillable = ['group', 'name', 'slug', 'value', 'location_id'];
 
     const DAY_MAP = [
         'Senin' => 'Monday',
@@ -46,7 +46,15 @@ class Setting extends Model
 
     public static function getValue(string $slug, mixed $default = null): mixed
     {
-        $setting = self::where('slug', $slug)->first();
+        $query = self::query();
+
+        if (\Illuminate\Support\Facades\Schema::hasColumn((new static)->getTable(), 'slug')) {
+            $query->where('slug', $slug);
+        } else {
+            $query->where('name', $slug);
+        }
+
+        $setting = $query->first();
 
         return $setting ? $setting->value : $default;
     }
