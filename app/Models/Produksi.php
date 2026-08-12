@@ -29,6 +29,7 @@ class Produksi extends Model
             'potong_date' => 'date',
             'jahit_date' => 'datetime',
             'qc_date' => 'datetime',
+            'pritil_date' => 'datetime',
             'setor_date' => 'datetime',
             'gudang_date' => 'date',
             'status' => 'integer',
@@ -70,6 +71,11 @@ class Produksi extends Model
     public function qc()
     {
         return $this->belongsTo(Worker::class, 'qc_id');
+    }
+
+    public function pritil()
+    {
+        return $this->belongsTo(Worker::class, 'pritil_id');
     }
 
     public function original()

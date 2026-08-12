@@ -10,14 +10,21 @@ use Spatie\Permission\Models\Permission;
 
 class PermissionController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
         Gate::authorize(User::getPermissions()['permissions-view']);
 
-        $permissions = Permission::latest()->paginate(50);
+        $search = trim((string) $request->query('search', ''));
+
+        $permissions = Permission::query()
+            ->when($search !== '', fn ($q) => $q->where('name', 'like', '%'.$search.'%'))
+            ->latest()
+            ->paginate(50)
+            ->withQueryString();
 
         return view('permissions.index', [
             'permissions' => $permissions,
+            'search' => $search,
             'can' => [
                 'generate' => request()->user()?->can(User::getPermissions()['permissions-generate']) ?? false,
             ],

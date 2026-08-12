@@ -4,6 +4,7 @@ namespace App\Services\Produksi;
 
 use App\Models\Produksi;
 use App\Models\Worker;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
@@ -143,6 +144,81 @@ class ProduksiStatisticsService
             })
             ->sortByDesc('total_qty')
             ->values();
+    }
+
+    /**
+     * @return Collection<int, object{month: int, kitir_count: int, total_qty: int}>
+     */
+    public function pritilMonthlyTotals(int $year): Collection
+    {
+        $rows = Produksi::query()
+            ->whereNotNull('pritil_id')
+            ->whereNotNull('pritil_date')
+            ->whereYear('pritil_date', $year)
+            ->get(['pritil_date', 'quantity']);
+
+        return $this->groupRowsByMonth($rows, 'pritil_date');
+    }
+
+    /**
+     * @return object{kitir_count: int, total_qty: int, avg_qty: float, sjp_count: ?int, kode_count: ?int, avg_potong_lag_days: ?float, avg_setor_lag_days: ?float}
+     */
+    public function workerStats(Worker $worker, string $startDate, string $endDate): object
+    {
+        $fk = $worker->foreignKeyColumn();
+        $dateCol = $worker->dateColumn();
+
+        $rows = Produksi::query()
+            ->where($fk, $worker->id)
+            ->whereDate($dateCol, '>=', $startDate)
+            ->whereDate($dateCol, '<=', $endDate)
+            ->get(['quantity', 'surat_jalan_potong', 'temp_name', 'potong_date', 'qc_date', 'setor_date', 'pritil_date']);
+
+        $kitirCount = $rows->count();
+        $totalQty = (int) $rows->sum('quantity');
+
+        $stats = (object) [
+            'kitir_count' => $kitirCount,
+            'total_qty' => $totalQty,
+            'avg_qty' => $kitirCount > 0 ? round($totalQty / $kitirCount, 1) : 0.0,
+            'sjp_count' => null,
+            'kode_count' => null,
+            'avg_potong_lag_days' => null,
+            'avg_setor_lag_days' => null,
+        ];
+
+        if ($worker->type === Worker::TYPE_POTONG) {
+            $stats->sjp_count = $rows->pluck('surat_jalan_potong')->filter()->unique()->count();
+            $stats->kode_count = $rows->pluck('temp_name')->filter()->unique()->count();
+        }
+
+        if ($worker->type === Worker::TYPE_QC) {
+            $potongLags = $rows
+                ->filter(fn ($row) => $row->potong_date && $row->qc_date)
+                ->map(fn ($row) => Carbon::parse($row->potong_date)->diffInDays(Carbon::parse($row->qc_date)));
+            $setorLags = $rows
+                ->filter(fn ($row) => $row->setor_date && $row->qc_date)
+                ->map(fn ($row) => Carbon::parse($row->setor_date)->diffInDays(Carbon::parse($row->qc_date)));
+            $stats->avg_potong_lag_days = $potongLags->isNotEmpty() ? round($potongLags->avg(), 1) : null;
+            $stats->avg_setor_lag_days = $setorLags->isNotEmpty() ? round($setorLags->avg(), 1) : null;
+        }
+
+        return $stats;
+    }
+
+    public function workerHistory(Worker $worker, string $startDate, string $endDate, int $perPage = 20): LengthAwarePaginator
+    {
+        $fk = $worker->foreignKeyColumn();
+        $dateCol = $worker->dateColumn();
+
+        return Produksi::query()
+            ->with(['potong', 'jahit', 'qc', 'pritil', 'size', 'item'])
+            ->where($fk, $worker->id)
+            ->whereDate($dateCol, '>=', $startDate)
+            ->whereDate($dateCol, '<=', $endDate)
+            ->latest($dateCol)
+            ->paginate($perPage)
+            ->withQueryString();
     }
 
     /**

@@ -212,6 +212,7 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
 
         // Assign QC to Production Entry
         Route::patch('/{produksi}/qc', [App\Http\Controllers\ProduksiController::class, 'postSaveQc'])->name('assign-qc');
+        Route::patch('/{produksi}/pritil', [App\Http\Controllers\ProduksiController::class, 'postSavePritil'])->name('assign-pritil');
 
         Route::patch('/{produksi}/setor', [App\Http\Controllers\ProduksiController::class, 'postSetor'])->name('setor');
         Route::get('/setoran', [App\Http\Controllers\ProduksiController::class, 'setoranIndex'])->name('setoran.index');
@@ -225,12 +226,13 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
         Route::post('/{produksi}/split', [App\Http\Controllers\ProduksiController::class, 'split'])->name('split');
         Route::patch('/{produksi}/worker', [App\Http\Controllers\ProduksiController::class, 'gantiJahit'])->name('ganti-jahit');
 
-        foreach (['potong', 'jahit', 'qc'] as $type) {
+        foreach (['potong', 'jahit', 'qc', 'pritil'] as $type) {
             Route::prefix($type)->name($type.'.')->group(function () use ($type) {
                 Route::get('/list', [App\Http\Controllers\ProduksiController::class, 'workerIndex'])->defaults('type', $type)->name('index');
+                Route::get('/{worker}', [App\Http\Controllers\ProduksiController::class, 'workerShow'])->defaults('type', $type)->name('show');
                 Route::post('/store', [App\Http\Controllers\ProduksiController::class, 'workerStore'])->defaults('type', $type)->name('store');
-                Route::put('/{worker}', [App\Http\Controllers\ProduksiController::class, 'workerUpdate'])->name('update');
-                Route::delete('/{worker}/delete', [App\Http\Controllers\ProduksiController::class, 'workerDestroy'])->name('destroy');
+                Route::put('/{worker}', [App\Http\Controllers\ProduksiController::class, 'workerUpdate'])->defaults('type', $type)->name('update');
+                Route::delete('/{worker}/delete', [App\Http\Controllers\ProduksiController::class, 'workerDestroy'])->defaults('type', $type)->name('destroy');
             });
         }
     });
