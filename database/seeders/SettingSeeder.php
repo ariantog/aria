@@ -17,7 +17,10 @@ class SettingSeeder extends Seeder
         }
 
         if (! Schema::hasColumn('settings', 'slug')) {
-            $this->command?->warn('settings.slug missing — run align_production_schema migration first.');
+            $this->command?->warn(
+                'settings.slug missing — run: php artisan migrate '
+                .'--path=database/migrations/2026_08_12_210000_align_settings_table_for_l12.php --force'
+            );
 
             return;
         }
