@@ -48,7 +48,7 @@ test('cash out transaction can be stored', function () {
     $this->assertDatabaseHas('customer_class', [
         'customer_id' => $bank->id,
         'date' => now()->format('Y-m-d'),
-        'buy' => 1000,
+        'buy' => -1000,
         'adjust' => 0,
         'depreciation' => 0,
         'class' => '',
