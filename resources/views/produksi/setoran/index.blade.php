@@ -96,8 +96,8 @@ $hasFilters = collect($filters)->filter(fn($v) => $v !== null && $v !== '')->isN
             <table class="min-w-full divide-y divide-gray-200">
                 <thead class="border-b border-gray-200 bg-gray-50">
                     <tr>
-                        @foreach(['Serial','Parent','Kode','Potong','SJP','Jumlah','Size','Warna','Costumer','Jahit','QC','Pritil','Invoice'] as $h)
-                        <th class="px-4 py-3 text-left text-xs font-bold uppercase text-gray-900 whitespace-nowrap">{{ $h }}</th>
+                        @foreach(['Serial','Kode','Potong','SJP','Jml','Size','Warna','Cust','Jahit','QC','Invoice'] as $h)
+                        <th class="px-2 py-2 text-left text-xs font-bold uppercase text-gray-900 whitespace-nowrap">{{ $h }}</th>
                         @endforeach
                     </tr>
                 </thead>
@@ -111,101 +111,104 @@ $hasFilters = collect($filters)->filter(fn($v) => $v !== null && $v !== '')->isN
                             && empty($p->invoice);
                     @endphp
                     <tr class="transition-colors {{ $rowColor }}">
-                        <td class="px-4 py-3 text-sm font-bold whitespace-nowrap text-blue-600">
-                            <a href="{{ route('produksi.setoran.edit', $p->id) }}" class="hover:underline">{{ $p->serial }}</a>
+                        <td class="px-2 py-2 whitespace-nowrap">
+                            <div class="flex flex-col gap-0.5">
+                                <a href="{{ route('produksi.setoran.edit', $p->id) }}" class="text-sm font-bold text-blue-600 hover:underline">{{ $p->serial }}</a>
+                                <div class="text-xs leading-tight">
+                                    @if($p->original_id)
+                                    @include('partials.filter-link', ['route' => 'produksi.setoran.index', 'param' => 'serial', 'value' => $p->parentSerial(), 'filters' => $filters, 'class' => 'text-blue-600 hover:underline'])
+                                    @else
+                                    <span class="font-medium text-gray-400">-</span>
+                                    @endif
+                                </div>
+                            </div>
                         </td>
-                        <td class="px-4 py-3 text-sm font-bold whitespace-nowrap">
-                            @if($p->original_id)
-                            @include('partials.filter-link', ['route' => 'produksi.setoran.index', 'param' => 'serial', 'value' => $p->parentSerial(), 'filters' => $filters])
-                            @else
-                            <span class="font-medium text-gray-400">-</span>
-                            @endif
-                        </td>
-                        <td class="px-4 py-3 whitespace-nowrap">
+                        <td class="px-2 py-2 whitespace-nowrap">
                             @if($p->item_id)
-                            <div class="flex items-center gap-1.5">
-                                <a href="{{ route('items.show', $p->item_id) }}" class="inline-flex items-center gap-1.5 rounded-md border border-blue-200 bg-blue-100 px-2.5 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-200">{{ $p->item->item_code ?? $p->temp_name }}</a>
+                            <div class="flex max-w-[9rem] items-center gap-1">
+                                <a href="{{ route('items.show', $p->item_id) }}" class="truncate rounded border border-blue-200 bg-blue-100 px-1.5 py-0.5 text-xs font-semibold text-blue-700 hover:bg-blue-200" title="{{ $p->item->item_code ?? $p->temp_name }}">{{ $p->item->item_code ?? $p->temp_name }}</a>
                                 @if($canEditItem)
-                                <button @click="openUpdate({{ $p->id }}, '{{ $p->serial }}')" title="Change item" class="flex h-6 w-6 items-center justify-center rounded border border-gray-200 text-gray-500 hover:bg-gray-50">
+                                <button @click="openUpdate({{ $p->id }}, '{{ $p->serial }}')" title="Change item" class="flex h-5 w-5 shrink-0 items-center justify-center rounded border border-gray-200 text-gray-500 hover:bg-gray-50">
                                     <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                                 </button>
                                 @endif
                             </div>
                             @elseif($canEditItem)
-                                <button @click="openUpdate({{ $p->id }}, '{{ $p->serial }}')" class="inline-flex items-center gap-1.5 rounded-md border border-blue-200 bg-blue-100 px-2.5 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-200">{{ $p->temp_name }}</button>
+                                <button @click="openUpdate({{ $p->id }}, '{{ $p->serial }}')" class="max-w-[9rem] truncate rounded border border-blue-200 bg-blue-100 px-1.5 py-0.5 text-xs font-semibold text-blue-700 hover:bg-blue-200">{{ $p->temp_name }}</button>
                             @else
-                                <span class="text-xs italic text-gray-400">{{ $p->temp_name }}</span>
+                                <span class="block max-w-[9rem] truncate text-xs italic text-gray-400">{{ $p->temp_name }}</span>
                             @endif
                         </td>
-                        <td class="px-4 py-3 text-center whitespace-nowrap">
-                            @include('produksi.partials.worker-cell', ['worker' => $p->potong, 'type' => 'potong', 'date' => $p->potong_date])
+                        <td class="px-2 py-2 text-center whitespace-nowrap">
+                            @include('produksi.partials.worker-cell', ['worker' => $p->potong, 'type' => 'potong', 'date' => $p->potong_date, 'compact' => true])
                         </td>
-                        <td class="px-4 py-3 text-sm font-bold whitespace-nowrap">
+                        <td class="px-2 py-2 text-sm font-bold whitespace-nowrap">
                             @include('partials.filter-link', ['route' => 'produksi.setoran.index', 'param' => 'surat_jalan_potong', 'value' => $p->surat_jalan_potong, 'filters' => $filters, 'class' => 'text-gray-900 hover:text-blue-600 hover:underline'])
                         </td>
-                        <td class="px-4 py-3 text-sm font-black whitespace-nowrap text-gray-900">{{ $p->quantity }}</td>
-                        <td class="px-4 py-3 whitespace-nowrap"><span class="w-fit rounded border border-gray-300 bg-white px-2 py-0.5 font-mono text-[10px]">{{ $p->size->name ?? '-' }}</span></td>
-                        <td class="px-4 py-3 text-xs font-bold whitespace-nowrap text-gray-600">{{ $p->warna ?: '-' }}</td>
-                        <td class="px-4 py-3 text-sm font-bold whitespace-nowrap">
+                        <td class="px-2 py-2 text-sm font-black whitespace-nowrap tabular-nums text-gray-900">{{ $p->quantity }}</td>
+                        <td class="px-2 py-2 whitespace-nowrap"><span class="rounded border border-gray-300 bg-white px-1 py-0.5 font-mono text-[10px]">{{ $p->size->name ?? '-' }}</span></td>
+                        <td class="px-2 py-2 max-w-[5rem] truncate text-xs font-bold text-gray-600" title="{{ $p->warna }}">{{ $p->warna ?: '-' }}</td>
+                        <td class="px-2 py-2 max-w-[4rem] truncate text-sm font-bold whitespace-nowrap">
                             @include('partials.filter-link', ['route' => 'produksi.setoran.index', 'param' => 'customer', 'value' => $p->customer, 'filters' => $filters, 'class' => 'text-gray-900 hover:text-blue-600 hover:underline'])
                         </td>
-                        <td class="px-4 py-3 text-center whitespace-nowrap">
-                            @include('produksi.partials.worker-cell', ['worker' => $p->jahit, 'type' => 'jahit', 'date' => $p->jahit_date])
+                        <td class="px-2 py-2 text-center whitespace-nowrap">
+                            @include('produksi.partials.worker-cell', ['worker' => $p->jahit, 'type' => 'jahit', 'date' => $p->jahit_date, 'compact' => true])
                         </td>
-                        <td class="px-4 py-3 text-center text-sm whitespace-nowrap">
-                            @if($can['assign_qc'])
-                            <form method="POST" action="{{ route('produksi.assign-qc', $p->id) }}" class="inline-block min-w-[120px]">
-                                @csrf
-                                @method('PATCH')
-                                <select name="qc_id" onchange="this.form.submit()" class="w-full max-w-[140px] rounded-md border border-gray-300 bg-white px-2 py-1 text-xs font-medium">
-                                    <option value="">— QC —</option>
-                                    @foreach($qcList as $qc)
-                                    <option value="{{ $qc->id }}" @selected($p->qc_id == $qc->id)>{{ $qc->name }}</option>
-                                    @endforeach
-                                </select>
-                            </form>
-                            @elseif($p->qc)
-                            @include('produksi.partials.worker-cell', ['worker' => $p->qc, 'type' => 'qc', 'date' => $p->qc_date])
-                            @else
-                            <span class="font-medium text-gray-400">—</span>
-                            @endif
+                        <td class="px-2 py-2 text-center whitespace-nowrap">
+                            <div class="flex flex-col items-center gap-1">
+                                @if($can['assign_qc'])
+                                <form method="POST" action="{{ route('produksi.assign-qc', $p->id) }}" class="w-full max-w-[88px]">
+                                    @csrf
+                                    @method('PATCH')
+                                    <select name="qc_id" onchange="this.form.submit()" class="w-full rounded border border-gray-300 bg-white px-1 py-0.5 text-xs font-medium">
+                                        <option value="">— QC —</option>
+                                        @foreach($qcList as $qc)
+                                        <option value="{{ $qc->id }}" @selected($p->qc_id == $qc->id)>{{ $qc->name }}</option>
+                                        @endforeach
+                                    </select>
+                                </form>
+                                @elseif($p->qc)
+                                @include('produksi.partials.worker-cell', ['worker' => $p->qc, 'type' => 'qc', 'date' => $p->qc_date, 'compact' => true])
+                                @else
+                                <span class="text-xs font-medium text-gray-400">—</span>
+                                @endif
+
+                                @if($can['assign_pritil'])
+                                <form method="POST" action="{{ route('produksi.assign-pritil', $p->id) }}" class="w-full max-w-[88px]">
+                                    @csrf
+                                    @method('PATCH')
+                                    <select name="pritil_id" onchange="this.form.submit()" class="w-full rounded border border-gray-300 bg-white px-1 py-0.5 text-xs font-medium">
+                                        <option value="">— Pritil —</option>
+                                        @foreach($pritilList as $pritil)
+                                        <option value="{{ $pritil->id }}" @selected($p->pritil_id == $pritil->id)>{{ $pritil->name }}</option>
+                                        @endforeach
+                                    </select>
+                                </form>
+                                @elseif($p->pritil)
+                                @include('produksi.partials.worker-cell', ['worker' => $p->pritil, 'type' => 'pritil', 'date' => $p->pritil_date, 'compact' => true])
+                                @else
+                                <span class="text-xs font-medium text-gray-400">—</span>
+                                @endif
+                            </div>
                         </td>
-                        <td class="px-4 py-3 text-center text-sm whitespace-nowrap">
-                            @if($can['assign_pritil'])
-                            <form method="POST" action="{{ route('produksi.assign-pritil', $p->id) }}" class="inline-block min-w-[120px]">
-                                @csrf
-                                @method('PATCH')
-                                <select name="pritil_id" onchange="this.form.submit()" class="w-full max-w-[140px] rounded-md border border-gray-300 bg-white px-2 py-1 text-xs font-medium">
-                                    <option value="">— Pritil —</option>
-                                    @foreach($pritilList as $pritil)
-                                    <option value="{{ $pritil->id }}" @selected($p->pritil_id == $pritil->id)>{{ $pritil->name }}</option>
-                                    @endforeach
-                                </select>
-                            </form>
-                            @elseif($p->pritil)
-                            @include('produksi.partials.worker-cell', ['worker' => $p->pritil, 'type' => 'pritil', 'date' => $p->pritil_date])
-                            @else
-                            <span class="font-medium text-gray-400">—</span>
-                            @endif
-                        </td>
-                        <td class="px-4 py-3 whitespace-nowrap">
+                        <td class="px-2 py-2 whitespace-nowrap">
                             @if($isGudangOrBoth && $p->transaction_id)
                                 <a href="{{ route('transactions.show', $p->transaction_id) }}" class="text-sm font-bold text-blue-600 hover:underline">{{ $p->invoice }}</a>
                             @elseif($isGudangOrBoth)
                                 <span class="text-sm font-bold text-blue-600">{{ $p->invoice }}</span>
                             @elseif($p->item_id)
                                 @if($can['gudang_setoran'])
-                                    <button @click="openGudang({{ $p->id }}, '{{ $p->serial }}', @js($p->invoice))" class="h-7 rounded bg-gray-800 px-3 text-xs font-medium text-white shadow-sm hover:bg-gray-700">To Gudang</button>
+                                    <button @click="openGudang({{ $p->id }}, '{{ $p->serial }}', @js($p->invoice))" class="whitespace-nowrap rounded bg-gray-800 px-2 py-1 text-xs font-medium text-white shadow-sm hover:bg-gray-700">Gudang</button>
                                 @else
-                                    <span class="text-xs italic text-gray-400">Ready for Gudang</span>
+                                    <span class="text-xs italic text-gray-400">Ready</span>
                                 @endif
                             @else
-                                <span class="text-xs italic text-gray-400">Belum ada item</span>
+                                <span class="text-xs italic text-gray-400">No item</span>
                             @endif
                         </td>
                     </tr>
                     @empty
-                    <tr><td colspan="13" class="bg-white px-6 py-12 text-center text-sm text-gray-500">No records found. Adjust your filters to see more results.</td></tr>
+                    <tr><td colspan="11" class="bg-white px-6 py-12 text-center text-sm text-gray-500">No records found. Adjust your filters to see more results.</td></tr>
                     @endforelse
                 </tbody>
             </table>
