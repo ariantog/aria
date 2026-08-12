@@ -12,12 +12,18 @@ class InvoiceBrandingService
 {
     public const LOGO_RELATIVE_PATH = 'asset/invoice-logo';
 
+    private const DEFAULT_COMPANY_NAME = 'CORENATION';
+
+    private const DEFAULT_ADDRESS = 'CILANDAK TOWN SQUARE no.171';
+
+    private const DEFAULT_PHONE = '082244226656';
+
     public function branding(): array
     {
         return [
-            'company_name' => (string) Setting::getValue('invoice_company_name', 'CORENATION'),
-            'address' => (string) Setting::getValue('invoice_address', 'CILANDAK TOWN SQUARE no.171'),
-            'phone' => (string) Setting::getValue('invoice_phone', '082244226656'),
+            'company_name' => self::DEFAULT_COMPANY_NAME,
+            'address' => self::DEFAULT_ADDRESS,
+            'phone' => self::DEFAULT_PHONE,
             'logo_path' => $this->logoDiskPath(),
             'logo_url' => $this->logoPublicUrl(),
         ];
@@ -95,29 +101,27 @@ class InvoiceBrandingService
         return null;
     }
 
-    public function update(array $data, ?UploadedFile $logo = null): void
+    public function update(?UploadedFile $logo = null): void
     {
-        $this->upsertSetting('invoice_company_name', 'Invoice Company Name', $data['company_name']);
-        $this->upsertSetting('invoice_address', 'Invoice Address', $data['address']);
-        $this->upsertSetting('invoice_phone', 'Invoice Phone', $data['phone']);
-
-        if ($logo) {
-            File::ensureDirectoryExists(public_path('asset'));
-            foreach (['png', 'jpg', 'jpeg', 'webp'] as $ext) {
-                $old = public_path(self::LOGO_RELATIVE_PATH.'.'.$ext);
-                if (File::exists($old)) {
-                    File::delete($old);
-                }
-            }
-
-            $extension = strtolower($logo->getClientOriginalExtension() ?: 'png');
-            if (! in_array($extension, ['png', 'jpg', 'jpeg', 'webp'], true)) {
-                $extension = 'png';
-            }
-
-            $logo->move(public_path('asset'), 'invoice-logo.'.$extension);
-            $this->upsertSetting('invoice_logo_path', 'Invoice Logo Path', self::LOGO_RELATIVE_PATH.'.'.$extension);
+        if (! $logo) {
+            return;
         }
+
+        File::ensureDirectoryExists(public_path('asset'));
+        foreach (['png', 'jpg', 'jpeg', 'webp'] as $ext) {
+            $old = public_path(self::LOGO_RELATIVE_PATH.'.'.$ext);
+            if (File::exists($old)) {
+                File::delete($old);
+            }
+        }
+
+        $extension = strtolower($logo->getClientOriginalExtension() ?: 'png');
+        if (! in_array($extension, ['png', 'jpg', 'jpeg', 'webp'], true)) {
+            $extension = 'png';
+        }
+
+        $logo->move(public_path('asset'), 'invoice-logo.'.$extension);
+        $this->upsertSetting('invoice_logo_path', 'Invoice Logo Path', self::LOGO_RELATIVE_PATH.'.'.$extension);
     }
 
     private function upsertSetting(string $slug, string $name, mixed $value): void
