@@ -136,9 +136,11 @@ PERMISSION_TABLE_ROLES=aria_roles
 Then run the idempotent bootstrap seeder (permissions, scheduled tasks, missing settings):
 
 ```bash
-php artisan config:clear
-php artisan db:seed --class=ProductionBootstrapSeeder
+php artisan config:clear   # required — drops cached config still pointing at `permissions`
+php artisan db:seed --class=ProductionBootstrapSeeder --force
 ```
+
+On MySQL, table names default to `aria_permissions` / `aria_roles` when `DB_CONNECTION=mysql`.
 
 This will:
 
