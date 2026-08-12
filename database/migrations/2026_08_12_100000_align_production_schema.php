@@ -29,6 +29,8 @@ return new class extends Migration
     /**
      * L10 schemas often use DEFAULT '0000-00-00 00:00:00' on timestamps, which makes
      * any subsequent ALTER fail under strict SQL mode. Normalize before adding columns.
+     *
+     * Must fix updated_at before created_at — MySQL validates all column defaults on each ALTER.
      */
     private function fixLegacyZeroDateTimestamps(string $table): void
     {
@@ -36,12 +38,33 @@ return new class extends Migration
             return;
         }
 
-        foreach (['created_at', 'updated_at'] as $column) {
-            if (! Schema::hasColumn($table, $column)) {
-                continue;
+        $columns = array_values(array_filter(
+            ['updated_at', 'created_at'],
+            fn (string $column) => Schema::hasColumn($table, $column),
+        ));
+
+        if ($columns === []) {
+            return;
+        }
+
+        DB::statement('SET @aria_old_sql_mode = @@SESSION.sql_mode');
+        DB::statement("SET SESSION sql_mode = REPLACE(REPLACE(@aria_old_sql_mode, 'NO_ZERO_DATE', ''), 'NO_ZERO_IN_DATE', '')");
+
+        try {
+            foreach ($columns as $column) {
+                DB::statement("
+                    UPDATE `{$table}`
+                    SET `{$column}` = NULL
+                    WHERE `{$column}` = '0000-00-00 00:00:00'
+                       OR `{$column}` = '0000-00-00'
+                ");
             }
 
-            DB::statement("ALTER TABLE `{$table}` MODIFY `{$column}` TIMESTAMP NULL DEFAULT NULL");
+            foreach ($columns as $column) {
+                DB::statement("ALTER TABLE `{$table}` MODIFY `{$column}` TIMESTAMP NULL DEFAULT NULL");
+            }
+        } finally {
+            DB::statement('SET SESSION sql_mode = @aria_old_sql_mode');
         }
     }
 

@@ -176,11 +176,19 @@ Legacy L10 tables use `DEFAULT '0000-00-00 00:00:00'` on timestamps. Strict MySQ
 
 The align migration (`2026_08_12_100000`) now normalizes `created_at`/`updated_at` to `TIMESTAMP NULL` before adding columns. Pull latest `cursor/migration` and re-run.
 
-Manual fix if needed before migrate:
+Manual fix if needed before migrate (fix **updated_at first**, relax strict mode):
 
 ```sql
+SET @old_mode = @@SESSION.sql_mode;
+SET SESSION sql_mode = REPLACE(REPLACE(@old_mode, 'NO_ZERO_DATE', ''), 'NO_ZERO_IN_DATE', '');
+
+UPDATE `customers` SET `updated_at` = NULL WHERE `updated_at` IN ('0000-00-00 00:00:00', '0000-00-00');
 ALTER TABLE `customers` MODIFY `updated_at` TIMESTAMP NULL DEFAULT NULL;
+
+UPDATE `customers` SET `created_at` = NULL WHERE `created_at` IN ('0000-00-00 00:00:00', '0000-00-00');
 ALTER TABLE `customers` MODIFY `created_at` TIMESTAMP NULL DEFAULT NULL;
+
+SET SESSION sql_mode = @old_mode;
 ```
 
 ### Other errors
