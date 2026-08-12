@@ -113,7 +113,6 @@ class JubelioStockCheckService
             ->whereDate('transactions.date', '>=', $since)
             ->where('items.type', $type->value)
             ->where('items.jubelio_item_id', '>', 0)
-            ->whereNull('transaction_details.deleted_at')
             ->groupBy('transaction_details.item_id')
             ->orderByDesc('demand_qty')
             ->limit($limit)

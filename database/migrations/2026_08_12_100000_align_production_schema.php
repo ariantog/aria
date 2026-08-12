@@ -22,7 +22,6 @@ return new class extends Migration
         $this->alignSessionsTable();
         $this->alignSettingsTable();
         $this->alignUsersTable();
-        $this->alignTransactionDetailsTable();
         $this->alignOperationsTable();
         $this->alignTagsTable();
         $this->alignWarehouseComparesTable();
@@ -208,9 +207,6 @@ return new class extends Migration
             if (! Schema::hasColumn('transactions', 'reference_number')) {
                 $blueprint->string('reference_number')->nullable();
             }
-            if (! Schema::hasColumn('transactions', 'deleted_at')) {
-                $blueprint->softDeletes();
-            }
         });
 
         if (Schema::hasColumn('items', 'qty') && Schema::hasTable('warehouse_item')) {
@@ -314,19 +310,6 @@ return new class extends Migration
         if (Schema::hasColumn('users', 'name')) {
             DB::statement("UPDATE `users` SET `name` = `username` WHERE `name` IS NULL OR `name` = ''");
         }
-    }
-
-    private function alignTransactionDetailsTable(): void
-    {
-        if (! Schema::hasTable('transaction_details')) {
-            return;
-        }
-
-        Schema::table('transaction_details', function (Blueprint $blueprint) {
-            if (! Schema::hasColumn('transaction_details', 'deleted_at')) {
-                $blueprint->softDeletes();
-            }
-        });
     }
 
     private function alignOperationsTable(): void
