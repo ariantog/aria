@@ -60,12 +60,11 @@ $tutupBukuOptions = [3, 4, 5, 6, 7, 8, 9, 10, 20, 28];
             @elseif($type === 'account')
                 <div x-data="asyncCombobox({
                         endpoint: @js($lookupUrls['account']),
-                        hiddenField: 'setting-value-account',
                         placeholder: 'Select account...',
                         initial: @js($addrbookInitial),
                     })" x-init="init()" class="relative">
                     <label class="mb-1 block text-sm font-medium text-gray-700">Value (Select Account)</label>
-                    <input type="hidden" name="value" id="setting-value-account" value="{{ $currentValue }}">
+                    <input type="hidden" name="value" :value="selected ? selected.id : ''">
                     <input type="text" x-model="query" @input="handleInput()" @focus="handleFocus()" @keydown="handleKeydown($event)"
                            :placeholder="placeholder" autocomplete="off"
                            class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500">
@@ -82,12 +81,11 @@ $tutupBukuOptions = [3, 4, 5, 6, 7, 8, 9, 10, 20, 28];
             @elseif($type === 'addrbook_supplier')
                 <div x-data="asyncCombobox({
                         endpoint: @js($lookupUrls['supplier']),
-                        hiddenField: 'setting-value-supplier',
                         placeholder: 'Select supplier...',
                         initial: @js($addrbookInitial),
                     })" x-init="init()" class="relative">
                     <label class="mb-1 block text-sm font-medium text-gray-700">Value (Select Supplier)</label>
-                    <input type="hidden" name="value" id="setting-value-supplier" value="{{ $currentValue }}">
+                    <input type="hidden" name="value" :value="selected ? selected.id : ''">
                     <input type="text" x-model="query" @input="handleInput()" @focus="handleFocus()" @keydown="handleKeydown($event)"
                            :placeholder="placeholder" autocomplete="off"
                            class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500">
@@ -104,12 +102,11 @@ $tutupBukuOptions = [3, 4, 5, 6, 7, 8, 9, 10, 20, 28];
             @elseif($type === 'addrbook_warehouse')
                 <div x-data="asyncCombobox({
                         endpoint: @js($lookupUrls['warehouse']),
-                        hiddenField: 'setting-value-warehouse',
                         placeholder: 'Select warehouse...',
                         initial: @js($addrbookInitial),
                     })" x-init="init()" class="relative">
                     <label class="mb-1 block text-sm font-medium text-gray-700">Value (Select Warehouse)</label>
-                    <input type="hidden" name="value" id="setting-value-warehouse" value="{{ $currentValue }}">
+                    <input type="hidden" name="value" :value="selected ? selected.id : ''">
                     <input type="text" x-model="query" @input="handleInput()" @focus="handleFocus()" @keydown="handleKeydown($event)"
                            :placeholder="placeholder" autocomplete="off"
                            class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500">

@@ -104,6 +104,11 @@ class SettingController extends Controller
 
         $system_setting->update($validated);
 
+        Setting::query()
+            ->where('slug', $system_setting->slug)
+            ->where('id', '!=', $system_setting->id)
+            ->delete();
+
         return redirect()->route('system-settings.index')->with('success', 'Setting updated successfully.');
     }
 
