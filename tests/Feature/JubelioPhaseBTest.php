@@ -398,7 +398,7 @@ it('refetches jubelio order payload when source is not webhook', function () {
                 'store_id' => 11,
                 'location_id' => 22,
                 'sub_total' => 100000,
-                'real_total' => 100000,
+                'grand_total' => 100000,
                 'transaction_date' => '2026-05-10',
                 'items' => [
                     ['item_code' => 'SKU-REFETCH-1', 'qty' => 1, 'price' => 100000],
@@ -414,6 +414,51 @@ it('refetches jubelio order payload when source is not webhook', function () {
     $order->refresh();
     expect($order->status)->toBe(2)
         ->and($order->payloadArray()['salesorder_no'])->toBe('INV-REFETCH-1');
+});
+
+it('processes jubelio sell order using grand_total from api payload', function () {
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    $customer = Addrbook::factory()->create(['type' => Addrbook::TYPE_CUSTOMER]);
+    Item::factory()->create(['code' => 'SKU-GRAND-1']);
+
+    Jubeliosync::create([
+        'jubelio_store_id' => 12,
+        'jubelio_store_name' => 'Store',
+        'jubelio_location_id' => 23,
+        'jubelio_location_name' => 'Gudang',
+        'warehouse_id' => $warehouse->id,
+        'customer_id' => $customer->id,
+        'bin_id' => 0,
+    ]);
+
+    $order = Jubelioorder::create([
+        'jubelio_order_id' => 'grand-total-1',
+        'source' => 1,
+        'invoice' => 'INV-GRAND-1',
+        'type' => 'SELL',
+        'order_status' => 'SHIPPED',
+        'run_count' => 0,
+        'payload' => json_encode([
+            'salesorder_no' => 'INV-GRAND-1',
+            'store_id' => 12,
+            'location_id' => 23,
+            'sub_total' => 100000,
+            'grand_total' => 95000,
+            'transaction_date' => '2026-05-10',
+            'items' => [
+                ['item_code' => 'SKU-GRAND-1', 'qty' => 1, 'price' => 100000],
+            ],
+        ]),
+        'status' => 0,
+    ]);
+
+    app(\App\Actions\Jubelio\ProcessJubelioOrder::class)->execute($order);
+
+    $transaction = Transaction::where('invoice', 'INV-GRAND-1')->first();
+
+    expect($order->refresh()->status)->toBe(2)
+        ->and($transaction)->not->toBeNull()
+        ->and((float) $transaction->adjustment)->toBe(-5000.0);
 });
 
 it('can confirm and clear jubelio sync warnings', function () {
