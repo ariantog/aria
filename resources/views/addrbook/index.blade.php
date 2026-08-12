@@ -66,7 +66,7 @@ $breadcrumbs = [
                 </tr>
             </thead>
             <tbody class="divide-y divide-gray-100">
-                @forelse($addrbooks as $a)
+                @forelse($customers as $a)
                     @php
                         $bal = (float) ($a->stat->balance ?? 0);
                         if (($can['bank_hidden_balance'] ?? false) && $a->type_slug === 'bank') $bal = 0;
@@ -116,7 +116,7 @@ $breadcrumbs = [
                 @endforelse
             </tbody>
         </table>
-        @include('partials.pagination', ['paginator' => $addrbooks, 'label' => 'entries'])
+        @include('partials.pagination', ['paginator' => $customers, 'label' => 'entries'])
     </div>
 </div>
 

@@ -16,7 +16,7 @@ class ScheduledTaskSeeder extends Seeder
             [
                 'name' => 'Recalculate Warehouse Item Stats',
                 'frequency' => 'weekly',
-                'is_active' => true,
+                'active' => true,
                 'description' => 'Rebuilds monthly per-warehouse SKU sell/return statistics for arrangement reports.',
             ]
         );
@@ -26,7 +26,7 @@ class ScheduledTaskSeeder extends Seeder
             [
                 'name' => 'Sync Warehouse Arrangement',
                 'frequency' => 'daily',
-                'is_active' => true,
+                'active' => true,
                 'description' => 'Pre-computes arrangement candidates and source warehouse matches for fast report loads.',
             ]
         );
@@ -36,7 +36,7 @@ class ScheduledTaskSeeder extends Seeder
             [
                 'name' => 'Sync Product Performance',
                 'frequency' => 'daily',
-                'is_active' => true,
+                'active' => true,
                 'description' => 'Rebuilds product performance rollups for sales contribution and warehouse demand reports.',
             ]
         );
@@ -46,7 +46,7 @@ class ScheduledTaskSeeder extends Seeder
             [
                 'name' => 'Sync Jubelio Orders',
                 'frequency' => 'everyMinute',
-                'is_active' => true,
+                'active' => true,
                 'description' => 'Processes pending Jubelio orders into Aria transactions (one per minute).',
             ]
         );
@@ -56,7 +56,7 @@ class ScheduledTaskSeeder extends Seeder
             [
                 'name' => 'Jubelio Check Connection',
                 'frequency' => 'hourly',
-                'is_active' => true,
+                'active' => true,
                 'description' => 'Refreshes Jubelio token and pings the API to detect auth/connectivity issues.',
             ]
         );
@@ -66,7 +66,7 @@ class ScheduledTaskSeeder extends Seeder
             [
                 'name' => 'Jubelio Poll Missing Orders',
                 'frequency' => 'hourly',
-                'is_active' => true,
+                'active' => true,
                 'description' => 'Polls Jubelio for recent orders missing from Aria (catches failed webhooks).',
             ]
         );
@@ -76,7 +76,7 @@ class ScheduledTaskSeeder extends Seeder
             [
                 'name' => 'Jubelio Get Orders (legacy resume)',
                 'frequency' => 'everyMinute',
-                'is_active' => false,
+                'active' => false,
                 'description' => 'Legacy fallback to resume interrupted manual imports. Prefer the queued sync job from Get Orders UI.',
             ]
         );
@@ -86,7 +86,7 @@ class ScheduledTaskSeeder extends Seeder
             [
                 'name' => 'Jubelio Stock Check',
                 'frequency' => 'everyMinute',
-                'is_active' => true,
+                'active' => true,
                 'description' => 'Compares Aria vs Jubelio stock per synced warehouse (demand-based SKUs).',
             ]
         );

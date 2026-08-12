@@ -34,15 +34,15 @@ class TransactionLookupController extends Controller
         // Apply search term
         if ($search = $request->input('search')) {
             $query->where(function ($q) use ($search) {
-                $q->where('addrbooks.name', 'like', "%{$search}%")
-                    ->orWhere('addrbooks.id', 'like', "%{$search}%");
+                $q->where('customers.name', 'like', "%{$search}%")
+                    ->orWhere('customers.id', 'like', "%{$search}%");
             });
         }
 
         $results = $query
-            ->leftJoin('addrbook_stats', 'addrbooks.id', '=', 'addrbook_stats.addrbook_id')
-            ->select('addrbooks.id', 'addrbooks.name', 'addrbooks.ppn', 'addrbooks.type', 'addrbook_stats.balance')
-            ->orderBy('addrbooks.name')
+            ->leftJoin('customerstat', 'customers.id', '=', 'customerstat.customer_id')
+            ->select('customers.id', 'customers.name', 'customers.ppn', 'customers.type', 'customerstat.balance')
+            ->orderBy('customers.name')
             ->limit(20)
             ->get();
 

@@ -36,12 +36,12 @@ class TransactionsController extends Controller
         $direction = $request->input('direction', 'desc');
         $perPage = $this->resolvePerPage($request);
         $transactions = $this->filteredTransactionsQuery($request);
-        if (in_array($sort, ['date', 'invoice_number', 'type', 'grand_total'], true)) {
+        if (in_array($sort, ['date', 'invoice', 'type', 'real_total'], true)) {
             $transactions->orderBy($sort, $direction)->orderBy('id', 'desc');
         } else {
             $transactions->orderBy('date', 'desc')->orderBy('id', 'desc');
         }
-        $filters = $request->only(['from', 'to', 'sort', 'direction', 'type', 'invoice_number', 'min_total', 'max_total', 'per_page']);
+        $filters = $request->only(['from', 'to', 'sort', 'direction', 'type', 'invoice', 'min_total', 'max_total', 'per_page']);
         $can = $this->transactionPermissions();
         if ($request->expectsJson() || $request->ajax()) {
             return response()->json($transactions->paginate($perPage)->withQueryString());
@@ -59,7 +59,7 @@ class TransactionsController extends Controller
         $direction = $request->input('direction', 'desc');
         $perPage = $this->resolvePerPage($request);
         $transactions = $this->filteredTransactionsQuery($request);
-        if (in_array($sort, ['date', 'invoice_number', 'type', 'grand_total'], true)) {
+        if (in_array($sort, ['date', 'invoice', 'type', 'real_total'], true)) {
             $transactions->orderBy($sort, $direction)->orderBy('id', 'desc');
         } else {
             $transactions->orderBy('date', 'desc')->orderBy('id', 'desc');
@@ -133,7 +133,7 @@ class TransactionsController extends Controller
                 'type' => $item->type instanceof \BackedEnum ? $item->type->value : $item->type,
                 'price' => (float) $item->price,
                 'cost' => (float) $item->cost,
-                'warehouse_items' => $item->warehouseItems->map(fn ($wi) => [
+                'warehouse_item' => $item->warehouseItems->map(fn ($wi) => [
                     'warehouse_id' => (string) $wi->warehouse_id,
                     'quantity' => (float) $wi->quantity,
                 ])->values()->all(),
@@ -475,10 +475,10 @@ class TransactionsController extends Controller
     {
         return Transaction::with(['sender', 'receiver'])
             ->visibleToUser(Auth::user())
-            ->when($request->invoice_number, fn ($q, $v) => $q->where('invoice_number', 'like', "%{$v}%"))
+            ->when($request->invoice, fn ($q, $v) => $q->where('invoice', 'like', "%{$v}%"))
             ->when($request->type, fn ($q, $v) => $q->where('type', $v))
-            ->when($request->min_total, fn ($q, $v) => $q->where('grand_total', '>=', $v))
-            ->when($request->max_total, fn ($q, $v) => $q->where('grand_total', '<=', $v))
+            ->when($request->min_total, fn ($q, $v) => $q->where('real_total', '>=', $v))
+            ->when($request->max_total, fn ($q, $v) => $q->where('real_total', '<=', $v))
             ->when($request->from, fn ($q, $v) => $q->whereDate('date', '>=', $v))
             ->when($request->to, fn ($q, $v) => $q->whereDate('date', '<=', $v));
     }

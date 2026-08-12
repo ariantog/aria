@@ -27,7 +27,7 @@ it('can create potong worker', function () {
     ]);
 
     $response->assertSessionHasNoErrors();
-    $this->assertDatabaseHas('workers', [
+    $this->assertDatabaseHas('prod_worker', [
         'name' => 'Jane Doe',
         'type' => Worker::TYPE_POTONG,
     ]);
@@ -41,7 +41,7 @@ it('can update potong worker', function () {
     ]);
 
     $response->assertSessionHasNoErrors();
-    $this->assertDatabaseHas('workers', [
+    $this->assertDatabaseHas('prod_worker', [
         'id' => $worker->id,
         'name' => 'New Name',
     ]);
@@ -53,7 +53,7 @@ it('can delete potong worker', function () {
     $response = $this->actingAs($this->user)->delete("/produksi/potong/{$worker->id}/delete");
 
     $response->assertSessionHasNoErrors();
-    $this->assertSoftDeleted('workers', ['id' => $worker->id]);
+    $this->assertSoftDeleted('prod_worker', ['id' => $worker->id]);
 });
 
 it('can store bulk production entries', function () {
@@ -85,7 +85,7 @@ it('can store bulk production entries', function () {
     $response->assertRedirect('/produksi');
     $response->assertSessionHasNoErrors();
 
-    $this->assertDatabaseHas('produksis', [
+    $this->assertDatabaseHas('prod_produksi', [
         'temp_name' => 'T-Shirt A',
         'quantity' => 10,
         'customer' => 'CLIENT X',
@@ -93,7 +93,7 @@ it('can store bulk production entries', function () {
         'potong_id' => $worker->id,
     ]);
 
-    $this->assertDatabaseHas('produksis', [
+    $this->assertDatabaseHas('prod_produksi', [
         'temp_name' => 'T-Shirt B',
         'quantity' => 20,
         'customer' => 'CLIENT Y',
@@ -122,7 +122,7 @@ it('requires a potong worker to store production entries', function () {
 
     $response->assertRedirect(route('produksi.create'));
     $response->assertSessionHasErrors('potong_id');
-    $this->assertDatabaseMissing('produksis', ['temp_name' => 'T-Shirt C']);
+    $this->assertDatabaseMissing('prod_produksi', ['temp_name' => 'T-Shirt C']);
 });
 
 it('rejects a potong worker that does not exist', function () {
@@ -138,7 +138,7 @@ it('rejects a potong worker that does not exist', function () {
 
     $response->assertRedirect(route('produksi.create'));
     $response->assertSessionHasErrors('potong_id');
-    $this->assertDatabaseMissing('produksis', ['temp_name' => 'Bad Worker Item']);
+    $this->assertDatabaseMissing('prod_produksi', ['temp_name' => 'Bad Worker Item']);
 });
 
 it('retains production items when store validation fails', function () {

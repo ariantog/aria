@@ -20,12 +20,12 @@ return new class extends Migration
             $table->string('performance_key');
             $table->string('performance_level');
             $table->integer('gap_days')->nullable();
-            $table->foreignId('current_warehouse_id')->constrained('addrbooks');
+            $table->foreignId('current_warehouse_id')->constrained('customers');
             $table->string('current_warehouse_name');
             $table->integer('current_warehouse_qty');
             $table->string('current_warehouse_last_sale')->nullable();
             $table->integer('current_warehouse_days_ago')->nullable();
-            $table->foreignId('best_performing_warehouse_id')->nullable()->constrained('addrbooks');
+            $table->foreignId('best_performing_warehouse_id')->nullable()->constrained('customers');
             $table->string('best_performing_warehouse_name')->nullable();
             $table->string('best_performing_warehouse_last_sale')->nullable();
             $table->integer('best_performing_warehouse_days_ago')->nullable();

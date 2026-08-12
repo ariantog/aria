@@ -1,12 +1,12 @@
 @extends('layouts.app')
 
-@section('title', 'Sync Detail #' . $data->invoice_number)
+@section('title', 'Sync Detail #' . $data->invoice)
 
 @section('content')
 @php
 $breadcrumbs = [
     ['title' => 'Transaction Sync', 'href' => route('jubelio.transaction.sync')],
-    ['title' => 'Sync Detail #' . ($data->invoice_number ?? $data->id)],
+    ['title' => 'Sync Detail #' . ($data->invoice ?? $data->id)],
 ];
 $mappingMissing = $data->item_with_jubelio_count > 0;
 @endphp
@@ -76,7 +76,7 @@ $mappingMissing = $data->item_with_jubelio_count > 0;
                 <div class="mb-6 flex items-start justify-between">
                     <div>
                         <p class="mb-1 text-xs font-bold uppercase text-gray-400">Invoice</p>
-                        <p class="text-lg font-bold">{{ $data->invoice_number }}</p>
+                        <p class="text-lg font-bold">{{ $data->invoice }}</p>
                     </div>
                     <div class="text-center">
                         <p class="mb-1 text-xs font-bold uppercase text-gray-400">Date</p>

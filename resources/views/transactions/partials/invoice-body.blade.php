@@ -13,7 +13,7 @@
     <table class="invoice" style="margin-top:8px;">
         <tr>
             <td>Invoice</td>
-            <td>: {{ $transaction->invoice_number }}</td>
+            <td>: {{ $transaction->invoice }}</td>
             <td>Date</td>
             <td>: {{ $transaction->date?->format('d/m/Y') }}</td>
         </tr>
@@ -56,15 +56,15 @@
                 <td style="text-align:right;">-{{ $fmt($transaction->discount) }}</td>
             </tr>
             @endif
-            @if((float) $transaction->tax_amount > 0)
+            @if((float) $transaction->ppn > 0)
             <tr>
                 <td colspan="3" style="text-align:right;">PPN</td>
-                <td style="text-align:right;">{{ $fmt($transaction->tax_amount) }}</td>
+                <td style="text-align:right;">{{ $fmt($transaction->ppn) }}</td>
             </tr>
             @endif
             <tr>
                 <td colspan="3" style="text-align:right;"><strong>Grand Total</strong></td>
-                <td style="text-align:right;"><strong>{{ $fmt(abs($transaction->grand_total)) }}</strong></td>
+                <td style="text-align:right;"><strong>{{ $fmt(abs($transaction->real_total)) }}</strong></td>
             </tr>
         </tfoot>
     </table>

@@ -18,7 +18,7 @@ function seedGetOrdersScheduledTask(): ScheduledTask
         'command' => 'jubelio:get-orders',
         'name' => 'Jubelio Get Orders (legacy resume)',
         'frequency' => 'everyMinute',
-        'is_active' => false,
+        'active' => false,
         'description' => 'Test task',
     ]);
 }
@@ -137,7 +137,7 @@ it('skips orders already present in aria when syncing', function () {
     Transaction::factory()->create([
         'type' => Transaction::TYPE_SELL,
         'submit_type' => Transaction::SUBMIT_TYPE_JUBELIO,
-        'invoice_number' => 'INV-EXISTS',
+        'invoice' => 'INV-EXISTS',
         'sender_id' => $warehouse->id,
         'receiver_id' => $customer->id,
         'date' => '2026-08-01',

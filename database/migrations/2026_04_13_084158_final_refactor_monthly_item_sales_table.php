@@ -19,8 +19,8 @@ return new class extends Migration
             $table->id();
             $table->smallInteger('year');
             $table->tinyInteger('month');
-            $table->foreignId('group_id')->nullable()->constrained('item_groups')->onDelete('set null');
-            $table->foreignId('customer_id')->nullable()->constrained('addrbooks')->onDelete('set null');
+            $table->foreignId('group_id')->nullable()->constrained('item_group')->onDelete('set null');
+            $table->foreignId('customer_id')->nullable()->constrained('customers')->onDelete('set null');
             $table->decimal('qty_net', 15, 2)->default(0);
             $table->decimal('amount_net', 15, 2)->default(0);
             $table->timestamps();

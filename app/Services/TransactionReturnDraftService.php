@@ -65,7 +65,7 @@ class TransactionReturnDraftService
                 'discount' => (float) $detail->discount,
                 'subtotal' => (float) $detail->total,
                 'note' => $detail->notes ?? '',
-                'warehouse_items' => $item->warehouseItems->map(fn ($wi) => [
+                'warehouse_item' => $item->warehouseItems->map(fn ($wi) => [
                     'warehouse_id' => (string) $wi->warehouse_id,
                     'quantity' => (float) $wi->quantity,
                 ])->values()->all(),
@@ -94,9 +94,9 @@ class TransactionReturnDraftService
                 'name' => $newReceiver->name,
                 'ppn' => (bool) $newReceiver->ppn,
             ],
-            'invoice_number' => (string) $transaction->invoice_number,
+            'invoice' => (string) $transaction->invoice,
             'note' => $returnNote,
-            'discount_percent' => (float) ($transaction->discount_percent ?? 0),
+            'discount' => (float) ($transaction->discount ?? 0),
             'adjustment' => (float) ($transaction->adjustment ?? 0),
             'items' => $prefillItems,
         ];

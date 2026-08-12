@@ -53,7 +53,7 @@ it('stores row discount percent on sell transactions', function () {
             'price' => 10000,
             'discount' => 10,
         ]],
-        'discount_percent' => 0,
+        'discount' => 0,
     ]);
 
     $transaction = Transaction::latest('id')->first();

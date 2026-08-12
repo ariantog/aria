@@ -11,7 +11,7 @@ class EnsureJubelioPartyLocations extends Command
 {
     protected $signature = 'jubelio:ensure-party-locations';
 
-    protected $description = 'Link Jubelio sync warehouse/customer addrbooks to locations so their transactions appear in the list';
+    protected $description = 'Link Jubelio sync warehouse/customer customers to locations so their transactions appear in the list';
 
     public function handle(LocationAccessService $locationAccessService): int
     {

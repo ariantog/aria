@@ -111,7 +111,7 @@ class ProcessJubelioOrder
 
         $arrayInvoice = $dataApi['salesorder_no'] ?? $order->invoice;
 
-        if (Transaction::where('type', Transaction::TYPE_SELL)->where('invoice_number', $arrayInvoice)->exists()) {
+        if (Transaction::where('type', Transaction::TYPE_SELL)->where('invoice', $arrayInvoice)->exists()) {
             $order->update([
                 'run_count' => $runCount,
                 'error_type' => 2,
@@ -122,7 +122,7 @@ class ProcessJubelioOrder
             return ['success' => false, 'message' => 'Transaction sudah ada'];
         }
 
-        $adjust = $dataApi['sub_total'] - $dataApi['grand_total'];
+        $adjust = $dataApi['sub_total'] - $dataApi['real_total'];
         $createData = $this->createTransaction(Transaction::TYPE_SELL, (object) [
             'date' => $dataApi['transaction_date'] ?? now()->toDateString(),
             'warehouse' => $jubelioSync->warehouse_id,
@@ -166,7 +166,7 @@ class ProcessJubelioOrder
     protected function processReturn(Jubelioorder $order, array $dataApi, int $runCount, ?int $executedByUserId): array
     {
         $cekTransaksiSell = Transaction::where('type', Transaction::TYPE_SELL)
-            ->where('invoice_number', $dataApi['salesorder_no'])
+            ->where('invoice', $dataApi['salesorder_no'])
             ->first();
 
         if (! $cekTransaksiSell) {
@@ -193,7 +193,7 @@ class ProcessJubelioOrder
             return ['success' => false, 'message' => $matched['error']];
         }
 
-        if (Transaction::where('type', Transaction::TYPE_RETURN)->where('invoice_number', $dataApi['return_no'])->exists()) {
+        if (Transaction::where('type', Transaction::TYPE_RETURN)->where('invoice', $dataApi['return_no'])->exists()) {
             $order->update([
                 'run_count' => $runCount,
                 'error_type' => 2,
@@ -219,7 +219,7 @@ class ProcessJubelioOrder
             return ['success' => false, 'message' => 'Data sync store/location ID untuk return tidak ditemukan'];
         }
 
-        $adjust = $dataApi['sub_total'] - $dataApi['grand_total'];
+        $adjust = $dataApi['sub_total'] - $dataApi['real_total'];
         $createData = $this->createTransaction(Transaction::TYPE_RETURN, (object) [
             'date' => $dataApi['transaction_date'] ?? now()->toDateString(),
             'warehouse' => $jubelioSync->warehouse_id,
@@ -326,8 +326,8 @@ class ProcessJubelioOrder
                 $transaction->submit_type = Transaction::SUBMIT_TYPE_JUBELIO;
                 $transaction->description = $dataJubelio->description ?? '';
                 $transaction->notes = $dataJubelio->note ?? '';
-                $transaction->invoice_number = $dataJubelio->invoice;
-                $transaction->due_date = null;
+                $transaction->invoice = $dataJubelio->invoice;
+                $transaction->due = null;
                 $transaction->status = Transaction::STATUS_COMPLETED;
 
                 if ($type === Transaction::TYPE_RETURN) {
@@ -366,7 +366,7 @@ class ProcessJubelioOrder
 
                 $transaction->total = $subTotal;
                 $grandTotal = $subTotal + $transaction->adjustment;
-                $transaction->grand_total = ($type === Transaction::TYPE_SELL) ? -$grandTotal : $grandTotal;
+                $transaction->real_total = ($type === Transaction::TYPE_SELL) ? -$grandTotal : $grandTotal;
                 $transaction->total_items = $totalQty;
                 $transaction->save();
 

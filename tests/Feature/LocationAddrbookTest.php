@@ -25,31 +25,31 @@ beforeEach(function () {
 
 it('shows the location customer assignment page', function () {
     $this->actingAs($this->user)
-        ->get(route('locations.addrbooks', $this->location))
+        ->get(route('locations.customers', $this->location))
         ->assertOk()
         ->assertSee('Manage customers linked to this location');
 });
 
 it('links a customer to a location from the assignment page', function () {
     $this->actingAs($this->user)
-        ->post(route('locations.addrbooks.attach', $this->location), [
-            'addrbook_id' => $this->customer->id,
+        ->post(route('locations.customers.attach', $this->location), [
+            'customer_id' => $this->customer->id,
         ])
-        ->assertRedirect(route('locations.addrbooks', $this->location))
+        ->assertRedirect(route('locations.customers', $this->location))
         ->assertSessionHas('success');
 
-    expect($this->location->addrbooks()->pluck('addrbooks.id'))->toContain($this->customer->id);
+    expect($this->location->customers()->pluck('customers.id'))->toContain($this->customer->id);
 });
 
 it('removes a customer from a location', function () {
-    $this->location->addrbooks()->attach($this->customer->id);
+    $this->location->customers()->attach($this->customer->id);
 
     $this->actingAs($this->user)
-        ->delete(route('locations.addrbooks.detach', [$this->location, $this->customer]))
-        ->assertRedirect(route('locations.addrbooks', $this->location))
+        ->delete(route('locations.customers.detach', [$this->location, $this->customer]))
+        ->assertRedirect(route('locations.customers', $this->location))
         ->assertSessionHas('success');
 
-    expect($this->location->addrbooks()->pluck('addrbooks.id'))->not->toContain($this->customer->id);
+    expect($this->location->customers()->pluck('customers.id'))->not->toContain($this->customer->id);
 });
 
 it('syncs customer locations from the addrbook edit form', function () {

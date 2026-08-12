@@ -48,7 +48,7 @@ it('disables queue button when invoice exists in transactions', function () {
 
     Transaction::factory()->create([
         'type' => Transaction::TYPE_SELL,
-        'invoice_number' => 'INV-EXISTS-TX',
+        'invoice' => 'INV-EXISTS-TX',
         'sender_id' => $warehouse->id,
         'receiver_id' => $customer->id,
     ]);
@@ -130,7 +130,7 @@ it('rejects queue when invoice exists in transactions', function () {
 
     Transaction::factory()->create([
         'type' => Transaction::TYPE_SELL,
-        'invoice_number' => 'INV-BLOCK-TX',
+        'invoice' => 'INV-BLOCK-TX',
         'sender_id' => $warehouse->id,
         'receiver_id' => $customer->id,
     ]);

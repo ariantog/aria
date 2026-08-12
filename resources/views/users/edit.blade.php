@@ -19,7 +19,7 @@ $currentRole = old('role', $userRoles->first());
 
     <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
         <form method="POST" action="{{ route('users.update', $editUser->id) }}" class="p-6"
-              x-data="{ active: {{ old('is_active', $editUser->is_active) ? 'true' : 'false' }}, resetPw: false }">
+              x-data="{ active: {{ old('active', $editUser->active) ? 'true' : 'false' }}, resetPw: false }">
             @csrf
             @method('PUT')
             <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -104,7 +104,7 @@ $currentRole = old('role', $userRoles->first());
                                     <div class="text-sm text-gray-500">If banned, this user cannot log in.</div>
                                 </div>
                                 <label class="flex cursor-pointer items-center gap-2">
-                                    <input type="hidden" name="is_active" :value="active ? 1 : 0">
+                                    <input type="hidden" name="active" :value="active ? 1 : 0">
                                     <button type="button" @click="active = !active"
                                             :class="active ? 'bg-emerald-600' : 'bg-red-500'"
                                             class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors">

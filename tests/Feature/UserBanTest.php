@@ -13,7 +13,7 @@ beforeEach(function () {
 });
 
 it('bans a user without removing their history', function () {
-    $user = User::factory()->create(['is_active' => true]);
+    $user = User::factory()->create(['active' => true]);
     $transaction = Transaction::factory()->create(['user_id' => $user->id]);
 
     $response = $this->actingAs($this->admin)
@@ -21,20 +21,20 @@ it('bans a user without removing their history', function () {
 
     $response->assertRedirect(route('users.index'))
         ->assertSessionHas('success');
-    expect($user->fresh()->is_active)->toBeFalse();
+    expect($user->fresh()->active)->toBeFalse();
     expect(User::query()->find($user->id))->not->toBeNull();
     expect($transaction->fresh()->user_id)->toBe($user->id);
 });
 
 it('unbans a banned user', function () {
-    $user = User::factory()->create(['is_active' => false]);
+    $user = User::factory()->create(['active' => false]);
 
     $response = $this->actingAs($this->admin)
         ->post(route('users.unban', $user));
 
     $response->assertRedirect(route('users.index'))
         ->assertSessionHas('success');
-    expect($user->fresh()->is_active)->toBeTrue();
+    expect($user->fresh()->active)->toBeTrue();
 });
 
 it('prevents banning the superadmin account', function () {
@@ -45,7 +45,7 @@ it('prevents banning the superadmin account', function () {
 
     $response->assertRedirect(route('users.index'))
         ->assertSessionHas('error');
-    expect($superadmin->fresh()->is_active)->toBeTrue();
+    expect($superadmin->fresh()->active)->toBeTrue();
 });
 
 it('prevents banning your own account', function () {
@@ -54,7 +54,7 @@ it('prevents banning your own account', function () {
 
     $response->assertRedirect(route('users.index'))
         ->assertSessionHas('error');
-    expect($this->admin->fresh()->is_active)->toBeTrue();
+    expect($this->admin->fresh()->active)->toBeTrue();
 });
 
 it('does not allow hard-deleting users', function () {

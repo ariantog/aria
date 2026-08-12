@@ -16,9 +16,9 @@ return new class extends Migration
 
             $table->unique(['destination_warehouse_id', 'source_warehouse_id'], 'arr_src_dest_src_unique');
             $table->foreign('destination_warehouse_id', 'arr_src_dest_fk')
-                ->references('id')->on('addrbooks')->cascadeOnDelete();
+                ->references('id')->on('customers')->cascadeOnDelete();
             $table->foreign('source_warehouse_id', 'arr_src_source_fk')
-                ->references('id')->on('addrbooks')->cascadeOnDelete();
+                ->references('id')->on('customers')->cascadeOnDelete();
         });
 
         Schema::create('warehouse_arrangement_pcode_snapshots', function (Blueprint $table) {
@@ -38,7 +38,7 @@ return new class extends Migration
 
             $table->unique(['destination_warehouse_id', 'pcode'], 'arr_pcode_dest_pcode_unique');
             $table->foreign('destination_warehouse_id', 'arr_pcode_snap_dest_fk')
-                ->references('id')->on('addrbooks')->cascadeOnDelete();
+                ->references('id')->on('customers')->cascadeOnDelete();
         });
 
         Schema::create('warehouse_arrangement_candidates', function (Blueprint $table) {
@@ -61,7 +61,7 @@ return new class extends Migration
             $table->unique(['destination_warehouse_id', 'item_id'], 'arr_candidate_dest_item_unique');
             $table->index(['destination_warehouse_id', 'pcode'], 'arr_candidate_dest_pcode_idx');
             $table->foreign('destination_warehouse_id', 'arr_cand_dest_fk')
-                ->references('id')->on('addrbooks')->cascadeOnDelete();
+                ->references('id')->on('customers')->cascadeOnDelete();
             $table->foreign('item_id', 'arr_cand_item_fk')
                 ->references('id')->on('items')->cascadeOnDelete();
         });
@@ -78,7 +78,7 @@ return new class extends Migration
             $table->foreign('candidate_id', 'arr_cand_src_cand_fk')
                 ->references('id')->on('warehouse_arrangement_candidates')->cascadeOnDelete();
             $table->foreign('source_warehouse_id', 'arr_cand_src_wh_fk')
-                ->references('id')->on('addrbooks')->cascadeOnDelete();
+                ->references('id')->on('customers')->cascadeOnDelete();
         });
     }
 

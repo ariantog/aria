@@ -133,7 +133,7 @@ $sc = $statusConfig[$order->status] ?? ['label' => 'Unknown', 'cls' => 'border b
                     </div>
                     <div class="flex justify-between gap-4">
                         <dt class="font-semibold text-gray-700">Grand Total</dt>
-                        <dd class="font-mono font-bold">{{ $summary['grand_total'] !== null ? number_format((float) $summary['grand_total'], 0, ',', '.') : '—' }}</dd>
+                        <dd class="font-mono font-bold">{{ $summary['real_total'] !== null ? number_format((float) $summary['real_total'], 0, ',', '.') : '—' }}</dd>
                     </div>
                 </dl>
             </div>

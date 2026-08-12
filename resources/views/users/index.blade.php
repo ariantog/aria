@@ -79,8 +79,8 @@ $breadcrumbs = [
                         </td>
                         <td class="whitespace-nowrap px-6 py-4">
                             <div class="flex items-center gap-2">
-                                <span class="h-2 w-2 rounded-full {{ $user->is_active ? 'bg-emerald-500' : 'bg-red-500' }}"></span>
-                                <span class="text-gray-600">{{ $user->is_active ? 'Active' : 'Banned' }}</span>
+                                <span class="h-2 w-2 rounded-full {{ $user->active ? 'bg-emerald-500' : 'bg-red-500' }}"></span>
+                                <span class="text-gray-600">{{ $user->active ? 'Active' : 'Banned' }}</span>
                             </div>
                         </td>
                         <td class="whitespace-nowrap px-6 py-4 text-gray-500">{{ $user->created_at?->format('d/m/Y') }}</td>
@@ -93,7 +93,7 @@ $breadcrumbs = [
                                 </a>
                                 @endif
                                 @if($can['edit_user'] && ! $user->is_superadmin && $user->id !== auth()->id())
-                                    @if($user->is_active)
+                                    @if($user->active)
                                     <form method="POST" action="{{ route('users.ban', $user->id) }}" onsubmit="return confirm('Ban this user? They will no longer be able to log in, but their history is preserved.')">
                                         @csrf
                                         <button type="submit" class="inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-400 hover:bg-red-50 hover:text-red-600" title="Ban user">

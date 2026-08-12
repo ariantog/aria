@@ -390,7 +390,7 @@ class WarehouseArrangementService
         }
 
         $rows = DB::table('items as i')
-            ->join('warehouse_items as wi', 'wi.item_id', '=', 'i.id')
+            ->join('warehouse_item as wi', 'wi.item_id', '=', 'i.id')
             ->join('tags as t', 't.id', '=', 'i.size')
             ->where('wi.warehouse_id', $destinationWarehouseId)
             ->where('wi.quantity', '>', 0)

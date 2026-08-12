@@ -37,7 +37,7 @@ class ScheduledTaskController extends Controller
         Gate::authorize(ScheduledTask::getPermissions()['edit']);
 
         $scheduledTask->update([
-            'is_active' => ! $scheduledTask->is_active,
+            'active' => ! $scheduledTask->active,
         ]);
 
         return back()->with('success', 'Task status toggled.');

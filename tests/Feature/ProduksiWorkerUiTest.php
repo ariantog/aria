@@ -27,7 +27,7 @@ it('can create pritil worker', function () {
     ]);
 
     $response->assertRedirect();
-    $this->assertDatabaseHas('workers', [
+    $this->assertDatabaseHas('prod_worker', [
         'name' => 'John Pritil',
         'type' => Worker::TYPE_PRITIL,
     ]);
@@ -46,7 +46,7 @@ it('can assign a pritil worker to a setoran entry', function () {
     ]);
 
     $response->assertRedirect();
-    $this->assertDatabaseHas('produksis', [
+    $this->assertDatabaseHas('prod_produksi', [
         'id' => $produksi->id,
         'pritil_id' => $worker->id,
     ]);

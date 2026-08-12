@@ -37,7 +37,7 @@ class RecalculateWarehouseItemStats extends Command
             ->join('transactions', 'transactions.id', '=', 'transaction_details.transaction_id')
             ->where('transaction_details.transaction_type', $sellType)
             ->whereNotNull('transaction_details.sender_id')
-            ->selectRaw("transaction_details.sender_id as warehouse_id, transaction_details.item_id, {$monthExpr} as month, {$yearExpr} as year, SUM(ABS(transaction_details.quantity)) as qty, SUM(transaction_details.total * (100 - COALESCE(transactions.discount_percent, 0)) / 100) as value")
+            ->selectRaw("transaction_details.sender_id as warehouse_id, transaction_details.item_id, {$monthExpr} as month, {$yearExpr} as year, SUM(ABS(transaction_details.quantity)) as qty, SUM(transaction_details.total * (100 - COALESCE(transactions.discount, 0)) / 100) as value")
             ->groupBy('transaction_details.sender_id', 'transaction_details.item_id', DB::raw($monthExpr), DB::raw($yearExpr))
             ->get();
 
@@ -50,7 +50,7 @@ class RecalculateWarehouseItemStats extends Command
             ->join('transactions', 'transactions.id', '=', 'transaction_details.transaction_id')
             ->where('transaction_details.transaction_type', $returnType)
             ->whereNotNull('transaction_details.receiver_id')
-            ->selectRaw("transaction_details.receiver_id as warehouse_id, transaction_details.item_id, {$monthExpr} as month, {$yearExpr} as year, SUM(ABS(transaction_details.quantity)) as qty, SUM(transaction_details.total * (100 - COALESCE(transactions.discount_percent, 0)) / 100) as value")
+            ->selectRaw("transaction_details.receiver_id as warehouse_id, transaction_details.item_id, {$monthExpr} as month, {$yearExpr} as year, SUM(ABS(transaction_details.quantity)) as qty, SUM(transaction_details.total * (100 - COALESCE(transactions.discount, 0)) / 100) as value")
             ->groupBy('transaction_details.receiver_id', 'transaction_details.item_id', DB::raw($monthExpr), DB::raw($yearExpr))
             ->get();
 

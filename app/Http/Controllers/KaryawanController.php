@@ -60,7 +60,7 @@ class KaryawanController extends Controller
             'bulanan' => 'required|numeric',
             'harian' => 'required|numeric',
             'premi' => 'required|numeric',
-            'bank_id' => 'required|exists:addrbooks,id',
+            'bank_id' => 'required|exists:customers,id',
             'flag' => 'required|integer',
         ], [], [
             'nama' => 'Name',
@@ -107,7 +107,7 @@ class KaryawanController extends Controller
             'bulanan' => 'required|numeric',
             'harian' => 'required|numeric',
             'premi' => 'required|numeric',
-            'bank_id' => 'required|exists:addrbooks,id',
+            'bank_id' => 'required|exists:customers,id',
             'flag' => 'required|integer',
         ]);
 

@@ -43,9 +43,9 @@ class TransactionFilterSortTest extends TestCase
 
     public function test_it_filters_by_date_range(): void
     {
-        Transaction::factory()->create(['date' => '2023-01-01', 'invoice_number' => 'INV-001']);
-        Transaction::factory()->create(['date' => '2023-01-15', 'invoice_number' => 'INV-002']);
-        Transaction::factory()->create(['date' => '2023-02-01', 'invoice_number' => 'INV-003']);
+        Transaction::factory()->create(['date' => '2023-01-01', 'invoice' => 'INV-001']);
+        Transaction::factory()->create(['date' => '2023-01-15', 'invoice' => 'INV-002']);
+        Transaction::factory()->create(['date' => '2023-02-01', 'invoice' => 'INV-003']);
 
         $html = $this->indexHtml(['from' => '2023-01-01', 'to' => '2023-01-31']);
 
@@ -59,8 +59,8 @@ class TransactionFilterSortTest extends TestCase
 
     public function test_it_filters_by_type(): void
     {
-        Transaction::factory()->create(['type' => Transaction::TYPE_BUY, 'invoice_number' => 'BUY-1']);
-        Transaction::factory()->create(['type' => Transaction::TYPE_SELL, 'invoice_number' => 'SELL-1']);
+        Transaction::factory()->create(['type' => Transaction::TYPE_BUY, 'invoice' => 'BUY-1']);
+        Transaction::factory()->create(['type' => Transaction::TYPE_SELL, 'invoice' => 'SELL-1']);
 
         $html = $this->indexHtml(['type' => Transaction::TYPE_BUY]);
 
@@ -68,11 +68,11 @@ class TransactionFilterSortTest extends TestCase
         $this->assertStringNotContainsString('SELL-1', $html);
     }
 
-    public function test_it_filters_by_grand_total_range(): void
+    public function test_it_filters_by_real_total_range(): void
     {
-        Transaction::factory()->create(['grand_total' => 50000, 'invoice_number' => 'LOW']);
-        Transaction::factory()->create(['grand_total' => 150000, 'invoice_number' => 'MID']);
-        Transaction::factory()->create(['grand_total' => 250000, 'invoice_number' => 'HIGH']);
+        Transaction::factory()->create(['real_total' => 50000, 'invoice' => 'LOW']);
+        Transaction::factory()->create(['real_total' => 150000, 'invoice' => 'MID']);
+        Transaction::factory()->create(['real_total' => 250000, 'invoice' => 'HIGH']);
 
         $html = $this->indexHtml(['min_total' => 100000, 'max_total' => 200000]);
 
@@ -81,12 +81,12 @@ class TransactionFilterSortTest extends TestCase
         $this->assertStringNotContainsString('>HIGH<', $html);
     }
 
-    public function test_it_filters_by_specific_invoice_number(): void
+    public function test_it_filters_by_specific_invoice(): void
     {
-        Transaction::factory()->create(['invoice_number' => 'TRX-999']);
-        Transaction::factory()->create(['invoice_number' => 'TRX-000']);
+        Transaction::factory()->create(['invoice' => 'TRX-999']);
+        Transaction::factory()->create(['invoice' => 'TRX-000']);
 
-        $html = $this->indexHtml(['invoice_number' => '999']);
+        $html = $this->indexHtml(['invoice' => '999']);
 
         $this->assertStringContainsString('TRX-999', $html);
         $this->assertStringNotContainsString('TRX-000', $html);
@@ -94,21 +94,21 @@ class TransactionFilterSortTest extends TestCase
 
     public function test_it_sorts_by_column(): void
     {
-        Transaction::factory()->create(['grand_total' => 100, 'invoice_number' => 'INV-CHEAP']);
-        Transaction::factory()->create(['grand_total' => 200, 'invoice_number' => 'INV-PRICEY']);
+        Transaction::factory()->create(['real_total' => 100, 'invoice' => 'INV-CHEAP']);
+        Transaction::factory()->create(['real_total' => 200, 'invoice' => 'INV-PRICEY']);
 
-        $ascending = $this->indexHtml(['sort' => 'grand_total', 'direction' => 'asc']);
+        $ascending = $this->indexHtml(['sort' => 'real_total', 'direction' => 'asc']);
         $this->assertOrder($ascending, 'INV-CHEAP', 'INV-PRICEY');
 
-        $descending = $this->indexHtml(['sort' => 'grand_total', 'direction' => 'desc']);
+        $descending = $this->indexHtml(['sort' => 'real_total', 'direction' => 'desc']);
         $this->assertOrder($descending, 'INV-PRICEY', 'INV-CHEAP');
     }
 
     public function test_it_shows_an_empty_state_when_nothing_matches(): void
     {
-        Transaction::factory()->create(['invoice_number' => 'TRX-001']);
+        Transaction::factory()->create(['invoice' => 'TRX-001']);
 
-        $html = $this->indexHtml(['invoice_number' => 'NO-SUCH-INVOICE']);
+        $html = $this->indexHtml(['invoice' => 'NO-SUCH-INVOICE']);
 
         $this->assertStringNotContainsString('TRX-001', $html);
     }

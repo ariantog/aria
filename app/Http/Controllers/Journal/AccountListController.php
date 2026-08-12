@@ -53,7 +53,7 @@ class AccountListController extends Controller
             ]);
 
             AddrbookStat::create([
-                'addrbook_id' => $account->id,
+                'customer_id' => $account->id,
                 'balance' => 0,
             ]);
         });

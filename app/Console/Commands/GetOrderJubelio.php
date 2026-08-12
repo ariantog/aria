@@ -78,6 +78,6 @@ class GetOrderJubelio extends Command
 
     protected function disableScheduledTask(): void
     {
-        ScheduledTask::where('command', 'jubelio:get-orders')->update(['is_active' => false]);
+        ScheduledTask::where('command', 'jubelio:get-orders')->update(['active' => false]);
     }
 }

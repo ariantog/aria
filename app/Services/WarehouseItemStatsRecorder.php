@@ -28,7 +28,7 @@ class WarehouseItemStatsRecorder
         }
 
         $date = isset($detail->date) ? \Illuminate\Support\Carbon::parse($detail->date) : $transaction->date;
-        $headerDiscount = max(0.0, min(100.0, (float) ($transaction->discount_percent ?? 0)));
+        $headerDiscount = max(0.0, min(100.0, (float) ($transaction->discount ?? 0)));
         $lineTotal = (float) ($detail->total ?? 0);
         $netValue = $lineTotal * (100 - $headerDiscount) / 100;
         $qty = abs((float) ($detail->quantity ?? 0));

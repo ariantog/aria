@@ -49,7 +49,7 @@ test('cron edit permission is required to toggle tasks', function () {
         'name' => 'Test Task',
         'command' => 'test:command-'.uniqid(),
         'frequency' => 'daily',
-        'is_active' => true,
+        'active' => true,
         'description' => 'Test',
     ]);
 
@@ -68,7 +68,7 @@ test('authorized user can toggle scheduled tasks', function () {
         'name' => 'Test Task',
         'command' => 'test:command-'.uniqid(),
         'frequency' => 'daily',
-        'is_active' => true,
+        'active' => true,
         'description' => 'Test',
     ]);
 
@@ -77,5 +77,5 @@ test('authorized user can toggle scheduled tasks', function () {
         ->assertRedirect()
         ->assertSessionHas('success');
 
-    expect($task->fresh()->is_active)->toBeFalse();
+    expect($task->fresh()->active)->toBeFalse();
 });

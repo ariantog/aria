@@ -38,7 +38,7 @@ class AddrbookController extends Controller
                 ->orWhere('contact_person', 'like', "%{$s}%")
                 ->orWhere('id', 'like', "%{$s}%")
                 ->orWhere('phone', 'like', "%{$s}%")
-                ->orWhere('member_id', 'like', "%{$s}%")
+                ->orWhere('memberId', 'like', "%{$s}%")
                 ->orWhere('description', 'like', "%{$s}%")
                 ->orWhere('address', 'like', "%{$s}%")
             ))
@@ -62,7 +62,7 @@ class AddrbookController extends Controller
         }
 
         return view('addrbook.index', [
-            'addrbooks' => $q->paginate(50)->withQueryString(),
+            'customers' => $q->paginate(50)->withQueryString(),
             'filters' => request()->all(['search', 'type', 'trashed']),
             'can' => $can,
             'current_type' => $type,
@@ -245,7 +245,7 @@ class AddrbookController extends Controller
             ))
             // Qualified pivot column: inside a when() closure the callback receives the base
             // query builder, where wherePivot() is unavailable and degrades to a broken where.
-            ->when(request('show0') !== 'show', fn ($q) => $q->where('warehouse_items.quantity', '>', 0));
+            ->when(request('show0') !== 'show', fn ($q) => $q->where('warehouse_item.quantity', '>', 0));
 
         $sort = request('sort', 'qtydesc');
         match ($sort) {
@@ -341,7 +341,7 @@ class AddrbookController extends Controller
             }
 
             $cat = $this->categorizeAddrbook($op);
-            $amt = (float) $t->grand_total;
+            $amt = (float) $t->real_total;
             $txType = $t->type instanceof TransactionType ? $t->type->value : $t->type;
 
             if ($txType == TransactionType::CashIn->value) {
@@ -487,7 +487,7 @@ class AddrbookController extends Controller
                 ->orderBy('name')
                 ->get(['id', 'name']),
             'selectedArrangementSourceIds' => $addrbook?->arrangementSources()
-                ->pluck('addrbooks.id') ?? collect(),
+                ->pluck('customers.id') ?? collect(),
         ];
     }
 }

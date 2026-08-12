@@ -12,11 +12,11 @@ class StoreItemTransactionRequest extends FormRequest
     {
         return [
             'date' => ['required', 'date'],
-            'due_date' => ['nullable', 'date'],
+            'due' => ['nullable', 'date'],
             'type' => ['required', 'string', Rule::in(array_keys(config('transaction_rules', [])))],
-            'sender_id' => ['required', 'integer', 'exists:addrbooks,id'],
-            'receiver_id' => ['required', 'integer', 'exists:addrbooks,id'],
-            'invoice_number' => ['nullable', 'string', 'max:255'],
+            'sender_id' => ['required', 'integer', 'exists:customers,id'],
+            'receiver_id' => ['required', 'integer', 'exists:customers,id'],
+            'invoice' => ['nullable', 'string', 'max:255'],
             'note' => ['nullable', 'string', 'max:5000'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.item_id' => ['required', 'integer', 'exists:items,id'],

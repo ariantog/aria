@@ -15,8 +15,8 @@ return new class extends Migration
             $table->id();
             $table->smallInteger('year');
             $table->tinyInteger('month');
-            $table->foreignId('group_id')->nullable()->constrained('item_groups')->onDelete('set null');
-            $table->foreignId('sender_id')->nullable()->constrained('addrbooks')->onDelete('set null');
+            $table->foreignId('group_id')->nullable()->constrained('item_group')->onDelete('set null');
+            $table->foreignId('sender_id')->nullable()->constrained('customers')->onDelete('set null');
             $table->tinyInteger('type')->comment('2: sell, 15: return');
             $table->decimal('total_qty', 15, 2)->default(0);
             $table->decimal('total_amount', 15, 2)->default(0);

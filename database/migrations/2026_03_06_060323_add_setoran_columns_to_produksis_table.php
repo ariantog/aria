@@ -11,7 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('produksis', function (Blueprint $table) {
+        Schema::table('prod_produksi', function (Blueprint $table) {
             $table->foreignId('item_id')->nullable()->after('id');
             $table->string('invoice')->nullable()->after('status');
             $table->foreignId('transaction_id')->nullable()->after('invoice');
@@ -26,7 +26,7 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('produksis', function (Blueprint $table) {
+        Schema::table('prod_produksi', function (Blueprint $table) {
             $table->dropColumn([
                 'item_id',
                 'invoice',

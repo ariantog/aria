@@ -30,36 +30,36 @@ class ItemGroupHierarchyService
     {
         $query = ItemGroup::query()
             ->select([
-                'item_groups.master',
-                DB::raw('MIN(item_groups.name) as product_name'),
-                DB::raw('MIN(item_groups.description) as description'),
-                DB::raw('MIN(item_groups.id) as sample_group_id'),
-                DB::raw('COUNT(DISTINCT item_groups.id) as variant_count'),
+                'item_group.master',
+                DB::raw('MIN(item_group.name) as product_name'),
+                DB::raw('MIN(item_group.description) as description'),
+                DB::raw('MIN(item_group.id) as sample_group_id'),
+                DB::raw('COUNT(DISTINCT item_group.id) as variant_count'),
                 DB::raw('COUNT(DISTINCT items.id) as sku_count'),
             ])
             ->leftJoin('items', function ($join) {
-                $join->on('items.group_id', '=', 'item_groups.id')
+                $join->on('items.group_id', '=', 'item_group.id')
                     ->whereNull('items.deleted_at');
             })
-            ->whereNotNull('item_groups.master')
-            ->where('item_groups.master', '!=', '')
+            ->whereNotNull('item_group.master')
+            ->where('item_group.master', '!=', '')
             ->when(! empty($filters['kode']), fn (Builder $q) => $q->where(
-                'item_groups.master',
+                'item_group.master',
                 'like',
                 '%'.$filters['kode'].'%'
             ))
             ->when(! empty($filters['product_name']), fn (Builder $q) => $q->where(
-                'item_groups.name',
+                'item_group.name',
                 'like',
                 '%'.$filters['product_name'].'%'
             ))
             ->when(! empty($filters['desc']), fn (Builder $q) => $q->where(
-                'item_groups.description',
+                'item_group.description',
                 'like',
                 '%'.$filters['desc'].'%'
             ))
-            ->groupBy('item_groups.master')
-            ->orderBy('item_groups.master');
+            ->groupBy('item_group.master')
+            ->orderBy('item_group.master');
 
         /** @var LengthAwarePaginator $paginator */
         $paginator = $query->paginate($perPage)->withQueryString();
@@ -245,7 +245,7 @@ class ItemGroupHierarchyService
                     ->with([
                         'tags',
                         'warehouseItems' => fn ($wq) => $wq
-                            ->whereIn('warehouse_id', fn ($sq) => $sq->select('id')->from('addrbooks')->whereIn('type', [
+                            ->whereIn('warehouse_id', fn ($sq) => $sq->select('id')->from('customers')->whereIn('type', [
                                 AddrbookType::Warehouse->value,
                                 AddrbookType::VirtualWarehouse->value,
                             ]))
@@ -256,11 +256,11 @@ class ItemGroupHierarchyService
 
         if ($itemType === ItemType::ASSET_LANCAR) {
             $master = strtoupper($parts[1] ?? '');
-            $query->whereRaw('UPPER(item_groups.master) = ?', [$master]);
+            $query->whereRaw('UPPER(item_group.master) = ?', [$master]);
         } else {
             $typeCode = strtoupper($parts[1] ?? '');
             $master = strtoupper($parts[2] ?? '');
-            $query->whereRaw('UPPER(item_groups.master) = ?', [$master])
+            $query->whereRaw('UPPER(item_group.master) = ?', [$master])
                 ->whereHas('items', function (Builder $q) use ($typeCode) {
                     $q->where(function (Builder $inner) use ($typeCode) {
                         $inner->whereHas('tags', fn (Builder $t) => $t

@@ -102,7 +102,7 @@ $hasFilters = collect($filters)->filter(fn($v) => $v !== null && $v !== '')->isN
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-200">
-                    @forelse($produksis as $p)
+                    @forelse($prod_produksi as $p)
                     @php
                         $isGudangOrBoth = $p->status === $statusGudang || $p->status === $statusBoth;
                         $rowColor = $p->status === $statusGudang ? 'bg-teal-100 hover:bg-teal-200' : ($p->status === $statusBoth ? 'bg-lime-200 hover:bg-lime-300' : 'hover:bg-gray-50/50');
@@ -213,7 +213,7 @@ $hasFilters = collect($filters)->filter(fn($v) => $v !== null && $v !== '')->isN
                 </tbody>
             </table>
         </div>
-        @include('partials.pagination', ['paginator' => $produksis, 'label' => 'records'])
+        @include('partials.pagination', ['paginator' => $prod_produksi, 'label' => 'records'])
     </div>
 
     {{-- Update Kode Modal --}}

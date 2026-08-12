@@ -27,7 +27,7 @@ it('can create qc worker', function () {
     ]);
 
     $response->assertRedirect();
-    $this->assertDatabaseHas('workers', [
+    $this->assertDatabaseHas('prod_worker', [
         'name' => 'John Qc',
         'type' => Worker::TYPE_QC,
     ]);
@@ -41,7 +41,7 @@ it('can update qc worker', function () {
     ]);
 
     $response->assertRedirect();
-    $this->assertDatabaseHas('workers', [
+    $this->assertDatabaseHas('prod_worker', [
         'id' => $worker->id,
         'name' => 'New Qc',
     ]);
@@ -53,7 +53,7 @@ it('can delete qc worker', function () {
     $response = $this->actingAs($this->user)->delete("/produksi/qc/{$worker->id}/delete");
 
     $response->assertRedirect();
-    $this->assertSoftDeleted('workers', [
+    $this->assertSoftDeleted('prod_worker', [
         'id' => $worker->id,
     ]);
 });
@@ -71,7 +71,7 @@ it('can assign a qc worker to a production entry', function () {
     ]);
 
     $response->assertRedirect();
-    $this->assertDatabaseHas('produksis', [
+    $this->assertDatabaseHas('prod_produksi', [
         'id' => $produksi->id,
         'qc_id' => $worker->id,
     ]);

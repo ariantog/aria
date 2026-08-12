@@ -21,12 +21,12 @@ beforeEach(function () {
 
     Transaction::factory()->create([
         'type'           => Transaction::TYPE_BUY,
-        'invoice_number' => 'INV-SMOKE-1',
+        'invoice' => 'INV-SMOKE-1',
         'sender_type'    => (string) Addrbook::TYPE_SUPPLIER,
         'sender_id'      => $supplier->id,
         'receiver_type'  => (string) Addrbook::TYPE_WAREHOUSE,
         'receiver_id'    => $warehouse->id,
-        'grand_total'    => 1_000_000,
+        'real_total'    => 1_000_000,
         'total_items'    => 5,
         'user_id'        => $this->user->id,
     ]);
@@ -50,14 +50,14 @@ it('renders the transactions index with its rows', function () {
 
 it('sorts and filters the transactions index', function () {
     $this->actingAs($this->user)
-        ->get('/transactions?sort=grand_total&direction=asc&type='.Transaction::TYPE_BUY)
+        ->get('/transactions?sort=real_total&direction=asc&type='.Transaction::TYPE_BUY)
         ->assertOk()
         ->assertSee('INV-SMOKE-1', false);
 });
 
 it('applies a filter that excludes every row without erroring', function () {
     $this->actingAs($this->user)
-        ->get('/transactions?invoice_number=NOPE-DOES-NOT-EXIST')
+        ->get('/transactions?invoice=NOPE-DOES-NOT-EXIST')
         ->assertOk()
         ->assertDontSee('INV-SMOKE-1', false);
 });

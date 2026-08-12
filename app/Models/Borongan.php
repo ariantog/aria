@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-use App\Models\Concerns\UsesProductionTable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -10,14 +9,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Borongan extends Model
 {
-    use HasFactory, UsesProductionTable;
+    use HasFactory;
 
-    protected $table = 'borongans';
-
-    protected static function productionTableKey(): string
-    {
-        return 'borongan';
-    }
+    protected $table = 'prod_borongan';
 
     protected $guarded = ['id'];
 

@@ -29,14 +29,14 @@ beforeEach(function () {
     $this->user->givePermissionTo(['addrbook-list', 'transactions-list']);
 });
 
-it('filters addrbooks by user location', function () {
+it('filters customers by user location', function () {
     $visible = Addrbook::query()->visibleToUser($this->user)->pluck('id');
 
     expect($visible)->toContain($this->addrbookA->id)
         ->not->toContain($this->addrbookB->id);
 });
 
-it('allows superadmin to see all addrbooks', function () {
+it('allows superadmin to see all customers', function () {
     $superadmin = User::find(1);
 
     $visible = Addrbook::query()->visibleToUser($superadmin)->pluck('id');
@@ -118,12 +118,12 @@ it('treats users without location as unrestricted', function () {
 
 it('filters the transactions index by location', function () {
     $visibleTx = Transaction::factory()->create([
-        'invoice_number' => 'LOC-VISIBLE-TX',
+        'invoice' => 'LOC-VISIBLE-TX',
         'sender_id' => $this->addrbookA->id,
         'receiver_id' => $this->addrbookB->id,
     ]);
     $hiddenTx = Transaction::factory()->create([
-        'invoice_number' => 'LOC-HIDDEN-TX',
+        'invoice' => 'LOC-HIDDEN-TX',
         'sender_id' => $this->addrbookB->id,
         'receiver_id' => $this->addrbookB->id,
     ]);
@@ -140,12 +140,12 @@ it('filters addrbook transactions by location', function () {
     $this->user->givePermissionTo('addrbook-supplier-list');
 
     $visibleTx = Transaction::factory()->create([
-        'invoice_number' => 'ADDR-VISIBLE-TX',
+        'invoice' => 'ADDR-VISIBLE-TX',
         'sender_id' => $this->addrbookA->id,
         'receiver_id' => $this->addrbookB->id,
     ]);
     $hiddenTx = Transaction::factory()->create([
-        'invoice_number' => 'ADDR-HIDDEN-TX',
+        'invoice' => 'ADDR-HIDDEN-TX',
         'sender_id' => $this->addrbookB->id,
         'receiver_id' => $this->addrbookB->id,
     ]);
@@ -164,12 +164,12 @@ it('filters item transactions by location', function () {
     $item = Item::factory()->create();
 
     $visibleTx = Transaction::factory()->create([
-        'invoice_number' => 'ITEM-VISIBLE-TX',
+        'invoice' => 'ITEM-VISIBLE-TX',
         'sender_id' => $this->addrbookA->id,
         'receiver_id' => $this->addrbookB->id,
     ]);
     $hiddenTx = Transaction::factory()->create([
-        'invoice_number' => 'ITEM-HIDDEN-TX',
+        'invoice' => 'ITEM-HIDDEN-TX',
         'sender_id' => $this->addrbookB->id,
         'receiver_id' => $this->addrbookB->id,
     ]);
@@ -191,12 +191,12 @@ it('filters asset lancar transactions by location', function () {
     $item = Item::factory()->create(['type' => ItemType::ASSET_LANCAR]);
 
     $visibleTx = Transaction::factory()->create([
-        'invoice_number' => 'ASSET-VISIBLE-TX',
+        'invoice' => 'ASSET-VISIBLE-TX',
         'sender_id' => $this->addrbookA->id,
         'receiver_id' => $this->addrbookB->id,
     ]);
     $hiddenTx = Transaction::factory()->create([
-        'invoice_number' => 'ASSET-HIDDEN-TX',
+        'invoice' => 'ASSET-HIDDEN-TX',
         'sender_id' => $this->addrbookB->id,
         'receiver_id' => $this->addrbookB->id,
     ]);

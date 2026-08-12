@@ -18,7 +18,7 @@ return new class extends Migration
             $table->unsignedBigInteger('color_id')->nullable()->after('group_id');
             $table->string('size_id')->nullable()->after('color_id');
 
-            $table->foreign('group_id')->references('id')->on('item_groups')->onDelete('cascade');
+            $table->foreign('group_id')->references('id')->on('item_group')->onDelete('cascade');
             $table->foreign('color_id')->references('id')->on('tags')->onDelete('cascade');
         });
     }

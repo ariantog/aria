@@ -14,7 +14,7 @@ Route::get('dashboard', function () {
 })->middleware(['auth', 'verified', 'active'])->name('dashboard');
 
 Route::middleware(['auth', 'active'])->get('/banned', function () {
-    if (request()->user()->is_active) {
+    if (request()->user()->active) {
         return redirect('dashboard');
     }
 
@@ -35,9 +35,9 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::post('users/{user}/unban', [\App\Http\Controllers\UserController::class, 'unban'])->name('users.unban');
     Route::resource('users', \App\Http\Controllers\UserController::class)->except(['destroy']);
     Route::resource('locations', \App\Http\Controllers\LocationController::class);
-    Route::get('locations/{location}/addrbooks', [\App\Http\Controllers\LocationController::class, 'addrbooks'])->name('locations.addrbooks');
-    Route::post('locations/{location}/addrbooks', [\App\Http\Controllers\LocationController::class, 'attachAddrbook'])->name('locations.addrbooks.attach');
-    Route::delete('locations/{location}/addrbooks/{addrbook}', [\App\Http\Controllers\LocationController::class, 'detachAddrbook'])->name('locations.addrbooks.detach');
+    Route::get('locations/{location}/customers', [\App\Http\Controllers\LocationController::class, 'customers'])->name('locations.customers');
+    Route::post('locations/{location}/customers', [\App\Http\Controllers\LocationController::class, 'attachAddrbook'])->name('locations.customers.attach');
+    Route::delete('locations/{location}/customers/{addrbook}', [\App\Http\Controllers\LocationController::class, 'detachAddrbook'])->name('locations.customers.detach');
     Route::get('items/legacy-converter', [App\Http\Controllers\LegacyItemConverterController::class, 'index'])->name('items.legacy-converter');
     Route::post('items/legacy-converter/preview', [App\Http\Controllers\LegacyItemConverterController::class, 'preview'])->name('items.legacy-converter.preview');
     Route::post('items/legacy-converter/purge-useless', [App\Http\Controllers\LegacyItemConverterController::class, 'purgeUseless'])->name('items.legacy-converter.purge-useless');

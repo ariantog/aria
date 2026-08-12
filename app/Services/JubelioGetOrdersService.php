@@ -266,8 +266,8 @@ class JubelioGetOrdersService
 
         $inTransactions = Transaction::query()
             ->where('type', Transaction::TYPE_SELL)
-            ->whereIn('invoice_number', $invoices)
-            ->pluck('invoice_number')
+            ->whereIn('invoice', $invoices)
+            ->pluck('invoice')
             ->all();
 
         $inJubelio = Jubelioorder::query()
@@ -313,7 +313,7 @@ class JubelioGetOrdersService
 
         $inTransaction = $invoice && Transaction::query()
             ->where('type', Transaction::TYPE_SELL)
-            ->where('invoice_number', $invoice)
+            ->where('invoice', $invoice)
             ->exists();
 
         $existingOrder = null;
@@ -340,7 +340,7 @@ class JubelioGetOrdersService
             'store_name' => $apiData['source_name'] ?? $apiData['store_name'] ?? null,
             'location_name' => $apiData['location_name'] ?? null,
             'transaction_date' => $apiData['transaction_date'] ?? $apiData['created_date'] ?? null,
-            'grand_total' => $apiData['grand_total'] ?? null,
+            'real_total' => $apiData['real_total'] ?? null,
             'is_canceled' => ($apiData['is_canceled'] ?? 'N') === 'Y',
             'eligible' => $eligible,
             'in_transaction' => $inTransaction,

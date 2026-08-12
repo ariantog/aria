@@ -13,15 +13,15 @@ return new class extends Migration
     public function up(): void
     {
         // 1. Delete rows where warehouse_id = 0 (invalid data causing FK failures)
-        DB::table('warehouse_items')->where('warehouse_id', 0)->delete();
+        DB::table('warehouse_item')->where('warehouse_id', 0)->delete();
 
         // 2. Fix invalid warehouse_type 'AppModelsLocation' to proper class name
-        DB::table('warehouse_items')
+        DB::table('warehouse_item')
             ->where('warehouse_type', 'AppModelsLocation')
             ->update(['warehouse_type' => 'App\\Models\\Addrbook']);
 
         // 3. Update the column default value for future consistency
-        Schema::table('warehouse_items', function (Blueprint $table) {
+        Schema::table('warehouse_item', function (Blueprint $table) {
             $table->string('warehouse_type')->default('App\\Models\\Addrbook')->change();
         });
     }
@@ -31,7 +31,7 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('warehouse_items', function (Blueprint $table) {
+        Schema::table('warehouse_item', function (Blueprint $table) {
             $table->string('warehouse_type')->default('AppModelsLocation')->change();
         });
     }

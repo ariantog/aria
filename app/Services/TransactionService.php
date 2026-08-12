@@ -83,7 +83,7 @@ class TransactionService
 
     protected function updateBalances(Transaction $transaction, bool $revert = false)
     {
-        $amount = $revert ? -$transaction->grand_total : $transaction->grand_total;
+        $amount = $revert ? -$transaction->real_total : $transaction->real_total;
 
         // Use enum comparisons (not old integer constants) since type is now cast to TransactionType
         if ($transaction->type === TransactionType::Buy && $transaction->sender_id) {
@@ -141,14 +141,15 @@ class TransactionService
         $type = $addrbook ? $addrbook->type : null;
 
         $daily = AddrbookDaily::firstOrCreate([
-            'addrbook_id' => $addrbookId,
+            'customer_id' => $addrbookId,
             'date' => $dateStr,
         ], [
-            'type' => $type instanceof AddrbookType ? $type->value : $type,
+            'customer_type' => $type instanceof AddrbookType ? $type->value : $type,
+            'class' => '',
         ]);
 
-        if ($daily->type === null && $type !== null) {
-            $daily->type = $type instanceof AddrbookType ? $type->value : $type;
+        if ($daily->customer_type === null && $type !== null) {
+            $daily->customer_type = $type instanceof AddrbookType ? $type->value : $type;
             $daily->save();
         }
 
@@ -192,7 +193,7 @@ class TransactionService
     protected function updateStat($entity, $amount, $date)
     {
         if ($entity instanceof Addrbook) {
-            $stat = AddrbookStat::firstOrCreate(['addrbook_id' => $entity->id]);
+            $stat = AddrbookStat::firstOrCreate(['customer_id' => $entity->id]);
             $stat->balance += $amount;
             $stat->save();
         }

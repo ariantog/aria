@@ -10,7 +10,7 @@ class ScheduledTask extends Model
         'name',
         'command',
         'frequency',
-        'is_active',
+        'active',
         'description',
         'last_run_at',
     ];
@@ -18,7 +18,7 @@ class ScheduledTask extends Model
     protected function casts(): array
     {
         return [
-            'is_active' => 'boolean',
+            'active' => 'boolean',
             'last_run_at' => 'datetime',
         ];
     }

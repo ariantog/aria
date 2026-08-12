@@ -8,8 +8,7 @@ use Illuminate\Support\Facades\Schema;
 /**
  * Align an existing Laravel 10 production database with Aria L12 expectations.
  *
- * Safe to run on greenfield installs: every change is guarded with hasTable/hasColumn.
- * Does not rename tables — enable PRODUCTION_SCHEMA=true so L12 maps to production names.
+ * Safe to run on an existing Laravel 10 production database: every change is guarded.
  */
 return new class extends Migration
 {
@@ -33,8 +32,8 @@ return new class extends Migration
             return 'customers';
         }
 
-        if (Schema::hasTable('addrbooks')) {
-            return 'addrbooks';
+        if (Schema::hasTable('customers')) {
+            return 'customers';
         }
 
         return null;
@@ -91,8 +90,8 @@ return new class extends Migration
             return 'warehouse_item';
         }
 
-        if (Schema::hasTable('warehouse_items')) {
-            return 'warehouse_items';
+        if (Schema::hasTable('warehouse_item')) {
+            return 'warehouse_item';
         }
 
         return null;
@@ -124,8 +123,8 @@ return new class extends Migration
             return 'prod_produksi';
         }
 
-        if (Schema::hasTable('produksis')) {
-            return 'produksis';
+        if (Schema::hasTable('prod_produksi')) {
+            return 'prod_produksi';
         }
 
         return null;
@@ -163,8 +162,8 @@ return new class extends Migration
         }
 
         Schema::table('transactions', function (Blueprint $blueprint) {
-            if (! Schema::hasColumn('transactions', 'grand_total')) {
-                $blueprint->decimal('grand_total', 15, 2)->default(0);
+            if (! Schema::hasColumn('transactions', 'real_total')) {
+                $blueprint->decimal('real_total', 15, 2)->default(0);
             }
             if (! Schema::hasColumn('transactions', 'notes')) {
                 $blueprint->text('notes')->nullable();
@@ -185,11 +184,11 @@ return new class extends Migration
                 ), 0)
                 WHERE qty = 0 OR qty IS NULL
             ');
-        } elseif (Schema::hasColumn('items', 'qty') && Schema::hasTable('warehouse_items')) {
+        } elseif (Schema::hasColumn('items', 'qty') && Schema::hasTable('warehouse_item')) {
             DB::statement('
                 UPDATE items
                 SET qty = COALESCE((
-                    SELECT SUM(quantity) FROM warehouse_items wi WHERE wi.item_id = items.id
+                    SELECT SUM(quantity) FROM warehouse_item wi WHERE wi.item_id = items.id
                 ), 0)
                 WHERE qty = 0 OR qty IS NULL
             ');

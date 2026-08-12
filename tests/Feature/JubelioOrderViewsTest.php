@@ -54,7 +54,7 @@ it('shows jubelio order summary without raw payload on list page', function () {
             'transaction_date' => '2026-05-10T10:00:00',
             'source_name' => 'Tokopedia',
             'location_name' => 'Gudang Pusat',
-            'grand_total' => 150000,
+            'real_total' => 150000,
             'sub_total' => 150000,
             'items' => [
                 ['item_code' => 'SKU-1', 'qty' => 2, 'price' => 75000],
@@ -83,7 +83,7 @@ it('loads jubelio order payload on demand', function () {
         'type' => 'SELL',
         'order_status' => 'SHIPPED',
         'run_count' => 0,
-        'payload' => json_encode(['salesorder_no' => 'INV-PAYLOAD-TEST', 'grand_total' => 99000]),
+        'payload' => json_encode(['salesorder_no' => 'INV-PAYLOAD-TEST', 'real_total' => 99000]),
         'status' => 0,
     ]);
 
@@ -91,7 +91,7 @@ it('loads jubelio order payload on demand', function () {
         ->getJson(route('jubelio.payload', $order))
         ->assertSuccessful()
         ->assertJsonPath('payload.salesorder_no', 'INV-PAYLOAD-TEST')
-        ->assertJsonPath('payload.grand_total', 99000);
+        ->assertJsonPath('payload.real_total', 99000);
 
     $this->actingAs($user)
         ->get(route('jubelio.show', $order))
@@ -100,7 +100,7 @@ it('loads jubelio order payload on demand', function () {
         ->assertSee('Cek duplikat di Transaksi')
         ->assertSee('Buat Transaksi Manual')
         ->assertSee('Tampilkan JSON')
-        ->assertDontSee('"grand_total": 99000');
+        ->assertDontSee('"real_total": 99000');
 });
 
 it('links jubelio invoice to transactions search', function () {
@@ -116,7 +116,7 @@ it('links jubelio invoice to transactions search', function () {
     ]);
 
     expect($order->transactionsSearchUrl())
-        ->toBe(route('transactions.index', ['invoice_number' => 'INV-LINK-TEST']));
+        ->toBe(route('transactions.index', ['invoice' => 'INV-LINK-TEST']));
 });
 
 it('can manually process a pending jubelio sell order', function () {
@@ -147,7 +147,7 @@ it('can manually process a pending jubelio sell order', function () {
             'store_id' => 10,
             'location_id' => 20,
             'sub_total' => 100000,
-            'grand_total' => 100000,
+            'real_total' => 100000,
             'transaction_date' => '2026-05-10',
             'items' => [
                 ['item_code' => 'SKU-MANUAL-1', 'qty' => 1, 'price' => 100000],
@@ -194,7 +194,7 @@ it('shows jubelio and aria warehouse names on orders list', function () {
             'location_id' => 66,
             'source_name' => 'Tokopedia',
             'location_name' => 'Gudang Jubelio Pusat',
-            'grand_total' => 100000,
+            'real_total' => 100000,
             'items' => [],
         ]),
         'status' => 0,

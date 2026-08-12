@@ -131,16 +131,16 @@ class JubelioStockCheckService
         }
 
         return WarehouseItem::query()
-            ->select('warehouse_items.item_id')
-            ->join('items', 'items.id', '=', 'warehouse_items.item_id')
-            ->where('warehouse_items.warehouse_id', $warehouseId)
-            ->where('warehouse_items.quantity', '>', 0)
+            ->select('warehouse_item.item_id')
+            ->join('items', 'items.id', '=', 'warehouse_item.item_id')
+            ->where('warehouse_item.warehouse_id', $warehouseId)
+            ->where('warehouse_item.quantity', '>', 0)
             ->where('items.type', $type->value)
             ->where('items.jubelio_item_id', '>', 0)
-            ->when($excludeIds !== [], fn ($q) => $q->whereNotIn('warehouse_items.item_id', $excludeIds))
-            ->orderByDesc('warehouse_items.quantity')
+            ->when($excludeIds !== [], fn ($q) => $q->whereNotIn('warehouse_item.item_id', $excludeIds))
+            ->orderByDesc('warehouse_item.quantity')
             ->limit($limit)
-            ->pluck('warehouse_items.item_id');
+            ->pluck('warehouse_item.item_id');
     }
 
     /**

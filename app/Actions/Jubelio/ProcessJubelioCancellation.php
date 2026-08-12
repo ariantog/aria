@@ -57,8 +57,8 @@ class ProcessJubelioCancellation
                 $transaction->submit_type = Transaction::SUBMIT_TYPE_MANUAL;
                 $transaction->description = ' ';
                 $transaction->notes = 'Jubelio cancellation return';
-                $transaction->invoice_number = $sellTransaction->invoice_number;
-                $transaction->due_date = null;
+                $transaction->invoice = $sellTransaction->invoice;
+                $transaction->due = null;
                 $transaction->status = Transaction::STATUS_COMPLETED;
                 $transaction->sender_id = $sellTransaction->receiver_id;
                 $transaction->sender_type = $sellTransaction->receiver_type;
@@ -87,7 +87,7 @@ class ProcessJubelioCancellation
                 }
 
                 $transaction->total = $subTotal;
-                $transaction->grand_total = $subTotal + $transaction->adjustment;
+                $transaction->real_total = $subTotal + $transaction->adjustment;
                 $transaction->total_items = $totalQty;
                 $transaction->save();
 

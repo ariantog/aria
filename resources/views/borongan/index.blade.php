@@ -56,7 +56,7 @@ $f = $filters;
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100">
-                    @forelse($borongans as $item)
+                    @forelse($prod_borongan as $item)
                     <tr class="hover:bg-gray-50">
                         <td class="p-4">
                             @if($can['view_borongan'])
@@ -89,7 +89,7 @@ $f = $filters;
                 </tbody>
             </table>
         </div>
-        @include('partials.pagination', ['paginator' => $borongans, 'label' => 'borongan'])
+        @include('partials.pagination', ['paginator' => $prod_borongan, 'label' => 'borongan'])
     </div>
 </div>
 @endsection

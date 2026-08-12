@@ -148,7 +148,7 @@ class RestockSheetController extends Controller
 
     $validated = $request->validate([
       'date' => ['required', 'date'],
-      'invoice_number' => ['nullable', 'string', 'max:255'],
+      'invoice' => ['nullable', 'string', 'max:255'],
       'cells' => ['required', 'array', 'min:1'],
       'cells.*.id' => ['required', 'integer'],
       'cells.*.qty' => ['nullable', 'integer', 'min:0'],
@@ -160,7 +160,7 @@ class RestockSheetController extends Controller
         $validated['cells'],
         $request->user(),
         $validated['date'],
-        $validated['invoice_number'] ?? null,
+        $validated['invoice'] ?? null,
       );
     } catch (ValidationException $e) {
       return response()->json(['message' => collect($e->errors())->flatten()->first()], 422);

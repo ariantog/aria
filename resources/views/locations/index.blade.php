@@ -39,12 +39,12 @@ $breadcrumbs = [
                     @forelse($locations as $location)
                     <tr class="hover:bg-gray-50">
                         <td class="whitespace-nowrap px-6 py-4 font-semibold text-gray-900">{{ $location->name }}</td>
-                        <td class="whitespace-nowrap px-6 py-4 text-gray-500">{{ $location->addrbooks_count }}</td>
+                        <td class="whitespace-nowrap px-6 py-4 text-gray-500">{{ $location->customers_count }}</td>
                         <td class="whitespace-nowrap px-6 py-4 text-gray-500">{{ $location->created_at?->format('d/m/Y') }}</td>
                         <td class="whitespace-nowrap px-6 py-4 text-right">
                             <div class="flex justify-end gap-1">
                                 @if($can['edit_location'])
-                                <a href="{{ route('locations.addrbooks', $location->id) }}"
+                                <a href="{{ route('locations.customers', $location->id) }}"
                                    class="inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-400 hover:bg-gray-100 hover:text-gray-900" title="Manage customers">
                                     <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a4 4 0 00-5-3.87M9 20H4v-2a4 4 0 015-3.87M12 12a4 4 0 100-8 4 4 0 000 8zm6 8v-2a4 4 0 00-3-3.87M6 18v-2a4 4 0 013-3.87"/></svg>
                                 </a>

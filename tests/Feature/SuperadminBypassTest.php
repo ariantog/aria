@@ -20,7 +20,7 @@ it('treats user id 1 as superadmin regardless of location assignment', function 
     $addrbookB->locations()->attach($locationB->id);
 
     $hiddenTx = Transaction::factory()->create([
-        'invoice_number' => 'SUPERADMIN-TX-1',
+        'invoice' => 'SUPERADMIN-TX-1',
         'sender_id' => $addrbookB->id,
         'receiver_id' => $addrbookB->id,
     ]);

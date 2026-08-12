@@ -119,8 +119,8 @@ class WarehouseArrangementController extends Controller
             'items' => ['required', 'array', 'min:1'],
             'items.*.item_id' => ['required', 'integer', 'exists:items,id'],
             'items.*.quantity' => ['required', 'numeric', 'min:1'],
-            'items.*.from_warehouse_id' => ['required', 'integer', 'exists:addrbooks,id'],
-            'items.*.to_warehouse_id' => ['required', 'integer', 'exists:addrbooks,id'],
+            'items.*.from_warehouse_id' => ['required', 'integer', 'exists:customers,id'],
+            'items.*.to_warehouse_id' => ['required', 'integer', 'exists:customers,id'],
         ]);
 
         $fromId = (int) $validated['items'][0]['from_warehouse_id'];
@@ -171,7 +171,7 @@ class WarehouseArrangementController extends Controller
                 'price' => $price,
                 'discount' => 0,
                 'subtotal' => $quantity * $price,
-                'warehouse_items' => $item->warehouseItems->map(fn ($wi) => [
+                'warehouse_item' => $item->warehouseItems->map(fn ($wi) => [
                     'warehouse_id' => (string) $wi->warehouse_id,
                     'quantity' => (float) $wi->quantity,
                 ])->values()->all(),

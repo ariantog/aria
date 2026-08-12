@@ -81,7 +81,7 @@ it('renders sender branding on receipt and print pages', function () {
     ]);
     $receiver = Addrbook::factory()->customer()->create();
     $transaction = Transaction::factory()->create([
-        'invoice_number' => 'RCP-BRAND',
+        'invoice' => 'RCP-BRAND',
         'sender_id' => $sender->id,
         'receiver_id' => $receiver->id,
     ]);
@@ -119,7 +119,7 @@ it('generates pdf with sender branding', function () {
     $transaction = Transaction::factory()->create([
         'sender_id' => $sender->id,
         'receiver_id' => $receiver->id,
-        'grand_total' => 25_000,
+        'real_total' => 25_000,
         'total' => 25_000,
     ]);
     TransactionDetail::factory()->create([

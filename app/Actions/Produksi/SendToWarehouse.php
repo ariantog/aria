@@ -29,9 +29,9 @@ class SendToWarehouse
             $warehouse = $this->produksiSettings->resolveWarehouse();
             if (! $warehouse) throw new \RuntimeException('Gudang tujuan tidak ditemukan. Atur produksi.default_warehouse_id di System Settings.');
 
-            $transaction = Transaction::where('invoice_number', $invoice)->where('type', TransactionType::Production->value)->first();
+            $transaction = Transaction::where('invoice', $invoice)->where('type', TransactionType::Production->value)->first();
             if (! $transaction) {
-                $transaction = Transaction::create(['date' => now()->toDateString(), 'type' => TransactionType::Production->value, 'receiver_id' => $warehouse->id, 'receiver_type' => AddrbookType::Warehouse->value, 'invoice_number' => $invoice, 'user_id' => $userId, 'total_items' => 0]);
+                $transaction = Transaction::create(['date' => now()->toDateString(), 'type' => TransactionType::Production->value, 'receiver_id' => $warehouse->id, 'receiver_type' => AddrbookType::Warehouse->value, 'invoice' => $invoice, 'user_id' => $userId, 'total_items' => 0]);
             }
 
             $detail = TransactionDetail::create(['transaction_id' => $transaction->id, 'item_id' => $produksi->item_id, 'quantity' => $produksi->quantity, 'price' => 0, 'discount' => 0, 'total' => 0]);

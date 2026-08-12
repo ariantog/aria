@@ -4,24 +4,17 @@ namespace App\Models;
 
 use App\Enums\TransactionStatus;
 use App\Enums\TransactionType;
-use App\Models\Concerns\MapsProductionColumns;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Gate;
 
 class Transaction extends Model
 {
-    use HasFactory, MapsProductionColumns, SoftDeletes;
+    use HasFactory;
 
     protected $guarded = ['id'];
-
-    protected static function productionColumnKey(): string
-    {
-        return 'transactions';
-    }
 
     /** @deprecated Use TransactionType enum */
     const TYPE_BUY = 1;
@@ -75,10 +68,10 @@ class Transaction extends Model
     protected function casts(): array
     {
         return [
-            'date' => 'date', 'due_date' => 'date',
+            'date' => 'date', 'due' => 'date',
             'total' => 'decimal:2', 'discount' => 'decimal:2',
-            'discount_percent' => 'decimal:2', 'adjustment' => 'decimal:2',
-            'grand_total' => 'decimal:2', 'total_items' => 'decimal:2',
+            'adjustment' => 'decimal:2', 'ppn' => 'decimal:2',
+            'real_total' => 'decimal:2', 'total_items' => 'decimal:2',
             'type' => TransactionType::class,
             'status' => TransactionStatus::class,
             'submit_type' => 'integer',

@@ -284,7 +284,7 @@ class LegacyItemConverterService
     {
         ItemIdentityConversionResult::query()->where('item_id', $item->id)->delete();
         $item->tags()->detach();
-        DB::table('warehouse_items')->where('item_id', $item->id)->delete();
+        DB::table('warehouse_item')->where('item_id', $item->id)->delete();
         $item->forceDelete();
     }
 

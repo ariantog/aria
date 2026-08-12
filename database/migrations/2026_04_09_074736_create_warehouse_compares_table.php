@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::create('warehouse_compares', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id')->constrained()->onDelete('cascade');
-            $table->foreignId('warehouse_id')->constrained('addrbooks')->onDelete('cascade');
+            $table->foreignId('warehouse_id')->constrained('customers')->onDelete('cascade');
             $table->timestamps();
 
             $table->unique(['user_id', 'warehouse_id']);

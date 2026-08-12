@@ -18,7 +18,7 @@ class StoreProduksiRequest extends FormRequest
     {
         return [
             'date' => 'required|date',
-            'potong_id' => 'required|exists:workers,id',
+            'potong_id' => 'required|exists:prod_worker,id',
             'surat_jalan_potong' => 'nullable|string',
             'items' => 'required|array|min:1',
             'items.*.name' => 'required|string',

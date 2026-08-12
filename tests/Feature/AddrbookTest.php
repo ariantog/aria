@@ -42,7 +42,7 @@ test('can create addrbook', function () {
 
     $response->assertRedirect(route('addrbook.index'));
 
-    $this->assertDatabaseHas('addrbooks', [
+    $this->assertDatabaseHas('customers', [
         'name' => 'New Customer',
         'phone' => '08123456789',
         'is_online' => 1,
@@ -51,8 +51,8 @@ test('can create addrbook', function () {
 
     // Get the created addrbook to check stats
     $addrbook = Addrbook::where('name', 'New Customer')->first();
-    $this->assertDatabaseHas('addrbook_stats', [
-        'addrbook_id' => $addrbook->id,
+    $this->assertDatabaseHas('customerstat', [
+        'customer_id' => $addrbook->id,
         'balance' => 1000,
     ]);
 });
@@ -73,7 +73,7 @@ test('can update addrbook', function () {
 
     $response->assertRedirect(route('addrbook.index'));
 
-    $this->assertDatabaseHas('addrbooks', [
+    $this->assertDatabaseHas('customers', [
         'id' => $addrbook->id,
         'name' => 'Updated Name',
         'ppn' => 1,
@@ -92,7 +92,7 @@ test('can delete addrbook', function () {
 
     $response->assertRedirect(route('addrbook.index'));
 
-    $this->assertSoftDeleted('addrbooks', ['id' => $addrbook->id]);
+    $this->assertSoftDeleted('customers', ['id' => $addrbook->id]);
 });
 
 test('addrbook has type_slug attribute', function () {

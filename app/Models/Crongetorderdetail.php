@@ -17,7 +17,7 @@ class Crongetorderdetail extends Model
 
     public function transaction(): HasOne
     {
-        return $this->hasOne(Transaction::class, 'invoice_number', 'invoice')
+        return $this->hasOne(Transaction::class, 'invoice', 'invoice')
             ->where('type', Transaction::TYPE_SELL);
     }
 

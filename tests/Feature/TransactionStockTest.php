@@ -58,7 +58,7 @@ class TransactionStockTest extends TestCase
         $this->assertDatabaseCount('transaction_details', 1);
 
         // Supplier (Sender) should have -10
-        $this->assertDatabaseHas('warehouse_items', [
+        $this->assertDatabaseHas('warehouse_item', [
             'warehouse_id' => $supplier->id,
             'warehouse_type' => $supplier->type,
             'item_id' => $item->id,
@@ -66,7 +66,7 @@ class TransactionStockTest extends TestCase
         ]);
 
         // Warehouse (Receiver) should have +10
-        $this->assertDatabaseHas('warehouse_items', [
+        $this->assertDatabaseHas('warehouse_item', [
             'warehouse_id' => $warehouse->id,
             'warehouse_type' => $warehouse->type,
             'item_id' => $item->id,
@@ -125,7 +125,7 @@ class TransactionStockTest extends TestCase
 
         // 3. Verify
         // Warehouse (Sender) should have 50 - 5 = 45
-        $this->assertDatabaseHas('warehouse_items', [
+        $this->assertDatabaseHas('warehouse_item', [
             'warehouse_id' => $warehouse->id,
             'warehouse_type' => $warehouse->type,
             'item_id' => $item->id,
@@ -133,7 +133,7 @@ class TransactionStockTest extends TestCase
         ]);
 
         // Customer (Receiver) should have +5
-        $this->assertDatabaseHas('warehouse_items', [
+        $this->assertDatabaseHas('warehouse_item', [
             'warehouse_id' => $customer->id,
             'warehouse_type' => $customer->type,
             'item_id' => $item->id,
