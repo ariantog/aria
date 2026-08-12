@@ -2,13 +2,21 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\UsesProductionTable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class WarehouseItem extends Model
 {
-    use HasFactory;
+    use HasFactory, UsesProductionTable;
+
+    protected $table = 'warehouse_items';
+
+    protected static function productionTableKey(): string
+    {
+        return 'warehouse_item';
+    }
 
     protected $fillable = [
         'item_id',

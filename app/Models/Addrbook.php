@@ -3,6 +3,9 @@
 namespace App\Models;
 
 use App\Enums\AddrbookType;
+use App\Models\Concerns\MapsProductionColumns;
+use App\Models\Concerns\UsesProductionTable;
+use App\Support\ProductionSchema;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -11,7 +14,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Addrbook extends Model
 {
-    use HasFactory, SoftDeletes;
+    use HasFactory, MapsProductionColumns, SoftDeletes, UsesProductionTable;
 
     /** @deprecated Use AddrbookType::Customer */
     const TYPE_CUSTOMER = 1;
@@ -43,6 +46,16 @@ class Addrbook extends Model
     protected $table = 'addrbooks';
 
     protected $guarded = ['id'];
+
+    protected static function productionTableKey(): string
+    {
+        return 'addrbook';
+    }
+
+    protected static function productionColumnKey(): string
+    {
+        return 'addrbooks';
+    }
 
     protected function casts(): array
     {
@@ -114,17 +127,26 @@ class Addrbook extends Model
 
     public function stat()
     {
-        return $this->hasOne(AddrbookStat::class, 'addrbook_id');
+        $foreignKey = ProductionSchema::column('addrbook_stat', 'addrbook_id');
+
+        return $this->hasOne(AddrbookStat::class, $foreignKey);
     }
 
     public function dailies()
     {
-        return $this->hasMany(AddrbookDaily::class, 'addrbook_id');
+        $foreignKey = ProductionSchema::column('addrbook_daily', 'addrbook_id');
+
+        return $this->hasMany(AddrbookDaily::class, $foreignKey);
     }
 
     public function items(): BelongsToMany
     {
-        return $this->belongsToMany(Item::class, 'warehouse_items', 'warehouse_id', 'item_id')->withPivot('quantity')->withTimestamps();
+        return $this->belongsToMany(
+            Item::class,
+            ProductionSchema::table('warehouse_item'),
+            'warehouse_id',
+            'item_id',
+        )->withPivot('quantity')->withTimestamps();
     }
 
     public function operation()

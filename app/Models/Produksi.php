@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\UsesProductionTable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -9,7 +10,14 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class Produksi extends Model
 {
     /** @use HasFactory<\Database\Factories\ProduksiFactory> */
-    use HasFactory, SoftDeletes;
+    use HasFactory, SoftDeletes, UsesProductionTable;
+
+    protected $table = 'produksis';
+
+    protected static function productionTableKey(): string
+    {
+        return 'produksi';
+    }
 
     const STATUS_PRODUKSI = 1;
 

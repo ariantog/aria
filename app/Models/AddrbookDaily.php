@@ -2,16 +2,29 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\MapsProductionColumns;
+use App\Models\Concerns\UsesProductionTable;
+use App\Support\ProductionSchema;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class AddrbookDaily extends Model
 {
-    use HasFactory;
+    use HasFactory, MapsProductionColumns, UsesProductionTable;
 
     protected $table = 'addrbook_dailies';
 
     protected $guarded = ['id'];
+
+    protected static function productionTableKey(): string
+    {
+        return 'addrbook_daily';
+    }
+
+    protected static function productionColumnKey(): string
+    {
+        return 'addrbook_daily';
+    }
 
     protected $casts = [
         'date' => 'date:Y-m-d',
@@ -30,6 +43,8 @@ class AddrbookDaily extends Model
 
     public function addrbook()
     {
-        return $this->belongsTo(Addrbook::class);
+        $foreignKey = ProductionSchema::column('addrbook_daily', 'addrbook_id');
+
+        return $this->belongsTo(Addrbook::class, $foreignKey);
     }
 }
