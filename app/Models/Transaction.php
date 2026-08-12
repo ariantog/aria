@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\TransactionStatus;
 use App\Enums\TransactionType;
 use App\Models\User;
+use App\Support\ProductionColumnDefaults;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -233,6 +234,8 @@ class Transaction extends Model
     protected static function booted(): void
     {
         static::creating(function (Transaction $transaction): void {
+            ProductionColumnDefaults::apply($transaction);
+
             $table = $transaction->getTable();
 
             if (Schema::hasColumn($table, 'description')) {
