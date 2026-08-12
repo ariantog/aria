@@ -11,8 +11,10 @@ class ScheduledTaskSeeder extends Seeder
      */
     public function run(): void
     {
+        \App\Models\ScheduledTask::where('command', 'queue:work --stop-when-empty --max-time=55')->delete();
+
         \App\Models\ScheduledTask::updateOrCreate(
-            ['command' => 'queue:work --stop-when-empty --max-time=55'],
+            ['command' => 'app:process-queue'],
             [
                 'name' => 'Process Queue Jobs',
                 'frequency' => 'everyMinute',
