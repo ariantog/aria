@@ -2,9 +2,6 @@
 
 namespace App\Models;
 
-use App\Enums\TransactionStatus;
-use App\Enums\TransactionType;
-use App\Models\User;
 use App\Support\ProductionColumnDefaults;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -18,49 +15,34 @@ class Transaction extends Model
 
     protected $guarded = ['id'];
 
-    /** @deprecated Use TransactionType enum */
     const TYPE_BUY = 1;
 
-    /** @deprecated Use TransactionType enum */
     const TYPE_SELL = 2;
 
-    /** @deprecated Use TransactionType enum */
     const TYPE_MOVE = 3;
 
-    /** @deprecated Use TransactionType enum */
     const TYPE_TRANSFER = 6;
 
-    /** @deprecated Use TransactionType enum */
     const TYPE_CASH_OUT = 7;
 
-    /** @deprecated Use TransactionType enum */
     const TYPE_USE = 8;
 
-    /** @deprecated Use TransactionType enum */
     const TYPE_CASH_IN = 9;
 
-    /** @deprecated Use TransactionType enum */
     const TYPE_ADJUST = 12;
 
-    /** @deprecated Use TransactionType enum */
     const TYPE_RETURN = 15;
 
-    /** @deprecated Use TransactionType enum */
     const TYPE_PRODUCTION = 16;
 
-    /** @deprecated Use TransactionType enum */
     const TYPE_RETURN_SUPPLIER = 17;
 
-    /** @deprecated Use TransactionType enum */
     const TYPE_DEPRECIATION = 18;
 
-    /** @deprecated Use TransactionStatus enum */
     const STATUS_PENDING = 0;
 
-    /** @deprecated Use TransactionStatus enum */
     const STATUS_COMPLETED = 1;
 
-    /** @deprecated Use TransactionStatus enum */
     const STATUS_CANCELLED = 2;
 
     const SUBMIT_TYPE_MANUAL = 1;
@@ -74,37 +56,104 @@ class Transaction extends Model
             'total' => 'decimal:2', 'discount' => 'decimal:2',
             'adjustment' => 'decimal:2', 'ppn' => 'decimal:2',
             'real_total' => 'decimal:2', 'total_items' => 'decimal:2',
-            'type' => TransactionType::class,
-            'status' => TransactionStatus::class,
+            'type' => 'integer',
+            'status' => 'integer',
             'submit_type' => 'integer',
         ];
     }
 
+    public static function typeLabel(int $type): string
+    {
+        return match ($type) {
+            self::TYPE_BUY => 'Buy',
+            self::TYPE_SELL => 'Sell',
+            self::TYPE_MOVE => 'Move',
+            self::TYPE_TRANSFER => 'Transfer',
+            self::TYPE_CASH_OUT => 'Cash Out',
+            self::TYPE_USE => 'Use Items',
+            self::TYPE_CASH_IN => 'Cash In',
+            self::TYPE_ADJUST => 'Adjust',
+            self::TYPE_RETURN => 'Return',
+            self::TYPE_PRODUCTION => 'Production',
+            self::TYPE_RETURN_SUPPLIER => 'Ret. Supplier',
+            self::TYPE_DEPRECIATION => 'Depreciation',
+            default => 'Unknown',
+        };
+    }
+
+    public static function typePriceSource(int $type): string
+    {
+        return in_array($type, [self::TYPE_BUY, self::TYPE_RETURN_SUPPLIER, self::TYPE_PRODUCTION], true)
+            ? 'cost'
+            : 'price';
+    }
+
+    public static function typeIsNegative(int $type): bool
+    {
+        return in_array($type, [self::TYPE_SELL, self::TYPE_RETURN_SUPPLIER, self::TYPE_CASH_OUT], true);
+    }
+
+    public static function typeHasItems(int $type): bool
+    {
+        return in_array($type, [
+            self::TYPE_BUY, self::TYPE_SELL, self::TYPE_MOVE,
+            self::TYPE_RETURN, self::TYPE_RETURN_SUPPLIER,
+            self::TYPE_PRODUCTION, self::TYPE_USE,
+        ], true);
+    }
+
+    public static function dailyReportColumn(int $type): ?string
+    {
+        return match ($type) {
+            self::TYPE_BUY => 'buy',
+            self::TYPE_SELL => 'sell',
+            self::TYPE_RETURN => 'return',
+            self::TYPE_RETURN_SUPPLIER => 'return_supplier',
+            self::TYPE_MOVE => 'move',
+            self::TYPE_TRANSFER => 'transfer',
+            self::TYPE_ADJUST => 'adjust',
+            self::TYPE_PRODUCTION => 'use',
+            self::TYPE_CASH_IN => 'sell',
+            self::TYPE_CASH_OUT => 'buy',
+            default => null,
+        };
+    }
+
+    /** @return array<int, array{id: int, name: string}> */
     public static function getTypes(): array
     {
-        return array_map(fn (TransactionType $type) => ['id' => $type->value, 'name' => $type->label()], TransactionType::cases());
+        $ids = [
+            self::TYPE_BUY, self::TYPE_SELL, self::TYPE_MOVE, self::TYPE_TRANSFER,
+            self::TYPE_CASH_OUT, self::TYPE_USE, self::TYPE_CASH_IN, self::TYPE_ADJUST,
+            self::TYPE_RETURN, self::TYPE_PRODUCTION, self::TYPE_RETURN_SUPPLIER, self::TYPE_DEPRECIATION,
+        ];
+
+        return array_map(
+            fn (int $id) => ['id' => $id, 'name' => self::typeLabel($id)],
+            $ids,
+        );
     }
 
     public function getTypeLabel(): string
     {
-        return $this->type instanceof TransactionType ? $this->type->label() : 'Unknown';
+        return self::typeLabel((int) $this->type);
     }
 
     public function getSubmitTypeLabel(): string
     {
-        return match ($this->submit_type) {
+        return match ((int) $this->submit_type) {
             self::SUBMIT_TYPE_MANUAL => 'Manual', self::SUBMIT_TYPE_JUBELIO => 'Jubelio Sync', default => 'Unknown'
         };
     }
 
     public function isManual(): bool
     {
-        return $this->submit_type === self::SUBMIT_TYPE_MANUAL;
+        return (int) $this->submit_type === self::SUBMIT_TYPE_MANUAL;
     }
 
     public function isFromJubelio(): bool
     {
-        return $this->submit_type === self::SUBMIT_TYPE_JUBELIO;
+        return (int) $this->submit_type === self::SUBMIT_TYPE_JUBELIO;
     }
 
     public function sender()

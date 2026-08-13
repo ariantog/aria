@@ -1,7 +1,5 @@
 <?php
 
-use App\Enums\ItemType;
-use App\Enums\TransactionType;
 use App\Models\Addrbook;
 use App\Models\Item;
 use App\Models\JubelioStockCheck;
@@ -32,7 +30,7 @@ it('compares aria qty against jubelio on-hand only', function () {
 
     $item = Item::factory()->create([
         'jubelio_item_id' => 123,
-        'type' => ItemType::ITEM,
+        'type' => Item::TYPE_ITEM,
     ]);
 
     WarehouseItem::create([
@@ -81,7 +79,7 @@ it('does not flag a match when aria equals jubelio on-hand', function () {
 
     $item = Item::factory()->create([
         'jubelio_item_id' => 200,
-        'type' => ItemType::ITEM,
+        'type' => Item::TYPE_ITEM,
     ]);
 
     WarehouseItem::create([
@@ -123,8 +121,8 @@ it('selects high-demand skus per warehouse and type', function () {
     $sync = seedStockCheckSync($warehouse);
     $customer = Addrbook::factory()->create(['type' => Addrbook::TYPE_CUSTOMER]);
 
-    $hotItem = Item::factory()->create(['jubelio_item_id' => 301, 'type' => ItemType::ITEM]);
-    $coldItem = Item::factory()->create(['jubelio_item_id' => 302, 'type' => ItemType::ITEM]);
+    $hotItem = Item::factory()->create(['jubelio_item_id' => 301, 'type' => Item::TYPE_ITEM]);
+    $coldItem = Item::factory()->create(['jubelio_item_id' => 302, 'type' => Item::TYPE_ITEM]);
 
     foreach ([$hotItem, $coldItem] as $item) {
         WarehouseItem::create([
@@ -136,7 +134,7 @@ it('selects high-demand skus per warehouse and type', function () {
     }
 
     $sell = Transaction::factory()->create([
-        'type' => TransactionType::Sell->value,
+        'type' => Transaction::TYPE_SELL,
         'sender_id' => $warehouse->id,
         'receiver_id' => $customer->id,
         'date' => now()->subDays(10),
@@ -163,8 +161,8 @@ it('selects both items and asset lancar per warehouse', function () {
     $warehouse = Addrbook::factory()->warehouse()->create();
     $sync = seedStockCheckSync($warehouse);
 
-    $regular = Item::factory()->create(['jubelio_item_id' => 401, 'type' => ItemType::ITEM]);
-    $asset = Item::factory()->create(['jubelio_item_id' => 402, 'type' => ItemType::ASSET_LANCAR]);
+    $regular = Item::factory()->create(['jubelio_item_id' => 401, 'type' => Item::TYPE_ITEM]);
+    $asset = Item::factory()->create(['jubelio_item_id' => 402, 'type' => Item::TYPE_ASSET_LANCAR]);
 
     foreach ([$regular, $asset] as $item) {
         WarehouseItem::create([
@@ -188,7 +186,7 @@ it('processes synced warehouses one per cron run', function () {
     seedStockCheckSync($wh1, 10, 'Gudang A');
     seedStockCheckSync($wh2, 20, 'Gudang B');
 
-    $item = Item::factory()->create(['jubelio_item_id' => 501, 'type' => ItemType::ITEM]);
+    $item = Item::factory()->create(['jubelio_item_id' => 501, 'type' => Item::TYPE_ITEM]);
     foreach ([$wh1, $wh2] as $warehouse) {
         WarehouseItem::create([
             'item_id' => $item->id,
@@ -243,7 +241,7 @@ it('ignores warehouses not mapped in jubeliosyncs', function () {
     $warehouse = Addrbook::factory()->warehouse()->create();
     seedStockCheckSync($warehouse, 10);
 
-    $item = Item::factory()->create(['jubelio_item_id' => 601, 'type' => ItemType::ITEM]);
+    $item = Item::factory()->create(['jubelio_item_id' => 601, 'type' => Item::TYPE_ITEM]);
     WarehouseItem::create([
         'item_id' => $item->id,
         'warehouse_id' => $warehouse->id,

@@ -3,9 +3,6 @@
 namespace App\Actions\Transactions;
 
 use App\Actions\Transactions\Concerns\CalculatesTransactionTotals;
-use App\Enums\AddrbookType;
-use App\Enums\TransactionStatus;
-use App\Enums\TransactionType;
 use App\Http\Requests\StoreItemTransactionRequest;
 use App\Models\Addrbook;
 use App\Models\Transaction;
@@ -34,17 +31,24 @@ class CreateItemTransaction
             $this->createDetails($transaction, $data);
             $this->calculateAndSetTotals($transaction, $type, $data, $sender, $receiver);
             $this->transactionService->handleTransaction($transaction);
+
             return $transaction->fresh(['details', 'sender', 'receiver']);
         });
     }
 
-    private function validateStock(TransactionType $type, Addrbook $sender, array $items): void
+    private function validateStock(int $type, Addrbook $sender, array $items): void
     {
-        if (! $type->hasItems()) return;
-        $senderType = $sender->type instanceof AddrbookType ? $sender->type : AddrbookType::from($sender->type);
-        // Stock can only be checked when the sender is a warehouse (buy senders are suppliers, etc.)
-        if (! $senderType->isWarehouse()) return;
-        if ($senderType->allowsNegativeStock()) return;
+        if (! Transaction::typeHasItems($type)) {
+            return;
+        }
+
+        $senderType = (int) $sender->type;
+        if (! Addrbook::typeIsWarehouse($senderType)) {
+            return;
+        }
+        if (Addrbook::typeAllowsNegativeStock($senderType)) {
+            return;
+        }
 
         $insufficient = [];
         foreach ($items as $item) {
@@ -55,26 +59,31 @@ class CreateItemTransaction
                 $insufficient[] = ($itemModel ? $itemModel->name : 'ID: '.$item['item_id'])." (avail: {$available})";
             }
         }
-        if (! empty($insufficient)) throw ValidationException::withMessages(['items' => ['Insufficient stock for: '.implode(', ', $insufficient)]]);
+        if (! empty($insufficient)) {
+            throw ValidationException::withMessages(['items' => ['Insufficient stock for: '.implode(', ', $insufficient)]]);
+        }
     }
 
-    private function createTransaction(TransactionType $type, array $data, Addrbook $sender, Addrbook $receiver): Transaction
+    private function createTransaction(int $type, array $data, Addrbook $sender, Addrbook $receiver): Transaction
     {
         $trx = Transaction::create([
-            'date' => $data['date'], 'type' => $type->value,
+            'date' => $data['date'], 'type' => $type,
             'due' => $data['due'] ?? null,
-            'sender_type' => $sender->type instanceof AddrbookType ? $sender->type->value : $sender->type,
+            'sender_type' => (int) $sender->type,
             'sender_id' => $sender->id,
-            'receiver_type' => $receiver->type instanceof AddrbookType ? $receiver->type->value : $receiver->type,
+            'receiver_type' => (int) $receiver->type,
             'receiver_id' => $receiver->id,
             'notes' => $data['note'] ?? null, 'user_id' => Auth::id(),
-            'status' => TransactionStatus::Completed->value,
+            'status' => Transaction::STATUS_COMPLETED,
             'real_total' => 0, 'total_items' => 0,
             'adjustment' => $data['adjustment'] ?? 0,
             'submit_type' => Transaction::SUBMIT_TYPE_MANUAL,
             'invoice' => ! empty($data['invoice']) ? $data['invoice'] : null,
         ]);
-        if (empty($trx->invoice)) $trx->update(['invoice' => (string) $trx->id]);
+        if (empty($trx->invoice)) {
+            $trx->update(['invoice' => (string) $trx->id]);
+        }
+
         return $trx;
     }
 
@@ -84,7 +93,8 @@ class CreateItemTransaction
             $total = $this->calculateItemTotal((float) $item['quantity'], (float) $item['price'], (float) ($item['discount'] ?? 0));
             $transaction->details()->create([
                 'item_id' => $item['item_id'], 'date' => $transaction->date,
-                'transaction_type' => $transaction->type, 'sender_id' => $transaction->sender_id,
+                'transaction_type' => (int) $transaction->type,
+                'sender_id' => $transaction->sender_id,
                 'receiver_id' => $transaction->receiver_id,
                 'quantity' => $item['quantity'], 'price' => $item['price'],
                 'discount' => $item['discount'] ?? 0, 'total' => $total, 'notes' => $item['note'] ?? null,
@@ -92,7 +102,7 @@ class CreateItemTransaction
         }
     }
 
-    private function calculateAndSetTotals(Transaction $transaction, TransactionType $type, array $data, Addrbook $sender, Addrbook $receiver): void
+    private function calculateAndSetTotals(Transaction $transaction, int $type, array $data, Addrbook $sender, Addrbook $receiver): void
     {
         $transaction->refresh();
         $itemsTotal = (float) $transaction->details()->sum('total');
@@ -104,7 +114,9 @@ class CreateItemTransaction
         $totalBeforeTax = $itemsTotal - $discountAmount + $adjustment;
         $taxAmount = $isPpn ? ($totalBeforeTax * $this->getPpnRate()) : 0;
         $grandTotal = $totalBeforeTax + $taxAmount;
-        if ($type->isNegative()) $grandTotal = -abs($grandTotal);
+        if (Transaction::typeIsNegative($type)) {
+            $grandTotal = -abs($grandTotal);
+        }
         $transaction->update([
             'total' => $itemsTotal,
             'discount' => $discountPercent,

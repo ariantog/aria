@@ -9,14 +9,14 @@ class TransactionObserver
 {
     public function created(Transaction $transaction): void
     {
-        if ($transaction->status?->value === 1) {
+        if ((int) $transaction->status === Transaction::STATUS_COMPLETED) {
             UpdateTransactionSummaries::dispatch($transaction->id);
         }
     }
 
     public function updated(Transaction $transaction): void
     {
-        if ($transaction->isDirty('status') && $transaction->status?->value === 1) {
+        if ($transaction->isDirty('status') && (int) $transaction->status === Transaction::STATUS_COMPLETED) {
             UpdateTransactionSummaries::dispatch($transaction->id);
         }
     }

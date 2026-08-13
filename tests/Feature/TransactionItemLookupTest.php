@@ -1,6 +1,5 @@
 <?php
 
-use App\Enums\ItemType;
 use App\Models\Addrbook;
 use App\Models\Item;
 use App\Models\User;
@@ -68,7 +67,7 @@ it('resolves an asset lancar item by id for transaction rows', function () {
     $asset = Item::factory()->create([
         'name' => 'Meja Kantor',
         'code' => 'ASET-MEJA-01',
-        'type' => ItemType::ASSET_LANCAR,
+        'type' => Item::TYPE_ASSET_LANCAR,
         'price' => 750_000,
     ]);
 
@@ -77,7 +76,7 @@ it('resolves an asset lancar item by id for transaction rows', function () {
         ->assertSuccessful()
         ->assertJsonPath('item.id', $asset->id)
         ->assertJsonPath('item.name', 'Meja Kantor')
-        ->assertJsonPath('item.type', ItemType::ASSET_LANCAR->value);
+        ->assertJsonPath('item.type', Item::TYPE_ASSET_LANCAR);
 });
 
 it('exposes warehouse stock so scanned rows can show on-hand quantity', function () {

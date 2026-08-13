@@ -59,7 +59,7 @@
             <tbody class="divide-y divide-gray-100">
                 @forelse($rows as $tx)
                     @php
-                        $typeValue = $tx->type instanceof \App\Enums\TransactionType ? $tx->type->value : (int) $tx->type;
+                        $typeValue = (int) $tx->type;
                         [$label, $badgeCls, $dotCls] = $typeMap[$typeValue] ?? ['Unknown', 'text-gray-700 bg-gray-50', 'bg-gray-400'];
                     @endphp
                     <tr class="hover:bg-gray-50">

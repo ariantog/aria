@@ -24,7 +24,7 @@ class TransactionListExportService
 
         $rowNum = 2;
         foreach ($rows as $tx) {
-            $typeValue = $tx->type instanceof \App\Enums\TransactionType ? $tx->type->value : (int) $tx->type;
+            $typeValue = (int) $tx->type;
             $typeLabel = match ($typeValue) {
                 1 => 'Buy', 2 => 'Sell', 3 => 'Move', 6 => 'Transfer', 7 => 'Cash Out',
                 8 => 'Use', 9 => 'Cash In', 12 => 'Adjust', 15 => 'Return',

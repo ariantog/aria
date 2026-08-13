@@ -12,7 +12,6 @@ use App\Http\Requests\StoreItemTransactionRequest;
 use App\Http\Requests\StoreTransferRequest;
 use App\Models\DeletedTransaction;
 use App\Models\DeletedTransactionDetail;
-use App\Models\Jubelio;
 use App\Models\Transaction;
 use App\Services\BookClosingService;
 use App\Services\Jubelio\JubelioTransactionSyncPresenter;
@@ -126,7 +125,7 @@ class TransactionsController extends Controller
                 'id' => $item->id,
                 'code' => $item->getItemCode(),
                 'name' => $item->name ?: $item->getItemName(),
-                'type' => $item->type instanceof \BackedEnum ? $item->type->value : $item->type,
+                'type' => (int) $item->type,
                 'price' => (float) $item->price,
                 'cost' => (float) $item->cost,
                 'warehouse_item' => $item->warehouseItems->map(fn ($wi) => [
@@ -151,7 +150,7 @@ class TransactionsController extends Controller
         Gate::authorize(Transaction::getPermissions()['type-cash-in']);
 
         return view('transactions.cash', [
-            'bankList' => \App\Models\Addrbook::where('type', \App\Enums\AddrbookType::Bank->value)->orderBy('name')->get(),
+            'bankList' => \App\Models\Addrbook::where('type', \App\Models\Addrbook::TYPE_BANK)->orderBy('name')->get(),
             'ppn_rate' => (float) \App\Models\Setting::getValue('ppn_rate', 11),
             'min_date' => $bookClosingService->getMinAllowedDate()->toDateString(), 'type' => 'in',
         ]);
@@ -171,7 +170,7 @@ class TransactionsController extends Controller
         Gate::authorize(Transaction::getPermissions()['type-cash-out']);
 
         return view('transactions.cash', [
-            'bankList' => \App\Models\Addrbook::where('type', \App\Enums\AddrbookType::Bank->value)->orderBy('name')->get(),
+            'bankList' => \App\Models\Addrbook::where('type', \App\Models\Addrbook::TYPE_BANK)->orderBy('name')->get(),
             'ppn_rate' => (float) \App\Models\Setting::getValue('ppn_rate', 11),
             'min_date' => $bookClosingService->getMinAllowedDate()->toDateString(), 'type' => 'out',
         ]);
@@ -191,7 +190,7 @@ class TransactionsController extends Controller
         Gate::authorize(Transaction::getPermissions()['type-transfer']);
 
         return view('transactions.transfer', [
-            'bankList' => \App\Models\Addrbook::where('type', \App\Enums\AddrbookType::Bank->value)->orderBy('name')->get(),
+            'bankList' => \App\Models\Addrbook::where('type', \App\Models\Addrbook::TYPE_BANK)->orderBy('name')->get(),
             'min_date' => $bookClosingService->getMinAllowedDate()->toDateString(),
         ]);
     }
@@ -444,9 +443,7 @@ class TransactionsController extends Controller
     {
         $user = Auth::user();
         $perms = Transaction::getPermissions();
-        $type = $transaction->type instanceof \BackedEnum
-            ? $transaction->type->value
-            : (int) $transaction->type;
+        $type = (int) $transaction->type;
 
         return match ($type) {
             Transaction::TYPE_SELL => $user->can($perms['type-return']),

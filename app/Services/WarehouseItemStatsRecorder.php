@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Enums\TransactionType;
 use App\Models\Item;
 use App\Models\Transaction;
 use App\Models\WarehouseItemMonthlyStat;
@@ -14,13 +13,14 @@ class WarehouseItemStatsRecorder
 
     public function recordDetail(Transaction $transaction, object $detail): void
     {
-        if (! in_array($transaction->type, [TransactionType::Sell, TransactionType::Return], true)) {
+        $type = (int) $transaction->type;
+        if (! in_array($type, [Transaction::TYPE_SELL, Transaction::TYPE_RETURN], true)) {
             return;
         }
 
-        $warehouseId = match ($transaction->type) {
-            TransactionType::Sell => (int) $transaction->sender_id,
-            TransactionType::Return => (int) $transaction->receiver_id,
+        $warehouseId = match ($type) {
+            Transaction::TYPE_SELL => (int) $transaction->sender_id,
+            Transaction::TYPE_RETURN => (int) $transaction->receiver_id,
         };
 
         if ($warehouseId <= 0) {
@@ -50,7 +50,7 @@ class WarehouseItemStatsRecorder
             $dims,
         );
 
-        if ($transaction->type === TransactionType::Sell) {
+        if ($type === Transaction::TYPE_SELL) {
             $stat->increment('sold_qty', $qty);
             $stat->increment('sold_value', $netValue);
         } else {
