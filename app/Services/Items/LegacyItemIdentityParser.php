@@ -83,6 +83,21 @@ class LegacyItemIdentityParser
         );
     }
 
+    public function resolveItemType(Item $item): ?ItemType
+    {
+        $raw = $item->getAttributes()['type'] ?? null;
+
+        if ($raw instanceof ItemType) {
+            return $raw;
+        }
+
+        if ($raw === null || $raw === '') {
+            return null;
+        }
+
+        return ItemType::tryFrom((int) $raw);
+    }
+
     public function parse(Item $item): LegacyParseResult
     {
         $code = strtoupper(trim((string) $item->code));
@@ -95,13 +110,15 @@ class LegacyItemIdentityParser
             );
         }
 
-        return match ($item->type) {
+        $itemType = $this->resolveItemType($item);
+
+        return match ($itemType) {
             ItemType::ASSET_LANCAR => $this->parseAsset($item, $code),
             ItemType::ITEM => $this->parseManufactured($item, $code),
             default => LegacyParseResult::failure(
                 self::FAILURE_SKU_UNPARSEABLE,
                 'Unsupported item type for conversion.',
-                ['type' => $item->type?->value],
+                ['type' => $itemType?->value ?? $item->getAttributes()['type'] ?? null],
             ),
         };
     }

@@ -117,8 +117,13 @@ class LegacyItemConverterService
     public function isStructurallyEligible(Item $item, ?LegacyItemIdentityParser $parser = null): bool
     {
         $parser ??= $this->makeParser();
+        $itemType = $parser->resolveItemType($item);
 
-        return $parser->hasMinimumIdentityStructure((string) $item->code, $item->type);
+        if ($itemType === null) {
+            return false;
+        }
+
+        return $parser->hasMinimumIdentityStructure((string) $item->code, $itemType);
     }
 
     /**
@@ -339,7 +344,7 @@ class LegacyItemConverterService
     ): ItemIdentityConversionRun {
         $parser = $this->makeParser();
         $items = $items
-            ->filter(fn (Item $item) => $item->type === $itemType)
+            ->filter(fn (Item $item) => $parser->resolveItemType($item) === $itemType)
             ->filter(fn (Item $item) => $this->isPendingConversion($item))
             ->filter(fn (Item $item) => $this->isStructurallyEligible($item, $parser))
             ->values();
@@ -494,7 +499,7 @@ class LegacyItemConverterService
 
     protected function applyParse(Item $item, LegacyParseResult $parse): void
     {
-        $itemType = $item->type;
+        $itemType = $this->makeParser()->resolveItemType($item);
         $warnaTag = Tag::query()
             ->where('type', Tag::TYPE_WARNA)
             ->whereRaw('UPPER(code) = ?', [strtoupper((string) $parse->warnaCode)])
@@ -635,7 +640,7 @@ class LegacyItemConverterService
             return false;
         }
 
-        if ($item->type === ItemType::ITEM) {
+        if ($this->makeParser()->resolveItemType($item) === ItemType::ITEM) {
             return $item->tags->contains(fn (Tag $tag) => $tag->type === Tag::TYPE_TYPE)
                 && $item->tags->contains(fn (Tag $tag) => $tag->type === Tag::TYPE_JAHIT);
         }
