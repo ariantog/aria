@@ -46,6 +46,28 @@ test('cash in transaction can be stored', function () {
     ]);
 });
 
+test('cash in accepts decimal totals', function () {
+    $user = User::factory()->create();
+    $bank = Addrbook::factory()->create(['type' => Addrbook::TYPE_BANK]);
+    $customer = Addrbook::factory()->create(['type' => Addrbook::TYPE_CUSTOMER]);
+
+    $this->actingAs($user)->post(route('transactions.cash-in.store'), [
+        'date' => now()->format('Y-m-d'),
+        'account_id' => $bank->id,
+        'items' => [
+            [
+                'customer_id' => $customer->id,
+                'total' => 1234.56,
+            ],
+        ],
+    ])->assertRedirect();
+
+    $this->assertDatabaseHas('transactions', [
+        'type' => Transaction::TYPE_CASH_IN,
+        'real_total' => 1234.56,
+    ]);
+});
+
 test('multiple cash in rows create multiple transactions', function () {
     $user = User::factory()->create();
     $bank = Addrbook::factory()->create(['type' => Addrbook::TYPE_BANK]);

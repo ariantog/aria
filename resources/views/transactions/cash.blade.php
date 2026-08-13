@@ -172,7 +172,7 @@ $config = [
                                        class="{{ $rowInput }}">
                             </div>
                             <div class="col-span-2">
-                                <input type="number" x-model.number="row.total" placeholder="0" min="0"
+                                <input type="number" x-model.number="row.total" placeholder="0" min="0" step="any"
                                        @keydown="fieldKeydown(idx, 'total', $event)"
                                        @keyup="fieldKeyup(idx, 'total', $event)"
                                        :id="'total_' + idx"
