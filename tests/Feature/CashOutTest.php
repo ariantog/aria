@@ -83,3 +83,25 @@ test('multiple cash out rows create multiple transactions', function () {
         'balance' => -2000,
     ]);
 });
+
+test('cash out accepts decimal totals', function () {
+    $user = User::factory()->create();
+    $bank = Addrbook::factory()->create(['type' => Addrbook::TYPE_BANK]);
+    $recipient = Addrbook::factory()->create(['type' => Addrbook::TYPE_CUSTOMER]);
+
+    $this->actingAs($user)->post(route('transactions.cash-out.store'), [
+        'date' => now()->format('Y-m-d'),
+        'account_id' => $bank->id,
+        'items' => [
+            [
+                'customer_id' => $recipient->id,
+                'total' => 99.75,
+            ],
+        ],
+    ])->assertRedirect();
+
+    $this->assertDatabaseHas('transactions', [
+        'type' => Transaction::TYPE_CASH_OUT,
+        'real_total' => -99.75,
+    ]);
+});

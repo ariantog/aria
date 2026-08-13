@@ -35,3 +35,25 @@ test('StoreItemTransactionRequest allows valid sell', function () {
         'items' => [['item_id' => $item->id, 'quantity' => 1, 'price' => 50000]],
     ])->assertRedirect();
 });
+
+test('StoreItemTransactionRequest allows fractional item quantities', function () {
+    $item = Item::factory()->create();
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    $customer = Addrbook::factory()->customer()->create();
+    \App\Models\WarehouseItem::create(['warehouse_id' => $warehouse->id, 'item_id' => $item->id, 'quantity' => 100]);
+
+    $this->actingAs($this->user)->postJson(route('transactions.store'), [
+        'date' => now()->toDateString(),
+        'type' => 'sell',
+        'sender_id' => $warehouse->id,
+        'receiver_id' => $customer->id,
+        'items' => [['item_id' => $item->id, 'quantity' => 2.5, 'price' => 10000]],
+    ])->assertRedirect();
+
+    $this->assertDatabaseHas('transaction_details', [
+        'item_id' => $item->id,
+        'quantity' => 2.5,
+        'price' => 10000,
+        'total' => 25000,
+    ]);
+});

@@ -273,7 +273,7 @@
                                        @keydown="rowKeydown(idx, 'qty', $event)"
                                        @keyup="rowKeyup(idx, 'qty', $event)"
                                        enterkeyhint="next"
-                                       min="0" step="1"
+                                       min="0" step="any"
                                        class="{{ $rowInput }} text-center"
                                        :class="isOverStock(item) ? 'border-red-400 text-red-700' : ''">
                             </div>
@@ -343,6 +343,7 @@
                     <div class="flex items-center justify-between text-sm">
                         <label class="text-gray-500">Adjustment</label>
                         <input type="number" x-model.number="form.adjustment" @input="recalcTotals()"
+                               step="any"
                                class="w-24 rounded border border-gray-200 px-2 py-1 text-right text-sm focus:border-blue-500">
                     </div>
                     @endif
@@ -544,7 +545,7 @@ function createTransaction() {
             row.name = source.name || source.product_name || '';
             row.price = Number(source[_PriceSource] ?? source.price ?? source.cost) || 0;
             row.warehouse_item = this.warehouseItemsFrom(source);
-            if (!row.quantity || row.quantity < 1) row.quantity = 1;
+            if (!row.quantity || row.quantity < 0.01) row.quantity = 1;
             row.warehouse_stock = this.stockFor(row);
             row.results = [];
             row.showDropdown = false;
