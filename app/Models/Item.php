@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\ItemBrand;
 use App\Enums\ItemType;
 use App\Support\FillsProductionColumnDefaults;
+use App\Support\LikeSearch;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -17,7 +18,7 @@ use Illuminate\Support\Facades\DB;
 
 class Item extends Model
 {
-    use HasFactory, SoftDeletes, FillsProductionColumnDefaults;
+    use FillsProductionColumnDefaults, HasFactory, SoftDeletes;
 
     protected $fillable = [
         'group_id',
@@ -95,12 +96,18 @@ class Item extends Model
     // Scopes
     public function scopeSearch(Builder $query, string $term): void
     {
-        $query->where(function ($q) use ($term) {
-            $q->where('name', 'like', "%{$term}%")
-                ->orWhere('code', 'like', "{$term}%")
-                ->orWhere('legacy_code', 'like', "{$term}%")
-                ->orWhere('pcode', 'like', "{$term}%")
-                ->orWhere('id', $term);
+        $contains = LikeSearch::contains($term);
+        $prefix = LikeSearch::prefix($term);
+
+        $query->where(function ($q) use ($term, $contains, $prefix) {
+            $q->where('name', 'like', $contains)
+                ->orWhere('code', 'like', $prefix)
+                ->orWhere('legacy_code', 'like', $prefix)
+                ->orWhere('pcode', 'like', $prefix);
+
+            if (ctype_digit(trim($term))) {
+                $q->orWhere('id', (int) trim($term));
+            }
         });
     }
 

@@ -118,3 +118,20 @@ it('finds an item by numeric id through the items search json endpoint', functio
         ->and($match['name'])->toBe('Warehouse Tee')
         ->and($match['code'])->toBe('WH-TEE-01');
 });
+
+it('finds items when spaces separate name tokens', function () {
+    $this->user->givePermissionTo('items-list');
+
+    Item::factory()->create(['name' => 'Soft Edition Elbow', 'code' => 'ELB-01']);
+    Item::factory()->create(['name' => 'Soft Edition Knee', 'code' => 'KNE-01']);
+    Item::factory()->create(['name' => 'Hard Edition Elbow', 'code' => 'HEL-01']);
+
+    $names = collect($this->actingAs($this->user)
+        ->getJson('/items?search='.urlencode('Soft Elbow').'&json=1')
+        ->assertSuccessful()
+        ->json())->pluck('name');
+
+    expect($names)->toContain('Soft Edition Elbow')
+        ->not->toContain('Soft Edition Knee')
+        ->not->toContain('Hard Edition Elbow');
+});

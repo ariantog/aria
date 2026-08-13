@@ -8,8 +8,8 @@ use App\Enums\TransactionType;
 use App\Http\Requests\StoreAddrbookRequest;
 use App\Http\Requests\UpdateAddrbookRequest;
 use App\Models\Addrbook;
-use App\Models\Location;
 use App\Models\StatSell;
+use App\Support\LikeSearch;
 use Illuminate\Support\Facades\Gate;
 
 class AddrbookController extends Controller
@@ -33,15 +33,19 @@ class AddrbookController extends Controller
             ->when(request('trashed') === 'only', fn ($q) => $q->onlyTrashed())
             ->when($typeId, fn ($q) => $q->where('type', $typeId))
             ->when(request('type') && ! $typeId, fn ($q) => $q->where('type', request('type')))
-            ->when($s = request('search'), fn ($q) => $q->where(fn ($q) => $q
-                ->where('name', 'like', "%{$s}%")
-                ->orWhere('contact_person', 'like', "%{$s}%")
-                ->orWhere('id', 'like', "%{$s}%")
-                ->orWhere('phone', 'like', "%{$s}%")
-                ->orWhere('memberId', 'like', "%{$s}%")
-                ->orWhere('description', 'like', "%{$s}%")
-                ->orWhere('address', 'like', "%{$s}%")
-            ))
+            ->when($s = request('search'), function ($q) use ($s) {
+                $pattern = LikeSearch::contains($s);
+
+                return $q->where(fn ($q) => $q
+                    ->where('name', 'like', $pattern)
+                    ->orWhere('contact_person', 'like', $pattern)
+                    ->orWhere('id', 'like', $pattern)
+                    ->orWhere('phone', 'like', $pattern)
+                    ->orWhere('memberId', 'like', $pattern)
+                    ->orWhere('description', 'like', $pattern)
+                    ->orWhere('address', 'like', $pattern)
+                );
+            })
             ->latest();
 
         // Combobox / autocomplete requests (?json=1)

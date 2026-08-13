@@ -8,6 +8,7 @@ use App\Models\Addrbook;
 use App\Models\RestockSheet;
 use App\Services\Restock\RestockSettingsService;
 use App\Services\Restock\RestockSheetService;
+use App\Support\LikeSearch;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -69,9 +70,10 @@ class RestockSettingsController extends Controller
         $query = Addrbook::query()->where('type', $addrbookType);
 
         if ($search = $request->input('search')) {
-            $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                    ->orWhere('id', 'like', "%{$search}%");
+            $pattern = LikeSearch::contains($search);
+            $query->where(function ($q) use ($pattern) {
+                $q->where('name', 'like', $pattern)
+                    ->orWhere('id', 'like', $pattern);
             });
         }
 
