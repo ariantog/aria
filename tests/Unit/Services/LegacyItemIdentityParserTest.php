@@ -192,6 +192,40 @@ describe('minimum identity structure', function () {
     });
 });
 
+describe('unsupported item types', function () {
+    it('returns failure for asset tetap without reading value on int', function () {
+        $item = Item::factory()->make([
+            'type' => ItemType::ASSET_TETAP->value,
+            'code' => 'FOO-01-BAR',
+        ]);
+
+        $result = $this->parser->parse($item);
+
+        expect($result->success)->toBeFalse()
+            ->and($result->failureCode)->toBe(LegacyItemIdentityParser::FAILURE_SKU_UNPARSEABLE)
+            ->and($result->snapshot['type'])->toBe(ItemType::ASSET_TETAP->value);
+    });
+
+    it('parses manufactured items when type is stored as int', function () {
+        $warna = Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'NAVY', 'name' => 'NAVY']);
+
+        $item = Item::factory()->create([
+            'type' => ItemType::ITEM->value,
+            'code' => 'AJJ-PL25129-06-XL',
+            'pcode' => 'PL25129-06',
+        ]);
+        $item->tags()->sync([
+            $this->typeTags->first()->id,
+            $warna->id,
+        ]);
+
+        $result = $this->parser->parse($item->fresh('tags'));
+
+        expect($result->success)->toBeTrue()
+            ->and($result->canonicalCode)->toBe('AJJ-PL25129-06-XL');
+    });
+});
+
 describe('Bahasa color scan', function () {
     it('detects Indonesian color words', function () {
         expect($this->parser->scanBahasaColor('warna hitam pekat'))->toBe([
