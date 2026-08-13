@@ -116,6 +116,39 @@ it('treats users without location as unrestricted', function () {
     expect($visible)->toContain($this->addrbookA->id, $this->addrbookB->id);
 });
 
+it('treats users with legacy location_id zero as unrestricted', function () {
+    $service = app(LocationAccessService::class);
+    $legacyUser = User::factory()->make(['location_id' => 0]);
+
+    expect($service->hasUnrestrictedLocationAccess($legacyUser))->toBeTrue();
+
+    $visible = Addrbook::query()->visibleToUser($legacyUser)->pluck('id');
+
+    expect($visible)->toContain($this->addrbookA->id, $this->addrbookB->id);
+});
+
+it('shows all transactions when user has no location assignment', function () {
+    $unrestricted = User::factory()->create(['location_id' => null]);
+    $unrestricted->givePermissionTo('transactions-list');
+
+    $visibleTx = Transaction::factory()->create([
+        'invoice' => 'NOLOC-VISIBLE-TX',
+        'sender_id' => $this->addrbookA->id,
+        'receiver_id' => $this->addrbookB->id,
+    ]);
+    $hiddenTx = Transaction::factory()->create([
+        'invoice' => 'NOLOC-OTHER-LOC-TX',
+        'sender_id' => $this->addrbookB->id,
+        'receiver_id' => $this->addrbookB->id,
+    ]);
+
+    $this->actingAs($unrestricted)
+        ->get(route('transactions.index'))
+        ->assertOk()
+        ->assertSee('NOLOC-VISIBLE-TX')
+        ->assertSee('NOLOC-OTHER-LOC-TX');
+});
+
 it('filters the transactions index by location', function () {
     $visibleTx = Transaction::factory()->create([
         'invoice' => 'LOC-VISIBLE-TX',

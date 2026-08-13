@@ -14,6 +14,7 @@ class LocationAccessService
 {
     /**
      * Superadmin and users without a location see all customers / transactions.
+     * Legacy rows may store an unset location as 0 instead of NULL.
      */
     public function hasUnrestrictedLocationAccess(?User $user): bool
     {
@@ -25,7 +26,7 @@ class LocationAccessService
             return true;
         }
 
-        return $user->location_id === null;
+        return (int) $user->location_id <= 0;
     }
 
     public function applyAddrbookScope(Builder $query, ?User $user): Builder
