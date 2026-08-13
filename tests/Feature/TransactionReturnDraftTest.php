@@ -144,10 +144,26 @@ it('shows the return button on buy, sell, and move detail pages', function () {
     $move = Transaction::factory()->create(['type' => Transaction::TYPE_MOVE]);
     $cashIn = Transaction::factory()->create(['type' => Transaction::TYPE_CASH_IN]);
 
-    $this->actingAs($this->user)->get(route('transactions.show', $sell))->assertOk()->assertSee('data-testid="draft-return-button"', false);
-    $this->actingAs($this->user)->get(route('transactions.show', $buy))->assertOk()->assertSee('data-testid="draft-return-button"', false);
-    $this->actingAs($this->user)->get(route('transactions.show', $move))->assertOk()->assertSee('data-testid="draft-return-button"', false);
-    $this->actingAs($this->user)->get(route('transactions.show', $cashIn))->assertOk()->assertDontSee('data-testid="draft-return-button"', false);
+    $sellUrl = route('transactions.create', ['type' => 'return', 'from' => $sell->id]);
+    $buyUrl = route('transactions.create', ['type' => 'return-supplier', 'from' => $buy->id]);
+    $moveUrl = route('transactions.create', ['type' => 'move', 'from' => $move->id]);
+
+    $this->actingAs($this->user)->get(route('transactions.show', $sell))
+        ->assertOk()
+        ->assertSee($sellUrl, false)
+        ->assertDontSee('/draft-return', false);
+    $this->actingAs($this->user)->get(route('transactions.show', $buy))
+        ->assertOk()
+        ->assertSee($buyUrl, false)
+        ->assertDontSee('/draft-return', false);
+    $this->actingAs($this->user)->get(route('transactions.show', $move))
+        ->assertOk()
+        ->assertSee($moveUrl, false)
+        ->assertDontSee('/draft-return', false);
+    $this->actingAs($this->user)->get(route('transactions.show', $cashIn))
+        ->assertOk()
+        ->assertDontSee('data-testid="draft-return-button"', false)
+        ->assertDontSee('/draft-return', false);
 });
 
 it('submits a drafted return transaction with the same invoice and line totals', function () {
