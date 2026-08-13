@@ -50,11 +50,8 @@ it('drafts a return from a sell transaction with swapped parties and prefilled r
     ]);
 
     $this->actingAs($this->user)
-        ->post(route('transactions.draft-return', $sell))
-        ->assertRedirect(route('transactions.create', ['type' => 'return']));
-
-    $page = $this->actingAs($this->user)->get(route('transactions.create', ['type' => 'return']));
-    $page->assertOk()
+        ->get(route('transactions.create', ['type' => 'return', 'from' => $sell->id]))
+        ->assertOk()
         ->assertSee('Toko Maju', false)
         ->assertSee('Gudang Pusat', false)
         ->assertSee('INV-RET-001', false)
@@ -89,11 +86,7 @@ it('drafts a return supplier from a buy transaction', function () {
     ]);
 
     $this->actingAs($this->user)
-        ->post(route('transactions.draft-return', $buy))
-        ->assertRedirect(route('transactions.create', ['type' => 'return-supplier']));
-
-    $this->actingAs($this->user)
-        ->get(route('transactions.create', ['type' => 'return-supplier']))
+        ->get(route('transactions.create', ['type' => 'return-supplier', 'from' => $buy->id]))
         ->assertOk()
         ->assertSee('Gudang Utama', false)
         ->assertSee('PT Sumber', false)
@@ -135,11 +128,7 @@ it('drafts an opposite move from a move transaction', function () {
     ]);
 
     $this->actingAs($this->user)
-        ->post(route('transactions.draft-return', $move))
-        ->assertRedirect(route('transactions.create', ['type' => 'move']));
-
-    $this->actingAs($this->user)
-        ->get(route('transactions.create', ['type' => 'move']))
+        ->get(route('transactions.create', ['type' => 'move', 'from' => $move->id]))
         ->assertOk()
         ->assertSee('Gudang B', false)
         ->assertSee('Gudang A', false)
@@ -194,8 +183,6 @@ it('submits a drafted return transaction with the same invoice and line totals',
         'total' => 80_000,
     ]);
 
-    $this->actingAs($this->user)->post(route('transactions.draft-return', $sell));
-
     $response = $this->actingAs($this->user)->post(route('transactions.store'), [
         'date' => now()->toDateString(),
         'type' => 'return',
@@ -226,11 +213,58 @@ it('submits a drafted return transaction with the same invoice and line totals',
         ->and((float) $return->real_total)->toBe(80_000.0);
 });
 
-it('rejects drafting a return from unsupported transaction types', function () {
+it('rejects return prefill from unsupported transaction types', function () {
     $cashIn = Transaction::factory()->create(['type' => Transaction::TYPE_CASH_IN]);
     TransactionDetail::factory()->create(['transaction_id' => $cashIn->id]);
 
     $this->actingAs($this->user)
-        ->post(route('transactions.draft-return', $cashIn))
+        ->get(route('transactions.create', ['type' => 'return', 'from' => $cashIn->id]))
         ->assertStatus(422);
+});
+
+it('loads a large sell transaction return prefill from the source id query param', function () {
+    $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'Gudang Besar']);
+    $customer = Addrbook::factory()->customer()->create(['name' => 'Toko Besar']);
+
+    $sell = Transaction::factory()->create([
+        'type' => Transaction::TYPE_SELL,
+        'invoice' => 'INV-LARGE-001',
+        'sender_id' => $warehouse->id,
+        'receiver_id' => $customer->id,
+        'sender_type' => (string) Addrbook::TYPE_WAREHOUSE,
+        'receiver_type' => (string) Addrbook::TYPE_CUSTOMER,
+        'real_total' => -5_000_000,
+        'total' => 5_000_000,
+    ]);
+
+    for ($i = 1; $i <= 150; $i++) {
+        $item = Item::factory()->create([
+            'name' => "Bulk Item {$i}",
+            'code' => sprintf('BLK-%03d', $i),
+            'price' => 10_000 + $i,
+        ]);
+
+        WarehouseItem::create([
+            'warehouse_id' => $warehouse->id,
+            'item_id' => $item->id,
+            'warehouse_type' => Addrbook::TYPE_WAREHOUSE,
+            'quantity' => 100,
+        ]);
+
+        TransactionDetail::factory()->create([
+            'transaction_id' => $sell->id,
+            'item_id' => $item->id,
+            'quantity' => 2,
+            'price' => 10_000 + $i,
+            'discount' => 0,
+            'total' => (10_000 + $i) * 2,
+        ]);
+    }
+
+    $this->actingAs($this->user)
+        ->get(route('transactions.create', ['type' => 'return', 'from' => $sell->id]))
+        ->assertOk()
+        ->assertSee('INV-LARGE-001', false)
+        ->assertSee('Bulk Item 1', false)
+        ->assertSee('Bulk Item 150', false);
 });
