@@ -66,6 +66,20 @@
         WhatsApp
     </button>
 
+    @php
+        $returnCreateUrl ??= (function () use ($can, $transaction) {
+            if (! ($can['return_draft'] ?? false)) {
+                return null;
+            }
+
+            $returnType = app(\App\Services\TransactionReturnDraftService::class)->targetTypeSlug($transaction);
+
+            return $returnType
+                ? route('transactions.create', ['type' => $returnType, 'from' => $transaction->id])
+                : null;
+        })();
+    @endphp
+
     @if(($can['return_draft'] ?? false) || ($can['delete_transaction'] ?? false))
     {{-- More actions --}}
     <div class="relative" x-data="{ open: false }">
