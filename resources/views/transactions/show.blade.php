@@ -261,6 +261,9 @@
                         </div>
                         <div class="flex flex-col">
                             <div class="font-bold text-gray-900">{{ $item?->name }}</div>
+                            @if($item?->code)
+                            <div class="font-mono text-[10px] text-gray-500">{{ $item?->code }}</div>
+                            @endif
                             <div class="flex flex-wrap gap-2 pt-1">
                                 <span class="font-mono text-[10px] font-medium text-blue-600" x-show="showBarcode">#{{ $item?->id }}</span>
                                 @if($item?->code)
@@ -292,7 +295,9 @@
                     {{-- Desktop: Name --}}
                     <div class="hidden sm:flex flex-col print:flex" :class="nameColSpan">
                         <span class="font-bold text-gray-900">{{ $item?->name }}</span>
-                        <span class="mt-0.5 line-clamp-1 text-[10px] leading-tight italic text-gray-500">{{ $detail->notes ?: $item?->description }}</span>
+                        @if($item?->code)
+                        <span class="mt-0.5 line-clamp-1 font-mono text-[10px] leading-tight text-gray-500">{{ $item?->code }}</span>
+                        @endif
                     </div>
 
                     <div class="flex items-center justify-between sm:col-span-1 sm:block sm:text-center print:block print:text-center">
