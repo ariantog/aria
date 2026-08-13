@@ -53,6 +53,11 @@ it('drafts a return from a sell transaction with swapped parties and prefilled r
         ->post(route('transactions.draft-return', $sell))
         ->assertRedirect(route('transactions.create', ['type' => 'return']));
 
+    expect(session('transaction_return_prefill'))->toMatchArray([
+        'type' => 'return',
+        'source_transaction_id' => $sell->id,
+    ]);
+
     $page = $this->actingAs($this->user)->get(route('transactions.create', ['type' => 'return']));
     $page->assertOk()
         ->assertSee('Toko Maju', false)
@@ -233,4 +238,62 @@ it('rejects drafting a return from unsupported transaction types', function () {
     $this->actingAs($this->user)
         ->post(route('transactions.draft-return', $cashIn))
         ->assertStatus(422);
+});
+
+it('drafts a return for a large sell transaction without bloating session storage', function () {
+    $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'Gudang Besar']);
+    $customer = Addrbook::factory()->customer()->create(['name' => 'Toko Besar']);
+
+    $sell = Transaction::factory()->create([
+        'type' => Transaction::TYPE_SELL,
+        'invoice' => 'INV-LARGE-001',
+        'sender_id' => $warehouse->id,
+        'receiver_id' => $customer->id,
+        'sender_type' => (string) Addrbook::TYPE_WAREHOUSE,
+        'receiver_type' => (string) Addrbook::TYPE_CUSTOMER,
+        'real_total' => -5_000_000,
+        'total' => 5_000_000,
+    ]);
+
+    for ($i = 1; $i <= 150; $i++) {
+        $item = Item::factory()->create([
+            'name' => "Bulk Item {$i}",
+            'code' => sprintf('BLK-%03d', $i),
+            'price' => 10_000 + $i,
+        ]);
+
+        WarehouseItem::create([
+            'warehouse_id' => $warehouse->id,
+            'item_id' => $item->id,
+            'warehouse_type' => Addrbook::TYPE_WAREHOUSE,
+            'quantity' => 100,
+        ]);
+
+        TransactionDetail::factory()->create([
+            'transaction_id' => $sell->id,
+            'item_id' => $item->id,
+            'quantity' => 2,
+            'price' => 10_000 + $i,
+            'discount' => 0,
+            'total' => (10_000 + $i) * 2,
+        ]);
+    }
+
+    $this->actingAs($this->user)
+        ->post(route('transactions.draft-return', $sell))
+        ->assertRedirect(route('transactions.create', ['type' => 'return']));
+
+    $sessionPayload = session('transaction_return_prefill');
+    expect($sessionPayload)->toMatchArray([
+        'type' => 'return',
+        'source_transaction_id' => $sell->id,
+    ])
+        ->and(strlen(json_encode($sessionPayload)))->toBeLessThan(200);
+
+    $this->actingAs($this->user)
+        ->get(route('transactions.create', ['type' => 'return']))
+        ->assertOk()
+        ->assertSee('INV-LARGE-001', false)
+        ->assertSee('Bulk Item 1', false)
+        ->assertSee('Bulk Item 150', false);
 });

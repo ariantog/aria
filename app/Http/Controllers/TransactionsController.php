@@ -277,7 +277,10 @@ class TransactionsController extends Controller
 
         $prefill = $draftService->buildPrefill($transaction);
         session([
-            'transaction_return_prefill' => array_merge($prefill, ['type' => $targetType]),
+            'transaction_return_prefill' => [
+                'type' => $targetType,
+                'source_transaction_id' => $transaction->id,
+            ],
         ]);
 
         return redirect()->route('transactions.create', ['type' => $targetType]);
@@ -460,15 +463,28 @@ class TransactionsController extends Controller
     /**
      * @return array<string, mixed>|null
      */
-    private function pullReturnPrefill(string $type): ?array
+    private function pullReturnPrefill(string $type, ?TransactionReturnDraftService $draftService = null): ?array
     {
-        $prefill = session()->pull('transaction_return_prefill');
-        if (! is_array($prefill) || ($prefill['type'] ?? null) !== $type) {
+        $stored = session()->pull('transaction_return_prefill');
+        if (! is_array($stored) || ($stored['type'] ?? null) !== $type) {
             return null;
         }
-        unset($prefill['type']);
 
-        return $prefill;
+        if (isset($stored['source_transaction_id'])) {
+            $transaction = Transaction::find($stored['source_transaction_id']);
+            if (! $transaction) {
+                return null;
+            }
+
+            $this->authorizeTransactionView($transaction);
+
+            return ($draftService ?? app(TransactionReturnDraftService::class))->buildPrefill($transaction);
+        }
+
+        // Legacy sessions may still hold the full prefill payload.
+        unset($stored['type']);
+
+        return $stored !== [] ? $stored : null;
     }
 
     private function filteredTransactionsQuery(Request $request): Builder
