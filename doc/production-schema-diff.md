@@ -60,8 +60,12 @@ Prod keeps legacy `restocks` / `restock_histories` — L12 restock uses the new 
 | `tags` | `created_at`, `updated_at` |
 | `warehouse_compares` | rename `werehouse_id` → `warehouse_id` |
 | `karyawans`, `cutis` | `deleted_at` |
+| `prod_produksi` | `user_id`, `qc_*`, `pritil_*`, `original_id`, `transaction_id` — all `INT(11)`, not BIGINT |
+| `customers` | `operation_id` — `INT(11)` FK to `operations.id` |
 
 Production bootstrap also runs `2026_08_13_120000_add_production_not_null_column_defaults` — adds `DEFAULT` on every MySQL `NOT NULL` column that lacks one (except `users` and primary keys). See `doc/production-not-null-audit.md` for the full table list.
+
+`2026_08_13_130000_fix_production_bigint_columns_to_int` corrects any BIGINT columns from an earlier align/install run (`operation_id`, `prod_produksi.*_id`, `product_performance_rollups.warehouse_id`).
 
 L10 columns that L12 **ignores** but leaves in place: `customers.phone2`, `category`, `customerstat.rating`, etc. See `doc/schema-decisions.md`.
 
