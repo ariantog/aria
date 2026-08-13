@@ -23,6 +23,7 @@ beforeEach(function () {
 
     $this->warnaTags = collect([
         Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'BLACK', 'name' => 'BLACK']),
+        Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'WHITE', 'name' => 'WHITE']),
         Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'POWDERWHITE', 'name' => 'POWDERWHITE']),
         Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'MARBLEPINK', 'name' => 'MARBLEPINK']),
         Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'BLUE', 'name' => 'BLUE']),
@@ -238,5 +239,32 @@ describe('Bahasa color scan', function () {
         $scan = $this->parser->scanBahasaColor('hitam dan merah');
 
         expect($scan['ambiguous'])->toBeTrue();
+    });
+});
+
+describe('warna extraction from legacy asset remainders', function () {
+    it('maps PUTIH hardware suffix to WHITE instead of creating junk tag', function () {
+        $item = makeAssetItem('ZIPPER-01-PUTIH-6-PA', 'ZIPPER - PUTIH 6 PA');
+        $result = $this->parser->parse($item);
+
+        expect($result->success)->toBeTrue()
+            ->and($result->warnaCode)->toBe('WHITE')
+            ->and($result->canonicalCode)->toBe('ZIPPER-01-WHITE');
+    });
+
+    it('maps HITAM hardware suffix to BLACK', function () {
+        $item = makeAssetItem('ZIPPER-02-HITAM-45-YKK', 'ZIPPER - HITAM 45 YKK');
+        $result = $this->parser->parse($item);
+
+        expect($result->success)->toBeTrue()
+            ->and($result->warnaCode)->toBe('BLACK');
+    });
+
+    it('rejects non-color remainders like XS-01-NT', function () {
+        $item = makeAssetItem('PRODUCT-01-XS-01-NT', 'PRODUCT - XS-01 NT');
+        $result = $this->parser->parse($item);
+
+        expect($result->success)->toBeFalse()
+            ->and($result->failureCode)->toBe(LegacyItemIdentityParser::FAILURE_WARNA_MISSING);
     });
 });

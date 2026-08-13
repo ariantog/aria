@@ -52,6 +52,9 @@ class LegacyItemIdentityParser
     /** @var Collection<string, Tag> */
     private Collection $warnaTagsByCode;
 
+    /** @var Collection<int, Tag> */
+    private Collection $warnaTagsByCodeLength;
+
     /** @var Collection<string, Tag> */
     private Collection $typeTagsByCode;
 
@@ -77,6 +80,9 @@ class LegacyItemIdentityParser
             ->values();
 
         $this->warnaTagsByCode = $warnaTags->keyBy(fn (Tag $tag) => strtoupper($tag->code));
+        $this->warnaTagsByCodeLength = $warnaTags
+            ->sortByDesc(fn (Tag $tag) => strlen((string) $tag->code))
+            ->values();
         $this->typeTagsByCode = $typeTags->keyBy(fn (Tag $tag) => strtoupper($tag->code));
         $this->allSizeTag = $allSizeTag ?? $sizeTags->first(
             fn (Tag $tag) => strtoupper($tag->code) === ItemIdentityBuilder::ALL_SIZE_CODE
@@ -562,6 +568,10 @@ class LegacyItemIdentityParser
             return $this->warnaTagsByCode->get($warnaCode);
         }
 
+        if (! $this->isValidAutoCreateWarnaCode($warnaCode)) {
+            throw new InvalidArgumentException("Invalid warna code: {$warnaCode}");
+        }
+
         $attributes = Tag::normalizeWarnaAttributes([
             'type' => Tag::TYPE_WARNA,
             'name' => $warnaCode,
@@ -583,21 +593,72 @@ class LegacyItemIdentityParser
     {
         $remainder = strtoupper(trim($remainder));
 
-        if (! $sizeTag) {
-            return $remainder;
+        if ($sizeTag) {
+            $code = strtoupper((string) $sizeTag->code);
+
+            if ($remainder === $code) {
+                return '';
+            }
+
+            if (str_ends_with($remainder, '-'.$code)) {
+                $remainder = substr($remainder, 0, -strlen('-'.$code));
+            }
         }
 
-        $code = strtoupper((string) $sizeTag->code);
+        $remainder = trim((string) $remainder, '-');
 
-        if ($remainder === $code) {
+        if ($remainder === '') {
             return '';
         }
 
-        if (str_ends_with($remainder, '-'.$code)) {
-            return substr($remainder, 0, -strlen('-'.$code));
+        if ($this->warnaTagsByCode->has($remainder)) {
+            return $remainder;
         }
 
-        return $remainder;
+        foreach ($this->warnaTagsByCodeLength as $tag) {
+            $code = strtoupper((string) $tag->code);
+
+            if ($remainder === $code || str_starts_with($remainder, $code.'-')) {
+                return $code;
+            }
+        }
+
+        $firstSegment = explode('-', $remainder, 2)[0];
+        $mapped = $this->mapBahasaColorToken($firstSegment);
+
+        if ($mapped !== null) {
+            return $mapped;
+        }
+
+        if (preg_match('/^[A-Z]+$/', $remainder)) {
+            return $remainder;
+        }
+
+        if (! preg_match('/[0-9]/', $remainder) && str_contains($remainder, '-')) {
+            $joined = str_replace('-', '', $remainder);
+
+            if ($this->warnaTagsByCode->has($joined)) {
+                return $joined;
+            }
+
+            if (preg_match('/^[A-Z]+$/', $joined)) {
+                return $joined;
+            }
+        }
+
+        return '';
+    }
+
+    protected function mapBahasaColorToken(string $token): ?string
+    {
+        $token = mb_strtolower(trim($token));
+
+        return self::BAHASA_COLOR_MAP[$token] ?? null;
+    }
+
+    protected function isValidAutoCreateWarnaCode(string $code): bool
+    {
+        return (bool) preg_match('/^[A-Z]+$/', $code);
     }
 
     protected function deriveAssetGroupName(Item $item, string $pcode): string
