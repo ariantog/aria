@@ -1,5 +1,6 @@
 <?php
 
+use App\Support\ProductionMysqlCompat;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
@@ -41,38 +42,7 @@ return new class extends Migration
      */
     private function fixLegacyZeroDateTimestamps(string $table): void
     {
-        if (Schema::getConnection()->getDriverName() !== 'mysql' || ! Schema::hasTable($table)) {
-            return;
-        }
-
-        $columns = array_values(array_filter(
-            ['updated_at', 'created_at'],
-            fn (string $column) => Schema::hasColumn($table, $column),
-        ));
-
-        if ($columns === []) {
-            return;
-        }
-
-        DB::statement('SET @aria_old_sql_mode = @@SESSION.sql_mode');
-        DB::statement("SET SESSION sql_mode = REPLACE(REPLACE(@aria_old_sql_mode, 'NO_ZERO_DATE', ''), 'NO_ZERO_IN_DATE', '')");
-
-        try {
-            foreach ($columns as $column) {
-                DB::statement("
-                    UPDATE `{$table}`
-                    SET `{$column}` = NULL
-                    WHERE `{$column}` = '0000-00-00 00:00:00'
-                       OR `{$column}` = '0000-00-00'
-                ");
-            }
-
-            foreach ($columns as $column) {
-                DB::statement("ALTER TABLE `{$table}` MODIFY `{$column}` TIMESTAMP NULL DEFAULT NULL");
-            }
-        } finally {
-            DB::statement('SET SESSION sql_mode = @aria_old_sql_mode');
-        }
+        ProductionMysqlCompat::normalizeZeroDatesOnTable($table);
     }
 
     private function addrbookTable(): ?string

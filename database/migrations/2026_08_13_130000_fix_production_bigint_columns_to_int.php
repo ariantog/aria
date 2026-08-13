@@ -1,5 +1,6 @@
 <?php
 
+use App\Support\ProductionMysqlCompat;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -30,9 +31,11 @@ return new class extends Migration
                 continue;
             }
 
-            foreach ($columns as $column) {
-                $this->modifyIntIfBigint($table, $column);
-            }
+            ProductionMysqlCompat::alterTable($table, function () use ($table, $columns) {
+                foreach ($columns as $column) {
+                    $this->modifyIntIfBigint($table, $column);
+                }
+            });
         }
     }
 

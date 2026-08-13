@@ -1,5 +1,6 @@
 <?php
 
+use App\Support\ProductionMysqlCompat;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -34,6 +35,7 @@ return new class extends Migration
             ORDER BY TABLE_NAME, ORDINAL_POSITION
         ");
 
+        $byTable = [];
         foreach ($columns as $column) {
             if (in_array($column->TABLE_NAME, self::EXCLUDED_TABLES, true)) {
                 continue;
@@ -48,7 +50,15 @@ return new class extends Migration
                 continue;
             }
 
-            $this->applyDefault($column, $defaultSql);
+            $byTable[$column->TABLE_NAME][] = [$column, $defaultSql];
+        }
+
+        foreach ($byTable as $table => $alterations) {
+            ProductionMysqlCompat::alterTable($table, function () use ($alterations) {
+                foreach ($alterations as [$column, $defaultSql]) {
+                    $this->applyDefault($column, $defaultSql);
+                }
+            });
         }
     }
 
