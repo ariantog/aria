@@ -17,11 +17,21 @@ it('uses null for nullable zero-date columns', function () {
     expect(ProductionMysqlCompat::zeroDateReplacement('datetime', 'YES'))->toBe('NULL');
 });
 
-it('uses sentinel values for not-null zero-date columns', function () {
+it('uses null for timestamp and datetime even when not nullable', function () {
+    expect(ProductionMysqlCompat::zeroDateReplacement('datetime', 'NO'))->toBe('NULL');
+    expect(ProductionMysqlCompat::zeroDateReplacement('timestamp', 'NO'))->toBe('NULL');
+});
+
+it('uses sentinel values for other not-null zero-date columns', function () {
     expect(ProductionMysqlCompat::zeroDateReplacement('date', 'NO'))->toBe("'1970-01-01'");
-    expect(ProductionMysqlCompat::zeroDateReplacement('datetime', 'NO'))->toBe("'1970-01-01 00:00:00'");
-    expect(ProductionMysqlCompat::zeroDateReplacement('timestamp', 'NO'))->toBe("'1970-01-01 00:00:00'");
     expect(ProductionMysqlCompat::zeroDateReplacement('year', 'NO'))->toBe("'1970-01-01'");
+});
+
+it('builds relaxed temporal definitions without invalid timestamp defaults', function () {
+    expect(ProductionMysqlCompat::relaxedTemporalDefinition('timestamp'))
+        ->toBe('TIMESTAMP NULL DEFAULT NULL');
+    expect(ProductionMysqlCompat::relaxedTemporalDefinition('datetime'))
+        ->toBe('DATETIME NULL DEFAULT NULL');
 });
 
 it('no-ops zero-date normalization on sqlite', function () {

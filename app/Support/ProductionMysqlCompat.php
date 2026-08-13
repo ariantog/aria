@@ -100,13 +100,24 @@ class ProductionMysqlCompat
 
     public static function zeroDateReplacement(string $dataType, string $isNullable): string
     {
-        if ($isNullable === 'YES') {
+        $dataType = strtolower($dataType);
+
+        if ($isNullable === 'YES' || in_array($dataType, ['timestamp', 'datetime'], true)) {
             return 'NULL';
         }
 
-        return in_array($dataType, ['datetime', 'timestamp'], true)
-            ? "'1970-01-01 00:00:00'"
-            : "'1970-01-01'";
+        return "'1970-01-01'";
+    }
+
+    public static function relaxedTemporalDefinition(string $dataType): string
+    {
+        return match (strtolower($dataType)) {
+            'timestamp' => 'TIMESTAMP NULL DEFAULT NULL',
+            'datetime' => 'DATETIME NULL DEFAULT NULL',
+            'date' => 'DATE NULL DEFAULT NULL',
+            'year' => 'YEAR NULL DEFAULT NULL',
+            default => strtoupper($dataType).' NULL DEFAULT NULL',
+        };
     }
 
     private static function nullOutZeroDateValues(string $table): void
@@ -121,7 +132,18 @@ class ProductionMysqlCompat
 
         foreach ($columns as $column) {
             $name = $column->COLUMN_NAME;
-            $replacement = self::zeroDateReplacement($column->DATA_TYPE, $column->IS_NULLABLE);
+            $dataType = strtolower($column->DATA_TYPE);
+
+            if ($column->IS_NULLABLE !== 'YES' && in_array($dataType, ['timestamp', 'datetime'], true)) {
+                DB::statement(sprintf(
+                    'ALTER TABLE `%s` MODIFY `%s` %s',
+                    $table,
+                    $name,
+                    self::relaxedTemporalDefinition($dataType)
+                ));
+            }
+
+            $replacement = self::zeroDateReplacement($dataType, $column->IS_NULLABLE);
             $where = implode(' OR ', self::zeroDateWhereClauses($name));
 
             DB::statement("
@@ -152,20 +174,12 @@ class ProductionMysqlCompat
             }
 
             $dataType = strtolower($column->DATA_TYPE);
-            $nullability = $column->IS_NULLABLE === 'YES' ? 'NULL' : 'NOT NULL';
-            $defaultClause = $column->IS_NULLABLE === 'YES'
-                ? ' DEFAULT NULL'
-                : (in_array($dataType, ['datetime', 'timestamp'], true)
-                    ? " DEFAULT '1970-01-01 00:00:00'"
-                    : " DEFAULT '1970-01-01'");
 
             DB::statement(sprintf(
-                'ALTER TABLE `%s` MODIFY `%s` %s %s%s',
+                'ALTER TABLE `%s` MODIFY `%s` %s',
                 $table,
                 $column->COLUMN_NAME,
-                $column->COLUMN_TYPE,
-                $nullability,
-                $defaultClause
+                self::relaxedTemporalDefinition($dataType)
             ));
         }
     }
