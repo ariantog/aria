@@ -91,7 +91,7 @@ return new class extends Migration
 
         Schema::table($table, function (Blueprint $blueprint) use ($table) {
             if ($table === 'customers' && ! Schema::hasColumn($table, 'operation_id')) {
-                $blueprint->unsignedBigInteger('operation_id')->nullable()->after('ppn');
+                $blueprint->integer('operation_id')->nullable()->after('ppn');
             }
             if (! Schema::hasColumn($table, 'arrangement_enabled')) {
                 $blueprint->boolean('arrangement_enabled')->default(false);
@@ -173,12 +173,12 @@ return new class extends Migration
         Schema::table($table, function (Blueprint $blueprint) use ($table) {
             $columns = [
                 'user_id' => fn (Blueprint $b) => $b->unsignedInteger('user_id')->nullable(),
-                'qc_id' => fn (Blueprint $b) => $b->unsignedBigInteger('qc_id')->nullable(),
+                'qc_id' => fn (Blueprint $b) => $b->integer('qc_id')->nullable(),
                 'qc_date' => fn (Blueprint $b) => $b->dateTime('qc_date')->nullable(),
-                'pritil_id' => fn (Blueprint $b) => $b->unsignedBigInteger('pritil_id')->nullable(),
+                'pritil_id' => fn (Blueprint $b) => $b->integer('pritil_id')->nullable(),
                 'pritil_date' => fn (Blueprint $b) => $b->dateTime('pritil_date')->nullable(),
-                'original_id' => fn (Blueprint $b) => $b->unsignedBigInteger('original_id')->nullable(),
-                'transaction_id' => fn (Blueprint $b) => $b->unsignedBigInteger('transaction_id')->nullable(),
+                'original_id' => fn (Blueprint $b) => $b->integer('original_id')->nullable(),
+                'transaction_id' => fn (Blueprint $b) => $b->integer('transaction_id')->nullable(),
             ];
 
             foreach ($columns as $name => $callback) {

@@ -77,22 +77,49 @@ php artisan migrate:status
 
 You will see many migrations as “Pending”. That is expected.
 
-### 3b. Run the production bootstrap migration (one command)
+### 3b. Run migrations (pick one path)
+
+**Path A — full bootstrap (fresh prod copy, recommended):**
 
 ```bash
+php artisan config:clear
 php artisan migrate --path=database/migrations/2026_08_13_100000_production_database_bootstrap.php --force
 ```
 
-This runs **align** (guarded ALTERs on existing prod tables) then **install** (guarded CREATEs for L12-only tables). Fully idempotent.
+Runs: align → install → NOT NULL defaults → BIGINT→INT fix.
+
+**Path B — selective (existing DB, already partially migrated):**
+
+```bash
+php artisan config:clear
+
+# 1. ALTER existing prod tables (sessions, settings slug, items.qty, prod_produksi cols, …)
+php artisan migrate --path=database/migrations/2026_08_12_100000_align_production_schema.php --force
+
+# 2. CREATE L12-only tables only (scheduled_tasks, jobs, report rollups, restock sheets, …)
+php artisan migrate --path=database/migrations/2026_08_12_200000_install_l12_production_tables.php --force
+
+# 3. NOT NULL column defaults (fixes cash out / partial insert errors)
+php artisan migrate --path=database/migrations/2026_08_13_120000_add_production_not_null_column_defaults.php --force
+
+# 4. Fix BIGINT columns if align/install ran before INT fix (safe no-op otherwise)
+php artisan migrate --path=database/migrations/2026_08_13_130000_fix_production_bigint_columns_to_int.php --force
+```
+
+Settings-only if align was recorded before settings were added:
+
+```bash
+php artisan migrate --path=database/migrations/2026_08_12_210000_align_settings_table_for_l12.php --force
+```
 
 <details>
-<summary>Or run align + install separately (same result)</summary>
+<summary>Do not confuse these files</summary>
 
-```bash
-php artisan migrate --path=database/migrations/2026_08_13_100000_production_database_bootstrap.php --force
-```
-
-Use the separate settings migration only if align was recorded **before** settings alignment was added and bootstrap is not used.
+| File | What it does |
+|------|----------------|
+| `2026_08_13_100000_production_database_bootstrap` | **All of** align + install + defaults + INT fix |
+| `2026_08_12_210000_align_settings_table_for_l12` | Settings columns only — **not** column defaults |
+| `2026_08_13_120000_add_production_not_null_column_defaults` | MySQL `DEFAULT` on NOT NULL columns |
 
 </details>
 
@@ -260,8 +287,9 @@ SET SESSION sql_mode = @old_mode;
 # After DB clone + .env configured:
 php artisan config:clear
 php artisan migrate --path=database/migrations/2026_08_13_100000_production_database_bootstrap.php --force
-php artisan app:backfill-items-qty                    # optional
 php artisan db:seed --class=ProductionBootstrapSeeder --force
+php artisan settings:cleanup --seed
+php artisan app:backfill-items-qty                    # optional
 php artisan serve --host=0.0.0.0 --port=5000   # dev only; prod uses nginx/apache
 # Prod cron: * * * * * cd /path/to/aria && php artisan schedule:run
 ```

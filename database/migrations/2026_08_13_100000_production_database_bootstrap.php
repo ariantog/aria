@@ -19,6 +19,7 @@ return new class extends Migration
         (require __DIR__.'/2026_08_12_100000_align_production_schema.php')->up();
         (require __DIR__.'/2026_08_12_200000_install_l12_production_tables.php')->up();
         (require __DIR__.'/2026_08_13_120000_add_production_not_null_column_defaults.php')->up();
+        (require __DIR__.'/2026_08_13_130000_fix_production_bigint_columns_to_int.php')->up();
     }
 
     public function down(): void

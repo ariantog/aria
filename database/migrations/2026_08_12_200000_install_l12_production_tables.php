@@ -297,7 +297,7 @@ return new class extends Migration
             $table->id();
             $table->unsignedSmallInteger('period_days');
             $table->string('lens', 20);
-            $table->unsignedBigInteger('warehouse_id')->default(0);
+            $table->integer('warehouse_id')->default(0);
             $table->string('grain', 32);
             $table->string('dimension_key', 191);
             $table->unsignedTinyInteger('item_type')->nullable();
