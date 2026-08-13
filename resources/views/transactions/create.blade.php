@@ -445,7 +445,7 @@ function createTransaction() {
                     row.price = Number(ci.price ?? ci[_PriceSource] ?? 0);
                     const gross = row.quantity * row.price;
                     row.discount = gross > 0 ? (Number(ci.discount || 0) / gross) * 100 : 0;
-                    row.warehouse_item = ci.warehouse_item || [];
+                    row.warehouse_item = this.warehouseItemsFrom(ci);
                     row.warehouse_stock = this.stockFor(row);
                     row.note = ci.note || '';
                     row.subtotal = gross - (gross * row.discount / 100);
@@ -466,8 +466,14 @@ function createTransaction() {
         },
 
         // Warehouse whose on-hand stock is relevant: receiver for buy/return, sender otherwise.
-        get warehouseId() {
+        warehouseId() {
             return (_TxType === 'buy' || _TxType === 'return') ? this.form.receiver_id : this.form.sender_id;
+        },
+
+        // Laravel JSON uses warehouse_items; item-by-id uses warehouse_item.
+        warehouseItemsFrom(source) {
+            const raw = source?.warehouse_item || source?.warehouseItems || source?.warehouse_items || [];
+            return Array.isArray(raw) ? raw : [];
         },
 
         // ---- validation (enable/disable submit, highlight rows) ----
@@ -517,7 +523,7 @@ function createTransaction() {
         },
 
         stockFor(row) {
-            const wid = String(this.warehouseId || '');
+            const wid = String(this.warehouseId() || '');
             if (!wid) return 0;
             const wi = (row.warehouse_item || []).find(w => String(w.warehouse_id) === wid);
             return wi ? Number(wi.quantity || 0) : 0;
@@ -537,7 +543,7 @@ function createTransaction() {
             row.code = source.code || source.item_code || String(source.id ?? '');
             row.name = source.name || source.product_name || '';
             row.price = Number(source[_PriceSource] ?? source.price ?? source.cost) || 0;
-            row.warehouse_item = source.warehouse_item || source.warehouseItems || [];
+            row.warehouse_item = this.warehouseItemsFrom(source);
             if (!row.quantity || row.quantity < 1) row.quantity = 1;
             row.warehouse_stock = this.stockFor(row);
             row.results = [];
@@ -856,7 +862,7 @@ function createTransaction() {
                     row.price = Number(ci.price ?? ci[_PriceSource] ?? 0);
                     const gross = row.quantity * row.price;
                     row.discount = gross > 0 ? (Number(ci.discount || 0) / gross) * 100 : 0;
-                    row.warehouse_item = ci.warehouse_item || [];
+                    row.warehouse_item = this.warehouseItemsFrom(ci);
                     row.warehouse_stock = this.stockFor(row);
                     row.note = ci.note || '';
                     row.subtotal = gross - (gross * row.discount / 100);
@@ -892,7 +898,7 @@ function createTransaction() {
                         price: i.price,
                         discount: Number(i.discount || 0),
                         subtotal: i.subtotal,
-                        warehouse_id: this.warehouseId,
+                        warehouse_id: this.warehouseId(),
                         note: i.note || '',
                     };
                 }),
