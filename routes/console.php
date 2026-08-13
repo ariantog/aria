@@ -3,6 +3,7 @@
 use App\Models\ScheduledTask;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schedule;
 use Illuminate\Support\Facades\Schema;
 
@@ -12,22 +13,27 @@ Artisan::command('inspire', function () {
 
 try {
     if (Schema::hasTable('scheduled_tasks')) {
-        $tasks = ScheduledTask::where('active', true)->get();
+        if (! Schema::hasColumn('scheduled_tasks', 'active') && ! Schema::hasColumn('scheduled_tasks', 'is_active')) {
+            Log::warning('scheduled_tasks has no active/is_active column; cron schedules were not loaded.');
+        } else {
+            $tasks = ScheduledTask::activeTasksQuery()->get();
 
-        foreach ($tasks as $task) {
-            $event = Schedule::command($task->command);
+            foreach ($tasks as $task) {
+                $event = Schedule::command($task->command);
 
-            $method = $task->frequency;
-            if (method_exists($event, $method)) {
-                $event->$method();
-            } else {
-                // Fallback to cron if it's a raw expression or unknown
-                $event->cron($task->frequency);
+                $frequency = $task->frequency ?? $task->getAttributes()['expression'] ?? 'daily';
+                if (method_exists($event, $frequency)) {
+                    $event->$frequency();
+                } else {
+                    $event->cron($frequency);
+                }
+
+                $event->onSuccess(fn () => $task->update(['last_run_at' => now()]));
             }
-
-            $event->onSuccess(fn () => $task->update(['last_run_at' => now()]));
         }
     }
-} catch (\Exception $e) {
-    // Database may not be available during boot
+} catch (\Throwable $e) {
+  Log::warning('Failed to load scheduled tasks from database.', [
+      'message' => $e->getMessage(),
+  ]);
 }
