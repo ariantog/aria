@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Models\Transaction;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Schema;
 
@@ -116,6 +117,8 @@ class ProductionColumnDefaults
             return;
         }
 
+        self::applyTransactionDetailFromParent($model);
+
         $defaults = self::TABLE_DEFAULTS[$model->getTable()] ?? [];
         foreach ($defaults as $column => $value) {
             if (! Schema::hasColumn($model->getTable(), $column)) {
@@ -125,6 +128,39 @@ class ProductionColumnDefaults
             if ($model->{$column} === null) {
                 $model->{$column} = $value;
             }
+        }
+    }
+
+    private static function applyTransactionDetailFromParent(Model $model): void
+    {
+        if ($model->getTable() !== 'transaction_details' || ! $model->transaction_id) {
+            return;
+        }
+
+        $transaction = $model->relationLoaded('transaction')
+            ? $model->transaction
+            : Transaction::query()->find($model->transaction_id);
+
+        if (! $transaction) {
+            return;
+        }
+
+        $table = $model->getTable();
+
+        if (Schema::hasColumn($table, 'date') && $model->date === null) {
+            $model->date = $transaction->date;
+        }
+
+        if (Schema::hasColumn($table, 'transaction_type') && $model->transaction_type === null) {
+            $model->transaction_type = $transaction->type;
+        }
+
+        if (Schema::hasColumn($table, 'sender_id') && $model->sender_id === null) {
+            $model->sender_id = $transaction->sender_id ?? 0;
+        }
+
+        if (Schema::hasColumn($table, 'receiver_id') && $model->receiver_id === null) {
+            $model->receiver_id = $transaction->receiver_id ?? 0;
         }
     }
 }

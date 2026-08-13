@@ -34,7 +34,18 @@ class SendToWarehouse
                 $transaction = Transaction::create(['date' => now()->toDateString(), 'type' => TransactionType::Production->value, 'receiver_id' => $warehouse->id, 'receiver_type' => AddrbookType::Warehouse->value, 'invoice' => $invoice, 'user_id' => $userId, 'total_items' => 0]);
             }
 
-            $detail = TransactionDetail::create(['transaction_id' => $transaction->id, 'item_id' => $produksi->item_id, 'quantity' => $produksi->quantity, 'price' => 0, 'discount' => 0, 'total' => 0]);
+            $detail = TransactionDetail::create([
+                'transaction_id' => $transaction->id,
+                'item_id' => $produksi->item_id,
+                'quantity' => $produksi->quantity,
+                'price' => 0,
+                'discount' => 0,
+                'total' => 0,
+                'date' => $transaction->date,
+                'transaction_type' => $transaction->type,
+                'sender_id' => $transaction->sender_id ?? 0,
+                'receiver_id' => $transaction->receiver_id,
+            ]);
 
             $produksi->update(['status' => Produksi::STATUS_GUDANG, 'transaction_id' => $transaction->id, 'detail_id' => $detail->id, 'invoice' => $invoice, 'gudang_date' => now()->toDateString()]);
             $transaction->increment('total_items', $produksi->quantity);
