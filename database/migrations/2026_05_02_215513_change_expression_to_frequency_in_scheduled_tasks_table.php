@@ -11,6 +11,14 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (! Schema::hasTable('scheduled_tasks')) {
+            return;
+        }
+
+        if (! Schema::hasColumn('scheduled_tasks', 'expression') || Schema::hasColumn('scheduled_tasks', 'frequency')) {
+            return;
+        }
+
         Schema::table('scheduled_tasks', function (Blueprint $table) {
             $table->renameColumn('expression', 'frequency');
         });
