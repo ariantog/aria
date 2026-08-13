@@ -59,16 +59,33 @@ return new class extends Migration
         }
 
         $nullable = $row->IS_NULLABLE === 'YES' ? 'NULL' : 'NOT NULL';
-        $default = '';
-
-        if ($row->COLUMN_DEFAULT !== null) {
-            $default = is_numeric($row->COLUMN_DEFAULT)
-                ? ' DEFAULT '.(int) $row->COLUMN_DEFAULT
-                : " DEFAULT '".$row->COLUMN_DEFAULT."'";
-        } elseif ($row->IS_NULLABLE === 'NO' && $column === 'warehouse_id') {
-            $default = ' DEFAULT 0';
-        }
+        $default = $this->defaultClause($row, $column);
 
         DB::statement("ALTER TABLE `{$table}` MODIFY `{$column}` INT(11) {$nullable}{$default}");
+    }
+
+    private function defaultClause(object $row, string $column): string
+    {
+        $columnDefault = $row->COLUMN_DEFAULT;
+
+        if ($columnDefault !== null && strtoupper((string) $columnDefault) === 'NULL') {
+            $columnDefault = null;
+        }
+
+        if ($row->IS_NULLABLE === 'YES') {
+            return $columnDefault === null ? '' : ' DEFAULT '.(int) $columnDefault;
+        }
+
+        if ($columnDefault !== null) {
+            return is_numeric($columnDefault)
+                ? ' DEFAULT '.(int) $columnDefault
+                : " DEFAULT '".$columnDefault."'";
+        }
+
+        if ($column === 'warehouse_id') {
+            return ' DEFAULT 0';
+        }
+
+        return '';
     }
 };
