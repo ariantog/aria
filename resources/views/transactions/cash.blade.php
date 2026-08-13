@@ -46,7 +46,7 @@ $config = [
         <div class="space-y-5">
 
             {{-- Account & Date --}}
-            <div class="rounded-xl border border-gray-200 bg-white shadow-sm max-w-3xl">
+            <div class="rounded-xl border border-gray-200 bg-white shadow-sm">
                 <div class="border-b border-gray-100 px-5 py-4">
                     <h3 class="flex items-center gap-2 text-sm font-semibold text-gray-900">
                         <svg class="h-4 w-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
@@ -64,34 +64,6 @@ $config = [
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Bank Account <span class="text-red-500">*</span></label>
-                        @if($isCashIn)
-                        {{-- Cash-in: bank is the receiver, use combobox --}}
-                        <div x-data="asyncCombobox({
-                            endpoint: '{{ route('transactions.lookup', ['type' => $config['lookupType'], 'role' => 'receiver']) }}',
-                            additionalParams: { addrbook_type: 3 },
-                            placeholder: 'Select bank account…',
-                            onSelect: (item) => { form.account_id = item ? String(item.id) : '' }
-                        })" class="relative">
-                            <input type="hidden" name="account_id" :value="form.account_id">
-                            <div class="relative flex h-10 overflow-hidden rounded-lg border border-gray-300 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500">
-                                <input type="text" x-model="query" @input="handleInput()" @focus="handleFocus()"
-                                       @keydown="handleKeydown($event)" @keyup="handleKeyup($event)"
-                                       :readonly="keyboardNavLock()"
-                                       :placeholder="placeholder" class="flex-1 border-none bg-transparent px-3 text-sm outline-none" autocomplete="off">
-                                <span x-show="loading" class="flex items-center pr-2"><svg class="h-4 w-4 animate-spin text-gray-400" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg></span>
-                            </div>
-                            <div x-show="open" @click.away="open=false" class="combobox-options" x-ref="optionsList">
-                                <div x-show="!loading && items.length === 0" class="px-3 py-2 text-sm text-gray-400">No banks found.</div>
-                                <template x-for="(item, idx) in items" :key="item.id">
-                                    <div @click="selectItem(item)" @mouseenter="activeIndex=idx" class="combobox-option" :class="{'active': activeIndex===idx}">
-                                        <span x-text="item.name"></span>
-                                        <span class="ml-auto text-xs opacity-60" x-text="item.balance !== undefined ? 'Rp '+Number(item.balance).toLocaleString('id-ID') : ''"></span>
-                                    </div>
-                                </template>
-                            </div>
-                        </div>
-                        @else
-                        {{-- Cash-out: use simple select from bankList --}}
                         <select name="account_id" x-model="form.account_id"
                                 class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
                             <option value="">Select bank account…</option>
@@ -99,7 +71,6 @@ $config = [
                             <option value="{{ $bank->id }}">{{ $bank->name }}</option>
                             @endforeach
                         </select>
-                        @endif
                         @error('account_id')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
                     </div>
                 </div>
