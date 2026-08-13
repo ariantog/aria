@@ -49,6 +49,20 @@ class Transaction extends Model
 
     const SUBMIT_TYPE_JUBELIO = 2;
 
+    /** L10 Jubelio cron used -100 when no human submitter (production user_id is NOT NULL). */
+    const JUBELIO_CRON_USER_ID = -100;
+
+    public static function resolveJubelioCronUserId(): ?int
+    {
+        if (Schema::getConnection()->getDriverName() === 'mysql') {
+            return self::JUBELIO_CRON_USER_ID;
+        }
+
+        $userId = User::query()->orderBy('id')->value('id');
+
+        return $userId !== null ? (int) $userId : null;
+    }
+
     protected function casts(): array
     {
         return [

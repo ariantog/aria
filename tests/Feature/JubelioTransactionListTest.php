@@ -55,6 +55,10 @@ it('shows jubelio cron transactions on the transactions index for location-scope
 
     app(ProcessJubelioOrder::class)->execute($order);
 
+    $cronTransaction = Transaction::where('invoice', 'INV-JUB-LIST-1')->first();
+    expect($cronTransaction)->not->toBeNull();
+    expect($cronTransaction->user_id)->toBe(Transaction::resolveJubelioCronUserId());
+
     $user = User::factory()->create(['location_id' => $location->id]);
     $user->givePermissionTo('transactions-list');
 
