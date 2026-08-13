@@ -4,6 +4,10 @@ use Illuminate\Support\Facades\Route;
 use Laravel\Fortify\Features;
 
 Route::get('/', function () {
+    if (auth()->check()) {
+        return redirect()->route('dashboard');
+    }
+
     return view('welcome', [
         'canRegister' => Features::enabled(Features::registration()),
     ]);
