@@ -2,9 +2,6 @@
 
 namespace App\Actions\Transactions;
 
-use App\Enums\AddrbookType;
-use App\Enums\TransactionStatus;
-use App\Enums\TransactionType;
 use App\Http\Requests\StoreAdjustRequest;
 use App\Models\Addrbook;
 use App\Models\Transaction;
@@ -26,15 +23,15 @@ class CreateAdjustTransaction
 
             $trx = Transaction::create([
                 'date' => $data['date'],
-                'type' => TransactionType::Adjust->value,
-                'sender_type' => $sender->type instanceof AddrbookType ? $sender->type->value : $sender->type,
+                'type' => Transaction::TYPE_ADJUST,
+                'sender_type' => (int) $sender->type,
                 'sender_id' => $sender->id,
-                'receiver_type' => $receiver->type instanceof AddrbookType ? $receiver->type->value : $receiver->type,
+                'receiver_type' => (int) $receiver->type,
                 'receiver_id' => $receiver->id,
                 'invoice' => $data['invoice'] ?? null,
                 'notes' => $data['description'] ?? null,
                 'user_id' => Auth::id(),
-                'status' => TransactionStatus::Completed->value,
+                'status' => Transaction::STATUS_COMPLETED,
                 'real_total' => (float) $data['total'],
                 'total_items' => 0,
                 'adjustment' => 0,

@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Actions\Jubelio\AdjustStock;
 use App\Actions\Jubelio\ProcessJubelioOrder;
-use App\Enums\TransactionType;
 use App\Models\Jubelio;
 use App\Models\Jubelioorder;
 use App\Models\Jubelioreturn;
@@ -90,7 +89,7 @@ class JubelioController extends Controller
             $q->where('status', 0);
         }
         $q->when($request->invoice, fn ($q) => $q->where('invoice', 'like', '%'.$request->invoice.'%'));
-        $stats = Jubelioorder::selectRaw("COUNT(CASE WHEN status=0 THEN 1 END) as pending, COUNT(CASE WHEN status=2 AND error_type=10 THEN 1 END) as success, COUNT(CASE WHEN status=2 AND error_type=2 THEN 1 END) as warning, COUNT(CASE WHEN status=1 AND error_type=1 THEN 1 END) as error")->first();
+        $stats = Jubelioorder::selectRaw('COUNT(CASE WHEN status=0 THEN 1 END) as pending, COUNT(CASE WHEN status=2 AND error_type=10 THEN 1 END) as success, COUNT(CASE WHEN status=2 AND error_type=2 THEN 1 END) as warning, COUNT(CASE WHEN status=1 AND error_type=1 THEN 1 END) as error')->first();
         $resolver = app(JubelioOrderWarehouseResolver::class);
         $syncIndex = $resolver->syncIndex();
         $orders = $q->paginate(15)->withQueryString();
@@ -102,7 +101,7 @@ class JubelioController extends Controller
             return $order;
         });
 
-        return view('jubelio.index', ['orders' => $orders, 'stats' => ['pending'=>(int)$stats->pending,'success'=>(int)$stats->success,'warning'=>(int)$stats->warning,'error'=>(int)$stats->error], 'filters' => $request->only(['status','invoice']), 'flash' => ['success' => session('success'), 'error' => session('error') ?? session('errorMessage')]]);
+        return view('jubelio.index', ['orders' => $orders, 'stats' => ['pending' => (int) $stats->pending, 'success' => (int) $stats->success, 'warning' => (int) $stats->warning, 'error' => (int) $stats->error], 'filters' => $request->only(['status', 'invoice']), 'flash' => ['success' => session('success'), 'error' => session('error') ?? session('errorMessage')]]);
     }
 
     public function show(Jubelioorder $jubelio): View
@@ -189,7 +188,7 @@ class JubelioController extends Controller
             return response()->json(['status' => 'ok', 'message' => 'Data already exists']);
         }
 
-        $sellExists = Transaction::where('type', TransactionType::Sell->value)
+        $sellExists = Transaction::where('type', Transaction::TYPE_SELL)
             ->where('invoice', $dataApi['salesorder_no'])
             ->exists();
 
@@ -248,7 +247,7 @@ class JubelioController extends Controller
             return response()->json(['status' => 'ok', 'message' => 'Saved']);
         }
         if (($d['status'] ?? '') === 'CANCELED') {
-            $t = Transaction::where('type', TransactionType::Sell->value)->where('invoice', $d['salesorder_no'])->first();
+            $t = Transaction::where('type', Transaction::TYPE_SELL)->where('invoice', $d['salesorder_no'])->first();
             if (! $t) {
                 return response()->json(['status' => 'ok', 'message' => 'Not found']);
             }
@@ -336,13 +335,22 @@ class JubelioController extends Controller
     public function transactionSync(Request $request): View
     {
         Gate::authorize(Jubelio::getPermissions()['sync']);
-        $types = [TransactionType::Sell->value=>'SELL',TransactionType::ReturnSupplier->value=>'RETURN SUPPLIER',TransactionType::Buy->value=>'BUY',TransactionType::Return->value=>'RETURN',TransactionType::Move->value=>'MOVE'];
-        $q = Transaction::with(['sender','receiver'])->where('submit_type',Transaction::SUBMIT_TYPE_MANUAL)->when($request->display,fn($q)=>$q->where('sync_hide',$request->display),fn($q)=>$q->where('sync_hide','N'))->when($request->date,fn($q)=>$q->whereDate('date','=',$request->date))->when($request->invoice,fn($q)=>$q->where('invoice','like',"%$request->invoice%"))->when($request->type,fn($q)=>$q->where('type',$request->type));
-        if (! $request->invoice) $q->where(fn($q)=>$q->where(fn($q)=>$q->whereIn('type',[TransactionType::Sell->value,TransactionType::ReturnSupplier->value])->whereNull('a_submit_by')->whereIn('sender_id',fn($s)=>$s->select('warehouse_id')->from('jubeliosyncs')))->orWhere(fn($q)=>$q->whereIn('type',[TransactionType::Buy->value,TransactionType::Return->value])->whereNull('b_submit_by')->whereIn('receiver_id',fn($s)=>$s->select('warehouse_id')->from('jubeliosyncs')))->orWhere(fn($q)=>$q->where('type',TransactionType::Move->value)->where(fn($q)=>$q->where(fn($w)=>$w->whereIn('sender_id',fn($s)=>$s->select('warehouse_id')->from('jubeliosyncs'))->whereNull('a_submit_by'))->orWhere(fn($w)=>$w->whereIn('receiver_id',fn($s)=>$s->select('warehouse_id')->from('jubeliosyncs'))->whereNull('b_submit_by')))));
-        $t = $q->orderBy('date','desc')->orderBy('id','desc')->paginate(200)->withQueryString();
+        $types = [Transaction::TYPE_SELL => 'SELL', Transaction::TYPE_RETURN_SUPPLIER => 'RETURN SUPPLIER', Transaction::TYPE_BUY => 'BUY', Transaction::TYPE_RETURN => 'RETURN', Transaction::TYPE_MOVE => 'MOVE'];
+        $q = Transaction::with(['sender', 'receiver'])->where('submit_type', Transaction::SUBMIT_TYPE_MANUAL)->when($request->display, fn ($q) => $q->where('sync_hide', $request->display), fn ($q) => $q->where('sync_hide', 'N'))->when($request->date, fn ($q) => $q->whereDate('date', '=', $request->date))->when($request->invoice, fn ($q) => $q->where('invoice', 'like', "%$request->invoice%"))->when($request->type, fn ($q) => $q->where('type', $request->type));
+        if (! $request->invoice) {
+            $q->where(fn ($q) => $q->where(fn ($q) => $q->whereIn('type', [Transaction::TYPE_SELL, Transaction::TYPE_RETURN_SUPPLIER])->whereNull('a_submit_by')->whereIn('sender_id', fn ($s) => $s->select('warehouse_id')->from('jubeliosyncs')))->orWhere(fn ($q) => $q->whereIn('type', [Transaction::TYPE_BUY, Transaction::TYPE_RETURN])->whereNull('b_submit_by')->whereIn('receiver_id', fn ($s) => $s->select('warehouse_id')->from('jubeliosyncs')))->orWhere(fn ($q) => $q->where('type', Transaction::TYPE_MOVE)->where(fn ($q) => $q->where(fn ($w) => $w->whereIn('sender_id', fn ($s) => $s->select('warehouse_id')->from('jubeliosyncs'))->whereNull('a_submit_by'))->orWhere(fn ($w) => $w->whereIn('receiver_id', fn ($s) => $s->select('warehouse_id')->from('jubeliosyncs'))->whereNull('b_submit_by')))));
+        }
+        $t = $q->orderBy('date', 'desc')->orderBy('id', 'desc')->paginate(200)->withQueryString();
         $sw = Jubeliosync::pluck('warehouse_id')->toArray();
-        $t->getCollection()->transform(function($i)use($sw){$i->sync_cek=$this->syncCek($i,$sw);$i->type_name=$i->getTypeLabel();$i->description=$i->description??$i->notes??'';return $i;});
-        return view('jubelio.transaction-sync',['transactions'=>$t,'types'=>$types,'filters'=>$request->only(['date','invoice','type','display']),'flash'=>['success'=>session('success'),'error'=>session('error')]]);
+        $t->getCollection()->transform(function ($i) use ($sw) {
+            $i->sync_cek = $this->syncCek($i, $sw);
+            $i->type_name = $i->getTypeLabel();
+            $i->description = $i->description ?? $i->notes ?? '';
+
+            return $i;
+        });
+
+        return view('jubelio.transaction-sync', ['transactions' => $t, 'types' => $types, 'filters' => $request->only(['date', 'invoice', 'type', 'display']), 'flash' => ['success' => session('success'), 'error' => session('error')]]);
     }
 
     public function detailJubelioSync(Transaction $t, JubelioTransactionSyncPresenter $presenter): View
@@ -369,21 +377,44 @@ class JubelioController extends Controller
         ]);
     }
 
-    public function transactionSyncDisplay(Transaction $t): RedirectResponse { Gate::authorize(Jubelio::getPermissions()['sync']); $t->update(['sync_hide'=>$t->sync_hide=='N'?'Y':'N']); return back()->with('success','Updated.'); }
+    public function transactionSyncDisplay(Transaction $t): RedirectResponse
+    {
+        Gate::authorize(Jubelio::getPermissions()['sync']);
+        $t->update(['sync_hide' => $t->sync_hide == 'N' ? 'Y' : 'N']);
+
+        return back()->with('success', 'Updated.');
+    }
 
     public function adjustStok(Request $r, $id, AdjustStock $a): RedirectResponse
     {
         Transaction::authorizeJubelioTransactionSync();
         $t = Transaction::with(['details.item'])->findOrFail($id);
-        try { $res = $a->execute($t,(int)$r->side,(int)$r->adjustType,(int)$r->whType); return $res['success'] ? back()->with('success',$res['message']) : back()->with('errorMessage',$res['message']); }
-        catch(\RuntimeException $e) { return back()->with('errorMessage',$e->getMessage()); }
+        try {
+            $res = $a->execute($t, (int) $r->side, (int) $r->adjustType, (int) $r->whType);
+
+            return $res['success'] ? back()->with('success', $res['message']) : back()->with('errorMessage', $res['message']);
+        } catch (\RuntimeException $e) {
+            return back()->with('errorMessage', $e->getMessage());
+        }
     }
 
     private function syncCek(Transaction $i, array $sw): ?string
     {
-        if(in_array($i->type,[TransactionType::Sell->value,TransactionType::ReturnSupplier->value])) return 'S';
-        if(in_array($i->type,[TransactionType::Buy->value,TransactionType::Return->value])) return 'R';
-        if($i->type==TransactionType::Move->value){$s=in_array($i->sender_id,$sw);$r=in_array($i->receiver_id,$sw);return match(true){$s&&$r=>'B',$s=>'S',$r=>'R',default=>null};}
+        if (in_array((int) $i->type, [Transaction::TYPE_SELL, Transaction::TYPE_RETURN_SUPPLIER])) {
+            return 'S';
+        }
+        if (in_array((int) $i->type, [Transaction::TYPE_BUY, Transaction::TYPE_RETURN])) {
+            return 'R';
+        }
+        if ((int) $i->type === Transaction::TYPE_MOVE) {
+            $s = in_array($i->sender_id, $sw);
+            $r = in_array($i->receiver_id, $sw);
+
+            return match (true) {
+                $s && $r => 'B',$s => 'S',$r => 'R',default => null
+            };
+        }
+
         return null;
     }
 }

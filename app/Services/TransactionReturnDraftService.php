@@ -9,9 +9,7 @@ class TransactionReturnDraftService
 {
     public function targetTypeSlug(Transaction $transaction): ?string
     {
-        $type = $transaction->type instanceof \BackedEnum
-            ? $transaction->type->value
-            : (int) $transaction->type;
+        $type = (int) $transaction->type;
 
         return match ($type) {
             Transaction::TYPE_SELL => 'return',

@@ -2,7 +2,6 @@
 
 namespace App\Services\Jubelio;
 
-use App\Enums\TransactionType;
 use App\Models\Jubeliosync;
 use App\Models\Transaction;
 
@@ -16,9 +15,7 @@ class JubelioTransactionSyncPresenter
         $transaction->loadMissing(['sender', 'receiver', 'submitByA', 'submitByB', 'details.item']);
 
         $isManual = $transaction->submit_type === Transaction::SUBMIT_TYPE_MANUAL;
-        $type = $transaction->type instanceof TransactionType
-            ? $transaction->type->value
-            : (int) $transaction->type;
+        $type = (int) $transaction->type;
 
         $syncRelevantA = in_array($type, [Transaction::TYPE_SELL, Transaction::TYPE_RETURN_SUPPLIER, Transaction::TYPE_MOVE], true);
         $syncRelevantB = in_array($type, [Transaction::TYPE_BUY, Transaction::TYPE_RETURN, Transaction::TYPE_MOVE], true);

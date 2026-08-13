@@ -2,12 +2,11 @@
 
 namespace App\Services;
 
-use App\Enums\ItemType;
-use App\Enums\TransactionType;
 use App\Models\Item;
 use App\Models\JubelioStockCheck;
 use App\Models\JubelioStockDiscrepancy;
 use App\Models\Jubeliosync;
+use App\Models\Transaction;
 use App\Models\TransactionDetail;
 use App\Models\WarehouseItem;
 use Illuminate\Support\Collection;
@@ -76,7 +75,7 @@ class JubelioStockCheckService
     {
         $selected = collect();
 
-        foreach ([ItemType::ITEM, ItemType::ASSET_LANCAR] as $type) {
+        foreach ([Item::TYPE_ITEM, Item::TYPE_ASSET_LANCAR] as $type) {
             $ids = $this->topDemandItemIds($sync->warehouse_id, $type, $perTypeLimit, $demandDays);
 
             if ($ids->count() < $perTypeLimit) {
@@ -96,7 +95,7 @@ class JubelioStockCheckService
     /**
      * @return Collection<int, int>
      */
-    public function topDemandItemIds(int $warehouseId, ItemType $type, int $limit, int $demandDays): Collection
+    public function topDemandItemIds(int $warehouseId, int $type, int $limit, int $demandDays): Collection
     {
         if ($limit <= 0) {
             return collect();
@@ -108,10 +107,10 @@ class JubelioStockCheckService
             ->select('transaction_details.item_id', DB::raw('SUM(ABS(transaction_details.quantity)) as demand_qty'))
             ->join('transactions', 'transactions.id', '=', 'transaction_details.transaction_id')
             ->join('items', 'items.id', '=', 'transaction_details.item_id')
-            ->where('transactions.type', TransactionType::Sell->value)
+            ->where('transactions.type', Transaction::TYPE_SELL)
             ->where('transactions.sender_id', $warehouseId)
             ->whereDate('transactions.date', '>=', $since)
-            ->where('items.type', $type->value)
+            ->where('items.type', $type)
             ->where('items.jubelio_item_id', '>', 0)
             ->groupBy('transaction_details.item_id')
             ->orderByDesc('demand_qty')
@@ -123,7 +122,7 @@ class JubelioStockCheckService
      * @param  list<int>  $excludeIds
      * @return Collection<int, int>
      */
-    public function fallbackItemIds(int $warehouseId, ItemType $type, int $limit, array $excludeIds = []): Collection
+    public function fallbackItemIds(int $warehouseId, int $type, int $limit, array $excludeIds = []): Collection
     {
         if ($limit <= 0) {
             return collect();
@@ -134,7 +133,7 @@ class JubelioStockCheckService
             ->join('items', 'items.id', '=', 'warehouse_item.item_id')
             ->where('warehouse_item.warehouse_id', $warehouseId)
             ->where('warehouse_item.quantity', '>', 0)
-            ->where('items.type', $type->value)
+            ->where('items.type', $type)
             ->where('items.jubelio_item_id', '>', 0)
             ->when($excludeIds !== [], fn ($q) => $q->whereNotIn('warehouse_item.item_id', $excludeIds))
             ->orderByDesc('warehouse_item.quantity')

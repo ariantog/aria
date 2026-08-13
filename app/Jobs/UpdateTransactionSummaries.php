@@ -2,8 +2,7 @@
 
 namespace App\Jobs;
 
-use App\Enums\AddrbookType;
-use App\Enums\TransactionType;
+use App\Models\Addrbook;
 use App\Models\DailyInventorySummary;
 use App\Models\MonthlyAccountSummary;
 use App\Models\MonthlyCategorySummary;
@@ -22,7 +21,9 @@ class UpdateTransactionSummaries implements ShouldQueue
     public function handle(WarehouseItemStatsRecorder $statsRecorder): void
     {
         $transaction = Transaction::with('details')->find($this->transactionId);
-        if (! $transaction || $transaction->status->value !== 1) return;
+        if (! $transaction || (int) $transaction->status !== Transaction::STATUS_COMPLETED) {
+            return;
+        }
 
         $year = $transaction->date->year;
         $month = $transaction->date->month;
@@ -39,64 +40,85 @@ class UpdateTransactionSummaries implements ShouldQueue
 
     private function updateAccountSummary(Transaction $transaction, int $year, int $month): void
     {
-        $targetId = match ($transaction->type) {
-            TransactionType::CashIn, TransactionType::Return => $transaction->sender_id,
-            TransactionType::CashOut, TransactionType::Sell => $transaction->receiver_id,
+        $type = (int) $transaction->type;
+        $targetId = match ($type) {
+            Transaction::TYPE_CASH_IN, Transaction::TYPE_RETURN => $transaction->sender_id,
+            Transaction::TYPE_CASH_OUT, Transaction::TYPE_SELL => $transaction->receiver_id,
             default => null,
         };
-        if (! $targetId) return;
+        if (! $targetId) {
+            return;
+        }
         $summary = MonthlyAccountSummary::firstOrCreate(['year' => $year, 'month' => $month, 'customer_id' => $targetId]);
-        $column = match ($transaction->type) {
-            TransactionType::CashIn => 'cash_in', TransactionType::CashOut => 'cash_out',
-            TransactionType::Sell => 'sell', TransactionType::Return => 'return', default => null,
+        $column = match ($type) {
+            Transaction::TYPE_CASH_IN => 'cash_in',
+            Transaction::TYPE_CASH_OUT => 'cash_out',
+            Transaction::TYPE_SELL => 'sell',
+            Transaction::TYPE_RETURN => 'return',
+            default => null,
         };
-        if ($column) $summary->increment($column, (float) $transaction->total);
+        if ($column) {
+            $summary->increment($column, (float) $transaction->total);
+        }
     }
 
     private function updateCategorySummary(Transaction $transaction, int $year, int $month): void
     {
-        $targetType = match ($transaction->type) {
-            TransactionType::CashIn, TransactionType::Return => $transaction->sender_type,
-            TransactionType::CashOut, TransactionType::Buy, TransactionType::Sell, TransactionType::ReturnSupplier => $transaction->receiver_type,
+        $type = (int) $transaction->type;
+        $targetType = match ($type) {
+            Transaction::TYPE_CASH_IN, Transaction::TYPE_RETURN => $transaction->sender_type,
+            Transaction::TYPE_CASH_OUT, Transaction::TYPE_BUY, Transaction::TYPE_SELL, Transaction::TYPE_RETURN_SUPPLIER => $transaction->receiver_type,
             default => null,
         };
-        if (! $targetType) return;
+        if (! $targetType) {
+            return;
+        }
         $summary = MonthlyCategorySummary::firstOrCreate(['year' => $year, 'month' => $month, 'addrbook_type' => $targetType]);
-        $column = match ($transaction->type) {
-            TransactionType::CashIn => 'cash_in', TransactionType::CashOut => 'cash_out',
-            TransactionType::Sell => 'sell', TransactionType::Buy => 'buy',
-            TransactionType::Return => 'return', TransactionType::ReturnSupplier => 'return_supplier', default => null,
+        $column = match ($type) {
+            Transaction::TYPE_CASH_IN => 'cash_in',
+            Transaction::TYPE_CASH_OUT => 'cash_out',
+            Transaction::TYPE_SELL => 'sell',
+            Transaction::TYPE_BUY => 'buy',
+            Transaction::TYPE_RETURN => 'return',
+            Transaction::TYPE_RETURN_SUPPLIER => 'return_supplier',
+            default => null,
         };
-        if ($column) $summary->increment($column, (float) $transaction->total);
+        if ($column) {
+            $summary->increment($column, (float) $transaction->total);
+        }
     }
 
     private function updateInventorySummary(Transaction $transaction, string $date): void
     {
         foreach ($transaction->details as $detail) {
-            $st = AddrbookType::tryFrom($transaction->sender_type);
-            $rt = AddrbookType::tryFrom($transaction->receiver_type);
-            if ($st?->isWarehouse()) $this->incrInv($date, $transaction->sender_id, $detail->item_id, $transaction->type, $detail->quantity, 'sender');
-            if ($rt?->isWarehouse()) $this->incrInv($date, $transaction->receiver_id, $detail->item_id, $transaction->type, $detail->quantity, 'receiver');
+            if (Addrbook::typeIsWarehouse((int) $transaction->sender_type)) {
+                $this->incrInv($date, $transaction->sender_id, $detail->item_id, (int) $transaction->type, $detail->quantity, 'sender');
+            }
+            if (Addrbook::typeIsWarehouse((int) $transaction->receiver_type)) {
+                $this->incrInv($date, $transaction->receiver_id, $detail->item_id, (int) $transaction->type, $detail->quantity, 'receiver');
+            }
         }
     }
 
-    private function incrInv(string $date, int $wid, int $iid, TransactionType $type, float $qty, string $side): void
+    private function incrInv(string $date, int $wid, int $iid, int $type, float $qty, string $side): void
     {
         $s = DailyInventorySummary::firstOrCreate(['date' => $date, 'warehouse_id' => $wid, 'item_id' => $iid]);
         match ($type) {
-            TransactionType::Sell => $s->increment('qty_sell', $qty),
-            TransactionType::Buy => $s->increment('qty_buy', $qty),
-            TransactionType::Move => $side === 'receiver' ? $s->increment('qty_move_in', $qty) : $s->increment('qty_move_out', $qty),
-            TransactionType::Return => $s->increment('qty_return_in', $qty),
-            TransactionType::ReturnSupplier => $s->increment('qty_return_out', $qty),
-            TransactionType::Adjust => $qty > 0 ? $s->increment('qty_adjust_in', $qty) : $s->increment('qty_adjust_out', abs($qty)),
+            Transaction::TYPE_SELL => $s->increment('qty_sell', $qty),
+            Transaction::TYPE_BUY => $s->increment('qty_buy', $qty),
+            Transaction::TYPE_MOVE => $side === 'receiver' ? $s->increment('qty_move_in', $qty) : $s->increment('qty_move_out', $qty),
+            Transaction::TYPE_RETURN => $s->increment('qty_return_in', $qty),
+            Transaction::TYPE_RETURN_SUPPLIER => $s->increment('qty_return_out', $qty),
+            Transaction::TYPE_ADJUST => $qty > 0 ? $s->increment('qty_adjust_in', $qty) : $s->increment('qty_adjust_out', abs($qty)),
             default => null,
         };
     }
 
     private function updateStatSell(Transaction $transaction): void
     {
-        if (! in_array($transaction->type, [TransactionType::Sell, TransactionType::Return], true)) return;
+        if (! in_array((int) $transaction->type, [Transaction::TYPE_SELL, Transaction::TYPE_RETURN], true)) {
+            return;
+        }
         $driver = DB::connection()->getDriverName();
         if ($driver === 'sqlite') {
             $monthExpr = "CAST(strftime('%m', transaction_details.date) AS INTEGER)";

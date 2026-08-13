@@ -2,7 +2,6 @@
 
 namespace App\Http\Requests;
 
-use App\Enums\TransactionType;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -41,11 +40,15 @@ class StoreItemTransactionRequest extends FormRequest
         ];
     }
 
-    public function authorize(): bool { return true; }
+    public function authorize(): bool
+    {
+        return true;
+    }
 
-    public function validatedType(): TransactionType
+    public function validatedType(): int
     {
         $config = config("transaction_rules.{$this->validated('type')}");
-        return TransactionType::from($config['id']);
+
+        return (int) $config['id'];
     }
 }

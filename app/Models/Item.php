@@ -2,8 +2,6 @@
 
 namespace App\Models;
 
-use App\Enums\ItemBrand;
-use App\Enums\ItemType;
 use App\Support\FillsProductionColumnDefaults;
 use App\Support\LikeSearch;
 use Illuminate\Database\Eloquent\Builder;
@@ -19,6 +17,14 @@ use Illuminate\Support\Facades\DB;
 class Item extends Model
 {
     use FillsProductionColumnDefaults, HasFactory, SoftDeletes;
+
+    const TYPE_ITEM = 1;
+
+    const TYPE_ASSET_LANCAR = 2;
+
+    const TYPE_ASSET_TETAP = 3;
+
+    const TYPE_SERVICE = 5;
 
     protected $fillable = [
         'group_id',
@@ -44,8 +50,8 @@ class Item extends Model
     protected function casts(): array
     {
         return [
-            'brand' => ItemBrand::class,
-            'type' => ItemType::class,
+            'brand' => 'integer',
+            'type' => 'integer',
             'size' => 'integer',
             'genre' => 'integer',
             'price' => 'decimal:2',
@@ -162,7 +168,7 @@ class Item extends Model
 
     public function getItemName(): string
     {
-        if ($this->type === ItemType::ASSET_LANCAR) {
+        if ((int) $this->type === self::TYPE_ASSET_LANCAR) {
             return $this->name;
         }
 
@@ -171,7 +177,7 @@ class Item extends Model
 
     public function isAssetLancar(): bool
     {
-        return $this->type === ItemType::ASSET_LANCAR;
+        return (int) $this->type === self::TYPE_ASSET_LANCAR;
     }
 
     public function showUrl(): string

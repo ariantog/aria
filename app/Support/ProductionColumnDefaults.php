@@ -2,7 +2,6 @@
 
 namespace App\Support;
 
-use App\Enums\TransactionType;
 use App\Models\Transaction;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Schema;
@@ -153,8 +152,7 @@ class ProductionColumnDefaults
         }
 
         if (Schema::hasColumn($table, 'transaction_type') && $model->transaction_type === null) {
-            $type = $transaction->type;
-            $model->transaction_type = $type instanceof TransactionType ? $type->value : $type;
+            $model->transaction_type = (int) $transaction->type;
         }
 
         if (Schema::hasColumn($table, 'sender_id') && $model->sender_id === null) {
