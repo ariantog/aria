@@ -67,7 +67,7 @@
     </button>
 
     @php
-        $returnCreateUrl ??= (function () use ($can, $transaction) {
+        $returnCreateUrl = (function () use ($can, $transaction) {
             if (! ($can['return_draft'] ?? false)) {
                 return null;
             }
@@ -91,7 +91,7 @@
         <div x-show="open" x-cloak @click.away="open = false"
              class="absolute right-0 top-full z-30 mt-1 w-44 rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
             @if($returnCreateUrl ?? false)
-            <a href="{{ $returnCreateUrl }}" data-testid="draft-return-button"
+            <a href="{{ $returnCreateUrl }}" data-testid="return-transaction-button"
                class="flex items-center gap-2 px-3 py-2 text-sm text-orange-700 hover:bg-orange-50">
                 <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/></svg>
                 Return
