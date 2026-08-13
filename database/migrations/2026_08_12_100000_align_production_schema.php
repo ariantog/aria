@@ -34,17 +34,6 @@ return new class extends Migration
         // Irreversible on production — column adds are kept.
     }
 
-    /**
-     * L10 schemas often use DEFAULT '0000-00-00 00:00:00' on timestamps, which makes
-     * any subsequent ALTER fail under strict SQL mode. Normalize before adding columns.
-     *
-     * Must fix updated_at before created_at — MySQL validates all column defaults on each ALTER.
-     */
-    private function fixLegacyZeroDateTimestamps(string $table): void
-    {
-        ProductionMysqlCompat::normalizeZeroDatesOnTable($table);
-    }
-
     private function addrbookTable(): ?string
     {
         return Schema::hasTable('customers') ? 'customers' : null;
@@ -57,18 +46,18 @@ return new class extends Migration
             return;
         }
 
-        $this->fixLegacyZeroDateTimestamps($table);
-
-        Schema::table($table, function (Blueprint $blueprint) use ($table) {
-            if ($table === 'customers' && ! Schema::hasColumn($table, 'operation_id')) {
-                $blueprint->integer('operation_id')->nullable()->after('ppn');
-            }
-            if (! Schema::hasColumn($table, 'arrangement_enabled')) {
-                $blueprint->boolean('arrangement_enabled')->default(false);
-            }
-            if ($table === 'customers' && ! Schema::hasColumn($table, 'contact_person')) {
-                $blueprint->string('contact_person')->nullable();
-            }
+        ProductionMysqlCompat::alterTable($table, function () use ($table) {
+            Schema::table($table, function (Blueprint $blueprint) use ($table) {
+                if ($table === 'customers' && ! Schema::hasColumn($table, 'operation_id')) {
+                    $blueprint->integer('operation_id')->nullable()->after('ppn');
+                }
+                if (! Schema::hasColumn($table, 'arrangement_enabled')) {
+                    $blueprint->boolean('arrangement_enabled')->default(false);
+                }
+                if ($table === 'customers' && ! Schema::hasColumn($table, 'contact_person')) {
+                    $blueprint->string('contact_person')->nullable();
+                }
+            });
         });
     }
 
@@ -78,24 +67,24 @@ return new class extends Migration
             return;
         }
 
-        $this->fixLegacyZeroDateTimestamps('items');
-
-        Schema::table('items', function (Blueprint $blueprint) {
-            if (! Schema::hasColumn('items', 'qty')) {
-                $blueprint->decimal('qty', 15, 2)->default(0)->after('cost');
-            }
-            if (! Schema::hasColumn('items', 'legacy_code')) {
-                $blueprint->string('legacy_code')->nullable()->after('code');
-            }
-            if (! Schema::hasColumn('items', 'url')) {
-                $blueprint->string('url')->nullable();
-            }
-            if (! Schema::hasColumn('items', 'image_path')) {
-                $blueprint->string('image_path', 2048)->nullable();
-            }
-            if (! Schema::hasColumn('items', 'restock_urgent_threshold')) {
-                $blueprint->unsignedInteger('restock_urgent_threshold')->nullable();
-            }
+        ProductionMysqlCompat::alterTable('items', function () {
+            Schema::table('items', function (Blueprint $blueprint) {
+                if (! Schema::hasColumn('items', 'qty')) {
+                    $blueprint->decimal('qty', 15, 2)->default(0)->after('cost');
+                }
+                if (! Schema::hasColumn('items', 'legacy_code')) {
+                    $blueprint->string('legacy_code')->nullable()->after('code');
+                }
+                if (! Schema::hasColumn('items', 'url')) {
+                    $blueprint->string('url')->nullable();
+                }
+                if (! Schema::hasColumn('items', 'image_path')) {
+                    $blueprint->string('image_path', 2048)->nullable();
+                }
+                if (! Schema::hasColumn('items', 'restock_urgent_threshold')) {
+                    $blueprint->unsignedInteger('restock_urgent_threshold')->nullable();
+                }
+            });
         });
     }
 
@@ -111,18 +100,18 @@ return new class extends Migration
             return;
         }
 
-        $this->fixLegacyZeroDateTimestamps($table);
-
-        Schema::table($table, function (Blueprint $blueprint) use ($table) {
-            if (! Schema::hasColumn($table, 'warehouse_type')) {
-                $blueprint->string('warehouse_type')->default('2');
-            }
-            if (! Schema::hasColumn($table, 'note')) {
-                $blueprint->text('note')->nullable();
-            }
-            if (! Schema::hasColumn($table, 'created_at')) {
-                $blueprint->timestamps();
-            }
+        ProductionMysqlCompat::alterTable($table, function () use ($table) {
+            Schema::table($table, function (Blueprint $blueprint) use ($table) {
+                if (! Schema::hasColumn($table, 'warehouse_type')) {
+                    $blueprint->string('warehouse_type')->default('2');
+                }
+                if (! Schema::hasColumn($table, 'note')) {
+                    $blueprint->text('note')->nullable();
+                }
+                if (! Schema::hasColumn($table, 'created_at')) {
+                    $blueprint->timestamps();
+                }
+            });
         });
     }
 
@@ -138,24 +127,24 @@ return new class extends Migration
             return;
         }
 
-        $this->fixLegacyZeroDateTimestamps($table);
+        ProductionMysqlCompat::alterTable($table, function () use ($table) {
+            Schema::table($table, function (Blueprint $blueprint) use ($table) {
+                $columns = [
+                    'user_id' => fn (Blueprint $b) => $b->unsignedInteger('user_id')->nullable(),
+                    'qc_id' => fn (Blueprint $b) => $b->integer('qc_id')->nullable(),
+                    'qc_date' => fn (Blueprint $b) => $b->dateTime('qc_date')->nullable(),
+                    'pritil_id' => fn (Blueprint $b) => $b->integer('pritil_id')->nullable(),
+                    'pritil_date' => fn (Blueprint $b) => $b->dateTime('pritil_date')->nullable(),
+                    'original_id' => fn (Blueprint $b) => $b->integer('original_id')->nullable(),
+                    'transaction_id' => fn (Blueprint $b) => $b->integer('transaction_id')->nullable(),
+                ];
 
-        Schema::table($table, function (Blueprint $blueprint) use ($table) {
-            $columns = [
-                'user_id' => fn (Blueprint $b) => $b->unsignedInteger('user_id')->nullable(),
-                'qc_id' => fn (Blueprint $b) => $b->integer('qc_id')->nullable(),
-                'qc_date' => fn (Blueprint $b) => $b->dateTime('qc_date')->nullable(),
-                'pritil_id' => fn (Blueprint $b) => $b->integer('pritil_id')->nullable(),
-                'pritil_date' => fn (Blueprint $b) => $b->dateTime('pritil_date')->nullable(),
-                'original_id' => fn (Blueprint $b) => $b->integer('original_id')->nullable(),
-                'transaction_id' => fn (Blueprint $b) => $b->integer('transaction_id')->nullable(),
-            ];
-
-            foreach ($columns as $name => $callback) {
-                if (! Schema::hasColumn($table, $name)) {
-                    $callback($blueprint);
+                foreach ($columns as $name => $callback) {
+                    if (! Schema::hasColumn($table, $name)) {
+                        $callback($blueprint);
+                    }
                 }
-            }
+            });
         });
     }
 
@@ -165,18 +154,18 @@ return new class extends Migration
             return;
         }
 
-        $this->fixLegacyZeroDateTimestamps('transactions');
-
-        Schema::table('transactions', function (Blueprint $blueprint) {
-            if (! Schema::hasColumn('transactions', 'real_total')) {
-                $blueprint->decimal('real_total', 15, 2)->default(0);
-            }
-            if (! Schema::hasColumn('transactions', 'notes')) {
-                $blueprint->text('notes')->nullable();
-            }
-            if (! Schema::hasColumn('transactions', 'reference_number')) {
-                $blueprint->string('reference_number')->nullable();
-            }
+        ProductionMysqlCompat::alterTable('transactions', function () {
+            Schema::table('transactions', function (Blueprint $blueprint) {
+                if (! Schema::hasColumn('transactions', 'real_total')) {
+                    $blueprint->decimal('real_total', 15, 2)->default(0);
+                }
+                if (! Schema::hasColumn('transactions', 'notes')) {
+                    $blueprint->text('notes')->nullable();
+                }
+                if (! Schema::hasColumn('transactions', 'reference_number')) {
+                    $blueprint->string('reference_number')->nullable();
+                }
+            });
         });
 
         if (Schema::hasColumn('items', 'qty') && Schema::hasTable('warehouse_item')) {
@@ -200,16 +189,18 @@ return new class extends Migration
             return;
         }
 
-        Schema::table('sessions', function (Blueprint $blueprint) {
-            if (! Schema::hasColumn('sessions', 'user_id')) {
-                $blueprint->integer('user_id')->nullable()->index()->after('id');
-            }
-            if (! Schema::hasColumn('sessions', 'ip_address')) {
-                $blueprint->string('ip_address', 45)->nullable()->after('user_id');
-            }
-            if (! Schema::hasColumn('sessions', 'user_agent')) {
-                $blueprint->text('user_agent')->nullable()->after('ip_address');
-            }
+        ProductionMysqlCompat::alterTable('sessions', function () {
+            Schema::table('sessions', function (Blueprint $blueprint) {
+                if (! Schema::hasColumn('sessions', 'user_id')) {
+                    $blueprint->integer('user_id')->nullable()->index()->after('id');
+                }
+                if (! Schema::hasColumn('sessions', 'ip_address')) {
+                    $blueprint->string('ip_address', 45)->nullable()->after('user_id');
+                }
+                if (! Schema::hasColumn('sessions', 'user_agent')) {
+                    $blueprint->text('user_agent')->nullable()->after('ip_address');
+                }
+            });
         });
     }
 
@@ -223,29 +214,29 @@ return new class extends Migration
             return;
         }
 
-        $this->fixLegacyZeroDateTimestamps('settings');
-
-        if (! Schema::hasColumn('settings', 'id')) {
-            DB::statement('ALTER TABLE `settings` ADD COLUMN `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY FIRST');
-        }
-
-        Schema::table('settings', function (Blueprint $blueprint) {
-            if (! Schema::hasColumn('settings', 'slug')) {
-                $blueprint->string('slug', 100)->nullable()->after('name');
+        ProductionMysqlCompat::alterTable('settings', function () {
+            if (! Schema::hasColumn('settings', 'id')) {
+                DB::statement('ALTER TABLE `settings` ADD COLUMN `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY FIRST');
             }
-            if (! Schema::hasColumn('settings', 'group')) {
-                $blueprint->string('group')->nullable()->after('id');
+
+            Schema::table('settings', function (Blueprint $blueprint) {
+                if (! Schema::hasColumn('settings', 'slug')) {
+                    $blueprint->string('slug', 100)->nullable()->after('name');
+                }
+                if (! Schema::hasColumn('settings', 'group')) {
+                    $blueprint->string('group')->nullable()->after('id');
+                }
+            });
+
+            if (Schema::hasColumn('settings', 'slug')) {
+                DB::statement("UPDATE `settings` SET `slug` = `name` WHERE `slug` IS NULL OR `slug` = ''");
+            }
+
+            if (Schema::getConnection()->getDriverName() === 'mysql') {
+                DB::statement('ALTER TABLE `settings` MODIFY `name` VARCHAR(191) NOT NULL');
+                DB::statement('ALTER TABLE `settings` MODIFY `value` TEXT NULL');
             }
         });
-
-        if (Schema::hasColumn('settings', 'slug')) {
-            DB::statement("UPDATE `settings` SET `slug` = `name` WHERE `slug` IS NULL OR `slug` = ''");
-        }
-
-        if (Schema::getConnection()->getDriverName() === 'mysql') {
-            DB::statement('ALTER TABLE `settings` MODIFY `name` VARCHAR(191) NOT NULL');
-            DB::statement('ALTER TABLE `settings` MODIFY `value` TEXT NULL');
-        }
     }
 
     private function alignUsersTable(): void
@@ -254,32 +245,32 @@ return new class extends Migration
             return;
         }
 
-        $this->fixLegacyZeroDateTimestamps('users');
+        ProductionMysqlCompat::alterTable('users', function () {
+            Schema::table('users', function (Blueprint $blueprint) {
+                if (! Schema::hasColumn('users', 'name')) {
+                    $blueprint->string('name')->nullable()->after('id');
+                }
+                if (! Schema::hasColumn('users', 'email')) {
+                    $blueprint->string('email')->nullable()->after('username');
+                }
+                if (! Schema::hasColumn('users', 'email_verified_at')) {
+                    $blueprint->timestamp('email_verified_at')->nullable()->after('email');
+                }
+                if (! Schema::hasColumn('users', 'two_factor_secret')) {
+                    $blueprint->text('two_factor_secret')->nullable();
+                }
+                if (! Schema::hasColumn('users', 'two_factor_recovery_codes')) {
+                    $blueprint->text('two_factor_recovery_codes')->nullable();
+                }
+                if (! Schema::hasColumn('users', 'two_factor_confirmed_at')) {
+                    $blueprint->timestamp('two_factor_confirmed_at')->nullable();
+                }
+            });
 
-        Schema::table('users', function (Blueprint $blueprint) {
-            if (! Schema::hasColumn('users', 'name')) {
-                $blueprint->string('name')->nullable()->after('id');
-            }
-            if (! Schema::hasColumn('users', 'email')) {
-                $blueprint->string('email')->nullable()->after('username');
-            }
-            if (! Schema::hasColumn('users', 'email_verified_at')) {
-                $blueprint->timestamp('email_verified_at')->nullable()->after('email');
-            }
-            if (! Schema::hasColumn('users', 'two_factor_secret')) {
-                $blueprint->text('two_factor_secret')->nullable();
-            }
-            if (! Schema::hasColumn('users', 'two_factor_recovery_codes')) {
-                $blueprint->text('two_factor_recovery_codes')->nullable();
-            }
-            if (! Schema::hasColumn('users', 'two_factor_confirmed_at')) {
-                $blueprint->timestamp('two_factor_confirmed_at')->nullable();
+            if (Schema::hasColumn('users', 'name')) {
+                DB::statement("UPDATE `users` SET `name` = `username` WHERE `name` IS NULL OR `name` = ''");
             }
         });
-
-        if (Schema::hasColumn('users', 'name')) {
-            DB::statement("UPDATE `users` SET `name` = `username` WHERE `name` IS NULL OR `name` = ''");
-        }
     }
 
     private function alignOperationsTable(): void
@@ -288,13 +279,15 @@ return new class extends Migration
             return;
         }
 
-        Schema::table('operations', function (Blueprint $blueprint) {
-            if (! Schema::hasColumn('operations', 'created_at')) {
-                $blueprint->timestamps();
-            }
-            if (! Schema::hasColumn('operations', 'deleted_at')) {
-                $blueprint->softDeletes();
-            }
+        ProductionMysqlCompat::alterTable('operations', function () {
+            Schema::table('operations', function (Blueprint $blueprint) {
+                if (! Schema::hasColumn('operations', 'created_at')) {
+                    $blueprint->timestamps();
+                }
+                if (! Schema::hasColumn('operations', 'deleted_at')) {
+                    $blueprint->softDeletes();
+                }
+            });
         });
     }
 
@@ -304,12 +297,12 @@ return new class extends Migration
             return;
         }
 
-        $this->fixLegacyZeroDateTimestamps('tags');
-
-        Schema::table('tags', function (Blueprint $blueprint) {
-            if (! Schema::hasColumn('tags', 'created_at')) {
-                $blueprint->timestamps();
-            }
+        ProductionMysqlCompat::alterTable('tags', function () {
+            Schema::table('tags', function (Blueprint $blueprint) {
+                if (! Schema::hasColumn('tags', 'created_at')) {
+                    $blueprint->timestamps();
+                }
+            });
         });
     }
 
@@ -319,9 +312,11 @@ return new class extends Migration
             return;
         }
 
-        if (Schema::hasColumn('warehouse_compares', 'werehouse_id') && ! Schema::hasColumn('warehouse_compares', 'warehouse_id')) {
-            DB::statement('ALTER TABLE `warehouse_compares` CHANGE `werehouse_id` `warehouse_id` INT(11) NOT NULL');
-        }
+        ProductionMysqlCompat::alterTable('warehouse_compares', function () {
+            if (Schema::hasColumn('warehouse_compares', 'werehouse_id') && ! Schema::hasColumn('warehouse_compares', 'warehouse_id')) {
+                DB::statement('ALTER TABLE `warehouse_compares` CHANGE `werehouse_id` `warehouse_id` INT(11) NOT NULL');
+            }
+        });
     }
 
     private function alignSoftDeleteColumns(): void
@@ -331,8 +326,10 @@ return new class extends Migration
                 continue;
             }
 
-            Schema::table($table, function (Blueprint $blueprint) {
-                $blueprint->softDeletes();
+            ProductionMysqlCompat::alterTable($table, function () use ($table) {
+                Schema::table($table, function (Blueprint $blueprint) {
+                    $blueprint->softDeletes();
+                });
             });
         }
     }

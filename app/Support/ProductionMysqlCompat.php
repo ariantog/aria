@@ -47,8 +47,8 @@ class ProductionMysqlCompat
         }
 
         self::withRelaxedSqlMode(function () use ($table) {
+            self::relaxInvalidDateDefaults($table);
             self::nullOutZeroDateValues($table);
-            self::relaxInvalidTimestampDefaults($table);
         });
     }
 
@@ -76,15 +76,7 @@ class ProductionMysqlCompat
         }
 
         DB::statement('SET @aria_old_sql_mode = @@SESSION.sql_mode');
-        DB::statement("
-            SET SESSION sql_mode = REPLACE(
-                REPLACE(
-                    REPLACE(@aria_old_sql_mode, 'NO_ZERO_DATE', ''),
-                    'NO_ZERO_IN_DATE', ''
-                ),
-                'STRICT_TRANS_TABLES', ''
-            )
-        ");
+        DB::statement("SET SESSION sql_mode = 'ALLOW_INVALID_DATES'");
 
         try {
             $callback();
@@ -93,24 +85,49 @@ class ProductionMysqlCompat
         }
     }
 
+    /**
+     * @return list<string>
+     */
+    public static function zeroDateWhereClauses(string $column): array
+    {
+        return [
+            "`{$column}` = '0000-00-00'",
+            "`{$column}` = '0000-00-00 00:00:00'",
+            "CAST(`{$column}` AS CHAR) LIKE '0000-00-00%'",
+            "(`{$column}` IS NOT NULL AND `{$column}` < '1000-01-01')",
+        ];
+    }
+
+    public static function zeroDateReplacement(string $dataType, string $isNullable): string
+    {
+        if ($isNullable === 'YES') {
+            return 'NULL';
+        }
+
+        return in_array($dataType, ['datetime', 'timestamp'], true)
+            ? "'1970-01-01 00:00:00'"
+            : "'1970-01-01'";
+    }
+
     private static function nullOutZeroDateValues(string $table): void
     {
         $columns = DB::select("
-            SELECT COLUMN_NAME
+            SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE
             FROM information_schema.COLUMNS
             WHERE TABLE_SCHEMA = DATABASE()
               AND TABLE_NAME = ?
-              AND DATA_TYPE IN ('date', 'datetime', 'timestamp')
+              AND DATA_TYPE IN ('date', 'datetime', 'timestamp', 'year')
         ", [$table]);
 
         foreach ($columns as $column) {
             $name = $column->COLUMN_NAME;
+            $replacement = self::zeroDateReplacement($column->DATA_TYPE, $column->IS_NULLABLE);
+            $where = implode(' OR ', self::zeroDateWhereClauses($name));
+
             DB::statement("
                 UPDATE `{$table}`
-                SET `{$name}` = NULL
-                WHERE `{$name}` = '0000-00-00'
-                   OR `{$name}` = '0000-00-00 00:00:00'
-                   OR `{$name}` LIKE '0000-00-00 %'
+                SET `{$name}` = {$replacement}
+                WHERE {$where}
             ");
         }
     }
@@ -118,14 +135,14 @@ class ProductionMysqlCompat
     /**
      * Columns with DEFAULT '0000-00-00 ...' break subsequent ALTERs under strict mode.
      */
-    private static function relaxInvalidTimestampDefaults(string $table): void
+    private static function relaxInvalidDateDefaults(string $table): void
     {
         $columns = DB::select("
-            SELECT COLUMN_NAME, COLUMN_TYPE, COLUMN_DEFAULT
+            SELECT COLUMN_NAME, COLUMN_TYPE, COLUMN_DEFAULT, IS_NULLABLE
             FROM information_schema.COLUMNS
             WHERE TABLE_SCHEMA = DATABASE()
               AND TABLE_NAME = ?
-              AND DATA_TYPE IN ('timestamp', 'datetime')
+              AND DATA_TYPE IN ('date', 'datetime', 'timestamp', 'year')
         ", [$table]);
 
         foreach ($columns as $column) {
@@ -134,11 +151,20 @@ class ProductionMysqlCompat
                 continue;
             }
 
+            $nullability = $column->IS_NULLABLE === 'YES' ? 'NULL' : 'NOT NULL';
+            $defaultClause = $column->IS_NULLABLE === 'YES'
+                ? ' DEFAULT NULL'
+                : (in_array($column->DATA_TYPE, ['datetime', 'timestamp'], true)
+                    ? " DEFAULT '1970-01-01 00:00:00'"
+                    : " DEFAULT '1970-01-01'");
+
             DB::statement(sprintf(
-                'ALTER TABLE `%s` MODIFY `%s` %s NULL DEFAULT NULL',
+                'ALTER TABLE `%s` MODIFY `%s` %s %s%s',
                 $table,
                 $column->COLUMN_NAME,
-                $column->COLUMN_TYPE
+                $column->COLUMN_TYPE,
+                $nullability,
+                $defaultClause
             ));
         }
     }
