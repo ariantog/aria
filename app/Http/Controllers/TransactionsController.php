@@ -72,7 +72,7 @@ class TransactionsController extends Controller
         return $exportService->download($rows, $hideBank);
     }
 
-    public function create(string $type, BookClosingService $bookClosingService)
+    public function create(string $type, Request $request, BookClosingService $bookClosingService, TransactionReturnDraftService $draftService)
     {
         Transaction::authorizeTypeAccess($type);
         $config = config("transaction_rules.{$type}");
@@ -100,11 +100,7 @@ class TransactionsController extends Controller
             'config' => $config,
             'ppn_rate' => (float) \App\Models\Setting::getValue('ppn_rate', 11),
             'min_date' => $bookClosingService->getMinAllowedDate()->toDateString(),
-            'prefill' => match ($type) {
-                'move' => $this->pullReturnPrefill('move') ?? session()->pull('transaction_move_prefill'),
-                'return', 'return-supplier' => $this->pullReturnPrefill($type),
-                default => null,
-            },
+            'prefill' => $this->resolveCreatePrefill($type, $request, $draftService),
         ]);
     }
 
@@ -250,6 +246,8 @@ class TransactionsController extends Controller
             && $jubelioSync['sync_cek']
             && Transaction::userCanJubelioTransactionSync(Auth::user());
         $invoiceService = app(TransactionInvoiceService::class);
+        $returnDraftType = app(TransactionReturnDraftService::class)->targetTypeSlug($transaction);
+        $canDraftReturn = $this->canDraftReturn($transaction);
 
         return view('transactions.show', [
             'transaction' => $transaction,
@@ -259,31 +257,16 @@ class TransactionsController extends Controller
                 'delete_transaction' => Auth::user()->can(Transaction::getPermissions()['delete']),
                 'edit_transaction' => Auth::user()->can(Transaction::getPermissions()['edit']),
                 'bank_hidden_balance' => ! Auth::user()->is_superadmin && Auth::user()->can('addrbook-bank-account-hidden-balance'),
-                'return_draft' => $this->canDraftReturn($transaction),
+                'return_draft' => $canDraftReturn,
                 'jubelio_transaction_sync' => Transaction::userCanJubelioTransactionSync(Auth::user()),
             ],
+            'return_create_url' => $canDraftReturn && $returnDraftType
+                ? route('transactions.create', ['type' => $returnDraftType, 'from' => $transaction->id])
+                : null,
             'flash' => ['success' => session('success'), 'error' => session('error')],
             'hasInvoicePdf' => $invoiceService->invoicePdfExists($transaction),
             'invoicePdfUrl' => $invoiceService->invoicePdfUrl($transaction),
         ]);
-    }
-
-    public function draftReturn(Transaction $transaction, TransactionReturnDraftService $draftService)
-    {
-        $this->authorizeTransactionView($transaction);
-        $targetType = $draftService->targetTypeSlug($transaction);
-        abort_unless($targetType, 422, 'This transaction type cannot be returned.');
-        Transaction::authorizeTypeAccess($targetType);
-
-        $prefill = $draftService->buildPrefill($transaction);
-        session([
-            'transaction_return_prefill' => [
-                'type' => $targetType,
-                'source_transaction_id' => $transaction->id,
-            ],
-        ]);
-
-        return redirect()->route('transactions.create', ['type' => $targetType]);
     }
 
     public function showPdf(Transaction $transaction, TransactionInvoiceService $invoiceService)
@@ -463,28 +446,33 @@ class TransactionsController extends Controller
     /**
      * @return array<string, mixed>|null
      */
-    private function pullReturnPrefill(string $type, ?TransactionReturnDraftService $draftService = null): ?array
+    private function resolveCreatePrefill(string $type, Request $request, TransactionReturnDraftService $draftService): ?array
     {
-        $stored = session()->pull('transaction_return_prefill');
-        if (! is_array($stored) || ($stored['type'] ?? null) !== $type) {
-            return null;
+        if ($request->filled('from')) {
+            return $this->buildReturnPrefillFromSource((int) $request->query('from'), $type, $draftService);
         }
 
-        if (isset($stored['source_transaction_id'])) {
-            $transaction = Transaction::find($stored['source_transaction_id']);
-            if (! $transaction) {
-                return null;
-            }
-
-            $this->authorizeTransactionView($transaction);
-
-            return ($draftService ?? app(TransactionReturnDraftService::class))->buildPrefill($transaction);
+        if ($type === 'move') {
+            return session()->pull('transaction_move_prefill');
         }
 
-        // Legacy sessions may still hold the full prefill payload.
-        unset($stored['type']);
+        return null;
+    }
 
-        return $stored !== [] ? $stored : null;
+    /**
+     * @return array<string, mixed>
+     */
+    private function buildReturnPrefillFromSource(int $sourceId, string $type, TransactionReturnDraftService $draftService): array
+    {
+        $transaction = Transaction::find($sourceId);
+        abort_unless($transaction, 404);
+
+        $this->authorizeTransactionView($transaction);
+
+        $targetType = $draftService->targetTypeSlug($transaction);
+        abort_unless($targetType === $type, 422, 'This transaction cannot be used for this form.');
+
+        return $draftService->buildPrefill($transaction);
     }
 
     private function filteredTransactionsQuery(Request $request): Builder

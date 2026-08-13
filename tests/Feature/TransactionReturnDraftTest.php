@@ -50,16 +50,8 @@ it('drafts a return from a sell transaction with swapped parties and prefilled r
     ]);
 
     $this->actingAs($this->user)
-        ->post(route('transactions.draft-return', $sell))
-        ->assertRedirect(route('transactions.create', ['type' => 'return']));
-
-    expect(session('transaction_return_prefill'))->toMatchArray([
-        'type' => 'return',
-        'source_transaction_id' => $sell->id,
-    ]);
-
-    $page = $this->actingAs($this->user)->get(route('transactions.create', ['type' => 'return']));
-    $page->assertOk()
+        ->get(route('transactions.create', ['type' => 'return', 'from' => $sell->id]))
+        ->assertOk()
         ->assertSee('Toko Maju', false)
         ->assertSee('Gudang Pusat', false)
         ->assertSee('INV-RET-001', false)
@@ -94,11 +86,7 @@ it('drafts a return supplier from a buy transaction', function () {
     ]);
 
     $this->actingAs($this->user)
-        ->post(route('transactions.draft-return', $buy))
-        ->assertRedirect(route('transactions.create', ['type' => 'return-supplier']));
-
-    $this->actingAs($this->user)
-        ->get(route('transactions.create', ['type' => 'return-supplier']))
+        ->get(route('transactions.create', ['type' => 'return-supplier', 'from' => $buy->id]))
         ->assertOk()
         ->assertSee('Gudang Utama', false)
         ->assertSee('PT Sumber', false)
@@ -140,11 +128,7 @@ it('drafts an opposite move from a move transaction', function () {
     ]);
 
     $this->actingAs($this->user)
-        ->post(route('transactions.draft-return', $move))
-        ->assertRedirect(route('transactions.create', ['type' => 'move']));
-
-    $this->actingAs($this->user)
-        ->get(route('transactions.create', ['type' => 'move']))
+        ->get(route('transactions.create', ['type' => 'move', 'from' => $move->id]))
         ->assertOk()
         ->assertSee('Gudang B', false)
         ->assertSee('Gudang A', false)
@@ -199,8 +183,6 @@ it('submits a drafted return transaction with the same invoice and line totals',
         'total' => 80_000,
     ]);
 
-    $this->actingAs($this->user)->post(route('transactions.draft-return', $sell));
-
     $response = $this->actingAs($this->user)->post(route('transactions.store'), [
         'date' => now()->toDateString(),
         'type' => 'return',
@@ -231,16 +213,16 @@ it('submits a drafted return transaction with the same invoice and line totals',
         ->and((float) $return->real_total)->toBe(80_000.0);
 });
 
-it('rejects drafting a return from unsupported transaction types', function () {
+it('rejects return prefill from unsupported transaction types', function () {
     $cashIn = Transaction::factory()->create(['type' => Transaction::TYPE_CASH_IN]);
     TransactionDetail::factory()->create(['transaction_id' => $cashIn->id]);
 
     $this->actingAs($this->user)
-        ->post(route('transactions.draft-return', $cashIn))
+        ->get(route('transactions.create', ['type' => 'return', 'from' => $cashIn->id]))
         ->assertStatus(422);
 });
 
-it('drafts a return for a large sell transaction without bloating session storage', function () {
+it('loads a large sell transaction return prefill from the source id query param', function () {
     $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'Gudang Besar']);
     $customer = Addrbook::factory()->customer()->create(['name' => 'Toko Besar']);
 
@@ -280,18 +262,7 @@ it('drafts a return for a large sell transaction without bloating session storag
     }
 
     $this->actingAs($this->user)
-        ->post(route('transactions.draft-return', $sell))
-        ->assertRedirect(route('transactions.create', ['type' => 'return']));
-
-    $sessionPayload = session('transaction_return_prefill');
-    expect($sessionPayload)->toMatchArray([
-        'type' => 'return',
-        'source_transaction_id' => $sell->id,
-    ])
-        ->and(strlen(json_encode($sessionPayload)))->toBeLessThan(200);
-
-    $this->actingAs($this->user)
-        ->get(route('transactions.create', ['type' => 'return']))
+        ->get(route('transactions.create', ['type' => 'return', 'from' => $sell->id]))
         ->assertOk()
         ->assertSee('INV-LARGE-001', false)
         ->assertSee('Bulk Item 1', false)
