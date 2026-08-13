@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Transaction;
+use App\Support\LikeSearch;
 use Illuminate\Http\Request;
 
 class TransactionLookupController extends Controller
@@ -33,9 +34,10 @@ class TransactionLookupController extends Controller
 
         // Apply search term
         if ($search = $request->input('search')) {
-            $query->where(function ($q) use ($search) {
-                $q->where('customers.name', 'like', "%{$search}%")
-                    ->orWhere('customers.id', 'like', "%{$search}%");
+            $pattern = LikeSearch::contains($search);
+            $query->where(function ($q) use ($pattern) {
+                $q->where('customers.name', 'like', $pattern)
+                    ->orWhere('customers.id', 'like', $pattern);
             });
         }
 

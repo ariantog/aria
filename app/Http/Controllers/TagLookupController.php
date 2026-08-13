@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Tag;
+use App\Support\LikeSearch;
 use Illuminate\Http\Request;
 
 class TagLookupController extends Controller
@@ -23,10 +24,11 @@ class TagLookupController extends Controller
 
         // Apply search term
         if ($search = $request->input('search')) {
-            $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                    ->orWhere('code', 'like', "%{$search}%")
-                    ->orWhere('id', 'like', "%{$search}%");
+            $pattern = LikeSearch::contains($search);
+            $query->where(function ($q) use ($pattern) {
+                $q->where('name', 'like', $pattern)
+                    ->orWhere('code', 'like', $pattern)
+                    ->orWhere('id', 'like', $pattern);
             });
         }
 

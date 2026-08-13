@@ -38,3 +38,16 @@ it('keeps the search parameter separate when the endpoint has no query string', 
 
     expect($names)->toContain('Solo Warehouse')->not->toContain('Other Warehouse');
 });
+
+it('matches addrbook names when spaces are used as token separators', function () {
+    Addrbook::create(['name' => 'North Jakarta Warehouse', 'type' => Addrbook::TYPE_WAREHOUSE]);
+    Addrbook::create(['name' => 'South Jakarta Warehouse', 'type' => Addrbook::TYPE_WAREHOUSE]);
+    Addrbook::create(['name' => 'North Bandung Warehouse', 'type' => Addrbook::TYPE_WAREHOUSE]);
+
+    $url = route('transactions.lookup', ['type' => 'move', 'role' => 'sender']).'?search=North Jakarta';
+    $names = collect($this->getJson($url)->assertOk()->json())->pluck('name');
+
+    expect($names)->toContain('North Jakarta Warehouse')
+        ->not->toContain('South Jakarta Warehouse')
+        ->not->toContain('North Bandung Warehouse');
+});

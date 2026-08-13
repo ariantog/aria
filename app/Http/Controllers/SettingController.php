@@ -6,6 +6,7 @@ use App\Enums\AddrbookType;
 use App\Models\Addrbook;
 use App\Models\ScheduledTask;
 use App\Models\Setting;
+use App\Support\LikeSearch;
 use App\Support\SettingRegistry;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -138,9 +139,10 @@ class SettingController extends Controller
         $query = Addrbook::query()->where('type', $addrbookType);
 
         if ($search = $request->input('search')) {
-            $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                    ->orWhere('id', 'like', "%{$search}%");
+            $pattern = LikeSearch::contains($search);
+            $query->where(function ($q) use ($pattern) {
+                $q->where('name', 'like', $pattern)
+                    ->orWhere('id', 'like', $pattern);
             });
         }
 
