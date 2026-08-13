@@ -155,10 +155,11 @@ it('stores setoran row into warehouse with transaction detail audit columns', fu
     expect($transaction)->not->toBeNull();
     expect($transaction->receiver_id)->toBe($warehouse->id);
     expect($transaction->receiver_type)->toBe(AddrbookType::Warehouse->value);
+    expect($transaction->date->toDateString())->toBe(now()->toDateString());
 
     $detail = TransactionDetail::find($produksi->detail_id);
     expect($detail)->not->toBeNull();
-    expect($detail->date->toDateString())->toBe($transaction->date->toDateString());
+    expect($detail->date->toDateString())->toBe(now()->toDateString());
     expect($detail->transaction_type)->toBe(TransactionType::Production->value);
     expect($detail->sender_id)->toBe(0);
     expect($detail->receiver_id)->toBe($warehouse->id);
@@ -192,7 +193,48 @@ it('send to warehouse action fills transaction detail audit columns', function (
     $detail = TransactionDetail::find($produksi->fresh()->detail_id);
     $transaction = Transaction::find($produksi->fresh()->transaction_id);
 
-    expect($detail->date->toDateString())->toBe($transaction->date->toDateString());
+    expect($detail->date->toDateString())->toBe(now()->toDateString());
     expect($detail->transaction_type)->toBe(TransactionType::Production->value);
     expect($detail->receiver_id)->toBe($warehouse->id);
+});
+
+it('updates existing production invoice date to today when adding setoran row', function () {
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    Setting::query()->updateOrCreate(
+        ['slug' => 'produksi.default_warehouse_id'],
+        ['name' => 'Default Produksi Warehouse', 'value' => (string) $warehouse->id, 'location_id' => 0],
+    );
+
+    $existingTransaction = Transaction::factory()->create([
+        'date' => '2020-01-15',
+        'type' => TransactionType::Production->value,
+        'invoice' => 'PROD-INV-EXISTING',
+        'receiver_id' => $warehouse->id,
+        'receiver_type' => AddrbookType::Warehouse->value,
+        'total_items' => 2,
+    ]);
+
+    $worker = Worker::create(['name' => 'Cutter', 'type' => Worker::TYPE_POTONG]);
+    $size = Tag::create(['name' => 'L', 'type' => Tag::TYPE_SIZE, 'item_type' => 0]);
+    $item = Item::factory()->create(['code' => 'EXISTING-INV-ITEM']);
+
+    $produksi = Produksi::create([
+        'temp_name' => 'Existing Invoice Item',
+        'size_id' => $size->id,
+        'quantity' => 4,
+        'potong_id' => $worker->id,
+        'potong_date' => now(),
+        'status' => Produksi::STATUS_SETOR,
+        'item_id' => $item->id,
+        'invoice' => null,
+    ]);
+
+    app(SendToWarehouse::class)->execute($produksi, 'PROD-INV-EXISTING', $this->user->id);
+
+    $existingTransaction->refresh();
+    expect($existingTransaction->date->toDateString())->toBe(now()->toDateString());
+
+    $detail = TransactionDetail::find($produksi->fresh()->detail_id);
+    expect($detail->date->toDateString())->toBe(now()->toDateString());
+    expect($produksi->fresh()->transaction_id)->toBe($existingTransaction->id);
 });
