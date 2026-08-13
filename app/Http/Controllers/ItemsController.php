@@ -499,10 +499,10 @@ class ItemsController extends Controller
 
         return [
             'brands' => $this->brandOptions(),
-            'jahitTags' => \App\Models\Tag::where('type', \App\Models\Tag::TYPE_JAHIT)->get(),
+            'jahitTags' => Tag::tagsForItemForm($t, Tag::TYPE_JAHIT),
             'typeTags' => Tag::typeTagsForItem($t),
-            'sizeTags' => \App\Models\Tag::where('type', \App\Models\Tag::TYPE_SIZE)->get(),
-            'warnaTags' => \App\Models\Tag::where('type', \App\Models\Tag::TYPE_WARNA)->get(),
+            'sizeTags' => Tag::tagsForItemForm($t, Tag::TYPE_SIZE),
+            'warnaTags' => Tag::tagsForItemForm($t, Tag::TYPE_WARNA),
             'itemType' => $t->value,
             'isAsset' => $isAsset,
             'assetPcodeSuggestions' => $isAsset

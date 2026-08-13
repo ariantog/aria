@@ -69,17 +69,27 @@ class Tag extends Model
     }
 
     /**
+     * Tags for item / asset lancar forms: item_type matches the form or is universal (0).
+     *
+     * @return Collection<int, Tag>
+     */
+    public static function tagsForItemForm(ItemType $itemType, int $tagType): Collection
+    {
+        return static::query()
+            ->where('type', $tagType)
+            ->whereIn('item_type', [0, $itemType->value])
+            ->orderBy('name')
+            ->get();
+    }
+
+    /**
      * TYPE tags (SKU prefix / restock tab) scoped to manufactured items or asset lancar.
      *
      * @return Collection<int, Tag>
      */
     public static function typeTagsForItem(ItemType $itemType): Collection
     {
-        return static::query()
-            ->where('type', self::TYPE_TYPE)
-            ->where('item_type', $itemType->value)
-            ->orderBy('name')
-            ->get();
+        return static::tagsForItemForm($itemType, self::TYPE_TYPE);
     }
 
     /**
