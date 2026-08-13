@@ -151,19 +151,42 @@ it('shows the return button on buy, sell, and move detail pages', function () {
     $this->actingAs($this->user)->get(route('transactions.show', $sell))
         ->assertOk()
         ->assertSee($sellUrl, false)
-        ->assertDontSee('/draft-return', false);
+        ->assertSee('data-testid="return-transaction-button"', false)
+        ->assertDontSee('data-testid="draft-return-button"', false);
     $this->actingAs($this->user)->get(route('transactions.show', $buy))
         ->assertOk()
         ->assertSee($buyUrl, false)
-        ->assertDontSee('/draft-return', false);
+        ->assertSee('data-testid="return-transaction-button"', false);
     $this->actingAs($this->user)->get(route('transactions.show', $move))
         ->assertOk()
         ->assertSee($moveUrl, false)
-        ->assertDontSee('/draft-return', false);
+        ->assertSee('data-testid="return-transaction-button"', false);
     $this->actingAs($this->user)->get(route('transactions.show', $cashIn))
         ->assertOk()
-        ->assertDontSee('data-testid="draft-return-button"', false)
-        ->assertDontSee('/draft-return', false);
+        ->assertDontSee('data-testid="return-transaction-button"', false);
+});
+
+it('redirects legacy draft-return requests to the create form with from query', function () {
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    $customer = Addrbook::factory()->customer()->create();
+    $item = Item::factory()->create();
+
+    $sell = Transaction::factory()->create([
+        'type' => Transaction::TYPE_SELL,
+        'sender_id' => $warehouse->id,
+        'receiver_id' => $customer->id,
+        'sender_type' => (string) Addrbook::TYPE_WAREHOUSE,
+        'receiver_type' => (string) Addrbook::TYPE_CUSTOMER,
+    ]);
+
+    TransactionDetail::factory()->create([
+        'transaction_id' => $sell->id,
+        'item_id' => $item->id,
+    ]);
+
+    $this->actingAs($this->user)
+        ->post(route('transactions.draft-return', $sell))
+        ->assertRedirect(route('transactions.create', ['type' => 'return', 'from' => $sell->id]));
 });
 
 it('submits a drafted return transaction with the same invoice and line totals', function () {

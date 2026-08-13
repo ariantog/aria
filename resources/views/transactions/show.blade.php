@@ -52,7 +52,6 @@
             'hasInvoicePdf' => $hasInvoicePdf,
             'invoicePdfUrl' => $invoicePdfUrl,
             'can' => $can,
-            'returnCreateUrl' => $return_create_url ?? null,
         ])
     </div>
 

@@ -246,7 +246,6 @@ class TransactionsController extends Controller
             && $jubelioSync['sync_cek']
             && Transaction::userCanJubelioTransactionSync(Auth::user());
         $invoiceService = app(TransactionInvoiceService::class);
-        $returnDraftType = app(TransactionReturnDraftService::class)->targetTypeSlug($transaction);
         $canDraftReturn = $this->canDraftReturn($transaction);
 
         return view('transactions.show', [
@@ -260,12 +259,26 @@ class TransactionsController extends Controller
                 'return_draft' => $canDraftReturn,
                 'jubelio_transaction_sync' => Transaction::userCanJubelioTransactionSync(Auth::user()),
             ],
-            'return_create_url' => $canDraftReturn && $returnDraftType
-                ? route('transactions.create', ['type' => $returnDraftType, 'from' => $transaction->id])
-                : null,
             'flash' => ['success' => session('success'), 'error' => session('error')],
             'hasInvoicePdf' => $invoiceService->invoicePdfExists($transaction),
             'invoicePdfUrl' => $invoiceService->invoicePdfUrl($transaction),
+        ]);
+    }
+
+    /**
+     * Legacy entry point — redirects to the create form with ?from= (no session storage).
+     * Kept so older cached transaction detail pages still work after deploy.
+     */
+    public function draftReturn(Transaction $transaction, TransactionReturnDraftService $draftService)
+    {
+        $this->authorizeTransactionView($transaction);
+        $targetType = $draftService->targetTypeSlug($transaction);
+        abort_unless($targetType, 422, 'This transaction type cannot be returned.');
+        Transaction::authorizeTypeAccess($targetType);
+
+        return redirect()->route('transactions.create', [
+            'type' => $targetType,
+            'from' => $transaction->id,
         ]);
     }
 
