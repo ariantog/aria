@@ -138,7 +138,7 @@ class ProductionMysqlCompat
     private static function relaxInvalidDateDefaults(string $table): void
     {
         $columns = DB::select("
-            SELECT COLUMN_NAME, COLUMN_TYPE, COLUMN_DEFAULT, IS_NULLABLE
+            SELECT COLUMN_NAME, COLUMN_TYPE, COLUMN_DEFAULT, IS_NULLABLE, DATA_TYPE
             FROM information_schema.COLUMNS
             WHERE TABLE_SCHEMA = DATABASE()
               AND TABLE_NAME = ?
@@ -151,10 +151,11 @@ class ProductionMysqlCompat
                 continue;
             }
 
+            $dataType = strtolower($column->DATA_TYPE);
             $nullability = $column->IS_NULLABLE === 'YES' ? 'NULL' : 'NOT NULL';
             $defaultClause = $column->IS_NULLABLE === 'YES'
                 ? ' DEFAULT NULL'
-                : (in_array($column->DATA_TYPE, ['datetime', 'timestamp'], true)
+                : (in_array($dataType, ['datetime', 'timestamp'], true)
                     ? " DEFAULT '1970-01-01 00:00:00'"
                     : " DEFAULT '1970-01-01'");
 
