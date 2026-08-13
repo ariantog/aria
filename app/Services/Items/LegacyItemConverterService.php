@@ -80,7 +80,7 @@ class LegacyItemConverterService
                     ]);
             })
             ->where(fn (Builder $query) => $this->applyPendingConversionScope($query))
-            ->orderBy('items.id');
+            ->orderByDesc('items.id');
     }
 
     /**
@@ -138,7 +138,7 @@ class LegacyItemConverterService
 
         $this->candidateBaseQuery($itemType)
             ->select(['id', 'code', 'type'])
-            ->chunkById(500, function ($items) use ($parser, $itemType, &$eligible, &$unparseable, &$candidates) {
+            ->chunkByIdDesc(500, function ($items) use ($parser, $itemType, &$eligible, &$unparseable, &$candidates) {
                 foreach ($items as $item) {
                     $candidates++;
 
@@ -201,7 +201,7 @@ class LegacyItemConverterService
 
         $this->candidateBaseQuery($itemType)
             ->select(['id', 'code', 'type'])
-            ->chunkById(500, function ($items) use (
+            ->chunkByIdDesc(500, function ($items) use (
                 $parser,
                 $itemType,
                 $start,
@@ -245,7 +245,7 @@ class LegacyItemConverterService
 
         $this->candidateBaseQuery($itemType)
             ->select(['id', 'code', 'type'])
-            ->chunkById(500, function ($items) use ($parser, $itemType, $limit, &$batchIds) {
+            ->chunkByIdDesc(500, function ($items) use ($parser, $itemType, $limit, &$batchIds) {
             foreach ($items as $item) {
                 if (! $parser->hasMinimumIdentityStructure((string) $item->code, $itemType)) {
                     continue;

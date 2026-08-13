@@ -352,6 +352,29 @@ it('uses product name from item title for manufactured group name', function () 
     expect($item->fresh()->group->name)->toBe('SLASH RUNNING SHIRT');
 });
 
+it('lists pending items sorted by id descending', function () {
+    $older = Item::factory()->create([
+        'type' => ItemType::ASSET_LANCAR,
+        'group_id' => null,
+        'code' => 'GLOVE-01-BLACK-S',
+        'pcode' => 'GLOVE-01',
+        'name' => 'GLOVE 1 - BLACK - S',
+    ]);
+    $newer = Item::factory()->create([
+        'type' => ItemType::ASSET_LANCAR,
+        'group_id' => null,
+        'code' => 'GLOVE-02-BLACK-S',
+        'pcode' => 'GLOVE-02',
+        'name' => 'GLOVE 2 - BLACK - S',
+    ]);
+
+    expect($newer->id)->toBeGreaterThan($older->id);
+
+    $page = $this->service->eligibleItemsForPage(ItemType::ASSET_LANCAR, 1);
+
+    expect($page->pluck('id')->all())->toBe([$newer->id, $older->id]);
+});
+
 it('converts only the item ids shown on the current page', function () {
     $items = collect(range(1, 5))->map(function ($i) {
         return Item::factory()->create([
