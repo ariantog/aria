@@ -3,14 +3,19 @@
 @push('head-css')
 <link href="https://unpkg.com/tabulator-tables@6.3.1/dist/css/tabulator.min.css" rel="stylesheet">
 <style>
-    .tabulator { font-size: 13px; border-radius: 0.5rem; overflow: hidden; width: max-content; max-width: 100%; }
+    .tabulator { font-size: 13px; border-radius: 0.5rem; width: 100%; }
+    .tabulator .tabulator-tableholder {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        touch-action: pan-x pan-y;
+        overscroll-behavior-x: contain;
+    }
     .tabulator .tabulator-header .tabulator-col.tabulator-col-group-restock { background: #dbeafe; }
     .tabulator .tabulator-header .tabulator-col.tabulator-col-group-production { background: #fde68a; }
     .tabulator .tabulator-header .tabulator-col.tabulator-col-group-shipped { background: #e5e7eb; }
     .tabulator .tabulator-header .tabulator-col.tabulator-col-group-stock { background: #d1fae5; }
     .tabulator-cell.tabulator-editing { border: 2px solid #2563eb !important; }
     .restock-urgent-cell { background-color: #fef2f2 !important; color: #b91c1c; font-weight: 600; }
-    .restock-grid-scroll { overflow-x: auto; }
     .restock-sheet-actions {
         position: sticky;
         top: 0;
