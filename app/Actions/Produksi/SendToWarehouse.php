@@ -45,7 +45,7 @@ class SendToWarehouse
                 'discount' => 0,
                 'total' => 0,
                 'date' => $today,
-                'transaction_type' => $transaction->type,
+                'transaction_type' => TransactionType::Production->value,
                 'sender_id' => $transaction->sender_id ?? 0,
                 'receiver_id' => $transaction->receiver_id,
             ]);
