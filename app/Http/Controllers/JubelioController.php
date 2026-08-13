@@ -20,6 +20,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
 use Illuminate\View\View;
+use JsonException;
 
 class JubelioController extends Controller
 {
@@ -217,34 +218,19 @@ class JubelioController extends Controller
             return response()->json(['error' => 'Invalid signature'], 403);
         }
 
-        if ($request->header('X-Jubelio-Forwarded-From')) {
+        $isForward = $request->hasHeader('X-Jubelio-Forwarded-From');
+        $d = $this->webhookPayload($request);
+
+        if ($isForward) {
             Log::info('Jubelio order webhook received via forward', [
                 'from' => $request->header('X-Jubelio-Forwarded-From'),
-                'invoice' => $request->input('salesorder_no'),
-                'status' => $request->input('status'),
+                'invoice' => $d['salesorder_no'] ?? null,
+                'status' => $d['status'] ?? null,
             ]);
         }
 
-        $d = $request->all();
         if (($d['status'] ?? '') === 'SHIPPED') {
-            if (Carbon::parse($d['transaction_date'])->lt(Carbon::parse('2025-03-06'))) {
-                return response()->json(['status' => 'ok', 'message' => 'Before threshold.']);
-            }
-            if (Jubelioorder::where('invoice', $d['salesorder_no'])->where('type', 'SELL')->where('order_status', $d['status'])->exists()) {
-                return response()->json(['status' => 'ok', 'message' => 'Already exists']);
-            }
-            $order = Jubelioorder::create([
-                'jubelio_order_id' => $d['salesorder_id'],
-                'source' => 1,
-                'invoice' => $d['salesorder_no'],
-                'type' => 'SELL',
-                'order_status' => $d['status'],
-                'run_count' => 0,
-                'payload' => json_encode($d),
-                'status' => 0,
-            ]);
-
-            return response()->json(['status' => 'ok', 'message' => 'Saved']);
+            return $this->storeShippedWebhookOrder($d, $isForward);
         }
         if (($d['status'] ?? '') === 'CANCELED') {
             $t = Transaction::where('type', Transaction::TYPE_SELL)->where('invoice', $d['salesorder_no'])->first();
@@ -271,6 +257,12 @@ class JubelioController extends Controller
 
             return response()->json(['status' => 'ok', 'message' => 'Cancel saved']);
         }
+
+        Log::info('Jubelio order webhook ignored: unsupported status', [
+            'invoice' => $d['salesorder_no'] ?? null,
+            'status' => $d['status'] ?? null,
+            'forwarded' => $isForward,
+        ]);
 
         return response()->json(['status' => 'ok', 'message' => 'Status '.($d['status'] ?? 'unknown')]);
     }
@@ -416,5 +408,123 @@ class JubelioController extends Controller
         }
 
         return null;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function webhookPayload(Request $request): array
+    {
+        $decoded = json_decode(trim($request->getContent()), true);
+        if (is_array($decoded) && $decoded !== []) {
+            return $decoded;
+        }
+
+        return $request->all();
+    }
+
+    private function storeShippedWebhookOrder(array $d, bool $isForward): JsonResponse
+    {
+        $invoice = (string) ($d['salesorder_no'] ?? '');
+        $orderStatus = (string) ($d['status'] ?? 'SHIPPED');
+        $context = [
+            'invoice' => $invoice,
+            'salesorder_id' => $d['salesorder_id'] ?? null,
+            'forwarded' => $isForward,
+        ];
+
+        if ($invoice === '' || ! isset($d['salesorder_id'])) {
+            Log::warning('Jubelio order webhook skipped: missing salesorder fields', $context);
+
+            return response()->json(['status' => 'ok', 'message' => 'salesorder fields missing']);
+        }
+
+        if (Carbon::parse($d['transaction_date'] ?? now())->lt(Carbon::parse('2025-03-06'))) {
+            Log::info('Jubelio order webhook skipped: before threshold', $context);
+
+            return response()->json(['status' => 'ok', 'message' => 'Before threshold.']);
+        }
+
+        try {
+            $payload = json_encode($d, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+        } catch (JsonException $e) {
+            Log::warning('Jubelio order webhook skipped: payload not encodable', $context + [
+                'message' => $e->getMessage(),
+            ]);
+
+            return response()->json(['status' => 'ok', 'message' => 'Payload not encodable']);
+        }
+
+        $existing = Jubelioorder::query()
+            ->where('invoice', $invoice)
+            ->where('type', 'SELL')
+            ->where('order_status', $orderStatus)
+            ->first();
+
+        if ($isForward) {
+            if ($existing && (int) $existing->status === 0) {
+                Log::info('Jubelio forward webhook skipped: already pending', $context);
+
+                return response()->json(['status' => 'ok', 'message' => 'Already pending']);
+            }
+
+            if ($existing) {
+                $existing->update([
+                    'jubelio_order_id' => $d['salesorder_id'],
+                    'source' => 1,
+                    'run_count' => 0,
+                    'error' => null,
+                    'error_type' => null,
+                    'execute_by' => null,
+                    'payload' => $payload,
+                    'status' => 0,
+                ]);
+
+                Log::info('Jubelio forward webhook reset order to pending', $context + [
+                    'jubelioorder_id' => $existing->id,
+                ]);
+
+                return response()->json(['status' => 'ok', 'message' => 'Reset to pending']);
+            }
+
+            $order = Jubelioorder::create([
+                'jubelio_order_id' => $d['salesorder_id'],
+                'source' => 1,
+                'invoice' => $invoice,
+                'type' => 'SELL',
+                'order_status' => $orderStatus,
+                'run_count' => 0,
+                'payload' => $payload,
+                'status' => 0,
+            ]);
+
+            Log::info('Jubelio forward webhook saved new order', $context + [
+                'jubelioorder_id' => $order->id,
+            ]);
+
+            return response()->json(['status' => 'ok', 'message' => 'Saved']);
+        }
+
+        if ($existing) {
+            Log::info('Jubelio order webhook skipped: already exists', $context + [
+                'jubelioorder_id' => $existing->id,
+                'processing_status' => $existing->status,
+            ]);
+
+            return response()->json(['status' => 'ok', 'message' => 'Already exists']);
+        }
+
+        Jubelioorder::create([
+            'jubelio_order_id' => $d['salesorder_id'],
+            'source' => 1,
+            'invoice' => $invoice,
+            'type' => 'SELL',
+            'order_status' => $orderStatus,
+            'run_count' => 0,
+            'payload' => $payload,
+            'status' => 0,
+        ]);
+
+        return response()->json(['status' => 'ok', 'message' => 'Saved']);
     }
 }

@@ -33,7 +33,7 @@ try {
         }
     }
 } catch (\Throwable $e) {
-  Log::warning('Failed to load scheduled tasks from database.', [
-      'message' => $e->getMessage(),
-  ]);
+    Log::warning('Failed to load scheduled tasks from database.', [
+        'message' => $e->getMessage(),
+    ]);
 }
