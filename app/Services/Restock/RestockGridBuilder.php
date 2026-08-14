@@ -2,11 +2,9 @@
 
 namespace App\Services\Restock;
 
-use App\Models\Item;
 use App\Models\RestockCell;
 use App\Models\RestockSheet;
 use App\Services\Items\ItemIdentityBuilder;
-use App\Services\Restock\RestockSettingsService;
 use Illuminate\Support\Collection;
 
 class RestockGridBuilder
@@ -19,7 +17,17 @@ class RestockGridBuilder
     ) {}
 
     /**
-     * @return array{sheet_id: int, parents: list<array{pcode: string, name: string, sizes: list<string>, rows: list<array<string, mixed>>}>}
+     * @return array{
+     *     sheet_id: int,
+     *     parents: list<array{pcode: string, name: string, image_url: string, sizes: list<string>, rows: list<array<string, mixed>>}>,
+     *     blocks: list<array{
+     *         kind: 'matrix'|'flat',
+     *         id: string,
+     *         title: string,
+     *         sizes?: list<string>,
+     *         rows: list<array<string, mixed>>
+     *     }>
+     * }
      */
     public function build(RestockSheet $sheet): array
     {
@@ -51,7 +59,143 @@ class RestockGridBuilder
         return [
             'sheet_id' => $sheet->id,
             'parents' => $parents,
+            'blocks' => $this->buildBlocks($parents),
         ];
+    }
+
+    /**
+     * @param  list<array{pcode: string, name: string, image_url: string, sizes: list<string>, rows: list<array<string, mixed>>}>  $parents
+     * @return list<array{kind: 'matrix'|'flat', id: string, title: string, sizes?: list<string>, rows: list<array<string, mixed>>}>
+     */
+    protected function buildBlocks(array $parents): array
+    {
+        $flatParents = [];
+        $alphaParents = [];
+        $otherParents = [];
+
+        foreach ($parents as $parent) {
+            if ($parent['sizes'] === ['—']) {
+                $flatParents[] = $parent;
+
+                continue;
+            }
+
+            if ($this->isAlphaSizes($parent['sizes'])) {
+                $alphaParents[] = $parent;
+
+                continue;
+            }
+
+            $otherParents[] = $parent;
+        }
+
+        $blocks = [];
+
+        if ($alphaParents !== []) {
+            $blocks[] = $this->buildMatrixBlock($alphaParents, 'alpha', 'Letter sizes');
+        }
+
+        if ($otherParents !== []) {
+            $blocks[] = $this->buildMatrixBlock($otherParents, 'other', 'Other sizes');
+        }
+
+        if ($flatParents !== []) {
+            $blocks[] = $this->buildFlatBlock($flatParents);
+        }
+
+        return $blocks;
+    }
+
+    /**
+     * @param  list<array{pcode: string, name: string, image_url: string, sizes: list<string>, rows: list<array<string, mixed>>}>  $parents
+     * @return array{kind: 'matrix', id: string, title: string, sizes: list<string>, rows: list<array<string, mixed>>}
+     */
+    protected function buildMatrixBlock(array $parents, string $kind, string $title): array
+    {
+        $sizes = $this->unionSizeCodes(collect($parents)->pluck('sizes'));
+
+        return [
+            'kind' => 'matrix',
+            'id' => 'matrix-'.$kind,
+            'title' => $title,
+            'sizes' => $sizes,
+            'rows' => $this->buildBlockRows($parents),
+        ];
+    }
+
+    /**
+     * @param  list<array{pcode: string, name: string, image_url: string, sizes: list<string>, rows: list<array<string, mixed>>}>  $parents
+     * @return array{kind: 'flat', id: string, title: string, rows: list<array<string, mixed>>}
+     */
+    protected function buildFlatBlock(array $parents): array
+    {
+        return [
+            'kind' => 'flat',
+            'id' => 'flat',
+            'title' => 'No size',
+            'rows' => $this->buildBlockRows($parents),
+        ];
+    }
+
+    /**
+     * @param  list<array{pcode: string, name: string, image_url: string, sizes: list<string>, rows: list<array<string, mixed>>}>  $parents
+     * @return list<array<string, mixed>>
+     */
+    protected function buildBlockRows(array $parents): array
+    {
+        $rows = [];
+
+        foreach ($parents as $index => $parent) {
+            if ($index > 0) {
+                $rows[] = ['_type' => 'spacer'];
+            }
+
+            $rows[] = [
+                '_type' => 'section',
+                'pcode' => $parent['pcode'],
+                'name' => $parent['name'],
+                'image_url' => $parent['image_url'],
+            ];
+
+            foreach ($parent['rows'] as $colorRow) {
+                $rows[] = array_merge([
+                    '_type' => 'data',
+                    'pcode' => $parent['pcode'],
+                    'parent_sizes' => $parent['sizes'],
+                ], $colorRow);
+            }
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param  Collection<int, list<string>>  $sizeLists
+     * @return list<string>
+     */
+    protected function unionSizeCodes(Collection $sizeLists): array
+    {
+        return $sizeLists
+            ->flatten()
+            ->filter(fn (string $code) => $code !== '—')
+            ->unique()
+            ->sortBy(fn (string $code) => $this->sizeSortKey($code))
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  list<string>  $sizes
+     */
+    protected function isAlphaSizes(array $sizes): bool
+    {
+        foreach ($sizes as $size) {
+            if (! in_array(strtoupper($size), self::SIZE_ORDER, true)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
