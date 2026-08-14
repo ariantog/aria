@@ -4,7 +4,9 @@ use App\Models\Addrbook;
 use App\Models\Item;
 use App\Models\Jubelioorder;
 use App\Models\Jubeliosync;
+use App\Models\Transaction;
 use App\Models\User;
+use App\Models\WarehouseItem;
 
 it('defaults jubelio orders index to pending only', function () {
     $user = User::factory()->create();
@@ -125,6 +127,13 @@ it('can manually process a pending jubelio sell order', function () {
     $customer = Addrbook::factory()->create(['type' => Addrbook::TYPE_CUSTOMER]);
     $item = Item::factory()->create(['code' => 'SKU-MANUAL-1']);
 
+    WarehouseItem::create([
+        'warehouse_id' => $warehouse->id,
+        'warehouse_type' => $warehouse->type,
+        'item_id' => $item->id,
+        'quantity' => 10,
+    ]);
+
     Jubeliosync::create([
         'jubelio_store_id' => 10,
         'jubelio_store_name' => 'Store',
@@ -205,6 +214,176 @@ it('shows jubelio and aria warehouse names on orders list', function () {
         ->assertSuccessful()
         ->assertSee('Gudang Jubelio Pusat')
         ->assertSee('Gudang Aria Utama');
+});
+
+it('shows clickable customer warehouse and item links on order detail', function () {
+    $user = User::factory()->create();
+    $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'Gudang Detail Link']);
+    $customer = Addrbook::factory()->create(['type' => Addrbook::TYPE_CUSTOMER, 'name' => 'Tokopedia Channel']);
+    $item = Item::factory()->create(['code' => 'SKU-LINK-DETAIL', 'name' => 'Produk Link']);
+
+    WarehouseItem::create([
+        'warehouse_id' => $warehouse->id,
+        'warehouse_type' => $warehouse->type,
+        'item_id' => $item->id,
+        'quantity' => 5,
+    ]);
+
+    Jubeliosync::create([
+        'jubelio_store_id' => 77,
+        'jubelio_store_name' => 'Store',
+        'jubelio_location_id' => 88,
+        'jubelio_location_name' => 'Gudang Jubelio',
+        'warehouse_id' => $warehouse->id,
+        'customer_id' => $customer->id,
+        'bin_id' => 0,
+    ]);
+
+    $order = Jubelioorder::create([
+        'jubelio_order_id' => 'detail-link-1',
+        'source' => 1,
+        'invoice' => 'INV-DETAIL-LINK',
+        'type' => 'SELL',
+        'order_status' => 'SHIPPED',
+        'run_count' => 0,
+        'payload' => json_encode([
+            'salesorder_no' => 'INV-DETAIL-LINK',
+            'store_id' => 77,
+            'location_id' => 88,
+            'location_name' => 'Gudang Jubelio',
+            'customer_name' => 'Nama di Payload',
+            'sub_total' => 50000,
+            'real_total' => 50000,
+            'items' => [
+                ['item_code' => 'SKU-LINK-DETAIL', 'qty' => 2, 'price' => 25000],
+            ],
+        ]),
+        'status' => 0,
+    ]);
+
+    $warehouseUrl = route('addrbook.type.show', ['type' => $warehouse->type_slug, 'addrbook' => $warehouse->id]);
+    $customerUrl = route('addrbook.type.show', ['type' => $customer->type_slug, 'addrbook' => $customer->id]);
+    $itemUrl = route('items.show', $item);
+
+    $this->actingAs($user)
+        ->get(route('jubelio.show', $order))
+        ->assertSuccessful()
+        ->assertSee($warehouseUrl, false)
+        ->assertSee('Gudang Detail Link')
+        ->assertSee($customerUrl, false)
+        ->assertSee('Tokopedia Channel')
+        ->assertSee($itemUrl, false)
+        ->assertSee('SKU-LINK-DETAIL')
+        ->assertSee('Produk Link')
+        ->assertSee('Stok Aria');
+});
+
+it('processes jubelio return into the original sell warehouse', function () {
+    $warehouseA = Addrbook::factory()->warehouse()->create(['name' => 'Gudang Asal']);
+    $warehouseB = Addrbook::factory()->warehouse()->create(['name' => 'Gudang Lain']);
+    $customer = Addrbook::factory()->create(['type' => Addrbook::TYPE_CUSTOMER]);
+    $item = Item::factory()->create(['code' => 'SKU-RET-WH']);
+
+    Jubeliosync::create([
+        'jubelio_store_id' => 1,
+        'jubelio_store_name' => 'Store A',
+        'jubelio_location_id' => 10,
+        'jubelio_location_name' => 'Loc A',
+        'warehouse_id' => $warehouseA->id,
+        'customer_id' => $customer->id,
+        'bin_id' => 0,
+    ]);
+
+    Jubeliosync::create([
+        'jubelio_store_id' => 1,
+        'jubelio_store_name' => 'Store B',
+        'jubelio_location_id' => 99,
+        'jubelio_location_name' => 'Loc B',
+        'warehouse_id' => $warehouseB->id,
+        'customer_id' => $customer->id,
+        'bin_id' => 0,
+    ]);
+
+    Transaction::factory()->create([
+        'type' => Transaction::TYPE_SELL,
+        'invoice' => 'INV-SELL-ORIG',
+        'sender_id' => $warehouseA->id,
+        'sender_type' => $warehouseA->type,
+        'receiver_id' => $customer->id,
+        'receiver_type' => $customer->type,
+    ]);
+
+    $order = Jubelioorder::create([
+        'jubelio_order_id' => 'ret-wh-1',
+        'source' => 1,
+        'invoice' => 'RET-WH-1',
+        'type' => 'RETURN',
+        'order_status' => 'RETURN',
+        'run_count' => 0,
+        'payload' => json_encode([
+            'return_no' => 'RET-WH-1',
+            'salesorder_no' => 'INV-SELL-ORIG',
+            'store_id' => 1,
+            'location_id' => 99,
+            'sub_total' => 10000,
+            'real_total' => 10000,
+            'items' => [
+                ['item_code' => 'SKU-RET-WH', 'qty_in_base' => 1, 'price' => 10000],
+            ],
+        ]),
+        'status' => 0,
+    ]);
+
+    app(\App\Actions\Jubelio\ProcessJubelioOrder::class)->execute($order);
+
+    $returnTrx = Transaction::where('type', Transaction::TYPE_RETURN)->where('invoice', 'RET-WH-1')->first();
+    expect($returnTrx)->not->toBeNull()
+        ->and($returnTrx->receiver_id)->toBe($warehouseA->id)
+        ->and($returnTrx->sender_id)->toBe($customer->id);
+});
+
+it('rejects jubelio sell when mapped warehouse stock is insufficient', function () {
+    $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'Gudang Kosong']);
+    $customer = Addrbook::factory()->create(['type' => Addrbook::TYPE_CUSTOMER]);
+    $item = Item::factory()->create(['code' => 'SKU-NO-STOCK']);
+
+    Jubeliosync::create([
+        'jubelio_store_id' => 5,
+        'jubelio_store_name' => 'Store',
+        'jubelio_location_id' => 6,
+        'jubelio_location_name' => 'Loc',
+        'warehouse_id' => $warehouse->id,
+        'customer_id' => $customer->id,
+        'bin_id' => 0,
+    ]);
+
+    $order = Jubelioorder::create([
+        'jubelio_order_id' => 'no-stock-1',
+        'source' => 1,
+        'invoice' => 'INV-NO-STOCK',
+        'type' => 'SELL',
+        'order_status' => 'SHIPPED',
+        'run_count' => 0,
+        'payload' => json_encode([
+            'salesorder_no' => 'INV-NO-STOCK',
+            'store_id' => 5,
+            'location_id' => 6,
+            'sub_total' => 5000,
+            'real_total' => 5000,
+            'items' => [
+                ['item_code' => 'SKU-NO-STOCK', 'qty' => 1, 'price' => 5000],
+            ],
+        ]),
+        'status' => 0,
+    ]);
+
+    $result = app(\App\Actions\Jubelio\ProcessJubelioOrder::class)->execute($order);
+
+    expect($result['success'])->toBeFalse()
+        ->and($result['message'])->toContain('Gudang Kosong')
+        ->and($result['message'])->toContain('SKU-NO-STOCK');
+
+    expect(Transaction::where('invoice', 'INV-NO-STOCK')->exists())->toBeFalse();
 });
 
 it('can mark duplicate jubelio order as solved', function () {
