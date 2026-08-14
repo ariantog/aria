@@ -3,12 +3,36 @@
 @push('head-css')
 <link href="https://unpkg.com/tabulator-tables@6.3.1/dist/css/tabulator.min.css" rel="stylesheet">
 <style>
-    .tabulator { font-size: 13px; border-radius: 0.375rem; overflow: hidden; width: 100%; }
-    .tabulator .tabulator-header .tabulator-col.tabulator-col-group-restock { background: #dbeafe; }
-    .tabulator .tabulator-header .tabulator-col.tabulator-col-group-production { background: #fde68a; }
-    .tabulator .tabulator-header .tabulator-col.tabulator-col-group-shipped { background: #e5e7eb; }
-    .tabulator .tabulator-header .tabulator-col.tabulator-col-group-stock { background: #d1fae5; }
-    .tabulator-cell.tabulator-editing { border: 2px solid #2563eb !important; }
+    .restock-grid-scroll .tabulator {
+        font-size: 13px;
+        border-radius: 0.375rem;
+        width: max-content;
+        max-width: 100%;
+        background: transparent;
+    }
+    .restock-grid-scroll .tabulator .tabulator-tableholder,
+    .restock-grid-scroll .tabulator .tabulator-header {
+        background: #fff;
+    }
+    .restock-grid-scroll .tabulator .tabulator-header .tabulator-col.tabulator-col-group-restock,
+    .restock-grid-scroll .tabulator .tabulator-header .tabulator-col.restock-col-restock { background: #dbeafe; }
+    .restock-grid-scroll .tabulator .tabulator-header .tabulator-col.tabulator-col-group-production,
+    .restock-grid-scroll .tabulator .tabulator-header .tabulator-col.restock-col-production { background: #fde68a; }
+    .restock-grid-scroll .tabulator .tabulator-header .tabulator-col.tabulator-col-group-shipped,
+    .restock-grid-scroll .tabulator .tabulator-header .tabulator-col.restock-col-shipped { background: #e5e7eb; }
+    .restock-grid-scroll .tabulator .tabulator-header .tabulator-col.tabulator-col-group-stock,
+    .restock-grid-scroll .tabulator .tabulator-header .tabulator-col.restock-col-stock { background: #d1fae5; }
+    .restock-grid-scroll .tabulator-cell.tabulator-editing { border: 2px solid #2563eb !important; }
+    .restock-grid-scroll .tabulator .tabulator-row-header {
+        min-width: 46px;
+    }
+    .restock-grid-scroll .tabulator .tabulator-row-header .tabulator-row-header-box {
+        padding: 0 8px;
+    }
+    .restock-section-row .tabulator-row-header .tabulator-row-header-box,
+    .restock-spacer-row .tabulator-row-header .tabulator-row-header-box {
+        display: none;
+    }
     .restock-urgent-cell { background-color: #fef2f2 !important; color: #b91c1c; font-weight: 600; }
     .restock-na-cell { background-color: #f3f4f6 !important; color: #9ca3af; }
     .restock-grid-scroll { overflow-x: auto; }
@@ -121,7 +145,7 @@ $breadcrumbs = [
                     <h2 class="text-sm font-semibold text-gray-700">{{ $block['title'] }}</h2>
                 </div>
             @endif
-            <div class="restock-grid-scroll p-2" data-block-grid="{{ $block['id'] }}"></div>
+            <div class="restock-grid-scroll p-2" data-block-grid="{{ $block['id'] }}" data-block-kind="{{ $block['kind'] }}"></div>
         </section>
     @empty
         <div class="rounded-xl border border-gray-200 bg-white p-8 text-center text-gray-500">
@@ -221,7 +245,7 @@ function restockSheetPage() {
 
                     this.tables[block.id] = new Tabulator(el, {
                         data: block.rows,
-                        layout: 'fitData',
+                        layout: 'fitDataTable',
                         height: Math.max(140, block.rows.length * 36 + 44),
                         selectableRows: this.canEdit,
                         selectableRowsCheck: (row) => row.getData()._type === 'data',
@@ -230,7 +254,10 @@ function restockSheetPage() {
                             titleFormatter: 'rowSelection',
                             headerSort: false,
                             frozen: true,
-                            width: 40,
+                            width: 46,
+                            minWidth: 46,
+                            hozAlign: 'center',
+                            headerHozAlign: 'center',
                         } : false,
                         columnDefaults: { headerHozAlign: 'center', hozAlign: 'right', widthGrow: 0 },
                         columns: block.kind === 'flat'
@@ -351,8 +378,9 @@ function restockSheetPage() {
                 cols.push({
                     title: stage.title,
                     field: stage.key,
-                    cssClass: stage.groupClass,
-                    width: 72,
+                    cssClass: 'restock-col-' + stage.key,
+                    width: 108,
+                    minWidth: 108,
                     widthGrow: 0,
                     editor: stage.editable && this.canEdit ? 'number' : false,
                     editable: (cell) => this.canEditFlatCell(cell, stage.editable),
