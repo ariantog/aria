@@ -3,16 +3,24 @@
 @push('head-css')
 <link href="https://unpkg.com/tabulator-tables@6.3.1/dist/css/tabulator.min.css" rel="stylesheet">
 <style>
+    .restock-grid-scroll {
+        overflow-x: auto;
+        background: transparent;
+    }
     .restock-grid-scroll .tabulator {
+        display: inline-block;
+        vertical-align: top;
         font-size: 13px;
         border-radius: 0.375rem;
-        width: max-content;
+        width: auto;
         max-width: 100%;
         background: transparent;
     }
     .restock-grid-scroll .tabulator .tabulator-tableholder,
-    .restock-grid-scroll .tabulator .tabulator-header {
-        background: #fff;
+    .restock-grid-scroll .tabulator .tabulator-header,
+    .restock-grid-scroll .tabulator .tabulator-table,
+    .restock-grid-scroll .tabulator .tabulator-row {
+        background: transparent;
     }
     .restock-grid-scroll .tabulator .tabulator-header .tabulator-col.tabulator-col-group-restock,
     .restock-grid-scroll .tabulator .tabulator-header .tabulator-col.restock-col-restock { background: #dbeafe; }
@@ -29,17 +37,20 @@
     .restock-grid-scroll .tabulator .tabulator-row-header .tabulator-row-header-box {
         padding: 0 8px;
     }
-    .restock-section-row .tabulator-row-header .tabulator-row-header-box,
-    .restock-spacer-row .tabulator-row-header .tabulator-row-header-box {
-        display: none;
+    .restock-grid-scroll .tabulator .tabulator-row:not(.restock-data-row) .tabulator-row-header {
+        width: 0 !important;
+        min-width: 0 !important;
+        max-width: 0 !important;
+        padding: 0 !important;
+        border: none !important;
+        overflow: hidden;
+        visibility: hidden;
     }
     .restock-urgent-cell { background-color: #fef2f2 !important; color: #b91c1c; font-weight: 600; }
-    .restock-na-cell { background-color: #f3f4f6 !important; color: #9ca3af; }
-    .restock-grid-scroll { overflow-x: auto; }
-    .restock-section-row { background: #f9fafb !important; }
-    .restock-section-row .tabulator-cell { border-bottom-color: #d1d5db !important; }
-    .restock-spacer-row { background: #fff !important; pointer-events: none; }
-    .restock-spacer-row .tabulator-cell { border: none !important; padding-top: 0; padding-bottom: 0; min-height: 10px; height: 10px; }
+    .restock-na-cell { background-color: rgba(156, 163, 175, 0.15) !important; color: #9ca3af; }
+    .restock-section-row { background: transparent !important; }
+    .restock-section-row .tabulator-cell { border-bottom-color: rgba(156, 163, 175, 0.35) !important; }
+    .restock-section-divider .tabulator-cell { padding-top: 12px !important; }
     .restock-sheet-actions {
         position: sticky;
         top: 0;
@@ -250,7 +261,7 @@ function restockSheetPage() {
                         selectableRows: this.canEdit,
                         selectableRowsCheck: (row) => row.getData()._type === 'data',
                         rowHeader: this.canEdit ? {
-                            formatter: 'rowSelection',
+                            formatter: (cell) => this.formatRowHeader(cell),
                             titleFormatter: 'rowSelection',
                             headerSort: false,
                             frozen: true,
@@ -269,6 +280,31 @@ function restockSheetPage() {
                     this.tables[block.id].on('rowSelectionChanged', () => this.syncSelectionCount());
                 }
             });
+        },
+
+        formatRowHeader(cell) {
+            const row = cell.getRow();
+            if (row.getData()._type !== 'data') {
+                return '';
+            }
+
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.setAttribute('aria-label', 'Select row');
+            checkbox.checked = row.isSelected();
+            checkbox.addEventListener('click', (event) => {
+                event.stopPropagation();
+                row.toggleSelect();
+            });
+
+            const table = cell.getTable();
+            const syncChecked = () => {
+                checkbox.checked = row.isSelected();
+            };
+            table.on('rowSelectionChanged', syncChecked);
+            table.on('rowDeleted', () => table.off('rowSelectionChanged', syncChecked));
+
+            return checkbox;
         },
 
         buildColorColumn() {
@@ -433,19 +469,20 @@ function restockSheetPage() {
             const data = row.getData();
             const el = row.getElement();
 
-            el.classList.remove('restock-section-row', 'restock-spacer-row');
+            el.classList.remove('restock-section-row', 'restock-section-divider', 'restock-data-row');
 
             if (data._type === 'section') {
                 el.classList.add('restock-section-row');
+                if (data._section_divider) {
+                    el.classList.add('restock-section-divider');
+                }
                 return;
             }
 
-            if (data._type === 'spacer') {
-                el.classList.add('restock-spacer-row');
-                return;
+            if (data._type === 'data') {
+                el.classList.add('restock-data-row');
+                this.formatUrgentRow(row);
             }
-
-            this.formatUrgentRow(row);
         },
 
         formatUrgentRow(row) {

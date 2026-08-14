@@ -146,12 +146,9 @@ class RestockGridBuilder
         $rows = [];
 
         foreach ($parents as $index => $parent) {
-            if ($index > 0) {
-                $rows[] = ['_type' => 'spacer'];
-            }
-
             $rows[] = [
                 '_type' => 'section',
+                '_section_divider' => $index > 0,
                 'pcode' => $parent['pcode'],
                 'name' => $parent['name'],
                 'image_url' => $parent['image_url'],
