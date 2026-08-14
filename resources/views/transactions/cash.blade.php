@@ -101,15 +101,16 @@ $config = [
                 @endphp
                 <div class="divide-y divide-gray-100 px-0">
                     <template x-for="(row, idx) in form.items" :key="row.id">
-                        <div class="grid grid-cols-12 items-center gap-2 px-5 py-2 text-sm hover:bg-gray-50"
+                        <div class="flex flex-col gap-3 px-5 py-4 text-sm hover:bg-gray-50 sm:grid sm:grid-cols-12 sm:items-center sm:gap-2 sm:py-2"
                              :class="rowInvalid(row) ? 'bg-red-50' : ''">
                             {{-- Source / recipient autocomplete --}}
-                            <div class="relative col-span-4"
+                            <div class="relative sm:col-span-4"
                                  x-data="asyncCombobox({
                                      endpoint: '{{ route('transactions.lookup', ['type' => $config['lookupType'], 'role' => $config['lookupRole']]) }}',
                                      placeholder: '{{ $config['sourcePlaceholder'] }}',
                                      onSelect: (item) => onRowSourceSelect(idx, row, item)
                                  })">
+                                <label class="mb-1 block text-xs font-medium text-gray-500 sm:hidden">{{ $config['sourceLabel'] }}</label>
                                 <div class="relative flex h-8 min-h-8 overflow-hidden rounded border focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500"
                                      :class="rowInvalid(row) && !row.customer_id ? 'border-red-400 bg-red-50' : 'border-gray-200'">
                                     <input type="text" x-model="query" @input="handleInput()" @focus="handleFocus()"
@@ -128,21 +129,24 @@ $config = [
                                     </template>
                                 </div>
                             </div>
-                            <div class="col-span-3">
+                            <div class="sm:col-span-3">
+                                <label class="mb-1 block text-xs font-medium text-gray-500 sm:hidden">Invoice #</label>
                                 <input type="text" x-model="row.invoice" placeholder="Invoice #"
                                        @keydown="fieldKeydown(idx, 'invoice', $event)"
                                        @keyup="fieldKeyup(idx, 'invoice', $event)"
                                        :id="'invoice_' + idx"
                                        class="{{ $rowInput }}">
                             </div>
-                            <div class="col-span-2">
+                            <div class="sm:col-span-2">
+                                <label class="mb-1 block text-xs font-medium text-gray-500 sm:hidden">Note</label>
                                 <input type="text" x-model="row.note" placeholder="Note"
                                        @keydown="fieldKeydown(idx, 'note', $event)"
                                        @keyup="fieldKeyup(idx, 'note', $event)"
                                        :id="'note_' + idx"
                                        class="{{ $rowInput }}">
                             </div>
-                            <div class="col-span-2">
+                            <div class="sm:col-span-2">
+                                <label class="mb-1 block text-xs font-medium text-gray-500 sm:hidden">Total (Rp)</label>
                                 <input type="number" x-model.number="row.total" placeholder="0" min="0" step="any"
                                        @keydown="fieldKeydown(idx, 'total', $event)"
                                        @keyup="fieldKeyup(idx, 'total', $event)"
@@ -150,10 +154,11 @@ $config = [
                                        class="{{ $rowInput }} text-right"
                                        :class="rowInvalid(row) && !(Number(row.total) >= 0.01) ? 'border-red-400 bg-red-50' : ''">
                             </div>
-                            <div class="col-span-1 text-center">
+                            <div class="sm:col-span-1 sm:text-center">
                                 <button type="button" @click="removeRow(idx)" :disabled="form.items.length === 1"
-                                        class="inline-flex h-8 w-8 items-center justify-center rounded text-gray-400 hover:bg-red-50 hover:text-red-500 disabled:opacity-30">
+                                        class="inline-flex h-8 w-full items-center justify-center gap-1.5 rounded border border-red-200 text-sm text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-30 sm:w-8 sm:border-0 sm:text-gray-400">
                                     <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                                    <span class="sm:hidden">Remove</span>
                                 </button>
                             </div>
                         </div>
@@ -168,19 +173,21 @@ $config = [
                 </div>
             </div>
 
-            <div class="flex items-center justify-end gap-3">
-                <span x-show="!canSubmit()" x-cloak class="text-xs text-gray-400">
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
+                <span x-show="!canSubmit()" x-cloak class="text-center text-xs text-gray-400 sm:mr-auto sm:text-left">
                     Add a valid date, bank account, and at least one complete entry to enable Save.
                 </span>
-                <button type="button" onclick="window.history.back()"
-                        class="rounded-lg border border-gray-300 bg-white px-5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
-                    Discard
-                </button>
-                <button type="submit" :disabled="submitting || !canSubmit()"
-                        class="rounded-lg bg-blue-700 px-6 py-2 text-sm font-semibold text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500">
-                    <span x-show="!submitting">{{ $config['saveLabel'] }}</span>
-                    <span x-show="submitting">Saving…</span>
-                </button>
+                <div class="flex flex-col-reverse gap-2 sm:flex-row sm:gap-3">
+                    <button type="button" onclick="window.history.back()"
+                            class="rounded-lg border border-gray-300 bg-white px-5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                        Discard
+                    </button>
+                    <button type="submit" :disabled="submitting || !canSubmit()"
+                            class="rounded-lg bg-blue-700 px-6 py-2 text-sm font-semibold text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500">
+                        <span x-show="!submitting">{{ $config['saveLabel'] }}</span>
+                        <span x-show="submitting">Saving…</span>
+                    </button>
+                </div>
             </div>
         </div>
     </form>

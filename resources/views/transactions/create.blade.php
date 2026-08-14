@@ -235,10 +235,11 @@
                 @endphp
                 <div class="divide-y divide-gray-100 px-0">
                     <template x-for="(item, idx) in form.items" :key="item.uid">
-                        <div class="grid grid-cols-12 items-center gap-2 px-5 py-2 text-sm hover:bg-gray-50"
+                        <div class="flex flex-col gap-3 px-5 py-4 text-sm hover:bg-gray-50 sm:grid sm:grid-cols-12 sm:items-center sm:gap-2 sm:py-2"
                              :class="(isOverStock(item) || itemInvalid(item)) ? 'bg-red-50' : ''">
                             {{-- Code / barcode --}}
-                            <div class="col-span-2">
+                            <div class="sm:col-span-2">
+                                <label class="mb-1 block text-xs font-medium text-gray-500 sm:hidden">Code / Barcode</label>
                                 <input type="text" x-model="item.code" :id="'code_' + idx"
                                        @keydown="rowKeydown(idx, 'code', $event)"
                                        @keyup="rowKeyup(idx, 'code', $event)"
@@ -247,7 +248,8 @@
                                        class="{{ $rowInput }} font-mono">
                             </div>
                             {{-- Name autocomplete --}}
-                            <div class="relative col-span-3">
+                            <div class="relative sm:col-span-3">
+                                <label class="mb-1 block text-xs font-medium text-gray-500 sm:hidden">Item Name</label>
                                 <input type="text" x-model="item.name" :id="'name_' + idx"
                                        @input="searchItems(idx, $event)" @focus="item.showDropdown = true"
                                        @keydown="nameKeydown(idx, $event)"
@@ -267,7 +269,8 @@
                                 </div>
                             </div>
                             {{-- Qty --}}
-                            <div class="col-span-1">
+                            <div class="sm:col-span-1">
+                                <label class="mb-1 block text-xs font-medium text-gray-500 sm:hidden">Qty</label>
                                 <input type="number" x-model.number="item.quantity" :id="'qty_' + idx"
                                        @input="recalcItem(idx)"
                                        @keydown="rowKeydown(idx, 'qty', $event)"
@@ -278,12 +281,16 @@
                                        :class="isOverStock(item) ? 'border-red-400 text-red-700' : ''">
                             </div>
                             {{-- Warehouse stock (read-only) --}}
-                            <div class="{{ $isMove ? 'col-span-2' : 'col-span-1' }} text-center text-xs tabular-nums"
-                                 :class="isOverStock(item) ? 'font-semibold text-red-500' : 'text-gray-400'"
-                                 x-text="item.item_id ? (Number(item.warehouse_stock || 0)).toLocaleString('id-ID') : '—'"></div>
+                            <div class="flex items-center justify-between {{ $isMove ? 'sm:col-span-2' : 'sm:col-span-1' }} sm:block sm:text-center">
+                                <span class="text-xs font-medium text-gray-500 sm:hidden">Whs. Stock</span>
+                                <span class="text-xs tabular-nums"
+                                      :class="isOverStock(item) ? 'font-semibold text-red-500' : 'text-gray-400'"
+                                      x-text="item.item_id ? (Number(item.warehouse_stock || 0)).toLocaleString('id-ID') : '—'"></span>
+                            </div>
                             {{-- Discount % --}}
                             @unless($isMove)
-                            <div class="col-span-1">
+                            <div class="sm:col-span-1">
+                                <label class="mb-1 block text-xs font-medium text-gray-500 sm:hidden">Disc %</label>
                                 <input type="number" x-model.number="item.discount" :id="'disc_' + idx"
                                        @input="recalcItem(idx)"
                                        @keydown="rowKeydown(idx, 'disc', $event)"
@@ -294,7 +301,8 @@
                             </div>
                             @endunless
                             {{-- Price --}}
-                            <div class="col-span-2">
+                            <div class="sm:col-span-2">
+                                <label class="mb-1 block text-xs font-medium text-gray-500 sm:hidden">Price</label>
                                 <input type="number" x-model.number="item.price" :id="'price_' + idx"
                                        @input="recalcItem(idx)"
                                        @keydown="rowKeydown(idx, 'price', $event)"
@@ -304,12 +312,16 @@
                                        class="{{ $rowInput }} text-right">
                             </div>
                             {{-- Subtotal --}}
-                            <div class="col-span-1 text-right text-sm font-medium tabular-nums" x-text="Number(item.subtotal || 0).toLocaleString('id-ID')"></div>
+                            <div class="flex items-center justify-between sm:col-span-1 sm:block sm:text-right">
+                                <span class="text-xs font-medium text-gray-500 sm:hidden">Subtotal</span>
+                                <span class="text-sm font-medium tabular-nums" x-text="Number(item.subtotal || 0).toLocaleString('id-ID')"></span>
+                            </div>
                             {{-- Remove --}}
-                            <div class="col-span-1 text-center">
+                            <div class="sm:col-span-1 sm:text-center">
                                 <button type="button" @click="removeItem(idx)"
-                                        class="inline-flex h-8 w-8 items-center justify-center rounded text-gray-400 hover:bg-red-50 hover:text-red-500">
+                                        class="inline-flex h-8 w-full items-center justify-center gap-1.5 rounded border border-red-200 text-sm text-red-600 hover:bg-red-50 sm:w-8 sm:border-0 sm:text-gray-400">
                                     <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                                    <span class="sm:hidden">Remove</span>
                                 </button>
                             </div>
                         </div>
