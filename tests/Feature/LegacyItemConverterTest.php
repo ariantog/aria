@@ -134,6 +134,23 @@ it('forbids legacy converter for non-superadmin without permission', function ()
         ->assertForbidden();
 });
 
+it('allows legacy converter for users with items-convert-legacy permission', function () {
+    $user = User::factory()->create();
+    \Spatie\Permission\Models\Permission::firstOrCreate(['name' => 'items-convert-legacy', 'guard_name' => 'web']);
+    $user->givePermissionTo('items-convert-legacy');
+
+    $this->actingAs($user)
+        ->get(route('items.legacy-converter'))
+        ->assertOk()
+        ->assertSee('Legacy Item Identity Converter', false);
+});
+
+it('generates items-convert-legacy permission from Item model', function () {
+    app(\App\Services\PermissionGenerator::class)->generateForModule('Item');
+
+    expect(\Spatie\Permission\Models\Permission::where('name', 'items-convert-legacy')->exists())->toBeTrue();
+});
+
 it('allows reviewing failed tab while pending items remain', function () {
     Item::factory()->create([
         'type' => ItemType::ITEM,
