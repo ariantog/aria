@@ -386,6 +386,172 @@ it('rejects jubelio sell when mapped warehouse stock is insufficient', function 
     expect(Transaction::where('invoice', 'INV-NO-STOCK')->exists())->toBeFalse();
 });
 
+it('ignores inflated jubelio sub_total when line prices already match grand total', function () {
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    $customer = Addrbook::factory()->create(['type' => Addrbook::TYPE_CUSTOMER]);
+    $item = Item::factory()->create(['code' => 'SKU-SHOPEE-DISC']);
+
+    WarehouseItem::create([
+        'warehouse_id' => $warehouse->id,
+        'warehouse_type' => $warehouse->type,
+        'item_id' => $item->id,
+        'quantity' => 5,
+    ]);
+
+    Jubeliosync::create([
+        'jubelio_store_id' => 501,
+        'jubelio_store_name' => 'Shopee',
+        'jubelio_location_id' => 502,
+        'jubelio_location_name' => 'WTC',
+        'warehouse_id' => $warehouse->id,
+        'customer_id' => $customer->id,
+        'bin_id' => 0,
+    ]);
+
+    $order = Jubelioorder::create([
+        'jubelio_order_id' => 'shopee-disc-1',
+        'source' => 1,
+        'invoice' => 'SP-SHOPEE-DISC',
+        'type' => 'SELL',
+        'order_status' => 'SHIPPED',
+        'run_count' => 0,
+        'payload' => json_encode([
+            'salesorder_no' => 'SP-SHOPEE-DISC',
+            'store_id' => 501,
+            'location_id' => 502,
+            'sub_total' => 122590,
+            'grand_total' => 79000,
+            'real_total' => 79000,
+            'transaction_date' => '2026-08-14',
+            'items' => [
+                ['item_code' => 'SKU-SHOPEE-DISC', 'qty' => 1, 'price' => 79000],
+            ],
+        ]),
+        'status' => 0,
+    ]);
+
+    app(\App\Actions\Jubelio\ProcessJubelioOrder::class)->execute($order);
+
+    $transaction = Transaction::where('invoice', 'SP-SHOPEE-DISC')->first();
+
+    expect($transaction)->not->toBeNull()
+        ->and((float) $transaction->total)->toBe(79000.0)
+        ->and((float) $transaction->adjustment)->toBe(0.0)
+        ->and((float) $transaction->real_total)->toBe(-79000.0);
+
+    $detail = $transaction->details->first();
+    expect((float) $detail->price)->toBe(79000.0)
+        ->and((float) $detail->total)->toBe(79000.0);
+});
+
+it('applies marketplace discount adjustment when line prices use list amounts', function () {
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    $customer = Addrbook::factory()->create(['type' => Addrbook::TYPE_CUSTOMER]);
+    $item = Item::factory()->create(['code' => 'SKU-LIST-PRICE']);
+
+    WarehouseItem::create([
+        'warehouse_id' => $warehouse->id,
+        'warehouse_type' => $warehouse->type,
+        'item_id' => $item->id,
+        'quantity' => 5,
+    ]);
+
+    Jubeliosync::create([
+        'jubelio_store_id' => 601,
+        'jubelio_store_name' => 'Shopee',
+        'jubelio_location_id' => 602,
+        'jubelio_location_name' => 'WTC',
+        'warehouse_id' => $warehouse->id,
+        'customer_id' => $customer->id,
+        'bin_id' => 0,
+    ]);
+
+    $order = Jubelioorder::create([
+        'jubelio_order_id' => 'shopee-list-1',
+        'source' => 1,
+        'invoice' => 'SP-LIST-PRICE',
+        'type' => 'SELL',
+        'order_status' => 'SHIPPED',
+        'run_count' => 0,
+        'payload' => json_encode([
+            'salesorder_no' => 'SP-LIST-PRICE',
+            'store_id' => 601,
+            'location_id' => 602,
+            'sub_total' => 122590,
+            'grand_total' => 79000,
+            'real_total' => 79000,
+            'transaction_date' => '2026-08-14',
+            'items' => [
+                ['item_code' => 'SKU-LIST-PRICE', 'qty' => 1, 'price' => 122590],
+            ],
+        ]),
+        'status' => 0,
+    ]);
+
+    app(\App\Actions\Jubelio\ProcessJubelioOrder::class)->execute($order);
+
+    $transaction = Transaction::where('invoice', 'SP-LIST-PRICE')->first();
+
+    expect($transaction)->not->toBeNull()
+        ->and((float) $transaction->total)->toBe(122590.0)
+        ->and((float) $transaction->adjustment)->toBe(-79000.0)
+        ->and((float) $transaction->real_total)->toBe(-43590.0);
+});
+
+it('books seller income for marketplace orders with fee breakdown', function () {
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    $customer = Addrbook::factory()->create(['type' => Addrbook::TYPE_CUSTOMER]);
+    $item = Item::factory()->create(['code' => 'SKU-PAD-M']);
+
+    WarehouseItem::create([
+        'warehouse_id' => $warehouse->id,
+        'warehouse_type' => $warehouse->type,
+        'item_id' => $item->id,
+        'quantity' => 5,
+    ]);
+
+    Jubeliosync::create([
+        'jubelio_store_id' => 701,
+        'jubelio_store_name' => 'Shopee',
+        'jubelio_location_id' => 702,
+        'jubelio_location_name' => 'WTC',
+        'warehouse_id' => $warehouse->id,
+        'customer_id' => $customer->id,
+        'bin_id' => 0,
+    ]);
+
+    $order = Jubelioorder::create([
+        'jubelio_order_id' => 'shopee-income-1',
+        'source' => 1,
+        'invoice' => 'SP-SELLER-INCOME',
+        'type' => 'SELL',
+        'order_status' => 'SHIPPED',
+        'run_count' => 0,
+        'payload' => json_encode([
+            'salesorder_no' => 'SP-SELLER-INCOME',
+            'store_id' => 701,
+            'location_id' => 702,
+            'sub_total' => 64000,
+            'grand_total' => 64000,
+            'escrow_amount' => '42935.0000',
+            'transaction_date' => '2026-08-14',
+            'items' => [
+                ['item_code' => 'SKU-PAD-M', 'qty' => 1, 'price' => 64000],
+            ],
+        ]),
+        'status' => 0,
+    ]);
+
+    app(\App\Actions\Jubelio\ProcessJubelioOrder::class)->execute($order);
+
+    $transaction = Transaction::where('invoice', 'SP-SELLER-INCOME')->first();
+
+    expect($transaction)->not->toBeNull()
+        ->and((float) $transaction->total)->toBe(64000.0)
+        ->and((float) $transaction->adjustment)->toBe(-21065.0)
+        ->and((float) $transaction->real_total)->toBe(-42935.0);
+});
+
 it('can mark duplicate jubelio order as solved', function () {
     $user = User::factory()->create();
 

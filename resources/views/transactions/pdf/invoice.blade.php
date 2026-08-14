@@ -86,6 +86,12 @@
             <td class="right">-{{ number_format((float) $transaction->discount, 0, ',', '.') }}</td>
         </tr>
         @endif
+        @if((float) $transaction->adjustment != 0)
+        <tr>
+            <td>Adjustment</td>
+            <td class="right">{{ number_format((float) $transaction->adjustment, 0, ',', '.') }}</td>
+        </tr>
+        @endif
         @if((float) $transaction->ppn > 0)
         <tr>
             <td>PPN</td>
