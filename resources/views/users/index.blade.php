@@ -70,7 +70,7 @@ $breadcrumbs = [
                         <td class="whitespace-nowrap px-6 py-4 text-gray-500">
                             @if($user->location)
                                 @if($can['edit_location'] ?? false)
-                                    <a href="{{ route('locations.edit', $user->location->id) }}" class="text-blue-600 hover:text-blue-800 hover:underline">{{ $user->location->name }}</a>
+                                    <a href="{{ route('locations.customers', $user->location->id) }}" class="text-blue-600 hover:text-blue-800 hover:underline">{{ $user->location->name }}</a>
                                 @else
                                     {{ $user->location->name }}
                                 @endif
