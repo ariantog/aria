@@ -190,7 +190,10 @@ class TransactionsController extends Controller
         Gate::authorize(Transaction::getPermissions()['type-transfer']);
 
         return view('transactions.transfer', [
-            'bankList' => \App\Models\Addrbook::where('type', \App\Models\Addrbook::TYPE_BANK)->orderBy('name')->get(),
+            'bankList' => \App\Models\Addrbook::query()
+                ->whereIn('type', \App\Models\Addrbook::transferAccountTypes())
+                ->orderBy('name')
+                ->get(),
             'min_date' => $bookClosingService->getMinAllowedDate()->toDateString(),
         ]);
     }

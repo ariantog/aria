@@ -32,20 +32,23 @@ class TransactionLookupController extends Controller
             $query->whereIn('type', $typeIds);
         }
 
-        // Apply search term
-        if ($search = $request->input('search')) {
-            $pattern = LikeSearch::contains($search);
-            $query->where(function ($q) use ($pattern) {
-                $q->where('customers.name', 'like', $pattern)
-                    ->orWhere('customers.id', 'like', $pattern);
-            });
+        // Apply search term (require 3+ characters; empty/short queries return nothing)
+        $search = trim((string) $request->input('search', ''));
+        if (strlen($search) <= 2) {
+            return response()->json([]);
         }
+
+        $pattern = LikeSearch::contains($search);
+        $query->where(function ($q) use ($pattern) {
+            $q->where('customers.name', 'like', $pattern)
+                ->orWhere('customers.id', 'like', $pattern);
+        });
 
         $results = $query
             ->leftJoin('customerstat', 'customers.id', '=', 'customerstat.customer_id')
             ->select('customers.id', 'customers.name', 'customers.ppn', 'customers.type', 'customerstat.balance')
             ->orderBy('customers.name')
-            ->limit(20)
+            ->limit(8)
             ->get();
 
         return response()->json($results);

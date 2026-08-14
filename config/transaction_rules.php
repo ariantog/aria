@@ -22,8 +22,8 @@ return [
     'transfer' => [
         'id' => \App\Models\Transaction::TYPE_TRANSFER,
         'price_source' => 'price',
-        'sender_type' => [\App\Models\Addrbook::TYPE_BANK],
-        'receiver_type' => [\App\Models\Addrbook::TYPE_BANK],
+        'sender_type' => [\App\Models\Addrbook::TYPE_BANK, \App\Models\Addrbook::TYPE_V_ACCOUNT],
+        'receiver_type' => [\App\Models\Addrbook::TYPE_BANK, \App\Models\Addrbook::TYPE_V_ACCOUNT],
     ],
     'adjust' => [
         'id' => \App\Models\Transaction::TYPE_ADJUST,

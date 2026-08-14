@@ -76,7 +76,7 @@
                                 </button>
                             </div>
                             <div x-show="open" @click.away="open=false" class="combobox-options" x-ref="optionsList">
-                                <div x-show="!loading && items.length===0" class="px-3 py-2 text-sm text-gray-400">Nothing found.</div>
+                                <div x-show="!loading && items.length===0" class="px-3 py-2 text-sm text-gray-400" x-text="emptyMessage()"></div>
                                 <template x-for="(item, idx) in items" :key="item.id">
                                     <div @click="selectItem(item)" @mouseenter="activeIndex=idx" class="combobox-option" :class="{'active':activeIndex===idx}">
                                         <span x-text="item.name"></span>
@@ -116,7 +116,7 @@
                                 </button>
                             </div>
                             <div x-show="open" @click.away="open=false" class="combobox-options" x-ref="optionsList">
-                                <div x-show="!loading && items.length===0" class="px-3 py-2 text-sm text-gray-400">Nothing found.</div>
+                                <div x-show="!loading && items.length===0" class="px-3 py-2 text-sm text-gray-400" x-text="emptyMessage()"></div>
                                 <template x-for="(item, idx) in items" :key="item.id">
                                     <div @click="selectItem(item)" @mouseenter="activeIndex=idx" class="combobox-option" :class="{'active':activeIndex===idx}">
                                         <span x-text="item.name"></span>

@@ -274,6 +274,14 @@ function isPrintableComboboxKey(key, e) {
     return key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey;
 }
 
+// ─── Autocomplete defaults (addrbook + item comboboxes) ─────────────────────
+const COMBOBOX_MIN_CHARS = 3;
+const COMBOBOX_MAX_RESULTS = 8;
+
+function comboboxSearchable(q) {
+    return String(q || '').trim().length >= COMBOBOX_MIN_CHARS;
+}
+
 // ─── Reusable Alpine async-combobox component ─────────────────────────────
 function asyncCombobox(config) {
     return {
@@ -292,6 +300,8 @@ function asyncCombobox(config) {
         hiddenField: config.hiddenField || null,
         onSelect: config.onSelect || null,
         excludedIds: config.excludedIds || [],
+        minChars: config.minChars ?? COMBOBOX_MIN_CHARS,
+        maxResults: config.maxResults ?? COMBOBOX_MAX_RESULTS,
 
         init() {
             if (this.selected) {
@@ -300,16 +310,33 @@ function asyncCombobox(config) {
                     this.onSelect(this.selected);
                 }
             }
-            // Pre-load options
-            this.doSearch('');
+        },
+
+        needsMoreChars() {
+            return String(this.query || '').trim().length < this.minChars;
+        },
+
+        emptyMessage() {
+            if (this.needsMoreChars()) {
+                return `Type at least ${this.minChars} characters to search.`;
+            }
+            if (this.loading) return 'Searching…';
+            return 'Nothing found.';
         },
 
         doSearch(q) {
             clearTimeout(this.debounceTimer);
+            const term = String(q || '').trim();
+            if (term.length < this.minChars) {
+                this.items = [];
+                this.loading = false;
+                this.activeIndex = -1;
+                return;
+            }
             this.loading = true;
             this.debounceTimer = setTimeout(async () => {
                 try {
-                    const params = new URLSearchParams({ [this.queryParam]: q, json: true, ...this.additionalParams });
+                    const params = new URLSearchParams({ [this.queryParam]: term, json: true, ...this.additionalParams });
                     const sep = this.endpoint.includes('?') ? '&' : '?';
                     const res = await fetch(`${this.endpoint}${sep}${params}`, {
                         headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
@@ -317,7 +344,7 @@ function asyncCombobox(config) {
                     const data = await res.json();
                     let all = Array.isArray(data) ? data : (data.data || []);
                     if (this.excludedIds.length) all = all.filter(i => !this.excludedIds.includes(String(i.id)));
-                    this.items = all;
+                    this.items = all.slice(0, this.maxResults);
                     this.activeIndex = -1;
                 } catch(e) { this.items = []; }
                 finally { this.loading = false; }
@@ -339,7 +366,7 @@ function asyncCombobox(config) {
         clearSelection() {
             this.selectItem(null);
             this.query = '';
-            this.doSearch('');
+            this.items = [];
         },
 
         handleInput() {
@@ -349,7 +376,7 @@ function asyncCombobox(config) {
 
         handleFocus() {
             this.open = true;
-            if (this.items.length === 0) this.doSearch(this.query);
+            if (this.items.length === 0 && comboboxSearchable(this.query)) this.doSearch(this.query);
         },
 
         keyboardNavLock() {
@@ -403,7 +430,7 @@ function asyncCombobox(config) {
             if (key === 'ArrowDown') {
                 if (!this.open) {
                     this.open = true;
-                    if (len === 0) { this.doSearch(this.query); return true; }
+                    if (len === 0 && comboboxSearchable(this.query)) { this.doSearch(this.query); return true; }
                 }
                 if (len === 0) return true;
                 this.activeIndex = this.activeIndex < len - 1 ? this.activeIndex + 1 : 0;
@@ -413,7 +440,7 @@ function asyncCombobox(config) {
             if (key === 'ArrowUp') {
                 if (!this.open) {
                     this.open = true;
-                    if (len === 0) { this.doSearch(this.query); return true; }
+                    if (len === 0 && comboboxSearchable(this.query)) { this.doSearch(this.query); return true; }
                 }
                 if (len === 0) return true;
                 this.activeIndex = this.activeIndex > 0 ? this.activeIndex - 1 : len - 1;
@@ -423,7 +450,7 @@ function asyncCombobox(config) {
             if (key === 'Enter') {
                 if (!this.open) {
                     this.open = true;
-                    if (len === 0) this.doSearch(this.query);
+                    if (len === 0 && comboboxSearchable(this.query)) this.doSearch(this.query);
                     return true;
                 }
                 if (this.activeIndex >= 0 && this.items[this.activeIndex]) {

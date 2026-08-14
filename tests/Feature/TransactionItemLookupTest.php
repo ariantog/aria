@@ -99,7 +99,7 @@ it('exposes warehouse stock so scanned rows can show on-hand quantity', function
     expect((float) $response->json('item.warehouse_item.0.quantity'))->toBe(7.0);
 });
 
-it('finds an item by numeric id through the items search json endpoint', function () {
+it('finds an item by numeric id through the items id json endpoint', function () {
     $this->user->givePermissionTo('items-list');
 
     $item = Item::factory()->create([
@@ -109,7 +109,7 @@ it('finds an item by numeric id through the items search json endpoint', functio
     ]);
 
     $response = $this->actingAs($this->user)
-        ->getJson('/items?search='.$item->id.'&json=1');
+        ->getJson('/items?id='.$item->id.'&json=1');
 
     $response->assertSuccessful();
     $match = collect($response->json())->first(fn ($row) => $row['id'] === $item->id);
@@ -133,4 +133,27 @@ it('finds items when spaces separate name tokens', function () {
     expect($names)->toContain('Soft Edition Elbow')
         ->not->toContain('Soft Edition Knee')
         ->not->toContain('Hard Edition Elbow');
+});
+
+it('returns no item autocomplete results until the search term is longer than two characters', function () {
+    $this->user->givePermissionTo('items-list');
+
+    Item::factory()->create(['name' => 'Zeta Tee', 'code' => 'ZEE-01']);
+
+    $this->actingAs($this->user)->getJson('/items?json=1')->assertSuccessful()->assertExactJson([]);
+    $this->actingAs($this->user)->getJson('/items?search=Ze&json=1')->assertSuccessful()->assertExactJson([]);
+    $this->actingAs($this->user)->getJson('/items?search=Zet&json=1')->assertSuccessful()->assertJsonCount(1);
+});
+
+it('caps item autocomplete results at eight rows', function () {
+    $this->user->givePermissionTo('items-list');
+
+    foreach (range(1, 10) as $i) {
+        Item::factory()->create(['name' => "Lookup Item {$i}", 'code' => "LK-{$i}"]);
+    }
+
+    expect($this->actingAs($this->user)
+        ->getJson('/items?search=Lookup&json=1')
+        ->assertSuccessful()
+        ->json())->toHaveCount(8);
 });

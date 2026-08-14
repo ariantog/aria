@@ -55,3 +55,41 @@ test('bank transfer fails if sender and receiver are the same', function () {
 
     $response->assertSessionHasErrors(['receiver']);
 });
+
+test('transfer accepts virtual accounts as source or destination', function () {
+    $user = User::factory()->create();
+    $bank = Addrbook::factory()->create(['type' => Addrbook::TYPE_BANK, 'name' => 'BCA Main']);
+    $vAccount = Addrbook::factory()->create(['type' => Addrbook::TYPE_V_ACCOUNT, 'name' => 'Petty Cash']);
+
+    $response = $this->actingAs($user)->post(route('transactions.transfer.store'), [
+        'date' => now()->format('Y-m-d'),
+        'sender' => $vAccount->id,
+        'receiver' => $bank->id,
+        'total' => 2500,
+    ]);
+
+    $lastTransaction = Transaction::latest('id')->first();
+    $response->assertRedirect(route('transactions.show', $lastTransaction));
+
+    $this->assertDatabaseHas('transactions', [
+        'type' => Transaction::TYPE_TRANSFER,
+        'sender_id' => $vAccount->id,
+        'sender_type' => Addrbook::TYPE_V_ACCOUNT,
+        'receiver_id' => $bank->id,
+        'receiver_type' => Addrbook::TYPE_BANK,
+        'real_total' => 2500,
+    ]);
+});
+
+test('transfer rejects non-account addrbook types', function () {
+    $user = User::factory()->create();
+    $bank = Addrbook::factory()->create(['type' => Addrbook::TYPE_BANK]);
+    $customer = Addrbook::factory()->create(['type' => Addrbook::TYPE_CUSTOMER]);
+
+    $this->actingAs($user)->post(route('transactions.transfer.store'), [
+        'date' => now()->format('Y-m-d'),
+        'sender' => $customer->id,
+        'receiver' => $bank->id,
+        'total' => 1000,
+    ])->assertSessionHasErrors(['sender']);
+});

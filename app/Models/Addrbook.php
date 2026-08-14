@@ -94,6 +94,12 @@ class Addrbook extends Model
         return in_array($type, [self::TYPE_BANK, self::TYPE_ACCOUNT, self::TYPE_V_ACCOUNT], true);
     }
 
+    /** @return list<int> */
+    public static function transferAccountTypes(): array
+    {
+        return [self::TYPE_BANK, self::TYPE_V_ACCOUNT];
+    }
+
     /** @return array<int, array{id: int, name: string, slug: string}> */
     public static function getTypes(): array
     {

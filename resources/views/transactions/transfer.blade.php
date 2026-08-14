@@ -11,7 +11,7 @@
         </a>
         <div>
             <h2 class="text-2xl font-bold tracking-tight text-gray-900">Transfer Money</h2>
-            <p class="mt-0.5 text-sm text-gray-500">Transfer balances between bank accounts.</p>
+            <p class="mt-0.5 text-sm text-gray-500">Transfer balances between bank and virtual accounts.</p>
         </div>
     </div>
 
@@ -51,9 +51,9 @@
                     @error('invoice')<p class="text-xs text-red-500">{{ $message }}</p>@enderror
                 </div>
 
-                {{-- From Bank --}}
+                {{-- From account --}}
                 <div class="space-y-1.5">
-                    <label for="sender" class="text-sm font-medium text-gray-700">From Bank</label>
+                    <label for="sender" class="text-sm font-medium text-gray-700">From Account</label>
                     <select id="sender" name="sender"
                             class="w-full rounded-lg border px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 @error('sender') border-red-500 @else border-gray-300 @enderror">
                         <option value="">Choose source account</option>
@@ -64,9 +64,9 @@
                     @error('sender')<p class="text-xs text-red-500">{{ $message }}</p>@enderror
                 </div>
 
-                {{-- To Bank --}}
+                {{-- To account --}}
                 <div class="space-y-1.5">
-                    <label for="receiver" class="text-sm font-medium text-gray-700">To Bank</label>
+                    <label for="receiver" class="text-sm font-medium text-gray-700">To Account</label>
                     <select id="receiver" name="receiver"
                             class="w-full rounded-lg border px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 @error('receiver') border-red-500 @else border-gray-300 @enderror">
                         <option value="">Choose destination account</option>
