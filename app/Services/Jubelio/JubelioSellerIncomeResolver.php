@@ -5,11 +5,16 @@ namespace App\Services\Jubelio;
 /**
  * Resolves seller receivable (Estimasi Total Penghasilan) from Jubelio order payloads.
  *
- * Marketplace orders often expose customer payment (grand_total) separately from
- * seller income (real_total / sub_total minus platform fees).
+ * Marketplace orders expose seller income as escrow_amount (Shopee penghasilan).
+ * Customer payment (grand_total) and sub_total are separate.
  */
 class JubelioSellerIncomeResolver
 {
+    /** @var list<string> */
+    private const ESCROW_KEYS = [
+        'escrow_amount',
+    ];
+
     /** @var list<string> */
     private const PROMO_FEE_KEYS = [
         'promotion_fee',
@@ -61,6 +66,13 @@ class JubelioSellerIncomeResolver
         $subTotal = $this->numericValue($dataApi['sub_total'] ?? null);
         $grandTotal = $this->numericValue($dataApi['grand_total'] ?? null);
         $realTotal = $this->numericValue($dataApi['real_total'] ?? null);
+
+        foreach (self::ESCROW_KEYS as $key) {
+            $escrow = $this->numericValue($dataApi[$key] ?? null);
+            if ($escrow !== null && $escrow > 0) {
+                return $escrow;
+            }
+        }
 
         foreach (self::INCOME_KEYS as $key) {
             $income = $this->numericValue($dataApi[$key] ?? null);

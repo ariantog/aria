@@ -31,6 +31,21 @@ it('falls back to sub_total minus fees without promo when promo fee is missing',
     expect($income)->toBe(43590.0);
 });
 
+it('prefers escrow_amount as seller income', function () {
+    $resolver = new JubelioSellerIncomeResolver();
+
+    $income = $resolver->resolve([
+        'sub_total' => 64000,
+        'grand_total' => 64000,
+        'real_total' => 64000,
+        'escrow_amount' => '42935.0000',
+        'subsidi' => 5000,
+        'platform_fee' => 9215,
+    ], 64000);
+
+    expect($income)->toBe(42935.0);
+});
+
 it('prefers real_total when it is lower than customer grand_total', function () {
     $resolver = new JubelioSellerIncomeResolver();
 
