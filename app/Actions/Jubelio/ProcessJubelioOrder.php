@@ -9,6 +9,7 @@ use App\Models\Jubeliosync;
 use App\Models\Transaction;
 use App\Models\TransactionDetail;
 use App\Models\WarehouseItem;
+use App\Services\Jubelio\JubelioSellerIncomeResolver;
 use App\Services\JubelioService;
 use App\Services\LocationAccessService;
 use App\Services\TransactionService;
@@ -22,6 +23,7 @@ class ProcessJubelioOrder
         private TransactionService $transactionService,
         private JubelioService $jubelioService,
         private LocationAccessService $locationAccessService,
+        private JubelioSellerIncomeResolver $sellerIncomeResolver,
     ) {}
 
     /**
@@ -320,9 +322,9 @@ class ProcessJubelioOrder
     protected function resolveLineAdjustment(array $matchedItems, array $dataApi): float
     {
         $itemsTotal = (float) collect($matchedItems)->sum('subtotal');
-        $grandTotal = (float) ($dataApi['grand_total'] ?? $dataApi['real_total'] ?? $itemsTotal);
+        $receivable = $this->sellerIncomeResolver->resolve($dataApi, $itemsTotal);
 
-        return $grandTotal - $itemsTotal;
+        return $receivable - $itemsTotal;
     }
 
     /**
