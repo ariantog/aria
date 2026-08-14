@@ -8,6 +8,7 @@ use App\Models\Jubeliosync;
 use App\Models\Location;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Models\WarehouseItem;
 use Spatie\Permission\Models\Permission;
 
 it('shows jubelio cron transactions on the transactions index for location-scoped users', function () {
@@ -19,6 +20,13 @@ it('shows jubelio cron transactions on the transactions index for location-scope
     $warehouse = Addrbook::factory()->warehouse()->create();
     $customer = Addrbook::factory()->create(['type' => Addrbook::TYPE_CUSTOMER]);
     $item = Item::factory()->create(['code' => 'SKU-JUB-LIST']);
+
+    WarehouseItem::create([
+        'warehouse_id' => $warehouse->id,
+        'warehouse_type' => $warehouse->type,
+        'item_id' => $item->id,
+        'quantity' => 10,
+    ]);
 
     $warehouse->locations()->attach($location->id);
 
