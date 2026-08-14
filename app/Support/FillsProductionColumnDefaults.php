@@ -9,5 +9,9 @@ trait FillsProductionColumnDefaults
         static::creating(function ($model): void {
             ProductionColumnDefaults::apply($model);
         });
+
+        static::updating(function ($model): void {
+            ProductionColumnDefaults::apply($model);
+        });
     }
 }
