@@ -67,11 +67,26 @@ $breadcrumbs = [
                             <div class="font-semibold text-gray-900">{{ $user->name }}</div>
                         </td>
                         <td class="whitespace-nowrap px-6 py-4 text-gray-500">{{ '@'.$user->username }}</td>
-                        <td class="whitespace-nowrap px-6 py-4 text-gray-500">{{ $user->location?->name ?? '—' }}</td>
+                        <td class="whitespace-nowrap px-6 py-4 text-gray-500">
+                            @if($user->location)
+                                @if($can['edit_location'] ?? false)
+                                    <a href="{{ route('locations.edit', $user->location->id) }}" class="text-blue-600 hover:text-blue-800 hover:underline">{{ $user->location->name }}</a>
+                                @else
+                                    {{ $user->location->name }}
+                                @endif
+                            @else
+                                —
+                            @endif
+                        </td>
                         <td class="whitespace-nowrap px-6 py-4">
                             <div class="flex flex-wrap gap-1">
                                 @forelse($user->roles as $role)
-                                    <span class="inline-flex items-center rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-700">{{ $role->name }}</span>
+                                    @if($can['edit_role'] ?? false)
+                                        <a href="{{ route('roles.edit', $role->id) }}"
+                                           class="inline-flex items-center rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-700 hover:bg-indigo-200">{{ $role->name }}</a>
+                                    @else
+                                        <span class="inline-flex items-center rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-700">{{ $role->name }}</span>
+                                    @endif
                                 @empty
                                     <span class="text-xs italic text-gray-400">No roles</span>
                                 @endforelse

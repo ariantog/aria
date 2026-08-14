@@ -31,6 +31,8 @@ class UserController extends Controller
             'can' => [
                 'create_user' => request()->user()?->can(User::getPermissions()['create']) ?? false,
                 'edit_user' => request()->user()?->can(User::getPermissions()['edit']) ?? false,
+                'edit_role' => request()->user()?->can(User::getPermissions()['roles-edit']) ?? false,
+                'edit_location' => request()->user()?->can(Location::getPermissions()['edit']) ?? false,
             ],
             'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
