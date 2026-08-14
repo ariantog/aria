@@ -50,7 +50,10 @@
     .restock-na-cell { background-color: rgba(156, 163, 175, 0.15) !important; color: #9ca3af; }
     .restock-section-row { background: transparent !important; }
     .restock-section-row .tabulator-cell { border-bottom-color: rgba(156, 163, 175, 0.35) !important; }
-    .restock-section-divider .tabulator-cell { padding-top: 12px !important; }
+    .restock-section-divider .tabulator-cell {
+        border-top: 1px solid #d1d5db !important;
+        padding-top: 14px !important;
+    }
     .restock-sheet-actions {
         position: sticky;
         top: 0;
