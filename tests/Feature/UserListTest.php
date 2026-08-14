@@ -75,7 +75,7 @@ it('links role and location to their edit pages when permitted', function () {
 
     $response->assertOk()
         ->assertSee(route('roles.edit', $role->id), false)
-        ->assertSee(route('locations.edit', $location->id), false)
+        ->assertSee(route('locations.customers', $location->id), false)
         ->assertSee('Editor')
         ->assertSee('Surabaya HQ');
 });
