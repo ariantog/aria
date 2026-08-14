@@ -44,9 +44,7 @@ class OrderJubelioToAria extends Command
         $query = Jubelioorder::whereIn('type', ['SELL', 'RETURN'])
             ->where('status', 0)
             ->where('run_count', 0)
-            ->where(function ($builder) {
-                $builder->whereNull('execute_by')->orWhere('execute_by', 0);
-            });
+            ->whereNull('execute_by');
 
         if ($this->option('all')) {
             $this->info('Processing ALL pending orders using chunks...');

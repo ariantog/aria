@@ -27,7 +27,6 @@ return new class extends Migration
         (require __DIR__.'/2026_08_12_200000_install_l12_production_tables.php')->up();
         (require __DIR__.'/2026_08_13_120000_add_production_not_null_column_defaults.php')->up();
         (require __DIR__.'/2026_08_13_130000_fix_production_bigint_columns_to_int.php')->up();
-        (require __DIR__.'/2026_08_13_140000_align_scheduled_tasks_table_for_l12.php')->up();
     }
 
     public function down(): void
