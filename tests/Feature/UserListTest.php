@@ -57,3 +57,25 @@ it('can search banned users by username', function () {
         ->assertSee('banned_user')
         ->assertDontSee('active_user');
 });
+
+it('links role and location to their edit pages when permitted', function () {
+    $location = \App\Models\Location::factory()->create(['name' => 'Surabaya HQ']);
+    $role = \Spatie\Permission\Models\Role::firstOrCreate(['name' => 'Editor', 'guard_name' => 'web']);
+    $listedUser = User::factory()->create([
+        'username' => 'linked_user',
+        'location_id' => $location->id,
+    ]);
+    $listedUser->syncRoles([$role->name]);
+
+    Permission::firstOrCreate(['name' => 'users-roles-edit']);
+    Permission::firstOrCreate(['name' => 'users-locations-edit']);
+    $this->admin->givePermissionTo(['users-roles-edit', 'users-locations-edit']);
+
+    $response = $this->actingAs($this->admin)->get(route('users.index', ['status' => 'all']));
+
+    $response->assertOk()
+        ->assertSee(route('roles.edit', $role->id), false)
+        ->assertSee(route('locations.edit', $location->id), false)
+        ->assertSee('Editor')
+        ->assertSee('Surabaya HQ');
+});
