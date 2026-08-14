@@ -130,3 +130,15 @@ test('can view addrbook edit through type-specific route', function () {
         ->assertStatus(200)
         ->assertSee('Edit Test');
 });
+
+test('can view warehouse edit through type-specific route', function () {
+    $addrbook = Addrbook::create([
+        'name' => 'Warehouse Edit Test',
+        'type' => Addrbook::TYPE_WAREHOUSE,
+    ]);
+
+    $this->actingAs($this->user)
+        ->get("/warehouse/{$addrbook->id}/edit")
+        ->assertStatus(200)
+        ->assertSee('Warehouse Edit Test');
+});

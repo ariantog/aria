@@ -8,6 +8,7 @@ use App\Enums\TransactionType;
 use App\Http\Requests\StoreAddrbookRequest;
 use App\Http\Requests\UpdateAddrbookRequest;
 use App\Models\Addrbook;
+use App\Models\Location;
 use App\Models\StatSell;
 use App\Support\LikeSearch;
 use Illuminate\Support\Facades\Gate;
