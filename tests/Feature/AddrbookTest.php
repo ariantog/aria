@@ -81,6 +81,32 @@ test('can update addrbook', function () {
     ]);
 });
 
+test('can update warehouse with empty optional fields', function () {
+    $addrbook = Addrbook::create([
+        'name' => 'Warehouse Old',
+        'type' => Addrbook::TYPE_WAREHOUSE,
+        'email' => 'old@example.com',
+        'phone' => '08123456789',
+    ]);
+
+    $this->actingAs($this->user)
+        ->put(route('addrbook.update', $addrbook), [
+            'name' => 'Warehouse Updated',
+            'type' => Addrbook::TYPE_WAREHOUSE,
+            'email' => '',
+            'phone' => '082313651678',
+            'description' => 'CORENATION WTC MANGGA DUA LT2 BLOK B',
+            'address' => '',
+        ])
+        ->assertRedirect(route('addrbook.index'));
+
+    $addrbook->refresh();
+
+    expect($addrbook->name)->toBe('Warehouse Updated')
+        ->and($addrbook->phone)->toBe('082313651678')
+        ->and($addrbook->description)->toBe('CORENATION WTC MANGGA DUA LT2 BLOK B');
+});
+
 test('can delete addrbook', function () {
     $addrbook = Addrbook::create([
         'name' => 'To Delete',
