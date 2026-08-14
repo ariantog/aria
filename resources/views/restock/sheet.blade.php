@@ -50,9 +50,15 @@
     .restock-na-cell { background-color: rgba(156, 163, 175, 0.15) !important; color: #9ca3af; }
     .restock-section-row { background: transparent !important; }
     .restock-section-row .tabulator-cell { border-bottom-color: rgba(156, 163, 175, 0.35) !important; }
-    .restock-section-divider .tabulator-cell {
-        border-top: 1px solid #d1d5db !important;
-        padding-top: 14px !important;
+    .restock-section-divider .tabulator-cell { padding-top: 14px !important; }
+    .restock-grid-scroll .tabulator { position: relative; }
+    .restock-group-divider {
+        position: absolute;
+        left: 0;
+        height: 1px;
+        background: #d1d5db;
+        pointer-events: none;
+        z-index: 4;
     }
     .restock-sheet-actions {
         position: sticky;
@@ -281,7 +287,33 @@ function restockSheetPage() {
                     });
 
                     this.tables[block.id].on('rowSelectionChanged', () => this.syncSelectionCount());
+                    this.tables[block.id].on('renderComplete', () => this.refreshSectionDividers(this.tables[block.id]));
+                    this.refreshSectionDividers(this.tables[block.id]);
                 }
+            });
+        },
+
+        refreshSectionDividers(table) {
+            if (!table?.element) return;
+
+            const tableEl = table.element;
+            tableEl.querySelectorAll('.restock-group-divider').forEach((line) => line.remove());
+
+            const holder = tableEl.querySelector('.tabulator-tableholder');
+            if (!holder) return;
+
+            const lineWidth = tableEl.clientWidth;
+
+            table.getRows().forEach((row) => {
+                const data = row.getData();
+                if (data._type !== 'section' || !data._section_divider) return;
+
+                const line = document.createElement('div');
+                line.className = 'restock-group-divider';
+                line.style.top = `${holder.offsetTop + row.getElement().offsetTop}px`;
+                line.style.left = '0';
+                line.style.width = `${lineWidth}px`;
+                tableEl.appendChild(line);
             });
         },
 
@@ -538,6 +570,7 @@ function restockSheetPage() {
                 for (const row of table.getRows()) {
                     this.formatRow(row);
                 }
+                this.refreshSectionDividers(table);
             }
             this.syncSelectionCount();
         },
