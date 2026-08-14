@@ -135,7 +135,6 @@ class ProcessJubelioOrder
             return ['success' => false, 'message' => $stockError];
         }
 
-        $adjust = $this->resolveJubelioAdjustment($dataApi);
         $createData = $this->createTransaction(Transaction::TYPE_SELL, (object) [
             'date' => $dataApi['transaction_date'] ?? now()->toDateString(),
             'warehouse' => $jubelioSync->warehouse_id,
@@ -147,7 +146,7 @@ class ProcessJubelioOrder
             'account' => '7204',
             'addMoreInputFields' => $matched['items'],
             'disc' => '0',
-            'adjustment' => $this->toggleSign($adjust),
+            'adjustment' => $this->resolveLineAdjustment($matched['items'], $dataApi),
             'ongkir' => '0',
         ]);
 
@@ -219,7 +218,6 @@ class ProcessJubelioOrder
             return ['success' => false, 'message' => 'Invoice Retur sudah ada'];
         }
 
-        $adjust = $this->resolveJubelioAdjustment($dataApi);
         $createData = $this->createTransaction(Transaction::TYPE_RETURN, (object) [
             'date' => $dataApi['transaction_date'] ?? now()->toDateString(),
             'warehouse' => $cekTransaksiSell->sender_id,
@@ -231,7 +229,7 @@ class ProcessJubelioOrder
             'account' => '7204',
             'addMoreInputFields' => $matched['items'],
             'disc' => '0',
-            'adjustment' => $this->toggleSign($adjust),
+            'adjustment' => $this->resolveLineAdjustment($matched['items'], $dataApi),
             'ongkir' => '0',
         ]);
 
@@ -282,32 +280,51 @@ class ProcessJubelioOrder
 
         $items = $groupedData[0]->map(function ($item) use ($existingProducts, $qtyKey) {
             $product = $existingProducts[strtoupper($item['item_code'])];
-            $qty = $item[$qtyKey];
+            $qty = (float) $item[$qtyKey];
+            $lineTotal = $this->resolveItemLineTotal($item, $qty);
 
             return [
                 'itemId' => $product->id,
                 'code' => $product->code,
                 'name' => $product->name,
                 'quantity' => $qty,
-                'price' => $item['price'],
+                'price' => $qty > 0 ? $lineTotal / $qty : (float) ($item['price'] ?? 0),
                 'discount' => 0,
-                'subtotal' => $qty * $item['price'],
+                'subtotal' => $lineTotal,
             ];
         })->values()->all();
 
         return ['error' => null, 'items' => $items];
     }
 
-    protected function toggleSign(float|int $value): float|int
+    /**
+     * @param  array<string, mixed>  $item
+     */
+    protected function resolveItemLineTotal(array $item, float $qty): float
     {
-        return -$value;
+        if (isset($item['amount'])) {
+            return (float) $item['amount'];
+        }
+
+        if (isset($item['total'])) {
+            return (float) $item['total'];
+        }
+
+        return $qty * (float) ($item['price'] ?? 0);
     }
 
     /**
-     * Jubelio API payloads use grand_total; some stored payloads use real_total.
-     *
+     * @param  list<array<string, mixed>>  $matchedItems
      * @param  array<string, mixed>  $dataApi
      */
+    protected function resolveLineAdjustment(array $matchedItems, array $dataApi): float
+    {
+        $itemsTotal = (float) collect($matchedItems)->sum('subtotal');
+        $grandTotal = (float) ($dataApi['grand_total'] ?? $dataApi['real_total'] ?? $itemsTotal);
+
+        return $grandTotal - $itemsTotal;
+    }
+
     /**
      * @param  list<array<string, mixed>>  $items
      */
@@ -341,14 +358,6 @@ class ProcessJubelioOrder
         }
 
         return 'Stok tidak cukup di gudang '.$warehouse->name.': '.implode(', ', $insufficient);
-    }
-
-    protected function resolveJubelioAdjustment(array $dataApi): float|int
-    {
-        $subTotal = (float) ($dataApi['sub_total'] ?? 0);
-        $grandTotal = (float) ($dataApi['grand_total'] ?? $dataApi['real_total'] ?? $subTotal);
-
-        return $subTotal - $grandTotal;
     }
 
     /**
@@ -414,8 +423,10 @@ class ProcessJubelioOrder
                 }
 
                 $transaction->total = $subTotal;
-                $grandTotal = $subTotal + $transaction->adjustment;
-                $transaction->real_total = ($type === Transaction::TYPE_SELL) ? -$grandTotal : $grandTotal;
+                $grandTotal = $subTotal + (float) $transaction->adjustment;
+                $transaction->real_total = ($type === Transaction::TYPE_SELL)
+                    ? -abs($grandTotal)
+                    : $grandTotal;
                 $transaction->total_items = $totalQty;
                 $transaction->save();
 

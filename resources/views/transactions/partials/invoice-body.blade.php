@@ -56,6 +56,12 @@
                 <td style="text-align:right;">-{{ $fmt($transaction->discount) }}</td>
             </tr>
             @endif
+            @if((float) $transaction->adjustment != 0)
+            <tr>
+                <td colspan="3" style="text-align:right;">Adjustment</td>
+                <td style="text-align:right;">{{ $fmt($transaction->adjustment) }}</td>
+            </tr>
+            @endif
             @if((float) $transaction->ppn > 0)
             <tr>
                 <td colspan="3" style="text-align:right;">PPN</td>
