@@ -121,7 +121,7 @@ $config = [
                                     <span x-show="loading" class="flex items-center pr-1.5"><svg class="h-3.5 w-3.5 animate-spin text-gray-400" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg></span>
                                 </div>
                                 <div x-show="open" @click.away="open=false" class="combobox-options" x-ref="optionsList" style="z-index:60">
-                                    <div x-show="!loading && items.length===0" class="px-3 py-2 text-sm text-gray-400">Nothing found.</div>
+                                    <div x-show="!loading && items.length===0" class="px-3 py-2 text-sm text-gray-400" x-text="emptyMessage()"></div>
                                     <template x-for="(item, i) in items" :key="item.id">
                                         <div @mousedown.prevent="selectItem(item)" @mouseenter="activeIndex=i" class="combobox-option" :class="{'active': activeIndex===i}">
                                             <span x-text="item.name"></span>

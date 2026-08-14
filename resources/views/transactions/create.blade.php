@@ -101,7 +101,7 @@
                                 </button>
                             </div>
                             <div x-show="open" x-cloak @click.away="open = false" class="combobox-options" x-ref="optionsList">
-                                <div x-show="!loading && items.length === 0" class="px-3 py-2 text-sm text-gray-400">Nothing found.</div>
+                                <div x-show="!loading && items.length === 0" class="px-3 py-2 text-sm text-gray-400" x-text="emptyMessage()"></div>
                                 <template x-for="(item, idx) in items" :key="item.id">
                                     <div @click="selectItem(item)"
                                          @mouseenter="activeIndex = idx"
@@ -146,7 +146,7 @@
                                 </button>
                             </div>
                             <div x-show="open" x-cloak @click.away="open = false" class="combobox-options" x-ref="optionsList">
-                                <div x-show="!loading && items.length === 0" class="px-3 py-2 text-sm text-gray-400">Nothing found.</div>
+                                <div x-show="!loading && items.length === 0" class="px-3 py-2 text-sm text-gray-400" x-text="emptyMessage()"></div>
                                 <template x-for="(item, idx) in items" :key="item.id">
                                     <div @click="selectItem(item)"
                                          @mouseenter="activeIndex = idx"
@@ -592,9 +592,18 @@ function createTransaction() {
                 if (byIdMatch) return byIdMatch;
             }
 
+            const byCode = await this.fetchJson(`/items?code=${encodeURIComponent(code)}&json=1`);
+            const byCodeList = Array.isArray(byCode) ? byCode : (byCode?.data || []);
+            const upper = code.toUpperCase();
+            const codeMatch = byCodeList.find(i => String(i.code || '').toUpperCase() === upper)
+                ?? byCodeList.find(i => String(i.legacy_code || '').toUpperCase() === upper)
+                ?? (byCodeList.length === 1 ? byCodeList[0] : null);
+            if (codeMatch) return codeMatch;
+
+            if (code.length < COMBOBOX_MIN_CHARS) return null;
+
             const searched = await this.fetchJson(`/items?search=${encodeURIComponent(code)}&json=1`);
             const list = Array.isArray(searched) ? searched : (searched?.data || []);
-            const upper = code.toUpperCase();
 
             return list.find(i => String(i.id) === code)
                 ?? list.find(i => String(i.code || '').toUpperCase() === upper)
@@ -653,14 +662,14 @@ function createTransaction() {
             row.item_id = '';
             const q = String(row.name || '').trim();
             clearTimeout(row.searchTimer);
-            if (!q) { row.results = []; row.showDropdown = false; return; }
+            if (!q || q.length < COMBOBOX_MIN_CHARS) { row.results = []; row.showDropdown = false; return; }
             row.searchTimer = setTimeout(async () => {
                 try {
                     const res = await fetch(`/items?search=${encodeURIComponent(q)}&json=1`, {
                         headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
                     });
                     const data = await res.json();
-                    row.results = (Array.isArray(data) ? data : (data.data || [])).slice(0, 15);
+                    row.results = (Array.isArray(data) ? data : (data.data || [])).slice(0, COMBOBOX_MAX_RESULTS);
                     row.activeIndex = -1;
                     row.showDropdown = row.results.length > 0;
                 } catch (e) { row.results = []; }
