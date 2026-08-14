@@ -3,14 +3,19 @@
 @push('head-css')
 <link href="https://unpkg.com/tabulator-tables@6.3.1/dist/css/tabulator.min.css" rel="stylesheet">
 <style>
-    .tabulator { font-size: 13px; border-radius: 0.5rem; overflow: hidden; width: max-content; max-width: 100%; }
+    .tabulator { font-size: 13px; border-radius: 0.375rem; overflow: hidden; width: 100%; }
     .tabulator .tabulator-header .tabulator-col.tabulator-col-group-restock { background: #dbeafe; }
     .tabulator .tabulator-header .tabulator-col.tabulator-col-group-production { background: #fde68a; }
     .tabulator .tabulator-header .tabulator-col.tabulator-col-group-shipped { background: #e5e7eb; }
     .tabulator .tabulator-header .tabulator-col.tabulator-col-group-stock { background: #d1fae5; }
     .tabulator-cell.tabulator-editing { border: 2px solid #2563eb !important; }
     .restock-urgent-cell { background-color: #fef2f2 !important; color: #b91c1c; font-weight: 600; }
+    .restock-na-cell { background-color: #f3f4f6 !important; color: #9ca3af; }
     .restock-grid-scroll { overflow-x: auto; }
+    .restock-section-row { background: #f9fafb !important; }
+    .restock-section-row .tabulator-cell { border-bottom-color: #d1d5db !important; }
+    .restock-spacer-row { background: #fff !important; pointer-events: none; }
+    .restock-spacer-row .tabulator-cell { border: none !important; padding-top: 0; padding-bottom: 0; min-height: 10px; height: 10px; }
     .restock-sheet-actions {
         position: sticky;
         top: 0;
@@ -109,19 +114,14 @@ $breadcrumbs = [
     </div>
 
     <div class="flex flex-col gap-4 p-4 pt-3">
-    @forelse($grid['parents'] as $parent)
-        <section id="parent-{{ $parent['pcode'] }}" class="scroll-mt-32 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-            <div class="border-b border-gray-100 bg-gray-50 px-4 py-3">
-                <div class="flex items-center gap-3">
-                    <img src="{{ $parent['image_url'] }}" alt="" class="h-12 w-12 rounded-md border border-gray-200 object-cover"
-                         onerror="this.onerror=null;this.src='{{ asset('images/default-item.svg') }}'">
-                    <div>
-                        <h2 class="font-semibold text-gray-900">{{ $parent['name'] }}</h2>
-                        <p class="font-mono text-xs text-gray-500">{{ $parent['pcode'] }}</p>
-                    </div>
+    @forelse($grid['blocks'] as $block)
+        <section class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+            @if(count($grid['blocks']) > 1)
+                <div class="border-b border-gray-100 bg-gray-50 px-4 py-2">
+                    <h2 class="text-sm font-semibold text-gray-700">{{ $block['title'] }}</h2>
                 </div>
-            </div>
-            <div class="restock-grid-scroll p-2" data-parent-grid="{{ $parent['pcode'] }}"></div>
+            @endif
+            <div class="restock-grid-scroll p-2" data-block-grid="{{ $block['id'] }}"></div>
         </section>
     @empty
         <div class="rounded-xl border border-gray-200 bg-white p-8 text-center text-gray-500">
@@ -198,6 +198,7 @@ function restockSheetPage() {
         saveUrl: @json(route('restock.sheets.update', $sheet)),
         moveUrl: @json(route('restock.sheets.move', $sheet)),
         receiveUrl: @json(route('restock.sheets.receive', $sheet)),
+        defaultImageUrl: @json(asset('images/default-item.svg')),
         tables: {},
         selectionCount: 0,
         saving: false,
@@ -214,14 +215,16 @@ function restockSheetPage() {
 
         init() {
             this.$nextTick(() => {
-                for (const parent of this.grid.parents) {
-                    const el = document.querySelector(`[data-parent-grid="${parent.pcode}"]`);
+                for (const block of this.grid.blocks ?? []) {
+                    const el = document.querySelector(`[data-block-grid="${block.id}"]`);
                     if (!el) continue;
-                    this.tables[parent.pcode] = new Tabulator(el, {
-                        data: parent.rows,
+
+                    this.tables[block.id] = new Tabulator(el, {
+                        data: block.rows,
                         layout: 'fitData',
-                        height: Math.max(120, (parent.rows.length + 1) * 38 + 20),
+                        height: Math.max(140, block.rows.length * 36 + 44),
                         selectableRows: this.canEdit,
+                        selectableRowsCheck: (row) => row.getData()._type === 'data',
                         rowHeader: this.canEdit ? {
                             formatter: 'rowSelection',
                             titleFormatter: 'rowSelection',
@@ -230,18 +233,68 @@ function restockSheetPage() {
                             width: 40,
                         } : false,
                         columnDefaults: { headerHozAlign: 'center', hozAlign: 'right', widthGrow: 0 },
-                        columns: this.buildColumns(parent.sizes),
-                        rowFormatter: (row) => this.formatUrgentRow(row),
+                        columns: block.kind === 'flat'
+                            ? this.buildFlatColumns()
+                            : this.buildMatrixColumns(block.sizes ?? []),
+                        rowFormatter: (row) => this.formatRow(row),
                     });
-                    this.tables[parent.pcode].on('rowSelectionChanged', () => this.syncSelectionCount());
+
+                    this.tables[block.id].on('rowSelectionChanged', () => this.syncSelectionCount());
                 }
             });
         },
 
-        buildColumns(sizes) {
-            const cols = [
-                { title: 'Color', field: 'color_name', frozen: true, width: 130, widthGrow: 0, hozAlign: 'left', headerHozAlign: 'left', editor: false },
-            ];
+        buildColorColumn() {
+            return {
+                title: 'Color',
+                field: 'color_name',
+                frozen: true,
+                width: 180,
+                widthGrow: 0,
+                hozAlign: 'left',
+                headerHozAlign: 'left',
+                editor: false,
+                formatter: (cell) => this.formatColorCell(cell),
+            };
+        },
+
+        formatColorCell(cell) {
+            const data = cell.getRow().getData();
+
+            if (data._type === 'section') {
+                const wrap = document.createElement('div');
+                wrap.className = 'flex items-center gap-2 py-0.5';
+
+                const img = document.createElement('img');
+                img.src = data.image_url || this.defaultImageUrl;
+                img.alt = '';
+                img.className = 'h-10 w-10 rounded border border-gray-200 object-cover shrink-0';
+                img.onerror = () => { img.onerror = null; img.src = this.defaultImageUrl; };
+
+                const text = document.createElement('div');
+                const name = document.createElement('div');
+                name.className = 'font-semibold text-gray-900 leading-tight';
+                name.textContent = data.name || data.pcode || '';
+
+                const pcode = document.createElement('div');
+                pcode.className = 'font-mono text-xs text-gray-500';
+                pcode.textContent = data.pcode || '';
+
+                text.append(name, pcode);
+                wrap.append(img, text);
+
+                return wrap;
+            }
+
+            if (data._type === 'spacer') {
+                return document.createElement('span');
+            }
+
+            return document.createTextNode(data.color_name ?? '');
+        },
+
+        buildMatrixColumns(sizes) {
+            const cols = [this.buildColorColumn()];
 
             const stages = [
                 { key: 'restock', title: 'Restock', groupClass: 'tabulator-col-group-restock', editable: true },
@@ -254,13 +307,15 @@ function restockSheetPage() {
                 const children = sizes.map((size) => {
                     const prefix = this.sizePrefix(size);
                     const field = prefix + stage.key;
+
                     return {
                         title: size,
                         field,
                         width: 58,
                         widthGrow: 0,
                         editor: stage.editable && this.canEdit ? 'number' : false,
-                        formatter: (cell) => cell.getValue() ?? 0,
+                        editable: (cell) => this.canEditMatrixCell(cell, size, stage.editable),
+                        formatter: (cell) => this.formatQtyCell(cell, size),
                     };
                 });
 
@@ -272,7 +327,7 @@ function restockSheetPage() {
                         widthGrow: 0,
                         editor: false,
                         hozAlign: 'right',
-                        formatter: (cell) => cell.getValue() ?? 0,
+                        formatter: (cell) => this.formatQtyCell(cell, null),
                     });
                 }
 
@@ -282,9 +337,87 @@ function restockSheetPage() {
             return cols;
         },
 
+        buildFlatColumns() {
+            const cols = [this.buildColorColumn()];
+
+            const stages = [
+                { key: 'restock', title: 'Restock', groupClass: 'tabulator-col-group-restock', editable: true },
+                { key: 'production', title: 'Production', groupClass: 'tabulator-col-group-production', editable: true },
+                { key: 'shipped', title: 'Shipped', groupClass: 'tabulator-col-group-shipped', editable: true },
+                { key: 'stock', title: 'Stock', groupClass: 'tabulator-col-group-stock', editable: false },
+            ];
+
+            for (const stage of stages) {
+                cols.push({
+                    title: stage.title,
+                    field: stage.key,
+                    cssClass: stage.groupClass,
+                    width: 72,
+                    widthGrow: 0,
+                    editor: stage.editable && this.canEdit ? 'number' : false,
+                    editable: (cell) => this.canEditFlatCell(cell, stage.editable),
+                    formatter: (cell) => this.formatQtyCell(cell, '—'),
+                });
+            }
+
+            return cols;
+        },
+
+        canEditMatrixCell(cell, size, stageEditable) {
+            if (!this.canEdit || !stageEditable) return false;
+
+            const row = cell.getRow().getData();
+            if (row._type !== 'data') return false;
+
+            return (row.parent_sizes ?? []).includes(size);
+        },
+
+        canEditFlatCell(cell, stageEditable) {
+            if (!this.canEdit || !stageEditable) return false;
+
+            return cell.getRow().getData()._type === 'data';
+        },
+
+        formatQtyCell(cell, size) {
+            const row = cell.getRow().getData();
+
+            if (row._type !== 'data') {
+                return '';
+            }
+
+            if (size !== null && size !== '—' && !(row.parent_sizes ?? []).includes(size)) {
+                cell.getElement().classList.add('restock-na-cell');
+
+                return '—';
+            }
+
+            cell.getElement().classList.remove('restock-na-cell');
+
+            return cell.getValue() ?? 0;
+        },
+
         sizePrefix(size) {
             if (size === '—') return '';
             return size.toLowerCase().replace(/[. ]/g, '_') + '_';
+        },
+
+        formatRow(row) {
+            const data = row.getData();
+            const el = row.getElement();
+
+            el.classList.remove('restock-section-row', 'restock-spacer-row');
+
+            if (data._type === 'section') {
+                el.classList.add('restock-section-row');
+                return;
+            }
+
+            if (data._type === 'spacer') {
+                el.classList.add('restock-spacer-row');
+                return;
+            }
+
+            this.formatUrgentRow(row);
         },
 
         formatUrgentRow(row) {
@@ -301,6 +434,7 @@ function restockSheetPage() {
         collectCellsFromRows(rows) {
             const cells = [];
             for (const row of rows) {
+                if (row._type !== 'data') continue;
                 for (const meta of Object.values(row._meta || {})) {
                     if (meta?.cell_id) cells.push({ id: meta.cell_id });
                 }
@@ -310,8 +444,8 @@ function restockSheetPage() {
 
         selectedRows() {
             const rows = [];
-            for (const parent of this.grid.parents) {
-                const table = this.tables[parent.pcode];
+            for (const block of this.grid.blocks ?? []) {
+                const table = this.tables[block.id];
                 if (!table) continue;
                 rows.push(...table.getSelectedRows().map((row) => row.getData()));
             }
@@ -328,13 +462,13 @@ function restockSheetPage() {
 
         applyGrid(grid) {
             this.grid = grid;
-            for (const parent of grid.parents) {
-                const table = this.tables[parent.pcode];
+            for (const block of grid.blocks ?? []) {
+                const table = this.tables[block.id];
                 if (!table) continue;
-                table.setData(parent.rows);
+                table.setData(block.rows);
                 table.deselectRow();
                 for (const row of table.getRows()) {
-                    this.formatUrgentRow(row);
+                    this.formatRow(row);
                 }
             }
             this.syncSelectionCount();
@@ -376,6 +510,7 @@ function restockSheetPage() {
         buildReceiveLines(rows) {
             const lines = [];
             for (const row of rows) {
+                if (row._type !== 'data') continue;
                 for (const [prefix, meta] of Object.entries(row._meta || {})) {
                     const shipped = Number(row[prefix + 'shipped'] ?? 0);
                     if (!meta?.cell_id || shipped <= 0) continue;
@@ -454,10 +589,11 @@ function restockSheetPage() {
 
         collectCells() {
             const cells = [];
-            for (const parent of this.grid.parents) {
-                const table = this.tables[parent.pcode];
+            for (const block of this.grid.blocks ?? []) {
+                const table = this.tables[block.id];
                 if (!table) continue;
                 for (const row of table.getData()) {
+                    if (row._type !== 'data') continue;
                     for (const [prefix, meta] of Object.entries(row._meta || {})) {
                         if (!meta?.cell_id) continue;
                         cells.push({
