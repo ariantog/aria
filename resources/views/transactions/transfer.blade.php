@@ -84,7 +84,7 @@
                     <label for="total" class="text-sm font-medium text-gray-700">Total Amount</label>
                     <div class="relative">
                         <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-medium text-gray-500">Rp</span>
-                        <input type="number" id="total" name="total" value="{{ old('total', 0) }}" min="0" step="any" placeholder=""
+                        <input type="number" id="total" name="total" value="{{ old('total', '') }}" min="0" step="any" placeholder=""
                                class="w-full rounded-lg border px-3 py-2 pl-10 text-right text-lg font-semibold focus:border-blue-500 focus:ring-1 focus:ring-blue-500 @error('total') border-red-500 @else border-gray-300 @enderror">
                     </div>
                     @error('total')<p class="text-xs text-red-500">{{ $message }}</p>@enderror
