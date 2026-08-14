@@ -16,7 +16,7 @@ return new class extends Migration
             $table->integer('qty_after')->default(0);
             $table->string('action');
             $table->foreignId('user_id')->constrained()->cascadeOnDelete();
-            $table->foreignId('transaction_id')->nullable()->constrained()->nullOnDelete();
+            $table->unsignedBigInteger('transaction_id')->nullable()->index();
             $table->string('note')->nullable();
             $table->timestamps();
 
