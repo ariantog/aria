@@ -148,6 +148,7 @@ class RestockGridBuilder
         foreach ($parents as $index => $parent) {
             $rows[] = [
                 '_type' => 'section',
+                '_rowKey' => 'section:'.$parent['pcode'],
                 '_section_divider' => $index > 0,
                 'pcode' => $parent['pcode'],
                 'name' => $parent['name'],
@@ -158,6 +159,7 @@ class RestockGridBuilder
             foreach ($parent['rows'] as $colorRow) {
                 $rows[] = array_merge([
                     '_type' => 'data',
+                    '_rowKey' => 'data:'.$parent['pcode'].':'.($colorRow['color_id'] ?? $colorRow['color_name']),
                     'pcode' => $parent['pcode'],
                     'parent_sizes' => $parent['sizes'],
                 ], $colorRow);

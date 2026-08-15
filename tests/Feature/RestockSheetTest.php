@@ -401,6 +401,26 @@ test('move transfers restock qty to production for selected cells', function () 
     expect(RestockCellHistory::where('restock_cell_id', $cell->id)->where('action', 'move')->count())->toBe(2);
 });
 
+test('move json response includes non-empty grid for table refresh', function () {
+    createAssetLancarSkus($this);
+    $sheet = app(RestockSheetService::class)->createSheet($this->typeTag, $this->user);
+    $cell = $sheet->cells()->first();
+    $cell->update(['qty_restock' => 12]);
+
+    $response = $this->actingAs($this->user)
+        ->postJson(route('restock.sheets.move', $sheet), [
+            'direction' => 'to_production',
+            'cells' => [['id' => $cell->id]],
+        ])
+        ->assertSuccessful();
+
+    $grid = $response->json('grid');
+    expect($grid['blocks'])->not->toBeEmpty();
+    expect(count($grid['blocks'][0]['rows'] ?? []))->toBeGreaterThan(0);
+    expect(collect($grid['blocks'][0]['rows'])->contains(fn (array $row) => $row['_type'] === 'data'))->toBeTrue();
+    expect(collect($grid['blocks'][0]['rows'])->contains(fn (array $row) => isset($row['_rowKey'])))->toBeTrue();
+});
+
 test('move transfers production qty to shipped', function () {
     createAssetLancarSkus($this);
     $sheet = app(RestockSheetService::class)->createSheet($this->typeTag, $this->user);
@@ -448,6 +468,47 @@ test('receive partial qty records shortfall as missing', function () {
     expect((float) $transaction->details->first()->quantity)->toBe(98.0);
 
     expect(RestockCellHistory::where('restock_cell_id', $cell->id)->where('action', 'missing')->count())->toBe(1);
+});
+
+test('receive multiple cells without invoice and mixed quantities', function () {
+    createAssetLancarSkus($this);
+
+    $supplier = Addrbook::factory()->supplier()->create();
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    seedRestockReceiveSettings($supplier, $warehouse);
+
+    $sheet = app(RestockSheetService::class)->createSheet($this->typeTag, $this->user);
+    $cells = $sheet->cells()->with('item')->limit(2)->get();
+    $cells[0]->update(['qty_shipped' => 100]);
+    $cells[1]->update(['qty_shipped' => 100]);
+
+    $response = $this->actingAs($this->user)
+        ->postJson(route('restock.sheets.receive', $sheet), [
+            'date' => now()->toDateString(),
+            'invoice' => '',
+            'cells' => [
+                ['id' => $cells[0]->id, 'qty' => 99],
+                ['id' => $cells[1]->id, 'qty' => 102],
+            ],
+        ])
+        ->assertSuccessful();
+
+    $cells[0]->refresh();
+    $cells[1]->refresh();
+    expect($cells[0]->qty_shipped)->toBe(0);
+    expect($cells[0]->qty_missing)->toBe(1);
+    expect($cells[1]->qty_shipped)->toBe(0);
+    expect($cells[1]->qty_missing)->toBe(0);
+
+    $transaction = Transaction::find($response->json('transaction_id'));
+    expect($transaction)->not->toBeNull();
+    expect($transaction->details)->toHaveCount(2);
+    expect((float) $transaction->details->firstWhere('item_id', $cells[0]->item_id)->quantity)->toBe(99.0);
+    expect((float) $transaction->details->firstWhere('item_id', $cells[1]->item_id)->quantity)->toBe(102.0);
+
+    $grid = $response->json('grid');
+    expect($grid['blocks'])->not->toBeEmpty();
+    expect(count($grid['blocks'][0]['rows'] ?? []))->toBeGreaterThan(0);
 });
 
 test('missing page lists shortfall skus and mark found clears qty', function () {
