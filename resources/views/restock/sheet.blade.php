@@ -1,7 +1,7 @@
 @extends('layouts.app')
 
 @push('head-css')
-<link href="https://unpkg.com/tabulator-tables@6.3.1/dist/css/tabulator.min.css" rel="stylesheet">
+<link href="{{ asset('vendor/tabulator/tabulator.min.css') }}" rel="stylesheet">
 <style>
     .restock-grid-wrap {
         overflow-x: auto;
@@ -234,7 +234,7 @@ $breadcrumbs = [
 @endsection
 
 @push('scripts')
-<script src="https://unpkg.com/tabulator-tables@6.3.1/dist/js/tabulator.min.js"></script>
+<script src="{{ asset('vendor/tabulator/tabulator.min.js') }}"></script>
 <script>
 function restockSheetPage() {
     return {
@@ -260,12 +260,17 @@ function restockSheetPage() {
         error: '',
 
         init() {
+            if (typeof Tabulator === 'undefined') {
+                this.error = 'Grid library failed to load. Try refreshing the page.';
+                return;
+            }
+
             this.$nextTick(() => {
                 for (const block of this.grid.blocks ?? []) {
                     const el = document.querySelector(`[data-block-grid="${block.id}"]`);
                     if (!el) continue;
 
-                    this.tables[block.id] = new Tabulator(el, {
+                    const table = new Tabulator(el, {
                         data: block.rows,
                         layout: 'fitDataTable',
                         height: Math.max(160, block.rows.length * 34 + 48),
@@ -278,9 +283,23 @@ function restockSheetPage() {
                         rowFormatter: (row) => this.formatRow(row),
                     });
 
-                    this.tables[block.id].on('rowSelectionChanged', () => this.syncSelectionCount());
+                    this.tables[block.id] = table;
+                    table.on('rowSelectionChanged', () => {
+                        this.syncSelectionCount();
+                        this.syncCheckboxCells(table);
+                    });
                 }
             });
+        },
+
+        syncCheckboxCells(table) {
+            for (const row of table.getRows()) {
+                if (row.getData()._type !== 'data') continue;
+                const cell = row.getCell('_select');
+                if (!cell) continue;
+                const checkbox = cell.getElement().querySelector('input[type="checkbox"]');
+                if (checkbox) checkbox.checked = row.isSelected();
+            }
         },
 
         buildFrozenColumns() {
@@ -358,13 +377,6 @@ function restockSheetPage() {
                 event.stopPropagation();
                 row.toggleSelect();
             });
-
-            const table = cell.getTable();
-            const syncChecked = () => {
-                checkbox.checked = row.isSelected();
-            };
-            table.on('rowSelectionChanged', syncChecked);
-            table.on('rowDeleted', () => table.off('rowSelectionChanged', syncChecked));
 
             return checkbox;
         },
