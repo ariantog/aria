@@ -32,21 +32,6 @@
     .restock-grid-wrap .tabulator .tabulator-header .tabulator-col.restock-col-stock { background: #d1fae5; }
     .restock-grid-wrap .tabulator-cell.tabulator-editing { border: 2px solid #2563eb !important; }
 
-    /* Uniform 1px grid lines: Tabulator doubles them at column-group seams. */
-    .restock-grid-wrap .tabulator .tabulator-row .tabulator-cell {
-        border-left: none !important;
-        border-right: 1px solid rgba(156, 163, 175, 0.22) !important;
-        padding-top: 4px;
-        padding-bottom: 4px;
-    }
-    .restock-grid-wrap .tabulator .tabulator-row .tabulator-cell:last-child {
-        border-right: none !important;
-    }
-    .restock-grid-wrap .tabulator .tabulator-header .tabulator-col {
-        border-left: none !important;
-        border-right: 1px solid rgba(156, 163, 175, 0.22) !important;
-    }
-
     .restock-grid-wrap .tabulator .tabulator-row-header {
         min-width: 46px;
     }
@@ -62,24 +47,33 @@
         overflow: hidden;
         visibility: hidden;
     }
+
+    .restock-grid-wrap .tabulator .tabulator-row.restock-data-row .tabulator-cell {
+        padding: 5px 8px;
+    }
+    .restock-grid-wrap .tabulator .tabulator-row.restock-section-row .tabulator-cell {
+        padding: 6px 8px;
+    }
+
+    .restock-grid-wrap .tabulator .tabulator-row.restock-section-row .tabulator-cell:not([tabulator-field="color_name"]) {
+        border-left: none !important;
+        border-right: none !important;
+        border-bottom: none !important;
+        padding-top: 0 !important;
+        padding-bottom: 0 !important;
+    }
+
+    /* Group separator: border-top on every cell so it spans frozen + scroll columns. */
+    .restock-grid-wrap .tabulator .tabulator-row.restock-section-divider > .tabulator-cell {
+        border-top: 1px solid rgba(156, 163, 175, 0.55) !important;
+        padding-top: 10px !important;
+    }
+    .restock-grid-wrap .tabulator .tabulator-row.restock-section-divider > .tabulator-row-header {
+        border-top: 1px solid rgba(156, 163, 175, 0.55) !important;
+    }
+
     .restock-urgent-cell { background-color: #fef2f2 !important; color: #b91c1c; font-weight: 600; }
     .restock-na-cell { background-color: rgba(156, 163, 175, 0.15) !important; color: #9ca3af; }
-
-    /* Parent-group separator: border on the row spans the whole table, unlike
-       per-cell borders, which frozen columns break into segments. */
-    .restock-grid-wrap .tabulator .tabulator-row.restock-section-row {
-        background: transparent !important;
-        border-top: 2px solid transparent;
-    }
-    /* Mid grey stays visible under Chrome's force-dark inversion. */
-    .restock-grid-wrap .tabulator .tabulator-row.restock-section-divider {
-        border-top-color: rgba(156, 163, 175, 0.7);
-    }
-    .restock-section-row .tabulator-cell {
-        padding-top: 7px !important;
-        padding-bottom: 7px !important;
-        border-right-color: transparent !important;
-    }
     .restock-section-title {
         overflow: hidden;
         text-overflow: ellipsis;
@@ -293,7 +287,7 @@ function restockSheetPage() {
                     this.tables[block.id] = new Tabulator(el, {
                         data: block.rows,
                         layout: 'fitDataTable',
-                        maxHeight: '75vh',
+                        height: Math.max(160, block.rows.length * 34 + 48),
                         selectableRows: this.canEdit,
                         selectableRowsCheck: (row) => row.getData()._type === 'data',
                         rowHeader: this.canEdit ? {
@@ -306,7 +300,7 @@ function restockSheetPage() {
                             hozAlign: 'center',
                             headerHozAlign: 'center',
                         } : false,
-                        columnDefaults: { headerHozAlign: 'center', hozAlign: 'right', vertAlign: 'middle', widthGrow: 0, headerSort: false },
+                        columnDefaults: { headerHozAlign: 'center', hozAlign: 'right', widthGrow: 0, headerSort: false },
                         columns: block.kind === 'flat'
                             ? this.buildFlatColumns()
                             : this.buildMatrixColumns(block.sizes ?? []),
@@ -352,6 +346,7 @@ function restockSheetPage() {
                 widthGrow: 0,
                 hozAlign: 'left',
                 headerHozAlign: 'left',
+                vertAlign: 'middle',
                 editor: false,
                 formatter: (cell) => this.formatColorCell(cell),
             };
@@ -411,6 +406,7 @@ function restockSheetPage() {
                         field,
                         width: 58,
                         widthGrow: 0,
+                        vertAlign: 'middle',
                         editor: stage.editable && this.canEdit ? 'number' : false,
                         editable: (cell) => this.canEditMatrixCell(cell, size, stage.editable),
                         formatter: (cell) => this.formatQtyCell(cell, size),
@@ -423,6 +419,7 @@ function restockSheetPage() {
                         field: stage.key + '_total',
                         width: 72,
                         widthGrow: 0,
+                        vertAlign: 'middle',
                         editor: false,
                         hozAlign: 'right',
                         formatter: (cell) => this.formatQtyCell(cell, null),
@@ -453,6 +450,7 @@ function restockSheetPage() {
                     width: 108,
                     minWidth: 108,
                     widthGrow: 0,
+                    vertAlign: 'middle',
                     editor: stage.editable && this.canEdit ? 'number' : false,
                     editable: (cell) => this.canEditFlatCell(cell, stage.editable),
                     formatter: (cell) => this.formatQtyCell(cell, '—'),
@@ -511,11 +509,13 @@ function restockSheetPage() {
                 if (data._section_divider) {
                     el.classList.add('restock-section-divider');
                 }
+                el.style.height = '';
                 return;
             }
 
             if (data._type === 'data') {
                 el.classList.add('restock-data-row');
+                el.style.height = '';
                 this.formatUrgentRow(row);
             }
         },
