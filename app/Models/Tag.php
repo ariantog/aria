@@ -233,10 +233,21 @@ class Tag extends Model
     }
 
     /**
+     * Item type used when linking from the tags list to a filtered index.
+     */
+    public function filterItemType(): ItemType
+    {
+        return (int) $this->item_type === ItemType::ASSET_LANCAR->value
+            ? ItemType::ASSET_LANCAR
+            : ItemType::ITEM;
+    }
+
+    /**
      * Item / asset lancar index URL filtered to items carrying this tag.
      */
-    public function itemsIndexFilterUrl(ItemType $itemType): string
+    public function itemsIndexFilterUrl(?ItemType $itemType = null): string
     {
+        $itemType ??= $this->filterItemType();
         $routeName = $itemType === ItemType::ASSET_LANCAR ? 'assetlancar.index' : 'items.index';
 
         $params = match ((int) $this->type) {
@@ -270,6 +281,17 @@ class Tag extends Model
                 $tag->name = strtoupper(trim($tag->name));
                 $tag->code = $tag->name;
             }
+        });
+
+        static::deleting(function (Tag $tag) {
+            $tag->items()->each(function (Item $item) use ($tag) {
+                $tagIds = array_values(array_filter(
+                    array_map('intval', explode(',', (string) $item->tag_ids)),
+                    fn (int $id) => $id !== $tag->id,
+                ));
+
+                $item->updateQuietly(['tag_ids' => implode(',', $tagIds)]);
+            });
         });
     }
 }
