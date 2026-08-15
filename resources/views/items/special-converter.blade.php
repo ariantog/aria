@@ -121,7 +121,10 @@
                             @if($preview?->success)
                                 {{ $preview->canonicalCode }}
                             @elseif($preview)
-                                <span class="text-red-600">{{ $preview->failureCode }}</span>
+                                <span class="text-red-600" title="{{ $preview->detail }}">{{ $preview->failureCode }}</span>
+                                @if($preview->detail)
+                                    <span class="block text-xs text-red-500">{{ $preview->detail }}</span>
+                                @endif
                             @else
                                 —
                             @endif

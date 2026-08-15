@@ -8,6 +8,16 @@ class SpecialSkuConverterRules
 
     public const FAILURE_INVALID_STRUCTURE = 'SPECIAL_SKU_INVALID';
 
+    public const FAILURE_SIZE_TAG_MISSING = 'SIZE_TAG_MISSING';
+
+    public const FAILURE_WARNA_TAG_MISSING = 'WARNA_TAG_MISSING';
+
+    /** @var array<string, string> */
+    public const WARNA_LOOKUP_ALIASES = [
+        'GREY' => 'GRAY',
+        'GRAY' => 'GREY',
+    ];
+
     /**
      * @return array<int, array{
      *     id: string,
