@@ -7,6 +7,7 @@ use App\Models\Jubelioreturn;
 use App\Models\Jubeliosync;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Models\WarehouseItem;
 use App\Services\JubelioService;
 use Mockery\MockInterface;
 use Spatie\Permission\Models\Permission;
@@ -367,6 +368,13 @@ it('refetches jubelio order payload when source is not webhook', function () {
     $warehouse = Addrbook::factory()->warehouse()->create();
     $customer = Addrbook::factory()->create(['type' => Addrbook::TYPE_CUSTOMER]);
     $item = Item::factory()->create(['code' => 'SKU-REFETCH-1']);
+
+    WarehouseItem::create([
+        'warehouse_id' => $warehouse->id,
+        'warehouse_type' => $warehouse->type,
+        'item_id' => $item->id,
+        'quantity' => 10,
+    ]);
 
     Jubeliosync::create([
         'jubelio_store_id' => 11,
