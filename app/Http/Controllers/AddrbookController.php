@@ -400,7 +400,11 @@ class AddrbookController extends Controller
 
     private function addrbookTypeSlug(Addrbook $a): ?string
     {
-        return $a->type instanceof AddrbookType ? $a->type->slug() : null;
+        $type = $a->type instanceof AddrbookType
+            ? $a->type
+            : AddrbookType::tryFrom((int) $a->type);
+
+        return $type?->slug();
     }
 
     private function addrbookIsWarehouse(Addrbook $a): bool
@@ -446,7 +450,11 @@ class AddrbookController extends Controller
 
     private function syncAddrbookLocations(Addrbook $addrbook, array $locationIds): void
     {
-        if (! in_array($addrbook->type, [AddrbookType::Customer, AddrbookType::Warehouse], true)) {
+        $type = $addrbook->type instanceof AddrbookType
+            ? $addrbook->type
+            : AddrbookType::tryFrom((int) $addrbook->type);
+
+        if (! in_array($type, [AddrbookType::Customer, AddrbookType::Warehouse], true)) {
             return;
         }
 
