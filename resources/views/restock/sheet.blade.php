@@ -4,28 +4,8 @@
 <link href="{{ asset('vendor/tabulator/tabulator.min.css') }}" rel="stylesheet">
 <style>
     .restock-grid-wrap {
-        max-width: 100%;
-        width: 100%;
-    }
-    @media (max-width: 1023px) {
-        .restock-grid-wrap {
-            overflow: hidden;
-        }
-        .restock-grid-wrap .tabulator {
-            display: block !important;
-            width: 100% !important;
-            max-width: 100%;
-            transform: none !important;
-        }
-        .restock-grid-wrap .tabulator .tabulator-tableholder {
-            overflow-x: auto !important;
-            -webkit-overflow-scrolling: touch;
-        }
-    }
-    @media (min-width: 1024px) {
-        .restock-grid-wrap {
-            overflow-x: auto;
-        }
+        overflow-x: auto;
+        background: transparent;
     }
     .restock-grid-wrap .tabulator {
         display: inline-block;
@@ -34,45 +14,13 @@
         border-radius: 0.375rem;
         width: auto;
         max-width: 100%;
+        background: transparent;
     }
     .restock-grid-wrap .tabulator .tabulator-tableholder,
     .restock-grid-wrap .tabulator .tabulator-header,
     .restock-grid-wrap .tabulator .tabulator-table,
     .restock-grid-wrap .tabulator .tabulator-row {
         background: transparent;
-    }
-    /* Frozen columns: opaque background so horizontal scroll does not show through */
-    .restock-grid-wrap .tabulator .tabulator-frozen-left {
-        z-index: 12;
-    }
-    .restock-grid-wrap .tabulator .tabulator-header .tabulator-col.tabulator-frozen-left {
-        background-color: #f3f4f6 !important;
-    }
-    .restock-grid-wrap .tabulator .tabulator-row .tabulator-cell.tabulator-frozen-left {
-        background-color: #ffffff !important;
-    }
-    .restock-grid-wrap .tabulator .tabulator-row .tabulator-cell.tabulator-frozen-left.restock-na-cell {
-        background-color: rgba(156, 163, 175, 0.22) !important;
-    }
-    .restock-grid-wrap .tabulator .tabulator-row .tabulator-cell.tabulator-frozen-left.restock-urgent-cell {
-        background-color: #fef2f2 !important;
-    }
-    .restock-grid-wrap .tabulator .tabulator-cell.tabulator-frozen-left[tabulator-field="color_name"],
-    .restock-grid-wrap .tabulator .tabulator-header .tabulator-col.tabulator-frozen-left[tabulator-field="color_name"] {
-        box-shadow: 4px 0 6px -2px rgba(0, 0, 0, 0.08);
-    }
-    html.dark .restock-grid-wrap .tabulator .tabulator-header .tabulator-col.tabulator-frozen-left {
-        background-color: #374151 !important;
-    }
-    html.dark .restock-grid-wrap .tabulator .tabulator-row .tabulator-cell.tabulator-frozen-left {
-        background-color: #111827 !important;
-    }
-    html.dark .restock-grid-wrap .tabulator .tabulator-row .tabulator-cell.tabulator-frozen-left.restock-na-cell {
-        background-color: rgba(17, 24, 39, 0.85) !important;
-    }
-    html.dark .restock-grid-wrap .tabulator .tabulator-cell.tabulator-frozen-left[tabulator-field="color_name"],
-    html.dark .restock-grid-wrap .tabulator .tabulator-header .tabulator-col.tabulator-frozen-left[tabulator-field="color_name"] {
-        box-shadow: 4px 0 6px -2px rgba(0, 0, 0, 0.35);
     }
     .restock-grid-wrap .tabulator .tabulator-header .tabulator-col.tabulator-col-group.tabulator-col-group-restock { background: #dbeafe; }
     .restock-grid-wrap .tabulator .tabulator-header .tabulator-col.tabulator-col-group.tabulator-col-group-production { background: #fde68a; }
@@ -147,7 +95,7 @@
         color: #9ca3af;
     }
 
-    /* Group separator: border-top on every cell so it spans frozen + scroll columns. */
+    /* Group separator: border-top on every cell in the divider row. */
     .restock-grid-wrap .tabulator .tabulator-row.restock-section-divider > .tabulator-cell {
         border-top: 1px solid rgba(156, 163, 175, 0.55) !important;
         padding-top: 10px !important;
@@ -165,11 +113,6 @@
         color: #6b7280 !important;
     }
     .restock-section-title {
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
-    .restock-grid-wrap .tabulator .tabulator-cell[tabulator-field="color_name"] {
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
@@ -402,14 +345,10 @@ function restockSheetPage() {
                     });
 
                     this.tables[block.id] = table;
-                    table.on('tableBuilt', () => {
-                        this.syncTableWidth(table);
-                        if (isMatrix) this.collapseMatrixSubHeader(table);
-                    });
-                    table.on('columnResized', () => {
-                        this.syncTableWidth(table);
-                        if (isMatrix) this.collapseMatrixSubHeader(table);
-                    });
+                    if (isMatrix) {
+                        table.on('tableBuilt', () => this.collapseMatrixSubHeader(table));
+                        table.on('columnResized', () => this.collapseMatrixSubHeader(table));
+                    }
                     table.on('rowSelectionChanged', () => {
                         this.syncSelectionCount();
                         this.syncCheckboxCells(table);
@@ -467,18 +406,6 @@ function restockSheetPage() {
             });
         },
 
-        syncTableWidth(table) {
-            if (window.innerWidth >= 1024) return;
-
-            const wrap = table.element.closest('.restock-grid-wrap');
-            if (!wrap) return;
-
-            const width = wrap.clientWidth;
-            if (width > 0) {
-                table.setWidth(width);
-            }
-        },
-
         syncCheckboxCells(table) {
             for (const row of table.getRows()) {
                 if (row.getData()._type !== 'data') continue;
@@ -505,7 +432,6 @@ function restockSheetPage() {
             return {
                 title: '',
                 field: '_image',
-                frozen: true,
                 width: 72,
                 widthGrow: 0,
                 hozAlign: 'center',
@@ -536,7 +462,6 @@ function restockSheetPage() {
             return {
                 title: '',
                 field: '_select',
-                frozen: true,
                 width: 26,
                 minWidth: 26,
                 widthGrow: 0,
@@ -572,7 +497,6 @@ function restockSheetPage() {
             return {
                 title: 'Color',
                 field: 'color_name',
-                frozen: true,
                 width: 220,
                 widthGrow: 0,
                 hozAlign: 'left',
@@ -822,7 +746,6 @@ function restockSheetPage() {
 
                 table.replaceData(rows).then(() => {
                     if (isMatrix) this.collapseMatrixSubHeader(table);
-                    this.syncTableWidth(table);
                     table.redraw(true);
                     table.deselectRow();
                     for (const row of table.getRows()) {
