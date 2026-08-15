@@ -37,13 +37,34 @@
     .restock-grid-flat .tabulator .tabulator-header .tabulator-col.restock-col-shipped { background: #e5e7eb; }
     .restock-grid-flat .tabulator .tabulator-header .tabulator-col.restock-col-stock { background: #d1fae5; }
 
-    /* Matrix: one header row (merged stage groups). Size labels are on SKU rows. */
-    .restock-grid-matrix .tabulator-header .tabulator-headers:nth-child(2) {
+    /* Matrix: merged stage groups — hide nested sub-col headers (Tabulator 6 col-group-cols) */
+    .restock-grid-matrix .tabulator-header .tabulator-col.tabulator-col-group .tabulator-col-group-cols {
         display: none !important;
+        height: 0 !important;
+        min-height: 0 !important;
+        border: none !important;
+        margin: 0 !important;
+        overflow: hidden !important;
     }
-    .restock-grid-matrix .tabulator-header .tabulator-col.tabulator-col-group .tabulator-col-content {
-        align-items: center;
+    .restock-grid-matrix .tabulator-header .tabulator-col.tabulator-col-group {
+        display: flex !important;
+        flex-direction: column;
         justify-content: center;
+        align-items: stretch;
+    }
+    .restock-grid-matrix .tabulator-header .tabulator-col.tabulator-col-group > .tabulator-col-content {
+        flex: 1 1 auto;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        min-height: 36px;
+        height: auto !important;
+        border-bottom: none !important;
+    }
+    .restock-grid-matrix .tabulator-header .tabulator-col.tabulator-col-group .tabulator-col-title {
+        text-align: center;
+        width: 100%;
+        padding: 8px 4px;
     }
 
     html.dark .restock-grid-wrap .tabulator .tabulator-header .tabulator-col.tabulator-col-group.tabulator-col-group-restock { background: #1e3a5f; }
@@ -341,8 +362,10 @@ function restockSheetPage() {
             const root = table.element.closest('.restock-grid-matrix');
             if (!root) return;
 
-            root.querySelectorAll('.tabulator-header .tabulator-headers:nth-child(2)').forEach((row) => {
-                row.style.setProperty('display', 'none', 'important');
+            root.querySelectorAll('.tabulator-header .tabulator-col-group-cols').forEach((el) => {
+                el.style.setProperty('display', 'none', 'important');
+                el.style.setProperty('height', '0', 'important');
+                el.style.setProperty('border', 'none', 'important');
             });
         },
 
