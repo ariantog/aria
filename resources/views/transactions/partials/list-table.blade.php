@@ -44,15 +44,15 @@
                     <th class="px-3 py-2.5 text-left font-medium">
                         @if($sortLink)<a href="{{ $sortLink('invoice') }}" class="inline-flex items-center gap-1 hover:text-gray-900">Invoice @if($sort==='invoice')<span class="text-blue-600">{{ $direction==='asc'?'↑':'↓' }}</span>@endif</a>@else Invoice @endif
                     </th>
+                    <th class="px-3 py-2.5 text-right font-medium">
+                        @if($sortLink)<a href="{{ $sortLink('real_total') }}" class="inline-flex items-center gap-1 hover:text-gray-900">Grand Total @if($sort==='real_total')<span class="text-blue-600">{{ $direction==='asc'?'↑':'↓' }}</span>@endif</a>@else Grand Total @endif
+                    </th>
+                    <th class="hidden px-3 py-2.5 text-right font-medium xl:table-cell">Items</th>
                     <th class="px-3 py-2.5 text-left font-medium">
                         @if($sortLink)<a href="{{ $sortLink('type') }}" class="inline-flex items-center gap-1 hover:text-gray-900">Type @if($sort==='type')<span class="text-blue-600">{{ $direction==='asc'?'↑':'↓' }}</span>@endif</a>@else Type @endif
                     </th>
                     <th class="hidden px-3 py-2.5 text-left font-medium lg:table-cell">Sender</th>
                     <th class="hidden px-3 py-2.5 text-left font-medium lg:table-cell">Receiver</th>
-                    <th class="hidden px-3 py-2.5 text-right font-medium xl:table-cell">Items</th>
-                    <th class="px-3 py-2.5 text-right font-medium">
-                        @if($sortLink)<a href="{{ $sortLink('real_total') }}" class="inline-flex items-center gap-1 hover:text-gray-900">Grand Total @if($sort==='real_total')<span class="text-blue-600">{{ $direction==='asc'?'↑':'↓' }}</span>@endif</a>@else Grand Total @endif
-                    </th>
                     <th class="w-12 px-3 py-2.5 text-center font-medium"></th>
                 </tr>
             </thead>
@@ -69,6 +69,12 @@
                         <td class="px-3 py-2.5">
                             <a href="{{ route('transactions.show', $tx->id) }}" class="font-mono text-xs text-blue-600 hover:underline">{{ $tx->invoice ?: '—' }}</a>
                             <div class="mt-0.5 text-xs text-gray-400 lg:hidden">{{ $tx->sender->name ?? '—' }} → {{ $tx->receiver->name ?? '—' }}</div>
+                        </td>
+                        <td class="whitespace-nowrap px-3 py-2.5 text-right font-semibold tabular-nums text-gray-900">
+                            {{ number_format($tx->real_total, 0, ',', '.') }}
+                        </td>
+                        <td class="hidden whitespace-nowrap px-3 py-2.5 text-right tabular-nums text-gray-500 xl:table-cell">
+                            {{ number_format($tx->total_items, 0, ',', '.') }}
                         </td>
                         <td class="whitespace-nowrap px-3 py-2.5">
                             <span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium {{ $badgeCls }}">
@@ -94,12 +100,6 @@
                             @else
                                 <span class="text-gray-400">—</span>
                             @endif
-                        </td>
-                        <td class="hidden whitespace-nowrap px-3 py-2.5 text-right tabular-nums text-gray-500 xl:table-cell">
-                            {{ number_format($tx->total_items, 0, ',', '.') }}
-                        </td>
-                        <td class="whitespace-nowrap px-3 py-2.5 text-right font-semibold tabular-nums text-gray-900">
-                            {{ number_format($tx->real_total, 0, ',', '.') }}
                         </td>
                         <td class="px-3 py-2.5 text-center">
                             <div class="relative inline-block" x-data="{ open: false }">
