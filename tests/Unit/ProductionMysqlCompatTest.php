@@ -17,9 +17,9 @@ it('uses null for nullable zero-date columns', function () {
     expect(ProductionMysqlCompat::zeroDateReplacement('datetime', 'YES'))->toBe('NULL');
 });
 
-it('uses null for timestamp and datetime even when not nullable', function () {
-    expect(ProductionMysqlCompat::zeroDateReplacement('datetime', 'NO'))->toBe('NULL');
-    expect(ProductionMysqlCompat::zeroDateReplacement('timestamp', 'NO'))->toBe('NULL');
+it('uses timestamp-range-safe sentinel for not-null timestamp and datetime', function () {
+    expect(ProductionMysqlCompat::zeroDateReplacement('datetime', 'NO'))->toBe("'1971-01-01 00:00:00'");
+    expect(ProductionMysqlCompat::zeroDateReplacement('timestamp', 'NO'))->toBe("'1971-01-01 00:00:00'");
 });
 
 it('uses sentinel values for other not-null zero-date columns', function () {
