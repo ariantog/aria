@@ -42,6 +42,29 @@ it('parses fabricband legacy sku into canonical identity', function () {
         ->and($result->legacyCode)->toBe('FABRICBAND-03-LIGHT-BABYBLUE');
 });
 
+it('resolves size tags by name when production code differs', function () {
+    Tag::query()->where('type', Tag::TYPE_SIZE)->whereRaw('UPPER(name) = ?', ['HEAVY'])->delete();
+
+    Tag::factory()->create([
+        'type' => Tag::TYPE_SIZE,
+        'code' => 'HV',
+        'name' => 'HEAVY',
+        'item_type' => 0,
+    ]);
+
+    $parser = new SpecialSkuIdentityParser($this->rules, new ItemIdentityBuilder);
+    $item = Item::factory()->make([
+        'type' => ItemType::ASSET_LANCAR->value,
+        'code' => 'FABRICBAND-03-HEAVY-BABYBLUE',
+    ]);
+
+    $result = $parser->parse($item);
+
+    expect($result->success)->toBeTrue()
+        ->and($result->sizeCode)->toBe('HV')
+        ->and($result->canonicalCode)->toBe('FABRICBAND-03-BABYBLUE-HV');
+});
+
 it('converts fabricband sku preserving legacy_code for jubelio lookup', function () {
     $item = Item::factory()->create([
         'type' => ItemType::ASSET_LANCAR->value,

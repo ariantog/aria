@@ -509,19 +509,15 @@ class LegacyItemConverterService
     protected function applyParse(Item $item, LegacyParseResult $parse): void
     {
         $itemType = $this->makeParser()->resolveItemType($item);
-        $warnaTag = Tag::query()
-            ->where('type', Tag::TYPE_WARNA)
-            ->whereRaw('UPPER(code) = ?', [strtoupper((string) $parse->warnaCode)])
-            ->firstOrFail();
+        $warnaTag = Tag::findWarnaTag((string) $parse->warnaCode);
 
-        $sizeTag = null;
-
-        if ($parse->sizeCode) {
-            $sizeTag = Tag::query()
-                ->where('type', Tag::TYPE_SIZE)
-                ->whereRaw('UPPER(code) = ?', [strtoupper($parse->sizeCode)])
-                ->first();
+        if (! $warnaTag) {
+            throw new \RuntimeException("Warna tag not found: {$parse->warnaCode}");
         }
+
+        $sizeTag = $parse->sizeCode
+            ? Tag::findSizeTag((string) $parse->sizeCode)
+            : null;
 
         $typeTag = null;
 

@@ -73,8 +73,16 @@ class SpecialSkuIdentityParser
             );
         }
 
-        $warnaTag = $this->resolveWarnaTag($parsed['color']);
-        $sizeTag = $this->resolveSizeTag($parsed['size']);
+        try {
+            $warnaTag = $this->resolveWarnaTag($parsed['color']);
+            $sizeTag = $this->resolveSizeTag($parsed['size']);
+        } catch (InvalidArgumentException $e) {
+            return LegacyParseResult::failure(
+                SpecialSkuConverterRules::FAILURE_INVALID_STRUCTURE,
+                $e->getMessage(),
+                ['code' => $originalCode, 'pcode' => $parsed['pcode']],
+            );
+        }
 
         $canonicalCode = $this->identityBuilder->buildCode(
             ItemType::ASSET_LANCAR,
@@ -126,17 +134,7 @@ class SpecialSkuIdentityParser
             return $this->warnaTagsByCode->get($warnaCode);
         }
 
-        $attributes = Tag::normalizeWarnaAttributes([
-            'type' => Tag::TYPE_WARNA,
-            'name' => $warnaCode,
-            'code' => $warnaCode,
-            'item_type' => 0,
-        ]);
-
-        $tag = Tag::query()->firstOrCreate(
-            ['type' => Tag::TYPE_WARNA, 'code' => $attributes['code']],
-            ['name' => $attributes['name'], 'item_type' => 0],
-        );
+        $tag = Tag::findWarnaTag($warnaCode) ?? Tag::findOrCreateWarnaTag($warnaCode);
 
         $this->warnaTagsByCode->put(strtoupper($tag->code), $tag);
 
@@ -149,20 +147,14 @@ class SpecialSkuIdentityParser
 
         $existing = $this->sizeTags->first(
             fn (Tag $tag) => strtoupper((string) $tag->code) === $sizeCode
-        );
+                || strtoupper((string) $tag->name) === $sizeCode
+        ) ?? Tag::findSizeTag($sizeCode);
 
         if ($existing) {
             return $existing;
         }
 
-        $tag = Tag::query()->firstOrCreate(
-            ['type' => Tag::TYPE_SIZE, 'code' => $sizeCode],
-            ['name' => $sizeCode, 'item_type' => 0],
-        );
-
-        $this->sizeTags->prepend($tag);
-
-        return $tag;
+        return Tag::findOrCreateSizeTag($sizeCode);
     }
 
     protected function deriveGroupName(Item $item, string $pcode): string
