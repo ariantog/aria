@@ -102,11 +102,14 @@ class ProductionMysqlCompat
     {
         $dataType = strtolower($dataType);
 
-        if ($isNullable === 'YES' || in_array($dataType, ['timestamp', 'datetime'], true)) {
+        if ($isNullable === 'YES') {
             return 'NULL';
         }
 
-        return "'1970-01-01'";
+        // '1971-01-01' is inside the TIMESTAMP range in every timezone.
+        return in_array($dataType, ['timestamp', 'datetime'], true)
+            ? "'1971-01-01 00:00:00'"
+            : "'1970-01-01'";
     }
 
     public static function relaxedTemporalDefinition(string $dataType): string
@@ -132,19 +135,16 @@ class ProductionMysqlCompat
 
         foreach ($columns as $column) {
             $name = $column->COLUMN_NAME;
-            $dataType = strtolower($column->DATA_TYPE);
+            $where = implode(' OR ', self::zeroDateWhereClauses($name));
 
-            if ($column->IS_NULLABLE !== 'YES' && in_array($dataType, ['timestamp', 'datetime'], true)) {
-                DB::statement(sprintf(
-                    'ALTER TABLE `%s` MODIFY `%s` %s',
-                    $table,
-                    $name,
-                    self::relaxedTemporalDefinition($dataType)
-                ));
+            // Leave healthy columns untouched — an unconditional MODIFY would strip
+            // DEFAULT current_timestamp() / ON UPDATE clauses the legacy app relies on.
+            $hasZeroDates = DB::selectOne("SELECT 1 AS found FROM `{$table}` WHERE {$where} LIMIT 1");
+            if (! $hasZeroDates) {
+                continue;
             }
 
-            $replacement = self::zeroDateReplacement($dataType, $column->IS_NULLABLE);
-            $where = implode(' OR ', self::zeroDateWhereClauses($name));
+            $replacement = self::zeroDateReplacement($column->DATA_TYPE, $column->IS_NULLABLE);
 
             DB::statement("
                 UPDATE `{$table}`
