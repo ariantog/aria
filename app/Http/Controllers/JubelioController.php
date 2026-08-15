@@ -235,6 +235,22 @@ class JubelioController extends Controller
             if (Jubelioorder::where('invoice', $d['salesorder_no'])->where('type', 'SELL')->where('order_status', $d['status'])->exists()) {
                 return response()->json(['status' => 'ok', 'message' => 'Already exists']);
             }
+
+            $invoice = $d['salesorder_no'];
+            $destyInvoice = str_replace('SP-', '', $invoice);
+            $sellExists = Transaction::where('type', Transaction::TYPE_SELL)
+                ->where(function ($query) use ($invoice, $destyInvoice) {
+                    $query->where('invoice', $invoice);
+                    if ($destyInvoice !== $invoice) {
+                        $query->orWhere('invoice', $destyInvoice);
+                    }
+                })
+                ->exists();
+
+            if ($sellExists) {
+                return response()->json(['status' => 'ok', 'message' => 'Invoice sudah ada']);
+            }
+
             $order = Jubelioorder::create([
                 'jubelio_order_id' => $d['salesorder_id'],
                 'source' => 1,

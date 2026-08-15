@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Jubelioorder;
+use App\Models\Transaction;
 
 function jubelioWebhookSign(string $body, string $secret): string
 {
@@ -55,6 +56,37 @@ it('accepts jubelio webhook with valid signature and stores shipped order', func
 
     $order = Jubelioorder::where('invoice', 'INV-WEBHOOK-TEST')->first();
     expect($order->payload)->toBeNull();
+});
+
+it('skips shipped webhook when sell transaction already exists', function () {
+    config(['services.jubelio.webhook_secret' => 'test-secret']);
+
+    Transaction::factory()->create([
+        'type' => Transaction::TYPE_SELL,
+        'invoice' => '260814A8Y3HDS7',
+    ]);
+
+    $body = json_encode([
+        'status' => 'SHIPPED',
+        'salesorder_id' => 'wh-dup-sell',
+        'salesorder_no' => 'SP-260814A8Y3HDS7',
+        'transaction_date' => '2026-05-10',
+    ]);
+
+    $sign = jubelioWebhookSign($body, 'test-secret');
+
+    $this->call(
+        'POST',
+        route('jubelio.webhook.order'),
+        [],
+        [],
+        [],
+        ['HTTP_SIGN' => $sign, 'CONTENT_TYPE' => 'application/json'],
+        $body,
+    )->assertSuccessful()
+        ->assertJson(['status' => 'ok', 'message' => 'Invoice sudah ada']);
+
+    expect(Jubelioorder::where('invoice', 'SP-260814A8Y3HDS7')->exists())->toBeFalse();
 });
 
 it('leaves shipped webhook orders pending for cron processing', function () {
