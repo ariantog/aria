@@ -3,11 +3,11 @@
 @push('head-css')
 <link href="https://unpkg.com/tabulator-tables@6.3.1/dist/css/tabulator.min.css" rel="stylesheet">
 <style>
-    .restock-grid-scroll {
+    .restock-grid-wrap {
         overflow-x: auto;
         background: transparent;
     }
-    .restock-grid-scroll .tabulator {
+    .restock-grid-wrap .tabulator {
         display: inline-block;
         vertical-align: top;
         font-size: 13px;
@@ -16,28 +16,44 @@
         max-width: 100%;
         background: transparent;
     }
-    .restock-grid-scroll .tabulator .tabulator-tableholder,
-    .restock-grid-scroll .tabulator .tabulator-header,
-    .restock-grid-scroll .tabulator .tabulator-table,
-    .restock-grid-scroll .tabulator .tabulator-row {
+    .restock-grid-wrap .tabulator .tabulator-tableholder,
+    .restock-grid-wrap .tabulator .tabulator-header,
+    .restock-grid-wrap .tabulator .tabulator-table,
+    .restock-grid-wrap .tabulator .tabulator-row {
         background: transparent;
     }
-    .restock-grid-scroll .tabulator .tabulator-header .tabulator-col.tabulator-col-group-restock,
-    .restock-grid-scroll .tabulator .tabulator-header .tabulator-col.restock-col-restock { background: #dbeafe; }
-    .restock-grid-scroll .tabulator .tabulator-header .tabulator-col.tabulator-col-group-production,
-    .restock-grid-scroll .tabulator .tabulator-header .tabulator-col.restock-col-production { background: #fde68a; }
-    .restock-grid-scroll .tabulator .tabulator-header .tabulator-col.tabulator-col-group-shipped,
-    .restock-grid-scroll .tabulator .tabulator-header .tabulator-col.restock-col-shipped { background: #e5e7eb; }
-    .restock-grid-scroll .tabulator .tabulator-header .tabulator-col.tabulator-col-group-stock,
-    .restock-grid-scroll .tabulator .tabulator-header .tabulator-col.restock-col-stock { background: #d1fae5; }
-    .restock-grid-scroll .tabulator-cell.tabulator-editing { border: 2px solid #2563eb !important; }
-    .restock-grid-scroll .tabulator .tabulator-row-header {
+    .restock-grid-wrap .tabulator .tabulator-header .tabulator-col.tabulator-col-group-restock,
+    .restock-grid-wrap .tabulator .tabulator-header .tabulator-col.restock-col-restock { background: #dbeafe; }
+    .restock-grid-wrap .tabulator .tabulator-header .tabulator-col.tabulator-col-group-production,
+    .restock-grid-wrap .tabulator .tabulator-header .tabulator-col.restock-col-production { background: #fde68a; }
+    .restock-grid-wrap .tabulator .tabulator-header .tabulator-col.tabulator-col-group-shipped,
+    .restock-grid-wrap .tabulator .tabulator-header .tabulator-col.restock-col-shipped { background: #e5e7eb; }
+    .restock-grid-wrap .tabulator .tabulator-header .tabulator-col.tabulator-col-group-stock,
+    .restock-grid-wrap .tabulator .tabulator-header .tabulator-col.restock-col-stock { background: #d1fae5; }
+    .restock-grid-wrap .tabulator-cell.tabulator-editing { border: 2px solid #2563eb !important; }
+
+    /* Uniform 1px grid lines: Tabulator doubles them at column-group seams. */
+    .restock-grid-wrap .tabulator .tabulator-row .tabulator-cell {
+        border-left: none !important;
+        border-right: 1px solid rgba(156, 163, 175, 0.22) !important;
+        padding-top: 4px;
+        padding-bottom: 4px;
+    }
+    .restock-grid-wrap .tabulator .tabulator-row .tabulator-cell:last-child {
+        border-right: none !important;
+    }
+    .restock-grid-wrap .tabulator .tabulator-header .tabulator-col {
+        border-left: none !important;
+        border-right: 1px solid rgba(156, 163, 175, 0.22) !important;
+    }
+
+    .restock-grid-wrap .tabulator .tabulator-row-header {
         min-width: 46px;
     }
-    .restock-grid-scroll .tabulator .tabulator-row-header .tabulator-row-header-box {
+    .restock-grid-wrap .tabulator .tabulator-row-header .tabulator-row-header-box {
         padding: 0 8px;
     }
-    .restock-grid-scroll .tabulator .tabulator-row:not(.restock-data-row) .tabulator-row-header {
+    .restock-grid-wrap .tabulator .tabulator-row:not(.restock-data-row) .tabulator-row-header {
         width: 0 !important;
         min-width: 0 !important;
         max-width: 0 !important;
@@ -48,17 +64,26 @@
     }
     .restock-urgent-cell { background-color: #fef2f2 !important; color: #b91c1c; font-weight: 600; }
     .restock-na-cell { background-color: rgba(156, 163, 175, 0.15) !important; color: #9ca3af; }
-    .restock-section-row { background: transparent !important; }
-    .restock-section-row .tabulator-cell { border-bottom-color: rgba(156, 163, 175, 0.35) !important; }
-    .restock-section-divider .tabulator-cell { padding-top: 14px !important; }
-    .restock-grid-scroll .tabulator { position: relative; }
-    .restock-group-divider {
-        position: absolute;
-        left: 0;
-        height: 1px;
-        background: #d1d5db;
-        pointer-events: none;
-        z-index: 4;
+
+    /* Parent-group separator: border on the row spans the whole table, unlike
+       per-cell borders, which frozen columns break into segments. */
+    .restock-grid-wrap .tabulator .tabulator-row.restock-section-row {
+        background: transparent !important;
+        border-top: 2px solid transparent;
+    }
+    /* Mid grey stays visible under Chrome's force-dark inversion. */
+    .restock-grid-wrap .tabulator .tabulator-row.restock-section-divider {
+        border-top-color: rgba(156, 163, 175, 0.7);
+    }
+    .restock-section-row .tabulator-cell {
+        padding-top: 7px !important;
+        padding-bottom: 7px !important;
+        border-right-color: transparent !important;
+    }
+    .restock-section-title {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
     }
     .restock-sheet-actions {
         position: sticky;
@@ -165,7 +190,9 @@ $breadcrumbs = [
                     <h2 class="text-sm font-semibold text-gray-700">{{ $block['title'] }}</h2>
                 </div>
             @endif
-            <div class="restock-grid-scroll p-2" data-block-grid="{{ $block['id'] }}" data-block-kind="{{ $block['kind'] }}"></div>
+            <div class="restock-grid-wrap p-2">
+                <div data-block-grid="{{ $block['id'] }}" data-block-kind="{{ $block['kind'] }}"></div>
+            </div>
         </section>
     @empty
         <div class="rounded-xl border border-gray-200 bg-white p-8 text-center text-gray-500">
@@ -266,7 +293,7 @@ function restockSheetPage() {
                     this.tables[block.id] = new Tabulator(el, {
                         data: block.rows,
                         layout: 'fitDataTable',
-                        height: Math.max(140, block.rows.length * 36 + 44),
+                        maxHeight: '75vh',
                         selectableRows: this.canEdit,
                         selectableRowsCheck: (row) => row.getData()._type === 'data',
                         rowHeader: this.canEdit ? {
@@ -279,7 +306,7 @@ function restockSheetPage() {
                             hozAlign: 'center',
                             headerHozAlign: 'center',
                         } : false,
-                        columnDefaults: { headerHozAlign: 'center', hozAlign: 'right', widthGrow: 0 },
+                        columnDefaults: { headerHozAlign: 'center', hozAlign: 'right', vertAlign: 'middle', widthGrow: 0, headerSort: false },
                         columns: block.kind === 'flat'
                             ? this.buildFlatColumns()
                             : this.buildMatrixColumns(block.sizes ?? []),
@@ -287,33 +314,7 @@ function restockSheetPage() {
                     });
 
                     this.tables[block.id].on('rowSelectionChanged', () => this.syncSelectionCount());
-                    this.tables[block.id].on('renderComplete', () => this.refreshSectionDividers(this.tables[block.id]));
-                    this.refreshSectionDividers(this.tables[block.id]);
                 }
-            });
-        },
-
-        refreshSectionDividers(table) {
-            if (!table?.element) return;
-
-            const tableEl = table.element;
-            tableEl.querySelectorAll('.restock-group-divider').forEach((line) => line.remove());
-
-            const holder = tableEl.querySelector('.tabulator-tableholder');
-            if (!holder) return;
-
-            const lineWidth = tableEl.clientWidth;
-
-            table.getRows().forEach((row) => {
-                const data = row.getData();
-                if (data._type !== 'section' || !data._section_divider) return;
-
-                const line = document.createElement('div');
-                line.className = 'restock-group-divider';
-                line.style.top = `${holder.offsetTop + row.getElement().offsetTop}px`;
-                line.style.left = '0';
-                line.style.width = `${lineWidth}px`;
-                tableEl.appendChild(line);
             });
         },
 
@@ -347,7 +348,7 @@ function restockSheetPage() {
                 title: 'Color',
                 field: 'color_name',
                 frozen: true,
-                width: 180,
+                width: 260,
                 widthGrow: 0,
                 hozAlign: 'left',
                 headerHozAlign: 'left',
@@ -361,31 +362,30 @@ function restockSheetPage() {
 
             if (data._type === 'section') {
                 const wrap = document.createElement('div');
-                wrap.className = 'flex items-center gap-2 py-0.5';
+                wrap.className = 'flex w-full min-w-0 items-center gap-2';
 
                 const img = document.createElement('img');
                 img.src = data.image_url || this.defaultImageUrl;
                 img.alt = '';
-                img.className = 'h-10 w-10 rounded border border-gray-200 object-cover shrink-0';
+                img.className = 'h-9 w-9 rounded border border-gray-200 object-cover shrink-0';
                 img.onerror = () => { img.onerror = null; img.src = this.defaultImageUrl; };
 
                 const text = document.createElement('div');
+                text.className = 'min-w-0';
+
                 const name = document.createElement('div');
-                name.className = 'font-semibold text-gray-900 leading-tight';
+                name.className = 'restock-section-title font-semibold text-gray-900 leading-tight';
                 name.textContent = data.name || data.pcode || '';
+                name.title = data.name || data.pcode || '';
 
                 const pcode = document.createElement('div');
-                pcode.className = 'font-mono text-xs text-gray-500';
+                pcode.className = 'restock-section-title font-mono text-xs text-gray-500';
                 pcode.textContent = data.pcode || '';
 
                 text.append(name, pcode);
                 wrap.append(img, text);
 
                 return wrap;
-            }
-
-            if (data._type === 'spacer') {
-                return document.createElement('span');
             }
 
             return document.createTextNode(data.color_name ?? '');
@@ -421,7 +421,7 @@ function restockSheetPage() {
                     children.push({
                         title: 'Total',
                         field: stage.key + '_total',
-                        width: 64,
+                        width: 72,
                         widthGrow: 0,
                         editor: false,
                         hozAlign: 'right',
@@ -570,7 +570,6 @@ function restockSheetPage() {
                 for (const row of table.getRows()) {
                     this.formatRow(row);
                 }
-                this.refreshSectionDividers(table);
             }
             this.syncSelectionCount();
         },
