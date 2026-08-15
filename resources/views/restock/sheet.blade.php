@@ -39,12 +39,20 @@
         padding: 6px 8px;
     }
 
-    .restock-grid-wrap .tabulator .tabulator-row.restock-section-row .tabulator-cell:not([tabulator-field="color_name"]):not([tabulator-field="_image"]):not([tabulator-field="_select"]) {
+    .restock-grid-wrap .tabulator .tabulator-row.restock-section-row .tabulator-cell.restock-section-empty-cell {
         border-left: none !important;
         border-right: none !important;
         border-bottom: none !important;
         padding-top: 0 !important;
         padding-bottom: 0 !important;
+    }
+    .restock-grid-wrap .tabulator .tabulator-row.restock-section-row .tabulator-cell.restock-size-label-cell {
+        padding: 4px 6px !important;
+        font-weight: 600;
+        font-size: 12px;
+        color: #6b7280;
+        text-align: center;
+        vertical-align: middle;
     }
 
     /* Group separator: border-top on every cell so it spans frozen + scroll columns. */
@@ -165,7 +173,7 @@ $breadcrumbs = [
                     <h2 class="text-sm font-semibold text-gray-700">{{ $block['title'] }}</h2>
                 </div>
             @endif
-            <div class="restock-grid-wrap p-2">
+            <div class="restock-grid-wrap restock-grid-{{ $block['kind'] }} p-2">
                 <div data-block-grid="{{ $block['id'] }}" data-block-kind="{{ $block['kind'] }}"></div>
             </div>
         </section>
@@ -424,33 +432,39 @@ function restockSheetPage() {
             const cols = this.buildFrozenColumns();
 
             const stages = [
-                { key: 'restock', title: 'Restock', groupClass: 'tabulator-col-group-restock', editable: true },
-                { key: 'production', title: 'Production', groupClass: 'tabulator-col-group-production', editable: true },
-                { key: 'shipped', title: 'Shipped', groupClass: 'tabulator-col-group-shipped', editable: true },
-                { key: 'stock', title: 'Stock', groupClass: 'tabulator-col-group-stock', editable: false },
+                { key: 'restock', title: 'Restock', editable: true },
+                { key: 'production', title: 'Production', editable: true },
+                { key: 'shipped', title: 'Shipped', editable: true },
+                { key: 'stock', title: 'Stock', editable: false },
             ];
 
             for (const stage of stages) {
-                const children = sizes.map((size) => {
+                let stageStarted = false;
+
+                for (const size of sizes) {
                     const prefix = this.sizePrefix(size);
                     const field = prefix + stage.key;
 
-                    return {
-                        title: size,
+                    cols.push({
+                        title: stageStarted ? '' : stage.title,
                         field,
+                        cssClass: 'restock-col-' + stage.key,
                         width: 58,
                         widthGrow: 0,
                         vertAlign: 'middle',
                         editor: stage.editable && this.canEdit ? 'number' : false,
                         editable: (cell) => this.canEditMatrixCell(cell, size, stage.editable),
                         formatter: (cell) => this.formatQtyCell(cell, size),
-                    };
-                });
+                    });
+
+                    stageStarted = true;
+                }
 
                 if (sizes.length > 1) {
-                    children.push({
-                        title: 'Total',
+                    cols.push({
+                        title: '',
                         field: stage.key + '_total',
+                        cssClass: 'restock-col-' + stage.key,
                         width: 72,
                         widthGrow: 0,
                         vertAlign: 'middle',
@@ -459,8 +473,6 @@ function restockSheetPage() {
                         formatter: (cell) => this.formatQtyCell(cell, null),
                     });
                 }
-
-                cols.push({ title: stage.title, cssClass: stage.groupClass, columns: children });
             }
 
             return cols;
@@ -511,18 +523,39 @@ function restockSheetPage() {
 
         formatQtyCell(cell, size) {
             const row = cell.getRow().getData();
+            const el = cell.getElement();
+
+            el.classList.remove('restock-na-cell', 'restock-size-label-cell', 'restock-section-empty-cell');
+
+            if (row._type === 'section') {
+                const parentSizes = row.sizes ?? [];
+
+                if (size === null) {
+                    if (parentSizes.length <= 1) {
+                        el.classList.add('restock-section-empty-cell');
+                        return '';
+                    }
+                    el.classList.add('restock-size-label-cell');
+                    return 'Total';
+                }
+
+                if (!parentSizes.includes(size)) {
+                    el.classList.add('restock-section-empty-cell');
+                    return '';
+                }
+
+                el.classList.add('restock-size-label-cell');
+                return size;
+            }
 
             if (row._type !== 'data') {
                 return '';
             }
 
             if (size !== null && size !== '—' && !(row.parent_sizes ?? []).includes(size)) {
-                cell.getElement().classList.add('restock-na-cell');
-
+                el.classList.add('restock-na-cell');
                 return '—';
             }
-
-            cell.getElement().classList.remove('restock-na-cell');
 
             return cell.getValue() ?? 0;
         },

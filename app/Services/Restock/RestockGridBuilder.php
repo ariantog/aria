@@ -152,6 +152,7 @@ class RestockGridBuilder
                 'pcode' => $parent['pcode'],
                 'name' => $parent['name'],
                 'image_url' => $parent['image_url'],
+                'sizes' => $parent['sizes'],
             ];
 
             foreach ($parent['rows'] as $colorRow) {
