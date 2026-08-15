@@ -2,6 +2,7 @@
 
 namespace App\Services\Jubelio;
 
+use App\Enums\ItemType;
 use App\Models\Addrbook;
 use App\Models\Item;
 use App\Models\Jubelioorder;
@@ -151,7 +152,7 @@ class JubelioOrderShowPresenter
 
     private function itemShowUrl(Item $item): string
     {
-        return (int) $item->type === Item::TYPE_ASSET_LANCAR
+        return $item->type === ItemType::ASSET_LANCAR
             ? route('assetlancar.show', $item)
             : route('items.show', $item);
     }
