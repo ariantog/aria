@@ -503,6 +503,8 @@ test('receive multiple cells without invoice and mixed quantities', function () 
     $transaction = Transaction::find($response->json('transaction_id'));
     expect($transaction)->not->toBeNull();
     expect($transaction->details)->toHaveCount(2);
+    expect((float) $transaction->details->firstWhere('item_id', $cells[0]->item_id)->quantity)->toBe(99.0);
+    expect((float) $transaction->details->firstWhere('item_id', $cells[1]->item_id)->quantity)->toBe(102.0);
 
     $grid = $response->json('grid');
     expect($grid['blocks'])->not->toBeEmpty();

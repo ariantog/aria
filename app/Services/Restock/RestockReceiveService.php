@@ -76,13 +76,13 @@ class RestockReceiveService
                 $requested = $qtyById->get($cellId);
                 $receivedQty = $requested === null
                     ? $shippedBefore
-                    : min(max(0, $requested), $shippedBefore);
+                    : max(0, $requested);
 
                 if ($receivedQty <= 0) {
                     continue;
                 }
 
-                $shortfall = $shippedBefore - $receivedQty;
+                $shortfall = max(0, $shippedBefore - $receivedQty);
 
                 $lineItems[] = [
                     'cell' => $cell,

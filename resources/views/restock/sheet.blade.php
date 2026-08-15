@@ -265,7 +265,7 @@ $breadcrumbs = [
                                 <td class="px-3 py-2 text-gray-900" x-text="line.label"></td>
                                 <td class="px-3 py-2 text-right tabular-nums text-gray-600" x-text="line.shipped"></td>
                                 <td class="px-3 py-2 text-right">
-                                    <input type="number" min="0" :max="line.shipped" x-model.number="receiveLines[idx].qty"
+                                    <input type="number" min="0" x-model.number="receiveLines[idx].qty"
                                            class="w-20 rounded border border-gray-300 px-2 py-1 text-right text-sm tabular-nums">
                                 </td>
                                 <td class="px-3 py-2 text-right tabular-nums text-red-700" x-text="receiveShortfall(line)"></td>
@@ -818,7 +818,8 @@ function restockSheetPage() {
 
         receiveShortfall(line) {
             const shipped = Number(line.shipped ?? 0);
-            const qty = Math.min(Math.max(0, Number(line.qty ?? 0)), shipped);
+            const qty = Math.max(0, Number(line.qty ?? 0));
+
             return Math.max(0, shipped - qty);
         },
 
@@ -840,7 +841,7 @@ function restockSheetPage() {
                 .filter((line) => Number(line.qty ?? 0) > 0)
                 .map((line) => ({
                     id: line.id,
-                    qty: Math.min(Number(line.qty), Number(line.shipped)),
+                    qty: Math.max(0, Number(line.qty)),
                 }));
 
             this.receiving = true;
