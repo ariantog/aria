@@ -40,6 +40,18 @@ it('shows jubelio cron transactions on the transactions index for location-scope
         'bin_id' => 0,
     ]);
 
+    mockJubelioSalesOrder('cron-list-1', [
+        'salesorder_no' => 'INV-JUB-LIST-1',
+        'store_id' => 10,
+        'location_id' => 20,
+        'sub_total' => 100000,
+        'real_total' => 100000,
+        'transaction_date' => '2026-05-10',
+        'items' => [
+            ['item_code' => 'SKU-JUB-LIST', 'qty' => 1, 'price' => 100000],
+        ],
+    ]);
+
     $order = Jubelioorder::create([
         'jubelio_order_id' => 'cron-list-1',
         'source' => 1,
@@ -47,17 +59,6 @@ it('shows jubelio cron transactions on the transactions index for location-scope
         'type' => 'SELL',
         'order_status' => 'SHIPPED',
         'run_count' => 0,
-        'payload' => json_encode([
-            'salesorder_no' => 'INV-JUB-LIST-1',
-            'store_id' => 10,
-            'location_id' => 20,
-            'sub_total' => 100000,
-            'real_total' => 100000,
-            'transaction_date' => '2026-05-10',
-            'items' => [
-                ['item_code' => 'SKU-JUB-LIST', 'qty' => 1, 'price' => 100000],
-            ],
-        ]),
         'status' => 0,
     ]);
 

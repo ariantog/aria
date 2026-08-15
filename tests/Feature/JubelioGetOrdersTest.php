@@ -261,7 +261,6 @@ it('does not duplicate when order already in jubelioorders', function () {
         'type' => 'SELL',
         'order_status' => 'SHIPPED',
         'run_count' => 0,
-        'payload' => '{}',
         'status' => 0,
     ]);
 

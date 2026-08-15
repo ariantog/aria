@@ -41,7 +41,29 @@ expect()->extend('toBeOne', function () {
 |
 */
 
-function something()
+use App\Services\JubelioService;
+use Mockery\MockInterface;
+
+/**
+ * @param  array<string, mixed>  $payload
+ */
+function mockJubelioSalesOrder(string $jubelioOrderId, array $payload): void
 {
-    // ..
+    test()->mock(JubelioService::class, function (MockInterface $mock) use ($jubelioOrderId, $payload) {
+        $mock->shouldReceive('fetchSalesOrder')
+            ->with($jubelioOrderId)
+            ->andReturn($payload);
+    });
+}
+
+/**
+ * @param  array<string, mixed>  $payload
+ */
+function mockJubelioSalesReturn(string $jubelioOrderId, array $payload): void
+{
+    test()->mock(JubelioService::class, function (MockInterface $mock) use ($jubelioOrderId, $payload) {
+        $mock->shouldReceive('fetchSalesReturn')
+            ->with($jubelioOrderId)
+            ->andReturn($payload);
+    });
 }

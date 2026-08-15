@@ -52,6 +52,9 @@ it('accepts jubelio webhook with valid signature and stores shipped order', func
         ->assertJson(['status' => 'ok']);
 
     expect(Jubelioorder::where('invoice', 'INV-WEBHOOK-TEST')->exists())->toBeTrue();
+
+    $order = Jubelioorder::where('invoice', 'INV-WEBHOOK-TEST')->first();
+    expect($order->payload)->toBeNull();
 });
 
 it('leaves shipped webhook orders pending for cron processing', function () {

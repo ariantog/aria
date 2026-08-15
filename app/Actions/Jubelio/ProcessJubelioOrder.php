@@ -9,8 +9,8 @@ use App\Models\Jubeliosync;
 use App\Models\Transaction;
 use App\Models\TransactionDetail;
 use App\Models\WarehouseItem;
+use App\Services\Jubelio\JubelioOrderPayloadService;
 use App\Services\Jubelio\JubelioSellerIncomeResolver;
-use App\Services\JubelioService;
 use App\Services\LocationAccessService;
 use App\Services\TransactionService;
 use Carbon\Carbon;
@@ -21,7 +21,7 @@ class ProcessJubelioOrder
 {
     public function __construct(
         private TransactionService $transactionService,
-        private JubelioService $jubelioService,
+        private JubelioOrderPayloadService $payloadService,
         private LocationAccessService $locationAccessService,
         private JubelioSellerIncomeResolver $sellerIncomeResolver,
     ) {}
@@ -64,18 +64,7 @@ class ProcessJubelioOrder
      */
     protected function resolvePayload(Jubelioorder $order): array
     {
-        if ((int) $order->source === 1) {
-            return $order->payloadArray();
-        }
-
-        $fetched = $this->jubelioService->fetchSalesOrder($order->jubelio_order_id);
-        if (! $fetched) {
-            return [];
-        }
-
-        $order->update(['payload' => json_encode($fetched)]);
-
-        return $fetched;
+        return $this->payloadService->fetchOrEmpty($order);
     }
 
     /**
