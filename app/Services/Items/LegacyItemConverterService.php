@@ -452,6 +452,15 @@ class LegacyItemConverterService
         $parser ??= $this->makeParser();
         $parse = $parser->parse($item->fresh(['tags', 'group']));
 
+        return $this->convertWithParse($item, $run, $parse, $dryRun);
+    }
+
+    public function convertWithParse(
+        Item $item,
+        ItemIdentityConversionRun $run,
+        LegacyParseResult $parse,
+        bool $dryRun = false,
+    ): ItemIdentityConversionResult {
         if (! $parse->success) {
             return $this->recordResult($run, $item, ItemIdentityConversionResult::STATUS_FAILED, $parse, $dryRun);
         }
