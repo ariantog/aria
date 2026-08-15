@@ -270,7 +270,7 @@ test('sheet show page includes unified tabulator block grids', function () {
         ->assertSee('ELBOW-03', false)
         ->assertSee('ELBOW-07', false)
         ->assertDontSee('data-parent-grid=', false)
-        ->assertSee('tabulator-tables', false)
+        ->assertSee('vendor/tabulator/tabulator.min.js', false)
         ->assertSee('Save sheet', false)
         ->assertSee('Export Excel', false)
         ->assertSee('Stock', false);
