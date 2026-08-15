@@ -22,60 +22,34 @@
     .restock-grid-wrap .tabulator .tabulator-row {
         background: transparent;
     }
-    .restock-grid-wrap .tabulator .tabulator-header .tabulator-col.tabulator-col-group-restock,
-    .restock-grid-wrap .tabulator .tabulator-header .tabulator-col.restock-col-restock { background: #dbeafe; }
-    .restock-grid-wrap .tabulator .tabulator-header .tabulator-col.tabulator-col-group-production,
-    .restock-grid-wrap .tabulator .tabulator-header .tabulator-col.restock-col-production { background: #fde68a; }
-    .restock-grid-wrap .tabulator .tabulator-header .tabulator-col.tabulator-col-group-shipped,
-    .restock-grid-wrap .tabulator .tabulator-header .tabulator-col.restock-col-shipped { background: #e5e7eb; }
-    .restock-grid-wrap .tabulator .tabulator-header .tabulator-col.tabulator-col-group-stock,
-    .restock-grid-wrap .tabulator .tabulator-header .tabulator-col.restock-col-stock { background: #d1fae5; }
+    .restock-grid-wrap .tabulator .tabulator-header .tabulator-col.tabulator-col-group.tabulator-col-group-restock { background: #dbeafe; }
+    .restock-grid-wrap .tabulator .tabulator-header .tabulator-col.tabulator-col-group.tabulator-col-group-production { background: #fde68a; }
+    .restock-grid-wrap .tabulator .tabulator-header .tabulator-col.tabulator-col-group.tabulator-col-group-shipped { background: #e5e7eb; }
+    .restock-grid-wrap .tabulator .tabulator-header .tabulator-col.tabulator-col-group.tabulator-col-group-stock { background: #d1fae5; }
+    .restock-grid-matrix .tabulator .tabulator-header .tabulator-col.restock-col-restock:not(.tabulator-col-group),
+    .restock-grid-matrix .tabulator .tabulator-header .tabulator-col.restock-col-production:not(.tabulator-col-group),
+    .restock-grid-matrix .tabulator .tabulator-header .tabulator-col.restock-col-shipped:not(.tabulator-col-group),
+    .restock-grid-matrix .tabulator .tabulator-header .tabulator-col.restock-col-stock:not(.tabulator-col-group) {
+        background: transparent !important;
+    }
+    .restock-grid-flat .tabulator .tabulator-header .tabulator-col.restock-col-restock { background: #dbeafe; }
+    .restock-grid-flat .tabulator .tabulator-header .tabulator-col.restock-col-production { background: #fde68a; }
+    .restock-grid-flat .tabulator .tabulator-header .tabulator-col.restock-col-shipped { background: #e5e7eb; }
+    .restock-grid-flat .tabulator .tabulator-header .tabulator-col.restock-col-stock { background: #d1fae5; }
 
-    /* Matrix: merged stage group headers; size labels live on SKU rows, not a sub-header row */
-    .restock-grid-matrix .tabulator-header .tabulator-header-contents > .tabulator-headers:nth-child(2) {
-        height: 0 !important;
-        min-height: 0 !important;
-        max-height: 0 !important;
-        overflow: hidden;
-        border: none;
-    }
-    .restock-grid-matrix .tabulator-header .tabulator-header-contents > .tabulator-headers:nth-child(2) > .tabulator-col {
-        height: 0 !important;
-        min-height: 0 !important;
-        padding: 0 !important;
-        border: none !important;
-        overflow: hidden;
-    }
-    .restock-grid-matrix .tabulator-header .tabulator-header-contents > .tabulator-headers:nth-child(2) .tabulator-col-content {
+    /* Matrix: one header row (merged stage groups). Size labels are on SKU rows. */
+    .restock-grid-matrix .tabulator-header .tabulator-headers:nth-child(2) {
         display: none !important;
-        height: 0 !important;
-        padding: 0 !important;
     }
-    .restock-grid-matrix .tabulator-header .tabulator-frozen-left .tabulator-headers:nth-child(2),
-    .restock-grid-matrix .tabulator-header .tabulator-frozen-right .tabulator-headers:nth-child(2) {
-        height: 0 !important;
-        min-height: 0 !important;
-        max-height: 0 !important;
-        overflow: hidden;
-        border: none;
-    }
-    .restock-grid-matrix .tabulator-header .tabulator-frozen-left .tabulator-headers:nth-child(2) > .tabulator-col,
-    .restock-grid-matrix .tabulator-header .tabulator-frozen-right .tabulator-headers:nth-child(2) > .tabulator-col {
-        height: 0 !important;
-        min-height: 0 !important;
-        padding: 0 !important;
-        border: none !important;
-        overflow: hidden;
+    .restock-grid-matrix .tabulator-header .tabulator-col.tabulator-col-group .tabulator-col-content {
+        align-items: center;
+        justify-content: center;
     }
 
-    html.dark .restock-grid-wrap .tabulator .tabulator-header .tabulator-col.tabulator-col-group-restock,
-    html.dark .restock-grid-wrap .tabulator .tabulator-header .tabulator-col.restock-col-restock { background: #1e3a5f; }
-    html.dark .restock-grid-wrap .tabulator .tabulator-header .tabulator-col.tabulator-col-group-production,
-    html.dark .restock-grid-wrap .tabulator .tabulator-header .tabulator-col.restock-col-production { background: #5c4a14; }
-    html.dark .restock-grid-wrap .tabulator .tabulator-header .tabulator-col.tabulator-col-group-shipped,
-    html.dark .restock-grid-wrap .tabulator .tabulator-header .tabulator-col.restock-col-shipped { background: #374151; }
-    html.dark .restock-grid-wrap .tabulator .tabulator-header .tabulator-col.tabulator-col-group-stock,
-    html.dark .restock-grid-wrap .tabulator .tabulator-header .tabulator-col.restock-col-stock { background: #14532d; }
+    html.dark .restock-grid-wrap .tabulator .tabulator-header .tabulator-col.tabulator-col-group.tabulator-col-group-restock { background: #1e3a5f; }
+    html.dark .restock-grid-wrap .tabulator .tabulator-header .tabulator-col.tabulator-col-group.tabulator-col-group-production { background: #5c4a14; }
+    html.dark .restock-grid-wrap .tabulator .tabulator-header .tabulator-col.tabulator-col-group.tabulator-col-group-shipped { background: #374151; }
+    html.dark .restock-grid-wrap .tabulator .tabulator-header .tabulator-col.tabulator-col-group.tabulator-col-group-stock { background: #14532d; }
     .restock-grid-wrap .tabulator-cell.tabulator-editing { border: 2px solid #2563eb !important; }
 
     .restock-grid-wrap .tabulator .tabulator-row.restock-data-row .tabulator-cell {
@@ -92,6 +66,12 @@
         color: #6b7280;
         text-align: center;
         vertical-align: middle;
+    }
+    .restock-grid-wrap .tabulator .tabulator-row.restock-section-row .tabulator-cell.restock-col-restock,
+    .restock-grid-wrap .tabulator .tabulator-row.restock-section-row .tabulator-cell.restock-col-production,
+    .restock-grid-wrap .tabulator .tabulator-row.restock-section-row .tabulator-cell.restock-col-shipped,
+    .restock-grid-wrap .tabulator .tabulator-row.restock-section-row .tabulator-cell.restock-col-stock {
+        border-bottom: 1px solid rgba(107, 114, 128, 0.55) !important;
     }
     html.dark .restock-grid-wrap .tabulator .tabulator-row.restock-section-row .tabulator-cell.restock-size-label-cell {
         color: #9ca3af;
@@ -329,10 +309,12 @@ function restockSheetPage() {
                     const el = document.querySelector(`[data-block-grid="${block.id}"]`);
                     if (!el) continue;
 
+                    const isMatrix = block.kind === 'matrix';
                     const table = new Tabulator(el, {
                         data: block.rows,
                         layout: 'fitDataTable',
-                        height: Math.max(160, block.rows.length * 34 + 48),
+                        height: Math.max(160, block.rows.length * 34 + (isMatrix ? 40 : 48)),
+                        columnHeaderVertAlign: 'middle',
                         selectableRows: this.canEdit,
                         selectableRowsCheck: (row) => row.getData()._type === 'data',
                         columnDefaults: { headerHozAlign: 'center', hozAlign: 'right', widthGrow: 0, headerSort: false },
@@ -343,11 +325,24 @@ function restockSheetPage() {
                     });
 
                     this.tables[block.id] = table;
+                    if (isMatrix) {
+                        table.on('tableBuilt', () => this.collapseMatrixSubHeader(table));
+                        table.on('columnResized', () => this.collapseMatrixSubHeader(table));
+                    }
                     table.on('rowSelectionChanged', () => {
                         this.syncSelectionCount();
                         this.syncCheckboxCells(table);
                     });
                 }
+            });
+        },
+
+        collapseMatrixSubHeader(table) {
+            const root = table.element.closest('.restock-grid-matrix');
+            if (!root) return;
+
+            root.querySelectorAll('.tabulator-header .tabulator-headers:nth-child(2)').forEach((row) => {
+                row.style.setProperty('display', 'none', 'important');
             });
         },
 
