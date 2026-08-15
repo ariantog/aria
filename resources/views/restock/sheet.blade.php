@@ -32,22 +32,6 @@
     .restock-grid-wrap .tabulator .tabulator-header .tabulator-col.restock-col-stock { background: #d1fae5; }
     .restock-grid-wrap .tabulator-cell.tabulator-editing { border: 2px solid #2563eb !important; }
 
-    .restock-grid-wrap .tabulator .tabulator-row-header {
-        min-width: 46px;
-    }
-    .restock-grid-wrap .tabulator .tabulator-row-header .tabulator-row-header-box {
-        padding: 0 8px;
-    }
-    .restock-grid-wrap .tabulator .tabulator-row:not(.restock-data-row) .tabulator-row-header {
-        width: 0 !important;
-        min-width: 0 !important;
-        max-width: 0 !important;
-        padding: 0 !important;
-        border: none !important;
-        overflow: hidden;
-        visibility: hidden;
-    }
-
     .restock-grid-wrap .tabulator .tabulator-row.restock-data-row .tabulator-cell {
         padding: 5px 8px;
     }
@@ -55,7 +39,7 @@
         padding: 6px 8px;
     }
 
-    .restock-grid-wrap .tabulator .tabulator-row.restock-section-row .tabulator-cell:not([tabulator-field="color_name"]) {
+    .restock-grid-wrap .tabulator .tabulator-row.restock-section-row .tabulator-cell:not([tabulator-field="color_name"]):not([tabulator-field="_image"]):not([tabulator-field="_select"]) {
         border-left: none !important;
         border-right: none !important;
         border-bottom: none !important;
@@ -67,9 +51,6 @@
     .restock-grid-wrap .tabulator .tabulator-row.restock-section-divider > .tabulator-cell {
         border-top: 1px solid rgba(156, 163, 175, 0.55) !important;
         padding-top: 10px !important;
-    }
-    .restock-grid-wrap .tabulator .tabulator-row.restock-section-divider > .tabulator-row-header {
-        border-top: 1px solid rgba(156, 163, 175, 0.55) !important;
     }
 
     .restock-urgent-cell { background-color: #fef2f2 !important; color: #b91c1c; font-weight: 600; }
@@ -290,16 +271,6 @@ function restockSheetPage() {
                         height: Math.max(160, block.rows.length * 34 + 48),
                         selectableRows: this.canEdit,
                         selectableRowsCheck: (row) => row.getData()._type === 'data',
-                        rowHeader: this.canEdit ? {
-                            formatter: (cell) => this.formatRowHeader(cell),
-                            titleFormatter: 'rowSelection',
-                            headerSort: false,
-                            frozen: true,
-                            width: 46,
-                            minWidth: 46,
-                            hozAlign: 'center',
-                            headerHozAlign: 'center',
-                        } : false,
                         columnDefaults: { headerHozAlign: 'center', hozAlign: 'right', widthGrow: 0, headerSort: false },
                         columns: block.kind === 'flat'
                             ? this.buildFlatColumns()
@@ -312,8 +283,69 @@ function restockSheetPage() {
             });
         },
 
-        formatRowHeader(cell) {
+        buildFrozenColumns() {
+            const cols = [this.buildImageColumn()];
+
+            if (this.canEdit) {
+                cols.push(this.buildCheckboxColumn());
+            }
+
+            cols.push(this.buildColorColumn());
+
+            return cols;
+        },
+
+        buildImageColumn() {
+            return {
+                title: '',
+                field: '_image',
+                frozen: true,
+                width: 52,
+                widthGrow: 0,
+                hozAlign: 'center',
+                headerHozAlign: 'center',
+                vertAlign: 'middle',
+                editor: false,
+                formatter: (cell) => this.formatImageCell(cell),
+            };
+        },
+
+        formatImageCell(cell) {
+            const data = cell.getRow().getData();
+
+            if (data._type !== 'section') {
+                return '';
+            }
+
+            const img = document.createElement('img');
+            img.src = data.image_url || this.defaultImageUrl;
+            img.alt = '';
+            img.className = 'h-9 w-9 rounded border border-gray-200 object-cover';
+            img.onerror = () => { img.onerror = null; img.src = this.defaultImageUrl; };
+
+            return img;
+        },
+
+        buildCheckboxColumn() {
+            return {
+                title: '',
+                field: '_select',
+                frozen: true,
+                width: 46,
+                minWidth: 46,
+                widthGrow: 0,
+                hozAlign: 'center',
+                headerHozAlign: 'center',
+                vertAlign: 'middle',
+                editor: false,
+                formatter: (cell) => this.formatCheckboxCell(cell),
+                titleFormatter: 'rowSelection',
+            };
+        },
+
+        formatCheckboxCell(cell) {
             const row = cell.getRow();
+
             if (row.getData()._type !== 'data') {
                 return '';
             }
@@ -342,7 +374,7 @@ function restockSheetPage() {
                 title: 'Color',
                 field: 'color_name',
                 frozen: true,
-                width: 260,
+                width: 220,
                 widthGrow: 0,
                 hozAlign: 'left',
                 headerHozAlign: 'left',
@@ -357,16 +389,7 @@ function restockSheetPage() {
 
             if (data._type === 'section') {
                 const wrap = document.createElement('div');
-                wrap.className = 'flex w-full min-w-0 items-center gap-2';
-
-                const img = document.createElement('img');
-                img.src = data.image_url || this.defaultImageUrl;
-                img.alt = '';
-                img.className = 'h-9 w-9 rounded border border-gray-200 object-cover shrink-0';
-                img.onerror = () => { img.onerror = null; img.src = this.defaultImageUrl; };
-
-                const text = document.createElement('div');
-                text.className = 'min-w-0';
+                wrap.className = 'min-w-0';
 
                 const name = document.createElement('div');
                 name.className = 'restock-section-title font-semibold text-gray-900 leading-tight';
@@ -377,8 +400,7 @@ function restockSheetPage() {
                 pcode.className = 'restock-section-title font-mono text-xs text-gray-500';
                 pcode.textContent = data.pcode || '';
 
-                text.append(name, pcode);
-                wrap.append(img, text);
+                wrap.append(name, pcode);
 
                 return wrap;
             }
@@ -387,7 +409,7 @@ function restockSheetPage() {
         },
 
         buildMatrixColumns(sizes) {
-            const cols = [this.buildColorColumn()];
+            const cols = this.buildFrozenColumns();
 
             const stages = [
                 { key: 'restock', title: 'Restock', groupClass: 'tabulator-col-group-restock', editable: true },
@@ -433,7 +455,7 @@ function restockSheetPage() {
         },
 
         buildFlatColumns() {
-            const cols = [this.buildColorColumn()];
+            const cols = this.buildFrozenColumns();
 
             const stages = [
                 { key: 'restock', title: 'Restock', groupClass: 'tabulator-col-group-restock', editable: true },
