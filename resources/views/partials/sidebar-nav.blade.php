@@ -127,6 +127,7 @@
         @endif
         @if($hasPerm('items-convert-legacy') || $isSuperAdmin)
         <a href="{{ route('items.legacy-converter') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/items/legacy-converter') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Legacy Converter</a>
+        <a href="{{ route('items.special-converter') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/items/special-converter') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Special Converter</a>
         @endif
     </div>
 </div>
