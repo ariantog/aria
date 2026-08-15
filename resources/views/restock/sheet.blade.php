@@ -330,8 +330,10 @@ function restockSheetPage() {
                     const isMatrix = block.kind === 'matrix';
                     const table = new Tabulator(el, {
                         data: block.rows,
+                        index: '_rowKey',
+                        renderVertical: 'basic',
                         layout: 'fitDataTable',
-                        height: Math.max(160, block.rows.length * 34 + (isMatrix ? 40 : 48)),
+                        height: this.tableHeightForBlock(block),
                         columnHeaderVertAlign: 'middle',
                         selectableRows: this.canEdit,
                         selectableRowsCheck: (row) => row.getData()._type === 'data',
@@ -353,6 +355,44 @@ function restockSheetPage() {
                     });
                 }
             });
+        },
+
+        tableHeightForBlock(block) {
+            const rows = block?.rows ?? [];
+            const isMatrix = block?.kind === 'matrix';
+
+            return Math.max(160, rows.length * 34 + (isMatrix ? 40 : 48));
+        },
+
+        async parseJsonResponse(res) {
+            const text = await res.text();
+            try {
+                return JSON.parse(text);
+            } catch {
+                throw new Error('Unexpected server response. Try refreshing the page.');
+            }
+        },
+
+        async persistQuantities() {
+            if (!this.canEdit) return;
+
+            const cells = this.collectCells();
+            if (!cells.length) return;
+
+            const res = await fetch(this.saveUrl, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: JSON.stringify({ cells }),
+            });
+            const data = await this.parseJsonResponse(res);
+            if (!res.ok) {
+                throw new Error(data.message || 'Failed to save quantities');
+            }
         },
 
         collapseMatrixSubHeader(table) {
@@ -692,17 +732,33 @@ function restockSheetPage() {
         },
 
         applyGrid(grid) {
+            if (!grid || !Array.isArray(grid.blocks)) {
+                this.error = 'Could not refresh the sheet grid.';
+                return;
+            }
+
             this.grid = grid;
-            for (const block of grid.blocks ?? []) {
+
+            for (const block of grid.blocks) {
                 const table = this.tables[block.id];
                 if (!table) continue;
-                table.setData(block.rows);
-                table.deselectRow();
-                for (const row of table.getRows()) {
-                    this.formatRow(row);
-                }
+
+                const rows = block.rows ?? [];
+                const isMatrix = block.kind === 'matrix';
+                table.setHeight(this.tableHeightForBlock(block));
+
+                table.replaceData(rows).then(() => {
+                    if (isMatrix) this.collapseMatrixSubHeader(table);
+                    table.redraw(true);
+                    table.deselectRow();
+                    for (const row of table.getRows()) {
+                        this.formatRow(row);
+                    }
+                    this.syncSelectionCount();
+                }).catch(() => {
+                    this.error = 'Failed to refresh the sheet table.';
+                });
             }
-            this.syncSelectionCount();
         },
 
         async move(direction) {
@@ -717,6 +773,8 @@ function restockSheetPage() {
             this.flash = '';
             this.error = '';
             try {
+                await this.persistQuantities();
+
                 const res = await fetch(this.moveUrl, {
                     method: 'POST',
                     headers: {
@@ -727,7 +785,7 @@ function restockSheetPage() {
                     },
                     body: JSON.stringify({ direction, cells }),
                 });
-                const data = await res.json();
+                const data = await this.parseJsonResponse(res);
                 if (!res.ok) throw new Error(data.message || 'Move failed');
                 if (data.grid) this.applyGrid(data.grid);
                 this.flash = data.message || 'Moved.';
@@ -789,6 +847,8 @@ function restockSheetPage() {
             this.flash = '';
             this.error = '';
             try {
+                await this.persistQuantities();
+
                 const res = await fetch(this.receiveUrl, {
                     method: 'POST',
                     headers: {
@@ -803,7 +863,7 @@ function restockSheetPage() {
                         cells,
                     }),
                 });
-                const data = await res.json();
+                const data = await this.parseJsonResponse(res);
                 if (!res.ok) throw new Error(data.message || 'Receive failed');
                 if (data.grid) this.applyGrid(data.grid);
                 this.receiveModalOpen = false;
@@ -855,7 +915,7 @@ function restockSheetPage() {
                     },
                     body: JSON.stringify({ cells: this.collectCells() }),
                 });
-                const data = await res.json();
+                const data = await this.parseJsonResponse(res);
                 if (!res.ok) throw new Error(data.message || 'Save failed');
                 this.flash = data.message || 'Saved.';
             } catch (e) {
