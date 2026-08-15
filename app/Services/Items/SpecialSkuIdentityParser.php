@@ -28,7 +28,21 @@ class SpecialSkuIdentityParser
         $this->sizeTags = $sizeTags
             ->sortByDesc(fn (Tag $tag) => strlen((string) $tag->code))
             ->values();
-        $this->warnaTagsByCode = $warnaTags->keyBy(fn (Tag $tag) => strtoupper($tag->code));
+        $this->warnaTagsByCode = $warnaTags->flatMap(function (Tag $tag) {
+            $entries = [];
+            $code = strtoupper((string) $tag->code);
+            $name = strtoupper((string) $tag->name);
+
+            if ($code !== '') {
+                $entries[$code] = $tag;
+            }
+
+            if ($name !== '') {
+                $entries[$name] = $tag;
+            }
+
+            return $entries;
+        });
     }
 
     public function parse(Item $item): LegacyParseResult
@@ -74,11 +88,17 @@ class SpecialSkuIdentityParser
         }
 
         try {
-            $warnaTag = $this->resolveWarnaTag($parsed['color']);
+            $warnaTag = $this->resolveWarnaTag($item, $parsed['color']);
             $sizeTag = $this->resolveSizeTag($parsed['size']);
         } catch (InvalidArgumentException $e) {
+            $failureCode = str_contains($e->getMessage(), 'Warna tag')
+                ? SpecialSkuConverterRules::FAILURE_WARNA_TAG_MISSING
+                : (str_contains($e->getMessage(), 'Size tag')
+                    ? SpecialSkuConverterRules::FAILURE_SIZE_TAG_MISSING
+                    : SpecialSkuConverterRules::FAILURE_INVALID_STRUCTURE);
+
             return LegacyParseResult::failure(
-                SpecialSkuConverterRules::FAILURE_INVALID_STRUCTURE,
+                $failureCode,
                 $e->getMessage(),
                 ['code' => $originalCode, 'pcode' => $parsed['pcode']],
             );
@@ -126,17 +146,31 @@ class SpecialSkuIdentityParser
         return ItemType::tryFrom((int) $raw);
     }
 
-    protected function resolveWarnaTag(string $warnaCode): Tag
+    protected function resolveWarnaTag(Item $item, string $warnaCode): Tag
     {
         $warnaCode = strtoupper(trim($warnaCode));
+        $aliases = array_values(array_filter([
+            SpecialSkuConverterRules::WARNA_LOOKUP_ALIASES[$warnaCode] ?? null,
+        ]));
 
-        if ($this->warnaTagsByCode->has($warnaCode)) {
-            return $this->warnaTagsByCode->get($warnaCode);
+        $attached = $item->relationLoaded('tags')
+            ? $item->tags->firstWhere('type', Tag::TYPE_WARNA)
+            : null;
+
+        if ($attached) {
+            return $attached;
         }
 
-        $tag = Tag::findWarnaTag($warnaCode) ?? Tag::findOrCreateWarnaTag($warnaCode);
+        foreach ([$warnaCode, ...$aliases] as $candidate) {
+            if ($this->warnaTagsByCode->has($candidate)) {
+                return $this->warnaTagsByCode->get($candidate);
+            }
+        }
+
+        $tag = Tag::findWarnaTag($warnaCode, $aliases) ?? Tag::findOrCreateWarnaTag($warnaCode, $aliases);
 
         $this->warnaTagsByCode->put(strtoupper($tag->code), $tag);
+        $this->warnaTagsByCode->put(strtoupper($tag->name), $tag);
 
         return $tag;
     }

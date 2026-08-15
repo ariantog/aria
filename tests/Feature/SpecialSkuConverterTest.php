@@ -42,6 +42,42 @@ it('parses fabricband legacy sku into canonical identity', function () {
         ->and($result->legacyCode)->toBe('FABRICBAND-03-LIGHT-BABYBLUE');
 });
 
+it('parses fabricband heavy grey legacy sku', function () {
+    $item = Item::factory()->make([
+        'type' => ItemType::ASSET_LANCAR->value,
+        'code' => 'FABRICBAND-03-HEAVY-GREY',
+        'name' => 'FABRIC BAND HEAVY - GREY',
+    ]);
+
+    $result = $this->parser->parse($item);
+
+    expect($result->success)->toBeTrue()
+        ->and($result->warnaCode)->toBe('GREY')
+        ->and($result->sizeCode)->toBe('HEAVY')
+        ->and($result->canonicalCode)->toBe('FABRICBAND-03-GREY-HEAVY');
+});
+
+it('resolves grey warna via gray alias tag', function () {
+    Tag::factory()->create([
+        'type' => Tag::TYPE_WARNA,
+        'code' => 'GRAY',
+        'name' => 'GRAY',
+        'item_type' => 0,
+    ]);
+
+    $parser = new SpecialSkuIdentityParser($this->rules, new ItemIdentityBuilder);
+    $item = Item::factory()->make([
+        'type' => ItemType::ASSET_LANCAR->value,
+        'code' => 'FABRICBAND-03-HEAVY-GREY',
+    ]);
+
+    $result = $parser->parse($item);
+
+    expect($result->success)->toBeTrue()
+        ->and($result->warnaCode)->toBe('GRAY')
+        ->and($result->canonicalCode)->toBe('FABRICBAND-03-GRAY-HEAVY');
+});
+
 it('resolves size tags by name when production code differs', function () {
     Tag::query()->where('type', Tag::TYPE_SIZE)->whereRaw('UPPER(name) = ?', ['HEAVY'])->delete();
 

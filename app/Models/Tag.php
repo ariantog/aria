@@ -135,21 +135,70 @@ class Tag extends Model
             ->first();
     }
 
-    public static function findWarnaTag(string $code): ?self
+    public static function findWarnaTag(string $code, array $aliases = []): ?self
     {
-        $normalized = strtoupper(trim($code));
+        $candidates = array_values(array_unique(array_filter(array_map(
+            fn (string $value) => strtoupper(trim($value)),
+            array_merge([$code], $aliases),
+        ))));
 
-        if ($normalized === '') {
-            return null;
+        foreach ($candidates as $normalized) {
+            if ($normalized === '') {
+                continue;
+            }
+
+            $found = static::query()
+                ->where('type', self::TYPE_WARNA)
+                ->where(function ($query) use ($normalized) {
+                    $query->whereRaw('UPPER(code) = ?', [$normalized])
+                        ->orWhereRaw('UPPER(name) = ?', [$normalized]);
+                })
+                ->first();
+
+            if ($found) {
+                return $found;
+            }
         }
 
-        return static::query()
-            ->where('type', self::TYPE_WARNA)
-            ->where(function ($query) use ($normalized) {
-                $query->whereRaw('UPPER(code) = ?', [$normalized])
-                    ->orWhereRaw('UPPER(name) = ?', [$normalized]);
-            })
+        return null;
+    }
+
+    public static function findOrCreateWarnaTag(string $code, array $aliases = []): self
+    {
+        $found = self::findWarnaTag($code, $aliases);
+
+        if ($found) {
+            return $found;
+        }
+
+        $normalized = strtoupper(trim($code));
+        $attributes = self::normalizeWarnaAttributes([
+            'type' => self::TYPE_WARNA,
+            'name' => $normalized,
+            'code' => $normalized,
+            'item_type' => 0,
+        ]);
+
+        $owner = static::query()
+            ->whereRaw('UPPER(name) = ?', [$attributes['name']])
             ->first();
+
+        if ($owner) {
+            if ((int) $owner->type === self::TYPE_WARNA) {
+                return $owner;
+            }
+
+            throw new \InvalidArgumentException(
+                "Warna tag {$normalized} not found; name already used by tag #{$owner->id} (type {$owner->type})."
+            );
+        }
+
+        return static::query()->create([
+            'type' => self::TYPE_WARNA,
+            'code' => $attributes['code'],
+            'name' => $attributes['name'],
+            'item_type' => 0,
+        ]);
     }
 
     public static function findOrCreateSizeTag(string $code): self
@@ -161,42 +210,24 @@ class Tag extends Model
         }
 
         $normalized = strtoupper(trim($code));
+        $owner = static::query()
+            ->whereRaw('UPPER(name) = ?', [$normalized])
+            ->first();
 
-        if (static::query()->whereRaw('UPPER(name) = ?', [$normalized])->exists()) {
-            throw new \InvalidArgumentException("Size tag name already exists: {$normalized}");
+        if ($owner) {
+            if ((int) $owner->type === self::TYPE_SIZE) {
+                return $owner;
+            }
+
+            throw new \InvalidArgumentException(
+                "Size tag {$normalized} not found; name already used by tag #{$owner->id} (type {$owner->type})."
+            );
         }
 
         return static::query()->create([
             'type' => self::TYPE_SIZE,
             'code' => $normalized,
             'name' => $normalized,
-            'item_type' => 0,
-        ]);
-    }
-
-    public static function findOrCreateWarnaTag(string $code): self
-    {
-        $found = self::findWarnaTag($code);
-
-        if ($found) {
-            return $found;
-        }
-
-        $attributes = self::normalizeWarnaAttributes([
-            'type' => self::TYPE_WARNA,
-            'name' => $code,
-            'code' => $code,
-            'item_type' => 0,
-        ]);
-
-        if (static::query()->whereRaw('UPPER(name) = ?', [$attributes['name']])->exists()) {
-            throw new \InvalidArgumentException("Warna tag name already exists: {$attributes['name']}");
-        }
-
-        return static::query()->create([
-            'type' => self::TYPE_WARNA,
-            'code' => $attributes['code'],
-            'name' => $attributes['name'],
             'item_type' => 0,
         ]);
     }
