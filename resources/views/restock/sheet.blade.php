@@ -37,7 +37,7 @@
     .restock-grid-flat .tabulator .tabulator-header .tabulator-col.restock-col-shipped { background: #e5e7eb; }
     .restock-grid-flat .tabulator .tabulator-header .tabulator-col.restock-col-stock { background: #d1fae5; }
 
-    /* Matrix: merged stage groups — hide nested sub-col headers (Tabulator 6 col-group-cols) */
+    /* Matrix: hide nested sub-col headers (Tabulator 6 col-group-cols); keep inline-flex layout */
     .restock-grid-matrix .tabulator-header .tabulator-col.tabulator-col-group .tabulator-col-group-cols {
         display: none !important;
         height: 0 !important;
@@ -47,19 +47,16 @@
         overflow: hidden !important;
     }
     .restock-grid-matrix .tabulator-header .tabulator-col.tabulator-col-group {
-        display: flex !important;
-        flex-direction: column;
-        justify-content: center;
-        align-items: stretch;
+        justify-content: center !important;
+        vertical-align: middle;
     }
     .restock-grid-matrix .tabulator-header .tabulator-col.tabulator-col-group > .tabulator-col-content {
-        flex: 1 1 auto;
         display: flex !important;
         align-items: center !important;
         justify-content: center !important;
+        height: 100%;
         min-height: 36px;
-        height: auto !important;
-        border-bottom: none !important;
+        box-sizing: border-box;
     }
     .restock-grid-matrix .tabulator-header .tabulator-col.tabulator-col-group .tabulator-col-title {
         text-align: center;
