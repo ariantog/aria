@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Enums\ItemBrand;
+use App\Enums\ItemType;
 use App\Support\FillsProductionColumnDefaults;
 use App\Support\LikeSearch;
 use Illuminate\Database\Eloquent\Builder;
@@ -50,8 +52,8 @@ class Item extends Model
     protected function casts(): array
     {
         return [
-            'brand' => 'integer',
-            'type' => 'integer',
+            'brand' => ItemBrand::class,
+            'type' => ItemType::class,
             'size' => 'integer',
             'genre' => 'integer',
             'price' => 'decimal:2',
@@ -169,7 +171,7 @@ class Item extends Model
 
     public function getItemName(): string
     {
-        if ((int) $this->type === self::TYPE_ASSET_LANCAR) {
+        if ($this->type === ItemType::ASSET_LANCAR) {
             return $this->name;
         }
 
@@ -178,7 +180,7 @@ class Item extends Model
 
     public function isAssetLancar(): bool
     {
-        return (int) $this->type === self::TYPE_ASSET_LANCAR;
+        return $this->type === ItemType::ASSET_LANCAR;
     }
 
     public function showUrl(): string
