@@ -18,7 +18,6 @@ it('defaults jubelio orders index to pending only', function () {
         'type' => 'SELL',
         'order_status' => 'SHIPPED',
         'run_count' => 0,
-        'payload' => '{}',
         'status' => 0,
     ]);
 
@@ -29,7 +28,6 @@ it('defaults jubelio orders index to pending only', function () {
         'type' => 'SELL',
         'order_status' => 'SHIPPED',
         'run_count' => 1,
-        'payload' => '{}',
         'status' => 2,
         'error_type' => 10,
     ]);
@@ -44,6 +42,18 @@ it('defaults jubelio orders index to pending only', function () {
 it('shows jubelio order summary without raw payload on list page', function () {
     $user = User::factory()->create();
 
+    mockJubelioSalesOrder('jb-100', [
+        'salesorder_no' => 'INV-SUMMARY-TEST',
+        'transaction_date' => '2026-05-10T10:00:00',
+        'source_name' => 'Tokopedia',
+        'location_name' => 'Gudang Pusat',
+        'real_total' => 150000,
+        'sub_total' => 150000,
+        'items' => [
+            ['item_code' => 'SKU-1', 'qty' => 2, 'price' => 75000],
+        ],
+    ]);
+
     Jubelioorder::create([
         'jubelio_order_id' => 'jb-100',
         'source' => 1,
@@ -51,17 +61,6 @@ it('shows jubelio order summary without raw payload on list page', function () {
         'type' => 'SELL',
         'order_status' => 'SHIPPED',
         'run_count' => 0,
-        'payload' => json_encode([
-            'salesorder_no' => 'INV-SUMMARY-TEST',
-            'transaction_date' => '2026-05-10T10:00:00',
-            'source_name' => 'Tokopedia',
-            'location_name' => 'Gudang Pusat',
-            'real_total' => 150000,
-            'sub_total' => 150000,
-            'items' => [
-                ['item_code' => 'SKU-1', 'qty' => 2, 'price' => 75000],
-            ],
-        ]),
         'status' => 0,
     ]);
 
@@ -78,6 +77,11 @@ it('shows jubelio order summary without raw payload on list page', function () {
 it('loads jubelio order payload on demand', function () {
     $user = User::factory()->create();
 
+    mockJubelioSalesOrder('jb-101', [
+        'salesorder_no' => 'INV-PAYLOAD-TEST',
+        'real_total' => 99000,
+    ]);
+
     $order = Jubelioorder::create([
         'jubelio_order_id' => 'jb-101',
         'source' => 1,
@@ -85,7 +89,6 @@ it('loads jubelio order payload on demand', function () {
         'type' => 'SELL',
         'order_status' => 'SHIPPED',
         'run_count' => 0,
-        'payload' => json_encode(['salesorder_no' => 'INV-PAYLOAD-TEST', 'real_total' => 99000]),
         'status' => 0,
     ]);
 
@@ -113,7 +116,6 @@ it('links jubelio invoice to transactions search', function () {
         'type' => 'SELL',
         'order_status' => 'SHIPPED',
         'run_count' => 0,
-        'payload' => '{}',
         'status' => 0,
     ]);
 
@@ -144,6 +146,18 @@ it('can manually process a pending jubelio sell order', function () {
         'bin_id' => 0,
     ]);
 
+    mockJubelioSalesOrder('manual-1', [
+        'salesorder_no' => 'INV-MANUAL-1',
+        'store_id' => 10,
+        'location_id' => 20,
+        'sub_total' => 100000,
+        'real_total' => 100000,
+        'transaction_date' => '2026-05-10',
+        'items' => [
+            ['item_code' => 'SKU-MANUAL-1', 'qty' => 1, 'price' => 100000],
+        ],
+    ]);
+
     $order = Jubelioorder::create([
         'jubelio_order_id' => 'manual-1',
         'source' => 1,
@@ -151,17 +165,6 @@ it('can manually process a pending jubelio sell order', function () {
         'type' => 'SELL',
         'order_status' => 'SHIPPED',
         'run_count' => 0,
-        'payload' => json_encode([
-            'salesorder_no' => 'INV-MANUAL-1',
-            'store_id' => 10,
-            'location_id' => 20,
-            'sub_total' => 100000,
-            'real_total' => 100000,
-            'transaction_date' => '2026-05-10',
-            'items' => [
-                ['item_code' => 'SKU-MANUAL-1', 'qty' => 1, 'price' => 100000],
-            ],
-        ]),
         'status' => 0,
     ]);
 
@@ -190,6 +193,16 @@ it('shows jubelio and aria warehouse names on orders list', function () {
         'bin_id' => 0,
     ]);
 
+    mockJubelioSalesOrder('wh-ware-1', [
+        'salesorder_no' => 'INV-WAREHOUSE-TEST',
+        'store_id' => 55,
+        'location_id' => 66,
+        'source_name' => 'Tokopedia',
+        'location_name' => 'Gudang Jubelio Pusat',
+        'real_total' => 100000,
+        'items' => [],
+    ]);
+
     Jubelioorder::create([
         'jubelio_order_id' => 'wh-ware-1',
         'source' => 1,
@@ -197,15 +210,6 @@ it('shows jubelio and aria warehouse names on orders list', function () {
         'type' => 'SELL',
         'order_status' => 'SHIPPED',
         'run_count' => 0,
-        'payload' => json_encode([
-            'salesorder_no' => 'INV-WAREHOUSE-TEST',
-            'store_id' => 55,
-            'location_id' => 66,
-            'source_name' => 'Tokopedia',
-            'location_name' => 'Gudang Jubelio Pusat',
-            'real_total' => 100000,
-            'items' => [],
-        ]),
         'status' => 0,
     ]);
 
@@ -239,6 +243,19 @@ it('shows clickable customer warehouse and item links on order detail', function
         'bin_id' => 0,
     ]);
 
+    mockJubelioSalesOrder('detail-link-1', [
+        'salesorder_no' => 'INV-DETAIL-LINK',
+        'store_id' => 77,
+        'location_id' => 88,
+        'location_name' => 'Gudang Jubelio',
+        'customer_name' => 'Nama di Payload',
+        'sub_total' => 50000,
+        'real_total' => 50000,
+        'items' => [
+            ['item_code' => 'SKU-LINK-DETAIL', 'qty' => 2, 'price' => 25000],
+        ],
+    ]);
+
     $order = Jubelioorder::create([
         'jubelio_order_id' => 'detail-link-1',
         'source' => 1,
@@ -246,18 +263,6 @@ it('shows clickable customer warehouse and item links on order detail', function
         'type' => 'SELL',
         'order_status' => 'SHIPPED',
         'run_count' => 0,
-        'payload' => json_encode([
-            'salesorder_no' => 'INV-DETAIL-LINK',
-            'store_id' => 77,
-            'location_id' => 88,
-            'location_name' => 'Gudang Jubelio',
-            'customer_name' => 'Nama di Payload',
-            'sub_total' => 50000,
-            'real_total' => 50000,
-            'items' => [
-                ['item_code' => 'SKU-LINK-DETAIL', 'qty' => 2, 'price' => 25000],
-            ],
-        ]),
         'status' => 0,
     ]);
 
@@ -313,6 +318,18 @@ it('processes jubelio return into the original sell warehouse', function () {
         'receiver_type' => $customer->type,
     ]);
 
+    mockJubelioSalesReturn('ret-wh-1', [
+        'return_no' => 'RET-WH-1',
+        'salesorder_no' => 'INV-SELL-ORIG',
+        'store_id' => 1,
+        'location_id' => 99,
+        'sub_total' => 10000,
+        'real_total' => 10000,
+        'items' => [
+            ['item_code' => 'SKU-RET-WH', 'qty_in_base' => 1, 'price' => 10000],
+        ],
+    ]);
+
     $order = Jubelioorder::create([
         'jubelio_order_id' => 'ret-wh-1',
         'source' => 1,
@@ -320,17 +337,6 @@ it('processes jubelio return into the original sell warehouse', function () {
         'type' => 'RETURN',
         'order_status' => 'RETURN',
         'run_count' => 0,
-        'payload' => json_encode([
-            'return_no' => 'RET-WH-1',
-            'salesorder_no' => 'INV-SELL-ORIG',
-            'store_id' => 1,
-            'location_id' => 99,
-            'sub_total' => 10000,
-            'real_total' => 10000,
-            'items' => [
-                ['item_code' => 'SKU-RET-WH', 'qty_in_base' => 1, 'price' => 10000],
-            ],
-        ]),
         'status' => 0,
     ]);
 
@@ -357,6 +363,17 @@ it('rejects jubelio sell when mapped warehouse stock is insufficient', function 
         'bin_id' => 0,
     ]);
 
+    mockJubelioSalesOrder('no-stock-1', [
+        'salesorder_no' => 'INV-NO-STOCK',
+        'store_id' => 5,
+        'location_id' => 6,
+        'sub_total' => 5000,
+        'real_total' => 5000,
+        'items' => [
+            ['item_code' => 'SKU-NO-STOCK', 'qty' => 1, 'price' => 5000],
+        ],
+    ]);
+
     $order = Jubelioorder::create([
         'jubelio_order_id' => 'no-stock-1',
         'source' => 1,
@@ -364,16 +381,6 @@ it('rejects jubelio sell when mapped warehouse stock is insufficient', function 
         'type' => 'SELL',
         'order_status' => 'SHIPPED',
         'run_count' => 0,
-        'payload' => json_encode([
-            'salesorder_no' => 'INV-NO-STOCK',
-            'store_id' => 5,
-            'location_id' => 6,
-            'sub_total' => 5000,
-            'real_total' => 5000,
-            'items' => [
-                ['item_code' => 'SKU-NO-STOCK', 'qty' => 1, 'price' => 5000],
-            ],
-        ]),
         'status' => 0,
     ]);
 
@@ -408,6 +415,19 @@ it('ignores inflated jubelio sub_total when line prices already match grand tota
         'bin_id' => 0,
     ]);
 
+    mockJubelioSalesOrder('shopee-disc-1', [
+        'salesorder_no' => 'SP-SHOPEE-DISC',
+        'store_id' => 501,
+        'location_id' => 502,
+        'sub_total' => 122590,
+        'grand_total' => 79000,
+        'real_total' => 79000,
+        'transaction_date' => '2026-08-14',
+        'items' => [
+            ['item_code' => 'SKU-SHOPEE-DISC', 'qty' => 1, 'price' => 79000],
+        ],
+    ]);
+
     $order = Jubelioorder::create([
         'jubelio_order_id' => 'shopee-disc-1',
         'source' => 1,
@@ -415,18 +435,6 @@ it('ignores inflated jubelio sub_total when line prices already match grand tota
         'type' => 'SELL',
         'order_status' => 'SHIPPED',
         'run_count' => 0,
-        'payload' => json_encode([
-            'salesorder_no' => 'SP-SHOPEE-DISC',
-            'store_id' => 501,
-            'location_id' => 502,
-            'sub_total' => 122590,
-            'grand_total' => 79000,
-            'real_total' => 79000,
-            'transaction_date' => '2026-08-14',
-            'items' => [
-                ['item_code' => 'SKU-SHOPEE-DISC', 'qty' => 1, 'price' => 79000],
-            ],
-        ]),
         'status' => 0,
     ]);
 
@@ -466,6 +474,19 @@ it('applies marketplace discount adjustment when line prices use list amounts', 
         'bin_id' => 0,
     ]);
 
+    mockJubelioSalesOrder('shopee-list-1', [
+        'salesorder_no' => 'SP-LIST-PRICE',
+        'store_id' => 601,
+        'location_id' => 602,
+        'sub_total' => 122590,
+        'grand_total' => 79000,
+        'real_total' => 79000,
+        'transaction_date' => '2026-08-14',
+        'items' => [
+            ['item_code' => 'SKU-LIST-PRICE', 'qty' => 1, 'price' => 122590],
+        ],
+    ]);
+
     $order = Jubelioorder::create([
         'jubelio_order_id' => 'shopee-list-1',
         'source' => 1,
@@ -473,18 +494,6 @@ it('applies marketplace discount adjustment when line prices use list amounts', 
         'type' => 'SELL',
         'order_status' => 'SHIPPED',
         'run_count' => 0,
-        'payload' => json_encode([
-            'salesorder_no' => 'SP-LIST-PRICE',
-            'store_id' => 601,
-            'location_id' => 602,
-            'sub_total' => 122590,
-            'grand_total' => 79000,
-            'real_total' => 79000,
-            'transaction_date' => '2026-08-14',
-            'items' => [
-                ['item_code' => 'SKU-LIST-PRICE', 'qty' => 1, 'price' => 122590],
-            ],
-        ]),
         'status' => 0,
     ]);
 
@@ -520,6 +529,19 @@ it('books seller income for marketplace orders with fee breakdown', function () 
         'bin_id' => 0,
     ]);
 
+    mockJubelioSalesOrder('shopee-income-1', [
+        'salesorder_no' => 'SP-SELLER-INCOME',
+        'store_id' => 701,
+        'location_id' => 702,
+        'sub_total' => 64000,
+        'grand_total' => 64000,
+        'escrow_amount' => '42935.0000',
+        'transaction_date' => '2026-08-14',
+        'items' => [
+            ['item_code' => 'SKU-PAD-M', 'qty' => 1, 'price' => 64000],
+        ],
+    ]);
+
     $order = Jubelioorder::create([
         'jubelio_order_id' => 'shopee-income-1',
         'source' => 1,
@@ -527,18 +549,6 @@ it('books seller income for marketplace orders with fee breakdown', function () 
         'type' => 'SELL',
         'order_status' => 'SHIPPED',
         'run_count' => 0,
-        'payload' => json_encode([
-            'salesorder_no' => 'SP-SELLER-INCOME',
-            'store_id' => 701,
-            'location_id' => 702,
-            'sub_total' => 64000,
-            'grand_total' => 64000,
-            'escrow_amount' => '42935.0000',
-            'transaction_date' => '2026-08-14',
-            'items' => [
-                ['item_code' => 'SKU-PAD-M', 'qty' => 1, 'price' => 64000],
-            ],
-        ]),
         'status' => 0,
     ]);
 
@@ -564,7 +574,6 @@ it('can mark duplicate jubelio order as solved', function () {
         'run_count' => 1,
         'error' => 'Transaction sudah ada',
         'error_type' => 2,
-        'payload' => '{}',
         'status' => 2,
     ]);
 

@@ -206,7 +206,6 @@ class JubelioController extends Controller
             'type' => 'RETURN',
             'order_status' => 'RETURN',
             'run_count' => 0,
-            'payload' => json_encode($dataApi),
             'status' => 0,
         ]);
 
@@ -243,7 +242,6 @@ class JubelioController extends Controller
                 'type' => 'SELL',
                 'order_status' => $d['status'],
                 'run_count' => 0,
-                'payload' => json_encode($d),
                 'status' => 0,
             ]);
 

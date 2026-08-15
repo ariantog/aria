@@ -80,7 +80,6 @@ it('disables queue button when order already in jubelioorders queue', function (
         'type' => 'SELL',
         'order_status' => 'SHIPPED',
         'run_count' => 0,
-        'payload' => '{}',
         'status' => 0,
     ]);
 
@@ -163,7 +162,6 @@ it('rejects queue when order already in jubelioorders', function () {
         'type' => 'SELL',
         'order_status' => 'SHIPPED',
         'run_count' => 0,
-        'payload' => '{}',
         'status' => 0,
     ]);
 
@@ -203,7 +201,6 @@ it('inspect service blocks queue for transaction and existing queue separately',
         'type' => 'SELL',
         'order_status' => 'SHIPPED',
         'run_count' => 0,
-        'payload' => '{}',
         'status' => 0,
     ]);
 
