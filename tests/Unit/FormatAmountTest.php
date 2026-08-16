@@ -10,3 +10,10 @@ test('format_amount shows up to two decimal places and trims trailing zeros', fu
         ->and(format_amount(null))->toBe('0')
         ->and(\App\Support\AmountFormatter::format(1.55))->toBe('1,55');
 });
+
+test('displayTextClass scales down for long formatted amounts', function () {
+    expect(\App\Support\AmountFormatter::displayTextClass('1.234'))->toContain('text-2xl')
+        ->and(\App\Support\AmountFormatter::displayTextClass('12.345.678'))->toContain('text-lg')
+        ->and(\App\Support\AmountFormatter::displayTextClass('123.456.789.012'))->toContain('text-sm')
+        ->and(\App\Support\AmountFormatter::displayTextClass('123.456.789.012', 'compact'))->toContain('text-xs');
+});
