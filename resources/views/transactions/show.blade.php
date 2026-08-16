@@ -18,6 +18,9 @@
     $status = $statuses[$statusKey] ?? ['label' => 'Unknown', 'color' => 'bg-gray-100 text-gray-800'];
 
     $fmt = fn ($n) => format_amount($n);
+    $grandTotalFormatted = $fmt(abs($transaction->real_total));
+    $grandTotalHeroClass = \App\Support\AmountFormatter::displayTextClass($grandTotalFormatted, 'hero');
+    $grandTotalCompactClass = \App\Support\AmountFormatter::displayTextClass($grandTotalFormatted, 'compact');
     $fmtDate = function ($d) {
         if (! $d) return '-';
         return \Illuminate\Support\Carbon::parse($d)->format('d/m/Y');
@@ -106,9 +109,9 @@
             <div class="h-2 w-full bg-blue-600"></div>
             <div class="p-6 pb-2">
                 <div class="text-sm font-medium tracking-wider text-gray-500 uppercase">Grand Total</div>
-                <div class="mt-1 flex items-baseline gap-1">
-                    <span class="text-3xl font-black text-blue-600">IDR</span>
-                    <span class="text-4xl font-black tracking-tighter tabular-nums">{{ $fmt(abs($transaction->real_total)) }}</span>
+                <div class="mt-1 min-w-0">
+                    <div class="text-xs font-semibold text-blue-600 sm:text-sm">IDR</div>
+                    <div class="{{ $grandTotalHeroClass }} tabular-nums break-all text-blue-700">{{ $grandTotalFormatted }}</div>
                 </div>
             </div>
             <div class="space-y-4 p-6 pt-4">
@@ -376,12 +379,12 @@
                     <span class="font-bold">{{ $fmt($transaction->ppn) }}</span>
                 </div>
                 <div class="pt-2">
-                    <div class="flex items-center justify-between rounded-lg bg-blue-600 p-4 text-white shadow-lg shadow-blue-500/20">
-                        <div class="flex flex-col">
+                    <div class="flex items-center justify-between gap-3 rounded-lg bg-blue-600 p-4 text-white shadow-lg shadow-blue-500/20">
+                        <div class="flex min-w-0 flex-shrink-0 flex-col">
                             <span class="text-[10px] font-black tracking-widest text-blue-100/70 uppercase">Grand Total</span>
                             <span class="text-xs font-medium italic text-blue-100">Net Amount Payable</span>
                         </div>
-                        <span class="text-2xl font-black">IDR {{ $fmt(abs($transaction->real_total)) }}</span>
+                        <span class="min-w-0 break-all text-right tabular-nums {{ $grandTotalCompactClass }}">IDR {{ $grandTotalFormatted }}</span>
                     </div>
                 </div>
             </div>
