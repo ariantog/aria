@@ -108,7 +108,7 @@
                                          class="combobox-option"
                                          :class="{ 'active': activeIndex === idx }">
                                         <span x-text="item.name"></span>
-                                        <span x-show="item.balance !== undefined" x-text="' — Rp ' + Number(item.balance||0).toLocaleString('id-ID')" class="ml-auto text-xs opacity-60"></span>
+                                        <span x-show="item.balance !== undefined" x-text="' — Rp ' + formatAmountId(item.balance || 0)" class="ml-auto text-xs opacity-60"></span>
                                     </div>
                                 </template>
                             </div>
@@ -153,7 +153,7 @@
                                          class="combobox-option"
                                          :class="{ 'active': activeIndex === idx }">
                                         <span x-text="item.name"></span>
-                                        <span x-show="item.balance !== undefined" x-text="' — Rp ' + Number(item.balance||0).toLocaleString('id-ID')" class="ml-auto text-xs opacity-60"></span>
+                                        <span x-show="item.balance !== undefined" x-text="' — Rp ' + formatAmountId(item.balance || 0)" class="ml-auto text-xs opacity-60"></span>
                                     </div>
                                 </template>
                             </div>
@@ -314,7 +314,7 @@
                             {{-- Subtotal --}}
                             <div class="flex items-center justify-between sm:col-span-1 sm:block sm:text-right">
                                 <span class="text-xs font-medium text-gray-500 sm:hidden">Subtotal</span>
-                                <span class="text-sm font-medium tabular-nums" x-text="Number(item.subtotal || 0).toLocaleString('id-ID')"></span>
+                                <span class="text-sm font-medium tabular-nums" x-text="formatAmountId(item.subtotal || 0)"></span>
                             </div>
                             {{-- Remove --}}
                             <div class="sm:col-span-1 sm:text-center">
@@ -343,7 +343,7 @@
                     </div>
                     <div class="flex justify-between text-sm">
                         <span class="text-gray-500">Total before Disc</span>
-                        <span class="tabular-nums" x-text="'Rp ' + Number(form.gross_total).toLocaleString('id-ID')"></span>
+                        <span class="tabular-nums" x-text="'Rp ' + formatAmountId(form.gross_total)"></span>
                     </div>
                     @if($type !== 'move')
                     <div class="flex items-center justify-between text-sm">
@@ -361,15 +361,15 @@
                     @endif
                     <div class="flex justify-between text-sm">
                         <span class="text-gray-500">Total before PPN</span>
-                        <span class="tabular-nums" x-text="'Rp ' + Number(form.total_before_ppn).toLocaleString('id-ID')"></span>
+                        <span class="tabular-nums" x-text="'Rp ' + formatAmountId(form.total_before_ppn)"></span>
                     </div>
                     <div class="flex justify-between text-sm" x-show="form.ppn_amount > 0">
                         <span class="text-gray-500">PPN ({{ $ppn_rate }}%)</span>
-                        <span class="tabular-nums" x-text="'Rp ' + Number(form.ppn_amount).toLocaleString('id-ID')"></span>
+                        <span class="tabular-nums" x-text="'Rp ' + formatAmountId(form.ppn_amount)"></span>
                     </div>
                     <div class="border-t border-gray-100 pt-3 flex justify-between">
                         <span class="font-bold text-gray-900">Grand Total</span>
-                        <span class="text-lg font-bold tabular-nums text-blue-700" x-text="'Rp ' + Number(form.real_total).toLocaleString('id-ID')"></span>
+                        <span class="text-lg font-bold tabular-nums text-blue-700" x-text="'Rp ' + formatAmountId(form.real_total)"></span>
                     </div>
                 </div>
                 <div class="border-t border-gray-100 p-5">

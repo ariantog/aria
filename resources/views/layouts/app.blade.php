@@ -224,6 +224,10 @@
 <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 
 <script>
+function formatAmountId(value) {
+    return Number(value || 0).toLocaleString('id-ID', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+}
+
 function appShell() {
     return {
         sidebarOpen: localStorage.getItem('sidebarOpen') !== 'false',

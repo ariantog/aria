@@ -195,7 +195,7 @@
                         </div>
                         <div>
                             <p class="text-sm text-gray-500">Current Balance</p>
-                            <p class="text-xl font-bold text-gray-900">IDR {{ number_format((float) ($addrbook->stat->balance ?? 0), 0, ',', '.') }}</p>
+                            <p class="text-xl font-bold text-gray-900">IDR {{ format_amount($addrbook->stat->balance ?? 0) }}</p>
                         </div>
                     </div>
                 </div>

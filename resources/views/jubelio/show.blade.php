@@ -145,11 +145,11 @@ $sc = $statusConfig[$order->status] ?? ['label' => 'Unknown', 'cls' => 'border b
                     @endif
                     <div class="flex justify-between gap-4 border-t border-gray-100 pt-3">
                         <dt class="text-gray-400">Subtotal</dt>
-                        <dd class="font-mono font-medium">{{ $summary['sub_total'] !== null ? number_format((float) $summary['sub_total'], 0, ',', '.') : '—' }}</dd>
+                        <dd class="font-mono font-medium">{{ $summary['sub_total'] !== null ? format_amount($summary['sub_total']) : '—' }}</dd>
                     </div>
                     <div class="flex justify-between gap-4">
                         <dt class="font-semibold text-gray-700">Grand Total</dt>
-                        <dd class="font-mono font-bold">{{ $summary['real_total'] !== null ? number_format((float) $summary['real_total'], 0, ',', '.') : '—' }}</dd>
+                        <dd class="font-mono font-bold">{{ $summary['real_total'] !== null ? format_amount($summary['real_total']) : '—' }}</dd>
                     </div>
                 </dl>
             </div>
@@ -204,8 +204,8 @@ $sc = $statusConfig[$order->status] ?? ['label' => 'Unknown', 'cls' => 'border b
                                 </td>
                                 @endif
                                 <td class="px-3 py-2 text-right font-mono text-xs">{{ number_format((float) $item['quantity'], 0, ',', '.') }}</td>
-                                <td class="px-3 py-2 text-right font-mono text-xs">{{ $item['price'] !== null ? number_format((float) $item['price'], 0, ',', '.') : '—' }}</td>
-                                <td class="px-3 py-2 text-right font-mono text-xs">{{ $item['price'] !== null ? number_format($lineTotal, 0, ',', '.') : '—' }}</td>
+                                <td class="px-3 py-2 text-right font-mono text-xs">{{ $item['price'] !== null ? format_amount($item['price']) : '—' }}</td>
+                                <td class="px-3 py-2 text-right font-mono text-xs">{{ $item['price'] !== null ? format_amount($lineTotal) : '—' }}</td>
                             </tr>
                             @endforeach
                         </tbody>

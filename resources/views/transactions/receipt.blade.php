@@ -25,7 +25,7 @@
     @php
         $subtotal = 0;
         $subq = 0;
-        $fmt = fn ($n) => number_format((float) $n, 0, ',', '.');
+        $fmt = fn ($n) => format_amount($n);
     @endphp
 
     @foreach($transaction->details as $detail)

@@ -95,7 +95,7 @@ $breadcrumbs = [
                             </div>
                             @if($a->ppn)<span class="mt-1 inline-block rounded bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-700">PPN {{ $ppn_rate }}%</span>@endif
                         </td>
-                        <td class="whitespace-nowrap px-3 py-3 text-right font-medium text-gray-900">IDR {{ number_format($bal, 0, ',', '.') }}</td>
+                        <td class="whitespace-nowrap px-3 py-3 text-right font-medium text-gray-900">IDR {{ format_amount($bal) }}</td>
                         <td class="px-3 py-3">
                             <div class="flex justify-end gap-1">
                                 @if($can['edit'])
