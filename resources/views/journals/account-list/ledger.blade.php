@@ -9,7 +9,7 @@ $breadcrumbs = [
     ['title' => 'Account List', 'href' => route('account-list.index')],
     ['title' => 'Ledger: ' . $account->name, 'href' => route('account-list.ledger', $account->id)],
 ];
-$fmt = fn($v) => 'Rp ' . number_format((float)($v ?? 0), 0, ',', '.');
+$fmt = fn($v) => format_currency($v ?? 0);
 @endphp
 
 <div class="flex flex-col gap-4 overflow-x-auto p-4">

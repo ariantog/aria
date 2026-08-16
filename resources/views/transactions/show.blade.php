@@ -17,7 +17,7 @@
     $statusKey = $transaction->status instanceof \BackedEnum ? $transaction->status->value : $transaction->status;
     $status = $statuses[$statusKey] ?? ['label' => 'Unknown', 'color' => 'bg-gray-100 text-gray-800'];
 
-    $fmt = fn ($n) => number_format((float) $n, 0, ',', '.');
+    $fmt = fn ($n) => format_amount($n);
     $fmtDate = function ($d) {
         if (! $d) return '-';
         return \Illuminate\Support\Carbon::parse($d)->format('d/m/Y');

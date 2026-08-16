@@ -17,7 +17,7 @@
     ];
     $status = $statuses[$transaction->status] ?? ['label' => 'Unknown', 'color' => 'bg-gray-100 text-gray-800'];
 
-    $fmt = fn ($n) => number_format((float) $n, 0, ',', '.');
+    $fmt = fn ($n) => format_amount($n);
     $fmtDate = fn ($d) => $d ? \Illuminate\Support\Carbon::parse($d)->format('d/m/Y') : '-';
     $fmtDateTime = fn ($d) => $d ? \Illuminate\Support\Carbon::parse($d)->format('d/m/Y H:i') : '-';
 @endphp

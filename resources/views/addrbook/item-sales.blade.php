@@ -106,7 +106,7 @@ $typeNames = collect($transactionTypes)->keyBy('id');
                                 <span class="font-mono text-sm font-bold {{ $sale->type == 2 ? 'text-emerald-600' : 'text-rose-600' }}">{{ number_format((float) $sale->sum_qty, 0, ',', '.') }}</span>
                             </td>
                             <td class="px-6 py-4 text-right whitespace-nowrap">
-                                <span class="text-sm font-semibold text-gray-700">IDR {{ number_format((float) $sale->sum_total, 0, ',', '.') }}</span>
+                                <span class="text-sm font-semibold text-gray-700">IDR {{ format_amount($sale->sum_total) }}</span>
                             </td>
                         </tr>
                     @empty

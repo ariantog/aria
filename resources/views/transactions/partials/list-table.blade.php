@@ -71,10 +71,10 @@
                             <div class="mt-0.5 text-xs text-gray-400 lg:hidden">{{ $tx->sender->name ?? '—' }} → {{ $tx->receiver->name ?? '—' }}</div>
                         </td>
                         <td class="whitespace-nowrap px-3 py-2.5 text-right font-semibold tabular-nums text-gray-900">
-                            {{ number_format($tx->real_total, 0, ',', '.') }}
+                            {{ format_amount($tx->real_total) }}
                         </td>
                         <td class="hidden whitespace-nowrap px-3 py-2.5 text-right tabular-nums text-gray-500 xl:table-cell">
-                            {{ number_format($tx->total_items, 0, ',', '.') }}
+                            {{ format_amount($tx->total_items) }}
                         </td>
                         <td class="whitespace-nowrap px-3 py-2.5">
                             <span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium {{ $badgeCls }}">
@@ -85,7 +85,7 @@
                             @if($tx->sender)
                                 <a href="{{ url('/'.$tx->sender->type_slug.'/'.$tx->sender->id) }}" class="block truncate hover:underline {{ $highlightId && $tx->sender->id === $highlightId ? 'font-bold text-blue-700' : 'text-blue-600' }}">{{ $tx->sender->name }}</a>
                                 @unless($hideBank && $tx->sender->type_slug === 'bank')
-                                    <span class="text-xs tabular-nums {{ (float) $tx->sender_balance < 0 ? 'text-rose-500' : 'text-gray-400' }}">{{ number_format($tx->sender_balance, 0, ',', '.') }}</span>
+                                    <span class="text-xs tabular-nums {{ (float) $tx->sender_balance < 0 ? 'text-rose-500' : 'text-gray-400' }}">{{ format_amount($tx->sender_balance) }}</span>
                                 @endunless
                             @else
                                 <span class="text-gray-400">—</span>
@@ -95,7 +95,7 @@
                             @if($tx->receiver)
                                 <a href="{{ url('/'.$tx->receiver->type_slug.'/'.$tx->receiver->id) }}" class="block truncate hover:underline {{ $highlightId && $tx->receiver->id === $highlightId ? 'font-bold text-blue-700' : 'text-blue-600' }}">{{ $tx->receiver->name }}</a>
                                 @unless($hideBank && $tx->receiver->type_slug === 'bank')
-                                    <span class="text-xs tabular-nums {{ (float) $tx->receiver_balance < 0 ? 'text-rose-500' : 'text-gray-400' }}">{{ number_format($tx->receiver_balance, 0, ',', '.') }}</span>
+                                    <span class="text-xs tabular-nums {{ (float) $tx->receiver_balance < 0 ? 'text-rose-500' : 'text-gray-400' }}">{{ format_amount($tx->receiver_balance) }}</span>
                                 @endunless
                             @else
                                 <span class="text-gray-400">—</span>

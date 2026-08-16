@@ -169,7 +169,7 @@ $config = [
                 <div class="flex items-center justify-between border-t border-gray-100 bg-gray-50 px-5 py-3">
                     <span class="text-sm font-semibold text-gray-900">Grand Total</span>
                     <span class="text-lg font-bold tabular-nums text-blue-700"
-                          x-text="'Rp ' + grandTotal().toLocaleString('id-ID')"></span>
+                          x-text="'Rp ' + formatAmountId(grandTotal())"></span>
                 </div>
             </div>
 

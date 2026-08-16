@@ -114,7 +114,7 @@ $balance = (float) ($addrbook->stat->balance ?? 0);
                 </div>
                 <div class="p-8">
                     <p class="mb-1 text-sm font-medium uppercase tracking-widest text-blue-100">Current Balance</p>
-                    <h3 class="truncate text-3xl font-extrabold">IDR {{ number_format($balance, 0, ',', '.') }}</h3>
+                    <h3 class="truncate text-3xl font-extrabold">IDR {{ format_amount($balance) }}</h3>
                     <p class="mt-4 text-xs text-blue-200">Total outstanding or credit balance</p>
                 </div>
             </div>
