@@ -24,6 +24,24 @@ class RoleController extends Controller
         ]);
     }
 
+    public function show(Role $role)
+    {
+        Gate::authorize(User::getPermissions()['roles-view']);
+
+        return view('roles.show', [
+            'role' => $role,
+            'users' => User::role($role->name)
+                ->with('location')
+                ->latest()
+                ->paginate(50)
+                ->withQueryString(),
+            'can' => [
+                'edit_user' => request()->user()?->can(User::getPermissions()['edit']) ?? false,
+                'edit_role' => request()->user()?->can(User::getPermissions()['roles-edit']) ?? false,
+            ],
+        ]);
+    }
+
     public function create()
     {
         Gate::authorize(User::getPermissions()['roles-create']);
