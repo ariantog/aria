@@ -2,7 +2,6 @@
 
 namespace App\Console\Commands;
 
-use App\Models\Item;
 use App\Models\Transaction;
 use App\Models\WarehouseItemMonthlyStat;
 use App\Services\Items\ItemDimensionResolver;
@@ -32,24 +31,26 @@ class RecalculateWarehouseItemStats extends Command
             $yearExpr = 'YEAR(transaction_details.date)';
         }
 
-        $this->info('Aggregating sell transactions...');
         $addrbookTable = (new \App\Models\Addrbook)->getTable();
+        $stats = [];
 
+        $this->info('Aggregating sell transactions (may take a minute on large databases)...');
+        $sellStarted = microtime(true);
         $sellRows = DB::table('transaction_details')
             ->join('transactions', 'transactions.id', '=', 'transaction_details.transaction_id')
-            // Legacy rows can hold 0 or orphaned warehouse ids; join to keep only
-            // real warehouses so the FK on warehouse_item_monthly_stats holds.
             ->join($addrbookTable.' as wh', 'wh.id', '=', 'transaction_details.sender_id')
             ->where('transaction_details.transaction_type', $sellType)
             ->selectRaw("transaction_details.sender_id as warehouse_id, transaction_details.item_id, {$monthExpr} as month, {$yearExpr} as year, SUM(ABS(transaction_details.quantity)) as qty, SUM(transaction_details.total * (100 - COALESCE(transactions.discount, 0)) / 100) as value")
             ->groupBy('transaction_details.sender_id', 'transaction_details.item_id', DB::raw($monthExpr), DB::raw($yearExpr))
             ->get();
+        $this->info(sprintf('  %d sell aggregate rows in %.1fs', $sellRows->count(), microtime(true) - $sellStarted));
 
         foreach ($sellRows as $row) {
-            $this->upsertStat($dimensions, (int) $row->warehouse_id, (int) $row->item_id, (int) $row->month, (int) $row->year, 'sold_qty', 'sold_value', (float) $row->qty, (float) $row->value);
+            $this->accumulateStat($stats, $row, 'sold_qty', 'sold_value', (float) $row->qty, (float) $row->value);
         }
 
         $this->info('Aggregating return transactions...');
+        $returnStarted = microtime(true);
         $returnRows = DB::table('transaction_details')
             ->join('transactions', 'transactions.id', '=', 'transaction_details.transaction_id')
             ->join($addrbookTable.' as wh', 'wh.id', '=', 'transaction_details.receiver_id')
@@ -57,10 +58,59 @@ class RecalculateWarehouseItemStats extends Command
             ->selectRaw("transaction_details.receiver_id as warehouse_id, transaction_details.item_id, {$monthExpr} as month, {$yearExpr} as year, SUM(ABS(transaction_details.quantity)) as qty, SUM(transaction_details.total * (100 - COALESCE(transactions.discount, 0)) / 100) as value")
             ->groupBy('transaction_details.receiver_id', 'transaction_details.item_id', DB::raw($monthExpr), DB::raw($yearExpr))
             ->get();
+        $this->info(sprintf('  %d return aggregate rows in %.1fs', $returnRows->count(), microtime(true) - $returnStarted));
 
         foreach ($returnRows as $row) {
-            $this->upsertStat($dimensions, (int) $row->warehouse_id, (int) $row->item_id, (int) $row->month, (int) $row->year, 'returned_qty', 'returned_value', (float) $row->qty, (float) $row->value);
+            $this->accumulateStat($stats, $row, 'returned_qty', 'returned_value', (float) $row->qty, (float) $row->value);
         }
+
+        if ($stats === []) {
+            $this->info('No monthly stat rows to store.');
+
+            return self::SUCCESS;
+        }
+
+        $itemIds = array_values(array_unique(array_column($stats, 'item_id')));
+        $this->info(sprintf('Resolving dimensions for %d items...', count($itemIds)));
+        $resolveStarted = microtime(true);
+        $resolved = $dimensions->resolveMany($itemIds);
+        $this->info(sprintf('  resolved in %.1fs', microtime(true) - $resolveStarted));
+
+        $now = now();
+        $insertRows = [];
+        foreach ($stats as $stat) {
+            $dims = $resolved[$stat['item_id']] ?? null;
+            if (! $dims) {
+                continue;
+            }
+
+            $insertRows[] = array_merge($dims, [
+                'warehouse_id' => $stat['warehouse_id'],
+                'item_id' => $stat['item_id'],
+                'month' => $stat['month'],
+                'year' => $stat['year'],
+                'sold_qty' => $stat['sold_qty'],
+                'sold_value' => $stat['sold_value'],
+                'returned_qty' => $stat['returned_qty'],
+                'returned_value' => $stat['returned_value'],
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
+        }
+
+        $this->info(sprintf('Inserting %d monthly stat rows...', count($insertRows)));
+        $insertStarted = microtime(true);
+        $bar = $this->output->createProgressBar(count($insertRows));
+        $bar->start();
+
+        foreach (array_chunk($insertRows, 500) as $chunk) {
+            DB::table('warehouse_item_monthly_stats')->insert($chunk);
+            $bar->advance(count($chunk));
+        }
+
+        $bar->finish();
+        $this->newLine();
+        $this->info(sprintf('  inserted in %.1fs', microtime(true) - $insertStarted));
 
         $total = WarehouseItemMonthlyStat::count();
         $this->info("Done. {$total} monthly stat rows stored.");
@@ -68,12 +118,12 @@ class RecalculateWarehouseItemStats extends Command
         return self::SUCCESS;
     }
 
-    private function upsertStat(
-        ItemDimensionResolver $dimensions,
-        int $warehouseId,
-        int $itemId,
-        int $month,
-        int $year,
+    /**
+     * @param  array<string, array<string, mixed>>  $stats
+     */
+    private function accumulateStat(
+        array &$stats,
+        object $row,
         string $qtyColumn,
         string $valueColumn,
         float $qty,
@@ -83,30 +133,22 @@ class RecalculateWarehouseItemStats extends Command
             return;
         }
 
-        $item = $dimensions->findItem($itemId);
-        if (! $item) {
-            return;
+        $key = $row->warehouse_id.'|'.$row->item_id.'|'.$row->month.'|'.$row->year;
+
+        if (! isset($stats[$key])) {
+            $stats[$key] = [
+                'warehouse_id' => (int) $row->warehouse_id,
+                'item_id' => (int) $row->item_id,
+                'month' => (int) $row->month,
+                'year' => (int) $row->year,
+                'sold_qty' => 0.0,
+                'sold_value' => 0.0,
+                'returned_qty' => 0.0,
+                'returned_value' => 0.0,
+            ];
         }
 
-        $dims = $dimensions->resolve($item);
-
-        $stat = WarehouseItemMonthlyStat::firstOrCreate([
-            'warehouse_id' => $warehouseId,
-            'item_id' => $itemId,
-            'month' => $month,
-            'year' => $year,
-        ], $dims);
-
-        if (! $stat->wasRecentlyCreated) {
-            $stat->fill($dims);
-            $stat->save();
-        }
-
-        if ($qty > 0) {
-            $stat->increment($qtyColumn, $qty);
-        }
-        if ($value > 0) {
-            $stat->increment($valueColumn, $value);
-        }
+        $stats[$key][$qtyColumn] += $qty;
+        $stats[$key][$valueColumn] += $value;
     }
 }
