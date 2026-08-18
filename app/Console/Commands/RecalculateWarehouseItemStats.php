@@ -83,7 +83,7 @@ class RecalculateWarehouseItemStats extends Command
             return;
         }
 
-        $item = Item::with(['tags', 'group'])->find($itemId);
+        $item = $dimensions->findItem($itemId);
         if (! $item) {
             return;
         }
