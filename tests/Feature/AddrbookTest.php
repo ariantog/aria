@@ -168,3 +168,33 @@ test('can view warehouse edit through type-specific route', function () {
         ->assertStatus(200)
         ->assertSee('Warehouse Edit Test');
 });
+
+test('persists warehouse arrangement source warehouses on update', function () {
+    $destination = Addrbook::create([
+        'name' => 'Destination WH',
+        'type' => Addrbook::TYPE_WAREHOUSE,
+        'arrangement_enabled' => true,
+    ]);
+    $source = Addrbook::create([
+        'name' => 'Source WH',
+        'type' => Addrbook::TYPE_WAREHOUSE,
+    ]);
+
+    $this->actingAs($this->user)
+        ->put(route('addrbook.update', $destination), [
+            'name' => 'Destination WH',
+            'type' => Addrbook::TYPE_WAREHOUSE,
+            'arrangement_enabled' => true,
+            'arrangement_source_ids' => [$source->id],
+            'ppn' => false,
+            'is_online' => false,
+        ])
+        ->assertRedirect(route('addrbook.index'));
+
+    expect($destination->fresh()->arrangementSources->pluck('id')->all())->toBe([$source->id]);
+
+    $this->actingAs($this->user)
+        ->get("/warehouse/{$destination->id}/edit")
+        ->assertOk()
+        ->assertSee('Source WH', false);
+});
