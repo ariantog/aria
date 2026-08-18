@@ -8,17 +8,20 @@ use App\Models\Addrbook;
 use App\Models\Item;
 use App\Models\Report;
 use App\Services\WarehouseArrangementExportService;
+use App\Services\WarehouseArrangementRefreshService;
 use App\Services\WarehouseArrangementService;
-use App\Services\WarehouseArrangementSyncService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Gate;
 
 class WarehouseArrangementController extends Controller
 {
     private const SESSION_DRAFTED_KEY = 'warehouse_arrangement_drafted';
 
-    public function index(Request $request, WarehouseArrangementService $arrangementService)
+    public function index(
+        Request $request,
+        WarehouseArrangementService $arrangementService,
+        WarehouseArrangementRefreshService $refreshService,
+    )
     {
         Gate::authorize(Report::getPermissions()['view-warehouse-arrangement']);
 
@@ -65,6 +68,13 @@ class WarehouseArrangementController extends Controller
         $perPage = $result['per_page'] ?? WarehouseArrangementService::PER_PAGE;
         $lastPage = $totalPcodes > 0 ? (int) ceil($totalPcodes / $perPage) : 1;
 
+        $activeRefreshJob = $warehouseId
+            ? $refreshService->activeJobForWarehouse($warehouseId)
+            : null;
+        $lastRefreshJob = $warehouseId
+            ? $refreshService->lastFinishedJobForWarehouse($warehouseId)
+            : null;
+
         return view('reports.warehouse-arrangement', [
             'destinations' => $destinations,
             'selectedWarehouseId' => $warehouseId,
@@ -80,11 +90,13 @@ class WarehouseArrangementController extends Controller
             'syncedAt' => $result['synced_at'] ?? null,
             'stale' => $result['stale'] ?? false,
             'cacheDiagnostics' => $cacheDiagnostics,
+            'activeRefreshJob' => $activeRefreshJob,
+            'lastRefreshJob' => $lastRefreshJob,
             'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
     }
 
-    public function refresh(Request $request, WarehouseArrangementSyncService $sync)
+    public function refresh(Request $request, WarehouseArrangementRefreshService $refreshService)
     {
         Gate::authorize(Report::getPermissions()['view-warehouse-arrangement']);
 
@@ -101,24 +113,23 @@ class WarehouseArrangementController extends Controller
             ->where('arrangement_enabled', true)
             ->findOrFail($warehouseId);
 
-        $recalcExit = Artisan::call('app:recalculate-warehouse-item-stats');
-        if ($recalcExit !== 0) {
+        if ($refreshService->activeJobForWarehouse($warehouseId)) {
             return redirect()
                 ->route('reports.warehouse-arrangement', $this->refreshRedirectParams($validated))
-                ->with('error', 'Failed to rebuild warehouse monthly stats. Check logs for details.');
+                ->with('error', 'A rebuild is already queued or running for this warehouse.');
         }
 
-        if (! $sync->arrangementTablesExist()) {
+        try {
+            $refreshService->createJob($warehouseId, $request->user()?->id);
+        } catch (\RuntimeException $e) {
             return redirect()
                 ->route('reports.warehouse-arrangement', $this->refreshRedirectParams($validated))
-                ->with('error', 'Warehouse arrangement cache tables are missing. Run php artisan migrate first.');
+                ->with('error', $e->getMessage());
         }
-
-        $sync->syncAll($warehouseId);
 
         return redirect()
             ->route('reports.warehouse-arrangement', $this->refreshRedirectParams($validated))
-            ->with('success', 'Monthly sell stats rebuilt and arrangement cache refreshed for this destination.');
+            ->with('success', 'Rebuild queued. Stats and arrangement cache will refresh in the background (about 300 SKUs per minute).');
     }
 
     /**

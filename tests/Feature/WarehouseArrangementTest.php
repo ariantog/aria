@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Models\WarehouseItem;
 use App\Models\WarehouseItemMonthlyStat;
 use App\Models\WarehouseArrangementCandidate;
+use App\Models\WarehouseArrangementRefreshJob;
 use App\Services\WarehouseArrangementService;
 use App\Services\WarehouseArrangementSyncService;
 use Illuminate\Support\Facades\DB;
@@ -745,7 +746,7 @@ it('skips legacy transaction details with zero or orphaned warehouse ids when re
     expect((float) $stats->first()->sold_qty)->toBe(2.0);
 });
 
-it('rebuilds stats and refreshes arrangement cache from the report page', function () {
+it('queues a background refresh job from the report page', function () {
     $source = Addrbook::factory()->warehouse()->create(['name' => 'Source WH']);
     $destination = Addrbook::factory()->warehouse()->create([
         'name' => 'Flagship WH',
@@ -796,7 +797,119 @@ it('rebuilds stats and refreshes arrangement cache from the report page', functi
         ]))
         ->assertSessionHas('success');
 
+    $job = WarehouseArrangementRefreshJob::query()
+        ->where('destination_warehouse_id', $destination->id)
+        ->first();
+
+    expect($job)->not->toBeNull();
+    expect($job->user_id)->toBe($this->user->id);
+    expect($job->status)->toBe(WarehouseArrangementRefreshJob::STATUS_CREATED);
+
+    $this->artisan('app:process-warehouse-arrangement-refresh')->assertSuccessful();
+
+    $job->refresh();
+    expect($job->status)->toBe(WarehouseArrangementRefreshJob::STATUS_COMPLETED);
     expect(WarehouseArrangementCandidate::query()->where('destination_warehouse_id', $destination->id)->count())->toBeGreaterThan(0);
+});
+
+it('blocks a second refresh job for the same warehouse while one is active', function () {
+    $destination = Addrbook::factory()->warehouse()->create(['arrangement_enabled' => true]);
+
+    WarehouseArrangementRefreshJob::create([
+        'destination_warehouse_id' => $destination->id,
+        'user_id' => $this->user->id,
+        'status' => WarehouseArrangementRefreshJob::STATUS_PROCESSING,
+        'phase' => WarehouseArrangementRefreshJob::PHASE_STATS,
+        'total_items' => 10,
+    ]);
+
+    $this->actingAs($this->user)
+        ->post(route('reports.warehouse-arrangement.refresh'), [
+            'warehouse_id' => $destination->id,
+        ])
+        ->assertRedirect()
+        ->assertSessionHas('error');
+
+    expect(WarehouseArrangementRefreshJob::query()->where('destination_warehouse_id', $destination->id)->count())->toBe(1);
+});
+
+it('marks refresh jobs failed so the button can be used again', function () {
+    $destination = Addrbook::factory()->warehouse()->create(['arrangement_enabled' => true]);
+
+    $job = WarehouseArrangementRefreshJob::create([
+        'destination_warehouse_id' => $destination->id,
+        'user_id' => $this->user->id,
+        'status' => WarehouseArrangementRefreshJob::STATUS_PROCESSING,
+        'phase' => WarehouseArrangementRefreshJob::PHASE_SYNC,
+        'total_items' => 0,
+        'started_at' => now(),
+    ]);
+
+    $this->mock(WarehouseArrangementSyncService::class, function ($mock) {
+        $mock->shouldReceive('arrangementTablesExist')->andReturn(true);
+        $mock->shouldReceive('syncAll')->andThrow(new \RuntimeException('sync boom'));
+    });
+
+    $this->artisan('app:process-warehouse-arrangement-refresh')->assertSuccessful();
+
+    $job->refresh();
+    expect($job->status)->toBe(WarehouseArrangementRefreshJob::STATUS_FAILED);
+    expect($job->error_message)->toBe('sync boom');
+
+    $this->actingAs($this->user)
+        ->get(route('reports.warehouse-arrangement', ['warehouse_id' => $destination->id]))
+        ->assertOk()
+        ->assertSee('Last rebuild failed', false)
+        ->assertSee('sync boom', false)
+        ->assertSee('Rebuild stats &amp; refresh', false);
+});
+
+it('processes refresh jobs in sku batches', function () {
+    $source = Addrbook::factory()->warehouse()->create();
+    $destination = Addrbook::factory()->warehouse()->create(['arrangement_enabled' => true]);
+    $destination->arrangementSources()->sync([$source->id]);
+
+    $customer = Addrbook::factory()->customer()->create();
+    $date = now()->toDateString();
+    $group = ItemGroup::factory()->create(['master' => 'CX90110', 'variant' => '02']);
+
+    for ($i = 1; $i <= 5; $i++) {
+        $item = Item::factory()->create([
+            'group_id' => $group->id,
+            'type' => ItemType::ITEM,
+            'pcode' => 'CX90110-02',
+            'code' => "AJD-CX90110-02-{$i}",
+        ]);
+
+        \App\Models\Transaction::factory()->create([
+            'type' => \App\Models\Transaction::TYPE_SELL,
+            'sender_type' => (string) Addrbook::TYPE_WAREHOUSE,
+            'sender_id' => $destination->id,
+            'receiver_type' => (string) Addrbook::TYPE_CUSTOMER,
+            'receiver_id' => $customer->id,
+            'date' => $date,
+            'user_id' => $this->user->id,
+        ])->details()->create([
+            'item_id' => $item->id,
+            'quantity' => 1,
+            'price' => 1000,
+            'total' => 1000,
+            'date' => $date,
+            'transaction_type' => \App\Models\Transaction::TYPE_SELL,
+            'sender_id' => $destination->id,
+            'receiver_id' => $customer->id,
+        ]);
+    }
+
+    $job = app(\App\Services\WarehouseArrangementRefreshService::class)->createJob($destination->id, null);
+    expect($job->total_items)->toBe(5);
+
+    $this->artisan('app:process-warehouse-arrangement-refresh', ['--batch' => 2])->assertSuccessful();
+
+    $job->refresh();
+    expect($job->item_cursor)->toBe(2);
+    expect($job->phase)->toBe(WarehouseArrangementRefreshJob::PHASE_STATS);
+    expect($job->initiatedByLabel())->toBe('System');
 });
 
 it('syncs arrangement for items with legacy type column values', function () {
