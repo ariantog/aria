@@ -409,7 +409,7 @@ class AddrbookController extends Controller
 
     private function addrbookIsWarehouse(Addrbook $a): bool
     {
-        return $a->type instanceof AddrbookType && $a->type->isWarehouse();
+        return Addrbook::typeIsWarehouse((int) $a->type);
     }
 
     private function categorizeAddrbook($addrbook): string
@@ -463,7 +463,7 @@ class AddrbookController extends Controller
 
     private function syncArrangementSources(Addrbook $addrbook, array $sourceIds): void
     {
-        if (! $this->addrbookIsWarehouse($addrbook) || ! $addrbook->arrangement_enabled) {
+        if ((int) $addrbook->type !== Addrbook::TYPE_WAREHOUSE || ! $addrbook->arrangement_enabled) {
             $addrbook->arrangementSources()->sync([]);
 
             return;
@@ -499,8 +499,7 @@ class AddrbookController extends Controller
                 ->where('type', AddrbookType::Warehouse)
                 ->orderBy('name')
                 ->get(['id', 'name']),
-            'selectedArrangementSourceIds' => $addrbook?->arrangementSources()
-                ->pluck('customers.id') ?? collect(),
+            'selectedArrangementSourceIds' => $addrbook?->arrangementSources->pluck('id') ?? collect(),
         ];
     }
 }
