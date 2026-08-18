@@ -63,6 +63,7 @@ class WarehouseArrangementService
         int $perPage = self::PER_PAGE,
         string $search = '',
         array $excludeItemIds = [],
+        ?int $sourceWarehouse1Id = null,
         ?int $sourceWarehouse2Id = null,
     ): array {
         if (! in_array($mode, self::validModes(), true)) {
@@ -79,7 +80,7 @@ class WarehouseArrangementService
             ->where('arrangement_enabled', true)
             ->findOrFail($destinationWarehouseId);
 
-        $sourceContext = $this->resolveSourceWarehouses($destinationWarehouseId, $sourceWarehouse2Id);
+        $sourceContext = $this->resolveSourceWarehouses($destinationWarehouseId, $sourceWarehouse1Id, $sourceWarehouse2Id);
         $sourceWarehouse1 = $sourceContext['warehouse_1'];
         $sourceWarehouse2 = $sourceContext['warehouse_2'];
 
@@ -410,7 +411,7 @@ class WarehouseArrangementService
      *     warehouse_2: ?array{id: int, name: string}
      * }
      */
-    private function resolveSourceWarehouses(int $destinationWarehouseId, ?int $sourceWarehouse2Id): array
+    private function resolveSourceWarehouses(int $destinationWarehouseId, ?int $sourceWarehouse1Id, ?int $sourceWarehouse2Id): array
     {
         $sources = Addrbook::query()
             ->where('type', AddrbookType::Warehouse)
@@ -422,13 +423,25 @@ class WarehouseArrangementService
             ->map(fn (Addrbook $wh) => ['id' => (int) $wh->id, 'name' => $wh->name])
             ->values();
 
-        $warehouse1 = $sources->first();
-        $warehouse2 = null;
+        if ($sources->isEmpty()) {
+            return [
+                'all' => [],
+                'warehouse_1' => null,
+                'warehouse_2' => null,
+            ];
+        }
 
+        $warehouse1 = null;
+        if ($sourceWarehouse1Id && $sources->contains('id', $sourceWarehouse1Id)) {
+            $warehouse1 = $sources->firstWhere('id', $sourceWarehouse1Id);
+        } else {
+            $warehouse1 = $sources->first();
+        }
+
+        $warehouse2 = null;
         if ($sources->count() > 1) {
-            $secondId = $sourceWarehouse2Id;
-            if ($secondId && $sources->contains('id', $secondId) && $secondId !== ($warehouse1['id'] ?? null)) {
-                $warehouse2 = $sources->firstWhere('id', $secondId);
+            if ($sourceWarehouse2Id && $sources->contains('id', $sourceWarehouse2Id) && $sourceWarehouse2Id !== ($warehouse1['id'] ?? null)) {
+                $warehouse2 = $sources->firstWhere('id', $sourceWarehouse2Id);
             } else {
                 $warehouse2 = $sources->first(fn (array $wh) => $wh['id'] !== ($warehouse1['id'] ?? null));
             }
