@@ -16,12 +16,10 @@ $breadcrumbs = [
             <p class="mt-0.5 text-sm text-gray-500">Manage user roles and their associated permissions.</p>
         </div>
         <div class="flex flex-wrap gap-2">
-            @if($can['delete_role'])
             <a href="{{ route('roles.deleted.index') }}"
                class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50">
                 Deleted Roles
             </a>
-            @endif
             @if($can['create_role'])
             <a href="{{ route('roles.create') }}"
                class="inline-flex items-center gap-1.5 rounded-lg bg-blue-700 px-4 py-2 text-sm font-medium text-white hover:bg-blue-800">
