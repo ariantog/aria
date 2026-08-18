@@ -2,11 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Role;
 use App\Models\User;
 use App\Support\PermissionGrouper;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
-use Spatie\Permission\Models\Role;
+use Illuminate\Validation\Rule;
 
 class RoleController extends Controller
 {
@@ -20,6 +21,18 @@ class RoleController extends Controller
                 'create_role' => request()->user()?->can(User::getPermissions()['roles-create']) ?? false,
                 'edit_role' => request()->user()?->can(User::getPermissions()['roles-edit']) ?? false,
                 'delete_role' => request()->user()?->can(User::getPermissions()['roles-delete']) ?? false,
+            ],
+        ]);
+    }
+
+    public function deleted()
+    {
+        Gate::authorize(User::getPermissions()['roles-view']);
+
+        return view('roles.deleted', [
+            'roles' => Role::onlyTrashed()->with('permissions')->latest('deleted_at')->paginate(50),
+            'can' => [
+                'restore_role' => request()->user()?->can(User::getPermissions()['roles-delete']) ?? false,
             ],
         ]);
     }
@@ -56,7 +69,7 @@ class RoleController extends Controller
         Gate::authorize(User::getPermissions()['roles-create']);
 
         $request->validate([
-            'name' => 'required|string|unique:roles,name',
+            'name' => $this->roleNameRules(),
             'permissions' => 'array',
         ]);
 
@@ -87,7 +100,7 @@ class RoleController extends Controller
         Gate::authorize(User::getPermissions()['roles-edit']);
 
         $request->validate([
-            'name' => 'required|string|unique:roles,name,'.$role->id,
+            'name' => $this->roleNameRules($role->id),
             'permissions' => 'array',
         ]);
 
@@ -106,7 +119,29 @@ class RoleController extends Controller
 
         $role->delete();
 
-        return back()->with('success', 'Role deleted successfully.');
+        return back()->with('success', 'Role deleted. You can restore it from Deleted Roles.');
+    }
+
+    public function restore(int $role)
+    {
+        Gate::authorize(User::getPermissions()['roles-delete']);
+
+        $role = Role::onlyTrashed()->findOrFail($role);
+        $role->restore();
+
+        return redirect()->route('roles.deleted.index')->with('success', 'Role restored successfully.');
+    }
+
+    private function roleNameRules(?int $ignoreId = null): array
+    {
+        $rule = Rule::unique(config('permission.table_names.roles'), 'name')
+            ->where(fn ($query) => $query->where('guard_name', 'web')->whereNull('deleted_at'));
+
+        if ($ignoreId !== null) {
+            $rule->ignore($ignoreId);
+        }
+
+        return ['required', 'string', $rule];
     }
 
     private function getGroupedPermissions(): array
