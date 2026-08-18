@@ -293,7 +293,7 @@ it('paginates color pcodes', function () {
     $source = Addrbook::factory()->warehouse()->create();
     $destination = Addrbook::factory()->warehouse()->create(['arrangement_enabled' => true]);
 
-    for ($i = 1; $i <= 35; $i++) {
+    for ($i = 1; $i <= 55; $i++) {
         $master = 'CX9'.str_pad((string) $i, 4, '0', STR_PAD_LEFT);
         $pcode = $master.'-02';
         $group = ItemGroup::factory()->create(['master' => $master, 'variant' => '02']);
@@ -321,10 +321,10 @@ it('paginates color pcodes', function () {
         ]);
     }
 
-    $page1 = arrangementPage($destination->id, ['per_page' => 30]);
-    $page2 = arrangementPage($destination->id, ['page' => 2, 'per_page' => 30]);
+    $page1 = arrangementPage($destination->id, ['per_page' => 50]);
+    $page2 = arrangementPage($destination->id, ['page' => 2, 'per_page' => 50]);
 
-    expect($page1['total_pcodes'])->toBe(35);
+    expect($page1['total_pcodes'])->toBe(55);
     expect($page1['suggestions'])->not->toBeEmpty();
     expect($page2['suggestions'])->not->toBeEmpty();
     expect(count($page1['suggestions']))->not->toBe(count($page2['suggestions']));
@@ -831,4 +831,58 @@ it('syncs arrangement for items with legacy type column values', function () {
         ->first();
 
     expect($candidate)->not->toBeNull();
+});
+
+it('defaults source warehouses to those with the most matching sku stock', function () {
+    $sourceHigh = Addrbook::factory()->warehouse()->create(['name' => 'WH High']);
+    $sourceLow = Addrbook::factory()->warehouse()->create(['name' => 'WH Low']);
+    $sourceMid = Addrbook::factory()->warehouse()->create(['name' => 'WH Mid']);
+    $destination = Addrbook::factory()->warehouse()->create(['arrangement_enabled' => true]);
+    $destination->arrangementSources()->sync([$sourceHigh->id, $sourceLow->id, $sourceMid->id]);
+
+    $group = ItemGroup::factory()->create(['master' => 'CX90038', 'variant' => '02']);
+    $anchor = Item::factory()->create(['group_id' => $group->id, 'type' => ItemType::ITEM, 'pcode' => 'CX90038-02', 'code' => 'AJD-CX90038-02-S']);
+    $missingA = Item::factory()->create(['group_id' => $group->id, 'type' => ItemType::ITEM, 'pcode' => 'CX90038-02', 'code' => 'AJD-CX90038-02-M']);
+    $missingB = Item::factory()->create(['group_id' => $group->id, 'type' => ItemType::ITEM, 'pcode' => 'CX90038-02', 'code' => 'AJD-CX90038-02-L']);
+    $missingC = Item::factory()->create(['group_id' => $group->id, 'type' => ItemType::ITEM, 'pcode' => 'CX90038-02', 'code' => 'AJD-CX90038-02-XL']);
+
+    WarehouseItem::create(['warehouse_id' => $sourceHigh->id, 'item_id' => $missingA->id, 'quantity' => 5]);
+    WarehouseItem::create(['warehouse_id' => $sourceHigh->id, 'item_id' => $missingB->id, 'quantity' => 5]);
+    WarehouseItem::create(['warehouse_id' => $sourceHigh->id, 'item_id' => $missingC->id, 'quantity' => 5]);
+    WarehouseItem::create(['warehouse_id' => $sourceMid->id, 'item_id' => $missingA->id, 'quantity' => 2]);
+    WarehouseItem::create(['warehouse_id' => $sourceMid->id, 'item_id' => $missingB->id, 'quantity' => 2]);
+    WarehouseItem::create(['warehouse_id' => $sourceLow->id, 'item_id' => $missingB->id, 'quantity' => 1]);
+    WarehouseItem::create(['warehouse_id' => $destination->id, 'item_id' => $anchor->id, 'quantity' => 1]);
+
+    $now = now();
+    WarehouseItemMonthlyStat::create([
+        'warehouse_id' => $destination->id,
+        'item_id' => $anchor->id,
+        'month' => $now->month,
+        'year' => $now->year,
+        'sold_qty' => 8,
+        'returned_qty' => 0,
+        'item_type' => ItemType::ITEM->value,
+    ]);
+    foreach ([$missingA, $missingB, $missingC] as $missing) {
+        WarehouseItemMonthlyStat::create([
+            'warehouse_id' => $destination->id,
+            'item_id' => $missing->id,
+            'month' => $now->month,
+            'year' => $now->year,
+            'sold_qty' => 4,
+            'returned_qty' => 0,
+            'item_type' => ItemType::ITEM->value,
+        ]);
+    }
+
+    app(WarehouseArrangementSyncService::class)->syncAll($destination->id);
+
+    $result = app(WarehouseArrangementService::class)->buildPage($destination->id);
+
+    expect($result['source_warehouse_1']['id'])->toBe($sourceHigh->id);
+    expect($result['source_warehouse_2']['id'])->toBe($sourceMid->id);
+    expect($result['top_source_matches'][0]['id'])->toBe($sourceHigh->id);
+    expect($result['top_source_matches'][0]['match_count'])->toBe(3);
+    expect($result['top_source_matches'][1]['match_count'])->toBe(2);
 });
