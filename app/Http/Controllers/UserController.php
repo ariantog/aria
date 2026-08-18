@@ -4,9 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Models\Location;
 use App\Models\User;
+use App\Support\PermissionTableConfig;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\Rule;
 
 class UserController extends Controller
 {
@@ -56,7 +58,7 @@ class UserController extends Controller
             'name' => 'required|string|max:255',
             'username' => 'required|string|max:255|unique:users',
             'password' => 'required|string|min:8|confirmed',
-            'role' => 'required|exists:roles,name',
+            'role' => ['required', Rule::exists(PermissionTableConfig::rolesTable(), 'name')],
             'location_id' => 'nullable|exists:locations,id',
             'active' => 'boolean',
         ]);
@@ -93,7 +95,7 @@ class UserController extends Controller
             'name' => 'required|string|max:255',
             'username' => 'required|string|max:255|unique:users,username,'.$user->id,
             'password' => 'nullable|string|min:8|confirmed',
-            'role' => 'required|exists:roles,name',
+            'role' => ['required', Rule::exists(PermissionTableConfig::rolesTable(), 'name')],
             'location_id' => 'nullable|exists:locations,id',
             'active' => 'boolean',
         ]);
