@@ -25,9 +25,9 @@ return new class extends Migration
             $table->timestamp('completed_at')->nullable();
             $table->timestamps();
 
-            $table->index(['destination_warehouse_id', 'status']);
-            $table->index('status');
-            $table->foreign('user_id')->references('id')->on('users')->nullOnDelete();
+            $table->index(['destination_warehouse_id', 'status'], 'arr_refresh_dest_status_idx');
+            $table->index('status', 'arr_refresh_status_idx');
+            $table->foreign('user_id', 'arr_refresh_user_fk')->references('id')->on('users')->nullOnDelete();
         });
     }
 
