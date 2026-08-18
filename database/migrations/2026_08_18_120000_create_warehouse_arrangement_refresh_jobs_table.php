@@ -10,8 +10,8 @@ return new class extends Migration
     {
         Schema::create('warehouse_arrangement_refresh_jobs', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('destination_warehouse_id');
-            $table->foreignId('user_id')->nullable()->constrained('users')->nullOnDelete();
+            $table->unsignedInteger('destination_warehouse_id');
+            $table->integer('user_id')->nullable();
             $table->string('status')->default('created');
             $table->string('phase')->default('stats');
             $table->unsignedInteger('item_cursor')->default(0);
@@ -27,6 +27,7 @@ return new class extends Migration
 
             $table->index(['destination_warehouse_id', 'status']);
             $table->index('status');
+            $table->foreign('user_id')->references('id')->on('users')->nullOnDelete();
         });
     }
 
