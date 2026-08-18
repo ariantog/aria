@@ -87,17 +87,43 @@ $queryParams = fn (array $extra = []) => array_filter(array_merge([
         @endif
 
         @if($activeRefreshJob)
-        <div class="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
-            <p class="font-semibold">Rebuild running for {{ $destinationName ?? 'this warehouse' }}</p>
-            <p class="mt-1 text-blue-800">
-                Started by {{ $activeRefreshJob->initiatedByLabel() }}
-                · Phase: {{ $activeRefreshJob->phase === 'sync' ? 'refreshing arrangement cache' : 'rebuilding monthly stats' }}
-                @if($activeRefreshJob->phase === 'stats' && $activeRefreshJob->total_items > 0)
-                · {{ number_format($activeRefreshJob->item_cursor) }}/{{ number_format($activeRefreshJob->total_items) }} SKU(s)
-                · {{ $activeRefreshJob->progressPercent() }}%
-                @endif
-            </p>
-            <p class="mt-1 text-xs text-blue-700">The refresh button stays disabled until this job finishes or fails. Cron processes about 300 SKUs per minute.</p>
+        <div class="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900"
+             @if($activeRefreshJob->status === 'processing' || $activeRefreshJob->item_cursor > 0) data-auto-refresh="30" @endif>
+            <div class="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                    <p class="font-semibold">Rebuild running for {{ $destinationName ?? 'this warehouse' }}</p>
+                    <p class="mt-1 text-blue-800">
+                        Started by {{ $activeRefreshJob->initiatedByLabel() }}
+                        · Phase: {{ $activeRefreshJob->phase === 'sync' ? 'refreshing arrangement cache' : 'rebuilding monthly stats' }}
+                        @if($activeRefreshJob->phase === 'stats' && $activeRefreshJob->total_items > 0)
+                        · {{ number_format($activeRefreshJob->item_cursor) }}/{{ number_format($activeRefreshJob->total_items) }} SKU(s)
+                        · {{ $activeRefreshJob->progressPercent() }}%
+                        @endif
+                    </p>
+                    @if($activeRefreshJob->status === 'created' && $activeRefreshJob->created_at->lt(now()->subMinutes(2)))
+                    <p class="mt-2 text-amber-800">
+                        Still waiting to start — ensure <strong>Process Queue Jobs</strong> is active in Cron Manager
+                        (<code class="rounded bg-white/70 px-1">app:process-queue</code>).
+                        You can also run <code class="rounded bg-white/70 px-1">php artisan app:process-warehouse-arrangement-refresh</code> on the server.
+                    </p>
+                    @elseif($activeRefreshJob->status === 'processing' || $activeRefreshJob->item_cursor > 0)
+                    <p class="mt-1 text-xs text-blue-700">Page refreshes every 30 seconds while progress is running.</p>
+                    @else
+                    <p class="mt-1 text-xs text-blue-700">Queued — processing starts within about a minute when the queue worker runs.</p>
+                    @endif
+                </div>
+                <form method="POST" action="{{ route('reports.warehouse-arrangement.cancel-refresh') }}" class="shrink-0"
+                      onsubmit="return confirm('Cancel this rebuild?');">
+                    @csrf
+                    <input type="hidden" name="warehouse_id" value="{{ $selectedWarehouseId }}">
+                    <input type="hidden" name="demand_days" value="{{ $demandDays }}">
+                    <input type="hidden" name="mode" value="{{ $mode }}">
+                    <button type="submit"
+                            class="rounded-lg border border-red-300 bg-white px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-50">
+                        Cancel rebuild
+                    </button>
+                </form>
+            </div>
         </div>
         @elseif($lastRefreshJob)
         <div class="rounded-lg border px-4 py-3 text-sm {{ $lastRefreshJob->status === 'completed' ? 'border-emerald-200 bg-emerald-50 text-emerald-900' : 'border-red-200 bg-red-50 text-red-900' }}">
@@ -381,6 +407,11 @@ $queryParams = fn (array $extra = []) => array_filter(array_merge([
 @endsection
 
 @push('scripts')
+@if($activeRefreshJob && ($activeRefreshJob->status === 'processing' || $activeRefreshJob->item_cursor > 0))
+<script>
+setTimeout(function () { window.location.reload(); }, 30000);
+</script>
+@endif
 <script>
 function arrangementPage() {
     const sections = @json($sections);

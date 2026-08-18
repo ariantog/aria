@@ -132,6 +132,32 @@ class WarehouseArrangementController extends Controller
             ->with('success', 'Rebuild queued. Stats and arrangement cache will refresh in the background (about 300 SKUs per minute).');
     }
 
+    public function cancelRefresh(Request $request, WarehouseArrangementRefreshService $refreshService)
+    {
+        Gate::authorize(Report::getPermissions()['view-warehouse-arrangement']);
+
+        $validated = $request->validate([
+            'warehouse_id' => ['required', 'integer', 'exists:customers,id'],
+            'demand_days' => ['nullable', 'integer', 'in:30,90,180,365'],
+            'mode' => ['nullable', 'string', 'in:'.WarehouseArrangementService::MODE_DEMAND.','.WarehouseArrangementService::MODE_FAMILY],
+        ]);
+
+        $warehouseId = (int) $validated['warehouse_id'];
+        $job = $refreshService->activeJobForWarehouse($warehouseId);
+
+        if (! $job) {
+            return redirect()
+                ->route('reports.warehouse-arrangement', $this->refreshRedirectParams($validated))
+                ->with('error', 'No active rebuild job for this warehouse.');
+        }
+
+        $refreshService->failJob($job, 'Cancelled by '.$request->user()?->name.'.');
+
+        return redirect()
+            ->route('reports.warehouse-arrangement', $this->refreshRedirectParams($validated))
+            ->with('success', 'Rebuild cancelled. You can start a new one.');
+    }
+
     /**
      * @param  array<string, mixed>  $validated
      * @return array<string, mixed>

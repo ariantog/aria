@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Transaction;
 use App\Models\WarehouseArrangementRefreshJob;
 use App\Models\WarehouseItemMonthlyStat;
+use App\Jobs\ProcessWarehouseArrangementRefreshBatch;
 use App\Services\Items\ItemDimensionResolver;
 use Illuminate\Support\Facades\DB;
 
@@ -54,7 +55,7 @@ class WarehouseArrangementRefreshService
             ->where('warehouse_id', $destinationWarehouseId)
             ->delete();
 
-        return WarehouseArrangementRefreshJob::create([
+        $job = WarehouseArrangementRefreshJob::create([
             'destination_warehouse_id' => $destinationWarehouseId,
             'user_id' => $userId,
             'status' => WarehouseArrangementRefreshJob::STATUS_CREATED,
@@ -62,6 +63,10 @@ class WarehouseArrangementRefreshService
             'item_cursor' => 0,
             'total_items' => count($itemIds),
         ]);
+
+        ProcessWarehouseArrangementRefreshBatch::dispatch($job->id);
+
+        return $job;
     }
 
     /**
