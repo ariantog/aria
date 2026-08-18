@@ -39,6 +39,8 @@ class WarehouseArrangementController extends Controller
 
         $page = max(1, (int) $request->query('page', 1));
         $search = trim((string) $request->query('search', ''));
+        $sourceWarehouse1Id = (int) $request->query('source_wh1_id', 0);
+        $sourceWarehouse1Id = $sourceWarehouse1Id > 0 ? $sourceWarehouse1Id : null;
         $sourceWarehouse2Id = (int) $request->query('source_wh2_id', 0);
         $sourceWarehouse2Id = $sourceWarehouse2Id > 0 ? $sourceWarehouse2Id : null;
 
@@ -62,6 +64,7 @@ class WarehouseArrangementController extends Controller
                 WarehouseArrangementService::PER_PAGE,
                 $search,
                 $excludeItemIds,
+                $sourceWarehouse1Id,
                 $sourceWarehouse2Id,
             );
             $sections = $result['sections'];
@@ -93,6 +96,7 @@ class WarehouseArrangementController extends Controller
             'sourceWarehouses' => $result['source_warehouses'] ?? [],
             'sourceWarehouse1' => $result['source_warehouse_1'] ?? null,
             'sourceWarehouse2' => $result['source_warehouse_2'] ?? null,
+            'selectedSourceWarehouse1Id' => ($result['source_warehouse_1']['id'] ?? null),
             'selectedSourceWarehouse2Id' => ($result['source_warehouse_2']['id'] ?? null),
             'destinationName' => $result['destination']->name ?? null,
             'syncedAt' => $result['synced_at'] ?? null,
@@ -112,6 +116,7 @@ class WarehouseArrangementController extends Controller
             'warehouse_id' => ['required', 'integer', 'exists:customers,id'],
             'demand_days' => ['nullable', 'integer', 'in:30,90,180,365'],
             'mode' => ['nullable', 'string', 'in:'.WarehouseArrangementService::MODE_DEMAND.','.WarehouseArrangementService::MODE_FAMILY],
+            'source_wh1_id' => ['nullable', 'integer', 'exists:customers,id'],
             'source_wh2_id' => ['nullable', 'integer', 'exists:customers,id'],
         ]);
 
@@ -227,6 +232,7 @@ class WarehouseArrangementController extends Controller
             'warehouse_id' => (int) $validated['warehouse_id'],
             'demand_days' => isset($validated['demand_days']) ? (int) $validated['demand_days'] : null,
             'mode' => $validated['mode'] ?? null,
+            'source_wh1_id' => isset($validated['source_wh1_id']) ? (int) $validated['source_wh1_id'] : null,
             'source_wh2_id' => isset($validated['source_wh2_id']) ? (int) $validated['source_wh2_id'] : null,
         ]);
     }

@@ -59,6 +59,7 @@ $queryParams = fn (array $extra = []) => array_filter(array_merge([
     'demand_days' => $demandDays,
     'mode' => $mode,
     'search' => $search ?: null,
+    'source_wh1_id' => $selectedSourceWarehouse1Id ?? null,
     'source_wh2_id' => $selectedSourceWarehouse2Id ?? null,
     'page' => $page > 1 ? $page : null,
 ], $extra));
@@ -78,6 +79,9 @@ $queryParams = fn (array $extra = []) => array_filter(array_merge([
                     <input type="hidden" name="warehouse_id" value="{{ $selectedWarehouseId }}">
                     <input type="hidden" name="demand_days" value="{{ $demandDays }}">
                     <input type="hidden" name="mode" value="{{ $mode }}">
+                    @if($selectedSourceWarehouse1Id)
+                    <input type="hidden" name="source_wh1_id" value="{{ $selectedSourceWarehouse1Id }}">
+                    @endif
                     @if($selectedSourceWarehouse2Id)
                     <input type="hidden" name="source_wh2_id" value="{{ $selectedSourceWarehouse2Id }}">
                     @endif
@@ -244,16 +248,27 @@ $queryParams = fn (array $extra = []) => array_filter(array_merge([
                 <input type="hidden" name="search" value="{{ $search }}">
                 @endif
                 <div>
+                    <label for="source_wh1_id" class="mb-1 block text-xs font-medium uppercase text-gray-500">Warehouse 1</label>
+                    <select id="source_wh1_id" name="source_wh1_id" class="min-w-[180px] rounded-lg border border-gray-300 px-3 py-1.5 text-sm" onchange="this.form.submit()">
+                        @foreach($sourceWarehouses as $wh)
+                        <option value="{{ $wh['id'] }}" @selected($selectedSourceWarehouse1Id === $wh['id'])>{{ $wh['name'] }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div>
                     <label for="source_wh2_id" class="mb-1 block text-xs font-medium uppercase text-gray-500">Warehouse 2</label>
                     <select id="source_wh2_id" name="source_wh2_id" class="min-w-[180px] rounded-lg border border-gray-300 px-3 py-1.5 text-sm" onchange="this.form.submit()">
                         <option value="">—</option>
                         @foreach($sourceWarehouses as $wh)
-                        @if(($sourceWarehouse1['id'] ?? null) !== $wh['id'])
+                        @if(($selectedSourceWarehouse1Id ?? null) !== $wh['id'])
                         <option value="{{ $wh['id'] }}" @selected($selectedSourceWarehouse2Id === $wh['id'])>{{ $wh['name'] }}</option>
                         @endif
                         @endforeach
                     </select>
                 </div>
+                @if(count($sourceWarehouses) > 2)
+                <p class="text-xs text-gray-500">Compare two sources at a time — {{ count($sourceWarehouses) }} configured on this destination.</p>
+                @endif
                 <div>
                     <label for="search" class="mb-1 block text-xs font-medium uppercase text-gray-500">Search pcode</label>
                     <input id="search" name="search" type="search" value="{{ $search }}" placeholder="CX90028-02"
