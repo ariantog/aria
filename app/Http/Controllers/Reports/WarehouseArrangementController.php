@@ -98,6 +98,8 @@ class WarehouseArrangementController extends Controller
             'sourceWarehouse2' => $result['source_warehouse_2'] ?? null,
             'selectedSourceWarehouse1Id' => ($result['source_warehouse_1']['id'] ?? null),
             'selectedSourceWarehouse2Id' => ($result['source_warehouse_2']['id'] ?? null),
+            'topSourceMatches' => $result['top_source_matches'] ?? [],
+            'sourceMatchRankings' => $result['source_match_rankings'] ?? [],
             'destinationName' => $result['destination']->name ?? null,
             'syncedAt' => $result['synced_at'] ?? null,
             'stale' => $result['stale'] ?? false,

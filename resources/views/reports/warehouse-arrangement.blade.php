@@ -247,27 +247,48 @@ $queryParams = fn (array $extra = []) => array_filter(array_merge([
                 @if($search)
                 <input type="hidden" name="search" value="{{ $search }}">
                 @endif
+                @if(count($topSourceMatches) > 0)
+                <p class="text-xs text-gray-600">
+                    Top matches:
+                    @foreach($topSourceMatches as $match)
+                    <span class="font-medium text-gray-800">{{ $match['name'] }}</span>
+                    <span class="text-gray-500">({{ $match['match_count'] }} SKUs)</span>{{ !$loop->last ? ',' : '' }}
+                    @endforeach
+                </p>
+                @endif
                 <div>
                     <label for="source_wh1_id" class="mb-1 block text-xs font-medium uppercase text-gray-500">Warehouse 1</label>
-                    <select id="source_wh1_id" name="source_wh1_id" class="min-w-[180px] rounded-lg border border-gray-300 px-3 py-1.5 text-sm" onchange="this.form.submit()">
-                        @foreach($sourceWarehouses as $wh)
-                        <option value="{{ $wh['id'] }}" @selected($selectedSourceWarehouse1Id === $wh['id'])>{{ $wh['name'] }}</option>
-                        @endforeach
-                    </select>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <select id="source_wh1_id" name="source_wh1_id" class="min-w-[180px] rounded-lg border border-gray-300 px-3 py-1.5 text-sm" onchange="this.form.submit()">
+                            @foreach($sourceWarehouses as $wh)
+                            <option value="{{ $wh['id'] }}" @selected($selectedSourceWarehouse1Id === $wh['id'])>{{ $wh['name'] }}</option>
+                            @endforeach
+                        </select>
+                        @if($sourceWarehouse1)
+                        @php $wh1Match = collect($sourceMatchRankings)->firstWhere('id', $sourceWarehouse1['id']); @endphp
+                        <span class="text-xs text-gray-500">{{ $wh1Match['match_count'] ?? 0 }} SKUs</span>
+                        @endif
+                    </div>
                 </div>
                 <div>
                     <label for="source_wh2_id" class="mb-1 block text-xs font-medium uppercase text-gray-500">Warehouse 2</label>
-                    <select id="source_wh2_id" name="source_wh2_id" class="min-w-[180px] rounded-lg border border-gray-300 px-3 py-1.5 text-sm" onchange="this.form.submit()">
-                        <option value="">—</option>
-                        @foreach($sourceWarehouses as $wh)
-                        @if(($selectedSourceWarehouse1Id ?? null) !== $wh['id'])
-                        <option value="{{ $wh['id'] }}" @selected($selectedSourceWarehouse2Id === $wh['id'])>{{ $wh['name'] }}</option>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <select id="source_wh2_id" name="source_wh2_id" class="min-w-[180px] rounded-lg border border-gray-300 px-3 py-1.5 text-sm" onchange="this.form.submit()">
+                            <option value="">—</option>
+                            @foreach($sourceWarehouses as $wh)
+                            @if(($selectedSourceWarehouse1Id ?? null) !== $wh['id'])
+                            <option value="{{ $wh['id'] }}" @selected($selectedSourceWarehouse2Id === $wh['id'])>{{ $wh['name'] }}</option>
+                            @endif
+                            @endforeach
+                        </select>
+                        @if($sourceWarehouse2)
+                        @php $wh2Match = collect($sourceMatchRankings)->firstWhere('id', $sourceWarehouse2['id']); @endphp
+                        <span class="text-xs text-gray-500">{{ $wh2Match['match_count'] ?? 0 }} SKUs</span>
                         @endif
-                        @endforeach
-                    </select>
+                    </div>
                 </div>
                 @if(count($sourceWarehouses) > 2)
-                <p class="text-xs text-gray-500">Compare two sources at a time — {{ count($sourceWarehouses) }} configured on this destination.</p>
+                <p class="text-xs text-gray-500">Defaults to the two sources with the most missing SKUs in stock. Pick others to compare.</p>
                 @endif
                 <div>
                     <label for="search" class="mb-1 block text-xs font-medium uppercase text-gray-500">Search pcode</label>

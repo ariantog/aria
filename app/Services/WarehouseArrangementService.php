@@ -15,7 +15,7 @@ class WarehouseArrangementService
 
     public const MODE_FAMILY = 'family';
 
-    public const PER_PAGE = 30;
+    public const PER_PAGE = 50;
 
     public const FAMILY_COMPLETENESS_THRESHOLD = 75.0;
 
@@ -80,7 +80,29 @@ class WarehouseArrangementService
             ->where('arrangement_enabled', true)
             ->findOrFail($destinationWarehouseId);
 
-        $sourceContext = $this->resolveSourceWarehouses($destinationWarehouseId, $sourceWarehouse1Id, $sourceWarehouse2Id);
+        $configuredSources = $this->configuredSourceWarehouses($destinationWarehouseId);
+        $sourceMatchRankings = $this->rankSourceWarehousesByAvailableMatches(
+            $destinationWarehouseId,
+            $demandDays,
+            $mode,
+            $excludeItemIds,
+            $configuredSources,
+        );
+
+        if ($sourceWarehouse1Id === null && $sourceMatchRankings !== []) {
+            $sourceWarehouse1Id = $sourceMatchRankings[0]['id'];
+        }
+
+        if ($sourceWarehouse2Id === null) {
+            foreach ($sourceMatchRankings as $ranking) {
+                if ($ranking['id'] !== $sourceWarehouse1Id) {
+                    $sourceWarehouse2Id = $ranking['id'];
+                    break;
+                }
+            }
+        }
+
+        $sourceContext = $this->resolveSourceWarehouses($configuredSources, $sourceWarehouse1Id, $sourceWarehouse2Id);
         $sourceWarehouse1 = $sourceContext['warehouse_1'];
         $sourceWarehouse2 = $sourceContext['warehouse_2'];
 
@@ -241,6 +263,8 @@ class WarehouseArrangementService
             'source_warehouses' => $sourceContext['all'],
             'source_warehouse_1' => $sourceWarehouse1,
             'source_warehouse_2' => $sourceWarehouse2,
+            'source_match_rankings' => $sourceMatchRankings,
+            'top_source_matches' => array_slice($sourceMatchRankings, 0, 2),
             'demand_days' => $demandDays,
             'mode' => $mode,
             'page' => $page,
@@ -405,15 +429,11 @@ class WarehouseArrangementService
     }
 
     /**
-     * @return array{
-     *     all: list<array{id: int, name: string}>,
-     *     warehouse_1: ?array{id: int, name: string},
-     *     warehouse_2: ?array{id: int, name: string}
-     * }
+     * @return Collection<int, array{id: int, name: string}>
      */
-    private function resolveSourceWarehouses(int $destinationWarehouseId, ?int $sourceWarehouse1Id, ?int $sourceWarehouse2Id): array
+    private function configuredSourceWarehouses(int $destinationWarehouseId): Collection
     {
-        $sources = Addrbook::query()
+        return Addrbook::query()
             ->where('type', AddrbookType::Warehouse)
             ->whereIn('id', DB::table('warehouse_arrangement_sources')
                 ->where('destination_warehouse_id', $destinationWarehouseId)
@@ -422,6 +442,76 @@ class WarehouseArrangementService
             ->get(['id', 'name'])
             ->map(fn (Addrbook $wh) => ['id' => (int) $wh->id, 'name' => $wh->name])
             ->values();
+    }
+
+    /**
+     * @param  Collection<int, array{id: int, name: string}>  $configuredSources
+     * @return list<array{id: int, name: string, match_count: int}>
+     */
+    private function rankSourceWarehousesByAvailableMatches(
+        int $destinationWarehouseId,
+        int $demandDays,
+        string $mode,
+        array $excludeItemIds,
+        Collection $configuredSources,
+    ): array {
+        if ($configuredSources->isEmpty()) {
+            return [];
+        }
+
+        $demandColumn = $this->demandColumn($demandDays);
+        $candidateQuery = WarehouseArrangementCandidate::query()
+            ->where('destination_warehouse_id', $destinationWarehouseId)
+            ->whereHas('sources', fn ($q) => $q->whereHas('sourceWarehouse'))
+            ->when($excludeItemIds !== [], fn ($q) => $q->whereNotIn('item_id', $excludeItemIds));
+
+        if ($mode === self::MODE_DEMAND) {
+            $candidateQuery->where($demandColumn, '>', 0);
+        }
+
+        $itemIds = $candidateQuery
+            ->pluck('item_id')
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        $sourceIds = $configuredSources->pluck('id')->all();
+        $counts = $itemIds === []
+            ? collect()
+            : DB::table('warehouse_item')
+                ->whereIn('warehouse_id', $sourceIds)
+                ->whereIn('item_id', $itemIds)
+                ->where('quantity', '>', 0)
+                ->groupBy('warehouse_id')
+                ->selectRaw('warehouse_id, COUNT(*) as match_count')
+                ->pluck('match_count', 'warehouse_id');
+
+        return $configuredSources
+            ->map(fn (array $wh) => [
+                'id' => $wh['id'],
+                'name' => $wh['name'],
+                'match_count' => (int) ($counts[$wh['id']] ?? 0),
+            ])
+            ->sortByDesc('match_count')
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  Collection<int, array{id: int, name: string}>  $configuredSources
+     * @return array{
+     *     all: list<array{id: int, name: string}>,
+     *     warehouse_1: ?array{id: int, name: string},
+     *     warehouse_2: ?array{id: int, name: string}
+     * }
+     */
+    private function resolveSourceWarehouses(
+        Collection $configuredSources,
+        ?int $sourceWarehouse1Id,
+        ?int $sourceWarehouse2Id,
+    ): array {
+        $sources = $configuredSources;
 
         if ($sources->isEmpty()) {
             return [
