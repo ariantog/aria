@@ -110,7 +110,7 @@ class UserController extends Controller
 
         $user->update($updates);
 
-        if ($data['password']) {
+        if (filled($data['password'] ?? null)) {
             $user->update(['password' => bcrypt($data['password'])]);
         }
         $user->syncRoles([$data['role']]);
