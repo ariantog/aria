@@ -15,19 +15,13 @@ $breadcrumbs = [
             <h2 class="text-2xl font-bold tracking-tight text-gray-900">Roles</h2>
             <p class="mt-0.5 text-sm text-gray-500">Manage user roles and their associated permissions.</p>
         </div>
-        <div class="flex flex-wrap gap-2">
-            <a href="{{ route('roles.deleted.index') }}"
-               class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50">
-                Deleted Roles
-            </a>
-            @if($can['create_role'])
-            <a href="{{ route('roles.create') }}"
-               class="inline-flex items-center gap-1.5 rounded-lg bg-blue-700 px-4 py-2 text-sm font-medium text-white hover:bg-blue-800">
-                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-                Create Role
-            </a>
-            @endif
-        </div>
+        @if($can['create_role'])
+        <a href="{{ route('roles.create') }}"
+           class="inline-flex items-center gap-1.5 rounded-lg bg-blue-700 px-4 py-2 text-sm font-medium text-white hover:bg-blue-800">
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            Create Role
+        </a>
+        @endif
     </div>
 
     <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
@@ -66,7 +60,7 @@ $breadcrumbs = [
                                 </a>
                                 @endif
                                 @if($can['delete_role'] && $role->name !== 'superadmin')
-                                <form method="POST" action="{{ route('roles.destroy', $role->id) }}" onsubmit="return confirm('Delete this role? It can be restored later from Deleted Roles.')">
+                                <form method="POST" action="{{ route('roles.destroy', $role->id) }}" onsubmit="return confirm('Are you sure you want to delete this role?')">
                                     @csrf
                                     @method('DELETE')
                                     <button type="submit" class="inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-400 hover:bg-red-50 hover:text-red-600" title="Delete">
