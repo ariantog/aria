@@ -61,8 +61,13 @@ $queryParams = fn (array $extra = []) => array_filter(array_merge([
                     <input type="hidden" name="demand_days" value="{{ $demandDays }}">
                     <input type="hidden" name="mode" value="{{ $mode }}">
                     <button type="submit"
-                            class="inline-flex items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-900 hover:bg-amber-100">
+                            @disabled($activeRefreshJob)
+                            class="inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium {{ $activeRefreshJob ? 'cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400' : 'border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100' }}">
+                        @if($activeRefreshJob)
+                        Rebuild in progress…
+                        @else
                         Rebuild stats &amp; refresh
+                        @endif
                     </button>
                 </form>
                 <a href="{{ route('reports.warehouse-arrangement.export', $queryParams()) }}"
@@ -79,6 +84,38 @@ $queryParams = fn (array $extra = []) => array_filter(array_merge([
 
         @if(($flash['error'] ?? null))
         <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ $flash['error'] }}</div>
+        @endif
+
+        @if($activeRefreshJob)
+        <div class="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+            <p class="font-semibold">Rebuild running for {{ $destinationName ?? 'this warehouse' }}</p>
+            <p class="mt-1 text-blue-800">
+                Started by {{ $activeRefreshJob->initiatedByLabel() }}
+                · Phase: {{ $activeRefreshJob->phase === 'sync' ? 'refreshing arrangement cache' : 'rebuilding monthly stats' }}
+                @if($activeRefreshJob->phase === 'stats' && $activeRefreshJob->total_items > 0)
+                · {{ number_format($activeRefreshJob->item_cursor) }}/{{ number_format($activeRefreshJob->total_items) }} SKU(s)
+                · {{ $activeRefreshJob->progressPercent() }}%
+                @endif
+            </p>
+            <p class="mt-1 text-xs text-blue-700">The refresh button stays disabled until this job finishes or fails. Cron processes about 300 SKUs per minute.</p>
+        </div>
+        @elseif($lastRefreshJob)
+        <div class="rounded-lg border px-4 py-3 text-sm {{ $lastRefreshJob->status === 'completed' ? 'border-emerald-200 bg-emerald-50 text-emerald-900' : 'border-red-200 bg-red-50 text-red-900' }}">
+            <p class="font-semibold">
+                Last rebuild {{ $lastRefreshJob->status === 'completed' ? 'completed' : 'failed' }}
+                @if($lastRefreshJob->completed_at)
+                · {{ $lastRefreshJob->completed_at->diffForHumans() }}
+                @endif
+            </p>
+            <p class="mt-1">
+                Run by {{ $lastRefreshJob->initiatedByLabel() }}.
+                @if($lastRefreshJob->status === 'completed')
+                {{ $lastRefreshJob->result_message }}
+                @else
+                {{ $lastRefreshJob->error_message }}
+                @endif
+            </p>
+        </div>
         @endif
 
         @if($destinations->isEmpty())

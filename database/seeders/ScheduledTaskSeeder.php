@@ -34,6 +34,16 @@ class ScheduledTaskSeeder extends Seeder
         );
 
         \App\Models\ScheduledTask::updateOrCreate(
+            ['command' => 'app:process-warehouse-arrangement-refresh'],
+            [
+                'name' => 'Process Warehouse Arrangement Refresh',
+                'frequency' => 'everyMinute',
+                'active' => true,
+                'description' => 'Processes queued warehouse arrangement rebuild jobs (~300 SKUs per minute per warehouse).',
+            ]
+        );
+
+        \App\Models\ScheduledTask::updateOrCreate(
             ['command' => 'app:sync-warehouse-arrangement'],
             [
                 'name' => 'Sync Warehouse Arrangement',
