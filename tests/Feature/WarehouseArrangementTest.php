@@ -661,3 +661,45 @@ it('recalculates warehouse item monthly stats from transaction details', functio
     expect($stat)->not->toBeNull();
     expect((float) $stat->sold_qty)->toBe(3.0);
 });
+
+it('skips legacy transaction details with zero or orphaned warehouse ids when recalculating stats', function () {
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    $customer = Addrbook::factory()->customer()->create();
+    $group = ItemGroup::factory()->create(['master' => 'CX90029', 'variant' => '02']);
+    $item = Item::factory()->create(['group_id' => $group->id, 'type' => ItemType::ITEM]);
+
+    $date = now()->toDateString();
+
+    $makeSell = function (int $senderId) use ($warehouse, $customer, $item, $date) {
+        \App\Models\Transaction::factory()->create([
+            'type' => \App\Models\Transaction::TYPE_SELL,
+            'sender_type' => (string) Addrbook::TYPE_WAREHOUSE,
+            'sender_id' => $warehouse->id,
+            'receiver_type' => (string) Addrbook::TYPE_CUSTOMER,
+            'receiver_id' => $customer->id,
+            'date' => $date,
+            'user_id' => $this->user->id,
+        ])->details()->create([
+            'item_id' => $item->id,
+            'quantity' => 2,
+            'price' => 10000,
+            'total' => 20000,
+            'date' => $date,
+            'transaction_type' => \App\Models\Transaction::TYPE_SELL,
+            'sender_id' => $senderId,
+            'receiver_id' => $customer->id,
+        ]);
+    };
+
+    $makeSell($warehouse->id);
+    $makeSell(0);
+    $makeSell(999999);
+
+    $this->artisan('app:recalculate-warehouse-item-stats')->assertSuccessful();
+
+    $stats = WarehouseItemMonthlyStat::query()->where('item_id', $item->id)->get();
+
+    expect($stats)->toHaveCount(1);
+    expect($stats->first()->warehouse_id)->toBe($warehouse->id);
+    expect((float) $stats->first()->sold_qty)->toBe(2.0);
+});

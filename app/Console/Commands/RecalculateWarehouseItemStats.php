@@ -33,10 +33,14 @@ class RecalculateWarehouseItemStats extends Command
         }
 
         $this->info('Aggregating sell transactions...');
+        $addrbookTable = (new \App\Models\Addrbook)->getTable();
+
         $sellRows = DB::table('transaction_details')
             ->join('transactions', 'transactions.id', '=', 'transaction_details.transaction_id')
+            // Legacy rows can hold 0 or orphaned warehouse ids; join to keep only
+            // real warehouses so the FK on warehouse_item_monthly_stats holds.
+            ->join($addrbookTable.' as wh', 'wh.id', '=', 'transaction_details.sender_id')
             ->where('transaction_details.transaction_type', $sellType)
-            ->whereNotNull('transaction_details.sender_id')
             ->selectRaw("transaction_details.sender_id as warehouse_id, transaction_details.item_id, {$monthExpr} as month, {$yearExpr} as year, SUM(ABS(transaction_details.quantity)) as qty, SUM(transaction_details.total * (100 - COALESCE(transactions.discount, 0)) / 100) as value")
             ->groupBy('transaction_details.sender_id', 'transaction_details.item_id', DB::raw($monthExpr), DB::raw($yearExpr))
             ->get();
@@ -48,8 +52,8 @@ class RecalculateWarehouseItemStats extends Command
         $this->info('Aggregating return transactions...');
         $returnRows = DB::table('transaction_details')
             ->join('transactions', 'transactions.id', '=', 'transaction_details.transaction_id')
+            ->join($addrbookTable.' as wh', 'wh.id', '=', 'transaction_details.receiver_id')
             ->where('transaction_details.transaction_type', $returnType)
-            ->whereNotNull('transaction_details.receiver_id')
             ->selectRaw("transaction_details.receiver_id as warehouse_id, transaction_details.item_id, {$monthExpr} as month, {$yearExpr} as year, SUM(ABS(transaction_details.quantity)) as qty, SUM(transaction_details.total * (100 - COALESCE(transactions.discount, 0)) / 100) as value")
             ->groupBy('transaction_details.receiver_id', 'transaction_details.item_id', DB::raw($monthExpr), DB::raw($yearExpr))
             ->get();
