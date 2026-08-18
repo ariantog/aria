@@ -39,6 +39,8 @@ class WarehouseArrangementController extends Controller
 
         $page = max(1, (int) $request->query('page', 1));
         $search = trim((string) $request->query('search', ''));
+        $sourceWarehouse2Id = (int) $request->query('source_wh2_id', 0);
+        $sourceWarehouse2Id = $sourceWarehouse2Id > 0 ? $sourceWarehouse2Id : null;
 
         $warehouseId = (int) $request->query('warehouse_id');
         if (! $warehouseId && $destinations->isNotEmpty()) {
@@ -60,6 +62,7 @@ class WarehouseArrangementController extends Controller
                 WarehouseArrangementService::PER_PAGE,
                 $search,
                 $excludeItemIds,
+                $sourceWarehouse2Id,
             );
             $sections = $result['sections'];
             $cacheDiagnostics = $arrangementService->cacheDiagnostics($warehouseId);
@@ -87,6 +90,10 @@ class WarehouseArrangementController extends Controller
             'lastPage' => $lastPage,
             'search' => $result['search'] ?? $search,
             'sections' => $sections,
+            'sourceWarehouses' => $result['source_warehouses'] ?? [],
+            'sourceWarehouse1' => $result['source_warehouse_1'] ?? null,
+            'sourceWarehouse2' => $result['source_warehouse_2'] ?? null,
+            'selectedSourceWarehouse2Id' => ($result['source_warehouse_2']['id'] ?? null),
             'destinationName' => $result['destination']->name ?? null,
             'syncedAt' => $result['synced_at'] ?? null,
             'stale' => $result['stale'] ?? false,
@@ -105,6 +112,7 @@ class WarehouseArrangementController extends Controller
             'warehouse_id' => ['required', 'integer', 'exists:customers,id'],
             'demand_days' => ['nullable', 'integer', 'in:30,90,180,365'],
             'mode' => ['nullable', 'string', 'in:'.WarehouseArrangementService::MODE_DEMAND.','.WarehouseArrangementService::MODE_FAMILY],
+            'source_wh2_id' => ['nullable', 'integer', 'exists:customers,id'],
         ]);
 
         $warehouseId = (int) $validated['warehouse_id'];
@@ -219,6 +227,7 @@ class WarehouseArrangementController extends Controller
             'warehouse_id' => (int) $validated['warehouse_id'],
             'demand_days' => isset($validated['demand_days']) ? (int) $validated['demand_days'] : null,
             'mode' => $validated['mode'] ?? null,
+            'source_wh2_id' => isset($validated['source_wh2_id']) ? (int) $validated['source_wh2_id'] : null,
         ]);
     }
 

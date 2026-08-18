@@ -63,6 +63,7 @@ class WarehouseArrangementService
         int $perPage = self::PER_PAGE,
         string $search = '',
         array $excludeItemIds = [],
+        ?int $sourceWarehouse2Id = null,
     ): array {
         if (! in_array($mode, self::validModes(), true)) {
             $mode = self::MODE_DEMAND;
@@ -77,6 +78,10 @@ class WarehouseArrangementService
             ->where('type', AddrbookType::Warehouse)
             ->where('arrangement_enabled', true)
             ->findOrFail($destinationWarehouseId);
+
+        $sourceContext = $this->resolveSourceWarehouses($destinationWarehouseId, $sourceWarehouse2Id);
+        $sourceWarehouse1 = $sourceContext['warehouse_1'];
+        $sourceWarehouse2 = $sourceContext['warehouse_2'];
 
         $demandColumn = $this->demandColumn($demandDays);
 
@@ -141,6 +146,14 @@ class WarehouseArrangementService
 
         $stockedByPcode = $this->loadStockedSizes($destinationWarehouseId, $pagePcodes->all());
 
+        $pageItemIds = $candidates->pluck('item_id')->map(fn ($id) => (int) $id)->unique()->values()->all();
+        $wh1Stocks = $sourceWarehouse1
+            ? $this->loadWarehouseStock((int) $sourceWarehouse1['id'], $pageItemIds)
+            : [];
+        $wh2Stocks = $sourceWarehouse2
+            ? $this->loadWarehouseStock((int) $sourceWarehouse2['id'], $pageItemIds)
+            : [];
+
         $suggestions = [];
         $sections = [];
 
@@ -159,24 +172,37 @@ class WarehouseArrangementService
                 $candidate = $pcodeCandidates->first(fn (WarehouseArrangementCandidate $c) => $this->candidateMatchesSize($c, $sizeCode));
 
                 if ($candidate) {
+                    $itemId = (int) $candidate->item_id;
                     $itemDemand = $candidate->demandForDays($demandDays);
-                    $sources = $candidate->sources
-                        ->sortByDesc('source_stock')
-                        ->values()
-                        ->map(fn ($src) => [
-                            'from_warehouse_id' => (int) $src->source_warehouse_id,
-                            'from_warehouse_name' => $src->sourceWarehouse?->name ?? 'Unknown',
-                            'source_stock' => (int) $src->source_stock,
-                            'suggested_qty' => $this->suggestedQty($mode, $itemDemand, (int) $src->source_stock),
-                        ])
-                        ->all();
+                    $wh1Stock = (int) ($wh1Stocks[$itemId] ?? 0);
+                    $wh2Stock = $sourceWarehouse2 ? (int) ($wh2Stocks[$itemId] ?? 0) : null;
+                    $sources = $this->buildSourceOptions(
+                        $candidate,
+                        $mode,
+                        $itemDemand,
+                        $sourceWarehouse1,
+                        $sourceWarehouse2,
+                        $wh1Stock,
+                        $wh2Stock,
+                    );
 
                     $cells[$sizeCode] = [
-                        'item_id' => $candidate->item_id,
+                        'item_id' => $itemId,
                         'item_code' => $candidate->item_code,
                         'demand' => $itemDemand,
+                        'dest_stock' => 0,
+                        'wh1_stock' => $wh1Stock,
+                        'wh2_stock' => $wh2Stock,
+                        'suggested_qty_wh1' => $sourceWarehouse1
+                            ? $this->suggestedQty($mode, $itemDemand, $wh1Stock)
+                            : 0,
+                        'suggested_qty_wh2' => $sourceWarehouse2
+                            ? $this->suggestedQty($mode, $itemDemand, $wh2Stock ?? 0)
+                            : 0,
+                        'moveable_wh1' => $sourceWarehouse1 && $wh1Stock > 0,
+                        'moveable_wh2' => $sourceWarehouse2 && ($wh2Stock ?? 0) > 0,
+                        'moveable' => ($sourceWarehouse1 && $wh1Stock > 0) || ($sourceWarehouse2 && ($wh2Stock ?? 0) > 0),
                         'sources' => $sources,
-                        'moveable' => true,
                     ];
 
                     $suggestions[] = $this->candidateToSuggestion($candidate, $destination, $snap, $itemDemand, $sources);
@@ -211,6 +237,9 @@ class WarehouseArrangementService
 
         return [
             'destination' => $destination,
+            'source_warehouses' => $sourceContext['all'],
+            'source_warehouse_1' => $sourceWarehouse1,
+            'source_warehouse_2' => $sourceWarehouse2,
             'demand_days' => $demandDays,
             'mode' => $mode,
             'page' => $page,
@@ -365,9 +394,119 @@ class WarehouseArrangementService
 
     private function suggestedQty(string $mode, float $itemDemand, int $sourceStock): int
     {
+        if ($sourceStock <= 0) {
+            return 0;
+        }
+
         $cap = $mode === self::MODE_DEMAND ? max(1, (int) ceil($itemDemand)) : 1;
 
         return max(1, min($sourceStock, $cap));
+    }
+
+    /**
+     * @return array{
+     *     all: list<array{id: int, name: string}>,
+     *     warehouse_1: ?array{id: int, name: string},
+     *     warehouse_2: ?array{id: int, name: string}
+     * }
+     */
+    private function resolveSourceWarehouses(int $destinationWarehouseId, ?int $sourceWarehouse2Id): array
+    {
+        $sources = Addrbook::query()
+            ->where('type', AddrbookType::Warehouse)
+            ->whereIn('id', DB::table('warehouse_arrangement_sources')
+                ->where('destination_warehouse_id', $destinationWarehouseId)
+                ->pluck('source_warehouse_id'))
+            ->orderBy('name')
+            ->get(['id', 'name'])
+            ->map(fn (Addrbook $wh) => ['id' => (int) $wh->id, 'name' => $wh->name])
+            ->values();
+
+        $warehouse1 = $sources->first();
+        $warehouse2 = null;
+
+        if ($sources->count() > 1) {
+            $secondId = $sourceWarehouse2Id;
+            if ($secondId && $sources->contains('id', $secondId) && $secondId !== ($warehouse1['id'] ?? null)) {
+                $warehouse2 = $sources->firstWhere('id', $secondId);
+            } else {
+                $warehouse2 = $sources->first(fn (array $wh) => $wh['id'] !== ($warehouse1['id'] ?? null));
+            }
+        }
+
+        return [
+            'all' => $sources->all(),
+            'warehouse_1' => $warehouse1,
+            'warehouse_2' => $warehouse2,
+        ];
+    }
+
+    /**
+     * @param  list<int>  $itemIds
+     * @return array<int, int>
+     */
+    private function loadWarehouseStock(int $warehouseId, array $itemIds): array
+    {
+        if ($warehouseId <= 0 || $itemIds === []) {
+            return [];
+        }
+
+        return DB::table('warehouse_item')
+            ->where('warehouse_id', $warehouseId)
+            ->whereIn('item_id', $itemIds)
+            ->pluck('quantity', 'item_id')
+            ->mapWithKeys(fn ($qty, $itemId) => [(int) $itemId => (int) $qty])
+            ->all();
+    }
+
+    /**
+     * @param  ?array{id: int, name: string}  $sourceWarehouse1
+     * @param  ?array{id: int, name: string}  $sourceWarehouse2
+     * @return list<array<string, mixed>>
+     */
+    private function buildSourceOptions(
+        WarehouseArrangementCandidate $candidate,
+        string $mode,
+        float $itemDemand,
+        ?array $sourceWarehouse1,
+        ?array $sourceWarehouse2,
+        int $wh1Stock,
+        ?int $wh2Stock,
+    ): array {
+        $sources = [];
+
+        if ($sourceWarehouse1 && $wh1Stock > 0) {
+            $sources[] = [
+                'from_warehouse_id' => $sourceWarehouse1['id'],
+                'from_warehouse_name' => $sourceWarehouse1['name'],
+                'source_stock' => $wh1Stock,
+                'suggested_qty' => $this->suggestedQty($mode, $itemDemand, $wh1Stock),
+            ];
+        }
+
+        if ($sourceWarehouse2 && ($wh2Stock ?? 0) > 0) {
+            $sources[] = [
+                'from_warehouse_id' => $sourceWarehouse2['id'],
+                'from_warehouse_name' => $sourceWarehouse2['name'],
+                'source_stock' => $wh2Stock,
+                'suggested_qty' => $this->suggestedQty($mode, $itemDemand, (int) $wh2Stock),
+            ];
+        }
+
+        if ($sources === []) {
+            return $candidate->sources
+                ->sortByDesc('source_stock')
+                ->values()
+                ->map(fn ($src) => [
+                    'from_warehouse_id' => (int) $src->source_warehouse_id,
+                    'from_warehouse_name' => $src->sourceWarehouse?->name ?? 'Unknown',
+                    'source_stock' => (int) $src->source_stock,
+                    'suggested_qty' => $this->suggestedQty($mode, $itemDemand, (int) $src->source_stock),
+                ])
+                ->all();
+        }
+
+        return $sources;
     }
 
     /**

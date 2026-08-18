@@ -10,20 +10,37 @@
     }
     .arrangement-size-table th,
     .arrangement-size-table td {
-        width: 1%;
-        vertical-align: top;
+        vertical-align: middle;
         border-right: 1px solid #e5e7eb;
     }
     .arrangement-size-table th:last-child,
     .arrangement-size-table td:last-child {
         border-right: none;
     }
+    .arrangement-size-table .arrangement-col-dest {
+        background: #d1fae5;
+    }
+    .arrangement-size-table .arrangement-col-wh1 {
+        background: #dbeafe;
+    }
+    .arrangement-size-table .arrangement-col-wh2 {
+        background: #e0e7ff;
+    }
+    .arrangement-size-table .arrangement-row-label {
+        width: 7rem;
+        min-width: 7rem;
+        font-weight: 600;
+        color: #4b5563;
+        background: #f9fafb;
+    }
+    .arrangement-size-table .arrangement-size-cell {
+        width: 1%;
+        text-align: center;
+        padding: 0.5rem 0.35rem;
+    }
     .dark .arrangement-size-table th,
     .dark .arrangement-size-table td {
         border-right-color: #4b5563;
-    }
-    .arrangement-size-table select {
-        max-width: 100%;
     }
 </style>
 @endpush
@@ -42,6 +59,7 @@ $queryParams = fn (array $extra = []) => array_filter(array_merge([
     'demand_days' => $demandDays,
     'mode' => $mode,
     'search' => $search ?: null,
+    'source_wh2_id' => $selectedSourceWarehouse2Id ?? null,
     'page' => $page > 1 ? $page : null,
 ], $extra));
 @endphp
@@ -51,7 +69,7 @@ $queryParams = fn (array $extra = []) => array_filter(array_merge([
         <div class="flex flex-wrap items-start justify-between gap-4">
             <div>
                 <h1 class="text-2xl font-bold tracking-tight">Warehouse Arrangement</h1>
-                <p class="text-gray-500">Pick source warehouses per size, then draft one move transaction per source warehouse.</p>
+                <p class="text-gray-500">Compare destination stock with two source warehouses, then draft move transactions like Restock.</p>
             </div>
             @if($selectedWarehouseId && $destinationName)
             <div class="flex flex-wrap items-center gap-2">
@@ -60,6 +78,9 @@ $queryParams = fn (array $extra = []) => array_filter(array_merge([
                     <input type="hidden" name="warehouse_id" value="{{ $selectedWarehouseId }}">
                     <input type="hidden" name="demand_days" value="{{ $demandDays }}">
                     <input type="hidden" name="mode" value="{{ $mode }}">
+                    @if($selectedSourceWarehouse2Id)
+                    <input type="hidden" name="source_wh2_id" value="{{ $selectedSourceWarehouse2Id }}">
+                    @endif
                     <button type="submit"
                             @disabled($activeRefreshJob)
                             class="inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium {{ $activeRefreshJob ? 'cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400' : 'border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100' }}">
@@ -219,6 +240,20 @@ $queryParams = fn (array $extra = []) => array_filter(array_merge([
                 <input type="hidden" name="warehouse_id" value="{{ $selectedWarehouseId }}">
                 <input type="hidden" name="demand_days" value="{{ $demandDays }}">
                 <input type="hidden" name="mode" value="{{ $mode }}">
+                @if($search)
+                <input type="hidden" name="search" value="{{ $search }}">
+                @endif
+                <div>
+                    <label for="source_wh2_id" class="mb-1 block text-xs font-medium uppercase text-gray-500">Warehouse 2</label>
+                    <select id="source_wh2_id" name="source_wh2_id" class="min-w-[180px] rounded-lg border border-gray-300 px-3 py-1.5 text-sm" onchange="this.form.submit()">
+                        <option value="">—</option>
+                        @foreach($sourceWarehouses as $wh)
+                        @if(($sourceWarehouse1['id'] ?? null) !== $wh['id'])
+                        <option value="{{ $wh['id'] }}" @selected($selectedSourceWarehouse2Id === $wh['id'])>{{ $wh['name'] }}</option>
+                        @endif
+                        @endforeach
+                    </select>
+                </div>
                 <div>
                     <label for="search" class="mb-1 block text-xs font-medium uppercase text-gray-500">Search pcode</label>
                     <input id="search" name="search" type="search" value="{{ $search }}" placeholder="CX90028-02"
@@ -228,13 +263,24 @@ $queryParams = fn (array $extra = []) => array_filter(array_merge([
             </form>
 
             <div class="flex flex-wrap items-center gap-2">
-                <template x-for="batch in draftBatches()" :key="batch.from_warehouse_id">
-                    <button type="button"
-                            @click="draftWarehouse(batch.from_warehouse_id)"
-                            class="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700">
-                        Draft <span x-text="batch.name"></span> (<span x-text="batch.count"></span>)
-                    </button>
-                </template>
+                @if($sourceWarehouse1 && $destinationName)
+                <button type="button"
+                        @click="draftFromWarehouse(1)"
+                        :disabled="selectedCountWh1() === 0"
+                        class="rounded-lg border border-blue-300 bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-900 hover:bg-blue-100 disabled:opacity-50">
+                    {{ $sourceWarehouse1['name'] }} → {{ $destinationName }}
+                    <span x-show="selectedCountWh1() > 0" x-cloak>(<span x-text="selectedCountWh1()"></span>)</span>
+                </button>
+                @endif
+                @if($sourceWarehouse2 && $destinationName)
+                <button type="button"
+                        @click="draftFromWarehouse(2)"
+                        :disabled="selectedCountWh2() === 0"
+                        class="rounded-lg border border-indigo-300 bg-indigo-50 px-3 py-1.5 text-sm font-medium text-indigo-900 hover:bg-indigo-100 disabled:opacity-50">
+                    {{ $sourceWarehouse2['name'] }} → {{ $destinationName }}
+                    <span x-show="selectedCountWh2() > 0" x-cloak>(<span x-text="selectedCountWh2()"></span>)</span>
+                </button>
+                @endif
                 <span class="text-xs text-gray-500" x-show="selectedCount() > 0" x-cloak>
                     <span x-text="selectedCount()"></span> cell(s) selected
                 </span>
@@ -288,69 +334,121 @@ $queryParams = fn (array $extra = []) => array_filter(array_merge([
                                 class="rounded border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50">
                             <span x-text="allSelectedInPcode('{{ $section['pcode'] }}') ? 'Clear all' : 'Select all'"></span>
                         </button>
-                        <button type="button" @click="applyWarehouseToPcode('{{ $section['pcode'] }}')"
-                                class="rounded border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50">
-                            Same WH as first selected
-                        </button>
                     </div>
                 </div>
             </div>
             <div class="overflow-x-auto p-3">
                 <table class="arrangement-size-table text-xs">
                     <thead>
+                        <tr class="text-center text-gray-700">
+                            <th class="arrangement-row-label px-2 py-2"></th>
+                            <th colspan="{{ count($section['sizes']) }}" class="arrangement-col-dest px-2 py-2 font-semibold">{{ $destinationName ?? 'Destination' }}</th>
+                            @if($sourceWarehouse1)
+                            <th colspan="{{ count($section['sizes']) }}" class="arrangement-col-wh1 px-2 py-2 font-semibold">{{ $sourceWarehouse1['name'] }}</th>
+                            @endif
+                            @if($sourceWarehouse2)
+                            <th colspan="{{ count($section['sizes']) }}" class="arrangement-col-wh2 px-2 py-2 font-semibold">{{ $sourceWarehouse2['name'] }}</th>
+                            @endif
+                        </tr>
                         <tr class="text-center text-gray-500">
+                            <th class="arrangement-row-label px-2 py-1"></th>
                             @foreach($section['sizes'] as $size)
-                            <th class="px-2 py-2 font-medium">{{ $size }}</th>
+                            <th class="arrangement-size-cell arrangement-col-dest font-medium">{{ $size }}</th>
                             @endforeach
+                            @if($sourceWarehouse1)
+                            @foreach($section['sizes'] as $size)
+                            <th class="arrangement-size-cell arrangement-col-wh1 font-medium">{{ $size }}</th>
+                            @endforeach
+                            @endif
+                            @if($sourceWarehouse2)
+                            @foreach($section['sizes'] as $size)
+                            <th class="arrangement-size-cell arrangement-col-wh2 font-medium">{{ $size }}</th>
+                            @endforeach
+                            @endif
                         </tr>
                     </thead>
                     <tbody>
                         <tr>
+                            <td class="arrangement-row-label px-2 py-2 text-right">Demand</td>
                             @foreach($section['sizes'] as $size)
                             @php $cell = $section['cells'][$size] ?? null; @endphp
-                            <td class="px-2 py-2">
-                                @if($cell && ($cell['moveable'] ?? false))
-                                <div class="min-h-[7rem] rounded-lg border border-gray-200 p-2"
-                                     title="{{ $cell['item_code'] }}"
-                                     :class="isSelected({{ $cell['item_id'] }}) ? 'border-blue-300 bg-blue-50' : 'bg-white dark:bg-gray-800'">
-                                    <label class="flex cursor-pointer items-center gap-1">
-                                        <input type="checkbox"
-                                               class="rounded border-gray-300"
-                                               x-model="cells[{{ $cell['item_id'] }}].selected">
-                                        <span class="font-semibold text-emerald-700">D {{ number_format($cell['demand'], 0, ',', '.') }}</span>
-                                    </label>
-                                    <select class="mt-2 w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-gray-900"
-                                            x-model.number="cells[{{ $cell['item_id'] }}].chosen_source_index"
-                                            @change="onSourceChange({{ $cell['item_id'] }})">
-                                        @foreach($cell['sources'] as $idx => $src)
-                                        <option value="{{ $idx }}">{{ $src['from_warehouse_name'] }} ({{ $src['source_stock'] }})</option>
-                                        @endforeach
-                                    </select>
-                                    <div class="mt-1.5 flex items-center gap-1.5 text-gray-500">
-                                        <span>Stock <span x-text="chosenSource(cells[{{ $cell['item_id'] }}])?.source_stock ?? 0"></span></span>
-                                        <span>·</span>
-                                        <label class="flex items-center gap-1">
-                                            Move
-                                            <input type="number" min="1"
-                                                   :max="chosenSource(cells[{{ $cell['item_id'] }}])?.source_stock ?? 1"
-                                                   class="w-14 rounded border border-gray-300 bg-white px-1.5 py-0.5 text-gray-900"
-                                                   x-model.number="cells[{{ $cell['item_id'] }}].qty">
-                                        </label>
-                                    </div>
-                                </div>
-                                @elseif($cell)
-                                <div class="flex min-h-[7rem] items-center justify-center text-center text-gray-500">
-                                    @if(($cell['dest_stock'] ?? 0) > 0)
-                                    OK · Stock {{ $cell['dest_stock'] }}
-                                    @else
-                                    No move
-                                    @endif
-                                </div>
+                            <td class="arrangement-size-cell arrangement-col-dest text-emerald-700">
+                                @if($cell && ($cell['demand'] ?? 0) > 0)
+                                {{ number_format($cell['demand'], 0, ',', '.') }}
                                 @else
-                                <div class="flex min-h-[7rem] items-center justify-center text-center text-gray-400">—</div>
+                                —
                                 @endif
                             </td>
                             @endforeach
+                            @if($sourceWarehouse1)
+                            @foreach($section['sizes'] as $size)
+                            <td class="arrangement-size-cell arrangement-col-wh1">—</td>
+                            @endforeach
+                            @endif
+                            @if($sourceWarehouse2)
+                            @foreach($section['sizes'] as $size)
+                            <td class="arrangement-size-cell arrangement-col-wh2">—</td>
+                            @endforeach
+                            @endif
+                        </tr>
+                        <tr>
+                            <td class="arrangement-row-label px-2 py-2 text-right">Stock</td>
+                            @foreach($section['sizes'] as $size)
+                            @php $cell = $section['cells'][$size] ?? null; @endphp
+                            <td class="arrangement-size-cell arrangement-col-dest font-medium text-gray-800">
+                                @if($cell)
+                                {{ (int) ($cell['dest_stock'] ?? 0) }}
+                                @else
+                                —
+                                @endif
+                            </td>
+                            @endforeach
+                            @if($sourceWarehouse1)
+                            @foreach($section['sizes'] as $size)
+                            @php $cell = $section['cells'][$size] ?? null; @endphp
+                            <td class="arrangement-size-cell arrangement-col-wh1">
+                                @if($cell && ($cell['moveable_wh1'] ?? false))
+                                <label class="flex cursor-pointer items-center justify-center gap-1">
+                                    <input type="checkbox" class="rounded border-gray-300"
+                                           x-model="cells[{{ $cell['item_id'] }}].selected_wh1">
+                                    <span class="font-semibold">{{ $cell['wh1_stock'] }}</span>
+                                </label>
+                                <div class="mt-1" x-show="cells[{{ $cell['item_id'] }}]?.selected_wh1" x-cloak>
+                                    <input type="number" min="1" :max="{{ $cell['wh1_stock'] }}"
+                                           class="mx-auto w-14 rounded border border-gray-300 px-1 py-0.5 text-center"
+                                           x-model.number="cells[{{ $cell['item_id'] }}].qty_wh1">
+                                </div>
+                                @elseif($cell)
+                                {{ (int) ($cell['wh1_stock'] ?? 0) }}
+                                @else
+                                —
+                                @endif
+                            </td>
+                            @endforeach
+                            @endif
+                            @if($sourceWarehouse2)
+                            @foreach($section['sizes'] as $size)
+                            @php $cell = $section['cells'][$size] ?? null; @endphp
+                            <td class="arrangement-size-cell arrangement-col-wh2">
+                                @if($cell && ($cell['moveable_wh2'] ?? false))
+                                <label class="flex cursor-pointer items-center justify-center gap-1">
+                                    <input type="checkbox" class="rounded border-gray-300"
+                                           x-model="cells[{{ $cell['item_id'] }}].selected_wh2">
+                                    <span class="font-semibold">{{ $cell['wh2_stock'] }}</span>
+                                </label>
+                                <div class="mt-1" x-show="cells[{{ $cell['item_id'] }}]?.selected_wh2" x-cloak>
+                                    <input type="number" min="1" :max="{{ $cell['wh2_stock'] }}"
+                                           class="mx-auto w-14 rounded border border-gray-300 px-1 py-0.5 text-center"
+                                           x-model.number="cells[{{ $cell['item_id'] }}].qty_wh2">
+                                </div>
+                                @elseif($cell)
+                                {{ (int) ($cell['wh2_stock'] ?? 0) }}
+                                @else
+                                —
+                                @endif
+                            </td>
+                            @endforeach
+                            @endif
                         </tr>
                     </tbody>
                 </table>
@@ -482,18 +580,22 @@ function refreshProgress(config) {
 function arrangementPage() {
     const sections = @json($sections);
     const destinationId = {{ (int) $selectedWarehouseId }};
+    const sourceWarehouse1Id = @json($sourceWarehouse1['id'] ?? null);
+    const sourceWarehouse2Id = @json($sourceWarehouse2['id'] ?? null);
 
     const cells = {};
     for (const section of sections) {
-        for (const [size, cell] of Object.entries(section.cells || {})) {
-            if (!cell.moveable) continue;
+        for (const cell of Object.values(section.cells || {})) {
+            if (!cell.moveable_wh1 && !cell.moveable_wh2) continue;
             cells[cell.item_id] = {
                 item_id: cell.item_id,
                 pcode: section.pcode,
-                selected: false,
-                chosen_source_index: 0,
-                qty: cell.sources?.[0]?.suggested_qty ?? 1,
-                sources: cell.sources || [],
+                selected_wh1: false,
+                selected_wh2: false,
+                qty_wh1: cell.suggested_qty_wh1 ?? 1,
+                qty_wh2: cell.suggested_qty_wh2 ?? 1,
+                wh1_stock: cell.wh1_stock ?? 0,
+                wh2_stock: cell.wh2_stock ?? 0,
                 to_warehouse_id: destinationId,
             };
         }
@@ -504,93 +606,73 @@ function arrangementPage() {
         draftPayload: [],
         error: '',
 
-        isSelected(itemId) {
-            return this.cells[itemId]?.selected ?? false;
-        },
-
-        chosenSource(cell) {
-            if (!cell) return null;
-            const idx = cell.chosen_source_index ?? 0;
-            return cell.sources?.[idx] ?? cell.sources?.[0] ?? null;
-        },
-
-        onSourceChange(itemId) {
-            const cell = this.cells[itemId];
-            if (!cell) return;
-            cell.qty = this.chosenSource(cell)?.suggested_qty ?? 1;
-        },
-
         cellsForPcode(pcode) {
             return Object.values(this.cells).filter((c) => c.pcode === pcode);
         },
 
-        selectedCells() {
-            return Object.values(this.cells).filter((c) => c.selected);
+        selectedCellsWh1() {
+            return Object.values(this.cells).filter((c) => c.selected_wh1);
+        },
+
+        selectedCellsWh2() {
+            return Object.values(this.cells).filter((c) => c.selected_wh2);
+        },
+
+        selectedCountWh1() {
+            return this.selectedCellsWh1().length;
+        },
+
+        selectedCountWh2() {
+            return this.selectedCellsWh2().length;
         },
 
         selectedCount() {
-            return this.selectedCells().length;
+            return this.selectedCountWh1() + this.selectedCountWh2();
         },
 
         allSelectedInPcode(pcode) {
-            const list = this.cellsForPcode(pcode);
-            return list.length > 0 && list.every((c) => c.selected);
+            const list = this.cellsForPcode(pcode).filter((c) => c.wh1_stock > 0 || c.wh2_stock > 0);
+            return list.length > 0 && list.every((c) => c.selected_wh1 || c.selected_wh2);
         },
 
         toggleAllInPcode(pcode) {
+            const list = this.cellsForPcode(pcode);
             const target = !this.allSelectedInPcode(pcode);
-            for (const cell of this.cellsForPcode(pcode)) cell.selected = target;
+            for (const cell of list) {
+                if (cell.wh1_stock > 0) cell.selected_wh1 = target;
+                if (cell.wh2_stock > 0) cell.selected_wh2 = target;
+            }
         },
 
         clearSelection() {
-            for (const cell of Object.values(this.cells)) cell.selected = false;
-        },
-
-        applyWarehouseToPcode(pcode) {
-            const list = this.cellsForPcode(pcode);
-            const first = list.find((c) => c.selected) ?? list[0];
-            if (!first) return;
-            const whIdx = first.chosen_source_index ?? 0;
-            for (const cell of list) {
-                if ((cell.sources || []).length > whIdx) {
-                    cell.chosen_source_index = whIdx;
-                    cell.qty = this.chosenSource(cell)?.suggested_qty ?? 1;
-                }
+            for (const cell of Object.values(this.cells)) {
+                cell.selected_wh1 = false;
+                cell.selected_wh2 = false;
             }
         },
 
-        draftBatches() {
-            const map = new Map();
-            for (const cell of this.selectedCells()) {
-                const src = this.chosenSource(cell);
-                if (!src) continue;
-                const id = src.from_warehouse_id;
-                if (!map.has(id)) {
-                    map.set(id, { from_warehouse_id: id, name: src.from_warehouse_name, count: 0 });
-                }
-                map.get(id).count++;
-            }
-            return [...map.values()];
-        },
-
-        draftWarehouse(fromWarehouseId) {
+        draftFromWarehouse(slot) {
             this.error = '';
-            const items = this.selectedCells()
-                .filter((cell) => this.chosenSource(cell)?.from_warehouse_id === fromWarehouseId)
-                .map((cell) => {
-                    const src = this.chosenSource(cell);
-                    const maxQty = src?.source_stock ?? 1;
-                    const qty = Math.max(1, Math.min(maxQty, Number(cell.qty) || 1));
-                    return {
-                        item_id: cell.item_id,
-                        quantity: qty,
-                        from_warehouse_id: src?.from_warehouse_id,
-                        to_warehouse_id: cell.to_warehouse_id,
-                    };
-                });
+            const fromWarehouseId = slot === 1 ? sourceWarehouse1Id : sourceWarehouse2Id;
+            if (!fromWarehouseId) {
+                this.error = 'Source warehouse is not configured.';
+                return;
+            }
+
+            const selected = slot === 1 ? this.selectedCellsWh1() : this.selectedCellsWh2();
+            const items = selected.map((cell) => {
+                const maxQty = slot === 1 ? cell.wh1_stock : cell.wh2_stock;
+                const qty = slot === 1 ? cell.qty_wh1 : cell.qty_wh2;
+                return {
+                    item_id: cell.item_id,
+                    quantity: Math.max(1, Math.min(maxQty, Number(qty) || 1)),
+                    from_warehouse_id: fromWarehouseId,
+                    to_warehouse_id: cell.to_warehouse_id,
+                };
+            });
 
             if (!items.length) {
-                this.error = 'No selected cells for this warehouse.';
+                this.error = 'No cells selected for this warehouse.';
                 return;
             }
 
