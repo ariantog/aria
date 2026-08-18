@@ -872,6 +872,56 @@ it('marks refresh jobs failed so the button can be used again', function () {
         ->assertSee('Rebuild stats &amp; refresh', false);
 });
 
+it('advances refresh jobs via the tick endpoint', function () {
+    Queue::fake();
+
+    $source = Addrbook::factory()->warehouse()->create();
+    $destination = Addrbook::factory()->warehouse()->create(['arrangement_enabled' => true]);
+    $destination->arrangementSources()->sync([$source->id]);
+
+    $group = ItemGroup::factory()->create(['master' => 'CX90120', 'variant' => '02']);
+    $anchor = Item::factory()->create(['group_id' => $group->id, 'type' => ItemType::ITEM, 'pcode' => 'CX90120-02', 'code' => 'AJD-CX90120-02-S']);
+    $missing = Item::factory()->create(['group_id' => $group->id, 'type' => ItemType::ITEM, 'pcode' => 'CX90120-02', 'code' => 'AJD-CX90120-02-M']);
+
+    WarehouseItem::create(['warehouse_id' => $source->id, 'item_id' => $missing->id, 'quantity' => 3]);
+    WarehouseItem::create(['warehouse_id' => $destination->id, 'item_id' => $anchor->id, 'quantity' => 1]);
+
+    $customer = Addrbook::factory()->customer()->create();
+    $date = now()->toDateString();
+
+    \App\Models\Transaction::factory()->create([
+        'type' => \App\Models\Transaction::TYPE_SELL,
+        'sender_type' => (string) Addrbook::TYPE_WAREHOUSE,
+        'sender_id' => $destination->id,
+        'receiver_type' => (string) Addrbook::TYPE_CUSTOMER,
+        'receiver_id' => $customer->id,
+        'date' => $date,
+        'user_id' => $this->user->id,
+    ])->details()->create([
+        'item_id' => $anchor->id,
+        'quantity' => 4,
+        'price' => 10000,
+        'total' => 40000,
+        'date' => $date,
+        'transaction_type' => \App\Models\Transaction::TYPE_SELL,
+        'sender_id' => $destination->id,
+        'receiver_id' => $customer->id,
+    ]);
+
+    $job = app(\App\Services\WarehouseArrangementRefreshService::class)->createJob($destination->id, $this->user->id);
+    expect($job->status)->toBe(WarehouseArrangementRefreshJob::STATUS_CREATED);
+
+    $this->actingAs($this->user)
+        ->postJson(route('reports.warehouse-arrangement.tick-refresh'), [
+            'warehouse_id' => $destination->id,
+        ])
+        ->assertSuccessful()
+        ->assertJsonPath('status', WarehouseArrangementRefreshJob::STATUS_COMPLETED)
+        ->assertJsonPath('done', true);
+
+    expect(WarehouseArrangementCandidate::query()->where('destination_warehouse_id', $destination->id)->count())->toBeGreaterThan(0);
+});
+
 it('allows cancelling a stuck refresh job', function () {
     $destination = Addrbook::factory()->warehouse()->create(['arrangement_enabled' => true]);
 

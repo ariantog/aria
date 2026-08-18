@@ -11,6 +11,7 @@ use App\Services\WarehouseArrangementExportService;
 use App\Services\WarehouseArrangementRefreshService;
 use App\Services\WarehouseArrangementService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Gate;
 
 class WarehouseArrangementController extends Controller
@@ -156,6 +157,56 @@ class WarehouseArrangementController extends Controller
         return redirect()
             ->route('reports.warehouse-arrangement', $this->refreshRedirectParams($validated))
             ->with('success', 'Rebuild cancelled. You can start a new one.');
+    }
+
+    public function tickRefresh(Request $request, WarehouseArrangementRefreshService $refreshService)
+    {
+        Gate::authorize(Report::getPermissions()['view-warehouse-arrangement']);
+
+        $validated = $request->validate([
+            'warehouse_id' => ['required', 'integer', 'exists:customers,id'],
+        ]);
+
+        $warehouseId = (int) $validated['warehouse_id'];
+
+        Addrbook::query()
+            ->where('type', AddrbookType::Warehouse)
+            ->where('arrangement_enabled', true)
+            ->findOrFail($warehouseId);
+
+        $job = $refreshService->activeJobForWarehouse($warehouseId);
+        if (! $job) {
+            $lastJob = $refreshService->lastFinishedJobForWarehouse($warehouseId);
+
+            return response()->json($lastJob
+                ? array_merge($refreshService->jobProgressPayload($lastJob), ['active' => false, 'done' => true])
+                : ['active' => false, 'done' => true]);
+        }
+
+        $lock = Cache::lock('warehouse-arrangement-refresh:'.$warehouseId, 120);
+
+        if (! $lock->get()) {
+            return response()->json(array_merge(
+                $refreshService->jobProgressPayload($job),
+                ['busy' => true],
+            ));
+        }
+
+        try {
+            $refreshService->processUntilDeadline($job, 25);
+            $job->refresh();
+
+            return response()->json($refreshService->jobProgressPayload($job));
+        } catch (\Throwable $e) {
+            $refreshService->failJob($job, $e->getMessage());
+
+            return response()->json(array_merge(
+                $refreshService->jobProgressPayload($job->fresh()),
+                ['failed' => true],
+            ), 500);
+        } finally {
+            $lock->release();
+        }
     }
 
     /**

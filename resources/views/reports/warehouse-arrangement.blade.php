@@ -88,29 +88,26 @@ $queryParams = fn (array $extra = []) => array_filter(array_merge([
 
         @if($activeRefreshJob)
         <div class="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900"
-             @if($activeRefreshJob->status === 'processing' || $activeRefreshJob->item_cursor > 0) data-auto-refresh="30" @endif>
+             x-data="refreshProgress(@js([
+                'tickUrl' => route('reports.warehouse-arrangement.tick-refresh'),
+                'warehouseId' => $selectedWarehouseId,
+                'destinationName' => $destinationName,
+                'initiatedBy' => $activeRefreshJob->initiatedByLabel(),
+                'status' => $activeRefreshJob->status,
+                'phase' => $activeRefreshJob->phase,
+                'itemCursor' => $activeRefreshJob->item_cursor,
+                'totalItems' => $activeRefreshJob->total_items,
+                'progressPercent' => $activeRefreshJob->progressPercent(),
+             ]))">
             <div class="flex flex-wrap items-start justify-between gap-3">
                 <div>
                     <p class="font-semibold">Rebuild running for {{ $destinationName ?? 'this warehouse' }}</p>
-                    <p class="mt-1 text-blue-800">
-                        Started by {{ $activeRefreshJob->initiatedByLabel() }}
-                        · Phase: {{ $activeRefreshJob->phase === 'sync' ? 'refreshing arrangement cache' : 'rebuilding monthly stats' }}
-                        @if($activeRefreshJob->phase === 'stats' && $activeRefreshJob->total_items > 0)
-                        · {{ number_format($activeRefreshJob->item_cursor) }}/{{ number_format($activeRefreshJob->total_items) }} SKU(s)
-                        · {{ $activeRefreshJob->progressPercent() }}%
-                        @endif
+                    <p class="mt-1 text-blue-800" x-text="progressLine()"></p>
+                    <p class="mt-1 text-xs text-blue-700" x-show="!busy" x-cloak>
+                        This page drives the rebuild while it stays open — about 300 SKUs every 15 seconds.
                     </p>
-                    @if($activeRefreshJob->status === 'created' && $activeRefreshJob->created_at->lt(now()->subMinutes(2)))
-                    <p class="mt-2 text-amber-800">
-                        Still waiting to start — ensure <strong>Process Queue Jobs</strong> is active in Cron Manager
-                        (<code class="rounded bg-white/70 px-1">app:process-queue</code>).
-                        You can also run <code class="rounded bg-white/70 px-1">php artisan app:process-warehouse-arrangement-refresh</code> on the server.
-                    </p>
-                    @elseif($activeRefreshJob->status === 'processing' || $activeRefreshJob->item_cursor > 0)
-                    <p class="mt-1 text-xs text-blue-700">Page refreshes every 30 seconds while progress is running.</p>
-                    @else
-                    <p class="mt-1 text-xs text-blue-700">Queued — processing starts within about a minute when the queue worker runs.</p>
-                    @endif
+                    <p class="mt-1 text-xs text-amber-800" x-show="busy" x-cloak>Another batch is already running…</p>
+                    <p class="mt-1 text-xs text-red-700" x-show="errorMessage" x-text="errorMessage" x-cloak></p>
                 </div>
                 <form method="POST" action="{{ route('reports.warehouse-arrangement.cancel-refresh') }}" class="shrink-0"
                       onsubmit="return confirm('Cancel this rebuild?');">
@@ -407,12 +404,81 @@ $queryParams = fn (array $extra = []) => array_filter(array_merge([
 @endsection
 
 @push('scripts')
-@if($activeRefreshJob && ($activeRefreshJob->status === 'processing' || $activeRefreshJob->item_cursor > 0))
 <script>
-setTimeout(function () { window.location.reload(); }, 30000);
-</script>
-@endif
-<script>
+function refreshProgress(config) {
+    return {
+        tickUrl: config.tickUrl,
+        warehouseId: config.warehouseId,
+        initiatedBy: config.initiatedBy,
+        status: config.status,
+        phase: config.phase,
+        itemCursor: config.itemCursor,
+        totalItems: config.totalItems,
+        progressPercent: config.progressPercent,
+        busy: false,
+        polling: false,
+        errorMessage: '',
+
+        init() {
+            this.runTick();
+            setInterval(() => this.runTick(), 15000);
+        },
+
+        phaseLabel() {
+            return this.phase === 'sync' ? 'refreshing arrangement cache' : 'rebuilding monthly stats';
+        },
+
+        progressLine() {
+            let line = `Started by ${this.initiatedBy} · Phase: ${this.phaseLabel()}`;
+            if (this.phase === 'stats' && this.totalItems > 0) {
+                line += ` · ${Number(this.itemCursor).toLocaleString('id-ID')}/${Number(this.totalItems).toLocaleString('id-ID')} SKU(s) · ${this.progressPercent}%`;
+            }
+            return line;
+        },
+
+        async runTick() {
+            if (this.polling) return;
+            this.polling = true;
+            this.errorMessage = '';
+
+            try {
+                const response = await fetch(this.tickUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content ?? '',
+                    },
+                    body: JSON.stringify({ warehouse_id: this.warehouseId }),
+                });
+
+                const data = await response.json();
+                this.busy = !!data.busy;
+
+                if (!data.busy) {
+                    this.status = data.status ?? this.status;
+                    this.phase = data.phase ?? this.phase;
+                    this.itemCursor = data.item_cursor ?? this.itemCursor;
+                    this.totalItems = data.total_items ?? this.totalItems;
+                    this.progressPercent = data.progress_percent ?? this.progressPercent;
+                }
+
+                if (data.failed) {
+                    this.errorMessage = data.error_message ?? 'Rebuild failed.';
+                }
+
+                if (data.done || data.failed) {
+                    window.location.reload();
+                }
+            } catch (error) {
+                this.errorMessage = 'Could not reach the server to continue the rebuild.';
+            } finally {
+                this.polling = false;
+            }
+        },
+    };
+}
+
 function arrangementPage() {
     const sections = @json($sections);
     const destinationId = {{ (int) $selectedWarehouseId }};
