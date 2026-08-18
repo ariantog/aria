@@ -8,6 +8,7 @@ use App\Models\ItemGroup;
 use App\Models\User;
 use App\Models\WarehouseItem;
 use App\Models\WarehouseItemMonthlyStat;
+use App\Models\WarehouseArrangementCandidate;
 use App\Services\WarehouseArrangementService;
 use App\Services\WarehouseArrangementSyncService;
 use Illuminate\Support\Facades\DB;
@@ -742,4 +743,92 @@ it('skips legacy transaction details with zero or orphaned warehouse ids when re
     expect($stats)->toHaveCount(1);
     expect($stats->first()->warehouse_id)->toBe($warehouse->id);
     expect((float) $stats->first()->sold_qty)->toBe(2.0);
+});
+
+it('rebuilds stats and refreshes arrangement cache from the report page', function () {
+    $source = Addrbook::factory()->warehouse()->create(['name' => 'Source WH']);
+    $destination = Addrbook::factory()->warehouse()->create([
+        'name' => 'Flagship WH',
+        'arrangement_enabled' => true,
+    ]);
+
+    $destination->arrangementSources()->sync([$source->id]);
+
+    $group = ItemGroup::factory()->create(['master' => 'CX90036', 'variant' => '02']);
+    $anchor = Item::factory()->create(['group_id' => $group->id, 'type' => ItemType::ITEM, 'pcode' => 'CX90036-02', 'code' => 'AJD-CX90036-02-S']);
+    $missing = Item::factory()->create(['group_id' => $group->id, 'type' => ItemType::ITEM, 'pcode' => 'CX90036-02', 'code' => 'AJD-CX90036-02-M']);
+
+    WarehouseItem::create(['warehouse_id' => $source->id, 'item_id' => $missing->id, 'quantity' => 4]);
+    WarehouseItem::create(['warehouse_id' => $destination->id, 'item_id' => $anchor->id, 'quantity' => 1]);
+
+    $customer = Addrbook::factory()->customer()->create();
+    $date = now()->toDateString();
+
+    \App\Models\Transaction::factory()->create([
+        'type' => \App\Models\Transaction::TYPE_SELL,
+        'sender_type' => (string) Addrbook::TYPE_WAREHOUSE,
+        'sender_id' => $destination->id,
+        'receiver_type' => (string) Addrbook::TYPE_CUSTOMER,
+        'receiver_id' => $customer->id,
+        'date' => $date,
+        'user_id' => $this->user->id,
+    ])->details()->create([
+        'item_id' => $anchor->id,
+        'quantity' => 5,
+        'price' => 10000,
+        'total' => 50000,
+        'date' => $date,
+        'transaction_type' => \App\Models\Transaction::TYPE_SELL,
+        'sender_id' => $destination->id,
+        'receiver_id' => $customer->id,
+    ]);
+
+    $this->actingAs($this->user)
+        ->post(route('reports.warehouse-arrangement.refresh'), [
+            'warehouse_id' => $destination->id,
+            'demand_days' => 365,
+            'mode' => WarehouseArrangementService::MODE_DEMAND,
+        ])
+        ->assertRedirect(route('reports.warehouse-arrangement', [
+            'warehouse_id' => $destination->id,
+            'demand_days' => 365,
+            'mode' => WarehouseArrangementService::MODE_DEMAND,
+        ]))
+        ->assertSessionHas('success');
+
+    expect(WarehouseArrangementCandidate::query()->where('destination_warehouse_id', $destination->id)->count())->toBeGreaterThan(0);
+});
+
+it('syncs arrangement for items with legacy type column values', function () {
+    $source = Addrbook::factory()->warehouse()->create();
+    $destination = Addrbook::factory()->warehouse()->create(['arrangement_enabled' => true]);
+    $destination->arrangementSources()->sync([$source->id]);
+
+    $group = ItemGroup::factory()->create(['master' => 'CX90037', 'variant' => '02']);
+    $anchor = Item::factory()->create(['group_id' => $group->id, 'type' => ItemType::ITEM, 'pcode' => 'CX90037-02', 'code' => 'AJD-CX90037-02-S']);
+    $missing = Item::factory()->create(['group_id' => $group->id, 'type' => ItemType::ITEM, 'pcode' => 'CX90037-02', 'code' => 'AJD-CX90037-02-M']);
+    DB::table('items')->where('id', $missing->id)->update(['type' => 4]);
+
+    WarehouseItem::create(['warehouse_id' => $source->id, 'item_id' => $missing->id, 'quantity' => 3]);
+    WarehouseItem::create(['warehouse_id' => $destination->id, 'item_id' => $anchor->id, 'quantity' => 1]);
+
+    $now = now();
+    WarehouseItemMonthlyStat::create([
+        'warehouse_id' => $destination->id,
+        'item_id' => $anchor->id,
+        'month' => $now->month,
+        'year' => $now->year,
+        'sold_qty' => 6,
+        'returned_qty' => 0,
+        'item_type' => ItemType::ITEM->value,
+    ]);
+
+    app(WarehouseArrangementSyncService::class)->syncAll($destination->id);
+
+    $candidate = WarehouseArrangementCandidate::query()
+        ->where('destination_warehouse_id', $destination->id)
+        ->where('item_id', $missing->id)
+        ->first();
+
+    expect($candidate)->not->toBeNull();
 });

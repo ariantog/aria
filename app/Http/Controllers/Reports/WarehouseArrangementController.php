@@ -9,7 +9,9 @@ use App\Models\Item;
 use App\Models\Report;
 use App\Services\WarehouseArrangementExportService;
 use App\Services\WarehouseArrangementService;
+use App\Services\WarehouseArrangementSyncService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Gate;
 
 class WarehouseArrangementController extends Controller
@@ -43,6 +45,7 @@ class WarehouseArrangementController extends Controller
 
         $result = null;
         $sections = [];
+        $cacheDiagnostics = null;
 
         if ($warehouseId && $destinations->contains('id', $warehouseId)) {
             $result = $arrangementService->buildPage(
@@ -55,6 +58,7 @@ class WarehouseArrangementController extends Controller
                 $excludeItemIds,
             );
             $sections = $result['sections'];
+            $cacheDiagnostics = $arrangementService->cacheDiagnostics($warehouseId);
         }
 
         $totalPcodes = $result['total_pcodes'] ?? 0;
@@ -75,7 +79,58 @@ class WarehouseArrangementController extends Controller
             'destinationName' => $result['destination']->name ?? null,
             'syncedAt' => $result['synced_at'] ?? null,
             'stale' => $result['stale'] ?? false,
+            'cacheDiagnostics' => $cacheDiagnostics,
             'flash' => ['success' => session('success'), 'error' => session('error')],
+        ]);
+    }
+
+    public function refresh(Request $request, WarehouseArrangementSyncService $sync)
+    {
+        Gate::authorize(Report::getPermissions()['view-warehouse-arrangement']);
+
+        $validated = $request->validate([
+            'warehouse_id' => ['required', 'integer', 'exists:customers,id'],
+            'demand_days' => ['nullable', 'integer', 'in:30,90,180,365'],
+            'mode' => ['nullable', 'string', 'in:'.WarehouseArrangementService::MODE_DEMAND.','.WarehouseArrangementService::MODE_FAMILY],
+        ]);
+
+        $warehouseId = (int) $validated['warehouse_id'];
+
+        Addrbook::query()
+            ->where('type', AddrbookType::Warehouse)
+            ->where('arrangement_enabled', true)
+            ->findOrFail($warehouseId);
+
+        $recalcExit = Artisan::call('app:recalculate-warehouse-item-stats');
+        if ($recalcExit !== 0) {
+            return redirect()
+                ->route('reports.warehouse-arrangement', $this->refreshRedirectParams($validated))
+                ->with('error', 'Failed to rebuild warehouse monthly stats. Check logs for details.');
+        }
+
+        if (! $sync->arrangementTablesExist()) {
+            return redirect()
+                ->route('reports.warehouse-arrangement', $this->refreshRedirectParams($validated))
+                ->with('error', 'Warehouse arrangement cache tables are missing. Run php artisan migrate first.');
+        }
+
+        $sync->syncAll($warehouseId);
+
+        return redirect()
+            ->route('reports.warehouse-arrangement', $this->refreshRedirectParams($validated))
+            ->with('success', 'Monthly sell stats rebuilt and arrangement cache refreshed for this destination.');
+    }
+
+    /**
+     * @param  array<string, mixed>  $validated
+     * @return array<string, mixed>
+     */
+    private function refreshRedirectParams(array $validated): array
+    {
+        return array_filter([
+            'warehouse_id' => (int) $validated['warehouse_id'],
+            'demand_days' => isset($validated['demand_days']) ? (int) $validated['demand_days'] : null,
+            'mode' => $validated['mode'] ?? null,
         ]);
     }
 
