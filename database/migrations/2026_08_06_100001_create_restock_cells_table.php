@@ -18,6 +18,7 @@ return new class extends Migration
             $table->unsignedInteger('qty_production')->default(0);
             $table->unsignedInteger('qty_shipped')->default(0);
             $table->unsignedInteger('qty_missing')->default(0);
+            $table->timestamp('missing_at')->nullable();
             $table->boolean('is_urgent')->default(false);
             $table->boolean('urgent_manual')->default(false);
             $table->timestamp('urgent_flagged_at')->nullable();
