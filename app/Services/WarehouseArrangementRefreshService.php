@@ -7,6 +7,7 @@ use App\Models\WarehouseArrangementRefreshJob;
 use App\Models\WarehouseItemMonthlyStat;
 use App\Jobs\ProcessWarehouseArrangementRefreshBatch;
 use App\Services\Items\ItemDimensionResolver;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 class WarehouseArrangementRefreshService
@@ -64,9 +65,74 @@ class WarehouseArrangementRefreshService
             'total_items' => count($itemIds),
         ]);
 
+        $this->rememberItemIds($job->id, $itemIds);
+
         ProcessWarehouseArrangementRefreshBatch::dispatch($job->id);
 
         return $job;
+    }
+
+    /**
+     * @return array{done: bool, processed: int, phase: string, message: ?string, status: string, item_cursor: int, total_items: int, progress_percent: int, error_message: ?string}
+     */
+    public function processUntilDeadline(WarehouseArrangementRefreshJob $job, int $seconds = 25): array
+    {
+        $deadline = microtime(true) + $seconds;
+        $totalProcessed = 0;
+        $lastResult = [
+            'done' => false,
+            'processed' => 0,
+            'phase' => $job->phase,
+            'message' => null,
+        ];
+
+        while (microtime(true) < $deadline) {
+            $job->refresh();
+
+            if (! $job->isActive()) {
+                break;
+            }
+
+            $lastResult = $this->processNextBatch($job);
+            $totalProcessed += $lastResult['processed'];
+            $job->refresh();
+
+            if ($lastResult['done'] || ! $job->isActive()) {
+                break;
+            }
+
+            if ($job->phase === WarehouseArrangementRefreshJob::PHASE_SYNC) {
+                break;
+            }
+        }
+
+        $job->refresh();
+
+        return array_merge($lastResult, [
+            'processed' => $totalProcessed,
+            'done' => ! $job->isActive() || $lastResult['done'],
+            'status' => $job->status,
+            'item_cursor' => $job->item_cursor,
+            'total_items' => $job->total_items,
+            'progress_percent' => $job->progressPercent(),
+            'error_message' => $job->error_message,
+        ]);
+    }
+
+    public function jobProgressPayload(WarehouseArrangementRefreshJob $job): array
+    {
+        return [
+            'active' => $job->isActive(),
+            'done' => ! $job->isActive(),
+            'failed' => $job->status === WarehouseArrangementRefreshJob::STATUS_FAILED,
+            'status' => $job->status,
+            'phase' => $job->phase,
+            'item_cursor' => $job->item_cursor,
+            'total_items' => $job->total_items,
+            'progress_percent' => $job->progressPercent(),
+            'error_message' => $job->error_message,
+            'result_message' => $job->result_message,
+        ];
     }
 
     /**
@@ -106,7 +172,7 @@ class WarehouseArrangementRefreshService
     private function processStatsBatch(WarehouseArrangementRefreshJob $job, int $batchSize): array
     {
         $warehouseId = (int) $job->destination_warehouse_id;
-        $itemIds = $this->itemIdsForWarehouse($warehouseId);
+        $itemIds = $this->itemIdsForJob($job);
 
         if ($itemIds === []) {
             $job->update(['phase' => WarehouseArrangementRefreshJob::PHASE_SYNC]);
@@ -202,6 +268,41 @@ class WarehouseArrangementRefreshService
             'error_message' => $message,
             'completed_at' => now(),
         ]);
+
+        Cache::forget($this->itemIdsCacheKey($job->id));
+    }
+
+    /**
+     * @param  list<int>  $itemIds
+     */
+    private function rememberItemIds(int $jobId, array $itemIds): void
+    {
+        Cache::put($this->itemIdsCacheKey($jobId), $itemIds, now()->addDay());
+    }
+
+    private function itemIdsCacheKey(int $jobId): string
+    {
+        return 'warehouse-arrangement-refresh-items:'.$jobId;
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function itemIdsForJob(WarehouseArrangementRefreshJob $job): array
+    {
+        $cached = Cache::get($this->itemIdsCacheKey($job->id));
+        if (is_array($cached)) {
+            return array_values(array_map('intval', $cached));
+        }
+
+        $itemIds = $this->itemIdsForWarehouse((int) $job->destination_warehouse_id);
+        $this->rememberItemIds($job->id, $itemIds);
+
+        if ($job->total_items !== count($itemIds)) {
+            $job->update(['total_items' => count($itemIds)]);
+        }
+
+        return $itemIds;
     }
 
     /**
