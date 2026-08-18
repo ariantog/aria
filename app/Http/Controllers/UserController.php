@@ -44,7 +44,7 @@ class UserController extends Controller
 
         return view('users.create', [
             'locations' => Location::all(),
-            'roles' => \Spatie\Permission\Models\Role::all(),
+            'roles' => \App\Models\Role::all(),
         ]);
     }
 
@@ -81,7 +81,7 @@ class UserController extends Controller
             'editUser' => $user->load('roles'),
             'userRoles' => $user->roles->pluck('name'),
             'locations' => Location::all(),
-            'roles' => \Spatie\Permission\Models\Role::all(),
+            'roles' => \App\Models\Role::all(),
         ]);
     }
 

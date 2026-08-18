@@ -34,6 +34,8 @@ Route::post('jubelio/webhook/return', [App\Http\Controllers\JubelioController::c
 Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::get('/permissions', [App\Http\Controllers\PermissionController::class, 'index'])->name('permissions.index');
     Route::post('/permissions/generate', [App\Http\Controllers\PermissionController::class, 'generate'])->name('permissions.generate');
+    Route::get('roles/deleted', [App\Http\Controllers\RoleController::class, 'deleted'])->name('roles.deleted.index');
+    Route::post('roles/{role}/restore', [App\Http\Controllers\RoleController::class, 'restore'])->name('roles.restore');
     Route::resource('roles', App\Http\Controllers\RoleController::class);
     Route::post('users/{user}/ban', [\App\Http\Controllers\UserController::class, 'ban'])->name('users.ban');
     Route::post('users/{user}/unban', [\App\Http\Controllers\UserController::class, 'unban'])->name('users.unban');
