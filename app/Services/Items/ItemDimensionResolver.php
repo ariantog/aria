@@ -5,6 +5,7 @@ namespace App\Services\Items;
 use App\Enums\ItemBrand;
 use App\Enums\ItemType;
 use App\Models\Item;
+use App\Models\ItemGroup;
 use App\Models\Tag;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -43,7 +44,7 @@ class ItemDimensionResolver
      *     brand: ?int
      * }
      */
-    public function resolve(Item $item): array
+    public function resolve(Item $item, ?Collection $tagMap = null): array
     {
         $item->loadMissing(['tags', 'group']);
 
@@ -66,8 +67,8 @@ class ItemDimensionResolver
             ];
         }
 
-        $genreTag = $item->genre ? Tag::find($item->genre) : null;
-        $sizeTag = $item->size ? Tag::find($item->size) : null;
+        $genreTag = $item->genre ? $this->tagFromMap($tagMap, (int) $item->genre) : null;
+        $sizeTag = $item->size ? $this->tagFromMap($tagMap, (int) $item->size) : null;
         $brand = $item->brand instanceof ItemBrand ? $item->brand->value : (is_numeric($item->brand) ? (int) $item->brand : null);
 
         return [
@@ -98,18 +99,72 @@ class ItemDimensionResolver
             return [];
         }
 
+        $resolved = [];
+        foreach (array_chunk($itemIds, 1000) as $chunk) {
+            $resolved += $this->resolveManyChunk($chunk);
+        }
+
+        return $resolved;
+    }
+
+    /**
+     * @param  list<int>  $itemIds
+     * @return array<int, array<string, mixed>>
+     */
+    private function resolveManyChunk(array $itemIds): array
+    {
+        if ($itemIds === []) {
+            return [];
+        }
+
         $rows = DB::table('items')
             ->whereIn('id', $itemIds)
             ->whereNull('deleted_at')
             ->get();
+
+        if ($rows->isEmpty()) {
+            return [];
+        }
 
         $items = collect();
         foreach ($rows as $row) {
             $item = new Item;
             $item->mergeCasts(['type' => 'integer', 'brand' => 'integer']);
             $item->setRawAttributes((array) $row, true);
-            $item->load(['tags', 'group']);
             $items->put((int) $row->id, $item);
+        }
+
+        $groupIds = $items->pluck('group_id')->filter(fn ($id) => (int) $id > 0)->unique()->values();
+        $groups = $groupIds->isEmpty()
+            ? collect()
+            : ItemGroup::query()->whereIn('id', $groupIds)->get()->keyBy('id');
+
+        $pivotRows = DB::table('item_tag')
+            ->whereIn('item_id', $items->keys())
+            ->get();
+
+        $tagIds = $pivotRows->pluck('tag_id')
+            ->merge($items->pluck('genre'))
+            ->merge($items->pluck('size'))
+            ->filter(fn ($id) => (int) $id > 0)
+            ->unique()
+            ->values();
+
+        $tagMap = $tagIds->isEmpty()
+            ? collect()
+            : Tag::query()->whereIn('id', $tagIds)->get()->keyBy('id');
+
+        $tagsByItemId = [];
+        foreach ($pivotRows as $pivot) {
+            $tag = $tagMap->get((int) $pivot->tag_id);
+            if ($tag) {
+                $tagsByItemId[(int) $pivot->item_id][] = $tag;
+            }
+        }
+
+        foreach ($items as $itemId => $item) {
+            $item->setRelation('group', $groups->get((int) $item->group_id));
+            $item->setRelation('tags', collect($tagsByItemId[$itemId] ?? []));
         }
 
         $resolved = [];
@@ -118,10 +173,19 @@ class ItemDimensionResolver
             if (! $item) {
                 continue;
             }
-            $resolved[$itemId] = $this->resolve($item);
+            $resolved[$itemId] = $this->resolve($item, $tagMap);
         }
 
         return $resolved;
+    }
+
+    private function tagFromMap(?Collection $tagMap, int $tagId): ?Tag
+    {
+        if ($tagMap) {
+            return $tagMap->get($tagId);
+        }
+
+        return Tag::find($tagId);
     }
 
     public function grainKey(string $grain, array $dims): string
