@@ -10,7 +10,9 @@ use App\Models\WarehouseItem;
 use App\Models\WarehouseItemMonthlyStat;
 use App\Models\WarehouseArrangementCandidate;
 use App\Models\WarehouseArrangementRefreshJob;
+use App\Jobs\ProcessWarehouseArrangementRefreshBatch;
 use App\Services\WarehouseArrangementService;
+use Illuminate\Support\Facades\Queue;
 use App\Services\WarehouseArrangementSyncService;
 use Illuminate\Support\Facades\DB;
 
@@ -747,6 +749,8 @@ it('skips legacy transaction details with zero or orphaned warehouse ids when re
 });
 
 it('queues a background refresh job from the report page', function () {
+    Queue::fake();
+
     $source = Addrbook::factory()->warehouse()->create(['name' => 'Source WH']);
     $destination = Addrbook::factory()->warehouse()->create([
         'name' => 'Flagship WH',
@@ -804,6 +808,10 @@ it('queues a background refresh job from the report page', function () {
     expect($job)->not->toBeNull();
     expect($job->user_id)->toBe($this->user->id);
     expect($job->status)->toBe(WarehouseArrangementRefreshJob::STATUS_CREATED);
+
+    Queue::assertPushed(ProcessWarehouseArrangementRefreshBatch::class, fn ($queued) => $queued->refreshJobId === $job->id);
+
+    Queue::fake(false);
 
     $this->artisan('app:process-warehouse-arrangement-refresh')->assertSuccessful();
 
@@ -864,7 +872,31 @@ it('marks refresh jobs failed so the button can be used again', function () {
         ->assertSee('Rebuild stats &amp; refresh', false);
 });
 
+it('allows cancelling a stuck refresh job', function () {
+    $destination = Addrbook::factory()->warehouse()->create(['arrangement_enabled' => true]);
+
+    WarehouseArrangementRefreshJob::create([
+        'destination_warehouse_id' => $destination->id,
+        'user_id' => $this->user->id,
+        'status' => WarehouseArrangementRefreshJob::STATUS_CREATED,
+        'phase' => WarehouseArrangementRefreshJob::PHASE_STATS,
+        'total_items' => 100,
+    ]);
+
+    $this->actingAs($this->user)
+        ->post(route('reports.warehouse-arrangement.cancel-refresh'), [
+            'warehouse_id' => $destination->id,
+        ])
+        ->assertRedirect()
+        ->assertSessionHas('success');
+
+    expect(WarehouseArrangementRefreshJob::query()->where('destination_warehouse_id', $destination->id)->first()->status)
+        ->toBe(WarehouseArrangementRefreshJob::STATUS_FAILED);
+});
+
 it('processes refresh jobs in sku batches', function () {
+    Queue::fake();
+
     $source = Addrbook::factory()->warehouse()->create();
     $destination = Addrbook::factory()->warehouse()->create(['arrangement_enabled' => true]);
     $destination->arrangementSources()->sync([$source->id]);

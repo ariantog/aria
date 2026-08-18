@@ -12,9 +12,13 @@ class ProcessQueue extends Command
 
     public function handle(): int
     {
-        return $this->call('queue:work', [
+        $exit = $this->call('queue:work', [
             '--stop-when-empty' => true,
             '--max-time' => 55,
         ]);
+
+        $this->call('app:process-warehouse-arrangement-refresh');
+
+        return $exit;
     }
 }

@@ -284,6 +284,7 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
         Route::get('/warehouse-arrangement/export', [\App\Http\Controllers\Reports\WarehouseArrangementController::class, 'export'])->name('warehouse-arrangement.export');
         Route::post('/warehouse-arrangement/draft-move', [\App\Http\Controllers\Reports\WarehouseArrangementController::class, 'draftMove'])->name('warehouse-arrangement.draft-move');
         Route::post('/warehouse-arrangement/refresh', [\App\Http\Controllers\Reports\WarehouseArrangementController::class, 'refresh'])->name('warehouse-arrangement.refresh');
+        Route::post('/warehouse-arrangement/cancel-refresh', [\App\Http\Controllers\Reports\WarehouseArrangementController::class, 'cancelRefresh'])->name('warehouse-arrangement.cancel-refresh');
         Route::get('/product-performance', [\App\Http\Controllers\Reports\ProductPerformanceController::class, 'index'])->name('product-performance');
         Route::get('/produksi-potong', \App\Http\Controllers\Reports\ProduksiPotongReportController::class)->name('produksi-potong');
         Route::get('/produksi-qc', \App\Http\Controllers\Reports\ProduksiQcReportController::class)->name('produksi-qc');
