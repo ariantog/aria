@@ -662,6 +662,46 @@ it('recalculates warehouse item monthly stats from transaction details', functio
     expect((float) $stat->sold_qty)->toBe(3.0);
 });
 
+it('recalculates stats for items with legacy item type values', function () {
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    $customer = Addrbook::factory()->customer()->create();
+    $group = ItemGroup::factory()->create(['master' => 'CX90033', 'variant' => '02']);
+    $item = Item::factory()->create(['group_id' => $group->id, 'type' => ItemType::ITEM]);
+    DB::table('items')->where('id', $item->id)->update(['type' => 4]);
+
+    $date = now()->toDateString();
+
+    \App\Models\Transaction::factory()->create([
+        'type' => \App\Models\Transaction::TYPE_SELL,
+        'sender_type' => (string) Addrbook::TYPE_WAREHOUSE,
+        'sender_id' => $warehouse->id,
+        'receiver_type' => (string) Addrbook::TYPE_CUSTOMER,
+        'receiver_id' => $customer->id,
+        'date' => $date,
+        'user_id' => $this->user->id,
+    ])->details()->create([
+        'item_id' => $item->id,
+        'quantity' => 5,
+        'price' => 10000,
+        'total' => 50000,
+        'date' => $date,
+        'transaction_type' => \App\Models\Transaction::TYPE_SELL,
+        'sender_id' => $warehouse->id,
+        'receiver_id' => $customer->id,
+    ]);
+
+    $this->artisan('app:recalculate-warehouse-item-stats')->assertSuccessful();
+
+    $stat = WarehouseItemMonthlyStat::query()
+        ->where('warehouse_id', $warehouse->id)
+        ->where('item_id', $item->id)
+        ->first();
+
+    expect($stat)->not->toBeNull();
+    expect((float) $stat->sold_qty)->toBe(5.0);
+    expect($stat->item_type)->toBe(ItemType::ITEM->value);
+});
+
 it('skips legacy transaction details with zero or orphaned warehouse ids when recalculating stats', function () {
     $warehouse = Addrbook::factory()->warehouse()->create();
     $customer = Addrbook::factory()->customer()->create();

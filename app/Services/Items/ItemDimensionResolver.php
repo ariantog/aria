@@ -13,6 +13,25 @@ class ItemDimensionResolver
 {
     public function __construct(private readonly ItemIdentityBuilder $identityBuilder) {}
 
+    public function findItem(int $itemId): ?Item
+    {
+        $row = DB::table('items')
+            ->where('id', $itemId)
+            ->whereNull('deleted_at')
+            ->first();
+
+        if (! $row) {
+            return null;
+        }
+
+        $item = new Item;
+        $item->mergeCasts(['type' => 'integer', 'brand' => 'integer']);
+        $item->setRawAttributes((array) $row, true);
+        $item->load(['tags', 'group']);
+
+        return $item;
+    }
+
     /**
      * @return array{
      *     item_type: int,
@@ -79,11 +98,19 @@ class ItemDimensionResolver
             return [];
         }
 
-        $items = Item::query()
-            ->with(['tags', 'group'])
+        $rows = DB::table('items')
             ->whereIn('id', $itemIds)
-            ->get()
-            ->keyBy('id');
+            ->whereNull('deleted_at')
+            ->get();
+
+        $items = collect();
+        foreach ($rows as $row) {
+            $item = new Item;
+            $item->mergeCasts(['type' => 'integer', 'brand' => 'integer']);
+            $item->setRawAttributes((array) $row, true);
+            $item->load(['tags', 'group']);
+            $items->put((int) $row->id, $item);
+        }
 
         $resolved = [];
         foreach ($itemIds as $itemId) {
