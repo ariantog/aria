@@ -17,6 +17,10 @@ class AddrbookController extends Controller
 {
     public function index(?string $type = null)
     {
+        if ($type === null) {
+            abort(404);
+        }
+
         Gate::authorize(Addrbook::getPermissions($type)['view']);
 
         $typeId = null;
@@ -78,6 +82,10 @@ class AddrbookController extends Controller
 
     public function create(?string $type = null)
     {
+        if ($type === null) {
+            abort(404);
+        }
+
         Gate::authorize(Addrbook::getPermissions($type)['create']);
 
         $pt = null;
@@ -106,7 +114,7 @@ class AddrbookController extends Controller
         $this->syncAddrbookLocations($a, $r->input('location_ids', []));
         $this->syncArrangementSources($a, $r->input('arrangement_source_ids', []));
 
-        return redirect()->route('addrbook.index')->with('success', 'Created.');
+        return redirect()->to(Addrbook::typeIndexRoute((int) $a->type))->with('success', 'Created.');
     }
 
     public function show(Addrbook $addrbook)
@@ -194,7 +202,7 @@ class AddrbookController extends Controller
         $this->syncAddrbookLocations($a, $r->input('location_ids', []));
         $this->syncArrangementSources($a, $r->input('arrangement_source_ids', []));
 
-        return redirect()->route('addrbook.index')->with('success', 'Updated.');
+        return redirect()->to(Addrbook::typeIndexRoute((int) $a->type))->with('success', 'Updated.');
     }
 
     public function transactions($id)
@@ -382,7 +390,7 @@ class AddrbookController extends Controller
         Gate::authorize(Addrbook::getPermissions($this->addrbookTypeSlug($a))['delete']);
         $a->delete();
 
-        return redirect()->route('addrbook.index')->with('success', 'Deleted.');
+        return redirect()->to(Addrbook::typeIndexRoute((int) $a->type))->with('success', 'Deleted.');
     }
 
     private function authorizeAddrbookLocation(Addrbook $addrbook): void

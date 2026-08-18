@@ -91,7 +91,8 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::delete('jubelio-sync/{sync}', [App\Http\Controllers\JubelioSyncController::class, 'destroy'])->name('jubelio.sync.delete');
     Route::get('jubelio-sync/{sync}/bin', [App\Http\Controllers\JubelioSyncController::class, 'getBin'])->name('jubelio.sync.getBin');
 
-    Route::resource('addrbook', App\Http\Controllers\AddrbookController::class);
+    Route::get('addrbook', fn () => abort(404));
+    Route::resource('addrbook', App\Http\Controllers\AddrbookController::class)->except(['index']);
     Route::get('addrbook/{addrbook}/transactions', [App\Http\Controllers\AddrbookController::class, 'transactions'])->name('addrbook.transactions');
     Route::get('addrbook/{addrbook}/items', [App\Http\Controllers\AddrbookController::class, 'items'])->name('addrbook.items');
     Route::get('addrbook/{addrbook}/item-sales', [App\Http\Controllers\AddrbookController::class, 'itemSales'])->name('addrbook.item-sales');

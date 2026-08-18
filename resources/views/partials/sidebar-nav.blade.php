@@ -78,8 +78,13 @@
 @endif
 
 {{-- ── Address Book ──────────────────────────────────────────────────── --}}
-@if($hasPerm('addrbook-list') || $isSuperAdmin || count($addrbookTypes))
-@php $abActive = $isActive('/addrbook'); @endphp
+@php
+    $visibleAddrbookTypes = collect($addrbookTypes)->filter(
+        fn ($type) => $hasPerm($type['permission']) || $isSuperAdmin
+    );
+@endphp
+@if($isSuperAdmin || $visibleAddrbookTypes->isNotEmpty())
+@php $abActive = $isActive('/addrbook') || $visibleAddrbookTypes->contains(fn ($type) => $isActive('/'.$type['slug'])); @endphp
 <div x-data="{ open: {{ $abActive ? 'true' : 'false' }} }" class="mb-1">
     <button @click="open = !open"
             class="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors
@@ -89,13 +94,8 @@
         <svg x-show="sidebarOpen" x-cloak :class="open ? 'rotate-90' : ''" class="h-3.5 w-3.5 flex-shrink-0 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
     </button>
     <div x-show="open && sidebarOpen" x-cloak class="ml-6 mt-1 space-y-0.5">
-        @if($hasPerm('addrbook-list') || $isSuperAdmin)
-        <a href="{{ url('/addrbook') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $currentUrl === 'addrbook' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">All Contacts</a>
-        @endif
-        @foreach($addrbookTypes as $type)
-            @if($hasPerm($type['permission']) || $isSuperAdmin)
+        @foreach($visibleAddrbookTypes as $type)
             <a href="{{ url('/'.$type['slug']) }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/'.$type['slug']) ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">{{ $type['name'] }}</a>
-            @endif
         @endforeach
     </div>
 </div>

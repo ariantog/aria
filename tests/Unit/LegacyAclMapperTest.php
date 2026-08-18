@@ -23,7 +23,7 @@ it('maps printer transaction ACL to transaction sync permissions', function () {
 it('maps customer addrbook ACL rows to new permissions', function () {
     $mapper = new LegacyAclMapper;
 
-    expect($mapper->map(LegacyAclMapper::CUSTOMERS, 'index'))->toContain('addrbook-customer-list', 'addrbook-list')
+    expect($mapper->map(LegacyAclMapper::CUSTOMERS, 'index'))->toBe(['addrbook-customer-list'])
         ->and($mapper->map(LegacyAclMapper::CUSTOMERS, 'create'))->toBe(['addrbook-customer-create']);
 });
 
