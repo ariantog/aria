@@ -42,6 +42,16 @@ class PermissionTableConfig
             && ! filled(env('PERMISSION_TABLE_PERMISSIONS'));
     }
 
+    public static function rolesTable(): string
+    {
+        return (string) config('permission.table_names.roles', 'roles');
+    }
+
+    public static function permissionsTable(): string
+    {
+        return (string) config('permission.table_names.permissions', 'permissions');
+    }
+
     private static function forgetPermissionCache(): void
     {
         if (app()->bound(PermissionRegistrar::class)) {

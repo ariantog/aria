@@ -4,8 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Models\User;
 use App\Support\PermissionGrouper;
+use App\Support\PermissionTableConfig;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\Rule;
 use Spatie\Permission\Models\Role;
 
 class RoleController extends Controller
@@ -56,7 +58,7 @@ class RoleController extends Controller
         Gate::authorize(User::getPermissions()['roles-create']);
 
         $request->validate([
-            'name' => 'required|string|unique:roles,name',
+            'name' => ['required', 'string', Rule::unique(PermissionTableConfig::rolesTable(), 'name')],
             'permissions' => 'array',
         ]);
 
@@ -87,7 +89,7 @@ class RoleController extends Controller
         Gate::authorize(User::getPermissions()['roles-edit']);
 
         $request->validate([
-            'name' => 'required|string|unique:roles,name,'.$role->id,
+            'name' => ['required', 'string', Rule::unique(PermissionTableConfig::rolesTable(), 'name')->ignore($role->id)],
             'permissions' => 'array',
         ]);
 
