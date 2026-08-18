@@ -170,7 +170,7 @@ class LegacyAclMapper
 
         return match ($action) {
             'index', 'detail', 'transactions', 'stat', 'items', 'sales',
-            'search-item', 'summary' => ["{$prefix}-list", 'addrbook-list'],
+            'search-item', 'summary' => ["{$prefix}-list"],
             'create' => ["{$prefix}-create"],
             'edit', 'restore' => ["{$prefix}-edit"],
             'delete' => ["{$prefix}-delete"],

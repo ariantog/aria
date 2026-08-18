@@ -24,9 +24,9 @@ beforeEach(function () {
 
     $this->user = User::factory()->create(['location_id' => $this->locationA->id]);
 
-    Permission::firstOrCreate(['name' => 'addrbook-list']);
+    Permission::firstOrCreate(['name' => 'addrbook-supplier-list']);
     Permission::firstOrCreate(['name' => 'transactions-list']);
-    $this->user->givePermissionTo(['addrbook-list', 'transactions-list']);
+    $this->user->givePermissionTo(['addrbook-supplier-list', 'transactions-list']);
 });
 
 it('filters customers by user location', function () {

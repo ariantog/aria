@@ -144,7 +144,7 @@ it('renders migrated GET pages with a 200', function (string $route) {
     'report produksi qc' => 'reports/produksi-qc',
 
     // Admin / misc index pages
-    'addrbook' => 'addrbook',
+    'addrbook customer' => 'customer',
     'items' => 'items',
     'users' => 'users',
     'roles' => 'roles',

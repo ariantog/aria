@@ -6,7 +6,7 @@
 @php
 $baseUrl = '/' . $addrbook->type_slug . '/' . $addrbook->id . '/transactions';
 $breadcrumbs = [
-    ['title' => 'Address Book', 'href' => route('addrbook.index')],
+    ['title' => 'Address Book', 'href' => \App\Models\Addrbook::typeIndexRoute($addrbook->type_slug)],
     ['title' => $addrbook->name, 'href' => '/' . $addrbook->type_slug . '/' . $addrbook->id],
     ['title' => 'Transactions', 'href' => $baseUrl],
 ];

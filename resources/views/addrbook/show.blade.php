@@ -5,7 +5,7 @@
 @section('content')
 @php
 $breadcrumbs = [
-    ['title' => 'Address Book', 'href' => route('addrbook.index')],
+    ['title' => 'Address Book', 'href' => \App\Models\Addrbook::typeIndexRoute($addrbook->type_slug)],
     ['title' => 'Detail', 'href' => '/' . $addrbook->type_slug . '/' . $addrbook->id],
 ];
 $balance = (float) ($addrbook->stat->balance ?? 0);
