@@ -40,11 +40,11 @@
         body { font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
         [x-cloak] { display: none !important; }
 
-        /* Sidebar transition */
-        #sidebar { transition: width 0.2s ease, transform 0.2s ease; }
-        /* Only animate the sidebar-driven margin AFTER first paint, so navigating to a
-           new page doesn't visibly slide the content in. */
-        #main-content.anim-ready { transition: margin-left 0.2s ease; }
+        /* Sidebar transition (desktop only — mobile closes instantly on navigation) */
+        @media (min-width: 1024px) {
+            #sidebar { transition: width 0.2s ease, transform 0.2s ease; }
+            #main-content.anim-ready { transition: margin-left 0.2s ease; }
+        }
 
         /* Autocomplete dropdown */
         .combobox-options {
@@ -131,7 +131,8 @@
         </div>
 
         {{-- Nav --}}
-        <nav class="flex-1 overflow-y-auto overflow-x-hidden py-2 px-2">
+        <nav class="flex-1 overflow-y-auto overflow-x-hidden py-2 px-2"
+             @click="if (isMobile && $event.target.closest('a[href]')) sidebarOpen = false">
             @include('partials.sidebar-nav')
         </nav>
 
@@ -233,6 +234,8 @@ function appShell() {
         sidebarOpen: localStorage.getItem('sidebarOpen') !== 'false',
         isMobile: window.innerWidth < 1024,
         init() {
+            this.isMobile = window.innerWidth < 1024;
+            if (this.isMobile) this.sidebarOpen = false;
             window.addEventListener('resize', () => {
                 this.isMobile = window.innerWidth < 1024;
                 if (this.isMobile) this.sidebarOpen = false;
