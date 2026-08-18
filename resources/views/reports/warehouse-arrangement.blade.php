@@ -54,12 +54,28 @@ $queryParams = fn (array $extra = []) => array_filter(array_merge([
                 <p class="text-gray-500">Pick source warehouses per size, then draft one move transaction per source warehouse.</p>
             </div>
             @if($selectedWarehouseId && $destinationName)
-            <a href="{{ route('reports.warehouse-arrangement.export', $queryParams()) }}"
-               class="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
-                Export Excel
-            </a>
+            <div class="flex flex-wrap items-center gap-2">
+                <form method="POST" action="{{ route('reports.warehouse-arrangement.refresh') }}" class="inline">
+                    @csrf
+                    <input type="hidden" name="warehouse_id" value="{{ $selectedWarehouseId }}">
+                    <input type="hidden" name="demand_days" value="{{ $demandDays }}">
+                    <input type="hidden" name="mode" value="{{ $mode }}">
+                    <button type="submit"
+                            class="inline-flex items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-900 hover:bg-amber-100">
+                        Rebuild stats &amp; refresh
+                    </button>
+                </form>
+                <a href="{{ route('reports.warehouse-arrangement.export', $queryParams()) }}"
+                   class="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                    Export Excel
+                </a>
+            </div>
             @endif
         </div>
+
+        @if(($flash['success'] ?? null))
+        <div class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{{ $flash['success'] }}</div>
+        @endif
 
         @if(($flash['error'] ?? null))
         <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ $flash['error'] }}</div>
@@ -98,11 +114,20 @@ $queryParams = fn (array $extra = []) => array_filter(array_merge([
             <p class="mt-3 text-xs text-gray-500">
                 Cached data synced {{ $syncedAt->diffForHumans() }}.
                 @if($stale)
-                <span class="text-amber-700">May be stale — run <code class="text-xs">app:sync-warehouse-arrangement</code> or wait for the daily cron.</span>
+                <span class="text-amber-700">May be stale — use <strong>Rebuild stats &amp; refresh</strong> or wait for the daily cron.</span>
                 @endif
             </p>
             @else
-            <p class="mt-3 text-xs text-amber-700">No cached data yet. Run <code class="text-xs">php artisan app:sync-warehouse-arrangement</code> after configuring source warehouses.</p>
+            <p class="mt-3 text-xs text-amber-700">No cached data yet. Tick <strong>Source warehouses</strong> on this destination, then click <strong>Rebuild stats &amp; refresh</strong> (may take several minutes).</p>
+            @endif
+            @if($cacheDiagnostics)
+            <p class="mt-2 text-xs text-gray-500">
+                Cache: {{ $cacheDiagnostics['monthly_stat_rows'] }} monthly stat rows ·
+                {{ $cacheDiagnostics['source_warehouses'] }} source warehouse(s) ·
+                {{ $cacheDiagnostics['candidates'] }} candidate SKU(s) ·
+                {{ $cacheDiagnostics['candidates_with_sources'] }} with source stock ·
+                {{ $cacheDiagnostics['snapshots'] }} pcode snapshot(s)
+            </p>
             @endif
         </div>
         @endif
@@ -276,7 +301,26 @@ $queryParams = fn (array $extra = []) => array_filter(array_merge([
             @if($search)
             No pcode matches “{{ $search }}” for this view.
             @else
-            Nothing to move — stock looks OK here, configure source warehouses and run sync, or return after drafting earlier batches.
+            <p>Nothing to show for this view.</p>
+            @if($cacheDiagnostics)
+            <ul class="mt-4 space-y-1 text-left text-xs text-gray-600">
+                @if($cacheDiagnostics['monthly_stat_rows'] === 0)
+                <li>· No monthly sell stats for this warehouse — click <strong>Rebuild stats &amp; refresh</strong>.</li>
+                @endif
+                @if($cacheDiagnostics['source_warehouses'] === 0)
+                <li>· No source warehouses configured — edit this destination and tick <strong>Source warehouses</strong>.</li>
+                @endif
+                @if($cacheDiagnostics['candidates'] === 0 && $cacheDiagnostics['monthly_stat_rows'] > 0)
+                <li>· Stats exist but no missing SKUs with demand (destination may already be stocked, or no sales in the last 365 days).</li>
+                @endif
+                @if($cacheDiagnostics['candidates'] > 0 && $cacheDiagnostics['candidates_with_sources'] === 0)
+                <li>· {{ $cacheDiagnostics['candidates'] }} missing SKU(s) found but none have stock at configured source warehouses.</li>
+                @endif
+                @if($mode === WarehouseArrangementService::MODE_DEMAND && $cacheDiagnostics['candidates_with_sources'] > 0)
+                <li>· Try another demand window (30/90/180 days) if sales are older than {{ $demandDays }} days.</li>
+                @endif
+            </ul>
+            @endif
             @endif
         </div>
         @endforelse

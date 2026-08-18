@@ -225,6 +225,37 @@ class WarehouseArrangementService
     }
 
     /**
+     * @return array{
+     *     source_warehouses: int,
+     *     monthly_stat_rows: int,
+     *     candidates: int,
+     *     candidates_with_sources: int,
+     *     snapshots: int
+     * }
+     */
+    public function cacheDiagnostics(int $destinationWarehouseId): array
+    {
+        $candidateQuery = WarehouseArrangementCandidate::query()
+            ->where('destination_warehouse_id', $destinationWarehouseId);
+
+        return [
+            'source_warehouses' => (int) DB::table('warehouse_arrangement_sources')
+                ->where('destination_warehouse_id', $destinationWarehouseId)
+                ->count(),
+            'monthly_stat_rows' => (int) DB::table('warehouse_item_monthly_stats')
+                ->where('warehouse_id', $destinationWarehouseId)
+                ->count(),
+            'candidates' => (int) $candidateQuery->count(),
+            'candidates_with_sources' => (int) $candidateQuery->clone()
+                ->whereHas('sources', fn ($q) => $q->whereHas('sourceWarehouse'))
+                ->count(),
+            'snapshots' => (int) WarehouseArrangementPcodeSnapshot::query()
+                ->where('destination_warehouse_id', $destinationWarehouseId)
+                ->count(),
+        ];
+    }
+
+    /**
      * @param  list<int>  $excludeItemIds
      * @return array{destination: Addrbook, suggestions: list<array<string, mixed>>}
      */

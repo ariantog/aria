@@ -11,6 +11,7 @@ use App\Models\WarehouseArrangementCandidateSource;
 use App\Models\WarehouseArrangementPcodeSnapshot;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class WarehouseArrangementSyncService
 {
@@ -19,6 +20,22 @@ class WarehouseArrangementSyncService
     public const MAX_SOURCE_SLOTS = 3;
 
     private const SIZE_ORDER = ['S', 'M', 'L', 'XL', '2L', 'XXL'];
+
+    public function arrangementTablesExist(): bool
+    {
+        foreach ([
+            'warehouse_arrangement_sources',
+            'warehouse_arrangement_pcode_snapshots',
+            'warehouse_arrangement_candidates',
+            'warehouse_arrangement_candidate_sources',
+        ] as $table) {
+            if (! Schema::hasTable($table)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
 
     /**
      * @return array{destinations: int, candidates: int, sources: int}
@@ -119,7 +136,10 @@ class WarehouseArrangementSyncService
             ->join('items as i', 'w.item_id', '=', 'i.id')
             ->join('item_group as ig', 'i.group_id', '=', 'ig.id')
             ->where('w.warehouse_id', $destinationWarehouseId)
-            ->where('i.type', ItemType::ITEM->value)
+            ->where(function ($query) {
+                $query->where('w.item_type', ItemType::ITEM->value)
+                    ->orWhereNull('w.item_type');
+            })
             ->whereNull('i.deleted_at')
             ->whereNotNull('ig.master')
             ->whereRaw('(w.year * 12 + w.month) >= ?', [$startKey365])
@@ -143,7 +163,6 @@ class WarehouseArrangementSyncService
 
         $items = DB::table('items as i')
             ->join('item_group as ig', 'i.group_id', '=', 'ig.id')
-            ->where('i.type', ItemType::ITEM->value)
             ->whereIn('ig.master', $masters)
             ->whereNull('i.deleted_at')
             ->select('i.id', 'i.code', 'i.name', 'i.size', 'i.pcode', 'ig.master', 'ig.name as group_name')

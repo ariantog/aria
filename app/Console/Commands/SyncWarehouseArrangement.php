@@ -4,7 +4,6 @@ namespace App\Console\Commands;
 
 use App\Services\WarehouseArrangementSyncService;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\Schema;
 
 class SyncWarehouseArrangement extends Command
 {
@@ -14,16 +13,9 @@ class SyncWarehouseArrangement extends Command
 
     protected $description = 'Pre-compute warehouse arrangement candidates and source matches';
 
-    private const REQUIRED_TABLES = [
-        'warehouse_arrangement_sources',
-        'warehouse_arrangement_pcode_snapshots',
-        'warehouse_arrangement_candidates',
-        'warehouse_arrangement_candidate_sources',
-    ];
-
     public function handle(WarehouseArrangementSyncService $sync): int
     {
-        if (! $this->arrangementTablesExist()) {
+        if (! $sync->arrangementTablesExist()) {
             $this->error('Warehouse arrangement cache tables are missing.');
             $this->line('Run: php artisan migrate');
             $this->line('Migration: database/migrations/2026_08_08_120000_create_warehouse_arrangement_tables.php');
@@ -51,16 +43,5 @@ class SyncWarehouseArrangement extends Command
         }
 
         return self::SUCCESS;
-    }
-
-    private function arrangementTablesExist(): bool
-    {
-        foreach (self::REQUIRED_TABLES as $table) {
-            if (! Schema::hasTable($table)) {
-                return false;
-            }
-        }
-
-        return true;
     }
 }
