@@ -33,10 +33,8 @@
         color: #4b5563;
         background: #f9fafb;
     }
-    .arrangement-size-table .arrangement-size-cell {
-        width: 1%;
-        text-align: center;
-        padding: 0.5rem 0.35rem;
+    .arrangement-source-field select {
+        max-width: 100%;
     }
     .dark .arrangement-size-table th,
     .dark .arrangement-size-table td {
@@ -240,40 +238,41 @@ $queryParams = fn (array $extra = []) => array_filter(array_merge([
                 </span>
             </div>
 
-            <form method="GET" action="{{ route('reports.warehouse-arrangement') }}" class="flex flex-wrap items-end gap-2">
+            @if(count($topSourceMatches) > 0)
+            <p class="text-xs text-gray-500 dark:text-gray-400">
+                Top matches:
+                @foreach($topSourceMatches as $match)
+                <span class="font-medium text-gray-700 dark:text-gray-200">{{ $match['name'] }}</span>
+                <span class="text-gray-500 dark:text-gray-400">({{ $match['match_count'] }} SKUs)</span>{{ !$loop->last ? ',' : '' }}
+                @endforeach
+            </p>
+            @endif
+
+            <form method="GET" action="{{ route('reports.warehouse-arrangement') }}" class="space-y-2">
                 <input type="hidden" name="warehouse_id" value="{{ $selectedWarehouseId }}">
                 <input type="hidden" name="demand_days" value="{{ $demandDays }}">
                 <input type="hidden" name="mode" value="{{ $mode }}">
                 @if($search)
                 <input type="hidden" name="search" value="{{ $search }}">
                 @endif
-                @if(count($topSourceMatches) > 0)
-                <p class="text-xs text-gray-600">
-                    Top matches:
-                    @foreach($topSourceMatches as $match)
-                    <span class="font-medium text-gray-800">{{ $match['name'] }}</span>
-                    <span class="text-gray-500">({{ $match['match_count'] }} SKUs)</span>{{ !$loop->last ? ',' : '' }}
-                    @endforeach
-                </p>
-                @endif
-                <div>
-                    <label for="source_wh1_id" class="mb-1 block text-xs font-medium uppercase text-gray-500">Warehouse 1</label>
-                    <div class="flex flex-wrap items-center gap-2">
-                        <select id="source_wh1_id" name="source_wh1_id" class="min-w-[180px] rounded-lg border border-gray-300 px-3 py-1.5 text-sm" onchange="this.form.submit()">
+
+                <div class="flex flex-wrap items-end gap-x-4 gap-y-3">
+                    <div class="arrangement-source-field w-36 sm:w-40">
+                        <label for="source_wh1_id" class="mb-0.5 block text-[11px] font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Warehouse 1</label>
+                        <select id="source_wh1_id" name="source_wh1_id" class="w-full rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" onchange="this.form.submit()">
                             @foreach($sourceWarehouses as $wh)
                             <option value="{{ $wh['id'] }}" @selected($selectedSourceWarehouse1Id === $wh['id'])>{{ $wh['name'] }}</option>
                             @endforeach
                         </select>
                         @if($sourceWarehouse1)
                         @php $wh1Match = collect($sourceMatchRankings)->firstWhere('id', $sourceWarehouse1['id']); @endphp
-                        <span class="text-xs text-gray-500">{{ $wh1Match['match_count'] ?? 0 }} SKUs</span>
+                        <p class="mt-0.5 text-[11px] text-gray-500 dark:text-gray-400">{{ $wh1Match['match_count'] ?? 0 }} SKUs</p>
                         @endif
                     </div>
-                </div>
-                <div>
-                    <label for="source_wh2_id" class="mb-1 block text-xs font-medium uppercase text-gray-500">Warehouse 2</label>
-                    <div class="flex flex-wrap items-center gap-2">
-                        <select id="source_wh2_id" name="source_wh2_id" class="min-w-[180px] rounded-lg border border-gray-300 px-3 py-1.5 text-sm" onchange="this.form.submit()">
+
+                    <div class="arrangement-source-field w-36 sm:w-40">
+                        <label for="source_wh2_id" class="mb-0.5 block text-[11px] font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Warehouse 2</label>
+                        <select id="source_wh2_id" name="source_wh2_id" class="w-full rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" onchange="this.form.submit()">
                             <option value="">—</option>
                             @foreach($sourceWarehouses as $wh)
                             @if(($selectedSourceWarehouse1Id ?? null) !== $wh['id'])
@@ -283,19 +282,23 @@ $queryParams = fn (array $extra = []) => array_filter(array_merge([
                         </select>
                         @if($sourceWarehouse2)
                         @php $wh2Match = collect($sourceMatchRankings)->firstWhere('id', $sourceWarehouse2['id']); @endphp
-                        <span class="text-xs text-gray-500">{{ $wh2Match['match_count'] ?? 0 }} SKUs</span>
+                        <p class="mt-0.5 text-[11px] text-gray-500 dark:text-gray-400">{{ $wh2Match['match_count'] ?? 0 }} SKUs</p>
                         @endif
                     </div>
+
+                    <div class="w-36 sm:w-44">
+                        <label for="search" class="mb-0.5 block text-[11px] font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Search pcode</label>
+                        <div class="flex gap-2">
+                            <input id="search" name="search" type="search" value="{{ $search }}" placeholder="CX90028-02"
+                                   class="min-w-0 flex-1 rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100">
+                            <button type="submit" class="shrink-0 rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700">Search</button>
+                        </div>
+                    </div>
                 </div>
+
                 @if(count($sourceWarehouses) > 2)
-                <p class="text-xs text-gray-500">Defaults to the two sources with the most missing SKUs in stock. Pick others to compare.</p>
+                <p class="text-[11px] leading-snug text-gray-500 dark:text-gray-400">Defaults to the two sources with the most missing SKUs in stock. Pick others to compare.</p>
                 @endif
-                <div>
-                    <label for="search" class="mb-1 block text-xs font-medium uppercase text-gray-500">Search pcode</label>
-                    <input id="search" name="search" type="search" value="{{ $search }}" placeholder="CX90028-02"
-                           class="min-w-[160px] rounded-lg border border-gray-300 px-3 py-1.5 text-sm">
-                </div>
-                <button type="submit" class="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">Search</button>
             </form>
 
             <div class="flex flex-wrap items-center gap-2">
