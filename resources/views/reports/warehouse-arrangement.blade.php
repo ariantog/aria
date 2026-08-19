@@ -33,8 +33,10 @@
         color: #4b5563;
         background: #f9fafb;
     }
-    .arrangement-source-field select {
-        max-width: 100%;
+    .arrangement-size-table .arrangement-size-cell {
+        width: 1%;
+        text-align: center;
+        padding: 0.5rem 0.35rem;
     }
     .dark .arrangement-size-table th,
     .dark .arrangement-size-table td {
@@ -52,6 +54,8 @@ $breadcrumbs = [
     ['title' => 'Reports', 'href' => '#'],
     ['title' => 'Warehouse Arrangement', 'href' => route('reports.warehouse-arrangement')],
 ];
+$matchCounts = collect($sourceMatchRankings)->pluck('match_count', 'id');
+$skuLabel = fn (int $count) => $count.' SKU'.($count === 1 ? '' : 's');
 $queryParams = fn (array $extra = []) => array_filter(array_merge([
     'warehouse_id' => $selectedWarehouseId,
     'demand_days' => $demandDays,
@@ -217,19 +221,19 @@ $queryParams = fn (array $extra = []) => array_filter(array_merge([
     </div>
 
     @if($destinations->isNotEmpty())
-    <div class="sticky top-0 z-20 border-b border-gray-200 bg-gray-50/95 px-4 py-3 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-gray-50/90">
+    <div class="sticky top-0 z-20 border-b border-gray-200 bg-gray-50/95 px-4 py-3 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-gray-50/90 dark:border-gray-700 dark:bg-gray-900/95 dark:supports-[backdrop-filter]:bg-gray-900/90">
         <div class="flex flex-col gap-3">
             <div class="flex flex-wrap items-center gap-2">
-                <span class="text-xs font-medium uppercase text-gray-500">View:</span>
+                <span class="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">View:</span>
                 <a href="{{ route('reports.warehouse-arrangement', $queryParams(['mode' => WarehouseArrangementService::MODE_DEMAND, 'page' => null])) }}"
-                   class="rounded-lg px-3 py-1.5 text-sm font-medium {{ $mode === WarehouseArrangementService::MODE_DEMAND ? 'bg-blue-600 text-white' : 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50' }}">
+                   class="rounded-lg px-3 py-1.5 text-sm font-medium {{ $mode === WarehouseArrangementService::MODE_DEMAND ? 'bg-blue-600 text-white' : 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700' }}">
                     Demand
                 </a>
                 <a href="{{ route('reports.warehouse-arrangement', $queryParams(['mode' => WarehouseArrangementService::MODE_FAMILY, 'page' => null])) }}"
-                   class="rounded-lg px-3 py-1.5 text-sm font-medium {{ $mode === WarehouseArrangementService::MODE_FAMILY ? 'bg-blue-600 text-white' : 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50' }}">
+                   class="rounded-lg px-3 py-1.5 text-sm font-medium {{ $mode === WarehouseArrangementService::MODE_FAMILY ? 'bg-blue-600 text-white' : 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700' }}">
                     Complete family
                 </a>
-                <span class="ml-2 text-xs text-gray-500">
+                <span class="ml-2 text-xs text-gray-500 dark:text-gray-400">
                     @if($mode === WarehouseArrangementService::MODE_DEMAND)
                     Missing SKUs with sales in the selected window.
                     @else
@@ -238,66 +242,66 @@ $queryParams = fn (array $extra = []) => array_filter(array_merge([
                 </span>
             </div>
 
-            @if(count($topSourceMatches) > 0)
-            <p class="text-xs text-gray-500 dark:text-gray-400">
-                Top matches:
-                @foreach($topSourceMatches as $match)
-                <span class="font-medium text-gray-700 dark:text-gray-200">{{ $match['name'] }}</span>
-                <span class="text-gray-500 dark:text-gray-400">({{ $match['match_count'] }} SKUs)</span>{{ !$loop->last ? ',' : '' }}
-                @endforeach
-            </p>
-            @endif
-
-            <form method="GET" action="{{ route('reports.warehouse-arrangement') }}" class="space-y-2">
+            <form method="GET" action="{{ route('reports.warehouse-arrangement') }}"
+                  class="rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-800/50">
                 <input type="hidden" name="warehouse_id" value="{{ $selectedWarehouseId }}">
                 <input type="hidden" name="demand_days" value="{{ $demandDays }}">
                 <input type="hidden" name="mode" value="{{ $mode }}">
-                @if($search)
-                <input type="hidden" name="search" value="{{ $search }}">
-                @endif
 
-                <div class="flex flex-wrap items-end gap-x-4 gap-y-3">
-                    <div class="arrangement-source-field w-36 sm:w-40">
-                        <label for="source_wh1_id" class="mb-0.5 block text-[11px] font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Warehouse 1</label>
-                        <select id="source_wh1_id" name="source_wh1_id" class="w-full rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" onchange="this.form.submit()">
+                <div class="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
+                    <div>
+                        <label for="source_wh1_id" class="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">Warehouse 1</label>
+                        <select id="source_wh1_id" name="source_wh1_id" onchange="this.form.submit()"
+                                class="h-9 w-full rounded-md border border-gray-300 bg-white px-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100">
                             @foreach($sourceWarehouses as $wh)
-                            <option value="{{ $wh['id'] }}" @selected($selectedSourceWarehouse1Id === $wh['id'])>{{ $wh['name'] }}</option>
+                            <option value="{{ $wh['id'] }}" @selected($selectedSourceWarehouse1Id === $wh['id'])>
+                                {{ $wh['name'] }} · {{ $skuLabel((int) ($matchCounts[$wh['id']] ?? 0)) }}
+                            </option>
                             @endforeach
                         </select>
-                        @if($sourceWarehouse1)
-                        @php $wh1Match = collect($sourceMatchRankings)->firstWhere('id', $sourceWarehouse1['id']); @endphp
-                        <p class="mt-0.5 text-[11px] text-gray-500 dark:text-gray-400">{{ $wh1Match['match_count'] ?? 0 }} SKUs</p>
-                        @endif
                     </div>
 
-                    <div class="arrangement-source-field w-36 sm:w-40">
-                        <label for="source_wh2_id" class="mb-0.5 block text-[11px] font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Warehouse 2</label>
-                        <select id="source_wh2_id" name="source_wh2_id" class="w-full rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" onchange="this.form.submit()">
-                            <option value="">—</option>
+                    <div>
+                        <label for="source_wh2_id" class="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">Warehouse 2</label>
+                        <select id="source_wh2_id" name="source_wh2_id" onchange="this.form.submit()"
+                                class="h-9 w-full rounded-md border border-gray-300 bg-white px-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100">
+                            <option value="">— None —</option>
                             @foreach($sourceWarehouses as $wh)
                             @if(($selectedSourceWarehouse1Id ?? null) !== $wh['id'])
-                            <option value="{{ $wh['id'] }}" @selected($selectedSourceWarehouse2Id === $wh['id'])>{{ $wh['name'] }}</option>
+                            <option value="{{ $wh['id'] }}" @selected($selectedSourceWarehouse2Id === $wh['id'])>
+                                {{ $wh['name'] }} · {{ $skuLabel((int) ($matchCounts[$wh['id']] ?? 0)) }}
+                            </option>
                             @endif
                             @endforeach
                         </select>
-                        @if($sourceWarehouse2)
-                        @php $wh2Match = collect($sourceMatchRankings)->firstWhere('id', $sourceWarehouse2['id']); @endphp
-                        <p class="mt-0.5 text-[11px] text-gray-500 dark:text-gray-400">{{ $wh2Match['match_count'] ?? 0 }} SKUs</p>
-                        @endif
                     </div>
 
-                    <div class="w-36 sm:w-44">
-                        <label for="search" class="mb-0.5 block text-[11px] font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Search pcode</label>
+                    <div>
+                        <label for="search" class="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">Search pcode</label>
                         <div class="flex gap-2">
                             <input id="search" name="search" type="search" value="{{ $search }}" placeholder="CX90028-02"
-                                   class="min-w-0 flex-1 rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100">
-                            <button type="submit" class="shrink-0 rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700">Search</button>
+                                   class="h-9 min-w-0 flex-1 rounded-md border border-gray-300 bg-white px-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100">
+                            <button type="submit"
+                                    class="h-9 shrink-0 rounded-md border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700">
+                                Search
+                            </button>
                         </div>
                     </div>
                 </div>
 
-                @if(count($sourceWarehouses) > 2)
-                <p class="text-[11px] leading-snug text-gray-500 dark:text-gray-400">Defaults to the two sources with the most missing SKUs in stock. Pick others to compare.</p>
+                @if(count($topSourceMatches) > 0)
+                <div class="mt-3 flex flex-wrap items-center gap-2 border-t border-gray-200 pt-3 dark:border-gray-700">
+                    <span class="text-xs text-gray-500 dark:text-gray-400">Best sources:</span>
+                    @foreach($topSourceMatches as $match)
+                    <span class="inline-flex items-center gap-1.5 rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-700 dark:bg-gray-700 dark:text-gray-200">
+                        {{ $match['name'] }}
+                        <span class="font-normal text-gray-500 dark:text-gray-400">{{ $skuLabel((int) $match['match_count']) }}</span>
+                    </span>
+                    @endforeach
+                    @if(count($sourceWarehouses) > 2)
+                    <span class="text-xs text-gray-500 dark:text-gray-400">— selected by default, pick others to compare.</span>
+                    @endif
+                </div>
                 @endif
             </form>
 
@@ -306,7 +310,7 @@ $queryParams = fn (array $extra = []) => array_filter(array_merge([
                 <button type="button"
                         @click="draftFromWarehouse(1)"
                         :disabled="selectedCountWh1() === 0"
-                        class="rounded-lg border border-blue-300 bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-900 hover:bg-blue-100 disabled:opacity-50">
+                        class="rounded-lg border border-blue-300 bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-900 hover:bg-blue-100 disabled:opacity-50 dark:border-blue-700 dark:bg-blue-900/40 dark:text-blue-100 dark:hover:bg-blue-900/60">
                     {{ $sourceWarehouse1['name'] }} → {{ $destinationName }}
                     <span x-show="selectedCountWh1() > 0" x-cloak>(<span x-text="selectedCountWh1()"></span>)</span>
                 </button>
@@ -315,25 +319,25 @@ $queryParams = fn (array $extra = []) => array_filter(array_merge([
                 <button type="button"
                         @click="draftFromWarehouse(2)"
                         :disabled="selectedCountWh2() === 0"
-                        class="rounded-lg border border-indigo-300 bg-indigo-50 px-3 py-1.5 text-sm font-medium text-indigo-900 hover:bg-indigo-100 disabled:opacity-50">
+                        class="rounded-lg border border-indigo-300 bg-indigo-50 px-3 py-1.5 text-sm font-medium text-indigo-900 hover:bg-indigo-100 disabled:opacity-50 dark:border-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-100 dark:hover:bg-indigo-900/60">
                     {{ $sourceWarehouse2['name'] }} → {{ $destinationName }}
                     <span x-show="selectedCountWh2() > 0" x-cloak>(<span x-text="selectedCountWh2()"></span>)</span>
                 </button>
                 @endif
-                <span class="text-xs text-gray-500" x-show="selectedCount() > 0" x-cloak>
+                <span class="text-xs text-gray-500 dark:text-gray-400" x-show="selectedCount() > 0" x-cloak>
                     <span x-text="selectedCount()"></span> cell(s) selected
                 </span>
                 <button type="button" x-show="selectedCount() > 0" x-cloak
                         @click="clearSelection()"
-                        class="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50">
+                        class="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700">
                     Clear selection
                 </button>
             </div>
 
-            <div x-show="error" x-cloak class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800" x-text="error"></div>
+            <div x-show="error" x-cloak class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-800 dark:bg-red-900/40 dark:text-red-100" x-text="error"></div>
 
             @if($totalPcodes > 0)
-            <p class="text-xs text-gray-500">Page {{ $page }} of {{ $lastPage }} · {{ $totalPcodes }} color pcode(s)</p>
+            <p class="text-xs text-gray-500 dark:text-gray-400">Page {{ $page }} of {{ $lastPage }} · {{ $totalPcodes }} color pcode(s)</p>
             @endif
         </div>
     </div>
