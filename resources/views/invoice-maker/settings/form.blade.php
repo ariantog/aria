@@ -90,22 +90,19 @@ $breadcrumbs = [
             </label>
             @endif
 
-            <div class="flex items-center justify-between gap-3 border-t border-gray-100 pt-4">
-                <div>
-                    @if($isEdit)
-                    <form method="POST" action="{{ route('invoice-maker.settings.destroy', $preset['id']) }}" onsubmit="return confirm('Delete this preset?')" class="inline">
-                        @csrf
-                        @method('DELETE')
-                        <button type="submit" class="text-sm font-medium text-red-600 hover:text-red-700">Delete preset</button>
-                    </form>
-                    @endif
-                </div>
-                <div class="flex gap-3">
-                    <a href="{{ route('invoice-maker.settings.index') }}" class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50">Cancel</a>
-                    <button type="submit" class="rounded-lg bg-blue-700 px-6 py-2 text-sm font-medium text-white hover:bg-blue-800">Save Preset</button>
-                </div>
+            <div class="flex items-center justify-end gap-3 border-t border-gray-100 pt-4">
+                <a href="{{ route('invoice-maker.settings.index') }}" class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50">Cancel</a>
+                <button type="submit" data-testid="save-preset-button" class="rounded-lg bg-blue-700 px-6 py-2 text-sm font-medium text-white hover:bg-blue-800">Save Preset</button>
             </div>
         </form>
+
+        @if($isEdit)
+        <form method="POST" action="{{ route('invoice-maker.settings.destroy', $preset['id']) }}" onsubmit="return confirm('Delete this preset?')" class="border-t border-gray-100 px-6 py-4">
+            @csrf
+            @method('DELETE')
+            <button type="submit" data-testid="delete-preset-button" class="text-sm font-medium text-red-600 hover:text-red-700">Delete preset</button>
+        </form>
+        @endif
     </div>
 </div>
 @endsection
