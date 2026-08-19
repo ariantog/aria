@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\User;
+use App\Services\LocationAccessService;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 
@@ -72,5 +73,30 @@ it('updates a user password when one is provided', function () {
         ->assertRedirect(route('users.index'))
         ->assertSessionHas('success');
 
-    expect($user->fresh()->password)->not->toBe($oldHash);
+    $user->refresh();
+    expect($user->password)->not->toBe($oldHash);
+    expect(app(LocationAccessService::class)->hasUnrestrictedLocationAccess($user))->toBeTrue();
+});
+
+it('stores an unrestricted location when none is selected', function () {
+    $location = \App\Models\Location::factory()->create();
+    $user = User::factory()->create([
+        'username' => 'location_clear_user',
+        'location_id' => $location->id,
+    ]);
+    $user->syncRoles(['Viewer']);
+
+    $this->actingAs($this->admin)
+        ->put(route('users.update', $user), [
+            'name' => $user->name,
+            'username' => $user->username,
+            'role' => 'Viewer',
+            'location_id' => '',
+            'active' => 1,
+        ])
+        ->assertRedirect(route('users.index'))
+        ->assertSessionHas('success');
+
+    $user->refresh();
+    expect(app(LocationAccessService::class)->hasUnrestrictedLocationAccess($user))->toBeTrue();
 });
