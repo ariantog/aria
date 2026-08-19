@@ -289,6 +289,102 @@ function comboboxSearchable(q) {
     return String(q || '').trim().length >= COMBOBOX_MIN_CHARS;
 }
 
+// ─── Submit guard (prevents double-click / double-submit) ───────────────────
+function submitGuardFields() {
+    return {
+        submitting: false,
+        _submitLocked: false,
+        _submitIdempotencyKey: null,
+    };
+}
+
+function beginSubmit(ctx) {
+    if (ctx._submitLocked) {
+        return false;
+    }
+    ctx._submitLocked = true;
+    ctx.submitting = true;
+    ctx._submitIdempotencyKey = (typeof crypto !== 'undefined' && crypto.randomUUID)
+        ? crypto.randomUUID()
+        : (Date.now().toString(36) + Math.random().toString(36).slice(2));
+    return true;
+}
+
+function endSubmit(ctx) {
+    ctx._submitLocked = false;
+    ctx.submitting = false;
+    ctx._submitIdempotencyKey = null;
+}
+
+function idempotencyHeaders(ctx) {
+    if (!ctx._submitIdempotencyKey) {
+        return {};
+    }
+    return { 'X-Idempotency-Key': ctx._submitIdempotencyKey };
+}
+
+function formSubmitGuard() {
+    return {
+        ...submitGuardFields(),
+        guardFormSubmit(event) {
+            if (!beginSubmit(this)) {
+                event.preventDefault();
+                return;
+            }
+            const form = event.target;
+            if (form instanceof HTMLFormElement) {
+                let input = form.querySelector('input[name="_idempotency_key"]');
+                if (!input) {
+                    input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = '_idempotency_key';
+                    form.appendChild(input);
+                }
+                input.value = this._submitIdempotencyKey;
+                window.markFormSubmitInFlight?.(form);
+            }
+        },
+    };
+}
+
+(function () {
+    const inFlightForms = new WeakSet();
+
+    window.markFormSubmitInFlight = function (form) {
+        if (!(form instanceof HTMLFormElement)) {
+            return;
+        }
+        inFlightForms.add(form);
+        form.querySelectorAll('button[type="submit"], input[type="submit"]').forEach((btn) => {
+            btn.disabled = true;
+        });
+    };
+
+    window.releaseFormSubmitGuard = function (form) {
+        if (!(form instanceof HTMLFormElement)) {
+            return;
+        }
+        inFlightForms.delete(form);
+        form.querySelectorAll('button[type="submit"], input[type="submit"]').forEach((btn) => {
+            btn.disabled = false;
+        });
+    };
+
+    document.addEventListener('submit', function (event) {
+        const form = event.target;
+        if (!(form instanceof HTMLFormElement)) {
+            return;
+        }
+        if (form.hasAttribute('data-skip-submit-guard')) {
+            return;
+        }
+        if (inFlightForms.has(form)) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+        }
+    }, true);
+})();
+
 // ─── Reusable Alpine async-combobox component ─────────────────────────────
 function asyncCombobox(config) {
     return {

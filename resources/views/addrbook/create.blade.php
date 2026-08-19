@@ -12,7 +12,7 @@ $breadcrumbs = [
 @endphp
 
 <div class="flex flex-col gap-4 p-3 sm:p-4">
-    <form method="POST" action="{{ route('addrbook.store') }}" x-data="{ submitting: false }" @submit="submitting = true">
+    <form method="POST" action="{{ route('addrbook.store') }}" x-data="formSubmitGuard()" @submit="guardFormSubmit($event)">
         @csrf
 
         {{-- Header --}}

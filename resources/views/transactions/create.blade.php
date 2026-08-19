@@ -406,7 +406,7 @@ function createTransaction() {
     const today = new Date().toISOString().split('T')[0];
     const startDate = (_MinDate && today < _MinDate) ? _MinDate : today;
     return {
-        submitting: false,
+        ...submitGuardFields(),
         errors: {},
         serverErrors: [],
         barcodeError: '',
@@ -897,8 +897,10 @@ function createTransaction() {
         },
 
         async submitForm() {
-            if (!this.canSubmit() || this.submitting) return;
-            this.submitting = true;
+            if (!this.canSubmit()) return;
+            if (!beginSubmit(this)) return;
+
+            let keepLocked = false;
             this.errors = {};
             this.serverErrors = [];
 
@@ -936,17 +938,20 @@ function createTransaction() {
                         'Accept': 'application/json',
                         'X-CSRF-TOKEN': '{{ csrf_token() }}',
                         'X-Requested-With': 'XMLHttpRequest',
+                        ...idempotencyHeaders(this),
                     },
                     redirect: 'follow',
                     body: JSON.stringify(payload),
                 });
 
                 if (res.redirected) {
+                    keepLocked = true;
                     window.location.href = res.url;
                     return;
                 }
 
                 if (res.status === 302 || res.status === 200) {
+                    keepLocked = true;
                     window.location.href = '{{ route('transactions.index') }}';
                     return;
                 }
@@ -969,8 +974,11 @@ function createTransaction() {
                 }
             } catch (e) {
                 console.error(e);
+                this.serverErrors = ['Network error — your entries are still here. Please try again.'];
             } finally {
-                this.submitting = false;
+                if (!keepLocked) {
+                    endSubmit(this);
+                }
             }
         }
     };

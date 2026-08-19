@@ -21,7 +21,7 @@
     </div>
     @endif
 
-    <form method="POST" action="{{ route('transactions.transfer.store') }}" class="max-w-2xl space-y-5">
+    <form method="POST" action="{{ route('transactions.transfer.store') }}" x-data="formSubmitGuard()" @submit="guardFormSubmit($event)" class="max-w-2xl space-y-5">
         @csrf
 
         <div class="rounded-xl border border-gray-200 bg-white shadow-sm">
@@ -110,8 +110,10 @@
                     <a href="{{ route('transactions.index') }}"
                        class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Cancel</a>
                     <button type="submit"
-                            class="h-10 rounded-lg bg-indigo-600 px-8 text-sm font-semibold text-white hover:bg-indigo-700">
-                        Save Transfer
+                            :disabled="submitting"
+                            class="h-10 rounded-lg bg-indigo-600 px-8 text-sm font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60">
+                        <span x-show="!submitting">Save Transfer</span>
+                        <span x-show="submitting" x-cloak>Saving…</span>
                     </button>
                 </div>
             </div>
