@@ -11,6 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (! Schema::hasTable('items')) {
         Schema::create('items', function (Blueprint $table) {
             $table->id();
             $table->foreignId('group_id')->nullable()->constrained('item_group')->nullOnDelete();
@@ -31,6 +32,7 @@ return new class extends Migration
             $table->string('image_path', 2048)->nullable();
             $table->timestamps();
         });
+        }
     }
 
     /**
@@ -41,3 +43,4 @@ return new class extends Migration
         Schema::dropIfExists('items');
     }
 };
+

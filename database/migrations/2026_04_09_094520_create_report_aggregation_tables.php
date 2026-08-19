@@ -12,6 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         // 1. Nett Cash Table
+        if (! Schema::hasTable('monthly_account_summaries')) {
         Schema::create('monthly_account_summaries', function (Blueprint $table) {
             $table->id();
             $table->smallInteger('year');
@@ -26,8 +27,10 @@ return new class extends Migration
             $table->unique(['year', 'month', 'customer_id'], 'account_summary_unique');
             $table->index(['year', 'month']);
         });
+        }
 
         // 2. Cash Flow Table
+        if (! Schema::hasTable('monthly_category_summaries')) {
         Schema::create('monthly_category_summaries', function (Blueprint $table) {
             $table->id();
             $table->smallInteger('year');
@@ -44,8 +47,10 @@ return new class extends Migration
             $table->unique(['year', 'month', 'addrbook_type'], 'category_summary_unique');
             $table->index(['year', 'month']);
         });
+        }
 
         // 3. Stock Analysis Table
+        if (! Schema::hasTable('daily_inventory_summaries')) {
         Schema::create('daily_inventory_summaries', function (Blueprint $table) {
             $table->id();
             $table->date('date');
@@ -68,6 +73,7 @@ return new class extends Migration
             $table->index('date');
             $table->index(['warehouse_id', 'item_id']);
         });
+        }
     }
 
     /**
@@ -80,3 +86,4 @@ return new class extends Migration
         Schema::dropIfExists('monthly_account_summaries');
     }
 };
+

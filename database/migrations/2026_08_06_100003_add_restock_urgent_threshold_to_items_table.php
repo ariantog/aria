@@ -8,6 +8,10 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (! Schema::hasTable('items') || Schema::hasColumn('items', 'restock_urgent_threshold')) {
+            return;
+        }
+
         Schema::table('items', function (Blueprint $table) {
             $table->unsignedInteger('restock_urgent_threshold')->nullable()->after('jubelio_item_id');
         });

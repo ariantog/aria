@@ -11,6 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (! Schema::hasTable('prod_worker')) {
         Schema::create('prod_worker', function (Blueprint $table) {
             $table->id();
             $table->string('name');
@@ -18,6 +19,7 @@ return new class extends Migration
             $table->timestamps();
             $table->softDeletes();
         });
+        }
     }
 
     /**
@@ -28,3 +30,4 @@ return new class extends Migration
         Schema::dropIfExists('prod_worker');
     }
 };
+

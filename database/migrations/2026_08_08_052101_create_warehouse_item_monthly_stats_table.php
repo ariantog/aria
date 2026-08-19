@@ -12,6 +12,7 @@ return new class extends Migration
             return;
         }
 
+        if (! Schema::hasTable('warehouse_item_monthly_stats')) {
         Schema::create('warehouse_item_monthly_stats', function (Blueprint $table) {
             $table->id();
             $table->foreignId('warehouse_id')->constrained('customers')->cascadeOnDelete();
@@ -26,6 +27,7 @@ return new class extends Migration
             $table->index(['warehouse_id', 'year', 'month'], 'wh_item_monthly_wh_period');
             $table->index(['item_id', 'year', 'month'], 'wh_item_monthly_item_period');
         });
+        }
     }
 
     public function down(): void
@@ -33,3 +35,4 @@ return new class extends Migration
         Schema::dropIfExists('warehouse_item_monthly_stats');
     }
 };
+

@@ -11,6 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (! Schema::hasTable('locations')) {
         Schema::create('locations', function (Blueprint $table) {
             $table->id();
             $table->string('name', 50);
@@ -18,6 +19,7 @@ return new class extends Migration
             $table->text('parent_ids')->default('');
             $table->timestamps();
         });
+        }
     }
 
     public function down(): void
@@ -25,3 +27,4 @@ return new class extends Migration
         Schema::dropIfExists('locations');
     }
 };
+

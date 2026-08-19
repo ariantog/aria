@@ -8,9 +8,17 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (! Schema::hasTable('prod_produksi')) {
+            return;
+        }
+
         Schema::table('prod_produksi', function (Blueprint $table) {
-            $table->foreignId('pritil_id')->nullable()->after('qc_date');
-            $table->dateTime('pritil_date')->nullable()->after('pritil_id');
+            if (! Schema::hasColumn('prod_produksi', 'pritil_id')) {
+                $table->foreignId('pritil_id')->nullable()->after('qc_date');
+            }
+            if (! Schema::hasColumn('prod_produksi', 'pritil_date')) {
+                $table->dateTime('pritil_date')->nullable()->after('pritil_id');
+            }
         });
     }
 

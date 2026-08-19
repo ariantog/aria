@@ -8,6 +8,7 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (! Schema::hasTable('warehouse_arrangement_refresh_jobs')) {
         Schema::create('warehouse_arrangement_refresh_jobs', function (Blueprint $table) {
             $table->id();
             $table->unsignedInteger('destination_warehouse_id');
@@ -29,6 +30,7 @@ return new class extends Migration
             $table->index('status', 'arr_refresh_status_idx');
             $table->foreign('user_id', 'arr_refresh_user_fk')->references('id')->on('users')->nullOnDelete();
         });
+        }
     }
 
     public function down(): void
@@ -36,3 +38,4 @@ return new class extends Migration
         Schema::dropIfExists('warehouse_arrangement_refresh_jobs');
     }
 };
+

@@ -11,6 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (! Schema::hasTable('warehouse_item')) {
         Schema::create('warehouse_item', function (Blueprint $table) {
             $table->id();
             $table->foreignId('item_id')->constrained('items')->cascadeOnDelete();
@@ -22,6 +23,7 @@ return new class extends Migration
             $table->index(['warehouse_id', 'warehouse_type']);
             $table->unique(['item_id', 'warehouse_id', 'warehouse_type'], 'warehouse_item_item_warehouse_unique');
         });
+        }
     }
 
     /**
@@ -32,3 +34,4 @@ return new class extends Migration
         Schema::dropIfExists('warehouse_item');
     }
 };
+

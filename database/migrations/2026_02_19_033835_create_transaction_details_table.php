@@ -13,6 +13,7 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (! Schema::hasTable('transaction_details')) {
         Schema::create('transaction_details', function (Blueprint $table) {
             $table->id();
             $table->foreignId('transaction_id')->constrained('transactions')->cascadeOnDelete();
@@ -23,6 +24,7 @@ return new class extends Migration
             $table->decimal('total', 20, 2)->default(0);
             $table->decimal('transaction_disc', 5, 2)->default(0);
         });
+        }
     }
 
     public function down(): void
@@ -30,3 +32,4 @@ return new class extends Migration
         Schema::dropIfExists('transaction_details');
     }
 };
+

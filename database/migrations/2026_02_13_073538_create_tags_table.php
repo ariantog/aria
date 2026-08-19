@@ -12,6 +12,7 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (! Schema::hasTable('tags')) {
         Schema::create('tags', function (Blueprint $table) {
             $table->id();
             $table->string('name', 50);
@@ -20,6 +21,7 @@ return new class extends Migration
             $table->integer('item_type')->default(0)->index();
             $table->integer('price')->default(0);
         });
+        }
     }
 
     public function down(): void
@@ -27,3 +29,4 @@ return new class extends Migration
         Schema::dropIfExists('tags');
     }
 };
+

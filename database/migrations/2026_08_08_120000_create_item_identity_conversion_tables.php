@@ -8,6 +8,7 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (! Schema::hasTable('item_identity_conversion_runs')) {
         Schema::create('item_identity_conversion_runs', function (Blueprint $table) {
             $table->id();
             $table->unsignedTinyInteger('item_type');
@@ -22,7 +23,9 @@ return new class extends Migration
             $table->timestamp('finished_at')->nullable();
             $table->timestamps();
         });
+        }
 
+        if (! Schema::hasTable('item_identity_conversion_results')) {
         Schema::create('item_identity_conversion_results', function (Blueprint $table) {
             $table->id();
             $table->foreignId('run_id')->constrained('item_identity_conversion_runs')->cascadeOnDelete();
@@ -36,6 +39,7 @@ return new class extends Migration
             $table->index(['item_id', 'status']);
             $table->index('failure_code');
         });
+        }
     }
 
     public function down(): void
@@ -44,3 +48,4 @@ return new class extends Migration
         Schema::dropIfExists('item_identity_conversion_runs');
     }
 };
+

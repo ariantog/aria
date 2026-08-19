@@ -11,6 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (! Schema::hasTable('prod_borongandetail')) {
         Schema::create('prod_borongandetail', function (Blueprint $table) {
             $table->id();
             $table->foreignId('borongan_id')->constrained('prod_borongan')->cascadeOnDelete();
@@ -21,6 +22,7 @@ return new class extends Migration
             $table->decimal('total', 15, 2)->default(0);
             $table->timestamps();
         });
+        }
     }
 
     /**
@@ -31,3 +33,4 @@ return new class extends Migration
         Schema::dropIfExists('prod_borongandetail');
     }
 };
+

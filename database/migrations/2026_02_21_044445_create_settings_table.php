@@ -12,6 +12,7 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (! Schema::hasTable('settings')) {
         Schema::create('settings', function (Blueprint $table) {
             $table->id();
             $table->string('group')->nullable()->index();
@@ -21,6 +22,7 @@ return new class extends Migration
             $table->integer('location_id')->default(0);
             $table->timestamps();
         });
+        }
     }
 
     public function down(): void
@@ -28,3 +30,4 @@ return new class extends Migration
         Schema::dropIfExists('settings');
     }
 };
+

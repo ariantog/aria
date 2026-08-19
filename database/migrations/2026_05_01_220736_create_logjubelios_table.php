@@ -11,6 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (! Schema::hasTable('logjubelios')) {
         Schema::create('logjubelios', function (Blueprint $table) {
             $table->id();
             $table->string('order_id')->nullable();
@@ -26,6 +27,7 @@ return new class extends Migration
             $table->integer('user_solved_by')->nullable();
             $table->timestamps();
         });
+        }
     }
 
     /**
@@ -36,3 +38,4 @@ return new class extends Migration
         Schema::dropIfExists('logjubelios');
     }
 };
+

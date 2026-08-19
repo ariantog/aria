@@ -11,6 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (! Schema::hasTable('monthly_item_sales')) {
         Schema::create('monthly_item_sales', function (Blueprint $table) {
             $table->id();
             $table->smallInteger('year');
@@ -25,6 +26,7 @@ return new class extends Migration
             $table->unique(['year', 'month', 'group_id', 'sender_id', 'type'], 'item_sale_unique');
             $table->index(['year', 'month']);
         });
+        }
     }
 
     /**
@@ -35,3 +37,4 @@ return new class extends Migration
         Schema::dropIfExists('monthly_item_sales');
     }
 };
+

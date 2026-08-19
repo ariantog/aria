@@ -11,6 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (! Schema::hasTable('cutis')) {
         Schema::create('cutis', function (Blueprint $table) {
             $table->id();
             $table->foreignId('karyawan_id')->constrained()->cascadeOnDelete();
@@ -23,6 +24,7 @@ return new class extends Migration
             $table->timestamps();
             $table->softDeletes();
         });
+        }
     }
 
     /**
@@ -33,3 +35,4 @@ return new class extends Migration
         Schema::dropIfExists('cutis');
     }
 };
+

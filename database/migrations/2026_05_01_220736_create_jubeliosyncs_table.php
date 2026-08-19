@@ -11,6 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (! Schema::hasTable('jubeliosyncs')) {
         Schema::create('jubeliosyncs', function (Blueprint $table) {
             $table->id();
             $table->integer('jubelio_store_id');
@@ -22,6 +23,7 @@ return new class extends Migration
             $table->integer('bin_id');
             $table->timestamps();
         });
+        }
     }
 
     /**
@@ -32,3 +34,4 @@ return new class extends Migration
         Schema::dropIfExists('jubeliosyncs');
     }
 };
+

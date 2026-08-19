@@ -11,6 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (! Schema::hasTable('stock_data')) {
         Schema::create('stock_data', function (Blueprint $table) {
             $table->id();
             $table->foreignId('id_stock_report')->constrained('stok_reports')->onDelete('cascade');
@@ -32,6 +33,7 @@ return new class extends Migration
             $table->integer('best_performing_warehouse_qty')->nullable();
             $table->timestamps();
         });
+        }
     }
 
     /**
@@ -42,3 +44,4 @@ return new class extends Migration
         Schema::dropIfExists('stock_data');
     }
 };
+

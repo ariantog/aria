@@ -8,6 +8,7 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (! Schema::hasTable('crongetorders')) {
         Schema::create('crongetorders', function (Blueprint $table) {
             $table->id();
             $table->date('from');
@@ -19,7 +20,9 @@ return new class extends Migration
             $table->boolean('cek_transaction')->default(false);
             $table->timestamps();
         });
+        }
 
+        if (! Schema::hasTable('crongetorderdetails')) {
         Schema::create('crongetorderdetails', function (Blueprint $table) {
             $table->id();
             $table->foreignId('crongetorder_id')->constrained('crongetorders')->cascadeOnDelete();
@@ -32,6 +35,7 @@ return new class extends Migration
             $table->longText('payload')->nullable();
             $table->timestamps();
         });
+        }
     }
 
     public function down(): void
@@ -40,3 +44,4 @@ return new class extends Migration
         Schema::dropIfExists('crongetorders');
     }
 };
+

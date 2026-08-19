@@ -11,9 +11,17 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (! Schema::hasTable('prod_produksi')) {
+            return;
+        }
+
         Schema::table('prod_produksi', function (Blueprint $table) {
-            $table->foreignId('qc_id')->nullable()->after('jahit_date');
-            $table->date('qc_date')->nullable()->after('qc_id');
+            if (! Schema::hasColumn('prod_produksi', 'qc_id')) {
+                $table->foreignId('qc_id')->nullable()->after('jahit_date');
+            }
+            if (! Schema::hasColumn('prod_produksi', 'qc_date')) {
+                $table->date('qc_date')->nullable()->after('qc_id');
+            }
         });
     }
 

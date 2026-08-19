@@ -11,6 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (! Schema::hasTable('karyawans')) {
         Schema::create('karyawans', function (Blueprint $table) {
             $table->id();
             $table->string('nama');
@@ -24,6 +25,7 @@ return new class extends Migration
             $table->timestamps();
             $table->softDeletes();
         });
+        }
     }
 
     /**
@@ -34,3 +36,4 @@ return new class extends Migration
         Schema::dropIfExists('karyawans');
     }
 };
+

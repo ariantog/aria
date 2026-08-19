@@ -8,6 +8,7 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (! Schema::hasTable('warehouse_arrangement_sources')) {
         Schema::create('warehouse_arrangement_sources', function (Blueprint $table) {
             $table->id();
             $table->foreignId('destination_warehouse_id');
@@ -20,7 +21,9 @@ return new class extends Migration
             $table->foreign('source_warehouse_id', 'arr_src_source_fk')
                 ->references('id')->on('customers')->cascadeOnDelete();
         });
+        }
 
+        if (! Schema::hasTable('warehouse_arrangement_pcode_snapshots')) {
         Schema::create('warehouse_arrangement_pcode_snapshots', function (Blueprint $table) {
             $table->id();
             $table->foreignId('destination_warehouse_id');
@@ -40,7 +43,9 @@ return new class extends Migration
             $table->foreign('destination_warehouse_id', 'arr_pcode_snap_dest_fk')
                 ->references('id')->on('customers')->cascadeOnDelete();
         });
+        }
 
+        if (! Schema::hasTable('warehouse_arrangement_candidates')) {
         Schema::create('warehouse_arrangement_candidates', function (Blueprint $table) {
             $table->id();
             $table->foreignId('destination_warehouse_id');
@@ -65,7 +70,9 @@ return new class extends Migration
             $table->foreign('item_id', 'arr_cand_item_fk')
                 ->references('id')->on('items')->cascadeOnDelete();
         });
+        }
 
+        if (! Schema::hasTable('warehouse_arrangement_candidate_sources')) {
         Schema::create('warehouse_arrangement_candidate_sources', function (Blueprint $table) {
             $table->id();
             $table->foreignId('candidate_id');
@@ -80,6 +87,7 @@ return new class extends Migration
             $table->foreign('source_warehouse_id', 'arr_cand_src_wh_fk')
                 ->references('id')->on('customers')->cascadeOnDelete();
         });
+        }
     }
 
     public function down(): void
@@ -90,3 +98,4 @@ return new class extends Migration
         Schema::dropIfExists('warehouse_arrangement_sources');
     }
 };
+

@@ -11,6 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (! Schema::hasTable('warehouse_compares')) {
         Schema::create('warehouse_compares', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id')->constrained()->onDelete('cascade');
@@ -19,6 +20,7 @@ return new class extends Migration
 
             $table->unique(['user_id', 'warehouse_id']);
         });
+        }
     }
 
     /**
@@ -29,3 +31,4 @@ return new class extends Migration
         Schema::dropIfExists('warehouse_compares');
     }
 };
+

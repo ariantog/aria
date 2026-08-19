@@ -11,6 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (! Schema::hasTable('deleted')) {
         Schema::create('deleted', function (Blueprint $blueprint) {
             $blueprint->unsignedBigInteger('id')->primary();
             $blueprint->date('date')->nullable();
@@ -47,6 +48,7 @@ return new class extends Migration
             $blueprint->timestamp('updated_at')->nullable();
             $blueprint->timestamp('deleted_at')->nullable();
         });
+        }
     }
 
     /**
@@ -57,3 +59,4 @@ return new class extends Migration
         Schema::dropIfExists('deleted');
     }
 };
+

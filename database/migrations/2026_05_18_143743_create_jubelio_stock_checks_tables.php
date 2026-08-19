@@ -11,13 +11,16 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (! Schema::hasTable('jubelio_stock_checks')) {
         Schema::create('jubelio_stock_checks', function (Blueprint $table) {
             $table->id();
             $table->integer('page_tracking')->default(1);
             $table->string('status')->default('created');
             $table->timestamps();
         });
+        }
 
+        if (! Schema::hasTable('jubelio_stock_discrepancies')) {
         Schema::create('jubelio_stock_discrepancies', function (Blueprint $table) {
             $table->id();
             $table->foreignId('jubelio_stock_check_id')->constrained('jubelio_stock_checks')->onDelete('cascade');
@@ -28,6 +31,7 @@ return new class extends Migration
             $table->decimal('jubelio_qty', 15, 2);
             $table->timestamps();
         });
+        }
     }
 
     /**
@@ -39,3 +43,4 @@ return new class extends Migration
         Schema::dropIfExists('jubelio_stock_checks');
     }
 };
+

@@ -11,6 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (! Schema::hasTable('item_group')) {
         Schema::create('item_group', function (Blueprint $table) {
             $table->id();
             $table->string('name')->index();
@@ -21,6 +22,7 @@ return new class extends Migration
             $table->string('variant')->nullable();
             $table->timestamps();
         });
+        }
     }
 
     /**
@@ -31,3 +33,4 @@ return new class extends Migration
         Schema::dropIfExists('item_group');
     }
 };
+

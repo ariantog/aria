@@ -11,6 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (! Schema::hasTable('stok_reports')) {
         Schema::create('stok_reports', function (Blueprint $table) {
             $table->id();
             $table->timestamp('generet_at');
@@ -18,6 +19,7 @@ return new class extends Migration
             $table->foreignId('generet_by')->nullable()->constrained('users');
             $table->timestamps();
         });
+        }
     }
 
     /**
@@ -28,3 +30,4 @@ return new class extends Migration
         Schema::dropIfExists('stok_reports');
     }
 };
+

@@ -8,6 +8,7 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (! Schema::hasTable('restock_sheets')) {
         Schema::create('restock_sheets', function (Blueprint $table) {
             $table->id();
             $table->string('pcode');
@@ -22,6 +23,7 @@ return new class extends Migration
             $table->unique('pcode');
             $table->index('type_tag_id');
         });
+        }
     }
 
     public function down(): void
@@ -29,3 +31,4 @@ return new class extends Migration
         Schema::dropIfExists('restock_sheets');
     }
 };
+

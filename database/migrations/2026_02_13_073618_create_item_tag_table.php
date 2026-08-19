@@ -11,6 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (! Schema::hasTable('item_tag')) {
         Schema::create('item_tag', function (Blueprint $table) {
             $table->id();
             $table->foreignId('item_id')->constrained()->cascadeOnDelete();
@@ -19,6 +20,7 @@ return new class extends Migration
 
             $table->unique(['item_id', 'tag_id']);
         });
+        }
     }
 
     /**
@@ -29,3 +31,4 @@ return new class extends Migration
         Schema::dropIfExists('item_tag');
     }
 };
+

@@ -11,6 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (! Schema::hasTable('restock_histories')) {
         Schema::create('restock_histories', function (Blueprint $table) {
             $table->id();
             $table->foreignId('restock_id')->constrained()->onDelete('cascade');
@@ -25,6 +26,7 @@ return new class extends Migration
             $table->date('date');
             $table->timestamps();
         });
+        }
     }
 
     /**
@@ -35,3 +37,4 @@ return new class extends Migration
         Schema::dropIfExists('restock_histories');
     }
 };
+

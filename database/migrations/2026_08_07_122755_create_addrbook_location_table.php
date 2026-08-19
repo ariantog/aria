@@ -8,12 +8,14 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (! Schema::hasTable('location_customer')) {
         Schema::create('location_customer', function (Blueprint $table) {
             $table->foreignId('location_id')->constrained('locations')->cascadeOnDelete();
             $table->foreignId('customer_id')->constrained('customers')->cascadeOnDelete();
 
             $table->primary(['location_id', 'customer_id']);
         });
+        }
     }
 
     public function down(): void
@@ -21,3 +23,4 @@ return new class extends Migration
         Schema::dropIfExists('location_customer');
     }
 };
+

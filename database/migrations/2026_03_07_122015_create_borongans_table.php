@@ -11,6 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (! Schema::hasTable('prod_borongan')) {
         Schema::create('prod_borongan', function (Blueprint $table) {
             $table->id();
             $table->date('date')->nullable();
@@ -25,6 +26,7 @@ return new class extends Migration
             $table->date('to')->nullable();
             $table->timestamps();
         });
+        }
     }
 
     /**
@@ -35,3 +37,4 @@ return new class extends Migration
         Schema::dropIfExists('prod_borongan');
     }
 };
+

@@ -8,6 +8,7 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (! Schema::hasTable('restock_cells')) {
         Schema::create('restock_cells', function (Blueprint $table) {
             $table->id();
             $table->foreignId('restock_sheet_id')->constrained()->cascadeOnDelete();
@@ -28,6 +29,7 @@ return new class extends Migration
             $table->unique(['restock_sheet_id', 'item_id']);
             $table->index(['restock_sheet_id', 'color_id', 'size_id']);
         });
+        }
     }
 
     public function down(): void
@@ -35,3 +37,4 @@ return new class extends Migration
         Schema::dropIfExists('restock_cells');
     }
 };
+

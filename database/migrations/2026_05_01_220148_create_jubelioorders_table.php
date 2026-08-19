@@ -11,6 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (! Schema::hasTable('jubelioorders')) {
         Schema::create('jubelioorders', function (Blueprint $table) {
             $table->id();
             $table->string('jubelio_order_id')->unique();
@@ -26,6 +27,7 @@ return new class extends Migration
             $table->integer('status')->default(0);
             $table->timestamps();
         });
+        }
     }
 
     /**
@@ -36,3 +38,4 @@ return new class extends Migration
         Schema::dropIfExists('jubelioorders');
     }
 };
+

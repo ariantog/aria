@@ -11,6 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (! Schema::hasTable('transactions')) {
         Schema::create('transactions', function (Blueprint $table) {
             $table->id();
             $table->date('date');
@@ -37,6 +38,7 @@ return new class extends Migration
             $table->foreignId('user_id')->constrained('users');
             $table->timestamps();
         });
+        }
     }
 
     /**
@@ -47,3 +49,4 @@ return new class extends Migration
         Schema::dropIfExists('transactions');
     }
 };
+

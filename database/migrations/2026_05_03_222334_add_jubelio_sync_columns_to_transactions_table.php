@@ -11,6 +11,14 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (! Schema::hasTable('transactions')) {
+            return;
+        }
+
+        if (Schema::hasColumn('transactions', 'jubelio_return')) {
+            return;
+        }
+
         Schema::table('transactions', function (Blueprint $table) {
             $table->string('sync_hide', 1)->default('N')->after('status');
             $table->bigInteger('a_submit_by')->unsigned()->nullable()->after('sync_hide');
@@ -24,6 +32,7 @@ return new class extends Migration
             $table->foreign('a_submit_by')->references('id')->on('users')->onDelete('set null');
             $table->foreign('b_submit_by')->references('id')->on('users')->onDelete('set null');
         });
+
     }
 
     /**
