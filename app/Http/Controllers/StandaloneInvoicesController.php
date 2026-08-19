@@ -185,6 +185,7 @@ class StandaloneInvoicesController extends Controller
         $data['pay_to'] = $preset['pay_to'];
         $data['signatory_name'] = $preset['signatory_name'];
         $data['signature_path'] = $preset['signature_path'];
+        $data['logo_path'] = $preset['logo_path'] ?? null;
 
         if (! $existing && empty($data['number'])) {
             $data['number'] = StandaloneInvoice::generateNumber($data['date']);

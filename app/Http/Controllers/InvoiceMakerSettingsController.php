@@ -37,7 +37,7 @@ class InvoiceMakerSettingsController extends Controller
         Gate::authorize(StandaloneInvoice::getPermissions()['edit']);
 
         $validated = $this->validatedPreset($request);
-        $settingsService->createPreset($validated, $request->file('signature'));
+        $settingsService->createPreset($validated, $request->file('signature'), $request->file('logo'));
 
         return redirect()
             ->route('invoice-maker.settings.index')
@@ -63,7 +63,7 @@ class InvoiceMakerSettingsController extends Controller
         Gate::authorize(StandaloneInvoice::getPermissions()['edit']);
 
         $validated = $this->validatedPreset($request);
-        $settingsService->updatePreset($preset, $validated, $request->file('signature'));
+        $settingsService->updatePreset($preset, $validated, $request->file('signature'), $request->file('logo'));
 
         if ($request->boolean('is_default')) {
             $settingsService->setDefaultPreset($preset);
@@ -97,6 +97,7 @@ class InvoiceMakerSettingsController extends Controller
             'signatory_name' => ['nullable', 'string', 'max:255'],
             'template' => ['required', 'string', Rule::in(array_keys(StandaloneInvoice::TEMPLATES))],
             'signature' => ['nullable', 'image', 'max:2048'],
+            'logo' => ['nullable', 'image', 'max:2048'],
         ]);
     }
 }

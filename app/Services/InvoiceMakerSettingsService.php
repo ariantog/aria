@@ -16,6 +16,8 @@ class InvoiceMakerSettingsService
 
     public const SIGNATURE_DIRECTORY = 'asset/invoice-signatures';
 
+    public const LOGO_DIRECTORY = 'asset/invoice-logos';
+
     private const LEGACY_SETTING_TERMS = 'invoice_maker.terms_of_payment';
 
     private const LEGACY_SETTING_PAY_TO = 'invoice_maker.pay_to';
@@ -39,6 +41,8 @@ class InvoiceMakerSettingsService
      *     signatory_name: string,
      *     signature_path: ?string,
      *     signature_url: ?string,
+     *     logo_path: ?string,
+     *     logo_url: ?string,
      *     template: string,
      * }>
      */
@@ -64,6 +68,8 @@ class InvoiceMakerSettingsService
      *     signatory_name: string,
      *     signature_path: ?string,
      *     signature_url: ?string,
+     *     logo_path: ?string,
+     *     logo_url: ?string,
      *     template: string,
      * }
      */
@@ -91,6 +97,8 @@ class InvoiceMakerSettingsService
      *     signatory_name: string,
      *     signature_path: ?string,
      *     signature_url: ?string,
+     *     logo_path: ?string,
+     *     logo_url: ?string,
      *     template: string,
      * }|null
      */
@@ -114,7 +122,7 @@ class InvoiceMakerSettingsService
      *     template: string,
      * }  $data
      */
-    public function createPreset(array $data, ?UploadedFile $signature = null): array
+    public function createPreset(array $data, ?UploadedFile $signature = null, ?UploadedFile $logo = null): array
     {
         $preset = [
             'id' => $this->generatePresetId($data['name']),
@@ -123,11 +131,16 @@ class InvoiceMakerSettingsService
             'pay_to' => $data['pay_to'] ?? '',
             'signatory_name' => $data['signatory_name'] ?? '',
             'signature_path' => null,
+            'logo_path' => null,
             'template' => $data['template'] ?? StandaloneInvoice::TEMPLATE_CLASSIC,
         ];
 
         if ($signature) {
             $preset['signature_path'] = $this->storeSignature($preset['id'], $signature);
+        }
+
+        if ($logo) {
+            $preset['logo_path'] = $this->storeLogo($preset['id'], $logo);
         }
 
         $presets = $this->presets();
@@ -148,7 +161,7 @@ class InvoiceMakerSettingsService
      *     template: string,
      * }  $data
      */
-    public function updatePreset(string $id, array $data, ?UploadedFile $signature = null): array
+    public function updatePreset(string $id, array $data, ?UploadedFile $signature = null, ?UploadedFile $logo = null): array
     {
         $presets = $this->presets();
         $updated = null;
@@ -167,6 +180,11 @@ class InvoiceMakerSettingsService
             if ($signature) {
                 $this->deleteSignatureFiles($preset['id']);
                 $preset['signature_path'] = $this->storeSignature($preset['id'], $signature);
+            }
+
+            if ($logo) {
+                $this->deleteLogoFiles($preset['id']);
+                $preset['logo_path'] = $this->storeLogo($preset['id'], $logo);
             }
 
             $presets[$index] = $preset;
@@ -191,6 +209,7 @@ class InvoiceMakerSettingsService
         abort_if($presets === [], 422, 'At least one invoice preset must remain.');
 
         $this->deleteSignatureFiles($id);
+        $this->deleteLogoFiles($id);
 
         $defaultId = (string) (Setting::getValue(self::SETTING_DEFAULT_PRESET_ID) ?? '');
         if ($defaultId === $id) {
@@ -254,6 +273,26 @@ class InvoiceMakerSettingsService
         return asset($relativePath);
     }
 
+    public function logoDiskPath(?string $relativePath): ?string
+    {
+        if (! $relativePath) {
+            return null;
+        }
+
+        $path = public_path($relativePath);
+
+        return File::exists($path) ? $path : null;
+    }
+
+    public function logoPublicUrl(?string $relativePath): ?string
+    {
+        if (! $relativePath || ! File::exists(public_path($relativePath))) {
+            return null;
+        }
+
+        return asset($relativePath);
+    }
+
     /**
      * @return array{
      *     id: string,
@@ -268,6 +307,7 @@ class InvoiceMakerSettingsService
     private function buildLegacyPreset(): array
     {
         $legacySignature = $this->migrateLegacySignatureIfNeeded();
+        $legacyLogo = $this->migrateLegacyLogoIfNeeded();
 
         return [
             'id' => 'default',
@@ -276,6 +316,7 @@ class InvoiceMakerSettingsService
             'pay_to' => (string) (Setting::getValue(self::LEGACY_SETTING_PAY_TO) ?? self::DEFAULT_PAY_TO),
             'signatory_name' => (string) (Setting::getValue(self::LEGACY_SETTING_SIGNATORY) ?? self::DEFAULT_SIGNATORY),
             'signature_path' => $legacySignature,
+            'logo_path' => $legacyLogo,
             'template' => (string) (Setting::getValue(self::LEGACY_SETTING_TEMPLATE) ?? StandaloneInvoice::TEMPLATE_CLASSIC),
         ];
     }
@@ -302,6 +343,28 @@ class InvoiceMakerSettingsService
         return null;
     }
 
+    private function migrateLegacyLogoIfNeeded(): ?string
+    {
+        foreach (['png', 'jpg', 'jpeg', 'webp'] as $ext) {
+            $legacy = public_path(InvoiceBrandingService::LOGO_RELATIVE_PATH.'.'.$ext);
+            if (! File::exists($legacy)) {
+                continue;
+            }
+
+            File::ensureDirectoryExists(public_path(self::LOGO_DIRECTORY));
+            $relative = self::LOGO_DIRECTORY.'/default.'.$ext;
+            $target = public_path($relative);
+
+            if (! File::exists($target)) {
+                File::copy($legacy, $target);
+            }
+
+            return $relative;
+        }
+
+        return null;
+    }
+
     /**
      * @param  list<array<string, mixed>>  $presets
      */
@@ -315,6 +378,7 @@ class InvoiceMakerSettingsService
                 'pay_to' => (string) ($preset['pay_to'] ?? ''),
                 'signatory_name' => (string) ($preset['signatory_name'] ?? ''),
                 'signature_path' => $preset['signature_path'] ?? null,
+                'logo_path' => $preset['logo_path'] ?? null,
                 'template' => (string) ($preset['template'] ?? StandaloneInvoice::TEMPLATE_CLASSIC),
             ];
         }, array_values($presets));
@@ -335,6 +399,7 @@ class InvoiceMakerSettingsService
     private function hydratePresetUrls(array $preset): array
     {
         $preset['signature_url'] = $this->signaturePublicUrl($preset['signature_path'] ?? null);
+        $preset['logo_url'] = $this->logoPublicUrl($preset['logo_path'] ?? null);
 
         return $preset;
     }
@@ -372,6 +437,31 @@ class InvoiceMakerSettingsService
     {
         foreach (['png', 'jpg', 'jpeg', 'webp'] as $ext) {
             $path = public_path(self::SIGNATURE_DIRECTORY.'/'.$presetId.'.'.$ext);
+            if (File::exists($path)) {
+                File::delete($path);
+            }
+        }
+    }
+
+    private function storeLogo(string $presetId, UploadedFile $logo): string
+    {
+        File::ensureDirectoryExists(public_path(self::LOGO_DIRECTORY));
+
+        $extension = strtolower($logo->getClientOriginalExtension() ?: 'png');
+        if (! in_array($extension, ['png', 'jpg', 'jpeg', 'webp'], true)) {
+            $extension = 'png';
+        }
+
+        $this->deleteLogoFiles($presetId);
+        $logo->move(public_path(self::LOGO_DIRECTORY), $presetId.'.'.$extension);
+
+        return self::LOGO_DIRECTORY.'/'.$presetId.'.'.$extension;
+    }
+
+    private function deleteLogoFiles(string $presetId): void
+    {
+        foreach (['png', 'jpg', 'jpeg', 'webp'] as $ext) {
+            $path = public_path(self::LOGO_DIRECTORY.'/'.$presetId.'.'.$ext);
             if (File::exists($path)) {
                 File::delete($path);
             }

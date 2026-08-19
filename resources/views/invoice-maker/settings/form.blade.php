@@ -15,7 +15,7 @@ $breadcrumbs = [
 <div class="flex flex-col gap-4 p-3 sm:p-4">
     <div>
         <h2 class="text-2xl font-bold tracking-tight text-gray-900">{{ $isEdit ? 'Edit Preset' : 'New Preset' }}</h2>
-        <p class="mt-0.5 text-sm text-gray-500">Presets appear in the invoice form dropdown for terms, pay-to, signatory, signature, and template.</p>
+        <p class="mt-0.5 text-sm text-gray-500">Presets appear in the invoice form dropdown for logo, terms, pay-to, signatory, signature, and template.</p>
     </div>
 
     <div class="max-w-3xl overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
@@ -32,6 +32,20 @@ $breadcrumbs = [
                        value="{{ old('name', $preset['name'] ?? '') }}"
                        class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500">
                 @error('name')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
+            </div>
+
+            <div>
+                <label for="logo" class="mb-1 block text-sm font-medium text-gray-700">Invoice Logo</label>
+                @if($isEdit && ($preset['logo_url'] ?? null))
+                    <div class="mb-3 flex items-center gap-4 rounded-lg border border-gray-200 bg-gray-50 p-3">
+                        <img src="{{ $preset['logo_url'] }}" alt="Current logo" class="h-16 w-auto object-contain">
+                        <span class="text-sm text-gray-500">Current logo</span>
+                    </div>
+                @endif
+                <input type="file" id="logo" name="logo" accept="image/png,image/jpeg,image/webp"
+                       class="block w-full text-sm text-gray-600 file:mr-3 file:rounded-md file:border-0 file:bg-blue-50 file:px-3 file:py-2 file:text-sm file:font-medium file:text-blue-700 hover:file:bg-blue-100">
+                <p class="mt-1 text-xs text-gray-500">PNG, JPG, or WebP. Max 2 MB. Shown on the invoice PDF for this preset.</p>
+                @error('logo')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
             </div>
 
             <div>

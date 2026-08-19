@@ -41,6 +41,7 @@ return new class extends Migration
                 $table->text('pay_to')->nullable();
                 $table->string('signatory_name')->nullable();
                 $table->string('signature_path')->nullable();
+                $table->string('logo_path')->nullable();
                 $table->decimal('total_qty', 16, 4)->default(0);
                 $table->decimal('subtotal', 16, 2)->default(0);
                 $table->text('notes')->nullable();
@@ -112,6 +113,9 @@ return new class extends Migration
             }
             if (! Schema::hasColumn('standalone_invoices', 'signature_path')) {
                 $table->string('signature_path')->nullable()->after('signatory_name');
+            }
+            if (! Schema::hasColumn('standalone_invoices', 'logo_path')) {
+                $table->string('logo_path')->nullable()->after('signature_path');
             }
             if (! Schema::hasColumn('standalone_invoices', 'total_qty')) {
                 $table->decimal('total_qty', 16, 4)->default(0);

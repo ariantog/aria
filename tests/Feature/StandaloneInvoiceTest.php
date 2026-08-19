@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Services\InvoiceMakerSettingsService;
 use App\Services\StandaloneInvoiceService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\File;
 
 uses(RefreshDatabase::class);
@@ -136,6 +137,44 @@ it('updates an existing invoice preset', function () {
     expect($updated['name'])->toBe('Updated Name');
     expect($updated['template'])->toBe(StandaloneInvoice::TEMPLATE_MODERN);
     expect($updated['signatory_name'])->toBe('Jane');
+});
+
+it('stores a logo on an invoice preset and snapshots it to invoices', function () {
+    File::ensureDirectoryExists(public_path('asset/invoice-logos'));
+
+    $logo = UploadedFile::fake()->image('preset-logo.png', 200, 80);
+
+    $this->actingAs($this->user)
+        ->post(route('invoice-maker.settings.store'), [
+            'name' => 'Branded',
+            'template' => StandaloneInvoice::TEMPLATE_CLASSIC,
+            'terms_of_payment' => 'Terms',
+            'pay_to' => "BCA\n123",
+            'signatory_name' => 'John',
+            'logo' => $logo,
+        ])
+        ->assertRedirect(route('invoice-maker.settings.index'));
+
+    $preset = app(InvoiceMakerSettingsService::class)->findPreset('branded');
+    expect($preset)->not->toBeNull();
+    expect($preset['logo_path'])->not->toBeNull();
+    expect($preset['logo_url'])->not->toBeNull();
+
+    $warehouse = Addrbook::factory()->warehouse()->create();
+
+    $this->actingAs($this->user)->post(route('invoice-maker.store'), [
+        'number' => 'INV/CA/2026/0099',
+        'date' => '2026-08-14',
+        'recipient' => 'Test Client',
+        'sender_addrbook_id' => $warehouse->id,
+        'preset_id' => $preset['id'],
+        'lines' => [
+            ['description' => 'Item', 'quantity' => 1, 'price' => 10_000],
+        ],
+    ])->assertRedirect();
+
+    $invoice = StandaloneInvoice::where('number', 'INV/CA/2026/0099')->first();
+    expect($invoice->logo_path)->toBe($preset['logo_path']);
 });
 
 it('keeps preset edit and delete forms separate on the edit page', function () {
