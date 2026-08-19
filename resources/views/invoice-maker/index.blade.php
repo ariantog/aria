@@ -54,7 +54,7 @@ $breadcrumbs = [
                             <a href="{{ route('invoice-maker.show', $row) }}" class="text-blue-700 hover:underline">{{ $row->number }}</a>
                         </td>
                         <td class="px-4 py-3 text-gray-600">{{ $row->date?->format('d/m/Y') }}</td>
-                        <td class="px-4 py-3 text-gray-700">{{ $row->recipient_name }}</td>
+                        <td class="px-4 py-3 text-gray-700">{{ Str::limit($row->recipient, 60) }}</td>
                         <td class="px-4 py-3 text-gray-500">{{ \App\Models\StandaloneInvoice::TEMPLATES[$row->template] ?? $row->template }}</td>
                         <td class="px-4 py-3 text-right font-mono text-gray-900">{{ format_currency($row->subtotal) }}</td>
                         <td class="px-4 py-3 text-right">

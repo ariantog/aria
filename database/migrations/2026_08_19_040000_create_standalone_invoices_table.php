@@ -12,9 +12,8 @@ return new class extends Migration
             $table->id();
             $table->string('number');
             $table->date('date');
-            $table->string('recipient_name');
-            $table->foreignId('recipient_addrbook_id')->nullable()->constrained('customers')->nullOnDelete();
-            $table->foreignId('sender_addrbook_id')->nullable()->constrained('customers')->nullOnDelete();
+            $table->text('recipient');
+            $table->unsignedInteger('sender_addrbook_id')->nullable()->index();
             $table->string('template', 32)->default('classic');
             $table->text('terms_of_payment')->nullable();
             $table->text('pay_to')->nullable();
@@ -22,7 +21,7 @@ return new class extends Migration
             $table->decimal('total_qty', 16, 4)->default(0);
             $table->decimal('subtotal', 16, 2)->default(0);
             $table->text('notes')->nullable();
-            $table->foreignId('user_id')->nullable()->constrained()->nullOnDelete();
+            $table->unsignedInteger('user_id')->nullable()->index();
             $table->timestamps();
 
             $table->index('date');

@@ -21,7 +21,7 @@ class StandaloneInvoicesController extends Controller
         if ($search = trim((string) $request->query('search', ''))) {
             $query->where(function ($q) use ($search) {
                 $q->where('number', 'like', "%{$search}%")
-                    ->orWhere('recipient_name', 'like', "%{$search}%");
+                    ->orWhere('recipient', 'like', "%{$search}%");
             });
         }
 
@@ -42,7 +42,6 @@ class StandaloneInvoicesController extends Controller
             'invoice' => null,
             'defaults' => $defaults,
             'templates' => StandaloneInvoice::TEMPLATES,
-            'customerLookupUrl' => route('transactions.lookup', ['type' => 'sell', 'role' => 'receiver']).'&addrbook_type='.Addrbook::TYPE_CUSTOMER,
             'warehouseLookupUrl' => route('transactions.lookup', ['type' => 'sell', 'role' => 'sender']).'&addrbook_type='.Addrbook::TYPE_WAREHOUSE,
             'can' => $this->permissions(),
         ]);
@@ -65,7 +64,7 @@ class StandaloneInvoicesController extends Controller
     {
         Gate::authorize(StandaloneInvoice::getPermissions()['view']);
 
-        $invoice->load(['lines', 'sender', 'recipient', 'user']);
+        $invoice->load(['lines', 'sender', 'user']);
 
         return view('invoice-maker.show', [
             'invoice' => $invoice,
@@ -80,14 +79,13 @@ class StandaloneInvoicesController extends Controller
     {
         Gate::authorize(StandaloneInvoice::getPermissions()['edit']);
 
-        $invoice->load(['lines', 'sender', 'recipient']);
+        $invoice->load(['lines', 'sender']);
         $defaults = $settingsService->defaults();
 
         return view('invoice-maker.form', [
             'invoice' => $invoice,
             'defaults' => $defaults,
             'templates' => StandaloneInvoice::TEMPLATES,
-            'customerLookupUrl' => route('transactions.lookup', ['type' => 'sell', 'role' => 'receiver']).'&addrbook_type='.Addrbook::TYPE_CUSTOMER,
             'warehouseLookupUrl' => route('transactions.lookup', ['type' => 'sell', 'role' => 'sender']).'&addrbook_type='.Addrbook::TYPE_WAREHOUSE,
             'can' => $this->permissions(),
         ]);
@@ -169,8 +167,7 @@ class StandaloneInvoicesController extends Controller
         $validated = $request->validate([
             'number' => ['required', 'string', 'max:100'],
             'date' => ['required', 'date'],
-            'recipient_name' => ['required', 'string', 'max:255'],
-            'recipient_addrbook_id' => ['nullable', 'integer', 'exists:customers,id'],
+            'recipient' => ['required', 'string', 'max:5000'],
             'sender_addrbook_id' => ['nullable', 'integer', 'exists:customers,id'],
             'template' => ['required', 'string', Rule::in(array_keys(StandaloneInvoice::TEMPLATES))],
             'terms_of_payment' => ['nullable', 'string', 'max:5000'],

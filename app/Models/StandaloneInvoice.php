@@ -28,8 +28,7 @@ class StandaloneInvoice extends Model
     protected $fillable = [
         'number',
         'date',
-        'recipient_name',
-        'recipient_addrbook_id',
+        'recipient',
         'sender_addrbook_id',
         'template',
         'terms_of_payment',
@@ -66,11 +65,6 @@ class StandaloneInvoice extends Model
     public function lines(): HasMany
     {
         return $this->hasMany(StandaloneInvoiceLine::class)->orderBy('line_order');
-    }
-
-    public function recipient(): BelongsTo
-    {
-        return $this->belongsTo(Addrbook::class, 'recipient_addrbook_id');
     }
 
     public function sender(): BelongsTo
