@@ -31,6 +31,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->alias([
             'active' => \App\Http\Middleware\EnsureUserIsActive::class,
+            'prevent.duplicate' => \App\Http\Middleware\PreventDuplicateSubmission::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

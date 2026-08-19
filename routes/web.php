@@ -170,20 +170,20 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::get('transactions/deleted', [App\Http\Controllers\DeletedTransactionsController::class, 'index'])->name('transactions.deleted.index');
     Route::get('transactions/deleted/{id}', [App\Http\Controllers\DeletedTransactionsController::class, 'show'])->name('transactions.deleted.show');
     Route::get('transactions', [App\Http\Controllers\TransactionsController::class, 'index'])->name('transactions.index');
-    Route::post('transactions', [App\Http\Controllers\TransactionsController::class, 'store'])->name('transactions.store');
+    Route::post('transactions', [App\Http\Controllers\TransactionsController::class, 'store'])->middleware('prevent.duplicate')->name('transactions.store');
     Route::post('transactions/batch-parse', [App\Http\Controllers\TransactionsController::class, 'batchParse'])->name('transactions.batch-parse');
 
     Route::get('transactions/cash-in', [App\Http\Controllers\TransactionsController::class, 'cashIn'])->name('transactions.cash-in');
-    Route::post('transactions/cash-in', [App\Http\Controllers\TransactionsController::class, 'storeCashIn'])->name('transactions.cash-in.store');
+    Route::post('transactions/cash-in', [App\Http\Controllers\TransactionsController::class, 'storeCashIn'])->middleware('prevent.duplicate')->name('transactions.cash-in.store');
 
     Route::get('transactions/cash-out', [App\Http\Controllers\TransactionsController::class, 'cashOut'])->name('transactions.cash-out');
-    Route::post('transactions/cash-out', [App\Http\Controllers\TransactionsController::class, 'storeCashOut'])->name('transactions.cash-out.store');
+    Route::post('transactions/cash-out', [App\Http\Controllers\TransactionsController::class, 'storeCashOut'])->middleware('prevent.duplicate')->name('transactions.cash-out.store');
 
     Route::get('transactions/transfer', [App\Http\Controllers\TransactionsController::class, 'transfer'])->name('transactions.transfer');
-    Route::post('transactions/transfer', [App\Http\Controllers\TransactionsController::class, 'storeTransfer'])->name('transactions.transfer.store');
+    Route::post('transactions/transfer', [App\Http\Controllers\TransactionsController::class, 'storeTransfer'])->middleware('prevent.duplicate')->name('transactions.transfer.store');
 
     Route::get('transactions/adjust', [App\Http\Controllers\TransactionsController::class, 'adjust'])->name('transactions.adjust');
-    Route::post('transactions/adjust', [App\Http\Controllers\TransactionsController::class, 'storeAdjust'])->name('transactions.adjust.store');
+    Route::post('transactions/adjust', [App\Http\Controllers\TransactionsController::class, 'storeAdjust'])->middleware('prevent.duplicate')->name('transactions.adjust.store');
 
     Route::get('transactions/export', [App\Http\Controllers\TransactionsController::class, 'export'])->name('transactions.export');
     Route::get('transactions/{transaction}/receipt', [App\Http\Controllers\TransactionsController::class, 'receipt'])->name('transactions.receipt');
