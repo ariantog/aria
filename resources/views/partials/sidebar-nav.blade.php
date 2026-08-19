@@ -29,8 +29,8 @@
 </div>
 
 {{-- ── Transactions ──────────────────────────────────────────────────── --}}
-@if($hasPerm('transactions-list') || $hasPerm('transactions-create') || $hasPerm('report-purchase') || $isSuperAdmin)
-@php $txActive = $isActive('/transactions') || $isActive('/reports/purchase'); @endphp
+        @if($hasPerm('transactions-list') || $hasPerm('transactions-create') || $hasPerm('report-purchase') || $hasPerm('invoice-maker-list') || $isSuperAdmin)
+@php $txActive = $isActive('/transactions') || $isActive('/reports/purchase') || $isActive('/invoice-maker'); @endphp
 <div x-data="{ open: {{ $txActive ? 'true' : 'false' }} }" class="mb-1">
     <button @click="open = !open"
             class="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors
@@ -72,6 +72,9 @@
         @endif
         @if($hasPerm('report-purchase') || $isSuperAdmin)
         <a href="{{ route('reports.purchase') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/purchase') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Pembelian</a>
+        @endif
+        @if($hasPerm('invoice-maker-list') || $isSuperAdmin)
+        <a href="{{ route('invoice-maker.index') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/invoice-maker') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Invoice Maker</a>
         @endif
     </div>
 </div>

@@ -193,6 +193,11 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::match(['get', 'post'], 'transactions/{transaction}/draft-return', [App\Http\Controllers\TransactionsController::class, 'draftReturn'])->name('transactions.draft-return');
     Route::post('transactions/{transaction}/whatsapp', [App\Http\Controllers\TransactionsController::class, 'sendWhatsapp'])->name('transactions.whatsapp');
 
+    Route::get('invoice-maker/{invoice}/pdf', [App\Http\Controllers\StandaloneInvoicesController::class, 'showPdf'])->name('invoice-maker.pdf.show');
+    Route::post('invoice-maker/{invoice}/pdf', [App\Http\Controllers\StandaloneInvoicesController::class, 'storePdf'])->name('invoice-maker.pdf.store');
+    Route::resource('invoice-maker', App\Http\Controllers\StandaloneInvoicesController::class)
+        ->parameters(['invoice-maker' => 'invoice']);
+
     Route::get('transactions/{transaction}', [App\Http\Controllers\TransactionsController::class, 'show'])->name('transactions.show');
     Route::delete('transactions/{transaction}', [App\Http\Controllers\TransactionsController::class, 'destroy'])->name('transactions.destroy');
 
