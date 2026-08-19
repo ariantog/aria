@@ -79,12 +79,11 @@ class StandaloneInvoiceService
         }
 
         $invoice->loadMissing(['lines', 'sender', 'user']);
-        $defaults = $this->settingsService->defaults();
         $branding = $this->brandingService->forAddrbook($invoice->sender);
-        $terms = $invoice->terms_of_payment ?: $defaults['terms_of_payment'];
-        $payTo = $invoice->pay_to ?: $defaults['pay_to'];
-        $signatoryName = $invoice->signatory_name ?: $defaults['signatory_name'];
-        $signaturePath = $defaults['signature_path'];
+        $terms = $invoice->terms_of_payment ?: '';
+        $payTo = $invoice->pay_to ?: '';
+        $signatoryName = $invoice->signatory_name ?: '';
+        $signaturePath = $this->settingsService->signatureDiskPath($invoice->signature_path);
         $termsBullets = $this->settingsService->termsBullets($terms);
         $payToParsed = $this->settingsService->parsePayTo($payTo);
 

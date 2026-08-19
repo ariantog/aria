@@ -34,6 +34,8 @@ class StandaloneInvoice extends Model
         'terms_of_payment',
         'pay_to',
         'signatory_name',
+        'preset_id',
+        'signature_path',
         'total_qty',
         'subtotal',
         'notes',

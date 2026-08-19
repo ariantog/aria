@@ -50,10 +50,7 @@ it('creates a standalone invoice with free-text lines', function () {
         'date' => '2026-08-14',
         'recipient' => "PRASETIA QUBE WELLNESS\nSurabaya",
         'sender_addrbook_id' => $warehouse->id,
-        'template' => StandaloneInvoice::TEMPLATE_CLASSIC,
-        'terms_of_payment' => "Pembayaran lunas.\nHarga belum termasuk PPN.",
-        'pay_to' => "BCA\n5105251588\nCV ACTIVEWEAR GLOBAL MANDIRI",
-        'signatory_name' => 'Arianto Gunawan',
+        'preset_id' => 'default',
         'lines' => [
             ['description' => 'TECHNO GYM', 'quantity' => 81, 'price' => 100_000],
         ],
@@ -110,7 +107,8 @@ it('renders invoice maker pages for superadmin', function () {
     $this->actingAs($this->user)->get(route('invoice-maker.create'))->assertOk()->assertSee('New Invoice', false);
     $this->actingAs($this->user)->get(route('invoice-maker.show', $invoice))->assertOk()->assertSee($invoice->number, false);
     $this->actingAs($this->user)->get(route('invoice-maker.edit', $invoice))->assertOk()->assertSee('Edit Invoice', false);
-    $this->actingAs($this->user)->get(route('invoice-settings.edit'))->assertOk()->assertSee('Terms of Payment', false);
+    $this->actingAs($this->user)->get(route('invoice-maker.settings.index'))->assertOk()->assertSee('Invoice Maker Settings', false);
+    $this->actingAs($this->user)->get(route('invoice-maker.settings.create'))->assertOk()->assertSee('New Preset', false);
 });
 
 it('auto-generates invoice numbers with year prefix', function () {

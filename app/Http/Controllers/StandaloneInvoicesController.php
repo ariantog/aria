@@ -8,7 +8,6 @@ use App\Services\InvoiceMakerSettingsService;
 use App\Services\StandaloneInvoiceService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
-use Illuminate\Validation\Rule;
 
 class StandaloneInvoicesController extends Controller
 {
@@ -36,12 +35,10 @@ class StandaloneInvoicesController extends Controller
     {
         Gate::authorize(StandaloneInvoice::getPermissions()['create']);
 
-        $defaults = $settingsService->defaults();
-
         return view('invoice-maker.form', [
             'invoice' => null,
-            'defaults' => $defaults,
-            'templates' => StandaloneInvoice::TEMPLATES,
+            'presets' => $settingsService->presets(),
+            'selectedPreset' => $settingsService->defaultPreset(),
             'warehouseLookupUrl' => route('transactions.lookup', ['type' => 'sell', 'role' => 'sender']).'&addrbook_type='.Addrbook::TYPE_WAREHOUSE,
             'can' => $this->permissions(),
         ]);
@@ -80,12 +77,14 @@ class StandaloneInvoicesController extends Controller
         Gate::authorize(StandaloneInvoice::getPermissions()['edit']);
 
         $invoice->load(['lines', 'sender']);
-        $defaults = $settingsService->defaults();
+        $selectedPreset = $invoice->preset_id
+            ? $settingsService->findPreset($invoice->preset_id)
+            : null;
 
         return view('invoice-maker.form', [
             'invoice' => $invoice,
-            'defaults' => $defaults,
-            'templates' => StandaloneInvoice::TEMPLATES,
+            'presets' => $settingsService->presets(),
+            'selectedPreset' => $selectedPreset ?? $settingsService->defaultPreset(),
             'warehouseLookupUrl' => route('transactions.lookup', ['type' => 'sell', 'role' => 'sender']).'&addrbook_type='.Addrbook::TYPE_WAREHOUSE,
             'can' => $this->permissions(),
         ]);
@@ -169,10 +168,7 @@ class StandaloneInvoicesController extends Controller
             'date' => ['required', 'date'],
             'recipient' => ['required', 'string', 'max:5000'],
             'sender_addrbook_id' => ['nullable', 'integer', 'exists:customers,id'],
-            'template' => ['required', 'string', Rule::in(array_keys(StandaloneInvoice::TEMPLATES))],
-            'terms_of_payment' => ['nullable', 'string', 'max:5000'],
-            'pay_to' => ['nullable', 'string', 'max:1000'],
-            'signatory_name' => ['nullable', 'string', 'max:255'],
+            'preset_id' => ['required', 'string', 'max:64'],
             'notes' => ['nullable', 'string', 'max:5000'],
             'lines' => ['required', 'array', 'min:1'],
             'lines.*.description' => ['required', 'string', 'max:500'],
@@ -180,7 +176,15 @@ class StandaloneInvoicesController extends Controller
             'lines.*.price' => ['required', 'numeric', 'min:0'],
         ]);
 
+        $preset = app(InvoiceMakerSettingsService::class)->findPreset($validated['preset_id']);
+        abort_unless($preset, 422, 'Selected invoice preset was not found.');
+
         $data = collect($validated)->except('lines')->all();
+        $data['template'] = $preset['template'];
+        $data['terms_of_payment'] = $preset['terms_of_payment'];
+        $data['pay_to'] = $preset['pay_to'];
+        $data['signatory_name'] = $preset['signatory_name'];
+        $data['signature_path'] = $preset['signature_path'];
 
         if (! $existing && empty($data['number'])) {
             $data['number'] = StandaloneInvoice::generateNumber($data['date']);
@@ -202,6 +206,7 @@ class StandaloneInvoicesController extends Controller
             'create' => $user?->can(StandaloneInvoice::getPermissions()['create']) ?? false,
             'edit' => $user?->can(StandaloneInvoice::getPermissions()['edit']) ?? false,
             'delete' => $user?->can(StandaloneInvoice::getPermissions()['delete']) ?? false,
+            'settings' => $user?->can(StandaloneInvoice::getPermissions()['edit']) ?? false,
         ];
     }
 }
