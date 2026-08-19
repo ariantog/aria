@@ -73,6 +73,7 @@ it('creates a standalone invoice with free-text lines', function () {
 
 it('generates and regenerates standalone invoice pdf', function () {
     $invoice = StandaloneInvoice::factory()->create([
+        'number' => 'INV/CA/2026/0001',
         'template' => StandaloneInvoice::TEMPLATE_CLASSIC,
     ]);
     StandaloneInvoiceLine::factory()->create([
@@ -96,6 +97,11 @@ it('generates and regenerates standalone invoice pdf', function () {
         ->post(route('invoice-maker.pdf.store', $invoice))
         ->assertRedirect(route('invoice-maker.show', $invoice))
         ->assertSessionHas('success', 'Invoice PDF regenerated.');
+
+    $this->actingAs($this->user)
+        ->get(route('invoice-maker.pdf.download', $invoice))
+        ->assertOk()
+        ->assertHeader('content-disposition', 'attachment; filename=INV-CA-2026-0001.pdf');
 });
 
 it('renders invoice maker pages for superadmin', function () {

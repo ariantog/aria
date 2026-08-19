@@ -61,13 +61,14 @@ test('authorized user can view create setting page', function () {
         ->assertStatus(200);
 });
 
-test('authorized user can view invoice logo settings', function () {
+test('authorized user can view invoice settings', function () {
     $this->user->givePermissionTo(Setting::getPermissions()['edit']);
 
     $this->actingAs($this->user)
         ->get(route('invoice-settings.edit'))
         ->assertOk()
-        ->assertSee('Invoice Logo', false)
+        ->assertSee('Invoice Settings', false)
+        ->assertSee('Terms of Payment', false)
         ->assertDontSee('Default Address', false);
 });
 

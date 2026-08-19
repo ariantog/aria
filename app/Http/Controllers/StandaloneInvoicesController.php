@@ -71,6 +71,7 @@ class StandaloneInvoicesController extends Controller
             'invoice' => $invoice,
             'hasInvoicePdf' => $service->invoicePdfExists($invoice),
             'invoicePdfUrl' => $service->invoicePdfUrl($invoice),
+            'invoicePdfDownloadUrl' => $service->invoicePdfDownloadUrl($invoice),
             'can' => $this->permissions(),
         ]);
     }
@@ -132,6 +133,19 @@ class StandaloneInvoicesController extends Controller
         return response()->file($filePath, [
             'Content-Type' => 'application/pdf',
             'Content-Disposition' => 'inline; filename="'.$service->invoiceFileName($invoice).'"',
+        ]);
+    }
+
+    public function downloadPdf(StandaloneInvoice $invoice, StandaloneInvoiceService $service)
+    {
+        Gate::authorize(StandaloneInvoice::getPermissions()['view']);
+        abort_unless($service->invoicePdfExists($invoice), 404);
+
+        $filePath = $service->invoiceDiskPath($service->invoiceFileName($invoice));
+        $fileName = $service->invoiceDownloadFileName($invoice);
+
+        return response()->download($filePath, $fileName, [
+            'Content-Type' => 'application/pdf',
         ]);
     }
 

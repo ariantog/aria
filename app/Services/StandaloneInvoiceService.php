@@ -48,6 +48,22 @@ class StandaloneInvoiceService
         return route('invoice-maker.pdf.show', $invoice);
     }
 
+    public function invoicePdfDownloadUrl(StandaloneInvoice $invoice): ?string
+    {
+        if (! $this->invoicePdfExists($invoice)) {
+            return null;
+        }
+
+        return route('invoice-maker.pdf.download', $invoice);
+    }
+
+    public function invoiceDownloadFileName(StandaloneInvoice $invoice): string
+    {
+        $safeNumber = preg_replace('/[^A-Za-z0-9._-]+/', '-', $invoice->number) ?: 'invoice';
+
+        return trim($safeNumber, '-').'.pdf';
+    }
+
     public function ensureInvoicePdf(StandaloneInvoice $invoice): string
     {
         return $this->createInvoicePdf($invoice, regenerate: false);

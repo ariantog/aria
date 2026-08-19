@@ -37,6 +37,8 @@ $fmt = fn ($n) => format_currency($n);
                     @if($hasInvoicePdf)
                     <a href="{{ $invoicePdfUrl }}" target="_blank" rel="noopener"
                        class="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">View PDF</a>
+                    <a href="{{ $invoicePdfDownloadUrl }}" data-testid="download-invoice-pdf"
+                       class="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">Download PDF</a>
                     <form method="POST" action="{{ route('invoice-maker.pdf.store', $invoice) }}">
                         @csrf
                         <button type="submit" data-testid="regenerate-invoice-pdf"
