@@ -111,6 +111,47 @@ it('renders invoice maker pages for superadmin', function () {
     $this->actingAs($this->user)->get(route('invoice-maker.settings.create'))->assertOk()->assertSee('New Preset', false);
 });
 
+it('updates an existing invoice preset', function () {
+    $service = app(InvoiceMakerSettingsService::class);
+    $preset = $service->createPreset([
+        'name' => 'Original',
+        'terms_of_payment' => 'Terms',
+        'pay_to' => "BCA\n123",
+        'signatory_name' => 'John',
+        'template' => StandaloneInvoice::TEMPLATE_CLASSIC,
+    ]);
+
+    $this->actingAs($this->user)
+        ->put(route('invoice-maker.settings.update', $preset['id']), [
+            'name' => 'Updated Name',
+            'terms_of_payment' => 'New terms',
+            'pay_to' => "Mandiri\n456",
+            'signatory_name' => 'Jane',
+            'template' => StandaloneInvoice::TEMPLATE_MODERN,
+        ])
+        ->assertRedirect(route('invoice-maker.settings.index'))
+        ->assertSessionHas('success', 'Invoice preset updated.');
+
+    $updated = $service->findPreset($preset['id']);
+    expect($updated['name'])->toBe('Updated Name');
+    expect($updated['template'])->toBe(StandaloneInvoice::TEMPLATE_MODERN);
+    expect($updated['signatory_name'])->toBe('Jane');
+});
+
+it('keeps preset edit and delete forms separate on the edit page', function () {
+    $preset = app(InvoiceMakerSettingsService::class)->defaultPreset();
+
+    $html = $this->actingAs($this->user)
+        ->get(route('invoice-maker.settings.edit', $preset['id']))
+        ->assertOk()
+        ->getContent();
+
+    preg_match('/<form[^>]*action="[^"]*invoice-maker\/settings\/[^"]+"[^>]*method="POST"[^>]*>(.*?)<\/form>/s', $html, $matches);
+    expect($matches[1] ?? '')->not->toContain('<form');
+    expect($html)->toContain('data-testid="save-preset-button"');
+    expect($html)->toContain('data-testid="delete-preset-button"');
+});
+
 it('auto-generates invoice numbers with year prefix', function () {
     expect(StandaloneInvoice::generateNumber(new DateTimeImmutable('2026-08-14')))->toBe('INV/CA/2026/0001');
 
