@@ -14,7 +14,7 @@ $breadcrumbs = [
     <div class="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
         <div>
             <h2 class="text-2xl font-bold tracking-tight text-gray-900">Invoice Maker Settings</h2>
-            <p class="mt-0.5 text-sm text-gray-500">Manage payment terms, pay-to bank details, signatory, signature, and template presets used when creating invoices.</p>
+            <p class="mt-0.5 text-sm text-gray-500">Manage logo, payment terms, pay-to bank details, signatory, signature, and template presets used when creating invoices.</p>
         </div>
         <div class="flex gap-2">
             <a href="{{ route('invoice-maker.index') }}"
@@ -36,6 +36,7 @@ $breadcrumbs = [
             <thead class="border-b border-gray-100 bg-gray-50 text-xs uppercase text-gray-500">
                 <tr>
                     <th class="px-4 py-3 font-semibold">Preset</th>
+                    <th class="px-4 py-3 font-semibold">Logo</th>
                     <th class="px-4 py-3 font-semibold">Template</th>
                     <th class="px-4 py-3 font-semibold">Signatory</th>
                     <th class="px-4 py-3 font-semibold">Signature</th>
@@ -49,6 +50,13 @@ $breadcrumbs = [
                         <div class="font-medium text-gray-900">{{ $preset['name'] }}</div>
                         @if($defaultPresetId === $preset['id'])
                             <span class="mt-1 inline-flex rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">Default</span>
+                        @endif
+                    </td>
+                    <td class="px-4 py-3">
+                        @if($preset['logo_url'] ?? null)
+                            <img src="{{ $preset['logo_url'] }}" alt="Logo" class="h-10 w-auto object-contain">
+                        @else
+                            <span class="text-gray-400">—</span>
                         @endif
                     </td>
                     <td class="px-4 py-3 text-gray-600">{{ \App\Models\StandaloneInvoice::TEMPLATES[$preset['template']] ?? $preset['template'] }}</td>
@@ -66,7 +74,7 @@ $breadcrumbs = [
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="5" class="px-4 py-12 text-center text-gray-500">No presets yet.</td>
+                    <td colspan="6" class="px-4 py-12 text-center text-gray-500">No presets yet.</td>
                 </tr>
                 @endforelse
             </tbody>

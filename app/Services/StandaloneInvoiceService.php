@@ -80,6 +80,10 @@ class StandaloneInvoiceService
 
         $invoice->loadMissing(['lines', 'sender', 'user']);
         $branding = $this->brandingService->forAddrbook($invoice->sender);
+        if ($logoDiskPath = $this->settingsService->logoDiskPath($invoice->logo_path)) {
+            $branding['logo_path'] = $logoDiskPath;
+            $branding['logo_url'] = $this->settingsService->logoPublicUrl($invoice->logo_path);
+        }
         $terms = $invoice->terms_of_payment ?: '';
         $payTo = $invoice->pay_to ?: '';
         $signatoryName = $invoice->signatory_name ?: '';

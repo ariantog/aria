@@ -36,6 +36,7 @@ class StandaloneInvoice extends Model
         'signatory_name',
         'preset_id',
         'signature_path',
+        'logo_path',
         'total_qty',
         'subtotal',
         'notes',

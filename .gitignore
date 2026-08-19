@@ -17,3 +17,4 @@ Homestead.yaml
 /.nova
 /.vscode
 /.zed
+public/asset/invoice-logos/*
