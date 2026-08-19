@@ -14,6 +14,7 @@ $initialLines = old('lines', $invoice?->lines->map(fn ($line) => [
     'quantity' => (float) $line->quantity,
     'price' => (float) $line->price,
 ])->values()->all() ?? [['description' => '', 'quantity' => 1, 'price' => 0]]);
+$initialPresetId = old('preset_id', $invoice->preset_id ?? $selectedPreset['id']);
 @endphp
 
 <div class="flex flex-col gap-4 p-3 sm:p-4" x-data="invoiceMakerForm(@js([
@@ -22,10 +23,8 @@ $initialLines = old('lines', $invoice?->lines->map(fn ($line) => [
     'date' => old('date', optional($invoice?->date)->format('Y-m-d') ?? now()->format('Y-m-d')),
     'recipient' => old('recipient', $invoice->recipient ?? ''),
     'sender_addrbook_id' => old('sender_addrbook_id', $invoice->sender_addrbook_id ?? ''),
-    'template' => old('template', $invoice->template ?? $defaults['default_template']),
-    'terms_of_payment' => old('terms_of_payment', $invoice->terms_of_payment ?? $defaults['terms_of_payment']),
-    'pay_to' => old('pay_to', $invoice->pay_to ?? $defaults['pay_to']),
-    'signatory_name' => old('signatory_name', $invoice->signatory_name ?? $defaults['signatory_name']),
+    'preset_id' => $initialPresetId,
+    'presets' => $presets,
     'notes' => old('notes', $invoice->notes ?? ''),
     'lines' => $initialLines,
     'senderInitial' => $invoice?->sender ? ['id' => $invoice->sender->id, 'name' => $invoice->sender->name] : null,
@@ -38,6 +37,7 @@ $initialLines = old('lines', $invoice?->lines->map(fn ($line) => [
     <form method="POST" action="{{ $isEdit ? route('invoice-maker.update', $invoice) : route('invoice-maker.store') }}" @submit="prepareSubmit">
         @csrf
         @if($isEdit) @method('PUT') @endif
+        <input type="hidden" name="preset_id" :value="form.preset_id">
 
         <div class="grid gap-4 lg:grid-cols-3">
             <div class="space-y-4 lg:col-span-2">
@@ -53,14 +53,6 @@ $initialLines = old('lines', $invoice?->lines->map(fn ($line) => [
                             <label class="mb-1 block text-sm font-medium text-gray-700">Date</label>
                             <input type="date" name="date" x-model="form.date" required
                                    class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500">
-                        </div>
-                        <div>
-                            <label class="mb-1 block text-sm font-medium text-gray-700">Template</label>
-                            <select name="template" x-model="form.template" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500">
-                                @foreach($templates as $value => $label)
-                                    <option value="{{ $value }}">{{ $label }}</option>
-                                @endforeach
-                            </select>
                         </div>
                         <div>
                             <label class="mb-1 block text-sm font-medium text-gray-700">From (Warehouse)</label>
@@ -142,23 +134,50 @@ $initialLines = old('lines', $invoice?->lines->map(fn ($line) => [
 
             <div class="space-y-4">
                 <div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-                    <h3 class="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">Payment & Signature</h3>
+                    <div class="mb-3 flex items-center justify-between gap-2">
+                        <h3 class="text-sm font-semibold uppercase tracking-wide text-gray-500">Payment & Signature</h3>
+                        @if($can['settings'] ?? false)
+                        <a href="{{ route('invoice-maker.settings.index') }}" class="text-xs font-medium text-blue-700 hover:underline">Manage presets</a>
+                        @endif
+                    </div>
                     <div class="space-y-3">
                         <div>
-                            <label class="mb-1 block text-sm font-medium text-gray-700">Terms of Payment</label>
-                            <textarea name="terms_of_payment" rows="4" x-model="form.terms_of_payment"
-                                      class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500"></textarea>
+                            <label class="mb-1 block text-sm font-medium text-gray-700">Preset</label>
+                            <select x-model="form.preset_id" @change="applyPreset()" data-testid="invoice-preset-select"
+                                    class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500">
+                                <template x-for="preset in form.presets" :key="preset.id">
+                                    <option :value="preset.id" x-text="preset.name"></option>
+                                </template>
+                            </select>
                         </div>
-                        <div>
-                            <label class="mb-1 block text-sm font-medium text-gray-700">Pay To</label>
-                            <textarea name="pay_to" rows="3" x-model="form.pay_to"
-                                      class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500"></textarea>
+
+                        <div class="rounded-lg border border-gray-100 bg-gray-50 p-3 text-sm text-gray-700" x-show="selectedPreset()">
+                            <div class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Preview</div>
+                            <div class="space-y-2">
+                                <div>
+                                    <div class="text-xs text-gray-500">Template</div>
+                                    <div class="font-medium" x-text="selectedPreset()?.template_label"></div>
+                                </div>
+                                <div>
+                                    <div class="text-xs text-gray-500">Terms of Payment</div>
+                                    <ul class="mt-1 list-disc space-y-1 pl-4" x-show="selectedPreset()?.terms_lines?.length">
+                                        <template x-for="line in selectedPreset()?.terms_lines || []" :key="line">
+                                            <li x-text="line"></li>
+                                        </template>
+                                    </ul>
+                                </div>
+                                <div>
+                                    <div class="text-xs text-gray-500">Pay To</div>
+                                    <div class="whitespace-pre-line" x-text="selectedPreset()?.pay_to || '—'"></div>
+                                </div>
+                                <div>
+                                    <div class="text-xs text-gray-500">Signatory</div>
+                                    <div class="font-medium" x-text="selectedPreset()?.signatory_name || '—'"></div>
+                                    <img x-show="selectedPreset()?.signature_url" :src="selectedPreset()?.signature_url" alt="Signature preview" class="mt-2 h-12 w-auto object-contain">
+                                </div>
+                            </div>
                         </div>
-                        <div>
-                            <label class="mb-1 block text-sm font-medium text-gray-700">Signatory Name</label>
-                            <input type="text" name="signatory_name" x-model="form.signatory_name"
-                                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500">
-                        </div>
+
                         <div>
                             <label class="mb-1 block text-sm font-medium text-gray-700">Notes</label>
                             <textarea name="notes" rows="2" x-model="form.notes"
@@ -183,11 +202,28 @@ $initialLines = old('lines', $invoice?->lines->map(fn ($line) => [
 @push('scripts')
 <script>
 function invoiceMakerForm(initial) {
+    const templateLabels = @js(\App\Models\StandaloneInvoice::TEMPLATES);
+
     return {
         form: initial,
         init() {
             this.recalc();
+            this.applyPreset();
         },
+        selectedPreset() {
+            const preset = this.form.presets.find((item) => item.id === this.form.preset_id);
+            if (!preset) return null;
+
+            return {
+                ...preset,
+                template_label: templateLabels[preset.template] || preset.template,
+                terms_lines: String(preset.terms_of_payment || '')
+                    .split(/\r?\n/)
+                    .map((line) => line.trim())
+                    .filter((line) => line !== ''),
+            };
+        },
+        applyPreset() {},
         addLine() {
             this.form.lines.push({ description: '', quantity: 1, price: 0 });
         },
@@ -214,6 +250,7 @@ function invoiceMakerForm(initial) {
         },
         canSubmit() {
             if (!this.form.recipient?.trim()) return false;
+            if (!this.form.preset_id) return false;
             if (!this.form.lines.length) return false;
             return this.form.lines.every(line =>
                 line.description?.trim() &&

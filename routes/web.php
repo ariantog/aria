@@ -193,6 +193,12 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::match(['get', 'post'], 'transactions/{transaction}/draft-return', [App\Http\Controllers\TransactionsController::class, 'draftReturn'])->name('transactions.draft-return');
     Route::post('transactions/{transaction}/whatsapp', [App\Http\Controllers\TransactionsController::class, 'sendWhatsapp'])->name('transactions.whatsapp');
 
+    Route::get('invoice-maker/settings', [App\Http\Controllers\InvoiceMakerSettingsController::class, 'index'])->name('invoice-maker.settings.index');
+    Route::get('invoice-maker/settings/create', [App\Http\Controllers\InvoiceMakerSettingsController::class, 'create'])->name('invoice-maker.settings.create');
+    Route::post('invoice-maker/settings', [App\Http\Controllers\InvoiceMakerSettingsController::class, 'store'])->name('invoice-maker.settings.store');
+    Route::get('invoice-maker/settings/{preset}/edit', [App\Http\Controllers\InvoiceMakerSettingsController::class, 'edit'])->name('invoice-maker.settings.edit');
+    Route::put('invoice-maker/settings/{preset}', [App\Http\Controllers\InvoiceMakerSettingsController::class, 'update'])->name('invoice-maker.settings.update');
+    Route::delete('invoice-maker/settings/{preset}', [App\Http\Controllers\InvoiceMakerSettingsController::class, 'destroy'])->name('invoice-maker.settings.destroy');
     Route::get('invoice-maker/{invoice}/pdf', [App\Http\Controllers\StandaloneInvoicesController::class, 'showPdf'])->name('invoice-maker.pdf.show');
     Route::get('invoice-maker/{invoice}/pdf/download', [App\Http\Controllers\StandaloneInvoicesController::class, 'downloadPdf'])->name('invoice-maker.pdf.download');
     Route::post('invoice-maker/{invoice}/pdf', [App\Http\Controllers\StandaloneInvoicesController::class, 'storePdf'])->name('invoice-maker.pdf.store');
