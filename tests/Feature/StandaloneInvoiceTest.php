@@ -157,7 +157,7 @@ it('stores a logo on an invoice preset and snapshots it to invoices', function (
 
     $preset = app(InvoiceMakerSettingsService::class)->findPreset('branded');
     expect($preset)->not->toBeNull();
-    expect($preset['logo_path'])->not->toBeNull();
+    expect($preset['logo_path'])->toEndWith('.png');
     expect($preset['logo_url'])->not->toBeNull();
 
     $warehouse = Addrbook::factory()->warehouse()->create();
@@ -232,6 +232,18 @@ it('falls back to preset assets when invoice rows lack logo and signature paths'
 
     $pdf = file_get_contents($service->invoiceDiskPath($service->invoiceFileName($invoice)));
     expect($pdf)->toContain('/Subtype /Image');
+});
+
+it('resolves preset image paths for pdf rendering from public asset directories', function () {
+    File::ensureDirectoryExists(public_path('asset/invoice-logos'));
+    $relative = 'asset/invoice-logos/pdf-path-test.png';
+    $absolute = public_path($relative);
+    $image = imagecreatetruecolor(40, 20);
+    imagepng($image, $absolute);
+    imagedestroy($image);
+
+    $resolved = app(InvoiceMakerSettingsService::class)->pdfImagePath($relative);
+    expect($resolved)->toBe(str_replace('\\', '/', realpath($absolute)));
 });
 
 it('keeps preset edit and delete forms separate on the edit page', function () {

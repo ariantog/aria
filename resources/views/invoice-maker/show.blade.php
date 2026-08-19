@@ -39,16 +39,16 @@ $fmt = fn ($n) => format_currency($n);
                        class="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">View PDF</a>
                     <a href="{{ $invoicePdfDownloadUrl }}" data-testid="download-invoice-pdf"
                        class="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">Download PDF</a>
-                    <form method="POST" action="{{ route('invoice-maker.pdf.store', $invoice) }}">
+                    <form method="POST" action="{{ route('invoice-maker.pdf.store', $invoice) }}" class="pdf-generate-form">
                         @csrf
                         <button type="submit" data-testid="regenerate-invoice-pdf"
-                                class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50">Regenerate PDF</button>
+                                class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 disabled:cursor-wait disabled:opacity-60">Regenerate PDF</button>
                     </form>
                     @else
-                    <form method="POST" action="{{ route('invoice-maker.pdf.store', $invoice) }}">
+                    <form method="POST" action="{{ route('invoice-maker.pdf.store', $invoice) }}" class="pdf-generate-form">
                         @csrf
                         <button type="submit" data-testid="generate-invoice-pdf"
-                                class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50">Generate PDF</button>
+                                class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 disabled:cursor-wait disabled:opacity-60">Generate PDF</button>
                     </form>
                     @endif
                 </div>
@@ -148,4 +148,19 @@ $fmt = fn ($n) => format_currency($n);
         </div>
     </div>
 </div>
+<script>
+document.querySelectorAll('.pdf-generate-form').forEach((form) => {
+    form.addEventListener('submit', () => {
+        const button = form.querySelector('button[type="submit"]');
+        if (!button || button.disabled) {
+            return;
+        }
+
+        button.disabled = true;
+        button.textContent = button.textContent.trim().startsWith('Generate')
+            ? 'Generating PDF...'
+            : 'Regenerating PDF...';
+    });
+});
+</script>
 @endsection

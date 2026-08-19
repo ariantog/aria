@@ -294,31 +294,40 @@ class InvoiceMakerSettingsService
     }
 
     /**
-     * Embed a public asset as a data URI for DomPDF image rendering.
+     * Resolve a public asset to an absolute filesystem path for DomPDF.
+     *
+     * Never returns HTTP URLs — remote fetches can deadlock single-worker PHP hosts.
+     */
+    public function pdfImagePath(?string $relativeOrAbsolutePath): ?string
+    {
+        $diskPath = $this->resolvePublicAssetPath($relativeOrAbsolutePath);
+        if (! $diskPath) {
+            return null;
+        }
+
+        $optimizedPath = $this->ensurePdfOptimizedImage($diskPath);
+
+        return $this->normalizeFilesystemPath($optimizedPath);
+    }
+
+    /**
+     * @deprecated Use pdfImagePath() — data URIs bloat HTML and slow DomPDF.
      */
     public function pdfImageDataUri(?string $relativeOrAbsolutePath): ?string
     {
-        if (! $relativeOrAbsolutePath) {
+        $path = $this->pdfImagePath($relativeOrAbsolutePath);
+        if (! $path) {
             return null;
         }
 
-        $diskPath = File::isFile($relativeOrAbsolutePath)
-            ? $relativeOrAbsolutePath
-            : public_path($relativeOrAbsolutePath);
-
-        if (! File::isFile($diskPath)) {
-            return null;
-        }
-
-        $extension = strtolower(pathinfo($diskPath, PATHINFO_EXTENSION));
+        $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
         $mime = match ($extension) {
             'jpg', 'jpeg' => 'image/jpeg',
-            'webp' => 'image/webp',
             'gif' => 'image/gif',
             default => 'image/png',
         };
 
-        return 'data:'.$mime.';base64,'.base64_encode((string) File::get($diskPath));
+        return 'data:'.$mime.';base64,'.base64_encode((string) File::get($path));
     }
 
     /**
@@ -448,17 +457,15 @@ class InvoiceMakerSettingsService
 
     private function storeSignature(string $presetId, UploadedFile $signature): string
     {
-        File::ensureDirectoryExists(public_path(self::SIGNATURE_DIRECTORY));
+        $this->deleteSignatureFiles($presetId);
 
-        $extension = strtolower($signature->getClientOriginalExtension() ?: 'png');
-        if (! in_array($extension, ['png', 'jpg', 'jpeg', 'webp'], true)) {
-            $extension = 'png';
-        }
-
-        $relative = self::SIGNATURE_DIRECTORY.'/'.$presetId.'.'.$extension;
-        $signature->move(public_path(self::SIGNATURE_DIRECTORY), $presetId.'.'.$extension);
-
-        return $relative;
+        return $this->storeOptimizedPublicImage(
+            $signature,
+            self::SIGNATURE_DIRECTORY,
+            $presetId,
+            500,
+            180,
+        );
     }
 
     private function deleteSignatureFiles(string $presetId): void
@@ -473,17 +480,15 @@ class InvoiceMakerSettingsService
 
     private function storeLogo(string $presetId, UploadedFile $logo): string
     {
-        File::ensureDirectoryExists(public_path(self::LOGO_DIRECTORY));
-
-        $extension = strtolower($logo->getClientOriginalExtension() ?: 'png');
-        if (! in_array($extension, ['png', 'jpg', 'jpeg', 'webp'], true)) {
-            $extension = 'png';
-        }
-
         $this->deleteLogoFiles($presetId);
-        $logo->move(public_path(self::LOGO_DIRECTORY), $presetId.'.'.$extension);
 
-        return self::LOGO_DIRECTORY.'/'.$presetId.'.'.$extension;
+        return $this->storeOptimizedPublicImage(
+            $logo,
+            self::LOGO_DIRECTORY,
+            $presetId,
+            800,
+            240,
+        );
     }
 
     private function deleteLogoFiles(string $presetId): void
@@ -494,6 +499,135 @@ class InvoiceMakerSettingsService
                 File::delete($path);
             }
         }
+    }
+
+    private function storeOptimizedPublicImage(
+        UploadedFile $file,
+        string $directory,
+        string $basename,
+        int $maxWidth,
+        int $maxHeight,
+    ): string {
+        File::ensureDirectoryExists(public_path($directory));
+        $relative = $directory.'/'.$basename.'.png';
+        $absolute = public_path($relative);
+
+        if ($this->optimizeImageFile($file->getRealPath(), $absolute, $maxWidth, $maxHeight)) {
+            return $relative;
+        }
+
+        $extension = strtolower($file->getClientOriginalExtension() ?: 'png');
+        if (! in_array($extension, ['png', 'jpg', 'jpeg', 'webp'], true)) {
+            $extension = 'png';
+        }
+
+        $relative = $directory.'/'.$basename.'.'.$extension;
+        $file->move(public_path($directory), $basename.'.'.$extension);
+
+        return $relative;
+    }
+
+    private function resolvePublicAssetPath(?string $relativeOrAbsolutePath): ?string
+    {
+        if (! $relativeOrAbsolutePath) {
+            return null;
+        }
+
+        if (preg_match('#^https?://#i', $relativeOrAbsolutePath)) {
+            return null;
+        }
+
+        if (File::isFile($relativeOrAbsolutePath)) {
+            return $relativeOrAbsolutePath;
+        }
+
+        $normalized = ltrim(str_replace('\\', '/', $relativeOrAbsolutePath), '/');
+        $candidates = [
+            public_path($relativeOrAbsolutePath),
+            public_path($normalized),
+            base_path($normalized),
+        ];
+
+        foreach ($candidates as $candidate) {
+            if (File::isFile($candidate)) {
+                return $candidate;
+            }
+        }
+
+        return null;
+    }
+
+    private function ensurePdfOptimizedImage(string $diskPath): string
+    {
+        $extension = strtolower(pathinfo($diskPath, PATHINFO_EXTENSION));
+        $needsConversion = in_array($extension, ['webp'], true) || filesize($diskPath) > 750_000;
+
+        if (! $needsConversion || ! extension_loaded('gd')) {
+            return $diskPath;
+        }
+
+        $cacheDir = storage_path('app/pdf-image-cache');
+        File::ensureDirectoryExists($cacheDir);
+        $cachePath = $cacheDir.'/'.md5($diskPath.(string) filemtime($diskPath)).'.png';
+
+        if (File::isFile($cachePath)) {
+            return $cachePath;
+        }
+
+        if ($this->optimizeImageFile($diskPath, $cachePath, 1200, 400)) {
+            return $cachePath;
+        }
+
+        return $diskPath;
+    }
+
+    private function optimizeImageFile(string $sourcePath, string $targetPath, int $maxWidth, int $maxHeight): bool
+    {
+        if (! extension_loaded('gd')) {
+            return false;
+        }
+
+        $contents = @file_get_contents($sourcePath);
+        if ($contents === false) {
+            return false;
+        }
+
+        $image = @imagecreatefromstring($contents);
+        if ($image === false) {
+            return false;
+        }
+
+        $width = imagesx($image);
+        $height = imagesy($image);
+        $scale = min(1, $maxWidth / max($width, 1), $maxHeight / max($height, 1));
+        $targetWidth = max(1, (int) round($width * $scale));
+        $targetHeight = max(1, (int) round($height * $scale));
+
+        $canvas = imagecreatetruecolor($targetWidth, $targetHeight);
+        if ($canvas === false) {
+            imagedestroy($image);
+
+            return false;
+        }
+
+        imagealphablending($canvas, false);
+        imagesavealpha($canvas, true);
+        $transparent = imagecolorallocatealpha($canvas, 0, 0, 0, 127);
+        imagefilledrectangle($canvas, 0, 0, $targetWidth, $targetHeight, $transparent);
+        imagecopyresampled($canvas, $image, 0, 0, 0, 0, $targetWidth, $targetHeight, $width, $height);
+        imagepng($canvas, $targetPath, 6);
+
+        imagedestroy($image);
+        imagedestroy($canvas);
+
+        return File::isFile($targetPath);
+    }
+
+    private function normalizeFilesystemPath(string $path): string
+    {
+        $realPath = realpath($path);
+
+        return str_replace('\\', '/', $realPath ?: $path);
     }
 
     private function upsertSetting(string $slug, string $name, mixed $value): void
