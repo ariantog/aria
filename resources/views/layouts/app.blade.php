@@ -281,6 +281,15 @@ function isPrintableComboboxKey(key, e) {
     return key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey;
 }
 
+// Swallow Enter/Tab field navigation briefly after programmatic focus (Android IME).
+function suppressFieldNavigation(ms = 400) {
+    window._suppressFieldNavUntil = Date.now() + ms;
+}
+
+function isFieldNavigationSuppressed() {
+    return Date.now() < (window._suppressFieldNavUntil || 0);
+}
+
 // ─── Autocomplete defaults (addrbook + item comboboxes) ─────────────────────
 const COMBOBOX_MIN_CHARS = 3;
 const COMBOBOX_MAX_RESULTS = 8;
@@ -395,6 +404,7 @@ function asyncCombobox(config) {
         selected: config.initial || null,
         activeIndex: -1,
         _keydownHandled: false,
+        _outsideClick: null,
         debounceTimer: null,
         endpoint: config.endpoint,
         queryParam: config.queryParam || 'search',
@@ -413,6 +423,38 @@ function asyncCombobox(config) {
                     this.onSelect(this.selected);
                 }
             }
+
+            this.$watch('open', (isOpen) => {
+                if (isOpen) {
+                    // Defer so the click that opened the panel does not count as "outside".
+                    setTimeout(() => {
+                        if (!this.open) return;
+                        this._attachOutsideClick();
+                    }, 0);
+                } else {
+                    this._detachOutsideClick();
+                }
+            });
+        },
+
+        destroy() {
+            this._detachOutsideClick();
+        },
+
+        _attachOutsideClick() {
+            if (this._outsideClick) return;
+            this._outsideClick = (e) => {
+                if (!this.$el.contains(e.target)) {
+                    this.open = false;
+                }
+            };
+            document.addEventListener('click', this._outsideClick, true);
+        },
+
+        _detachOutsideClick() {
+            if (!this._outsideClick) return;
+            document.removeEventListener('click', this._outsideClick, true);
+            this._outsideClick = null;
         },
 
         needsMoreChars() {
@@ -464,6 +506,7 @@ function asyncCombobox(config) {
                 if (el) el.value = item ? item.id : '';
             }
             if (this.onSelect) this.onSelect(item);
+            if (item) suppressFieldNavigation(400);
         },
 
         clearSelection() {
@@ -478,8 +521,13 @@ function asyncCombobox(config) {
         },
 
         handleFocus() {
+            if (this.needsMoreChars() && this.items.length === 0) {
+                return;
+            }
             this.open = true;
-            if (this.items.length === 0 && comboboxSearchable(this.query)) this.doSearch(this.query);
+            if (this.items.length === 0 && comboboxSearchable(this.query)) {
+                this.doSearch(this.query);
+            }
         },
 
         keyboardNavLock() {

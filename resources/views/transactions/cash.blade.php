@@ -120,7 +120,7 @@ $config = [
                                            :placeholder="placeholder" class="flex-1 border-none bg-transparent px-2 text-sm leading-8 outline-none" autocomplete="off">
                                     <span x-show="loading" class="flex items-center pr-1.5"><svg class="h-3.5 w-3.5 animate-spin text-gray-400" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg></span>
                                 </div>
-                                <div x-show="open" @click.away="open=false" class="combobox-options" x-ref="optionsList" style="z-index:60">
+                                <div x-show="open" class="combobox-options" x-ref="optionsList" style="z-index:60">
                                     <div x-show="!loading && items.length===0" class="px-3 py-2 text-sm text-gray-400" x-text="emptyMessage()"></div>
                                     <template x-for="(item, i) in items" :key="item.id">
                                         <div @mousedown.prevent="selectItem(item)" @mouseenter="activeIndex=i" class="combobox-option" :class="{'active': activeIndex===i}">
@@ -231,8 +231,7 @@ function cashForm() {
             row.customer_id = item ? String(item.id) : '';
             row.customer = item;
             if (!item) return;
-            // Defer focus until after keyup: if we move focus synchronously on
-            // keydown, the same Enter's keyup lands on invoice and advances to note.
+            suppressFieldNavigation(400);
             setTimeout(() => {
                 const el = document.getElementById('invoice_' + idx);
                 if (el) { el.focus(); el.select?.(); }
@@ -298,6 +297,10 @@ function cashForm() {
 
         // Bare keydown/keyup (not Alpine .enter) so Android/IME keyboards work.
         fieldKeydown(idx, field, e) {
+            if (isFieldNavigationSuppressed()) {
+                e.preventDefault();
+                return;
+            }
             this._fieldKeyHandled = false;
             if (this._processFieldKey(idx, field, e)) {
                 this._fieldKeyHandled = true;
@@ -306,6 +309,10 @@ function cashForm() {
         },
 
         fieldKeyup(idx, field, e) {
+            if (isFieldNavigationSuppressed()) {
+                e.preventDefault();
+                return;
+            }
             if (this._fieldKeyHandled) {
                 this._fieldKeyHandled = false;
                 return;
