@@ -205,7 +205,7 @@ function cashForm() {
     const today = new Date().toISOString().split('T')[0];
     const startDate = (_CashMinDate && today < _CashMinDate) ? _CashMinDate : today;
     return {
-        submitting: false,
+        ...submitGuardFields(),
         touched: false,
         serverErrors: [],
         _fieldKeyHandled: false,
@@ -326,9 +326,13 @@ function cashForm() {
         async handleSubmit() {
             this.touched = true;
             this.serverErrors = [];
-            if (!this.canSubmit() || this.submitting) return;
+            if (!this.canSubmit()) return;
+            if (!beginSubmit(this)) return;
 
-            this.submitting = true;
+            const form = this.$el.querySelector('form');
+            if (form) window.markFormSubmitInFlight(form);
+            let keepLocked = false;
+
             const payload = {
                 date: this.form.date,
                 account_id: this.form.account_id,
@@ -348,6 +352,7 @@ function cashForm() {
                         'Accept': 'application/json',
                         'X-CSRF-TOKEN': _CashCsrf,
                         'X-Requested-With': 'XMLHttpRequest',
+                        ...idempotencyHeaders(this),
                     },
                     // Don't follow the server redirect; keep its flash and send the user to the list.
                     redirect: 'manual',
@@ -355,6 +360,7 @@ function cashForm() {
                 });
 
                 if (res.type === 'opaqueredirect' || res.status === 0 || (res.status >= 200 && res.status < 400)) {
+                    keepLocked = true;
                     window.location.href = _TxIndex;
                     return;
                 }
@@ -369,7 +375,10 @@ function cashForm() {
             } catch (e) {
                 this.serverErrors = ['Network error — your entries are still here. Please try again.'];
             } finally {
-                this.submitting = false;
+                if (!keepLocked) {
+                    endSubmit(this);
+                    if (form) window.releaseFormSubmitGuard(form);
+                }
             }
         }
     };

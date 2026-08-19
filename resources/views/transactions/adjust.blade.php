@@ -21,7 +21,7 @@
     </div>
     @endif
 
-    <form method="POST" action="{{ route('transactions.adjust.store') }}" class="max-w-4xl space-y-5">
+    <form method="POST" action="{{ route('transactions.adjust.store') }}" @submit="guardFormSubmit($event)" class="max-w-4xl space-y-5">
         @csrf
 
         <div class="rounded-xl border border-gray-200 bg-white shadow-sm">
@@ -167,8 +167,10 @@
                     <a href="{{ route('transactions.index') }}"
                        class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Cancel</a>
                     <button type="submit"
-                            class="h-12 rounded-lg bg-indigo-600 px-10 text-sm font-bold text-white shadow-md hover:bg-indigo-700">
-                        Save Adjust
+                            :disabled="submitting"
+                            class="h-12 rounded-lg bg-indigo-600 px-10 text-sm font-bold text-white shadow-md hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60">
+                        <span x-show="!submitting">Save Adjust</span>
+                        <span x-show="submitting" x-cloak>Saving…</span>
                     </button>
                 </div>
             </div>
@@ -180,6 +182,7 @@
 <script>
 function adjustForm() {
     return {
+        ...formSubmitGuard(),
         senderId: '',
         receiverId: '',
         senderBalance: null,
