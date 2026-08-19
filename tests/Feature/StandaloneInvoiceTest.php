@@ -177,6 +177,63 @@ it('stores a logo on an invoice preset and snapshots it to invoices', function (
     expect($invoice->logo_path)->toBe($preset['logo_path']);
 });
 
+it('embeds preset logo and signature images in generated pdf', function () {
+    File::ensureDirectoryExists(public_path('asset/invoice-logos'));
+    File::ensureDirectoryExists(public_path('asset/invoice-signatures'));
+
+    $logo = UploadedFile::fake()->image('logo.png', 120, 40);
+    $signature = UploadedFile::fake()->image('signature.png', 80, 30);
+
+    $preset = app(InvoiceMakerSettingsService::class)->createPreset([
+        'name' => 'PDF Branding',
+        'template' => StandaloneInvoice::TEMPLATE_CLASSIC,
+        'terms_of_payment' => 'Pay now',
+        'pay_to' => "BCA\n1\nTest",
+        'signatory_name' => 'Director',
+    ], $signature, $logo);
+
+    $invoice = StandaloneInvoice::factory()->create([
+        'template' => StandaloneInvoice::TEMPLATE_CLASSIC,
+        'preset_id' => $preset['id'],
+        'signatory_name' => 'Director',
+    ]);
+    StandaloneInvoiceLine::factory()->create(['standalone_invoice_id' => $invoice->id]);
+
+    $service = app(StandaloneInvoiceService::class);
+    $service->createInvoicePdf($invoice, regenerate: true);
+
+    $pdf = file_get_contents($service->invoiceDiskPath($service->invoiceFileName($invoice)));
+    expect($pdf)->toContain('/Subtype /Image');
+});
+
+it('falls back to preset assets when invoice rows lack logo and signature paths', function () {
+    File::ensureDirectoryExists(public_path('asset/invoice-logos'));
+    File::ensureDirectoryExists(public_path('asset/invoice-signatures'));
+
+    $preset = app(InvoiceMakerSettingsService::class)->createPreset([
+        'name' => 'Fallback Branding',
+        'template' => StandaloneInvoice::TEMPLATE_CLASSIC,
+        'terms_of_payment' => 'Pay now',
+        'pay_to' => "BCA\n1\nTest",
+        'signatory_name' => 'Director',
+    ], UploadedFile::fake()->image('signature.png', 80, 30), UploadedFile::fake()->image('logo.png', 120, 40));
+
+    $invoice = StandaloneInvoice::factory()->create([
+        'template' => StandaloneInvoice::TEMPLATE_CLASSIC,
+        'preset_id' => $preset['id'],
+        'logo_path' => null,
+        'signature_path' => null,
+        'signatory_name' => 'Director',
+    ]);
+    StandaloneInvoiceLine::factory()->create(['standalone_invoice_id' => $invoice->id]);
+
+    $service = app(StandaloneInvoiceService::class);
+    $service->createInvoicePdf($invoice, regenerate: true);
+
+    $pdf = file_get_contents($service->invoiceDiskPath($service->invoiceFileName($invoice)));
+    expect($pdf)->toContain('/Subtype /Image');
+});
+
 it('keeps preset edit and delete forms separate on the edit page', function () {
     $preset = app(InvoiceMakerSettingsService::class)->defaultPreset();
 

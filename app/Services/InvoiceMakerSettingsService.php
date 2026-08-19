@@ -294,6 +294,34 @@ class InvoiceMakerSettingsService
     }
 
     /**
+     * Embed a public asset as a data URI for DomPDF image rendering.
+     */
+    public function pdfImageDataUri(?string $relativeOrAbsolutePath): ?string
+    {
+        if (! $relativeOrAbsolutePath) {
+            return null;
+        }
+
+        $diskPath = File::isFile($relativeOrAbsolutePath)
+            ? $relativeOrAbsolutePath
+            : public_path($relativeOrAbsolutePath);
+
+        if (! File::isFile($diskPath)) {
+            return null;
+        }
+
+        $extension = strtolower(pathinfo($diskPath, PATHINFO_EXTENSION));
+        $mime = match ($extension) {
+            'jpg', 'jpeg' => 'image/jpeg',
+            'webp' => 'image/webp',
+            'gif' => 'image/gif',
+            default => 'image/png',
+        };
+
+        return 'data:'.$mime.';base64,'.base64_encode((string) File::get($diskPath));
+    }
+
+    /**
      * @return array{
      *     id: string,
      *     name: string,

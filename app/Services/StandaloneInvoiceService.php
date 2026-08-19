@@ -79,15 +79,24 @@ class StandaloneInvoiceService
         }
 
         $invoice->loadMissing(['lines', 'sender', 'user']);
+        $preset = $invoice->preset_id
+            ? $this->settingsService->findPreset($invoice->preset_id)
+            : null;
+
         $branding = $this->brandingService->forAddrbook($invoice->sender);
-        if ($logoDiskPath = $this->settingsService->logoDiskPath($invoice->logo_path)) {
-            $branding['logo_path'] = $logoDiskPath;
-            $branding['logo_url'] = $this->settingsService->logoPublicUrl($invoice->logo_path);
+        $logoSource = $invoice->logo_path ?? $preset['logo_path'] ?? null;
+        if ($logoDataUri = $this->settingsService->pdfImageDataUri($logoSource)) {
+            $branding['logo_path'] = $logoDataUri;
+        } elseif ($branding['logo_path']) {
+            $branding['logo_path'] = $this->settingsService->pdfImageDataUri($branding['logo_path'])
+                ?? $branding['logo_path'];
         }
+
         $terms = $invoice->terms_of_payment ?: '';
         $payTo = $invoice->pay_to ?: '';
-        $signatoryName = $invoice->signatory_name ?: '';
-        $signaturePath = $this->settingsService->signatureDiskPath($invoice->signature_path);
+        $signatoryName = $invoice->signatory_name ?: ($preset['signatory_name'] ?? '');
+        $signatureSource = $invoice->signature_path ?? $preset['signature_path'] ?? null;
+        $signaturePath = $this->settingsService->pdfImageDataUri($signatureSource);
         $termsBullets = $this->settingsService->termsBullets($terms);
         $payToParsed = $this->settingsService->parsePayTo($payTo);
 
