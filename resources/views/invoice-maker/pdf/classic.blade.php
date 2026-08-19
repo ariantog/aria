@@ -58,7 +58,7 @@
             </td>
             <td class="recipient">
                 <div>Kepada</div>
-                <div class="name">{{ $invoice->recipient_name }}</div>
+                <div class="name" style="white-space: pre-line;">{{ $invoice->recipient }}</div>
             </td>
         </tr>
     </table>

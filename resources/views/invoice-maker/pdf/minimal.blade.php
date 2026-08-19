@@ -28,7 +28,7 @@
 
     <div class="row">
         <span class="muted">To</span><br>
-        <strong>{{ $invoice->recipient_name }}</strong>
+        <strong style="white-space:pre-line;">{{ $invoice->recipient }}</strong>
     </div>
 
     <table class="items">

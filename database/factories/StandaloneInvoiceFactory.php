@@ -18,7 +18,7 @@ class StandaloneInvoiceFactory extends Factory
         return [
             'number' => StandaloneInvoice::generateNumber(),
             'date' => now()->toDateString(),
-            'recipient_name' => $this->faker->company(),
+            'recipient' => $this->faker->company(),
             'template' => StandaloneInvoice::TEMPLATE_CLASSIC,
             'terms_of_payment' => "Pembayaran lunas.\nHarga belum termasuk PPN.",
             'pay_to' => "BCA\n1234567890\nCV TEST",

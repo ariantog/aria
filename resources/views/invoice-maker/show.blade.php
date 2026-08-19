@@ -78,7 +78,7 @@ $fmt = fn ($n) => format_currency($n);
         <div class="space-y-4 lg:col-span-2">
             <div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
                 <dl class="grid gap-3 sm:grid-cols-2 text-sm">
-                    <div><dt class="text-gray-500">Recipient</dt><dd class="font-medium text-gray-900">{{ $invoice->recipient_name }}</dd></div>
+                    <div><dt class="text-gray-500">Recipient</dt><dd class="font-medium whitespace-pre-line text-gray-900">{{ $invoice->recipient }}</dd></div>
                     <div><dt class="text-gray-500">Template</dt><dd class="font-medium text-gray-900">{{ \App\Models\StandaloneInvoice::TEMPLATES[$invoice->template] ?? $invoice->template }}</dd></div>
                     <div><dt class="text-gray-500">From</dt><dd class="font-medium text-gray-900">{{ $invoice->sender?->name ?? '—' }}</dd></div>
                     <div><dt class="text-gray-500">Created by</dt><dd class="font-medium text-gray-900">{{ $invoice->user?->name ?? '—' }}</dd></div>

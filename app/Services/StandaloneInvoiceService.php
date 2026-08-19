@@ -136,7 +136,7 @@ class StandaloneInvoiceService
 
             $this->syncLines($invoice, $lines);
 
-            return $invoice->fresh(['lines', 'sender', 'recipient']);
+            return $invoice->fresh(['lines', 'sender']);
         });
     }
 
@@ -157,7 +157,7 @@ class StandaloneInvoiceService
 
             $this->syncLines($invoice, $lines);
 
-            return $invoice->fresh(['lines', 'sender', 'recipient']);
+            return $invoice->fresh(['lines', 'sender']);
         });
     }
 

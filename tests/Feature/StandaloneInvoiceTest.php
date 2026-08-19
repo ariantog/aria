@@ -44,13 +44,11 @@ it('creates a standalone invoice with free-text lines', function () {
     $warehouse = Addrbook::factory()->warehouse()->create([
         'description' => "Core Store\nJl. Test 1",
     ]);
-    $customer = Addrbook::factory()->customer()->create(['name' => 'PRASETIA QUBE WELLNESS']);
 
     $response = $this->actingAs($this->user)->post(route('invoice-maker.store'), [
         'number' => 'INV/CA/2026/0001',
         'date' => '2026-08-14',
-        'recipient_name' => $customer->name,
-        'recipient_addrbook_id' => $customer->id,
+        'recipient' => "PRASETIA QUBE WELLNESS\nSurabaya",
         'sender_addrbook_id' => $warehouse->id,
         'template' => StandaloneInvoice::TEMPLATE_CLASSIC,
         'terms_of_payment' => "Pembayaran lunas.\nHarga belum termasuk PPN.",
@@ -65,7 +63,7 @@ it('creates a standalone invoice with free-text lines', function () {
     $response->assertRedirect(route('invoice-maker.show', $invoice));
 
     expect($invoice)->not->toBeNull();
-    expect($invoice->recipient_name)->toBe('PRASETIA QUBE WELLNESS');
+    expect($invoice->recipient)->toBe("PRASETIA QUBE WELLNESS\nSurabaya");
     expect($invoice->lines)->toHaveCount(1);
     expect((float) $invoice->subtotal)->toBe(8_100_000.0);
     expect((float) $invoice->total_qty)->toBe(81.0);

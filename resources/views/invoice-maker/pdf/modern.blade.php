@@ -53,7 +53,7 @@
             </div>
             <div class="meta-right">
                 <div style="font-size:10px;color:#6b7280;">Bill To</div>
-                <div style="font-size:14px;font-weight:bold;">{{ $invoice->recipient_name }}</div>
+                <div style="font-size:14px;font-weight:bold;white-space:pre-line;">{{ $invoice->recipient }}</div>
             </div>
         </div>
 

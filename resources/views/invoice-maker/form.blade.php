@@ -20,8 +20,7 @@ $initialLines = old('lines', $invoice?->lines->map(fn ($line) => [
     'isEdit' => $isEdit,
     'number' => old('number', $invoice->number ?? \App\Models\StandaloneInvoice::generateNumber()),
     'date' => old('date', optional($invoice?->date)->format('Y-m-d') ?? now()->format('Y-m-d')),
-    'recipient_name' => old('recipient_name', $invoice->recipient_name ?? ''),
-    'recipient_addrbook_id' => old('recipient_addrbook_id', $invoice->recipient_addrbook_id ?? ''),
+    'recipient' => old('recipient', $invoice->recipient ?? ''),
     'sender_addrbook_id' => old('sender_addrbook_id', $invoice->sender_addrbook_id ?? ''),
     'template' => old('template', $invoice->template ?? $defaults['default_template']),
     'terms_of_payment' => old('terms_of_payment', $invoice->terms_of_payment ?? $defaults['terms_of_payment']),
@@ -29,7 +28,6 @@ $initialLines = old('lines', $invoice?->lines->map(fn ($line) => [
     'signatory_name' => old('signatory_name', $invoice->signatory_name ?? $defaults['signatory_name']),
     'notes' => old('notes', $invoice->notes ?? ''),
     'lines' => $initialLines,
-    'recipientInitial' => $invoice?->recipient ? ['id' => $invoice->recipient->id, 'name' => $invoice->recipient->name] : null,
     'senderInitial' => $invoice?->sender ? ['id' => $invoice->sender->id, 'name' => $invoice->sender->name] : null,
 ]))">
     <div>
@@ -87,32 +85,9 @@ $initialLines = old('lines', $invoice?->lines->map(fn ($line) => [
                         </div>
                         <div class="sm:col-span-2">
                             <label class="mb-1 block text-sm font-medium text-gray-700">Kepada (Recipient) <span class="text-red-500">*</span></label>
-                            <div class="grid gap-2 sm:grid-cols-2">
-                                <div x-data="asyncCombobox({
-                                    endpoint: @js($customerLookupUrl),
-                                    placeholder: 'Search customer...',
-                                    initial: @js($invoice?->recipient ? ['id' => $invoice->recipient->id, 'name' => $invoice->recipient->name] : null),
-                                    onSelect: (item) => {
-                                        form.recipient_addrbook_id = item ? String(item.id) : '';
-                                        if (item) form.recipient_name = item.name;
-                                    }
-                                })" class="relative">
-                                    <input type="hidden" name="recipient_addrbook_id" :value="form.recipient_addrbook_id">
-                                    <input type="text" x-model="query" @input="handleInput()" @focus="handleFocus()" @keydown="handleKeydown($event)"
-                                           :placeholder="placeholder" autocomplete="off"
-                                           class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500">
-                                    <div x-show="open" x-cloak @click.away="open = false" class="combobox-options" x-ref="optionsList">
-                                        <template x-for="(item, idx) in items" :key="item.id">
-                                            <div class="combobox-option" :class="{ 'active': idx === activeIndex }" @click="selectItem(item)" @mouseenter="activeIndex = idx">
-                                                <span x-text="item.name"></span>
-                                            </div>
-                                        </template>
-                                    </div>
-                                </div>
-                                <input type="text" name="recipient_name" x-model="form.recipient_name" required
-                                       placeholder="Recipient name on invoice"
-                                       class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500">
-                            </div>
+                            <textarea name="recipient" x-model="form.recipient" rows="3" required
+                                      placeholder="Recipient name and address"
+                                      class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500"></textarea>
                         </div>
                     </div>
                 </div>
@@ -238,7 +213,7 @@ function invoiceMakerForm(initial) {
             return 'Rp ' + formatAmountId(value);
         },
         canSubmit() {
-            if (!this.form.recipient_name?.trim()) return false;
+            if (!this.form.recipient?.trim()) return false;
             if (!this.form.lines.length) return false;
             return this.form.lines.every(line =>
                 line.description?.trim() &&
