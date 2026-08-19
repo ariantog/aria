@@ -23,6 +23,7 @@ class SettingRegistry
     public const SYSTEM_SLUGS = [
         'jubelio_token',
         'invoice_logo_path',
+        'invoice_signature_path',
     ];
 
     /**
@@ -96,6 +97,32 @@ class SettingRegistry
                 'type' => 'addrbook_warehouse',
                 'default' => null,
                 'hint' => 'Default warehouse when sending finished production to stock.',
+            ],
+            'invoice_maker.terms_of_payment' => [
+                'group' => 'Invoice',
+                'name' => 'Default Terms of Payment',
+                'type' => 'textarea',
+                'default' => "Pembayaran lunas sebelum barang dikirim.\nHarga belum termasuk PPN 11%.",
+                'hint' => 'Each new line becomes a bullet point on the invoice.',
+            ],
+            'invoice_maker.pay_to' => [
+                'group' => 'Invoice',
+                'name' => 'Default Pay To',
+                'type' => 'textarea',
+                'default' => "BCA\n5105251588\nCV ACTIVEWEAR GLOBAL MANDIRI",
+                'hint' => 'Line 1: bank, line 2: account number, line 3: account name.',
+            ],
+            'invoice_maker.signatory_name' => [
+                'group' => 'Invoice',
+                'name' => 'Default Signatory Name',
+                'type' => 'text',
+                'default' => 'Arianto Gunawan',
+            ],
+            'invoice_maker.default_template' => [
+                'group' => 'Invoice',
+                'name' => 'Default Invoice Template',
+                'type' => 'text',
+                'default' => 'classic',
             ],
         ];
     }
