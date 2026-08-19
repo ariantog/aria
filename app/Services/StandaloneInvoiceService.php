@@ -84,19 +84,20 @@ class StandaloneInvoiceService
             : null;
 
         $branding = $this->brandingService->forAddrbook($invoice->sender);
-        $logoSource = $invoice->logo_path ?? $preset['logo_path'] ?? null;
-        if ($logoDataUri = $this->settingsService->pdfImageDataUri($logoSource)) {
-            $branding['logo_path'] = $logoDataUri;
-        } elseif ($branding['logo_path']) {
-            $branding['logo_path'] = $this->settingsService->pdfImageDataUri($branding['logo_path'])
-                ?? $branding['logo_path'];
+        $logoPath = $this->settingsService->pdfImagePath($invoice->logo_path ?? $preset['logo_path'] ?? null)
+            ?? $this->settingsService->pdfImagePath($branding['logo_path']);
+        if ($logoPath) {
+            $branding['logo_path'] = $logoPath;
+        } else {
+            $branding['logo_path'] = null;
         }
 
         $terms = $invoice->terms_of_payment ?: '';
         $payTo = $invoice->pay_to ?: '';
         $signatoryName = $invoice->signatory_name ?: ($preset['signatory_name'] ?? '');
-        $signatureSource = $invoice->signature_path ?? $preset['signature_path'] ?? null;
-        $signaturePath = $this->settingsService->pdfImageDataUri($signatureSource);
+        $signaturePath = $this->settingsService->pdfImagePath(
+            $invoice->signature_path ?? $preset['signature_path'] ?? null
+        );
         $termsBullets = $this->settingsService->termsBullets($terms);
         $payToParsed = $this->settingsService->parsePayTo($payTo);
 
@@ -108,6 +109,8 @@ class StandaloneInvoiceService
         if (File::exists($filePath)) {
             File::delete($filePath);
         }
+
+        File::ensureDirectoryExists(storage_path('app/dompdf'));
 
         $view = 'invoice-maker.pdf.'.$template;
 
@@ -122,8 +125,10 @@ class StandaloneInvoiceService
             ->setPaper('a4', 'portrait')
             ->setOptions([
                 'isHtml5ParserEnabled' => true,
-                'isRemoteEnabled' => true,
-                'isPhpEnabled' => true,
+                'isRemoteEnabled' => false,
+                'isPhpEnabled' => false,
+                'chroot' => base_path(),
+                'tempDir' => storage_path('app/dompdf'),
             ])
             ->save($filePath);
 
