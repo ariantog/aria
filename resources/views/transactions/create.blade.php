@@ -2,6 +2,13 @@
 
 @section('title', 'New ' . ucfirst($type) . ' Transaction')
 
+@push('head-css')
+<style>
+    #barcode-scanner-viewport video { object-fit: cover; border-radius: 0.5rem; }
+    #barcode-scanner-viewport img { display: none; }
+</style>
+@endpush
+
 @section('content')
 <div class="flex flex-col gap-4 p-4"
      x-data="createTransaction()"
@@ -240,12 +247,24 @@
                             {{-- Code / barcode --}}
                             <div class="sm:col-span-2">
                                 <label class="mb-1 block text-xs font-medium text-gray-500 sm:hidden">Code / Barcode</label>
-                                <input type="text" x-model="item.code" :id="'code_' + idx"
-                                       @keydown="rowKeydown(idx, 'code', $event)"
-                                       @keyup="rowKeyup(idx, 'code', $event)"
-                                       inputmode="text" enterkeyhint="search"
-                                       placeholder="ID / SKU" autocomplete="off"
-                                       class="{{ $rowInput }} font-mono">
+                                <div class="flex items-center gap-1.5">
+                                    <input type="text" x-model="item.code" :id="'code_' + idx"
+                                           @keydown="rowKeydown(idx, 'code', $event)"
+                                           @keyup="rowKeyup(idx, 'code', $event)"
+                                           inputmode="text" enterkeyhint="search"
+                                           placeholder="ID / SKU" autocomplete="off"
+                                           class="{{ $rowInput }} min-w-0 flex-1 font-mono">
+                                    <button type="button"
+                                            @click="openBarcodeScanner(idx)"
+                                            class="flex h-8 w-9 shrink-0 items-center justify-center rounded border border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-700 sm:hidden"
+                                            :aria-label="'Scan barcode for row ' + (idx + 1)"
+                                            data-testid="barcode-scan-btn">
+                                        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true">
+                                            <path stroke-linecap="round" d="M4 7V5a1 1 0 011-1h2M4 17v2a1 1 0 001 1h2M16 4h2a1 1 0 011 1v2M20 16v2a1 1 0 01-1 1h-2"/>
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M7 8h1M7 12h1M7 16h1M10 8h1M10 12h1M10 16h1M13 8h2M13 12h2M13 16h2M16 8h1M16 12h1M16 16h1"/>
+                                        </svg>
+                                    </button>
+                                </div>
                             </div>
                             {{-- Name autocomplete --}}
                             <div class="relative sm:col-span-3">
@@ -390,6 +409,43 @@
     <form id="tx-form" method="POST" action="{{ route('transactions.store') }}" style="display:none">
         @csrf
     </form>
+
+    {{-- Mobile barcode scanner modal --}}
+    <div x-show="scannerOpen" x-cloak
+         class="fixed inset-0 z-[70] flex items-end justify-center bg-black/60 p-0 sm:items-center sm:p-4"
+         @keydown.escape.window="closeBarcodeScanner()"
+         data-testid="barcode-scanner-modal">
+        <div class="w-full max-w-md overflow-hidden rounded-t-2xl bg-white shadow-xl sm:rounded-2xl"
+             @click.outside="closeBarcodeScanner()">
+            <div class="flex items-center justify-between border-b border-gray-100 px-4 py-3">
+                <h3 class="text-sm font-semibold text-gray-900">Scan Barcode</h3>
+                <button type="button" @click="closeBarcodeScanner()"
+                        class="rounded-lg p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+                        aria-label="Close scanner">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <div class="space-y-3 p-4">
+                <div x-show="scannerCameras.length > 1" class="flex items-center gap-2">
+                    <label for="barcode-camera-select" class="shrink-0 text-xs font-medium text-gray-500">Camera</label>
+                    <select id="barcode-camera-select" x-model="scannerCameraId" @change="restartBarcodeScanner()"
+                            class="h-9 min-w-0 flex-1 rounded border border-gray-200 px-2 text-sm">
+                        <template x-for="cam in scannerCameras" :key="cam.id">
+                            <option :value="cam.id" x-text="cam.label || ('Camera ' + (scannerCameras.indexOf(cam) + 1))"></option>
+                        </template>
+                    </select>
+                </div>
+                <div class="relative overflow-hidden rounded-lg bg-black">
+                    <div id="barcode-scanner-viewport" class="min-h-[220px] w-full"></div>
+                    <div x-show="scannerLoading" class="absolute inset-0 flex items-center justify-center bg-black/40 text-sm text-white">
+                        Opening camera…
+                    </div>
+                </div>
+                <p x-show="scannerError" x-cloak class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700" x-text="scannerError"></p>
+                <p class="text-xs text-gray-500">Point the rear camera at a barcode. The code field will fill automatically.</p>
+            </div>
+        </div>
+    </div>
 </div>
 
 @push('scripts')
@@ -401,6 +457,36 @@ const _PriceSource = @json($config['price_source'] ?? 'price');
 const _Prefill = @json($prefill ?? null);
 const _ItemLookupUrl = @json(route('transactions.item-by-id', ['type' => $type]));
 const _AfterQtyField = @js($isMove ? 'price' : 'disc');
+const _BarcodeScannerLibUrl = 'https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js';
+
+function isFrontCameraLabel(label) {
+    return /front|user|selfie|facetime|true.?depth|mirror/i.test(String(label || ''));
+}
+
+function filterBackCameras(cameras) {
+    const list = Array.isArray(cameras) ? cameras : [];
+    const back = list.filter(c => !isFrontCameraLabel(c.label));
+    return back.length ? back : list;
+}
+
+async function loadBarcodeScannerLib() {
+    if (window.Html5Qrcode) return;
+    await new Promise((resolve, reject) => {
+        const existing = document.querySelector('script[data-barcode-scanner-lib]');
+        if (existing) {
+            existing.addEventListener('load', () => resolve(), { once: true });
+            existing.addEventListener('error', () => reject(new Error('Failed to load barcode scanner.')), { once: true });
+            return;
+        }
+        const script = document.createElement('script');
+        script.src = _BarcodeScannerLibUrl;
+        script.async = true;
+        script.dataset.barcodeScannerLib = '1';
+        script.onload = () => resolve();
+        script.onerror = () => reject(new Error('Failed to load barcode scanner.'));
+        document.head.appendChild(script);
+    });
+}
 
 function createTransaction() {
     const today = new Date().toISOString().split('T')[0];
@@ -410,6 +496,14 @@ function createTransaction() {
         errors: {},
         serverErrors: [],
         barcodeError: '',
+        scannerOpen: false,
+        scannerIdx: null,
+        scannerLoading: false,
+        scannerError: '',
+        scannerCameraId: '',
+        scannerCameras: [],
+        _scanner: null,
+        _scannerHandled: false,
         _initialized: false,
         _barcodeFillIdx: null,
         _rowKeyHandled: false,
@@ -616,6 +710,138 @@ function createTransaction() {
             this.$nextTick(() => {
                 if (input) { input.focus(); input.select?.(); }
             });
+        },
+
+        async openBarcodeScanner(idx) {
+            this.scannerIdx = idx;
+            this.scannerOpen = true;
+            this.scannerError = '';
+            this.scannerLoading = true;
+            this._scannerHandled = false;
+            await this.$nextTick();
+            try {
+                await this.startBarcodeScanner();
+            } catch (err) {
+                this.scannerError = err?.message || 'Unable to open the camera.';
+                this.scannerLoading = false;
+            }
+        },
+
+        async startBarcodeScanner() {
+            await loadBarcodeScannerLib();
+            const viewportId = 'barcode-scanner-viewport';
+            const viewport = document.getElementById(viewportId);
+            if (!viewport) throw new Error('Scanner viewport missing.');
+
+            if (this._scanner) {
+                try { await this._scanner.stop(); } catch (_) {}
+                try { await this._scanner.clear(); } catch (_) {}
+                this._scanner = null;
+            }
+
+            const formats = [
+                Html5QrcodeSupportedFormats.CODE_128,
+                Html5QrcodeSupportedFormats.CODE_39,
+                Html5QrcodeSupportedFormats.CODE_93,
+                Html5QrcodeSupportedFormats.EAN_13,
+                Html5QrcodeSupportedFormats.EAN_8,
+                Html5QrcodeSupportedFormats.UPC_A,
+                Html5QrcodeSupportedFormats.UPC_E,
+                Html5QrcodeSupportedFormats.ITF,
+                Html5QrcodeSupportedFormats.CODABAR,
+            ];
+
+            this._scanner = new Html5Qrcode(viewportId, { formatsToSupport: formats, verbose: false });
+
+            let cameras = [];
+            try {
+                cameras = filterBackCameras(await Html5Qrcode.getCameras());
+            } catch (_) {
+                cameras = [];
+            }
+
+            this.scannerCameras = cameras;
+            if (cameras.length > 0) {
+                const preferred = cameras.find(c => c.id === this.scannerCameraId) || cameras[0];
+                this.scannerCameraId = preferred.id;
+            } else {
+                this.scannerCameraId = '';
+            }
+
+            const config = {
+                fps: 10,
+                qrbox: (viewfinderWidth, viewfinderHeight) => {
+                    const width = Math.min(viewfinderWidth * 0.9, 320);
+                    const height = Math.min(viewfinderHeight * 0.45, 160);
+                    return { width: Math.max(Math.floor(width), 200), height: Math.max(Math.floor(height), 80) };
+                },
+                aspectRatio: 1.777778,
+            };
+
+            const cameraConfig = this.scannerCameraId
+                ? this.scannerCameraId
+                : { facingMode: { exact: 'environment' } };
+
+            try {
+                await this._scanner.start(
+                    cameraConfig,
+                    config,
+                    (decodedText) => this.handleBarcodeScan(decodedText),
+                    () => {},
+                );
+            } catch (err) {
+                if (!this.scannerCameraId) throw err;
+                await this._scanner.start(
+                    { facingMode: 'environment' },
+                    config,
+                    (decodedText) => this.handleBarcodeScan(decodedText),
+                    () => {},
+                );
+            }
+
+            this.scannerLoading = false;
+        },
+
+        async restartBarcodeScanner() {
+            if (!this.scannerOpen) return;
+            this.scannerError = '';
+            this.scannerLoading = true;
+            this._scannerHandled = false;
+            try {
+                await this.startBarcodeScanner();
+            } catch (err) {
+                this.scannerError = err?.message || 'Unable to switch camera.';
+                this.scannerLoading = false;
+            }
+        },
+
+        handleBarcodeScan(code) {
+            const trimmed = String(code || '').trim();
+            if (!trimmed || this._scannerHandled) return;
+            this._scannerHandled = true;
+
+            const idx = this.scannerIdx;
+            this.closeBarcodeScanner();
+
+            const row = this.form.items[idx];
+            if (!row) return;
+
+            row.code = trimmed;
+            this.$nextTick(() => {
+                const input = document.getElementById('code_' + idx);
+                this.lookupBarcode(idx, { target: input });
+            });
+        },
+
+        async closeBarcodeScanner() {
+            this.scannerOpen = false;
+            this.scannerLoading = false;
+            this.scannerError = '';
+            if (this._scanner) {
+                try { await this._scanner.stop(); } catch (_) {}
+                try { await this._scanner.clear(); } catch (_) {}
+                this._scanner = null;
+            }
         },
 
         async lookupBarcode(idx, e) {
