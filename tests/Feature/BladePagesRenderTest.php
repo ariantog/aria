@@ -66,8 +66,10 @@ it('renders the create form for each item transaction type', function (string $t
     $this->actingAs($this->user)
         ->get("/transactions/{$type}/create")
         ->assertOk()
-        ->assertSee('Line Items', false);
-})->with(['buy', 'sell', 'move']);
+        ->assertSee('Line Items', false)
+        ->assertSee('data-testid="barcode-scan-btn"', false)
+        ->assertSee('data-testid="barcode-scanner-modal"', false);
+})->with(['buy', 'sell', 'move', 'return', 'return-supplier']);
 
 it('renders the cash in page', function () {
     $this->actingAs($this->user)
