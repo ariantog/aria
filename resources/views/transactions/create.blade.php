@@ -780,7 +780,7 @@ function createTransaction() {
 
             const cameraConfig = this.scannerCameraId
                 ? this.scannerCameraId
-                : { facingMode: { exact: 'environment' } };
+                : { facingMode: 'environment' };
 
             try {
                 await this._scanner.start(
