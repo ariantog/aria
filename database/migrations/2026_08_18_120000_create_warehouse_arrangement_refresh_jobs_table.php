@@ -8,6 +8,10 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (Schema::hasTable('warehouse_arrangement_refresh_jobs')) {
+            return;
+        }
+
         Schema::create('warehouse_arrangement_refresh_jobs', function (Blueprint $table) {
             $table->id();
             $table->unsignedInteger('destination_warehouse_id');
