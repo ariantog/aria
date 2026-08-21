@@ -1,4 +1,8 @@
 /.phpunit.cache
+# Laravel schema dumps are loaded automatically by `migrate` before any migration
+# runs, and they DROP/CREATE greenfield tables. That is destructive against the
+# shared production database, so this project must never carry one.
+/database/schema
 /public/storage
 /storage/*.key
 /storage/pail
