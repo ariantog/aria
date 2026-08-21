@@ -530,14 +530,22 @@ class LegacyItemIdentityParser
             return $this->warnaTagsByCode->get($warnaCode);
         }
 
-        if (! $this->isValidAutoCreateWarnaCode($warnaCode)) {
+        $compact = str_replace('-', '', $warnaCode);
+
+        if ($compact !== $warnaCode && $this->warnaTagsByCode->has($compact)) {
+            return $this->warnaTagsByCode->get($compact);
+        }
+
+        $createCode = $compact !== '' ? $compact : $warnaCode;
+
+        if (! $this->isValidAutoCreateWarnaCode($createCode)) {
             throw new InvalidArgumentException("Invalid warna code: {$warnaCode}");
         }
 
         $attributes = Tag::normalizeWarnaAttributes([
             'type' => Tag::TYPE_WARNA,
-            'name' => $compact !== '' ? $compact : $warnaCode,
-            'code' => $compact !== '' ? $compact : $warnaCode,
+            'name' => $createCode,
+            'code' => $createCode,
             'item_type' => 0,
         ]);
 
