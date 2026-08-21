@@ -4,8 +4,7 @@
 
 @push('head-css')
 <style>
-    #barcode-scanner-viewport video { object-fit: cover; border-radius: 0.5rem; }
-    #barcode-scanner-viewport img { display: none; }
+    #barcode-scanner-video { width: 100%; min-height: 220px; border-radius: 0.5rem; background: #000; object-fit: cover; }
 </style>
 @endpush
 
@@ -436,7 +435,7 @@
                     </select>
                 </div>
                 <div class="relative overflow-hidden rounded-lg bg-black">
-                    <div id="barcode-scanner-viewport" class="min-h-[220px] w-full"></div>
+                    <video id="barcode-scanner-video" playsinline muted autoplay class="min-h-[220px] w-full"></video>
                     <div x-show="scannerLoading" class="absolute inset-0 flex items-center justify-center bg-black/40 text-sm text-white">
                         Opening camera…
                     </div>
@@ -457,7 +456,7 @@ const _PriceSource = @json($config['price_source'] ?? 'price');
 const _Prefill = @json($prefill ?? null);
 const _ItemLookupUrl = @json(route('transactions.item-by-id', ['type' => $type]));
 const _AfterQtyField = @js($isMove ? 'price' : 'disc');
-const _BarcodeScannerLibUrl = 'https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js';
+const _BarcodeScannerLibUrl = 'https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.5/umd/zxing-browser.min.js';
 
 function isFrontCameraLabel(label) {
     return /front|user|selfie|facetime|true.?depth|mirror/i.test(String(label || ''));
@@ -470,7 +469,7 @@ function filterBackCameras(cameras) {
 }
 
 async function loadBarcodeScannerLib() {
-    if (window.Html5Qrcode) return;
+    if (window.ZXingBrowser) return;
     await new Promise((resolve, reject) => {
         const existing = document.querySelector('script[data-barcode-scanner-lib]');
         if (existing) {
@@ -502,7 +501,8 @@ function createTransaction() {
         scannerError: '',
         scannerCameraId: '',
         scannerCameras: [],
-        _scanner: null,
+        _scannerReader: null,
+        _scannerControls: null,
         _scannerHandled: false,
         _initialized: false,
         _barcodeFillIdx: null,
@@ -729,37 +729,23 @@ function createTransaction() {
 
         async startBarcodeScanner() {
             await loadBarcodeScannerLib();
-            const viewportId = 'barcode-scanner-viewport';
-            const viewport = document.getElementById(viewportId);
-            if (!viewport) throw new Error('Scanner viewport missing.');
+            const video = document.getElementById('barcode-scanner-video');
+            if (!video) throw new Error('Scanner video element missing.');
 
-            if (this._scanner) {
-                try { await this._scanner.stop(); } catch (_) {}
-                try { await this._scanner.clear(); } catch (_) {}
-                this._scanner = null;
-            }
+            await this.stopScannerEngine();
 
-            const formats = [
-                Html5QrcodeSupportedFormats.CODE_128,
-                Html5QrcodeSupportedFormats.CODE_39,
-                Html5QrcodeSupportedFormats.CODE_93,
-                Html5QrcodeSupportedFormats.EAN_13,
-                Html5QrcodeSupportedFormats.EAN_8,
-                Html5QrcodeSupportedFormats.UPC_A,
-                Html5QrcodeSupportedFormats.UPC_E,
-                Html5QrcodeSupportedFormats.ITF,
-                Html5QrcodeSupportedFormats.CODABAR,
-            ];
+            // ZXing 1D reader scans the full video frame — much better for Code 128 than
+            // html5-qrcode's small QR-oriented scan box / native BarcodeDetector path.
+            this._scannerReader = new ZXingBrowser.BrowserMultiFormatOneDReader();
 
-            this._scanner = new Html5Qrcode(viewportId, { formatsToSupport: formats, verbose: false });
-
-            let cameras = [];
+            let devices = [];
             try {
-                cameras = filterBackCameras(await Html5Qrcode.getCameras());
+                devices = await ZXingBrowser.BrowserCodeReader.listVideoInputDevices();
             } catch (_) {
-                cameras = [];
+                devices = [];
             }
 
+            const cameras = filterBackCameras(devices.map(d => ({ id: d.deviceId, label: d.label })));
             this.scannerCameras = cameras;
             if (cameras.length > 0) {
                 const preferred = cameras.find(c => c.id === this.scannerCameraId) || cameras[0];
@@ -768,34 +754,30 @@ function createTransaction() {
                 this.scannerCameraId = '';
             }
 
-            const config = {
-                fps: 10,
-                qrbox: (viewfinderWidth, viewfinderHeight) => {
-                    const width = Math.min(viewfinderWidth * 0.9, 320);
-                    const height = Math.min(viewfinderHeight * 0.45, 160);
-                    return { width: Math.max(Math.floor(width), 200), height: Math.max(Math.floor(height), 80) };
-                },
-                aspectRatio: 1.777778,
+            const onResult = (result) => {
+                if (result) this.handleBarcodeScan(result.getText());
             };
 
-            const cameraConfig = this.scannerCameraId
-                ? this.scannerCameraId
-                : { facingMode: 'environment' };
-
             try {
-                await this._scanner.start(
-                    cameraConfig,
-                    config,
-                    (decodedText) => this.handleBarcodeScan(decodedText),
-                    () => {},
-                );
+                if (this.scannerCameraId) {
+                    this._scannerControls = await this._scannerReader.decodeFromVideoDevice(
+                        this.scannerCameraId,
+                        video,
+                        onResult,
+                    );
+                } else {
+                    this._scannerControls = await this._scannerReader.decodeFromConstraints(
+                        { video: { facingMode: { ideal: 'environment' } } },
+                        video,
+                        onResult,
+                    );
+                }
             } catch (err) {
                 if (!this.scannerCameraId) throw err;
-                await this._scanner.start(
-                    { facingMode: 'environment' },
-                    config,
-                    (decodedText) => this.handleBarcodeScan(decodedText),
-                    () => {},
+                this._scannerControls = await this._scannerReader.decodeFromConstraints(
+                    { video: { facingMode: { ideal: 'environment' } } },
+                    video,
+                    onResult,
                 );
             }
 
@@ -833,15 +815,24 @@ function createTransaction() {
             });
         },
 
+        async stopScannerEngine() {
+            if (this._scannerControls) {
+                try { this._scannerControls.stop(); } catch (_) {}
+                this._scannerControls = null;
+            }
+            if (this._scannerReader) {
+                try { this._scannerReader.reset(); } catch (_) {}
+                this._scannerReader = null;
+            }
+            const video = document.getElementById('barcode-scanner-video');
+            if (video) video.srcObject = null;
+        },
+
         async closeBarcodeScanner() {
             this.scannerOpen = false;
             this.scannerLoading = false;
             this.scannerError = '';
-            if (this._scanner) {
-                try { await this._scanner.stop(); } catch (_) {}
-                try { await this._scanner.clear(); } catch (_) {}
-                this._scanner = null;
-            }
+            await this.stopScannerEngine();
         },
 
         async lookupBarcode(idx, e) {
