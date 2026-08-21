@@ -325,7 +325,7 @@ test('it auto creates parent group when updating legacy asset lancar without gro
         'id' => $item->group_id,
         'master' => 'GLOVE-01',
         'variant' => 'BLUE',
-        'name' => 'BOXING GLOVES',
+        'name' => 'BOXING GLOVES - BLUE',
     ]);
     expect($item->code)->toBe('GLOVE-01-BLUE-S')
         ->and($item->price)->toBe('550000.00');

@@ -26,7 +26,7 @@ class ItemService
      */
     public function update(int $id, object $input, array $tags, ?UploadedFile $file = null): Item
     {
-        $inputType = ItemType::tryFrom($input->type ?? 1) ?? ItemType::ITEM;
+        $inputType = $this->resolveItemType($input->type ?? ItemType::ITEM->value);
 
         return DB::transaction(function () use ($id, $input, $tags, $file, $inputType) {
             $item = Item::with(['group', 'tags'])->findOrFail($id);
@@ -73,9 +73,15 @@ class ItemService
             $warnaTag = $warnaId ? Tag::find($warnaId) : null;
 
             $pcode = strtoupper(trim((string) $input->pcode));
-            $previousGroupName = $item->group?->name ?? '';
             $groupName = $this->groupNameFromInput($input, $inputType, $pcode, $item->group, $item);
-            $nameChanged = strtoupper($previousGroupName) !== strtoupper($groupName);
+            $variant = $this->identityBuilder->groupVariant($inputType, $pcode, $warnaTag);
+            $storedName = $this->identityBuilder->storedGroupName($inputType, $groupName, $pcode, $variant);
+            $storedName = $this->ensureUniqueStoredGroupName(
+                $storedName,
+                $this->identityBuilder->parsePcode($inputType, $pcode)['master'],
+                $variant,
+            );
+            $nameChanged = strtoupper(trim((string) ($item->group?->name ?? ''))) !== strtoupper($storedName);
             $group = $this->resolveGroup($inputType, $pcode, $groupName, $warnaTag, $input);
 
             $this->applyItemIdentity(
@@ -121,7 +127,22 @@ class ItemService
         }
 
         return DB::transaction(function () use ($group, $productName) {
-            $group->name = $productName;
+            $sampleItem = $group->items()->first();
+            $itemType = $sampleItem
+                ? $this->resolveItemType($sampleItem->getAttributes()['type'] ?? $sampleItem->type)
+                : ItemType::ITEM;
+            $storedName = $this->identityBuilder->storedGroupName(
+                $itemType,
+                $productName,
+                (string) ($sampleItem?->pcode ?? ''),
+                (string) ($group->variant ?? ''),
+            );
+            $storedName = $this->ensureUniqueStoredGroupName(
+                $storedName,
+                (string) ($group->master ?? ''),
+                (string) ($group->variant ?? ''),
+            );
+            $group->name = $storedName;
             $group->save();
 
             $this->syncItemNamesForGroup($group);
@@ -135,7 +156,7 @@ class ItemService
      */
     public function create(object $input, array $tags, ?UploadedFile $file = null): bool
     {
-        $inputType = ItemType::tryFrom($input->type ?? 1) ?? ItemType::ITEM;
+        $inputType = $this->resolveItemType($input->type ?? ItemType::ITEM->value);
 
         try {
             $this->identityBuilder->validatePcode($inputType, (string) ($input->pcode ?? ''));
@@ -318,7 +339,7 @@ class ItemService
             ],
         );
 
-        if (strtoupper(trim((string) $group->name)) === '' || $group->name === null) {
+        if (strtoupper(trim((string) $group->name)) !== strtoupper($storedName)) {
             $group->name = $storedName;
         }
 
@@ -452,7 +473,7 @@ class ItemService
     protected function syncItemNamesForGroup(ItemGroup $group): void
     {
         $items = Item::with('tags')->where('group_id', $group->id)->get();
-        $sampleType = ItemType::tryFrom($items->first()?->type ?? ItemType::ITEM->value) ?? ItemType::ITEM;
+        $sampleType = $this->resolveItemType($items->first()?->type ?? ItemType::ITEM->value);
         $displayName = $this->identityBuilder->productDisplayName(
             $sampleType,
             (string) $group->name,
@@ -542,5 +563,14 @@ class ItemService
             'sizes' => array_values(array_filter($sizes)),
             'jahit' => array_values(array_filter($jahit)),
         ];
+    }
+
+    private function resolveItemType(mixed $value): ItemType
+    {
+        if ($value instanceof ItemType) {
+            return $value;
+        }
+
+        return ItemType::tryFrom((int) $value) ?? ItemType::ITEM;
     }
 }
