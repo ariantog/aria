@@ -91,19 +91,22 @@ You will see many migrations as “Pending”. That is expected.
 ```bash
 php artisan config:clear
 php artisan migrate --path=database/migrations/2026_08_13_100000_production_database_bootstrap.php --force
-
-# Data-only migrations (not part of the schema bootstrap)
-php artisan migrate --path=database/migrations/2026_08_18_092335_drop_deleted_at_from_roles_table.php --force
-php artisan migrate --path=database/migrations/2026_08_18_102227_remove_obsolete_addrbook_permissions.php --force
-
-# Corrective (idempotent; required once on DBs migrated before 2026-08-21, no-op otherwise)
-php artisan migrate --path=database/migrations/2026_08_21_100000_reapply_production_defaults_and_int_keys.php --force
+php artisan db:seed --class=ProductionBootstrapSeeder --force
 ```
 
-The bootstrap runs: normalize zero dates → align → install L12 tables → warehouse
-arrangement refresh jobs → standalone invoices → NOT NULL defaults → BIGINT→INT fix.
+That is the complete fresh deploy. The bootstrap runs: normalize zero dates → align →
+install L12 tables → warehouse arrangement refresh jobs → standalone invoices → NOT NULL
+defaults → BIGINT→INT fix. The seeder covers all data cleanup (permissions incl. obsolete
+addrbook permission removal, scheduled tasks, settings). Every step is guarded, so both
+commands are safe to re-run after a partial failure.
 
-Every step is guarded, so the bootstrap is safe to re-run after a partial failure.
+**Databases migrated before 2026-08-21** additionally need the corrective migration once
+(re-applies NOT NULL defaults + INT key fixes that intermediate code versions missed;
+no-op everywhere else):
+
+```bash
+php artisan migrate --path=database/migrations/2026_08_21_100000_reapply_production_defaults_and_int_keys.php --force
+```
 
 **Path B — selective (existing DB, already partially migrated):**
 
@@ -305,10 +308,9 @@ SET SESSION sql_mode = @old_mode;
 php artisan config:clear
 php artisan cache:clear
 php artisan migrate --path=database/migrations/2026_08_13_100000_production_database_bootstrap.php --force
-php artisan migrate --path=database/migrations/2026_08_18_092335_drop_deleted_at_from_roles_table.php --force
-php artisan migrate --path=database/migrations/2026_08_18_102227_remove_obsolete_addrbook_permissions.php --force
-php artisan migrate --path=database/migrations/2026_08_21_100000_reapply_production_defaults_and_int_keys.php --force
 php artisan db:seed --class=ProductionBootstrapSeeder --force
+# Only on DBs migrated before 2026-08-21 (no-op otherwise):
+php artisan migrate --path=database/migrations/2026_08_21_100000_reapply_production_defaults_and_int_keys.php --force
 php artisan app:backfill-items-qty                    # optional
 php artisan serve --host=0.0.0.0 --port=5000   # dev only; prod uses nginx/apache
 # Prod cron: * * * * * cd /path/to/aria && php artisan schedule:run
