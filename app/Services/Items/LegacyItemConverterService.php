@@ -543,7 +543,7 @@ class LegacyItemConverterService
         $item->group_id = $group->id;
         $item->pcode = strtoupper((string) $parse->pcode);
         $item->code = $canonicalCode;
-        $item->name = $this->identityBuilder->buildName($group->name, $warnaTag, $sizeTag);
+        $item->name = $this->identityBuilder->buildName((string) $parse->groupName, $warnaTag, $sizeTag);
         $item->size = $sizeTag?->id ?? 0;
         $item->genre = $typeTag?->id ?? 0;
         $item->save();
@@ -558,6 +558,8 @@ class LegacyItemConverterService
     {
         $parsed = $this->identityBuilder->parsePcode($type, $pcode);
         $variant = $this->identityBuilder->groupVariant($type, $pcode, $warnaTag);
+        $storedName = $this->identityBuilder->storedGroupName($type, $groupName, $pcode, $variant);
+        $storedName = $this->ensureUniqueStoredGroupName($storedName, $parsed['master'], $variant);
 
         $group = ItemGroup::query()->firstOrCreate(
             [
@@ -565,16 +567,32 @@ class LegacyItemConverterService
                 'variant' => $variant,
             ],
             [
-                'name' => strtoupper($groupName),
+                'name' => $storedName,
             ],
         );
 
         if (strtoupper(trim((string) $group->name)) === '' || $group->name === null) {
-            $group->name = strtoupper($groupName);
+            $group->name = $storedName;
             $group->save();
         }
 
         return $group;
+    }
+
+    protected function ensureUniqueStoredGroupName(string $storedName, string $master, string $variant): string
+    {
+        $existing = ItemGroup::query()->where('name', $storedName)->first();
+
+        if (! $existing) {
+            return $storedName;
+        }
+
+        if (strtoupper((string) $existing->master) === strtoupper($master)
+            && strtoupper((string) $existing->variant) === strtoupper($variant)) {
+            return $storedName;
+        }
+
+        return strtoupper(trim("{$storedName} ({$master}/{$variant})"));
     }
 
     protected function preserveLegacyCode(Item $item, string $newCode, ?string $explicitLegacy = null): void

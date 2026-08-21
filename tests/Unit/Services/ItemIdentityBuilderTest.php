@@ -53,6 +53,12 @@ describe('pcode validation', function () {
         expect(true)->toBeTrue();
     });
 
+    it('accepts three-segment asset lancar pcode', function () {
+        $this->builder->validatePcode(ItemType::ASSET_LANCAR, 'BAG-16-03');
+
+        expect(true)->toBeTrue();
+    });
+
     it('rejects invalid asset lancar pcode', function () {
         $this->builder->validatePcode(ItemType::ASSET_LANCAR, 'GLOVE');
     })->throws(InvalidArgumentException::class);
@@ -151,6 +157,37 @@ describe('groupVariant', function () {
     it('uses warna code for asset lancar', function () {
         expect($this->builder->groupVariant(ItemType::ASSET_LANCAR, 'GLOVE-01', $this->warnaTag))
             ->toBe('BLUE');
+    });
+});
+
+describe('asset sku splitting', function () {
+    it('splits two-segment asset pcodes', function () {
+        expect($this->builder->splitAssetSku('GLOVE-01-BLACK-S'))
+            ->toBe(['pcode' => 'GLOVE-01', 'remainder' => 'BLACK-S']);
+    });
+
+    it('splits three-segment asset pcodes before warna', function () {
+        expect($this->builder->splitAssetSku('BAG-16-03-BLACK'))
+            ->toBe(['pcode' => 'BAG-16-03', 'remainder' => 'BLACK']);
+    });
+});
+
+describe('stored group names', function () {
+    it('suffixes asset lancar group names with warna variant', function () {
+        expect($this->builder->storedGroupName(
+            ItemType::ASSET_LANCAR,
+            'HIP THRUST PAD',
+            'HIPTHRUST-02',
+            'AQUAMARINE',
+        ))->toBe('HIP THRUST PAD - AQUAMARINE');
+    });
+
+    it('derives product display name from stored asset group name', function () {
+        expect($this->builder->productDisplayName(
+            ItemType::ASSET_LANCAR,
+            'HIP THRUST PAD - AQUAMARINE',
+            'AQUAMARINE',
+        ))->toBe('HIP THRUST PAD');
     });
 });
 
