@@ -17,9 +17,10 @@ class ItemIdentityBuilder
     private const ITEM_PCODE_PATTERN = '/^[A-Z]{2,3}[0-9]{5}-[0-9]{2,3}$/i';
 
     /**
-     * Asset lancar pcode: [characters]-[characters] e.g. GLOVE-01
+     * Asset lancar pcode: [characters]-[characters] or [characters]-[characters]-[characters]
+     * e.g. GLOVE-01, BAG-16-03
      */
-    private const ASSET_PCODE_PATTERN = '/^[A-Za-z0-9]+-[A-Za-z0-9]+$/';
+    private const ASSET_PCODE_PATTERN = '/^[A-Za-z0-9]+(?:-[A-Za-z0-9]+){1,2}$/i';
 
     public function validatePcode(ItemType $type, string $pcode): void
     {
@@ -35,7 +36,7 @@ class ItemIdentityBuilder
 
         if (! preg_match($pattern, $pcode)) {
             $hint = $type === ItemType::ASSET_LANCAR
-              ? 'Expected format like GLOVE-01'
+              ? 'Expected format like GLOVE-01 or BAG-16-03'
               : 'Expected format like CX90233-23';
 
             throw new InvalidArgumentException("pcode format invalid. {$hint}");
@@ -137,6 +138,96 @@ class ItemIdentityBuilder
         return implode(' - ', array_filter($parts, fn ($p) => $p !== ''));
     }
 
+    /**
+     * Stored item_group.name must be globally unique in production (UNIQUE index on name).
+     * Asset lancar groups are keyed by color variant, so append the warna code to the product name.
+     */
+    public function storedGroupName(
+        ItemType $type,
+        string $productName,
+        string $pcode,
+        string $groupVariant,
+    ): string {
+        $productName = strtoupper(trim($productName));
+        $pcode = strtoupper(trim($pcode));
+        $groupVariant = strtoupper(trim($groupVariant));
+
+        if ($productName === '') {
+            $productName = $pcode;
+        }
+
+        if ($type === ItemType::ASSET_LANCAR && $groupVariant !== '') {
+            return "{$productName} - {$groupVariant}";
+        }
+
+        return $productName;
+    }
+
+    /**
+     * Reverse storedGroupName for item display names (buildName expects the bare product title).
+     */
+    public function productDisplayName(ItemType $type, string $storedGroupName, string $groupVariant): string
+    {
+        $storedGroupName = strtoupper(trim($storedGroupName));
+        $groupVariant = strtoupper(trim($groupVariant));
+
+        if ($type === ItemType::ASSET_LANCAR && $groupVariant !== '') {
+            $suffix = ' - '.$groupVariant;
+
+            if (str_ends_with($storedGroupName, $suffix)) {
+                return substr($storedGroupName, 0, -strlen($suffix));
+            }
+        }
+
+        return $storedGroupName;
+    }
+
+    /**
+     * Split a legacy asset lancar SKU into pcode and warna/size remainder.
+     *
+     * @return array{pcode: string, remainder: string}
+     */
+    public function splitAssetSku(string $code): array
+    {
+        $code = strtoupper(trim($code));
+        $segments = explode('-', $code);
+
+        if (count($segments) < 3) {
+            throw new InvalidArgumentException('Asset code requires at least three hyphen segments.');
+        }
+
+        if (count($segments) >= 4 && ctype_digit($segments[2])) {
+            $pcode = implode('-', array_slice($segments, 0, 3));
+
+            try {
+                $this->validatePcode(ItemType::ASSET_LANCAR, $pcode);
+                $remainder = implode('-', array_slice($segments, 3));
+
+                if ($remainder !== '') {
+                    return [
+                        'pcode' => $pcode,
+                        'remainder' => $remainder,
+                    ];
+                }
+            } catch (InvalidArgumentException) {
+                // Fall through to two-segment pcode.
+            }
+        }
+
+        $pcode = $segments[0].'-'.$segments[1];
+        $this->validatePcode(ItemType::ASSET_LANCAR, $pcode);
+        $remainder = implode('-', array_slice($segments, 2));
+
+        if ($remainder === '') {
+            throw new InvalidArgumentException('Missing warna segment after pcode.');
+        }
+
+        return [
+            'pcode' => $pcode,
+            'remainder' => $remainder,
+        ];
+    }
+
     public function tagCode(?Tag $tag): string
     {
         return strtoupper($tag?->code ?? '');
@@ -160,6 +251,15 @@ class ItemIdentityBuilder
         }
 
         $parts = explode('-', strtoupper(trim($item->code ?? '')));
+
+        if (count($parts) >= 4 && ctype_digit($parts[2])) {
+            $candidate = implode('-', array_slice($parts, 0, 3));
+
+            if (preg_match(self::ASSET_PCODE_PATTERN, $candidate)) {
+                return $candidate;
+            }
+        }
+
         if (count($parts) >= 2) {
             return $parts[0].'-'.$parts[1];
         }
@@ -178,8 +278,10 @@ class ItemIdentityBuilder
         }
 
         $parts = explode('-', strtoupper(trim($item->code ?? '')));
-        if (count($parts) >= 3) {
-            return $parts[2];
+        $pcodeSegmentCount = count(explode('-', $this->assetLancarParentPcode($item)));
+
+        if (count($parts) > $pcodeSegmentCount) {
+            return $parts[$pcodeSegmentCount];
         }
 
         return '—';
@@ -214,8 +316,11 @@ class ItemIdentityBuilder
         }
 
         $parts = explode('-', strtoupper(trim($item->code ?? '')));
-        if (count($parts) >= 4) {
-            return $parts[3];
+        $pcodeSegmentCount = count(explode('-', $this->assetLancarParentPcode($item)));
+        $sizeIndex = $pcodeSegmentCount + 1;
+
+        if (count($parts) > $sizeIndex) {
+            return $parts[$sizeIndex];
         }
 
         return null;
@@ -228,7 +333,7 @@ class ItemIdentityBuilder
      */
     public function itemParentKey(Item $item): string
     {
-        if ($item->type === ItemType::ASSET_LANCAR) {
+        if ($this->resolveItemType($item) === ItemType::ASSET_LANCAR) {
             return ItemType::ASSET_LANCAR->value.':'.$this->assetLancarParentPcode($item);
         }
 
@@ -242,7 +347,7 @@ class ItemIdentityBuilder
      */
     public function itemParentLabel(Item $item): string
     {
-        if ($item->type === ItemType::ASSET_LANCAR) {
+        if ($this->resolveItemType($item) === ItemType::ASSET_LANCAR) {
             return $this->assetLancarParentPcode($item);
         }
 
@@ -365,5 +470,16 @@ class ItemIdentityBuilder
         }
 
         return $pcode !== '' ? $pcode : 'UNKNOWN';
+    }
+
+    private function resolveItemType(Item $item): ItemType
+    {
+        $raw = $item->getAttributes()['type'] ?? null;
+
+        if ($raw instanceof ItemType) {
+            return $raw;
+        }
+
+        return ItemType::tryFrom((int) $raw) ?? ItemType::ITEM;
     }
 }

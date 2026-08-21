@@ -118,6 +118,23 @@ describe('asset fixtures §3.2', function () {
             ->and($result->canonicalCode)->toBe('BOXINGWRAP-02-MARBLEPINK-3M')
             ->and($result->codeUnchanged)->toBeTrue();
     });
+
+    it('parses BAG-16-03-BLACK with a three-segment pcode', function () {
+        $item = Item::factory()->create([
+            'type' => ItemType::ASSET_LANCAR,
+            'group_id' => null,
+            'code' => 'BAG-16-03-BLACK',
+            'pcode' => 'BAG-16-03',
+            'name' => 'BAG - BLACK',
+        ]);
+        $result = $this->parser->parse($item);
+
+        expect($result->success)->toBeTrue()
+            ->and($result->pcode)->toBe('BAG-16-03')
+            ->and($result->warnaCode)->toBe('BLACK')
+            ->and($result->canonicalCode)->toBe('BAG-16-03-BLACK')
+            ->and($result->codeUnchanged)->toBeTrue();
+    });
 });
 
 describe('manufactured glue fixture §4.5', function () {

@@ -174,24 +174,9 @@ class LegacyItemIdentityParser
 
     protected function assetHasMinimumStructure(string $code): bool
     {
-        $segments = explode('-', $code);
-
-        if (count($segments) < 3) {
-            return false;
-        }
-
-        $pcode = $segments[0].'-'.$segments[1];
-
         try {
-            $this->identityBuilder->validatePcode(ItemType::ASSET_LANCAR, $pcode);
+            ['remainder' => $remainder] = $this->identityBuilder->splitAssetSku($code);
         } catch (InvalidArgumentException) {
-            return false;
-        }
-
-        $prefix = $segments[0].'-'.$segments[1].'-';
-        $remainder = substr($code, strlen($prefix));
-
-        if ($remainder === false || $remainder === '') {
             return false;
         }
 
@@ -243,35 +228,12 @@ class LegacyItemIdentityParser
 
     protected function parseAsset(Item $item, string $code): LegacyParseResult
     {
-        $segments = explode('-', $code);
-
-        if (count($segments) < 3) {
-            return LegacyParseResult::failure(
-                self::FAILURE_SKU_UNPARSEABLE,
-                'Asset code requires at least three hyphen segments.',
-                ['code' => $code],
-            );
-        }
-
-        $pcode = $segments[0].'-'.$segments[1];
-
         try {
-            $this->identityBuilder->validatePcode(ItemType::ASSET_LANCAR, $pcode);
+            ['pcode' => $pcode, 'remainder' => $remainder] = $this->identityBuilder->splitAssetSku($code);
         } catch (InvalidArgumentException $e) {
             return LegacyParseResult::failure(
-                self::FAILURE_PCODE_INVALID,
-                $e->getMessage(),
-                ['code' => $code, 'pcode' => $pcode],
-            );
-        }
-
-        $prefix = $segments[0].'-'.$segments[1].'-';
-        $remainder = substr($code, strlen($prefix));
-
-        if ($remainder === false || $remainder === '') {
-            return LegacyParseResult::failure(
                 self::FAILURE_SKU_UNPARSEABLE,
-                'Missing warna segment after pcode.',
+                $e->getMessage(),
                 ['code' => $code],
             );
         }
@@ -574,8 +536,8 @@ class LegacyItemIdentityParser
 
         $attributes = Tag::normalizeWarnaAttributes([
             'type' => Tag::TYPE_WARNA,
-            'name' => $warnaCode,
-            'code' => $warnaCode,
+            'name' => $compact !== '' ? $compact : $warnaCode,
+            'code' => $compact !== '' ? $compact : $warnaCode,
             'item_type' => 0,
         ]);
 

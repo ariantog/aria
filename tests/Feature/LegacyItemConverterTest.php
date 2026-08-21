@@ -480,3 +480,63 @@ it('skips items that already have a preserved legacy_code', function () {
         ->and($run->success_count)->toBe(1)
         ->and($converted->fresh()->code)->toBe('GLOVE-01-BLACK-S');
 });
+
+it('converts multiple colors of the same asset product without duplicate group names', function () {
+    Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'AQUAMARINE', 'name' => 'AQUAMARINE']);
+    Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'MARBLEVIOLET', 'name' => 'MARBLEVIOLET']);
+    Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'GREY', 'name' => 'GREY']);
+    Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'M', 'name' => 'M']);
+
+    $hipAquamarine = Item::factory()->create([
+        'type' => ItemType::ASSET_LANCAR,
+        'group_id' => null,
+        'code' => 'HIPTHRUST-02-AQUAMARINE',
+        'pcode' => 'HIPTHRUST-02',
+        'name' => 'HIP THRUST PAD - AQUAMARINE',
+    ]);
+    $hipViolet = Item::factory()->create([
+        'type' => ItemType::ASSET_LANCAR,
+        'group_id' => null,
+        'code' => 'HIPTHRUST-02-MARBLE-VIOLET',
+        'pcode' => 'HIPTHRUST-02',
+        'name' => 'HIP THRUST PAD - MARBLE VIOLET',
+    ]);
+    $liftingBelt = Item::factory()->create([
+        'type' => ItemType::ASSET_LANCAR,
+        'group_id' => null,
+        'code' => 'LIFTINGBELT-11-BLACK-XL',
+        'pcode' => 'LIFTINGBELT-11',
+        'name' => 'DUAL LOCK LIFTING BELT - BLACK - XL',
+    ]);
+    $glove = Item::factory()->create([
+        'type' => ItemType::ASSET_LANCAR,
+        'group_id' => null,
+        'code' => 'GLOVE-07-GREY-M',
+        'pcode' => 'GLOVE-07',
+        'name' => 'MICROFIBER STRAP GYM GLOVE - GREY - M',
+    ]);
+    $bag = Item::factory()->create([
+        'type' => ItemType::ASSET_LANCAR,
+        'group_id' => null,
+        'code' => 'BAG-16-03-BLACK',
+        'pcode' => 'BAG-16-03',
+        'name' => 'BAG - BLACK',
+    ]);
+
+    $run = $this->service->runItems(
+        ItemType::ASSET_LANCAR,
+        collect([$hipAquamarine, $hipViolet, $liftingBelt, $glove, $bag]),
+        $this->user,
+    );
+
+    expect($run->success_count)->toBe(5)
+        ->and($run->failed_count)->toBe(0);
+
+    expect($hipAquamarine->fresh()->group->name)->toBe('HIP THRUST PAD - AQUAMARINE')
+        ->and($hipViolet->fresh()->group->name)->toBe('HIP THRUST PAD - MARBLEVIOLET')
+        ->and($hipAquamarine->fresh()->name)->toBe('HIP THRUST PAD - AQUAMARINE')
+        ->and($liftingBelt->fresh()->name)->toBe('DUAL LOCK LIFTING BELT - BLACK - XL')
+        ->and($glove->fresh()->name)->toBe('MICROFIBER STRAP GYM GLOVE - GREY - M')
+        ->and($bag->fresh()->code)->toBe('BAG-16-03-BLACK')
+        ->and($bag->fresh()->pcode)->toBe('BAG-16-03');
+});
