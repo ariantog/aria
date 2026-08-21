@@ -4,8 +4,16 @@ Reference files in `database/`:
 
 | File | Meaning |
 |------|---------|
-| `old.sql` | **Production L10** schema (source of truth for what exists today) |
-| `new.sql` | Greenfield **L12 dev export** (Aug 2026) — uses legacy greenfield table names (`addrbooks`, `warehouse_items`). **Do not use table names from new.sql on production.** L12 on shared prod uses production names (`customers`, `warehouse_item`, …). |
+| `old.sql` | **Production L10** schema before migration (source of truth for what must never be dropped) |
+| `new.sql` | **Migrated production** export (2026-08-21, `u343060430_coreId`) — old.sql plus the L12 bootstrap: 98 legacy tables intact + 25 new L12 tables. Uses production table names (`customers`, `warehouse_item`, `item_group`, …). |
+
+The earlier greenfield L12 dev export (`notused.sql`, with `addrbooks`/`warehouse_items`
+naming) has been deleted — its table names never applied to production.
+
+Audit of old.sql vs new.sql (verified 2026-08-21 on a MariaDB clone): no production table
+dropped; existing tables only gained columns (plus the `werehouse_id` → `warehouse_id`
+typo-fix rename); every key referencing a legacy table is INT, not BIGINT; every NOT NULL
+column on legacy tables carries a DB default (after the corrective migration below).
 
 ## Production migration command (one step)
 
@@ -13,6 +21,15 @@ Reference files in `database/`:
 php artisan migrate --path=database/migrations/2026_08_13_100000_production_database_bootstrap.php --force
 php artisan config:clear
 php artisan db:seed --class=ProductionBootstrapSeeder --force
+```
+
+Databases migrated before 2026-08-21 also need the corrective migration once — it re-applies
+the NOT NULL defaults and INT key fixes that intermediate code versions missed, and converts
+`standalone_invoices.sender_addrbook_id` / `user_id` from BIGINT to INT UNSIGNED
+(no-op on freshly bootstrapped databases):
+
+```bash
+php artisan migrate --path=database/migrations/2026_08_21_100000_reapply_production_defaults_and_int_keys.php --force
 ```
 
 OS cron (unchanged):

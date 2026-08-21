@@ -95,6 +95,9 @@ php artisan migrate --path=database/migrations/2026_08_13_100000_production_data
 # Data-only migrations (not part of the schema bootstrap)
 php artisan migrate --path=database/migrations/2026_08_18_092335_drop_deleted_at_from_roles_table.php --force
 php artisan migrate --path=database/migrations/2026_08_18_102227_remove_obsolete_addrbook_permissions.php --force
+
+# Corrective (idempotent; required once on DBs migrated before 2026-08-21, no-op otherwise)
+php artisan migrate --path=database/migrations/2026_08_21_100000_reapply_production_defaults_and_int_keys.php --force
 ```
 
 The bootstrap runs: normalize zero dates → align → install L12 tables → warehouse
@@ -304,6 +307,7 @@ php artisan cache:clear
 php artisan migrate --path=database/migrations/2026_08_13_100000_production_database_bootstrap.php --force
 php artisan migrate --path=database/migrations/2026_08_18_092335_drop_deleted_at_from_roles_table.php --force
 php artisan migrate --path=database/migrations/2026_08_18_102227_remove_obsolete_addrbook_permissions.php --force
+php artisan migrate --path=database/migrations/2026_08_21_100000_reapply_production_defaults_and_int_keys.php --force
 php artisan db:seed --class=ProductionBootstrapSeeder --force
 php artisan app:backfill-items-qty                    # optional
 php artisan serve --host=0.0.0.0 --port=5000   # dev only; prod uses nginx/apache
