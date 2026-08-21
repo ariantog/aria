@@ -36,6 +36,20 @@ it('filters customers by user location', function () {
         ->not->toContain($this->addrbookB->id);
 });
 
+it('filters the addrbook index by user location', function () {
+    $this->addrbookA->update(['type' => Addrbook::TYPE_SUPPLIER, 'name' => 'LOC Supplier Visible']);
+    $this->addrbookB->update(['type' => Addrbook::TYPE_SUPPLIER, 'name' => 'LOC Supplier Hidden']);
+
+    Permission::firstOrCreate(['name' => 'addrbook-supplier-list']);
+    $this->user->givePermissionTo('addrbook-supplier-list');
+
+    $this->actingAs($this->user)
+        ->get(route('addrbook.type.index', 'supplier'))
+        ->assertOk()
+        ->assertSee('LOC Supplier Visible', false)
+        ->assertDontSee('LOC Supplier Hidden', false);
+});
+
 it('allows superadmin to see all customers', function () {
     $superadmin = User::find(1);
 
