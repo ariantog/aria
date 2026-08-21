@@ -48,6 +48,13 @@ it('renders the transactions index with its rows', function () {
         ->assertSee('Test Supplier', false);
 });
 
+it('renders the export sell page', function () {
+    $this->actingAs($this->user)
+        ->get(route('transactions.export-sell'))
+        ->assertOk()
+        ->assertSee('Export Sell', false);
+});
+
 it('sorts and filters the transactions index', function () {
     $this->actingAs($this->user)
         ->get('/transactions?sort=real_total&direction=asc&type='.Transaction::TYPE_BUY)
