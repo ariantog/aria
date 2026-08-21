@@ -163,28 +163,114 @@ class JubelioSyncController extends Controller
     }
 
     /**
-     * Update bin ID from Jubelio.
+     * Update bin ID from Jubelio for one mapping row.
      */
     public function getBin(Jubeliosync $sync): RedirectResponse
     {
         Gate::authorize(Jubelio::getPermissions()['sync']);
 
-        $response = $this->jubelioService->get('https://api2.jubelio.com/wms/default-bin/'.$sync->jubelio_location_id);
+        $result = $this->fetchDefaultBinId((int) $sync->jubelio_location_id);
+
+        if (! $result['ok']) {
+            return redirect()->route('jubelio.sync.index')
+                ->with('fail', $result['message']);
+        }
+
+        $sync->update(['bin_id' => $result['bin_id']]);
+
+        return redirect()->route('jubelio.sync.index')->with('success', 'Jubelio updated bin id.');
+    }
+
+    /**
+     * Fetch default bin IDs from Jubelio for every mapped location (deduped by location).
+     */
+    public function refreshAllBins(Request $request): RedirectResponse
+    {
+        Gate::authorize(Jubelio::getPermissions()['sync']);
+
+        $query = Jubeliosync::query();
+
+        if ($request->name) {
+            $name = str_replace(' ', '%', $request->name);
+            $query->where('jubelio_location_name', 'LIKE', "%$name%");
+        }
+
+        $locationIds = $query
+            ->pluck('jubelio_location_id')
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn (int $id) => $id > 0)
+            ->unique()
+            ->values();
+
+        if ($locationIds->isEmpty()) {
+            return redirect()->route('jubelio.sync.index', $request->only('name'))
+                ->with('errorMessage', 'Tidak ada mapping untuk dicek.');
+        }
+
+        $updatedRows = 0;
+        $updatedLocations = 0;
+        $failures = [];
+
+        foreach ($locationIds as $locationId) {
+            $result = $this->fetchDefaultBinId($locationId);
+
+            if (! $result['ok']) {
+                $failures[] = "Lokasi {$locationId}: {$result['message']}";
+
+                continue;
+            }
+
+            $updatedRows += Jubeliosync::query()
+                ->where('jubelio_location_id', $locationId)
+                ->update([
+                    'bin_id' => $result['bin_id'],
+                    'updated_at' => now(),
+                ]);
+            $updatedLocations++;
+        }
+
+        $redirect = redirect()->route('jubelio.sync.index', $request->only('name'));
+
+        if ($updatedLocations === 0) {
+            return $redirect->with('fail', implode('; ', $failures));
+        }
+
+        $message = "Bin diperbarui untuk {$updatedRows} mapping ({$updatedLocations} lokasi Jubelio).";
+
+        if ($failures !== []) {
+            $message .= ' Gagal: '.count($failures).' lokasi — '.implode('; ', array_slice($failures, 0, 3));
+            if (count($failures) > 3) {
+                $message .= '…';
+            }
+
+            return $redirect->with('fail', $message);
+        }
+
+        return $redirect->with('success', $message);
+    }
+
+    /**
+     * @return array{ok: bool, bin_id?: int, message?: string}
+     */
+    private function fetchDefaultBinId(int $locationId): array
+    {
+        $response = $this->jubelioService->get('https://api2.jubelio.com/wms/default-bin/'.$locationId);
 
         if (! $response) {
-            return back()->with('errorMessage', 'Jubelio authentication failed.');
+            return ['ok' => false, 'message' => 'Jubelio authentication failed.'];
         }
 
         if ($response->successful()) {
             $result = $response->json();
-            $sync->update(['bin_id' => $result['bin_id'] ?? 0]);
 
-            return redirect()->route('jubelio.sync.index')->with('success', 'Jubelio updated bin id.');
+            return ['ok' => true, 'bin_id' => (int) ($result['bin_id'] ?? 0)];
         }
 
         $error = $response->json();
-        $message = $error['message'] ?? 'Terjadi kesalahan saat mengambil bin.';
 
-        return redirect()->route('jubelio.sync.index')->with('fail', $message);
+        return [
+            'ok' => false,
+            'message' => $error['message'] ?? 'Terjadi kesalahan saat mengambil bin.',
+        ];
     }
 }

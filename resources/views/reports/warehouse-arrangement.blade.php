@@ -10,20 +10,37 @@
     }
     .arrangement-size-table th,
     .arrangement-size-table td {
-        width: 1%;
-        vertical-align: top;
+        vertical-align: middle;
         border-right: 1px solid #e5e7eb;
     }
     .arrangement-size-table th:last-child,
     .arrangement-size-table td:last-child {
         border-right: none;
     }
+    .arrangement-size-table .arrangement-col-dest {
+        background: #d1fae5;
+    }
+    .arrangement-size-table .arrangement-col-wh1 {
+        background: #dbeafe;
+    }
+    .arrangement-size-table .arrangement-col-wh2 {
+        background: #e0e7ff;
+    }
+    .arrangement-size-table .arrangement-row-label {
+        width: 7rem;
+        min-width: 7rem;
+        font-weight: 600;
+        color: #4b5563;
+        background: #f9fafb;
+    }
+    .arrangement-size-table .arrangement-size-cell {
+        width: 1%;
+        text-align: center;
+        padding: 0.5rem 0.35rem;
+    }
     .dark .arrangement-size-table th,
     .dark .arrangement-size-table td {
         border-right-color: #4b5563;
-    }
-    .arrangement-size-table select {
-        max-width: 100%;
     }
 </style>
 @endpush
@@ -37,11 +54,15 @@ $breadcrumbs = [
     ['title' => 'Reports', 'href' => '#'],
     ['title' => 'Warehouse Arrangement', 'href' => route('reports.warehouse-arrangement')],
 ];
+$matchCounts = collect($sourceMatchRankings)->pluck('match_count', 'id');
+$skuLabel = fn (int $count) => $count.' SKU'.($count === 1 ? '' : 's');
 $queryParams = fn (array $extra = []) => array_filter(array_merge([
     'warehouse_id' => $selectedWarehouseId,
     'demand_days' => $demandDays,
     'mode' => $mode,
     'search' => $search ?: null,
+    'source_wh1_id' => $selectedSourceWarehouse1Id ?? null,
+    'source_wh2_id' => $selectedSourceWarehouse2Id ?? null,
     'page' => $page > 1 ? $page : null,
 ], $extra));
 @endphp
@@ -51,18 +72,100 @@ $queryParams = fn (array $extra = []) => array_filter(array_merge([
         <div class="flex flex-wrap items-start justify-between gap-4">
             <div>
                 <h1 class="text-2xl font-bold tracking-tight">Warehouse Arrangement</h1>
-                <p class="text-gray-500">Pick source warehouses per size, then draft one move transaction per source warehouse.</p>
+                <p class="text-gray-500">Compare destination stock with two source warehouses, then draft move transactions like Restock.</p>
             </div>
             @if($selectedWarehouseId && $destinationName)
-            <a href="{{ route('reports.warehouse-arrangement.export', $queryParams()) }}"
-               class="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
-                Export Excel
-            </a>
+            <div class="flex flex-wrap items-center gap-2">
+                <form method="POST" action="{{ route('reports.warehouse-arrangement.refresh') }}" class="inline">
+                    @csrf
+                    <input type="hidden" name="warehouse_id" value="{{ $selectedWarehouseId }}">
+                    <input type="hidden" name="demand_days" value="{{ $demandDays }}">
+                    <input type="hidden" name="mode" value="{{ $mode }}">
+                    @if($selectedSourceWarehouse1Id)
+                    <input type="hidden" name="source_wh1_id" value="{{ $selectedSourceWarehouse1Id }}">
+                    @endif
+                    @if($selectedSourceWarehouse2Id)
+                    <input type="hidden" name="source_wh2_id" value="{{ $selectedSourceWarehouse2Id }}">
+                    @endif
+                    <button type="submit"
+                            @disabled($activeRefreshJob)
+                            class="inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium {{ $activeRefreshJob ? 'cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400' : 'border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100' }}">
+                        @if($activeRefreshJob)
+                        Rebuild in progress…
+                        @else
+                        Rebuild stats &amp; refresh
+                        @endif
+                    </button>
+                </form>
+                <a href="{{ route('reports.warehouse-arrangement.export', $queryParams()) }}"
+                   class="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                    Export Excel
+                </a>
+            </div>
             @endif
         </div>
 
+        @if(($flash['success'] ?? null))
+        <div class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{{ $flash['success'] }}</div>
+        @endif
+
         @if(($flash['error'] ?? null))
         <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ $flash['error'] }}</div>
+        @endif
+
+        @if($activeRefreshJob)
+        <div class="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900"
+             x-data="refreshProgress(@js([
+                'tickUrl' => route('reports.warehouse-arrangement.tick-refresh'),
+                'warehouseId' => $selectedWarehouseId,
+                'destinationName' => $destinationName,
+                'initiatedBy' => $activeRefreshJob->initiatedByLabel(),
+                'status' => $activeRefreshJob->status,
+                'phase' => $activeRefreshJob->phase,
+                'itemCursor' => $activeRefreshJob->item_cursor,
+                'totalItems' => $activeRefreshJob->total_items,
+                'progressPercent' => $activeRefreshJob->progressPercent(),
+             ]))">
+            <div class="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                    <p class="font-semibold">Rebuild running for {{ $destinationName ?? 'this warehouse' }}</p>
+                    <p class="mt-1 text-blue-800" x-text="progressLine()"></p>
+                    <p class="mt-1 text-xs text-blue-700" x-show="!busy" x-cloak>
+                        This page drives the rebuild while it stays open — about 300 SKUs every 15 seconds.
+                    </p>
+                    <p class="mt-1 text-xs text-amber-800" x-show="busy" x-cloak>Another batch is already running…</p>
+                    <p class="mt-1 text-xs text-red-700" x-show="errorMessage" x-text="errorMessage" x-cloak></p>
+                </div>
+                <form method="POST" action="{{ route('reports.warehouse-arrangement.cancel-refresh') }}" class="shrink-0"
+                      onsubmit="return confirm('Cancel this rebuild?');">
+                    @csrf
+                    <input type="hidden" name="warehouse_id" value="{{ $selectedWarehouseId }}">
+                    <input type="hidden" name="demand_days" value="{{ $demandDays }}">
+                    <input type="hidden" name="mode" value="{{ $mode }}">
+                    <button type="submit"
+                            class="rounded-lg border border-red-300 bg-white px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-50">
+                        Cancel rebuild
+                    </button>
+                </form>
+            </div>
+        </div>
+        @elseif($lastRefreshJob)
+        <div class="rounded-lg border px-4 py-3 text-sm {{ $lastRefreshJob->status === 'completed' ? 'border-emerald-200 bg-emerald-50 text-emerald-900' : 'border-red-200 bg-red-50 text-red-900' }}">
+            <p class="font-semibold">
+                Last rebuild {{ $lastRefreshJob->status === 'completed' ? 'completed' : 'failed' }}
+                @if($lastRefreshJob->completed_at)
+                · {{ $lastRefreshJob->completed_at->diffForHumans() }}
+                @endif
+            </p>
+            <p class="mt-1">
+                Run by {{ $lastRefreshJob->initiatedByLabel() }}.
+                @if($lastRefreshJob->status === 'completed')
+                {{ $lastRefreshJob->result_message }}
+                @else
+                {{ $lastRefreshJob->error_message }}
+                @endif
+            </p>
+        </div>
         @endif
 
         @if($destinations->isEmpty())
@@ -98,30 +201,39 @@ $queryParams = fn (array $extra = []) => array_filter(array_merge([
             <p class="mt-3 text-xs text-gray-500">
                 Cached data synced {{ $syncedAt->diffForHumans() }}.
                 @if($stale)
-                <span class="text-amber-700">May be stale — run <code class="text-xs">app:sync-warehouse-arrangement</code> or wait for the daily cron.</span>
+                <span class="text-amber-700">May be stale — use <strong>Rebuild stats &amp; refresh</strong> or wait for the daily cron.</span>
                 @endif
             </p>
             @else
-            <p class="mt-3 text-xs text-amber-700">No cached data yet. Run <code class="text-xs">php artisan app:sync-warehouse-arrangement</code> after configuring source warehouses.</p>
+            <p class="mt-3 text-xs text-amber-700">No cached data yet. Tick <strong>Source warehouses</strong> on this destination, then click <strong>Rebuild stats &amp; refresh</strong> (may take several minutes).</p>
+            @endif
+            @if($cacheDiagnostics)
+            <p class="mt-2 text-xs text-gray-500">
+                Cache: {{ $cacheDiagnostics['monthly_stat_rows'] }} monthly stat rows ·
+                {{ $cacheDiagnostics['source_warehouses'] }} source warehouse(s) ·
+                {{ $cacheDiagnostics['candidates'] }} candidate SKU(s) ·
+                {{ $cacheDiagnostics['candidates_with_sources'] }} with source stock ·
+                {{ $cacheDiagnostics['snapshots'] }} pcode snapshot(s)
+            </p>
             @endif
         </div>
         @endif
     </div>
 
     @if($destinations->isNotEmpty())
-    <div class="sticky top-0 z-20 border-b border-gray-200 bg-gray-50/95 px-4 py-3 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-gray-50/90">
+    <div class="sticky top-0 z-20 border-b border-gray-200 bg-gray-50/95 px-4 py-3 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-gray-50/90 dark:border-gray-700 dark:bg-gray-900/95 dark:supports-[backdrop-filter]:bg-gray-900/90">
         <div class="flex flex-col gap-3">
             <div class="flex flex-wrap items-center gap-2">
-                <span class="text-xs font-medium uppercase text-gray-500">View:</span>
+                <span class="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">View:</span>
                 <a href="{{ route('reports.warehouse-arrangement', $queryParams(['mode' => WarehouseArrangementService::MODE_DEMAND, 'page' => null])) }}"
-                   class="rounded-lg px-3 py-1.5 text-sm font-medium {{ $mode === WarehouseArrangementService::MODE_DEMAND ? 'bg-blue-600 text-white' : 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50' }}">
+                   class="rounded-lg px-3 py-1.5 text-sm font-medium {{ $mode === WarehouseArrangementService::MODE_DEMAND ? 'bg-blue-600 text-white' : 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700' }}">
                     Demand
                 </a>
                 <a href="{{ route('reports.warehouse-arrangement', $queryParams(['mode' => WarehouseArrangementService::MODE_FAMILY, 'page' => null])) }}"
-                   class="rounded-lg px-3 py-1.5 text-sm font-medium {{ $mode === WarehouseArrangementService::MODE_FAMILY ? 'bg-blue-600 text-white' : 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50' }}">
+                   class="rounded-lg px-3 py-1.5 text-sm font-medium {{ $mode === WarehouseArrangementService::MODE_FAMILY ? 'bg-blue-600 text-white' : 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700' }}">
                     Complete family
                 </a>
-                <span class="ml-2 text-xs text-gray-500">
+                <span class="ml-2 text-xs text-gray-500 dark:text-gray-400">
                     @if($mode === WarehouseArrangementService::MODE_DEMAND)
                     Missing SKUs with sales in the selected window.
                     @else
@@ -130,40 +242,102 @@ $queryParams = fn (array $extra = []) => array_filter(array_merge([
                 </span>
             </div>
 
-            <form method="GET" action="{{ route('reports.warehouse-arrangement') }}" class="flex flex-wrap items-end gap-2">
+            <form method="GET" action="{{ route('reports.warehouse-arrangement') }}"
+                  class="rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-800/50">
                 <input type="hidden" name="warehouse_id" value="{{ $selectedWarehouseId }}">
                 <input type="hidden" name="demand_days" value="{{ $demandDays }}">
                 <input type="hidden" name="mode" value="{{ $mode }}">
-                <div>
-                    <label for="search" class="mb-1 block text-xs font-medium uppercase text-gray-500">Search pcode</label>
-                    <input id="search" name="search" type="search" value="{{ $search }}" placeholder="CX90028-02"
-                           class="min-w-[160px] rounded-lg border border-gray-300 px-3 py-1.5 text-sm">
+
+                <div class="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
+                    <div>
+                        <label for="source_wh1_id" class="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">Warehouse 1</label>
+                        <select id="source_wh1_id" name="source_wh1_id" onchange="this.form.submit()"
+                                class="h-9 w-full rounded-md border border-gray-300 bg-white px-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100">
+                            @foreach($sourceWarehouses as $wh)
+                            <option value="{{ $wh['id'] }}" @selected($selectedSourceWarehouse1Id === $wh['id'])>
+                                {{ $wh['name'] }} · {{ $skuLabel((int) ($matchCounts[$wh['id']] ?? 0)) }}
+                            </option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <div>
+                        <label for="source_wh2_id" class="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">Warehouse 2</label>
+                        <select id="source_wh2_id" name="source_wh2_id" onchange="this.form.submit()"
+                                class="h-9 w-full rounded-md border border-gray-300 bg-white px-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100">
+                            <option value="">— None —</option>
+                            @foreach($sourceWarehouses as $wh)
+                            @if(($selectedSourceWarehouse1Id ?? null) !== $wh['id'])
+                            <option value="{{ $wh['id'] }}" @selected($selectedSourceWarehouse2Id === $wh['id'])>
+                                {{ $wh['name'] }} · {{ $skuLabel((int) ($matchCounts[$wh['id']] ?? 0)) }}
+                            </option>
+                            @endif
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <div>
+                        <label for="search" class="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">Search pcode</label>
+                        <div class="flex gap-2">
+                            <input id="search" name="search" type="search" value="{{ $search }}" placeholder="CX90028-02"
+                                   class="h-9 min-w-0 flex-1 rounded-md border border-gray-300 bg-white px-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100">
+                            <button type="submit"
+                                    class="h-9 shrink-0 rounded-md border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700">
+                                Search
+                            </button>
+                        </div>
+                    </div>
                 </div>
-                <button type="submit" class="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">Search</button>
+
+                @if(count($topSourceMatches) > 0)
+                <div class="mt-3 flex flex-wrap items-center gap-2 border-t border-gray-200 pt-3 dark:border-gray-700">
+                    <span class="text-xs text-gray-500 dark:text-gray-400">Best sources:</span>
+                    @foreach($topSourceMatches as $match)
+                    <span class="inline-flex items-center gap-1.5 rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-700 dark:bg-gray-700 dark:text-gray-200">
+                        {{ $match['name'] }}
+                        <span class="font-normal text-gray-500 dark:text-gray-400">{{ $skuLabel((int) $match['match_count']) }}</span>
+                    </span>
+                    @endforeach
+                    @if(count($sourceWarehouses) > 2)
+                    <span class="text-xs text-gray-500 dark:text-gray-400">— selected by default, pick others to compare.</span>
+                    @endif
+                </div>
+                @endif
             </form>
 
             <div class="flex flex-wrap items-center gap-2">
-                <template x-for="batch in draftBatches()" :key="batch.from_warehouse_id">
-                    <button type="button"
-                            @click="draftWarehouse(batch.from_warehouse_id)"
-                            class="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700">
-                        Draft <span x-text="batch.name"></span> (<span x-text="batch.count"></span>)
-                    </button>
-                </template>
-                <span class="text-xs text-gray-500" x-show="selectedCount() > 0" x-cloak>
+                @if($sourceWarehouse1 && $destinationName)
+                <button type="button"
+                        @click="draftFromWarehouse(1)"
+                        :disabled="selectedCountWh1() === 0"
+                        class="rounded-lg border border-blue-300 bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-900 hover:bg-blue-100 disabled:opacity-50 dark:border-blue-700 dark:bg-blue-900/40 dark:text-blue-100 dark:hover:bg-blue-900/60">
+                    {{ $sourceWarehouse1['name'] }} → {{ $destinationName }}
+                    <span x-show="selectedCountWh1() > 0" x-cloak>(<span x-text="selectedCountWh1()"></span>)</span>
+                </button>
+                @endif
+                @if($sourceWarehouse2 && $destinationName)
+                <button type="button"
+                        @click="draftFromWarehouse(2)"
+                        :disabled="selectedCountWh2() === 0"
+                        class="rounded-lg border border-indigo-300 bg-indigo-50 px-3 py-1.5 text-sm font-medium text-indigo-900 hover:bg-indigo-100 disabled:opacity-50 dark:border-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-100 dark:hover:bg-indigo-900/60">
+                    {{ $sourceWarehouse2['name'] }} → {{ $destinationName }}
+                    <span x-show="selectedCountWh2() > 0" x-cloak>(<span x-text="selectedCountWh2()"></span>)</span>
+                </button>
+                @endif
+                <span class="text-xs text-gray-500 dark:text-gray-400" x-show="selectedCount() > 0" x-cloak>
                     <span x-text="selectedCount()"></span> cell(s) selected
                 </span>
                 <button type="button" x-show="selectedCount() > 0" x-cloak
                         @click="clearSelection()"
-                        class="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50">
+                        class="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700">
                     Clear selection
                 </button>
             </div>
 
-            <div x-show="error" x-cloak class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800" x-text="error"></div>
+            <div x-show="error" x-cloak class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-800 dark:bg-red-900/40 dark:text-red-100" x-text="error"></div>
 
             @if($totalPcodes > 0)
-            <p class="text-xs text-gray-500">Page {{ $page }} of {{ $lastPage }} · {{ $totalPcodes }} color pcode(s)</p>
+            <p class="text-xs text-gray-500 dark:text-gray-400">Page {{ $page }} of {{ $lastPage }} · {{ $totalPcodes }} color pcode(s)</p>
             @endif
         </div>
     </div>
@@ -203,69 +377,121 @@ $queryParams = fn (array $extra = []) => array_filter(array_merge([
                                 class="rounded border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50">
                             <span x-text="allSelectedInPcode('{{ $section['pcode'] }}') ? 'Clear all' : 'Select all'"></span>
                         </button>
-                        <button type="button" @click="applyWarehouseToPcode('{{ $section['pcode'] }}')"
-                                class="rounded border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50">
-                            Same WH as first selected
-                        </button>
                     </div>
                 </div>
             </div>
             <div class="overflow-x-auto p-3">
                 <table class="arrangement-size-table text-xs">
                     <thead>
+                        <tr class="text-center text-gray-700">
+                            <th class="arrangement-row-label px-2 py-2"></th>
+                            <th colspan="{{ count($section['sizes']) }}" class="arrangement-col-dest px-2 py-2 font-semibold">{{ $destinationName ?? 'Destination' }}</th>
+                            @if($sourceWarehouse1)
+                            <th colspan="{{ count($section['sizes']) }}" class="arrangement-col-wh1 px-2 py-2 font-semibold">{{ $sourceWarehouse1['name'] }}</th>
+                            @endif
+                            @if($sourceWarehouse2)
+                            <th colspan="{{ count($section['sizes']) }}" class="arrangement-col-wh2 px-2 py-2 font-semibold">{{ $sourceWarehouse2['name'] }}</th>
+                            @endif
+                        </tr>
                         <tr class="text-center text-gray-500">
+                            <th class="arrangement-row-label px-2 py-1"></th>
                             @foreach($section['sizes'] as $size)
-                            <th class="px-2 py-2 font-medium">{{ $size }}</th>
+                            <th class="arrangement-size-cell arrangement-col-dest font-medium">{{ $size }}</th>
                             @endforeach
+                            @if($sourceWarehouse1)
+                            @foreach($section['sizes'] as $size)
+                            <th class="arrangement-size-cell arrangement-col-wh1 font-medium">{{ $size }}</th>
+                            @endforeach
+                            @endif
+                            @if($sourceWarehouse2)
+                            @foreach($section['sizes'] as $size)
+                            <th class="arrangement-size-cell arrangement-col-wh2 font-medium">{{ $size }}</th>
+                            @endforeach
+                            @endif
                         </tr>
                     </thead>
                     <tbody>
                         <tr>
+                            <td class="arrangement-row-label px-2 py-2 text-right">Demand</td>
                             @foreach($section['sizes'] as $size)
                             @php $cell = $section['cells'][$size] ?? null; @endphp
-                            <td class="px-2 py-2">
-                                @if($cell && ($cell['moveable'] ?? false))
-                                <div class="min-h-[7rem] rounded-lg border border-gray-200 p-2"
-                                     title="{{ $cell['item_code'] }}"
-                                     :class="isSelected({{ $cell['item_id'] }}) ? 'border-blue-300 bg-blue-50' : 'bg-white dark:bg-gray-800'">
-                                    <label class="flex cursor-pointer items-center gap-1">
-                                        <input type="checkbox"
-                                               class="rounded border-gray-300"
-                                               x-model="cells[{{ $cell['item_id'] }}].selected">
-                                        <span class="font-semibold text-emerald-700">D {{ number_format($cell['demand'], 0, ',', '.') }}</span>
-                                    </label>
-                                    <select class="mt-2 w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-gray-900"
-                                            x-model.number="cells[{{ $cell['item_id'] }}].chosen_source_index"
-                                            @change="onSourceChange({{ $cell['item_id'] }})">
-                                        @foreach($cell['sources'] as $idx => $src)
-                                        <option value="{{ $idx }}">{{ $src['from_warehouse_name'] }} ({{ $src['source_stock'] }})</option>
-                                        @endforeach
-                                    </select>
-                                    <div class="mt-1.5 flex items-center gap-1.5 text-gray-500">
-                                        <span>Stock <span x-text="chosenSource(cells[{{ $cell['item_id'] }}])?.source_stock ?? 0"></span></span>
-                                        <span>·</span>
-                                        <label class="flex items-center gap-1">
-                                            Move
-                                            <input type="number" min="1"
-                                                   :max="chosenSource(cells[{{ $cell['item_id'] }}])?.source_stock ?? 1"
-                                                   class="w-14 rounded border border-gray-300 bg-white px-1.5 py-0.5 text-gray-900"
-                                                   x-model.number="cells[{{ $cell['item_id'] }}].qty">
-                                        </label>
-                                    </div>
-                                </div>
-                                @elseif($cell)
-                                <div class="flex min-h-[7rem] items-center justify-center text-center text-gray-500">
-                                    @if(($cell['dest_stock'] ?? 0) > 0)
-                                    OK · Stock {{ $cell['dest_stock'] }}
-                                    @else
-                                    No move
-                                    @endif
-                                </div>
+                            <td class="arrangement-size-cell arrangement-col-dest text-emerald-700">
+                                @if($cell && ($cell['demand'] ?? 0) > 0)
+                                {{ number_format($cell['demand'], 0, ',', '.') }}
                                 @else
-                                <div class="flex min-h-[7rem] items-center justify-center text-center text-gray-400">—</div>
+                                —
                                 @endif
                             </td>
                             @endforeach
+                            @if($sourceWarehouse1)
+                            @foreach($section['sizes'] as $size)
+                            <td class="arrangement-size-cell arrangement-col-wh1">—</td>
+                            @endforeach
+                            @endif
+                            @if($sourceWarehouse2)
+                            @foreach($section['sizes'] as $size)
+                            <td class="arrangement-size-cell arrangement-col-wh2">—</td>
+                            @endforeach
+                            @endif
+                        </tr>
+                        <tr>
+                            <td class="arrangement-row-label px-2 py-2 text-right">Stock</td>
+                            @foreach($section['sizes'] as $size)
+                            @php $cell = $section['cells'][$size] ?? null; @endphp
+                            <td class="arrangement-size-cell arrangement-col-dest font-medium text-gray-800">
+                                @if($cell)
+                                {{ (int) ($cell['dest_stock'] ?? 0) }}
+                                @else
+                                —
+                                @endif
+                            </td>
+                            @endforeach
+                            @if($sourceWarehouse1)
+                            @foreach($section['sizes'] as $size)
+                            @php $cell = $section['cells'][$size] ?? null; @endphp
+                            <td class="arrangement-size-cell arrangement-col-wh1">
+                                @if($cell && ($cell['moveable_wh1'] ?? false))
+                                <label class="flex cursor-pointer items-center justify-center gap-1">
+                                    <input type="checkbox" class="rounded border-gray-300"
+                                           x-model="cells[{{ $cell['item_id'] }}].selected_wh1">
+                                    <span class="font-semibold">{{ $cell['wh1_stock'] }}</span>
+                                </label>
+                                <div class="mt-1" x-show="cells[{{ $cell['item_id'] }}]?.selected_wh1" x-cloak>
+                                    <input type="number" min="1" :max="{{ $cell['wh1_stock'] }}"
+                                           class="mx-auto w-14 rounded border border-gray-300 px-1 py-0.5 text-center"
+                                           x-model.number="cells[{{ $cell['item_id'] }}].qty_wh1">
+                                </div>
+                                @elseif($cell)
+                                {{ (int) ($cell['wh1_stock'] ?? 0) }}
+                                @else
+                                —
+                                @endif
+                            </td>
+                            @endforeach
+                            @endif
+                            @if($sourceWarehouse2)
+                            @foreach($section['sizes'] as $size)
+                            @php $cell = $section['cells'][$size] ?? null; @endphp
+                            <td class="arrangement-size-cell arrangement-col-wh2">
+                                @if($cell && ($cell['moveable_wh2'] ?? false))
+                                <label class="flex cursor-pointer items-center justify-center gap-1">
+                                    <input type="checkbox" class="rounded border-gray-300"
+                                           x-model="cells[{{ $cell['item_id'] }}].selected_wh2">
+                                    <span class="font-semibold">{{ $cell['wh2_stock'] }}</span>
+                                </label>
+                                <div class="mt-1" x-show="cells[{{ $cell['item_id'] }}]?.selected_wh2" x-cloak>
+                                    <input type="number" min="1" :max="{{ $cell['wh2_stock'] }}"
+                                           class="mx-auto w-14 rounded border border-gray-300 px-1 py-0.5 text-center"
+                                           x-model.number="cells[{{ $cell['item_id'] }}].qty_wh2">
+                                </div>
+                                @elseif($cell)
+                                {{ (int) ($cell['wh2_stock'] ?? 0) }}
+                                @else
+                                —
+                                @endif
+                            </td>
+                            @endforeach
+                            @endif
                         </tr>
                     </tbody>
                 </table>
@@ -276,7 +502,26 @@ $queryParams = fn (array $extra = []) => array_filter(array_merge([
             @if($search)
             No pcode matches “{{ $search }}” for this view.
             @else
-            Nothing to move — stock looks OK here, configure source warehouses and run sync, or return after drafting earlier batches.
+            <p>Nothing to show for this view.</p>
+            @if($cacheDiagnostics)
+            <ul class="mt-4 space-y-1 text-left text-xs text-gray-600">
+                @if($cacheDiagnostics['monthly_stat_rows'] === 0)
+                <li>· No monthly sell stats for this warehouse — click <strong>Rebuild stats &amp; refresh</strong>.</li>
+                @endif
+                @if($cacheDiagnostics['source_warehouses'] === 0)
+                <li>· No source warehouses configured — edit this destination and tick <strong>Source warehouses</strong>.</li>
+                @endif
+                @if($cacheDiagnostics['candidates'] === 0 && $cacheDiagnostics['monthly_stat_rows'] > 0)
+                <li>· Stats exist but no missing SKUs with demand (destination may already be stocked, or no sales in the last 365 days).</li>
+                @endif
+                @if($cacheDiagnostics['candidates'] > 0 && $cacheDiagnostics['candidates_with_sources'] === 0)
+                <li>· {{ $cacheDiagnostics['candidates'] }} missing SKU(s) found but none have stock at configured source warehouses.</li>
+                @endif
+                @if($mode === WarehouseArrangementService::MODE_DEMAND && $cacheDiagnostics['candidates_with_sources'] > 0)
+                <li>· Try another demand window (30/90/180 days) if sales are older than {{ $demandDays }} days.</li>
+                @endif
+            </ul>
+            @endif
             @endif
         </div>
         @endforelse
@@ -301,21 +546,99 @@ $queryParams = fn (array $extra = []) => array_filter(array_merge([
 
 @push('scripts')
 <script>
+function refreshProgress(config) {
+    return {
+        tickUrl: config.tickUrl,
+        warehouseId: config.warehouseId,
+        initiatedBy: config.initiatedBy,
+        status: config.status,
+        phase: config.phase,
+        itemCursor: config.itemCursor,
+        totalItems: config.totalItems,
+        progressPercent: config.progressPercent,
+        busy: false,
+        polling: false,
+        errorMessage: '',
+
+        init() {
+            this.runTick();
+            setInterval(() => this.runTick(), 15000);
+        },
+
+        phaseLabel() {
+            return this.phase === 'sync' ? 'refreshing arrangement cache' : 'rebuilding monthly stats';
+        },
+
+        progressLine() {
+            let line = `Started by ${this.initiatedBy} · Phase: ${this.phaseLabel()}`;
+            if (this.phase === 'stats' && this.totalItems > 0) {
+                line += ` · ${Number(this.itemCursor).toLocaleString('id-ID')}/${Number(this.totalItems).toLocaleString('id-ID')} SKU(s) · ${this.progressPercent}%`;
+            }
+            return line;
+        },
+
+        async runTick() {
+            if (this.polling) return;
+            this.polling = true;
+            this.errorMessage = '';
+
+            try {
+                const response = await fetch(this.tickUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content ?? '',
+                    },
+                    body: JSON.stringify({ warehouse_id: this.warehouseId }),
+                });
+
+                const data = await response.json();
+                this.busy = !!data.busy;
+
+                if (!data.busy) {
+                    this.status = data.status ?? this.status;
+                    this.phase = data.phase ?? this.phase;
+                    this.itemCursor = data.item_cursor ?? this.itemCursor;
+                    this.totalItems = data.total_items ?? this.totalItems;
+                    this.progressPercent = data.progress_percent ?? this.progressPercent;
+                }
+
+                if (data.failed) {
+                    this.errorMessage = data.error_message ?? 'Rebuild failed.';
+                }
+
+                if (data.done || data.failed) {
+                    window.location.reload();
+                }
+            } catch (error) {
+                this.errorMessage = 'Could not reach the server to continue the rebuild.';
+            } finally {
+                this.polling = false;
+            }
+        },
+    };
+}
+
 function arrangementPage() {
     const sections = @json($sections);
     const destinationId = {{ (int) $selectedWarehouseId }};
+    const sourceWarehouse1Id = @json($sourceWarehouse1['id'] ?? null);
+    const sourceWarehouse2Id = @json($sourceWarehouse2['id'] ?? null);
 
     const cells = {};
     for (const section of sections) {
-        for (const [size, cell] of Object.entries(section.cells || {})) {
-            if (!cell.moveable) continue;
+        for (const cell of Object.values(section.cells || {})) {
+            if (!cell.moveable_wh1 && !cell.moveable_wh2) continue;
             cells[cell.item_id] = {
                 item_id: cell.item_id,
                 pcode: section.pcode,
-                selected: false,
-                chosen_source_index: 0,
-                qty: cell.sources?.[0]?.suggested_qty ?? 1,
-                sources: cell.sources || [],
+                selected_wh1: false,
+                selected_wh2: false,
+                qty_wh1: cell.suggested_qty_wh1 ?? 1,
+                qty_wh2: cell.suggested_qty_wh2 ?? 1,
+                wh1_stock: cell.wh1_stock ?? 0,
+                wh2_stock: cell.wh2_stock ?? 0,
                 to_warehouse_id: destinationId,
             };
         }
@@ -326,93 +649,73 @@ function arrangementPage() {
         draftPayload: [],
         error: '',
 
-        isSelected(itemId) {
-            return this.cells[itemId]?.selected ?? false;
-        },
-
-        chosenSource(cell) {
-            if (!cell) return null;
-            const idx = cell.chosen_source_index ?? 0;
-            return cell.sources?.[idx] ?? cell.sources?.[0] ?? null;
-        },
-
-        onSourceChange(itemId) {
-            const cell = this.cells[itemId];
-            if (!cell) return;
-            cell.qty = this.chosenSource(cell)?.suggested_qty ?? 1;
-        },
-
         cellsForPcode(pcode) {
             return Object.values(this.cells).filter((c) => c.pcode === pcode);
         },
 
-        selectedCells() {
-            return Object.values(this.cells).filter((c) => c.selected);
+        selectedCellsWh1() {
+            return Object.values(this.cells).filter((c) => c.selected_wh1);
+        },
+
+        selectedCellsWh2() {
+            return Object.values(this.cells).filter((c) => c.selected_wh2);
+        },
+
+        selectedCountWh1() {
+            return this.selectedCellsWh1().length;
+        },
+
+        selectedCountWh2() {
+            return this.selectedCellsWh2().length;
         },
 
         selectedCount() {
-            return this.selectedCells().length;
+            return this.selectedCountWh1() + this.selectedCountWh2();
         },
 
         allSelectedInPcode(pcode) {
-            const list = this.cellsForPcode(pcode);
-            return list.length > 0 && list.every((c) => c.selected);
+            const list = this.cellsForPcode(pcode).filter((c) => c.wh1_stock > 0 || c.wh2_stock > 0);
+            return list.length > 0 && list.every((c) => c.selected_wh1 || c.selected_wh2);
         },
 
         toggleAllInPcode(pcode) {
+            const list = this.cellsForPcode(pcode);
             const target = !this.allSelectedInPcode(pcode);
-            for (const cell of this.cellsForPcode(pcode)) cell.selected = target;
+            for (const cell of list) {
+                if (cell.wh1_stock > 0) cell.selected_wh1 = target;
+                if (cell.wh2_stock > 0) cell.selected_wh2 = target;
+            }
         },
 
         clearSelection() {
-            for (const cell of Object.values(this.cells)) cell.selected = false;
-        },
-
-        applyWarehouseToPcode(pcode) {
-            const list = this.cellsForPcode(pcode);
-            const first = list.find((c) => c.selected) ?? list[0];
-            if (!first) return;
-            const whIdx = first.chosen_source_index ?? 0;
-            for (const cell of list) {
-                if ((cell.sources || []).length > whIdx) {
-                    cell.chosen_source_index = whIdx;
-                    cell.qty = this.chosenSource(cell)?.suggested_qty ?? 1;
-                }
+            for (const cell of Object.values(this.cells)) {
+                cell.selected_wh1 = false;
+                cell.selected_wh2 = false;
             }
         },
 
-        draftBatches() {
-            const map = new Map();
-            for (const cell of this.selectedCells()) {
-                const src = this.chosenSource(cell);
-                if (!src) continue;
-                const id = src.from_warehouse_id;
-                if (!map.has(id)) {
-                    map.set(id, { from_warehouse_id: id, name: src.from_warehouse_name, count: 0 });
-                }
-                map.get(id).count++;
-            }
-            return [...map.values()];
-        },
-
-        draftWarehouse(fromWarehouseId) {
+        draftFromWarehouse(slot) {
             this.error = '';
-            const items = this.selectedCells()
-                .filter((cell) => this.chosenSource(cell)?.from_warehouse_id === fromWarehouseId)
-                .map((cell) => {
-                    const src = this.chosenSource(cell);
-                    const maxQty = src?.source_stock ?? 1;
-                    const qty = Math.max(1, Math.min(maxQty, Number(cell.qty) || 1));
-                    return {
-                        item_id: cell.item_id,
-                        quantity: qty,
-                        from_warehouse_id: src?.from_warehouse_id,
-                        to_warehouse_id: cell.to_warehouse_id,
-                    };
-                });
+            const fromWarehouseId = slot === 1 ? sourceWarehouse1Id : sourceWarehouse2Id;
+            if (!fromWarehouseId) {
+                this.error = 'Source warehouse is not configured.';
+                return;
+            }
+
+            const selected = slot === 1 ? this.selectedCellsWh1() : this.selectedCellsWh2();
+            const items = selected.map((cell) => {
+                const maxQty = slot === 1 ? cell.wh1_stock : cell.wh2_stock;
+                const qty = slot === 1 ? cell.qty_wh1 : cell.qty_wh2;
+                return {
+                    item_id: cell.item_id,
+                    quantity: Math.max(1, Math.min(maxQty, Number(qty) || 1)),
+                    from_warehouse_id: fromWarehouseId,
+                    to_warehouse_id: cell.to_warehouse_id,
+                };
+            });
 
             if (!items.length) {
-                this.error = 'No selected cells for this warehouse.';
+                this.error = 'No cells selected for this warehouse.';
                 return;
             }
 

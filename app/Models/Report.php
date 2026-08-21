@@ -18,6 +18,7 @@ class Report
             'view-compare' => 'report-compare',
             'view-inventory-health' => 'report-inventory-health',
             'view-purchase' => 'report-purchase',
+            'view-export-sell' => 'report-export-sell',
             'view-expense' => 'report-expense',
             'view-warehouse-item' => 'report-warehouse-item',
             'view-item-sales' => 'report-item-sales',

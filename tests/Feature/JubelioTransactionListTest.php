@@ -8,6 +8,7 @@ use App\Models\Jubeliosync;
 use App\Models\Location;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Models\WarehouseItem;
 use Spatie\Permission\Models\Permission;
 
 it('shows jubelio cron transactions on the transactions index for location-scoped users', function () {
@@ -19,6 +20,13 @@ it('shows jubelio cron transactions on the transactions index for location-scope
     $warehouse = Addrbook::factory()->warehouse()->create();
     $customer = Addrbook::factory()->create(['type' => Addrbook::TYPE_CUSTOMER]);
     $item = Item::factory()->create(['code' => 'SKU-JUB-LIST']);
+
+    WarehouseItem::create([
+        'warehouse_id' => $warehouse->id,
+        'warehouse_type' => $warehouse->type,
+        'item_id' => $item->id,
+        'quantity' => 10,
+    ]);
 
     $warehouse->locations()->attach($location->id);
 
@@ -32,6 +40,18 @@ it('shows jubelio cron transactions on the transactions index for location-scope
         'bin_id' => 0,
     ]);
 
+    mockJubelioSalesOrder('cron-list-1', [
+        'salesorder_no' => 'INV-JUB-LIST-1',
+        'store_id' => 10,
+        'location_id' => 20,
+        'sub_total' => 100000,
+        'real_total' => 100000,
+        'transaction_date' => '2026-05-10',
+        'items' => [
+            ['item_code' => 'SKU-JUB-LIST', 'qty' => 1, 'price' => 100000],
+        ],
+    ]);
+
     $order = Jubelioorder::create([
         'jubelio_order_id' => 'cron-list-1',
         'source' => 1,
@@ -39,21 +59,14 @@ it('shows jubelio cron transactions on the transactions index for location-scope
         'type' => 'SELL',
         'order_status' => 'SHIPPED',
         'run_count' => 0,
-        'payload' => json_encode([
-            'salesorder_no' => 'INV-JUB-LIST-1',
-            'store_id' => 10,
-            'location_id' => 20,
-            'sub_total' => 100000,
-            'real_total' => 100000,
-            'transaction_date' => '2026-05-10',
-            'items' => [
-                ['item_code' => 'SKU-JUB-LIST', 'qty' => 1, 'price' => 100000],
-            ],
-        ]),
         'status' => 0,
     ]);
 
     app(ProcessJubelioOrder::class)->execute($order);
+
+    $cronTransaction = Transaction::where('invoice', 'INV-JUB-LIST-1')->first();
+    expect($cronTransaction)->not->toBeNull();
+    expect($cronTransaction->user_id)->toBe(Transaction::resolveJubelioCronUserId());
 
     $user = User::factory()->create(['location_id' => $location->id]);
     $user->givePermissionTo('transactions-list');

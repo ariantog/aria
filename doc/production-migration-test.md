@@ -69,6 +69,13 @@ php artisan cache:clear
 
 **Do not run `php artisan migrate` blindly** on a prod copy. Most L12 migration files are greenfield `CREATE TABLE` for SQLite CI; production tables already exist.
 
+> **Never commit `database/schema/*.sql`.** Laravel loads a schema dump automatically —
+> before any migration runs, and even when `--path=` is given — whenever the `migrations`
+> table is still empty. The dump begins with `DROP TABLE IF EXISTS` for `items`,
+> `transactions`, `users`, `settings`, and more, so on a fresh clone pointed at production
+> it silently destroys live tables. The stale dump was deleted and `database/schema` is now
+> gitignored; if one reappears, delete it before migrating.
+
 ### 3a. Check status
 
 ```bash
@@ -84,9 +91,22 @@ You will see many migrations as “Pending”. That is expected.
 ```bash
 php artisan config:clear
 php artisan migrate --path=database/migrations/2026_08_13_100000_production_database_bootstrap.php --force
+php artisan db:seed --class=ProductionBootstrapSeeder --force
 ```
 
-Runs: align → install → NOT NULL defaults → BIGINT→INT fix.
+That is the complete fresh deploy. The bootstrap runs: normalize zero dates → align →
+install L12 tables → warehouse arrangement refresh jobs → standalone invoices → NOT NULL
+defaults → BIGINT→INT fix. The seeder covers all data cleanup (permissions incl. obsolete
+addrbook permission removal, scheduled tasks, settings). Every step is guarded, so both
+commands are safe to re-run after a partial failure.
+
+**Databases migrated before 2026-08-21** additionally need the corrective migration once
+(re-applies NOT NULL defaults + INT key fixes that intermediate code versions missed;
+no-op everywhere else):
+
+```bash
+php artisan migrate --path=database/migrations/2026_08_21_100000_reapply_production_defaults_and_int_keys.php --force
+```
 
 **Path B — selective (existing DB, already partially migrated):**
 
@@ -286,10 +306,15 @@ SET SESSION sql_mode = @old_mode;
 ```bash
 # After DB clone + .env configured:
 php artisan config:clear
+php artisan cache:clear
 php artisan migrate --path=database/migrations/2026_08_13_100000_production_database_bootstrap.php --force
 php artisan db:seed --class=ProductionBootstrapSeeder --force
-php artisan settings:cleanup --seed
+# Only on DBs migrated before 2026-08-21 (no-op otherwise):
+php artisan migrate --path=database/migrations/2026_08_21_100000_reapply_production_defaults_and_int_keys.php --force
 php artisan app:backfill-items-qty                    # optional
 php artisan serve --host=0.0.0.0 --port=5000   # dev only; prod uses nginx/apache
 # Prod cron: * * * * * cd /path/to/aria && php artisan schedule:run
 ```
+
+`settings:cleanup --seed` is intentionally omitted: it deletes settings rows L12 does not
+manage, which the legacy L10 app may still read. Run it only after L10 is retired.

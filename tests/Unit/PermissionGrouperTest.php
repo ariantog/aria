@@ -7,6 +7,7 @@ uses(TestCase::class);
 
 it('maps L12 permissions to model-aware groups', function () {
     expect(PermissionGrouper::resolveGroup('items-create'))->toBe('Items');
+    expect(PermissionGrouper::resolveGroup('items-convert-legacy'))->toBe('Items');
     expect(PermissionGrouper::resolveGroup('assetLancar-list'))->toBe('Asset Lancar');
     expect(PermissionGrouper::resolveGroup('users-roles-list'))->toBe('Roles');
     expect(PermissionGrouper::resolveGroup('setting-general-view'))->toBe('Settings');

@@ -69,17 +69,27 @@ class Tag extends Model
     }
 
     /**
+     * Tags for item / asset lancar forms: item_type matches the form or is universal (0).
+     *
+     * @return Collection<int, Tag>
+     */
+    public static function tagsForItemForm(ItemType $itemType, int $tagType): Collection
+    {
+        return static::query()
+            ->where('type', $tagType)
+            ->whereIn('item_type', [0, $itemType->value])
+            ->orderBy('name')
+            ->get();
+    }
+
+    /**
      * TYPE tags (SKU prefix / restock tab) scoped to manufactured items or asset lancar.
      *
      * @return Collection<int, Tag>
      */
     public static function typeTagsForItem(ItemType $itemType): Collection
     {
-        return static::query()
-            ->where('type', self::TYPE_TYPE)
-            ->where('item_type', $itemType->value)
-            ->orderBy('name')
-            ->get();
+        return static::tagsForItemForm($itemType, self::TYPE_TYPE);
     }
 
     /**
@@ -108,11 +118,136 @@ class Tag extends Model
             ->first();
     }
 
+    public static function findSizeTag(string $code): ?self
+    {
+        $normalized = strtoupper(trim($code));
+
+        if ($normalized === '') {
+            return null;
+        }
+
+        return static::query()
+            ->where('type', self::TYPE_SIZE)
+            ->where(function ($query) use ($normalized) {
+                $query->whereRaw('UPPER(code) = ?', [$normalized])
+                    ->orWhereRaw('UPPER(name) = ?', [$normalized]);
+            })
+            ->first();
+    }
+
+    public static function findWarnaTag(string $code, array $aliases = []): ?self
+    {
+        $candidates = array_values(array_unique(array_filter(array_map(
+            fn (string $value) => strtoupper(trim($value)),
+            array_merge([$code], $aliases),
+        ))));
+
+        foreach ($candidates as $normalized) {
+            if ($normalized === '') {
+                continue;
+            }
+
+            $found = static::query()
+                ->where('type', self::TYPE_WARNA)
+                ->where(function ($query) use ($normalized) {
+                    $query->whereRaw('UPPER(code) = ?', [$normalized])
+                        ->orWhereRaw('UPPER(name) = ?', [$normalized]);
+                })
+                ->first();
+
+            if ($found) {
+                return $found;
+            }
+        }
+
+        return null;
+    }
+
+    public static function findOrCreateWarnaTag(string $code, array $aliases = []): self
+    {
+        $found = self::findWarnaTag($code, $aliases);
+
+        if ($found) {
+            return $found;
+        }
+
+        $normalized = strtoupper(trim($code));
+        $attributes = self::normalizeWarnaAttributes([
+            'type' => self::TYPE_WARNA,
+            'name' => $normalized,
+            'code' => $normalized,
+            'item_type' => 0,
+        ]);
+
+        $owner = static::query()
+            ->whereRaw('UPPER(name) = ?', [$attributes['name']])
+            ->first();
+
+        if ($owner) {
+            if ((int) $owner->type === self::TYPE_WARNA) {
+                return $owner;
+            }
+
+            throw new \InvalidArgumentException(
+                "Warna tag {$normalized} not found; name already used by tag #{$owner->id} (type {$owner->type})."
+            );
+        }
+
+        return static::query()->create([
+            'type' => self::TYPE_WARNA,
+            'code' => $attributes['code'],
+            'name' => $attributes['name'],
+            'item_type' => 0,
+        ]);
+    }
+
+    public static function findOrCreateSizeTag(string $code): self
+    {
+        $found = self::findSizeTag($code);
+
+        if ($found) {
+            return $found;
+        }
+
+        $normalized = strtoupper(trim($code));
+        $owner = static::query()
+            ->whereRaw('UPPER(name) = ?', [$normalized])
+            ->first();
+
+        if ($owner) {
+            if ((int) $owner->type === self::TYPE_SIZE) {
+                return $owner;
+            }
+
+            throw new \InvalidArgumentException(
+                "Size tag {$normalized} not found; name already used by tag #{$owner->id} (type {$owner->type})."
+            );
+        }
+
+        return static::query()->create([
+            'type' => self::TYPE_SIZE,
+            'code' => $normalized,
+            'name' => $normalized,
+            'item_type' => 0,
+        ]);
+    }
+
+    /**
+     * Item type used when linking from the tags list to a filtered index.
+     */
+    public function filterItemType(): ItemType
+    {
+        return (int) $this->item_type === ItemType::ASSET_LANCAR->value
+            ? ItemType::ASSET_LANCAR
+            : ItemType::ITEM;
+    }
+
     /**
      * Item / asset lancar index URL filtered to items carrying this tag.
      */
-    public function itemsIndexFilterUrl(ItemType $itemType): string
+    public function itemsIndexFilterUrl(?ItemType $itemType = null): string
     {
+        $itemType ??= $this->filterItemType();
         $routeName = $itemType === ItemType::ASSET_LANCAR ? 'assetlancar.index' : 'items.index';
 
         $params = match ((int) $this->type) {
@@ -146,6 +281,17 @@ class Tag extends Model
                 $tag->name = strtoupper(trim($tag->name));
                 $tag->code = $tag->name;
             }
+        });
+
+        static::deleting(function (Tag $tag) {
+            $tag->items()->each(function (Item $item) use ($tag) {
+                $tagIds = array_values(array_filter(
+                    array_map('intval', explode(',', (string) $item->tag_ids)),
+                    fn (int $id) => $id !== $tag->id,
+                ));
+
+                $item->updateQuietly(['tag_ids' => implode(',', $tagIds)]);
+            });
         });
     }
 }

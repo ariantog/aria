@@ -61,7 +61,7 @@ it('syncs customer locations from the addrbook edit form', function () {
             'type' => AddrbookType::Customer->value,
             'location_ids' => [$this->location->id, $locationB->id],
         ])
-        ->assertRedirect(route('addrbook.index'));
+        ->assertRedirect(\App\Models\Addrbook::typeIndexRoute(\App\Models\Addrbook::TYPE_CUSTOMER));
 
     expect($this->customer->fresh()->locations->pluck('id')->all())
         ->toEqual([$this->location->id, $locationB->id]);

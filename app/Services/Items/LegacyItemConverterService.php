@@ -452,6 +452,15 @@ class LegacyItemConverterService
         $parser ??= $this->makeParser();
         $parse = $parser->parse($item->fresh(['tags', 'group']));
 
+        return $this->convertWithParse($item, $run, $parse, $dryRun);
+    }
+
+    public function convertWithParse(
+        Item $item,
+        ItemIdentityConversionRun $run,
+        LegacyParseResult $parse,
+        bool $dryRun = false,
+    ): ItemIdentityConversionResult {
         if (! $parse->success) {
             return $this->recordResult($run, $item, ItemIdentityConversionResult::STATUS_FAILED, $parse, $dryRun);
         }
@@ -500,19 +509,15 @@ class LegacyItemConverterService
     protected function applyParse(Item $item, LegacyParseResult $parse): void
     {
         $itemType = $this->makeParser()->resolveItemType($item);
-        $warnaTag = Tag::query()
-            ->where('type', Tag::TYPE_WARNA)
-            ->whereRaw('UPPER(code) = ?', [strtoupper((string) $parse->warnaCode)])
-            ->firstOrFail();
+        $warnaTag = Tag::findWarnaTag((string) $parse->warnaCode);
 
-        $sizeTag = null;
-
-        if ($parse->sizeCode) {
-            $sizeTag = Tag::query()
-                ->where('type', Tag::TYPE_SIZE)
-                ->whereRaw('UPPER(code) = ?', [strtoupper($parse->sizeCode)])
-                ->first();
+        if (! $warnaTag) {
+            throw new \RuntimeException("Warna tag not found: {$parse->warnaCode}");
         }
+
+        $sizeTag = $parse->sizeCode
+            ? Tag::findSizeTag((string) $parse->sizeCode)
+            : null;
 
         $typeTag = null;
 

@@ -9,6 +9,7 @@ use App\Models\Jubelioorder;
 use App\Models\Jubelioreturn;
 use App\Models\Jubeliosync;
 use App\Models\Transaction;
+use App\Services\Jubelio\JubelioOrderShowPresenter;
 use App\Services\Jubelio\JubelioOrderWarehouseResolver;
 use App\Services\Jubelio\JubelioTransactionSyncPresenter;
 use App\Services\JubelioGetOrdersService;
@@ -104,16 +105,18 @@ class JubelioController extends Controller
         return view('jubelio.index', ['orders' => $orders, 'stats' => ['pending' => (int) $stats->pending, 'success' => (int) $stats->success, 'warning' => (int) $stats->warning, 'error' => (int) $stats->error], 'filters' => $request->only(['status', 'invoice']), 'flash' => ['success' => session('success'), 'error' => session('error') ?? session('errorMessage')]]);
     }
 
-    public function show(Jubelioorder $jubelio): View
+    public function show(Jubelioorder $jubelio, JubelioOrderShowPresenter $presenter): View
     {
         Gate::authorize(Jubelio::getPermissions()['view']);
 
         $order = $jubelio->load(['user', 'trx']);
+        $presented = $presenter->present($order);
 
         return view('jubelio.show', [
             'order' => $order,
             'summary' => $order->payloadSummary(),
-            'items' => $order->payloadItems(),
+            'items' => $presented['items'],
+            'parties' => $presented['parties'],
             'transactionsUrl' => $order->transactionsSearchUrl(),
             'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
@@ -203,7 +206,6 @@ class JubelioController extends Controller
             'type' => 'RETURN',
             'order_status' => 'RETURN',
             'run_count' => 0,
-            'payload' => json_encode($dataApi),
             'status' => 0,
         ]);
 
@@ -233,6 +235,22 @@ class JubelioController extends Controller
             if (Jubelioorder::where('invoice', $d['salesorder_no'])->where('type', 'SELL')->where('order_status', $d['status'])->exists()) {
                 return response()->json(['status' => 'ok', 'message' => 'Already exists']);
             }
+
+            $invoice = $d['salesorder_no'];
+            $destyInvoice = str_replace('SP-', '', $invoice);
+            $sellExists = Transaction::where('type', Transaction::TYPE_SELL)
+                ->where(function ($query) use ($invoice, $destyInvoice) {
+                    $query->where('invoice', $invoice);
+                    if ($destyInvoice !== $invoice) {
+                        $query->orWhere('invoice', $destyInvoice);
+                    }
+                })
+                ->exists();
+
+            if ($sellExists) {
+                return response()->json(['status' => 'ok', 'message' => 'Invoice sudah ada']);
+            }
+
             $order = Jubelioorder::create([
                 'jubelio_order_id' => $d['salesorder_id'],
                 'source' => 1,
@@ -240,7 +258,6 @@ class JubelioController extends Controller
                 'type' => 'SELL',
                 'order_status' => $d['status'],
                 'run_count' => 0,
-                'payload' => json_encode($d),
                 'status' => 0,
             ]);
 

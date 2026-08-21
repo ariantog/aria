@@ -16,10 +16,22 @@ beforeEach(function () {
     $this->user->givePermissionTo(array_values($permissions));
 });
 
-test('can view addrbook index', function () {
+test('all contacts index is no longer available', function () {
     $this->actingAs($this->user)
-        ->get(route('addrbook.index'))
-        ->assertStatus(200);
+        ->get('/addrbook')
+        ->assertNotFound();
+});
+
+test('other type is excluded from navigable addrbook types', function () {
+    $slugs = array_column(Addrbook::getTypes(), 'slug');
+
+    expect($slugs)->not->toContain('other');
+});
+
+test('can view customer list through type-specific route', function () {
+    $this->actingAs($this->user)
+        ->get(route('addrbook.type.index', 'customer'))
+        ->assertOk();
 });
 
 test('can view customer create through type-specific route', function () {
@@ -40,7 +52,7 @@ test('can create addrbook', function () {
             'type' => Addrbook::TYPE_CUSTOMER,
         ]);
 
-    $response->assertRedirect(route('addrbook.index'));
+    $response->assertRedirect(Addrbook::typeIndexRoute(Addrbook::TYPE_CUSTOMER));
 
     $this->assertDatabaseHas('customers', [
         'name' => 'New Customer',
@@ -71,7 +83,7 @@ test('can update addrbook', function () {
             'type' => Addrbook::TYPE_SUPPLIER,
         ]);
 
-    $response->assertRedirect(route('addrbook.index'));
+    $response->assertRedirect(Addrbook::typeIndexRoute(Addrbook::TYPE_SUPPLIER));
 
     $this->assertDatabaseHas('customers', [
         'id' => $addrbook->id,
@@ -79,6 +91,32 @@ test('can update addrbook', function () {
         'ppn' => 1,
         'type' => Addrbook::TYPE_SUPPLIER,
     ]);
+});
+
+test('can update warehouse with empty optional fields', function () {
+    $addrbook = Addrbook::create([
+        'name' => 'Warehouse Old',
+        'type' => Addrbook::TYPE_WAREHOUSE,
+        'email' => 'old@example.com',
+        'phone' => '08123456789',
+    ]);
+
+    $this->actingAs($this->user)
+        ->put(route('addrbook.update', $addrbook), [
+            'name' => 'Warehouse Updated',
+            'type' => Addrbook::TYPE_WAREHOUSE,
+            'email' => '',
+            'phone' => '082313651678',
+            'description' => 'CORENATION WTC MANGGA DUA LT2 BLOK B',
+            'address' => '',
+        ])
+        ->assertRedirect(Addrbook::typeIndexRoute(Addrbook::TYPE_WAREHOUSE));
+
+    $addrbook->refresh();
+
+    expect($addrbook->name)->toBe('Warehouse Updated')
+        ->and($addrbook->phone)->toBe('082313651678')
+        ->and($addrbook->description)->toBe('CORENATION WTC MANGGA DUA LT2 BLOK B');
 });
 
 test('can delete addrbook', function () {
@@ -90,7 +128,7 @@ test('can delete addrbook', function () {
     $response = $this->actingAs($this->user)
         ->delete(route('addrbook.destroy', $addrbook));
 
-    $response->assertRedirect(route('addrbook.index'));
+    $response->assertRedirect(Addrbook::typeIndexRoute(Addrbook::TYPE_CUSTOMER));
 
     $this->assertSoftDeleted('customers', ['id' => $addrbook->id]);
 });
@@ -129,4 +167,46 @@ test('can view addrbook edit through type-specific route', function () {
         ->get("/supplier/{$addrbook->id}/edit")
         ->assertStatus(200)
         ->assertSee('Edit Test');
+});
+
+test('can view warehouse edit through type-specific route', function () {
+    $addrbook = Addrbook::create([
+        'name' => 'Warehouse Edit Test',
+        'type' => Addrbook::TYPE_WAREHOUSE,
+    ]);
+
+    $this->actingAs($this->user)
+        ->get("/warehouse/{$addrbook->id}/edit")
+        ->assertStatus(200)
+        ->assertSee('Warehouse Edit Test');
+});
+
+test('persists warehouse arrangement source warehouses on update', function () {
+    $destination = Addrbook::create([
+        'name' => 'Destination WH',
+        'type' => Addrbook::TYPE_WAREHOUSE,
+        'arrangement_enabled' => true,
+    ]);
+    $source = Addrbook::create([
+        'name' => 'Source WH',
+        'type' => Addrbook::TYPE_WAREHOUSE,
+    ]);
+
+    $this->actingAs($this->user)
+        ->put(route('addrbook.update', $destination), [
+            'name' => 'Destination WH',
+            'type' => Addrbook::TYPE_WAREHOUSE,
+            'arrangement_enabled' => true,
+            'arrangement_source_ids' => [$source->id],
+            'ppn' => false,
+            'is_online' => false,
+        ])
+        ->assertRedirect(Addrbook::typeIndexRoute(Addrbook::TYPE_WAREHOUSE));
+
+    expect($destination->fresh()->arrangementSources->pluck('id')->all())->toBe([$source->id]);
+
+    $this->actingAs($this->user)
+        ->get("/warehouse/{$destination->id}/edit")
+        ->assertOk()
+        ->assertSee('Source WH', false);
 });

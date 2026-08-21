@@ -133,12 +133,18 @@ class RestockSheetController extends Controller
       );
     } catch (InvalidArgumentException $e) {
       return response()->json(['message' => $e->getMessage()], 422);
+    } catch (\Throwable $e) {
+      report($e);
+
+      return response()->json(['message' => $e->getMessage() ?: 'Move failed.'], 500);
     }
+
+    $sheet->refresh();
 
     return response()->json([
       'message' => $moved > 0 ? "Moved {$moved} unit(s)." : 'Nothing to move.',
       'moved' => $moved,
-      'grid' => $this->gridBuilder->build($sheet->fresh()),
+      'grid' => $this->gridBuilder->build($sheet),
     ]);
   }
 
@@ -166,13 +172,19 @@ class RestockSheetController extends Controller
       return response()->json(['message' => collect($e->errors())->flatten()->first()], 422);
     } catch (InvalidArgumentException $e) {
       return response()->json(['message' => $e->getMessage()], 422);
+    } catch (\Throwable $e) {
+      report($e);
+
+      return response()->json(['message' => $e->getMessage() ?: 'Receive failed.'], 500);
     }
+
+    $sheet->refresh();
 
     return response()->json([
       'message' => 'Received into warehouse.',
       'transaction_id' => $transaction->id,
       'transaction_url' => route('transactions.show', $transaction),
-      'grid' => $this->gridBuilder->build($sheet->fresh()),
+      'grid' => $this->gridBuilder->build($sheet),
     ]);
   }
 }

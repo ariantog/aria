@@ -8,6 +8,7 @@ use App\Enums\TransactionType;
 use App\Http\Requests\StoreAddrbookRequest;
 use App\Http\Requests\UpdateAddrbookRequest;
 use App\Models\Addrbook;
+use App\Models\Location;
 use App\Models\StatSell;
 use App\Support\LikeSearch;
 use Illuminate\Support\Facades\Gate;
@@ -16,6 +17,10 @@ class AddrbookController extends Controller
 {
     public function index(?string $type = null)
     {
+        if ($type === null) {
+            abort(404);
+        }
+
         Gate::authorize(Addrbook::getPermissions($type)['view']);
 
         $typeId = null;
@@ -77,6 +82,10 @@ class AddrbookController extends Controller
 
     public function create(?string $type = null)
     {
+        if ($type === null) {
+            abort(404);
+        }
+
         Gate::authorize(Addrbook::getPermissions($type)['create']);
 
         $pt = null;
@@ -105,7 +114,7 @@ class AddrbookController extends Controller
         $this->syncAddrbookLocations($a, $r->input('location_ids', []));
         $this->syncArrangementSources($a, $r->input('arrangement_source_ids', []));
 
-        return redirect()->route('addrbook.index')->with('success', 'Created.');
+        return redirect()->to(Addrbook::typeIndexRoute((int) $a->type))->with('success', 'Created.');
     }
 
     public function show(Addrbook $addrbook)
@@ -193,7 +202,7 @@ class AddrbookController extends Controller
         $this->syncAddrbookLocations($a, $r->input('location_ids', []));
         $this->syncArrangementSources($a, $r->input('arrangement_source_ids', []));
 
-        return redirect()->route('addrbook.index')->with('success', 'Updated.');
+        return redirect()->to(Addrbook::typeIndexRoute((int) $a->type))->with('success', 'Updated.');
     }
 
     public function transactions($id)
@@ -381,7 +390,7 @@ class AddrbookController extends Controller
         Gate::authorize(Addrbook::getPermissions($this->addrbookTypeSlug($a))['delete']);
         $a->delete();
 
-        return redirect()->route('addrbook.index')->with('success', 'Deleted.');
+        return redirect()->to(Addrbook::typeIndexRoute((int) $a->type))->with('success', 'Deleted.');
     }
 
     private function authorizeAddrbookLocation(Addrbook $addrbook): void
@@ -399,12 +408,16 @@ class AddrbookController extends Controller
 
     private function addrbookTypeSlug(Addrbook $a): ?string
     {
-        return $a->type instanceof AddrbookType ? $a->type->slug() : null;
+        $type = $a->type instanceof AddrbookType
+            ? $a->type
+            : AddrbookType::tryFrom((int) $a->type);
+
+        return $type?->slug();
     }
 
     private function addrbookIsWarehouse(Addrbook $a): bool
     {
-        return $a->type instanceof AddrbookType && $a->type->isWarehouse();
+        return Addrbook::typeIsWarehouse((int) $a->type);
     }
 
     private function categorizeAddrbook($addrbook): string
@@ -445,7 +458,11 @@ class AddrbookController extends Controller
 
     private function syncAddrbookLocations(Addrbook $addrbook, array $locationIds): void
     {
-        if (! in_array($addrbook->type, [AddrbookType::Customer, AddrbookType::Warehouse], true)) {
+        $type = $addrbook->type instanceof AddrbookType
+            ? $addrbook->type
+            : AddrbookType::tryFrom((int) $addrbook->type);
+
+        if (! in_array($type, [AddrbookType::Customer, AddrbookType::Warehouse], true)) {
             return;
         }
 
@@ -454,7 +471,7 @@ class AddrbookController extends Controller
 
     private function syncArrangementSources(Addrbook $addrbook, array $sourceIds): void
     {
-        if (! $this->addrbookIsWarehouse($addrbook) || ! $addrbook->arrangement_enabled) {
+        if ((int) $addrbook->type !== Addrbook::TYPE_WAREHOUSE || ! $addrbook->arrangement_enabled) {
             $addrbook->arrangementSources()->sync([]);
 
             return;
@@ -490,8 +507,7 @@ class AddrbookController extends Controller
                 ->where('type', AddrbookType::Warehouse)
                 ->orderBy('name')
                 ->get(['id', 'name']),
-            'selectedArrangementSourceIds' => $addrbook?->arrangementSources()
-                ->pluck('customers.id') ?? collect(),
+            'selectedArrangementSourceIds' => $addrbook?->arrangementSources->pluck('id') ?? collect(),
         ];
     }
 }

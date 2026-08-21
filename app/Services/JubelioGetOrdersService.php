@@ -236,7 +236,6 @@ class JubelioGetOrdersService
                 'type' => 'SELL',
                 'order_status' => $row['internal_status'] ?? 'SHIPPED',
                 'run_count' => 0,
-                'payload' => '{}',
                 'status' => 0,
                 'created_at' => $now,
                 'updated_at' => $now,
@@ -398,7 +397,6 @@ class JubelioGetOrdersService
             'type' => 'SELL',
             'order_status' => $inspection['status'] ?: 'SHIPPED',
             'run_count' => 0,
-            'payload' => '{}',
             'status' => 0,
         ]);
 

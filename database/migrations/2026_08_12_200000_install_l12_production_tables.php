@@ -441,6 +441,8 @@ return new class extends Migration
 
     private function createRestockTables(): void
     {
+        $this->dropOrphanedRestockCellHistoriesTable();
+
         if (! Schema::hasTable('restock_sheets')) {
             Schema::create('restock_sheets', function (Blueprint $table) {
                 $table->id();
@@ -500,9 +502,36 @@ return new class extends Migration
                 $table->timestamps();
 
                 $table->index(['restock_cell_id', 'created_at']);
+                $table->index('transaction_id');
                 $table->foreign('user_id')->references('id')->on('users')->cascadeOnDelete();
-                $table->foreign('transaction_id')->references('id')->on('transactions')->nullOnDelete();
+                // No FK to transactions — production table is RANGE-partitioned by date (MySQL errno 150).
             });
+        }
+    }
+
+    /**
+     * A failed install can leave restock_cell_histories without indexes when the
+     * transaction_id FK failed (production transactions is date-partitioned).
+     */
+    private function dropOrphanedRestockCellHistoriesTable(): void
+    {
+        if (Schema::getConnection()->getDriverName() !== 'mysql'
+            || ! Schema::hasTable('restock_cell_histories')
+            || ! Schema::hasColumn('restock_cell_histories', 'transaction_id')) {
+            return;
+        }
+
+        $hasTransactionIndex = DB::selectOne(
+            'SELECT 1 AS found FROM information_schema.STATISTICS
+             WHERE TABLE_SCHEMA = DATABASE()
+               AND TABLE_NAME = ?
+               AND COLUMN_NAME = ?
+             LIMIT 1',
+            ['restock_cell_histories', 'transaction_id']
+        );
+
+        if (! $hasTransactionIndex) {
+            Schema::dropIfExists('restock_cell_histories');
         }
     }
 

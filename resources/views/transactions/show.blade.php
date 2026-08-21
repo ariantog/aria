@@ -17,7 +17,10 @@
     $statusKey = $transaction->status instanceof \BackedEnum ? $transaction->status->value : $transaction->status;
     $status = $statuses[$statusKey] ?? ['label' => 'Unknown', 'color' => 'bg-gray-100 text-gray-800'];
 
-    $fmt = fn ($n) => number_format((float) $n, 0, ',', '.');
+    $fmt = fn ($n) => format_amount($n);
+    $grandTotalFormatted = $fmt(abs($transaction->real_total));
+    $grandTotalHeroClass = \App\Support\AmountFormatter::displayTextClass($grandTotalFormatted, 'hero');
+    $grandTotalCompactClass = \App\Support\AmountFormatter::displayTextClass($grandTotalFormatted, 'compact');
     $fmtDate = function ($d) {
         if (! $d) return '-';
         return \Illuminate\Support\Carbon::parse($d)->format('d/m/Y');
@@ -100,23 +103,23 @@
     </div>
 
     {{-- Primary Info Cards --}}
-    <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
+    <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
         {{-- Summary Card --}}
         <div class="overflow-hidden rounded-xl border border-blue-100 bg-white shadow-sm">
-            <div class="h-2 w-full bg-blue-600"></div>
-            <div class="p-6 pb-2">
-                <div class="text-sm font-medium tracking-wider text-gray-500 uppercase">Grand Total</div>
-                <div class="mt-1 flex items-baseline gap-1">
-                    <span class="text-3xl font-black text-blue-600">IDR</span>
-                    <span class="text-4xl font-black tracking-tighter tabular-nums">{{ $fmt(abs($transaction->real_total)) }}</span>
+            <div class="h-1.5 w-full bg-blue-600"></div>
+            <div class="px-4 pb-1 pt-4">
+                <div class="text-xs font-medium tracking-wider text-gray-500 uppercase">Grand Total</div>
+                <div class="mt-1 min-w-0">
+                    <div class="text-xs font-semibold text-blue-600">IDR</div>
+                    <div class="{{ $grandTotalHeroClass }} tabular-nums break-all text-blue-700">{{ $grandTotalFormatted }}</div>
                 </div>
             </div>
-            <div class="space-y-4 p-6 pt-4">
-                <div class="flex items-center justify-between rounded-lg border border-dashed bg-gray-50 p-3">
+            <div class="space-y-3 px-4 pb-4 pt-2">
+                <div class="flex items-center justify-between rounded-lg border border-dashed bg-gray-50 px-3 py-2">
                     <div class="text-sm font-medium">Status</div>
                     <span class="inline-flex items-center rounded-full px-3 py-0.5 text-xs font-semibold {{ $status['color'] }}">{{ $status['label'] }}</span>
                 </div>
-                <div class="space-y-2">
+                <div class="space-y-1.5">
                     <div class="flex justify-between text-sm">
                         <span class="flex items-center gap-1.5 text-gray-500">
                             <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg> Date
@@ -171,7 +174,6 @@
         @include('transactions.partials.show-party', [
             'party' => $transaction->sender,
             'label' => $config['sender_label'],
-            'sub' => 'Origin of these items',
             'direction' => 'From',
             'accent' => 'blue',
             'iconArrow' => false,
@@ -189,7 +191,6 @@
         @include('transactions.partials.show-party', [
             'party' => $transaction->receiver,
             'label' => $config['receiver_label'],
-            'sub' => 'Destination of these items',
             'direction' => 'To',
             'accent' => 'green',
             'iconArrow' => true,
@@ -261,6 +262,9 @@
                         </div>
                         <div class="flex flex-col">
                             <div class="font-bold text-gray-900">{{ $item?->name }}</div>
+                            @if($item?->code)
+                            <div class="font-mono text-[10px] text-gray-500">{{ $item?->code }}</div>
+                            @endif
                             <div class="flex flex-wrap gap-2 pt-1">
                                 <span class="font-mono text-[10px] font-medium text-blue-600" x-show="showBarcode">#{{ $item?->id }}</span>
                                 @if($item?->code)
@@ -292,7 +296,9 @@
                     {{-- Desktop: Name --}}
                     <div class="hidden sm:flex flex-col print:flex" :class="nameColSpan">
                         <span class="font-bold text-gray-900">{{ $item?->name }}</span>
-                        <span class="mt-0.5 line-clamp-1 text-[10px] leading-tight italic text-gray-500">{{ $detail->notes ?: $item?->description }}</span>
+                        @if($item?->code)
+                        <span class="mt-0.5 line-clamp-1 font-mono text-[10px] leading-tight text-gray-500">{{ $item?->code }}</span>
+                        @endif
                     </div>
 
                     <div class="flex items-center justify-between sm:col-span-1 sm:block sm:text-center print:block print:text-center">
@@ -371,12 +377,12 @@
                     <span class="font-bold">{{ $fmt($transaction->ppn) }}</span>
                 </div>
                 <div class="pt-2">
-                    <div class="flex items-center justify-between rounded-lg bg-blue-600 p-4 text-white shadow-lg shadow-blue-500/20">
-                        <div class="flex flex-col">
+                    <div class="flex items-center justify-between gap-3 rounded-lg bg-blue-600 p-4 text-white shadow-lg shadow-blue-500/20">
+                        <div class="flex min-w-0 flex-shrink-0 flex-col">
                             <span class="text-[10px] font-black tracking-widest text-blue-100/70 uppercase">Grand Total</span>
                             <span class="text-xs font-medium italic text-blue-100">Net Amount Payable</span>
                         </div>
-                        <span class="text-2xl font-black">IDR {{ $fmt(abs($transaction->real_total)) }}</span>
+                        <span class="min-w-0 break-all text-right tabular-nums {{ $grandTotalCompactClass }}">IDR {{ $grandTotalFormatted }}</span>
                     </div>
                 </div>
             </div>

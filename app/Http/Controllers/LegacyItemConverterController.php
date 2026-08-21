@@ -9,6 +9,7 @@ use App\Models\ItemIdentityConversionRun;
 use App\Services\Items\LegacyItemConverterService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\View\View;
 
 class LegacyItemConverterController extends Controller
@@ -196,8 +197,10 @@ class LegacyItemConverterController extends Controller
     {
         $user = auth()->user();
 
-        if (! $user?->is_superadmin && ! $user?->can('items-convert-legacy')) {
-            abort(403);
+        if ($user?->is_superadmin) {
+            return;
         }
+
+        Gate::authorize(Item::getPermissions()['convert-legacy']);
     }
 }

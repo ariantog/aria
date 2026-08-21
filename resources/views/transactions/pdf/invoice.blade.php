@@ -67,9 +67,9 @@
             @foreach($transaction->details as $detail)
             <tr>
                 <td>{{ $detail->item?->getItemName() ?? '-' }}</td>
-                <td class="right">{{ number_format((float) $detail->quantity, 0, ',', '.') }}</td>
-                <td class="right">{{ number_format((float) $detail->price, 0, ',', '.') }}</td>
-                <td class="right">{{ number_format((float) $detail->total, 0, ',', '.') }}</td>
+                <td class="right">{{ format_amount($detail->quantity) }}</td>
+                <td class="right">{{ format_amount($detail->price) }}</td>
+                <td class="right">{{ format_amount($detail->total) }}</td>
             </tr>
             @endforeach
         </tbody>
@@ -78,23 +78,29 @@
     <table class="totals" style="width: 280px; margin-left: auto; margin-top: 12px;">
         <tr>
             <td>Subtotal</td>
-            <td class="right">{{ number_format((float) $transaction->total, 0, ',', '.') }}</td>
+            <td class="right">{{ format_amount($transaction->total) }}</td>
         </tr>
         @if((float) $transaction->discount > 0)
         <tr>
             <td>Discount</td>
-            <td class="right">-{{ number_format((float) $transaction->discount, 0, ',', '.') }}</td>
+            <td class="right">-{{ format_amount($transaction->discount) }}</td>
+        </tr>
+        @endif
+        @if((float) $transaction->adjustment != 0)
+        <tr>
+            <td>Adjustment</td>
+            <td class="right">{{ format_amount($transaction->adjustment) }}</td>
         </tr>
         @endif
         @if((float) $transaction->ppn > 0)
         <tr>
             <td>PPN</td>
-            <td class="right">{{ number_format((float) $transaction->ppn, 0, ',', '.') }}</td>
+            <td class="right">{{ format_amount($transaction->ppn) }}</td>
         </tr>
         @endif
         <tr>
             <td><strong>Grand Total</strong></td>
-            <td class="right"><strong>{{ number_format(abs((float) $transaction->real_total), 0, ',', '.') }}</strong></td>
+            <td class="right"><strong>{{ format_amount(abs((float) $transaction->real_total)) }}</strong></td>
         </tr>
     </table>
 

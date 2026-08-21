@@ -115,10 +115,26 @@ $sc = $statusConfig[$order->status] ?? ['label' => 'Unknown', 'cls' => 'border b
                         <dt class="text-gray-400">Location</dt>
                         <dd class="text-right font-medium">{{ $summary['location_name'] ?: '—' }}</dd>
                     </div>
-                    @if($summary['customer_name'])
+                    @if($parties['warehouse'])
+                    <div class="flex justify-between gap-4">
+                        <dt class="text-gray-400">Aria Gudang</dt>
+                        <dd class="text-right font-medium">
+                            <a href="{{ $parties['warehouse']['url'] }}" class="text-blue-700 hover:underline">{{ $parties['warehouse']['name'] }}</a>
+                        </dd>
+                    </div>
+                    @endif
+                    @if($parties['customer'] || $summary['customer_name'])
                     <div class="flex justify-between gap-4">
                         <dt class="text-gray-400">Customer</dt>
-                        <dd class="text-right font-medium">{{ $summary['customer_name'] }}</dd>
+                        <dd class="text-right font-medium">
+                            @if($parties['customer'])
+                            <a href="{{ $parties['customer']['url'] }}" class="text-blue-700 hover:underline">{{ $parties['customer']['name'] }}</a>
+                            @elseif($summary['customer_name'])
+                            {{ $summary['customer_name'] }}
+                            @else
+                            —
+                            @endif
+                        </dd>
                     </div>
                     @endif
                     @if($summary['payment_method'])
@@ -129,11 +145,11 @@ $sc = $statusConfig[$order->status] ?? ['label' => 'Unknown', 'cls' => 'border b
                     @endif
                     <div class="flex justify-between gap-4 border-t border-gray-100 pt-3">
                         <dt class="text-gray-400">Subtotal</dt>
-                        <dd class="font-mono font-medium">{{ $summary['sub_total'] !== null ? number_format((float) $summary['sub_total'], 0, ',', '.') : '—' }}</dd>
+                        <dd class="font-mono font-medium">{{ $summary['sub_total'] !== null ? format_amount($summary['sub_total']) : '—' }}</dd>
                     </div>
                     <div class="flex justify-between gap-4">
                         <dt class="font-semibold text-gray-700">Grand Total</dt>
-                        <dd class="font-mono font-bold">{{ $summary['real_total'] !== null ? number_format((float) $summary['real_total'], 0, ',', '.') : '—' }}</dd>
+                        <dd class="font-mono font-bold">{{ $summary['real_total'] !== null ? format_amount($summary['real_total']) : '—' }}</dd>
                     </div>
                 </dl>
             </div>
@@ -160,6 +176,9 @@ $sc = $statusConfig[$order->status] ?? ['label' => 'Unknown', 'cls' => 'border b
                         <thead class="border-b border-gray-100 text-xs font-semibold uppercase text-gray-500">
                             <tr>
                                 <th class="px-3 py-2">SKU</th>
+                                @if($parties['warehouse'])
+                                <th class="px-3 py-2 text-right">Stok Aria</th>
+                                @endif
                                 <th class="px-3 py-2 text-right">Qty</th>
                                 <th class="px-3 py-2 text-right">Price</th>
                                 <th class="px-3 py-2 text-right">Subtotal</th>
@@ -169,10 +188,24 @@ $sc = $statusConfig[$order->status] ?? ['label' => 'Unknown', 'cls' => 'border b
                             @foreach($items as $item)
                             @php $lineTotal = (float) $item['quantity'] * (float) ($item['price'] ?? 0); @endphp
                             <tr>
-                                <td class="px-3 py-2 font-mono text-xs">{{ $item['item_code'] }}</td>
+                                <td class="px-3 py-2 font-mono text-xs">
+                                    @if($item['item_url'])
+                                    <a href="{{ $item['item_url'] }}" class="text-blue-700 hover:underline">{{ $item['item_code'] }}</a>
+                                    @if($item['item_name'])
+                                    <div class="mt-0.5 font-sans text-gray-500">{{ $item['item_name'] }}</div>
+                                    @endif
+                                    @else
+                                    {{ $item['item_code'] }}
+                                    @endif
+                                </td>
+                                @if($parties['warehouse'])
+                                <td class="px-3 py-2 text-right font-mono text-xs {{ isset($item['aria_stock']) && (float) $item['quantity'] > (float) $item['aria_stock'] ? 'text-red-600 font-semibold' : '' }}">
+                                    {{ $item['aria_stock'] !== null ? number_format((float) $item['aria_stock'], 0, ',', '.') : '—' }}
+                                </td>
+                                @endif
                                 <td class="px-3 py-2 text-right font-mono text-xs">{{ number_format((float) $item['quantity'], 0, ',', '.') }}</td>
-                                <td class="px-3 py-2 text-right font-mono text-xs">{{ $item['price'] !== null ? number_format((float) $item['price'], 0, ',', '.') : '—' }}</td>
-                                <td class="px-3 py-2 text-right font-mono text-xs">{{ $item['price'] !== null ? number_format($lineTotal, 0, ',', '.') : '—' }}</td>
+                                <td class="px-3 py-2 text-right font-mono text-xs">{{ $item['price'] !== null ? format_amount($item['price']) : '—' }}</td>
+                                <td class="px-3 py-2 text-right font-mono text-xs">{{ $item['price'] !== null ? format_amount($lineTotal) : '—' }}</td>
                             </tr>
                             @endforeach
                         </tbody>
@@ -188,7 +221,11 @@ $sc = $statusConfig[$order->status] ?? ['label' => 'Unknown', 'cls' => 'border b
                 <h2 class="mb-2 text-lg font-semibold text-red-600">Error Details</h2>
                 @if($order->status === 1)
                 <p class="mb-4 text-sm text-red-700">
-                    Biasanya terjadi karena stok di Aria tidak cukup (Jubelio masih punya stok, tapi gudang Aria sudah 0).
+                    Biasanya terjadi karena stok di Aria tidak cukup di gudang yang dipetakan
+                    @if($parties['warehouse'])
+                    (<a href="{{ $parties['warehouse']['url'] }}" class="font-medium underline">{{ $parties['warehouse']['name'] }}</a>)
+                    @endif
+                    — Jubelio masih punya stok, tapi gudang Aria sudah 0 atau kurang.
                     Perbaiki stok di Aria terlebih dahulu, lalu klik <strong>Buat Transaksi Manual</strong> di atas.
                 </p>
                 @endif

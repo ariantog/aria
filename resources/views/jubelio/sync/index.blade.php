@@ -29,6 +29,16 @@ $breadcrumbs = [
                 </a>
                 @endif
             </form>
+            <form method="POST" action="{{ route('jubelio.sync.refreshBins', $filters) }}"
+                  onsubmit="return confirm('Ambil default bin dari Jubelio untuk semua lokasi di daftar ini?')">
+                @csrf
+                <button type="submit"
+                        class="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                        data-testid="jubelio-sync-refresh-all-bins">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                    Cek semua bin
+                </button>
+            </form>
             <a href="{{ route('jubelio.sync.create') }}" class="inline-flex items-center gap-2 rounded-lg bg-blue-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-800">
                 <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
                 Create Mapping

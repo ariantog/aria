@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1:3306
--- Generation Time: Aug 12, 2026 at 07:23 AM
+-- Generation Time: Aug 21, 2026 at 02:21 AM
 -- Server version: 11.8.8-MariaDB-log
 -- PHP Version: 7.2.34
 
@@ -18,7 +18,7 @@ SET time_zone = "+00:00";
 /*!40101 SET NAMES utf8mb4 */;
 
 --
--- Database: `u343060430_db_ariacore`
+-- Database: `u343060430_coreId`
 --
 
 -- --------------------------------------------------------
@@ -46,8 +46,8 @@ CREATE TABLE `acl` (
   `role_id` int(3) NOT NULL,
   `action` varchar(50) NOT NULL,
   `app_id` int(3) NOT NULL,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  `updated_at` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00'
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 
 -- --------------------------------------------------------
@@ -133,8 +133,8 @@ CREATE TABLE `aproduksi` (
   `item_id` int(11) NOT NULL,
   `jahit` varchar(10) NOT NULL,
   `customer` varchar(25) NOT NULL,
-  `created_at` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
-  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
   `user_id` int(5) NOT NULL,
   `potong_id` int(5) NOT NULL,
   `quantity` int(3) NOT NULL,
@@ -209,8 +209,8 @@ CREATE TABLE `borongan` (
   `permak` int(11) NOT NULL,
   `lain2` int(11) NOT NULL,
   `total_items` int(5) NOT NULL,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  `updated_at` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
   `from` date DEFAULT NULL,
   `to` date DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
@@ -264,8 +264,8 @@ CREATE TABLE `cache_locks` (
 CREATE TABLE `cron` (
   `id` int(11) NOT NULL,
   `name` varchar(50) NOT NULL,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  `updated_at` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00'
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
 
 -- --------------------------------------------------------
@@ -368,7 +368,7 @@ CREATE TABLE `customers` (
   `password` varchar(10) NOT NULL,
   `portalId` int(11) NOT NULL,
   `ppn` tinyint(1) DEFAULT 0,
-  `operation_id` bigint(20) UNSIGNED DEFAULT NULL,
+  `operation_id` int(11) DEFAULT NULL,
   `is_online` tinyint(4) NOT NULL DEFAULT 0,
   `arrangement_enabled` tinyint(1) NOT NULL DEFAULT 0,
   `contact_person` varchar(255) DEFAULT NULL
@@ -384,8 +384,8 @@ CREATE TABLE `customerstat` (
   `customer_id` int(11) NOT NULL,
   `balance` decimal(20,2) NOT NULL DEFAULT 0.00,
   `rating` decimal(5,2) NOT NULL DEFAULT 0.00,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  `updated_at` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00'
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 
 -- --------------------------------------------------------
@@ -430,7 +430,8 @@ CREATE TABLE `cutis` (
   `sakit` int(11) NOT NULL DEFAULT 0,
   `mendadak` int(11) NOT NULL DEFAULT 0,
   `created_at` timestamp NULL DEFAULT NULL,
-  `updated_at` timestamp NULL DEFAULT NULL
+  `updated_at` timestamp NULL DEFAULT NULL,
+  `deleted_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
@@ -483,8 +484,8 @@ CREATE TABLE `deleted` (
   `sender_balance` decimal(20,2) NOT NULL DEFAULT 0.00,
   `real_total` decimal(20,2) NOT NULL DEFAULT 0.00,
   `cogs` decimal(20,2) NOT NULL,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  `updated_at` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
   `receiver_type` tinyint(2) NOT NULL,
   `sender_type` tinyint(2) NOT NULL,
   `location_id` int(11) NOT NULL,
@@ -616,7 +617,7 @@ CREATE TABLE `failed_jobs` (
   `queue` text NOT NULL,
   `payload` longtext NOT NULL,
   `exception` longtext NOT NULL,
-  `failed_at` timestamp NOT NULL DEFAULT current_timestamp()
+  `failed_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
@@ -776,8 +777,8 @@ CREATE TABLE `idea_comments` (
   `idea_id` int(11) NOT NULL,
   `user_id` int(11) NOT NULL,
   `comment` text NOT NULL,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  `updated_at` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00'
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 
 -- --------------------------------------------------------
@@ -945,8 +946,8 @@ CREATE TABLE `item_tag` (
   `id` int(11) NOT NULL,
   `tag_id` int(11) NOT NULL,
   `item_id` int(11) NOT NULL,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  `updated_at` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00'
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 
 -- --------------------------------------------------------
@@ -1098,7 +1099,8 @@ CREATE TABLE `karyawans` (
   `flag` int(11) NOT NULL DEFAULT 1,
   `bank_id` int(11) DEFAULT NULL,
   `created_at` timestamp NULL DEFAULT NULL,
-  `updated_at` timestamp NULL DEFAULT NULL
+  `updated_at` timestamp NULL DEFAULT NULL,
+  `deleted_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
@@ -1110,8 +1112,8 @@ CREATE TABLE `karyawans` (
 CREATE TABLE `locations` (
   `id` int(5) NOT NULL,
   `name` varchar(50) NOT NULL,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  `updated_at` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
   `child_ids` text NOT NULL,
   `parent_ids` text NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
@@ -1135,7 +1137,7 @@ CREATE TABLE `location_customer` (
 
 CREATE TABLE `loginlog` (
   `id` int(11) NOT NULL,
-  `date` datetime NOT NULL,
+  `date` datetime DEFAULT NULL,
   `meta` text NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
 
@@ -1310,8 +1312,8 @@ CREATE TABLE `notifications` (
   `date` date NOT NULL,
   `start` date NOT NULL,
   `comment` text NOT NULL,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  `updated_at` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00'
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 
 -- --------------------------------------------------------
@@ -1323,7 +1325,10 @@ CREATE TABLE `notifications` (
 CREATE TABLE `operations` (
   `id` int(11) NOT NULL,
   `name` varchar(50) NOT NULL,
-  `description` text NOT NULL
+  `description` text NOT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  `deleted_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 
 -- --------------------------------------------------------
@@ -1472,8 +1477,8 @@ CREATE TABLE `problem_solution` (
   `id` int(11) NOT NULL,
   `problem_id` int(11) NOT NULL,
   `solution_id` int(11) NOT NULL,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  `updated_at` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00'
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 
 -- --------------------------------------------------------
@@ -1486,7 +1491,7 @@ CREATE TABLE `product_performance_rollups` (
   `id` bigint(20) UNSIGNED NOT NULL,
   `period_days` smallint(5) UNSIGNED NOT NULL,
   `lens` varchar(20) NOT NULL,
-  `warehouse_id` bigint(20) UNSIGNED NOT NULL DEFAULT 0,
+  `warehouse_id` int(11) NOT NULL DEFAULT 0,
   `grain` varchar(32) NOT NULL,
   `dimension_key` varchar(191) NOT NULL,
   `item_type` tinyint(3) UNSIGNED DEFAULT NULL,
@@ -1516,8 +1521,8 @@ CREATE TABLE `produksi` (
   `item_id` int(11) NOT NULL,
   `jahit` varchar(10) NOT NULL,
   `customer` varchar(25) NOT NULL,
-  `created_at` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
-  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
   `user_id` int(5) NOT NULL,
   `potong_id` int(5) NOT NULL,
   `quantity` int(3) NOT NULL,
@@ -1549,8 +1554,8 @@ CREATE TABLE `prod_borongan` (
   `permak` int(11) NOT NULL,
   `lain2` int(11) NOT NULL,
   `total_items` int(5) NOT NULL,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  `updated_at` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
   `from` date DEFAULT NULL,
   `to` date DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
@@ -1605,7 +1610,7 @@ CREATE TABLE `prod_produksi` (
   `surat_jalan_potong` varchar(50) NOT NULL,
   `qc_id` int(11) NOT NULL DEFAULT 0,
   `qc_date` datetime DEFAULT NULL,
-  `pritil_id` bigint(20) UNSIGNED DEFAULT NULL,
+  `pritil_id` int(11) DEFAULT NULL,
   `pritil_date` datetime DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
 
@@ -1619,8 +1624,8 @@ CREATE TABLE `prod_worker` (
   `id` int(11) NOT NULL,
   `name` varchar(50) NOT NULL,
   `type` tinyint(4) NOT NULL,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
-  `updated_at` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
   `deleted_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 
@@ -1755,6 +1760,7 @@ CREATE TABLE `restock_cells` (
   `qty_production` int(10) UNSIGNED NOT NULL DEFAULT 0,
   `qty_shipped` int(10) UNSIGNED NOT NULL DEFAULT 0,
   `qty_missing` int(10) UNSIGNED NOT NULL DEFAULT 0,
+  `missing_at` timestamp NULL DEFAULT NULL,
   `is_urgent` tinyint(1) NOT NULL DEFAULT 0,
   `urgent_manual` tinyint(1) NOT NULL DEFAULT 0,
   `urgent_flagged_at` timestamp NULL DEFAULT NULL,
@@ -1832,8 +1838,8 @@ CREATE TABLE `restock_sheets` (
 CREATE TABLE `roles` (
   `id` int(11) NOT NULL,
   `name` varchar(50) NOT NULL,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  `updated_at` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
   `sidebar` text NOT NULL,
   `sidenav` text NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
@@ -1924,6 +1930,51 @@ CREATE TABLE `solutions` (
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `standalone_invoices`
+--
+
+CREATE TABLE `standalone_invoices` (
+  `id` bigint(20) UNSIGNED NOT NULL,
+  `number` varchar(255) NOT NULL,
+  `date` date NOT NULL,
+  `recipient` text NOT NULL,
+  `sender_addrbook_id` bigint(20) UNSIGNED DEFAULT NULL,
+  `template` varchar(32) NOT NULL DEFAULT 'classic',
+  `preset_id` varchar(64) DEFAULT NULL,
+  `terms_of_payment` text DEFAULT NULL,
+  `pay_to` text DEFAULT NULL,
+  `signatory_name` varchar(255) DEFAULT NULL,
+  `signature_path` varchar(255) DEFAULT NULL,
+  `logo_path` varchar(255) DEFAULT NULL,
+  `total_qty` decimal(16,4) NOT NULL DEFAULT 0.0000,
+  `subtotal` decimal(16,2) NOT NULL DEFAULT 0.00,
+  `notes` text DEFAULT NULL,
+  `user_id` bigint(20) UNSIGNED DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `standalone_invoice_lines`
+--
+
+CREATE TABLE `standalone_invoice_lines` (
+  `id` bigint(20) UNSIGNED NOT NULL,
+  `standalone_invoice_id` bigint(20) UNSIGNED NOT NULL,
+  `line_order` smallint(5) UNSIGNED NOT NULL DEFAULT 0,
+  `description` varchar(255) NOT NULL,
+  `quantity` decimal(16,4) NOT NULL DEFAULT 0.0000,
+  `price` decimal(16,2) NOT NULL DEFAULT 0.00,
+  `total` decimal(16,2) NOT NULL DEFAULT 0.00,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `stat_sells`
 --
 
@@ -1996,7 +2047,9 @@ CREATE TABLE `tags` (
   `type` tinyint(1) NOT NULL,
   `code` varchar(50) NOT NULL,
   `item_type` int(11) NOT NULL DEFAULT 0,
-  `price` int(11) NOT NULL
+  `price` int(11) NOT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 
 -- --------------------------------------------------------
@@ -2043,8 +2096,7 @@ CREATE TABLE `transactions` (
   `desty_side_a` int(11) DEFAULT NULL,
   `desty_side_b` int(11) DEFAULT NULL,
   `notes` text DEFAULT NULL,
-  `reference_number` varchar(255) DEFAULT NULL,
-  `deleted_at` timestamp NULL DEFAULT NULL
+  `reference_number` varchar(255) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 PARTITION BY RANGE COLUMNS(`date`)
 (
@@ -2138,14 +2190,20 @@ CREATE TABLE `updater` (
 
 CREATE TABLE `users` (
   `id` int(11) NOT NULL,
+  `name` varchar(255) DEFAULT NULL,
   `username` varchar(50) NOT NULL,
+  `email` varchar(255) DEFAULT NULL,
+  `email_verified_at` timestamp NULL DEFAULT NULL,
   `password` varchar(255) NOT NULL,
   `active` tinyint(1) NOT NULL,
   `role_id` int(3) NOT NULL,
   `location_id` int(11) NOT NULL DEFAULT 0,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  `updated_at` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
-  `remember_token` varchar(100) DEFAULT NULL
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  `remember_token` varchar(100) DEFAULT NULL,
+  `two_factor_secret` text DEFAULT NULL,
+  `two_factor_recovery_codes` text DEFAULT NULL,
+  `two_factor_confirmed_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 
 -- --------------------------------------------------------
@@ -2159,8 +2217,8 @@ CREATE TABLE `usersettings` (
   `name` varchar(50) NOT NULL,
   `value` int(5) NOT NULL DEFAULT 0,
   `user_id` int(11) NOT NULL,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  `updated_at` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00'
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 
 -- --------------------------------------------------------
@@ -2245,6 +2303,31 @@ CREATE TABLE `warehouse_arrangement_pcode_snapshots` (
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `warehouse_arrangement_refresh_jobs`
+--
+
+CREATE TABLE `warehouse_arrangement_refresh_jobs` (
+  `id` bigint(20) UNSIGNED NOT NULL,
+  `destination_warehouse_id` int(10) UNSIGNED NOT NULL,
+  `user_id` int(11) DEFAULT NULL,
+  `status` varchar(255) NOT NULL DEFAULT 'created',
+  `phase` varchar(255) NOT NULL DEFAULT 'stats',
+  `item_cursor` int(10) UNSIGNED NOT NULL DEFAULT 0,
+  `total_items` int(10) UNSIGNED NOT NULL DEFAULT 0,
+  `stats_rows_inserted` int(10) UNSIGNED NOT NULL DEFAULT 0,
+  `sync_candidates` int(10) UNSIGNED DEFAULT NULL,
+  `sync_sources` int(10) UNSIGNED DEFAULT NULL,
+  `error_message` text DEFAULT NULL,
+  `result_message` text DEFAULT NULL,
+  `started_at` timestamp NULL DEFAULT NULL,
+  `completed_at` timestamp NULL DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `warehouse_arrangement_sources`
 --
 
@@ -2265,7 +2348,7 @@ CREATE TABLE `warehouse_arrangement_sources` (
 CREATE TABLE `warehouse_compares` (
   `id` bigint(20) UNSIGNED NOT NULL,
   `user_id` int(11) NOT NULL,
-  `werehouse_id` int(11) NOT NULL,
+  `warehouse_id` int(11) NOT NULL,
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -2990,6 +3073,7 @@ ALTER TABLE `restock_cells`
 ALTER TABLE `restock_cell_histories`
   ADD PRIMARY KEY (`id`),
   ADD KEY `restock_cell_histories_restock_cell_id_created_at_index` (`restock_cell_id`,`created_at`),
+  ADD KEY `restock_cell_histories_transaction_id_index` (`transaction_id`),
   ADD KEY `restock_cell_histories_user_id_foreign` (`user_id`);
 
 --
@@ -3056,6 +3140,19 @@ ALTER TABLE `sitesettings`
 --
 ALTER TABLE `solutions`
   ADD PRIMARY KEY (`id`);
+
+--
+-- Indexes for table `standalone_invoices`
+--
+ALTER TABLE `standalone_invoices`
+  ADD PRIMARY KEY (`id`);
+
+--
+-- Indexes for table `standalone_invoice_lines`
+--
+ALTER TABLE `standalone_invoice_lines`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `standalone_invoice_lines_standalone_invoice_id_index` (`standalone_invoice_id`);
 
 --
 -- Indexes for table `stat_sells`
@@ -3163,6 +3260,15 @@ ALTER TABLE `warehouse_arrangement_candidate_sources`
 ALTER TABLE `warehouse_arrangement_pcode_snapshots`
   ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `arr_pcode_dest_pcode_unique` (`destination_warehouse_id`,`pcode`);
+
+--
+-- Indexes for table `warehouse_arrangement_refresh_jobs`
+--
+ALTER TABLE `warehouse_arrangement_refresh_jobs`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `arr_refresh_dest_status_idx` (`destination_warehouse_id`,`status`),
+  ADD KEY `arr_refresh_status_idx` (`status`),
+  ADD KEY `arr_refresh_user_fk` (`user_id`);
 
 --
 -- Indexes for table `warehouse_arrangement_sources`
@@ -3700,6 +3806,18 @@ ALTER TABLE `solutions`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
+-- AUTO_INCREMENT for table `standalone_invoices`
+--
+ALTER TABLE `standalone_invoices`
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `standalone_invoice_lines`
+--
+ALTER TABLE `standalone_invoice_lines`
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
 -- AUTO_INCREMENT for table `stat_sells`
 --
 ALTER TABLE `stat_sells`
@@ -3775,6 +3893,12 @@ ALTER TABLE `warehouse_arrangement_candidate_sources`
 -- AUTO_INCREMENT for table `warehouse_arrangement_pcode_snapshots`
 --
 ALTER TABLE `warehouse_arrangement_pcode_snapshots`
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `warehouse_arrangement_refresh_jobs`
+--
+ALTER TABLE `warehouse_arrangement_refresh_jobs`
   MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
@@ -3928,6 +4052,12 @@ ALTER TABLE `warehouse_arrangement_candidate_sources`
 --
 ALTER TABLE `warehouse_arrangement_pcode_snapshots`
   ADD CONSTRAINT `arr_pcode_snap_dest_fk` FOREIGN KEY (`destination_warehouse_id`) REFERENCES `customers` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `warehouse_arrangement_refresh_jobs`
+--
+ALTER TABLE `warehouse_arrangement_refresh_jobs`
+  ADD CONSTRAINT `arr_refresh_user_fk` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL;
 
 --
 -- Constraints for table `warehouse_arrangement_sources`

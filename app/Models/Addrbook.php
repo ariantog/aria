@@ -94,23 +94,40 @@ class Addrbook extends Model
         return in_array($type, [self::TYPE_BANK, self::TYPE_ACCOUNT, self::TYPE_V_ACCOUNT], true);
     }
 
+    /** @return list<int> */
+    public static function transferAccountTypes(): array
+    {
+        return [self::TYPE_BANK, self::TYPE_V_ACCOUNT];
+    }
+
+    /** @return list<int> */
+    public static function navigableTypeIds(): array
+    {
+        return [
+            self::TYPE_CUSTOMER, self::TYPE_WAREHOUSE, self::TYPE_BANK, self::TYPE_SUPPLIER,
+            self::TYPE_V_WAREHOUSE, self::TYPE_V_ACCOUNT, self::TYPE_RESELLER, self::TYPE_ACCOUNT,
+        ];
+    }
+
     /** @return array<int, array{id: int, name: string, slug: string}> */
     public static function getTypes(): array
     {
-        $ids = [
-            self::TYPE_CUSTOMER, self::TYPE_WAREHOUSE, self::TYPE_BANK, self::TYPE_SUPPLIER,
-            self::TYPE_V_WAREHOUSE, self::TYPE_V_ACCOUNT, self::TYPE_RESELLER, self::TYPE_ACCOUNT, self::TYPE_OTHER,
-        ];
-
         return array_map(
             fn (int $id) => ['id' => $id, 'name' => self::typeLabel($id), 'slug' => self::typeSlug($id)],
-            $ids,
+            self::navigableTypeIds(),
         );
+    }
+
+    public static function typeIndexRoute(int|string $typeOrSlug): string
+    {
+        $slug = is_int($typeOrSlug) ? self::typeSlug($typeOrSlug) : $typeOrSlug;
+
+        return route('addrbook.type.index', $slug);
     }
 
     public static function getPermissions(?string $type = null): array
     {
-        $permissions = ['view' => 'addrbook-list', 'create' => 'addrbook-create', 'edit' => 'addrbook-edit', 'delete' => 'addrbook-delete'];
+        $permissions = [];
         foreach (self::getTypes() as $t) {
             $cleanName = str_replace(['(', ')', '.', '-', '_'], ' ', $t['name']);
             $kebabName = \Illuminate\Support\Str::kebab(str_replace(' ', '', $cleanName));

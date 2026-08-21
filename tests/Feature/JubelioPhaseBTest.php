@@ -7,6 +7,7 @@ use App\Models\Jubelioreturn;
 use App\Models\Jubeliosync;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Models\WarehouseItem;
 use App\Services\JubelioService;
 use Mockery\MockInterface;
 use Spatie\Permission\Models\Permission;
@@ -55,6 +56,9 @@ it('accepts jubelio return webhook and stores return order', function () {
         ->assertJson(['status' => 'ok']);
 
     expect(Jubelioorder::where('invoice', 'RET-100')->where('type', 'RETURN')->exists())->toBeTrue();
+
+    $stored = Jubelioorder::where('invoice', 'RET-100')->first();
+    expect($stored->payload)->toBeNull();
 });
 
 it('rejects duplicate jubelio return webhook payloads', function () {
@@ -77,7 +81,6 @@ it('rejects duplicate jubelio return webhook payloads', function () {
         'type' => 'RETURN',
         'order_status' => 'RETURN',
         'run_count' => 0,
-        'payload' => '{}',
         'status' => 0,
     ]);
 
@@ -362,11 +365,18 @@ it('can process a jubelio cancellation into a return transaction', function () {
         ->and(Transaction::where('type', Transaction::TYPE_RETURN)->where('invoice', 'INV-CANCEL-PROC')->exists())->toBeTrue();
 });
 
-it('refetches jubelio order payload when source is not webhook', function () {
+it('refetches jubelio order payload from API when processing polled order', function () {
     $user = User::factory()->create();
     $warehouse = Addrbook::factory()->warehouse()->create();
     $customer = Addrbook::factory()->create(['type' => Addrbook::TYPE_CUSTOMER]);
     $item = Item::factory()->create(['code' => 'SKU-REFETCH-1']);
+
+    WarehouseItem::create([
+        'warehouse_id' => $warehouse->id,
+        'warehouse_type' => $warehouse->type,
+        'item_id' => $item->id,
+        'quantity' => 10,
+    ]);
 
     Jubeliosync::create([
         'jubelio_store_id' => 11,
@@ -378,6 +388,18 @@ it('refetches jubelio order payload when source is not webhook', function () {
         'bin_id' => 0,
     ]);
 
+    mockJubelioSalesOrder('api-order-1', [
+        'salesorder_no' => 'INV-REFETCH-1',
+        'store_id' => 11,
+        'location_id' => 22,
+        'sub_total' => 100000,
+        'real_total' => 100000,
+        'transaction_date' => '2026-05-10',
+        'items' => [
+            ['item_code' => 'SKU-REFETCH-1', 'qty' => 1, 'price' => 100000],
+        ],
+    ]);
+
     $order = Jubelioorder::create([
         'jubelio_order_id' => 'api-order-1',
         'source' => 2,
@@ -385,26 +407,8 @@ it('refetches jubelio order payload when source is not webhook', function () {
         'type' => 'SELL',
         'order_status' => 'SHIPPED',
         'run_count' => 0,
-        'payload' => '{}',
         'status' => 0,
     ]);
-
-    $this->mock(JubelioService::class, function (MockInterface $mock) {
-        $mock->shouldReceive('fetchSalesOrder')
-            ->once()
-            ->with('api-order-1')
-            ->andReturn([
-                'salesorder_no' => 'INV-REFETCH-1',
-                'store_id' => 11,
-                'location_id' => 22,
-                'sub_total' => 100000,
-                'real_total' => 100000,
-                'transaction_date' => '2026-05-10',
-                'items' => [
-                    ['item_code' => 'SKU-REFETCH-1', 'qty' => 1, 'price' => 100000],
-                ],
-            ]);
-    });
 
     $this->actingAs($user)
         ->post(route('jubelio.process', $order))
@@ -413,7 +417,8 @@ it('refetches jubelio order payload when source is not webhook', function () {
 
     $order->refresh();
     expect($order->status)->toBe(2)
-        ->and($order->payloadArray()['salesorder_no'])->toBe('INV-REFETCH-1');
+        ->and($order->payload)->toBeNull()
+        ->and(Transaction::where('invoice', 'INV-REFETCH-1')->exists())->toBeTrue();
 });
 
 it('can confirm and clear jubelio sync warnings', function () {

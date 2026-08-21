@@ -4,9 +4,9 @@
 
 @section('content')
 @php
-$baseUrl = $current_type ? '/' . $current_type : route('addrbook.index');
+$baseUrl = \App\Models\Addrbook::typeIndexRoute($current_type);
 $breadcrumbs = [
-    ['title' => 'Address Book', 'href' => route('addrbook.index')],
+    ['title' => 'Address Book', 'href' => $baseUrl],
     ['title' => 'List', 'href' => $baseUrl],
 ];
 @endphp
@@ -20,7 +20,7 @@ $breadcrumbs = [
         </div>
         <div class="flex items-center gap-2">
             @if($can['create'])
-            <a href="{{ $current_type ? '/' . $current_type . '/create' : route('addrbook.create') }}"
+            <a href="{{ route('addrbook.type.create', $current_type) }}"
                class="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
                 <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
                 Add New
@@ -95,7 +95,7 @@ $breadcrumbs = [
                             </div>
                             @if($a->ppn)<span class="mt-1 inline-block rounded bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-700">PPN {{ $ppn_rate }}%</span>@endif
                         </td>
-                        <td class="whitespace-nowrap px-3 py-3 text-right font-medium text-gray-900">IDR {{ number_format($bal, 0, ',', '.') }}</td>
+                        <td class="whitespace-nowrap px-3 py-3 text-right font-medium text-gray-900">IDR {{ format_amount($bal) }}</td>
                         <td class="px-3 py-3">
                             <div class="flex justify-end gap-1">
                                 @if($can['edit'])

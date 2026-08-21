@@ -59,7 +59,16 @@ class ItemsController extends Controller
 
         // Combobox / autocomplete JSON (unpaginated, limited) — used by asyncCombobox.
         if ($this->isJson($request) && ! $request->boolean('table')) {
-            return $q->with('warehouseItems')->limit(50)->get();
+            if ($request->filled('id') || $request->filled('code')) {
+                return $q->with('warehouseItems')->limit(8)->get();
+            }
+
+            $search = trim((string) $request->input('search', ''));
+            if (strlen($search) <= 2) {
+                return response()->json([]);
+            }
+
+            return $q->with('warehouseItems')->limit(8)->get();
         }
 
         // Tabulator remote pagination JSON.
@@ -499,10 +508,10 @@ class ItemsController extends Controller
 
         return [
             'brands' => $this->brandOptions(),
-            'jahitTags' => \App\Models\Tag::where('type', \App\Models\Tag::TYPE_JAHIT)->get(),
+            'jahitTags' => Tag::tagsForItemForm($t, Tag::TYPE_JAHIT),
             'typeTags' => Tag::typeTagsForItem($t),
-            'sizeTags' => \App\Models\Tag::where('type', \App\Models\Tag::TYPE_SIZE)->get(),
-            'warnaTags' => \App\Models\Tag::where('type', \App\Models\Tag::TYPE_WARNA)->get(),
+            'sizeTags' => Tag::tagsForItemForm($t, Tag::TYPE_SIZE),
+            'warnaTags' => Tag::tagsForItemForm($t, Tag::TYPE_WARNA),
             'itemType' => $t->value,
             'isAsset' => $isAsset,
             'assetPcodeSuggestions' => $isAsset

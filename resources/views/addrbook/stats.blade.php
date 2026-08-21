@@ -6,7 +6,7 @@
 @php
 $baseUrl = '/' . $addrbook->type_slug . '/' . $addrbook->id . '/stats';
 $breadcrumbs = [
-    ['title' => 'Address Book', 'href' => route('addrbook.index')],
+    ['title' => 'Address Book', 'href' => \App\Models\Addrbook::typeIndexRoute($addrbook->type_slug)],
     ['title' => $addrbook->name, 'href' => '/' . $addrbook->type_slug . '/' . $addrbook->id],
     ['title' => 'Stats', 'href' => $baseUrl],
 ];
@@ -24,7 +24,7 @@ $isBank = $addrbook->type_slug === 'bank';
 $fmt = function ($value, $catKey = null) use ($hideBank, $isBank) {
     if ($hideBank && ($isBank || $catKey === 'bank')) return '0';
     if ((float) $value == 0.0) return '-';
-    return number_format((float) $value, 0, ',', '.');
+    return format_amount($value);
 };
 $fmtTotal = function ($value) use ($hideBank, $isBank, $fmt) {
     if ($hideBank && $isBank) return '0';

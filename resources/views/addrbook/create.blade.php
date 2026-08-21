@@ -4,14 +4,15 @@
 
 @section('content')
 @php
+$listUrl = \App\Models\Addrbook::typeIndexRoute($current_type);
 $breadcrumbs = [
-    ['title' => 'Address Book', 'href' => route('addrbook.index')],
-    ['title' => 'Create New', 'href' => route('addrbook.create')],
+    ['title' => 'Address Book', 'href' => $listUrl],
+    ['title' => 'Create New', 'href' => route('addrbook.type.create', $current_type)],
 ];
 @endphp
 
 <div class="flex flex-col gap-4 p-3 sm:p-4">
-    <form method="POST" action="{{ route('addrbook.store') }}" x-data="{ submitting: false }" @submit="submitting = true">
+    <form method="POST" action="{{ route('addrbook.store') }}" x-data="formSubmitGuard()" @submit="guardFormSubmit($event)">
         @csrf
 
         {{-- Header --}}
@@ -21,7 +22,7 @@ $breadcrumbs = [
                 <p class="text-sm text-gray-500">Add a new customer, supplier, or contact.</p>
             </div>
             <div class="flex items-center gap-3">
-                <a href="{{ route('addrbook.index') }}" class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Cancel</a>
+                <a href="{{ $listUrl }}" class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Cancel</a>
                 <button type="submit" :disabled="submitting"
                         class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60">
                     <span x-show="!submitting">Save Entry</span>

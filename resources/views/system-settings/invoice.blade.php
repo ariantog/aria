@@ -13,7 +13,7 @@ $breadcrumbs = [
 <div class="flex flex-col gap-4 p-3 sm:p-4">
     <div>
         <h2 class="text-2xl font-bold tracking-tight text-gray-900">Invoice Logo</h2>
-        <p class="mt-0.5 text-sm text-gray-500">Upload the default logo shown on invoices. Store name and address are taken from each transaction sender warehouse's <strong>Invoice Header</strong> field (first line = store name, following lines = address) plus phone.</p>
+        <p class="mt-0.5 text-sm text-gray-500">Upload the default logo shown on invoices. Payment terms, pay-to details, and signatures are managed in <a href="{{ route('invoice-maker.settings.index') }}" class="font-medium text-blue-700 hover:underline">Invoice Maker Settings</a>. Warehouse invoice headers still come from each warehouse's <strong>Invoice Header</strong> field.</p>
     </div>
 
     @if(session('success'))

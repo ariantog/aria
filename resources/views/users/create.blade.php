@@ -56,7 +56,7 @@ $breadcrumbs = [
                 <div>
                     <label class="mb-1 block text-sm font-medium text-gray-700">Location</label>
                     <select name="location_id" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500">
-                        <option value="">No Location</option>
+                        <option value="" @selected((int) old('location_id', 0) <= 0)>No Location</option>
                         @foreach($locations as $location)
                             <option value="{{ $location->id }}" @selected(old('location_id') == $location->id)>{{ $location->name }}</option>
                         @endforeach

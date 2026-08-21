@@ -137,7 +137,7 @@ $breadcrumbs = [
                         </td>
                         <td class="px-6 py-4 text-right font-mono text-xs text-gray-800">
                             @if($summary['real_total'] !== null)
-                                {{ number_format((float) $summary['real_total'], 0, ',', '.') }}
+                                {{ format_amount($summary['real_total']) }}
                             @else
                                 —
                             @endif

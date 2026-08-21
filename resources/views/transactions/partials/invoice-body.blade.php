@@ -1,5 +1,5 @@
 @php
-    $fmt = fn ($n) => number_format((float) $n, 0, ',', '.');
+    $fmt = fn ($n) => format_amount($n);
 @endphp
 
 <div id="invoice">
@@ -54,6 +54,12 @@
             <tr>
                 <td colspan="3" style="text-align:right;">Discount</td>
                 <td style="text-align:right;">-{{ $fmt($transaction->discount) }}</td>
+            </tr>
+            @endif
+            @if((float) $transaction->adjustment != 0)
+            <tr>
+                <td colspan="3" style="text-align:right;">Adjustment</td>
+                <td style="text-align:right;">{{ $fmt($transaction->adjustment) }}</td>
             </tr>
             @endif
             @if((float) $transaction->ppn > 0)

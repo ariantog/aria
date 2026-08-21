@@ -46,6 +46,9 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::post('items/legacy-converter/preview', [App\Http\Controllers\LegacyItemConverterController::class, 'preview'])->name('items.legacy-converter.preview');
     Route::post('items/legacy-converter/purge-useless', [App\Http\Controllers\LegacyItemConverterController::class, 'purgeUseless'])->name('items.legacy-converter.purge-useless');
     Route::post('items/legacy-converter/run', [App\Http\Controllers\LegacyItemConverterController::class, 'run'])->name('items.legacy-converter.run');
+    Route::get('items/special-converter', [App\Http\Controllers\SpecialSkuConverterController::class, 'index'])->name('items.special-converter');
+    Route::post('items/special-converter/preview', [App\Http\Controllers\SpecialSkuConverterController::class, 'preview'])->name('items.special-converter.preview');
+    Route::post('items/special-converter/run', [App\Http\Controllers\SpecialSkuConverterController::class, 'run'])->name('items.special-converter.run');
     Route::get('items/{item}/transactions', [App\Http\Controllers\ItemsController::class, 'itemTransactions'])->name('items.transactions');
     Route::get('items/{item}/stats', [App\Http\Controllers\ItemsController::class, 'itemStats'])->name('items.stats');
     Route::get('items/{item}/jubelio', [App\Http\Controllers\ItemsController::class, 'jubelio'])->name('items.jubelio');
@@ -82,12 +85,14 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::get('jubelio-sync', [App\Http\Controllers\JubelioSyncController::class, 'index'])->name('jubelio.sync.index');
     Route::get('jubelio-sync/create', [App\Http\Controllers\JubelioSyncController::class, 'create'])->name('jubelio.sync.create');
     Route::post('jubelio-sync', [App\Http\Controllers\JubelioSyncController::class, 'store'])->name('jubelio.sync.store');
+    Route::post('jubelio-sync/refresh-bins', [App\Http\Controllers\JubelioSyncController::class, 'refreshAllBins'])->name('jubelio.sync.refreshBins');
     Route::get('jubelio-sync/{sync}/edit', [App\Http\Controllers\JubelioSyncController::class, 'edit'])->name('jubelio.sync.edit');
     Route::patch('jubelio-sync/{sync}', [App\Http\Controllers\JubelioSyncController::class, 'update'])->name('jubelio.sync.update');
     Route::delete('jubelio-sync/{sync}', [App\Http\Controllers\JubelioSyncController::class, 'destroy'])->name('jubelio.sync.delete');
     Route::get('jubelio-sync/{sync}/bin', [App\Http\Controllers\JubelioSyncController::class, 'getBin'])->name('jubelio.sync.getBin');
 
-    Route::resource('addrbook', App\Http\Controllers\AddrbookController::class);
+    Route::get('addrbook', fn () => abort(404));
+    Route::resource('addrbook', App\Http\Controllers\AddrbookController::class)->except(['index']);
     Route::get('addrbook/{addrbook}/transactions', [App\Http\Controllers\AddrbookController::class, 'transactions'])->name('addrbook.transactions');
     Route::get('addrbook/{addrbook}/items', [App\Http\Controllers\AddrbookController::class, 'items'])->name('addrbook.items');
     Route::get('addrbook/{addrbook}/item-sales', [App\Http\Controllers\AddrbookController::class, 'itemSales'])->name('addrbook.item-sales');
@@ -165,28 +170,42 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::get('transactions/deleted', [App\Http\Controllers\DeletedTransactionsController::class, 'index'])->name('transactions.deleted.index');
     Route::get('transactions/deleted/{id}', [App\Http\Controllers\DeletedTransactionsController::class, 'show'])->name('transactions.deleted.show');
     Route::get('transactions', [App\Http\Controllers\TransactionsController::class, 'index'])->name('transactions.index');
-    Route::post('transactions', [App\Http\Controllers\TransactionsController::class, 'store'])->name('transactions.store');
+    Route::post('transactions', [App\Http\Controllers\TransactionsController::class, 'store'])->middleware('prevent.duplicate')->name('transactions.store');
     Route::post('transactions/batch-parse', [App\Http\Controllers\TransactionsController::class, 'batchParse'])->name('transactions.batch-parse');
 
     Route::get('transactions/cash-in', [App\Http\Controllers\TransactionsController::class, 'cashIn'])->name('transactions.cash-in');
-    Route::post('transactions/cash-in', [App\Http\Controllers\TransactionsController::class, 'storeCashIn'])->name('transactions.cash-in.store');
+    Route::post('transactions/cash-in', [App\Http\Controllers\TransactionsController::class, 'storeCashIn'])->middleware('prevent.duplicate')->name('transactions.cash-in.store');
 
     Route::get('transactions/cash-out', [App\Http\Controllers\TransactionsController::class, 'cashOut'])->name('transactions.cash-out');
-    Route::post('transactions/cash-out', [App\Http\Controllers\TransactionsController::class, 'storeCashOut'])->name('transactions.cash-out.store');
+    Route::post('transactions/cash-out', [App\Http\Controllers\TransactionsController::class, 'storeCashOut'])->middleware('prevent.duplicate')->name('transactions.cash-out.store');
 
     Route::get('transactions/transfer', [App\Http\Controllers\TransactionsController::class, 'transfer'])->name('transactions.transfer');
-    Route::post('transactions/transfer', [App\Http\Controllers\TransactionsController::class, 'storeTransfer'])->name('transactions.transfer.store');
+    Route::post('transactions/transfer', [App\Http\Controllers\TransactionsController::class, 'storeTransfer'])->middleware('prevent.duplicate')->name('transactions.transfer.store');
 
     Route::get('transactions/adjust', [App\Http\Controllers\TransactionsController::class, 'adjust'])->name('transactions.adjust');
-    Route::post('transactions/adjust', [App\Http\Controllers\TransactionsController::class, 'storeAdjust'])->name('transactions.adjust.store');
+    Route::post('transactions/adjust', [App\Http\Controllers\TransactionsController::class, 'storeAdjust'])->middleware('prevent.duplicate')->name('transactions.adjust.store');
 
     Route::get('transactions/export', [App\Http\Controllers\TransactionsController::class, 'export'])->name('transactions.export');
+    Route::get('transactions/export-sell', [App\Http\Controllers\ExportSellController::class, 'index'])->name('transactions.export-sell');
+    Route::get('transactions/export-sell/build', [App\Http\Controllers\ExportSellController::class, 'export'])->name('transactions.export-sell.build');
     Route::get('transactions/{transaction}/receipt', [App\Http\Controllers\TransactionsController::class, 'receipt'])->name('transactions.receipt');
     Route::get('transactions/{transaction}/print', [App\Http\Controllers\TransactionsController::class, 'printInvoice'])->name('transactions.print');
     Route::get('transactions/{transaction}/pdf', [App\Http\Controllers\TransactionsController::class, 'showPdf'])->name('transactions.pdf.show');
     Route::post('transactions/{transaction}/pdf', [App\Http\Controllers\TransactionsController::class, 'storePdf'])->name('transactions.pdf.store');
     Route::match(['get', 'post'], 'transactions/{transaction}/draft-return', [App\Http\Controllers\TransactionsController::class, 'draftReturn'])->name('transactions.draft-return');
     Route::post('transactions/{transaction}/whatsapp', [App\Http\Controllers\TransactionsController::class, 'sendWhatsapp'])->name('transactions.whatsapp');
+
+    Route::get('invoice-maker/settings', [App\Http\Controllers\InvoiceMakerSettingsController::class, 'index'])->name('invoice-maker.settings.index');
+    Route::get('invoice-maker/settings/create', [App\Http\Controllers\InvoiceMakerSettingsController::class, 'create'])->name('invoice-maker.settings.create');
+    Route::post('invoice-maker/settings', [App\Http\Controllers\InvoiceMakerSettingsController::class, 'store'])->name('invoice-maker.settings.store');
+    Route::get('invoice-maker/settings/{preset}/edit', [App\Http\Controllers\InvoiceMakerSettingsController::class, 'edit'])->name('invoice-maker.settings.edit');
+    Route::put('invoice-maker/settings/{preset}', [App\Http\Controllers\InvoiceMakerSettingsController::class, 'update'])->name('invoice-maker.settings.update');
+    Route::delete('invoice-maker/settings/{preset}', [App\Http\Controllers\InvoiceMakerSettingsController::class, 'destroy'])->name('invoice-maker.settings.destroy');
+    Route::get('invoice-maker/{invoice}/pdf', [App\Http\Controllers\StandaloneInvoicesController::class, 'showPdf'])->name('invoice-maker.pdf.show');
+    Route::get('invoice-maker/{invoice}/pdf/download', [App\Http\Controllers\StandaloneInvoicesController::class, 'downloadPdf'])->name('invoice-maker.pdf.download');
+    Route::post('invoice-maker/{invoice}/pdf', [App\Http\Controllers\StandaloneInvoicesController::class, 'storePdf'])->name('invoice-maker.pdf.store');
+    Route::resource('invoice-maker', App\Http\Controllers\StandaloneInvoicesController::class)
+        ->parameters(['invoice-maker' => 'invoice']);
 
     Route::get('transactions/{transaction}', [App\Http\Controllers\TransactionsController::class, 'show'])->name('transactions.show');
     Route::delete('transactions/{transaction}', [App\Http\Controllers\TransactionsController::class, 'destroy'])->name('transactions.destroy');
@@ -278,6 +297,9 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
         Route::get('/warehouse-arrangement', [\App\Http\Controllers\Reports\WarehouseArrangementController::class, 'index'])->name('warehouse-arrangement');
         Route::get('/warehouse-arrangement/export', [\App\Http\Controllers\Reports\WarehouseArrangementController::class, 'export'])->name('warehouse-arrangement.export');
         Route::post('/warehouse-arrangement/draft-move', [\App\Http\Controllers\Reports\WarehouseArrangementController::class, 'draftMove'])->name('warehouse-arrangement.draft-move');
+        Route::post('/warehouse-arrangement/refresh', [\App\Http\Controllers\Reports\WarehouseArrangementController::class, 'refresh'])->name('warehouse-arrangement.refresh');
+        Route::post('/warehouse-arrangement/cancel-refresh', [\App\Http\Controllers\Reports\WarehouseArrangementController::class, 'cancelRefresh'])->name('warehouse-arrangement.cancel-refresh');
+        Route::post('/warehouse-arrangement/tick-refresh', [\App\Http\Controllers\Reports\WarehouseArrangementController::class, 'tickRefresh'])->name('warehouse-arrangement.tick-refresh');
         Route::get('/product-performance', [\App\Http\Controllers\Reports\ProductPerformanceController::class, 'index'])->name('product-performance');
         Route::get('/produksi-potong', \App\Http\Controllers\Reports\ProduksiPotongReportController::class)->name('produksi-potong');
         Route::get('/produksi-qc', \App\Http\Controllers\Reports\ProduksiQcReportController::class)->name('produksi-qc');

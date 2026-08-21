@@ -51,3 +51,24 @@ it('matches addrbook names when spaces are used as token separators', function (
         ->not->toContain('South Jakarta Warehouse')
         ->not->toContain('North Bandung Warehouse');
 });
+
+it('returns no addrbook results until the search term is longer than two characters', function () {
+    Addrbook::create(['name' => 'Zeta Customer', 'type' => Addrbook::TYPE_CUSTOMER]);
+
+    $url = route('transactions.lookup', ['type' => 'sell', 'role' => 'receiver', 'addrbook_type' => Addrbook::TYPE_CUSTOMER]);
+
+    $this->getJson($url)->assertOk()->assertExactJson([]);
+    $this->getJson($url.'&search=Ze')->assertOk()->assertExactJson([]);
+    $this->getJson($url.'&search=Zet')->assertOk()->assertJsonCount(1);
+});
+
+it('caps addrbook lookup results at eight rows', function () {
+    foreach (range(1, 10) as $i) {
+        Addrbook::create(['name' => "Lookup Customer {$i}", 'type' => Addrbook::TYPE_CUSTOMER]);
+    }
+
+    $url = route('transactions.lookup', ['type' => 'sell', 'role' => 'receiver', 'addrbook_type' => Addrbook::TYPE_CUSTOMER])
+        .'&search=Lookup';
+
+    expect($this->getJson($url)->assertOk()->json())->toHaveCount(8);
+});

@@ -23,6 +23,9 @@ class SettingRegistry
     public const SYSTEM_SLUGS = [
         'jubelio_token',
         'invoice_logo_path',
+        'invoice_signature_path',
+        'invoice_maker.presets',
+        'invoice_maker.default_preset_id',
     ];
 
     /**

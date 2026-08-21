@@ -13,6 +13,8 @@ class ItemGroup extends Model
 
     protected $table = 'item_group';
 
+    public $timestamps = false;
+
     protected $appends = ['image_url', 'in_warehouse_qty'];
 
     protected $fillable = [

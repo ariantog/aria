@@ -29,6 +29,41 @@ it('shows only manufactured type tags on item create page', function () {
         ->assertDontSee('Elbow Support', false);
 });
 
+it('shows universal tags on both item and asset lancar forms', function () {
+    Tag::factory()->create([
+        'type' => Tag::TYPE_WARNA,
+        'item_type' => 0,
+        'code' => 'UNIVERSAL',
+        'name' => 'UNIVERSAL',
+    ]);
+    Tag::factory()->create([
+        'type' => Tag::TYPE_WARNA,
+        'item_type' => ItemType::ITEM->value,
+        'code' => 'MFGONLY',
+        'name' => 'MFGONLY',
+    ]);
+    Tag::factory()->create([
+        'type' => Tag::TYPE_WARNA,
+        'item_type' => ItemType::ASSET_LANCAR->value,
+        'code' => 'ASSETONLY',
+        'name' => 'ASSETONLY',
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('items.create'))
+        ->assertOk()
+        ->assertSee('UNIVERSAL', false)
+        ->assertSee('MFGONLY', false)
+        ->assertDontSee('ASSETONLY', false);
+
+    $this->actingAs($this->user)
+        ->get(route('assetlancar.create'))
+        ->assertOk()
+        ->assertSee('UNIVERSAL', false)
+        ->assertSee('ASSETONLY', false)
+        ->assertDontSee('MFGONLY', false);
+});
+
 it('allows manufactured item create without product name', function () {
     $typeTag = Tag::factory()->create([
         'type' => Tag::TYPE_TYPE,

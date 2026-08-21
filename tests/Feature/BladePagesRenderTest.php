@@ -48,6 +48,13 @@ it('renders the transactions index with its rows', function () {
         ->assertSee('Test Supplier', false);
 });
 
+it('renders the export sell page', function () {
+    $this->actingAs($this->user)
+        ->get(route('transactions.export-sell'))
+        ->assertOk()
+        ->assertSee('Export Sell', false);
+});
+
 it('sorts and filters the transactions index', function () {
     $this->actingAs($this->user)
         ->get('/transactions?sort=real_total&direction=asc&type='.Transaction::TYPE_BUY)
@@ -66,8 +73,10 @@ it('renders the create form for each item transaction type', function (string $t
     $this->actingAs($this->user)
         ->get("/transactions/{$type}/create")
         ->assertOk()
-        ->assertSee('Line Items', false);
-})->with(['buy', 'sell', 'move']);
+        ->assertSee('Line Items', false)
+        ->assertSee('data-testid="barcode-scan-btn"', false)
+        ->assertSee('data-testid="barcode-scanner-modal"', false);
+})->with(['buy', 'sell', 'move', 'return', 'return-supplier']);
 
 it('renders the cash in page', function () {
     $this->actingAs($this->user)
@@ -144,13 +153,16 @@ it('renders migrated GET pages with a 200', function (string $route) {
     'report produksi qc' => 'reports/produksi-qc',
 
     // Admin / misc index pages
-    'addrbook' => 'addrbook',
+    'addrbook customer' => 'customer',
     'items' => 'items',
     'users' => 'users',
     'roles' => 'roles',
     'system-settings' => 'system-settings',
     'cron manager' => 'cron-manager',
     'invoice branding settings' => 'system-settings/invoice/branding',
+    'invoice maker index' => 'invoice-maker',
+    'invoice maker create' => 'invoice-maker/create',
+    'invoice maker settings' => 'invoice-maker/settings',
     'jubelio index' => 'jubelio',
     'jubelio get orders' => 'jubelio-get-orders',
     'jubelio cek order' => 'jubelio/order/cek',

@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Services\Jubelio\JubelioOrderPayloadPresenter;
+use App\Services\Jubelio\JubelioOrderPayloadService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasOne;
@@ -11,20 +13,33 @@ class Jubelioorder extends Model
     /** @use HasFactory<\Database\Factories\JubelioorderFactory> */
     use HasFactory;
 
+    /** @var array<int, array<string, mixed>> */
+    private static array $resolvedPayloadCache = [];
+
     protected $guarded = [];
+
+    public static function clearPayloadCache(): void
+    {
+        self::$resolvedPayloadCache = [];
+    }
 
     /**
      * @return array<string, mixed>
      */
     public function payloadArray(): array
     {
-        if (is_array($this->payload)) {
-            return $this->payload;
+        if ($this->id === null) {
+            return [];
         }
 
-        $decoded = json_decode($this->payload ?? '', true);
+        if (isset(self::$resolvedPayloadCache[$this->id])) {
+            return self::$resolvedPayloadCache[$this->id];
+        }
 
-        return is_array($decoded) ? $decoded : [];
+        $data = app(JubelioOrderPayloadService::class)->fetchOrEmpty($this);
+        self::$resolvedPayloadCache[$this->id] = $data;
+
+        return $data;
     }
 
     /**
@@ -32,19 +47,7 @@ class Jubelioorder extends Model
      */
     public function payloadSummary(): array
     {
-        $data = $this->payloadArray();
-        $items = $data['items'] ?? [];
-
-        return [
-            'transaction_date' => $data['transaction_date'] ?? $data['created_date'] ?? null,
-            'store_name' => $data['source_name'] ?? $data['store_name'] ?? null,
-            'location_name' => $data['location_name'] ?? null,
-            'real_total' => $data['real_total'] ?? null,
-            'sub_total' => $data['sub_total'] ?? null,
-            'item_count' => count($items),
-            'customer_name' => $data['customer_name'] ?? ($data['ship_to']['name'] ?? null),
-            'payment_method' => $data['payment_method'] ?? null,
-        ];
+        return JubelioOrderPayloadPresenter::summary($this->payloadArray());
     }
 
     /**
@@ -52,16 +55,7 @@ class Jubelioorder extends Model
      */
     public function payloadItems(): array
     {
-        return collect($this->payloadArray()['items'] ?? [])
-            ->map(function (array $item): array {
-                return [
-                    'item_code' => (string) ($item['item_code'] ?? $item['sku'] ?? '—'),
-                    'quantity' => $item['qty'] ?? $item['qty_in_base'] ?? 0,
-                    'price' => $item['price'] ?? null,
-                ];
-            })
-            ->values()
-            ->all();
+        return JubelioOrderPayloadPresenter::items($this->payloadArray());
     }
 
     public function transactionsSearchUrl(): string

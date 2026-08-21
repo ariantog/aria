@@ -183,6 +183,99 @@ test('grid groups legacy full-sku pcodes into parent color rows and size columns
     expect($blueRow['restock_total'])->toBe(0);
 });
 
+test('grid blocks combine sized parents into one matrix with union sizes', function () {
+    createAssetLancarSkus($this);
+    createAssetLancarSkus($this, 'ELBOW-07', 'Elbow Support v2');
+
+    $sizeL = Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'L', 'name' => 'L']);
+    app(ItemService::class)->create((object) [
+        'pcode' => 'ELBOW-07',
+        'type' => ItemType::ASSET_LANCAR->value,
+        'product_name' => 'Elbow Support v2',
+        'price' => 100000,
+        'cost' => 50000,
+    ], [
+        'types' => [$this->typeTag->id],
+        'sizes' => [$sizeL->id],
+        'warna' => [$this->warnaBlue->id],
+        'jahit' => [],
+    ]);
+
+    $sheet = app(RestockSheetService::class)->createSheet($this->typeTag, $this->user);
+    $grid = app(RestockGridBuilder::class)->build($sheet);
+
+    expect($grid['blocks'])->toHaveCount(1);
+    expect($grid['blocks'][0]['kind'])->toBe('matrix');
+    expect($grid['blocks'][0]['sizes'])->toBe(['S', 'M', 'L']);
+
+    $dataRows = collect($grid['blocks'][0]['rows'])->where('_type', 'data')->values();
+    expect($dataRows)->not->toBeEmpty();
+
+    $elbow03Row = $dataRows->first(fn (array $row) => $row['pcode'] === 'ELBOW-03');
+    expect($elbow03Row['parent_sizes'])->toBe(['S', 'M']);
+    expect($elbow03Row)->not->toHaveKey('l_restock');
+
+    $sectionPcodes = collect($grid['blocks'][0]['rows'])
+        ->where('_type', 'section')
+        ->pluck('pcode')
+        ->all();
+    expect($sectionPcodes)->toBe(['ELBOW-03', 'ELBOW-07']);
+});
+
+test('grid blocks separate no-size parents into a flat table', function () {
+    $sizeAs = Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'AS', 'name' => 'All Size']);
+
+    createAssetLancarSkus($this);
+
+    app(ItemService::class)->create((object) [
+        'pcode' => 'ELBOW-99',
+        'type' => ItemType::ASSET_LANCAR->value,
+        'product_name' => 'Elbow Sleeve',
+        'price' => 50000,
+        'cost' => 25000,
+    ], [
+        'types' => [$this->typeTag->id],
+        'sizes' => [$sizeAs->id],
+        'warna' => [$this->warnaBlue->id],
+        'jahit' => [],
+    ]);
+
+    $sheet = app(RestockSheetService::class)->createSheet($this->typeTag, $this->user);
+    $grid = app(RestockGridBuilder::class)->build($sheet);
+
+    expect($grid['blocks'])->toHaveCount(2);
+
+    $matrixBlock = collect($grid['blocks'])->firstWhere('kind', 'matrix');
+    $flatBlock = collect($grid['blocks'])->firstWhere('kind', 'flat');
+
+    expect($matrixBlock)->not->toBeNull();
+    expect($flatBlock)->not->toBeNull();
+    expect($flatBlock['title'])->toBe('No size');
+
+    $flatDataRow = collect($flatBlock['rows'])->first(fn (array $row) => $row['_type'] === 'data');
+    expect($flatDataRow['pcode'])->toBe('ELBOW-99');
+    expect($flatDataRow)->toHaveKeys(['restock', 'production', 'shipped', 'stock']);
+});
+
+test('sheet show page includes unified tabulator block grids', function () {
+    createAssetLancarSkus($this);
+    createAssetLancarSkus($this, 'ELBOW-07', 'Elbow Support v2');
+
+    $sheet = app(RestockSheetService::class)->createSheet($this->typeTag, $this->user);
+
+    $this->actingAs($this->user)
+        ->get(route('restock.sheets.show', $sheet))
+        ->assertOk()
+        ->assertSee('data-block-grid="matrix-alpha"', false)
+        ->assertSee('ELBOW-03', false)
+        ->assertSee('ELBOW-07', false)
+        ->assertDontSee('data-parent-grid=', false)
+        ->assertSee('vendor/tabulator/tabulator.min.js', false)
+        ->assertSee('Save sheet', false)
+        ->assertSee('Export Excel', false)
+        ->assertSee('Stock', false);
+});
+
 test('grid includes warehouse stock from configured warehouses', function () {
     createAssetLancarSkus($this);
 
@@ -308,6 +401,26 @@ test('move transfers restock qty to production for selected cells', function () 
     expect(RestockCellHistory::where('restock_cell_id', $cell->id)->where('action', 'move')->count())->toBe(2);
 });
 
+test('move json response includes non-empty grid for table refresh', function () {
+    createAssetLancarSkus($this);
+    $sheet = app(RestockSheetService::class)->createSheet($this->typeTag, $this->user);
+    $cell = $sheet->cells()->first();
+    $cell->update(['qty_restock' => 12]);
+
+    $response = $this->actingAs($this->user)
+        ->postJson(route('restock.sheets.move', $sheet), [
+            'direction' => 'to_production',
+            'cells' => [['id' => $cell->id]],
+        ])
+        ->assertSuccessful();
+
+    $grid = $response->json('grid');
+    expect($grid['blocks'])->not->toBeEmpty();
+    expect(count($grid['blocks'][0]['rows'] ?? []))->toBeGreaterThan(0);
+    expect(collect($grid['blocks'][0]['rows'])->contains(fn (array $row) => $row['_type'] === 'data'))->toBeTrue();
+    expect(collect($grid['blocks'][0]['rows'])->contains(fn (array $row) => isset($row['_rowKey'])))->toBeTrue();
+});
+
 test('move transfers production qty to shipped', function () {
     createAssetLancarSkus($this);
     $sheet = app(RestockSheetService::class)->createSheet($this->typeTag, $this->user);
@@ -355,6 +468,47 @@ test('receive partial qty records shortfall as missing', function () {
     expect((float) $transaction->details->first()->quantity)->toBe(98.0);
 
     expect(RestockCellHistory::where('restock_cell_id', $cell->id)->where('action', 'missing')->count())->toBe(1);
+});
+
+test('receive multiple cells without invoice and mixed quantities', function () {
+    createAssetLancarSkus($this);
+
+    $supplier = Addrbook::factory()->supplier()->create();
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    seedRestockReceiveSettings($supplier, $warehouse);
+
+    $sheet = app(RestockSheetService::class)->createSheet($this->typeTag, $this->user);
+    $cells = $sheet->cells()->with('item')->limit(2)->get();
+    $cells[0]->update(['qty_shipped' => 100]);
+    $cells[1]->update(['qty_shipped' => 100]);
+
+    $response = $this->actingAs($this->user)
+        ->postJson(route('restock.sheets.receive', $sheet), [
+            'date' => now()->toDateString(),
+            'invoice' => '',
+            'cells' => [
+                ['id' => $cells[0]->id, 'qty' => 99],
+                ['id' => $cells[1]->id, 'qty' => 102],
+            ],
+        ])
+        ->assertSuccessful();
+
+    $cells[0]->refresh();
+    $cells[1]->refresh();
+    expect($cells[0]->qty_shipped)->toBe(0);
+    expect($cells[0]->qty_missing)->toBe(1);
+    expect($cells[1]->qty_shipped)->toBe(0);
+    expect($cells[1]->qty_missing)->toBe(0);
+
+    $transaction = Transaction::find($response->json('transaction_id'));
+    expect($transaction)->not->toBeNull();
+    expect($transaction->details)->toHaveCount(2);
+    expect((float) $transaction->details->firstWhere('item_id', $cells[0]->item_id)->quantity)->toBe(99.0);
+    expect((float) $transaction->details->firstWhere('item_id', $cells[1]->item_id)->quantity)->toBe(102.0);
+
+    $grid = $response->json('grid');
+    expect($grid['blocks'])->not->toBeEmpty();
+    expect(count($grid['blocks'][0]['rows'] ?? []))->toBeGreaterThan(0);
 });
 
 test('missing page lists shortfall skus and mark found clears qty', function () {
@@ -429,7 +583,7 @@ test('receive creates buy transaction and decrements shipped qty', function () {
 
     $transaction = Transaction::latest('id')->first();
     expect($transaction)->not->toBeNull();
-    expect($transaction->type->value)->toBe(1);
+    expect($transaction->type)->toBe(1);
     expect($transaction->sender_id)->toBe($supplier->id);
     expect($transaction->receiver_id)->toBe($warehouse->id);
     expect($transaction->details)->toHaveCount(1);
@@ -453,23 +607,6 @@ test('receive fails when restock settings are not configured', function () {
             'cells' => [['id' => $cell->id]],
         ])
         ->assertStatus(422);
-});
-
-test('sheet show page includes tabulator grid payload', function () {
-    createAssetLancarSkus($this);
-    createAssetLancarSkus($this, 'ELBOW-07', 'Elbow Support v2');
-
-    $sheet = app(RestockSheetService::class)->createSheet($this->typeTag, $this->user);
-
-    $this->actingAs($this->user)
-        ->get(route('restock.sheets.show', $sheet))
-        ->assertOk()
-        ->assertSee('parent-ELBOW-03', false)
-        ->assertSee('parent-ELBOW-07', false)
-        ->assertSee('tabulator-tables', false)
-        ->assertSee('Save sheet', false)
-        ->assertSee('Export Excel', false)
-        ->assertSee('Stock', false);
 });
 
 test('cannot create duplicate sheet for same type', function () {

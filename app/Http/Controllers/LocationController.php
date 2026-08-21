@@ -122,7 +122,11 @@ class LocationController extends Controller
         ]);
 
         $addrbook = Addrbook::query()->findOrFail($data['customer_id']);
-        if ($addrbook->type !== AddrbookType::Customer) {
+        $type = $addrbook->type instanceof AddrbookType
+            ? $addrbook->type
+            : AddrbookType::tryFrom((int) $addrbook->type);
+
+        if ($type !== AddrbookType::Customer) {
             return redirect()
                 ->route('locations.customers', $location)
                 ->with('error', 'Only customers can be linked to a location.');
