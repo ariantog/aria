@@ -6,8 +6,10 @@ use App\Models\User;
 use App\Services\PermissionGenerator;
 use App\Support\PermissionTableConfig;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
+use Spatie\Permission\PermissionRegistrar;
 
 /**
  * Idempotent bootstrap for an existing production database clone.
@@ -31,6 +33,7 @@ class ProductionBootstrapSeeder extends Seeder
 
         $this->seedPermissions();
         $this->migrateContributorPermission();
+        $this->removeObsoleteAddrbookPermissions();
         $this->syncSuperadminRolePermissions();
         $this->call(ScheduledTaskSeeder::class);
         $this->call(SettingSeeder::class);
@@ -63,6 +66,42 @@ class ProductionBootstrapSeeder extends Seeder
                     $role->givePermissionTo($newPermission);
                 }
             });
+    }
+
+    /**
+     * Mirrors 2026_08_18_102227_remove_obsolete_addrbook_permissions so a fresh
+     * production bootstrap needs no extra data migration.
+     */
+    private function removeObsoleteAddrbookPermissions(): void
+    {
+        $obsolete = [
+            'addrbook-list',
+            'addrbook-create',
+            'addrbook-edit',
+            'addrbook-delete',
+            'addrbook-other-list',
+            'addrbook-other-create',
+            'addrbook-other-edit',
+            'addrbook-other-delete',
+        ];
+
+        $permissionTable = config('permission.table_names.permissions');
+        $ids = DB::table($permissionTable)->whereIn('name', $obsolete)->pluck('id');
+
+        if ($ids->isEmpty()) {
+            return;
+        }
+
+        foreach ([
+            config('permission.table_names.role_has_permissions'),
+            config('permission.table_names.model_has_permissions'),
+        ] as $pivotTable) {
+            DB::table($pivotTable)->whereIn('permission_id', $ids)->delete();
+        }
+
+        DB::table($permissionTable)->whereIn('id', $ids)->delete();
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+        $this->command?->info('Obsolete addrbook permissions removed.');
     }
 
     private function syncSuperadminRolePermissions(): void
