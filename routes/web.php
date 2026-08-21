@@ -186,6 +186,8 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::post('transactions/adjust', [App\Http\Controllers\TransactionsController::class, 'storeAdjust'])->middleware('prevent.duplicate')->name('transactions.adjust.store');
 
     Route::get('transactions/export', [App\Http\Controllers\TransactionsController::class, 'export'])->name('transactions.export');
+    Route::get('transactions/export-sell', [App\Http\Controllers\ExportSellController::class, 'index'])->name('transactions.export-sell');
+    Route::get('transactions/export-sell/build', [App\Http\Controllers\ExportSellController::class, 'export'])->name('transactions.export-sell.build');
     Route::get('transactions/{transaction}/receipt', [App\Http\Controllers\TransactionsController::class, 'receipt'])->name('transactions.receipt');
     Route::get('transactions/{transaction}/print', [App\Http\Controllers\TransactionsController::class, 'printInvoice'])->name('transactions.print');
     Route::get('transactions/{transaction}/pdf', [App\Http\Controllers\TransactionsController::class, 'showPdf'])->name('transactions.pdf.show');
