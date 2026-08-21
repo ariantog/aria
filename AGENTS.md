@@ -36,6 +36,37 @@ Already-fixed gotchas — don't reintroduce them:
   qualified column instead (e.g. `where('warehouse_items.quantity', '>', 0)`).
 - PHP **8.5 is not supported** by `phpoffice/phpspreadsheet`; the CI matrix is `8.3`/`8.4`.
 
+## Production database safety (MUST follow in every PR)
+
+The app runs against the **live L10 production MySQL database** (schema snapshot:
+`database/old.sql`; the legacy L10 app runs on it in parallel). Migrations are deployed to
+production by running them individually with `php artisan migrate --path=...`, so **every
+migration file must be production-safe on its own**:
+
+- **NEVER drop a production table.** Any table listed in `database/old.sql` must never appear
+  in `Schema::drop`, `Schema::dropIfExists`, a raw `DROP TABLE`, or a `down()` that could run on
+  prod. Do not use `migrate:fresh`/`migrate:refresh` anywhere but local SQLite.
+- **To change an existing table, ALTER it in place — never drop-and-recreate it.** No
+  "drop old table first, then create the new shape". Use guarded, additive changes:
+  `Schema::hasTable()` / `hasColumn()` around every ALTER, renames via `CHANGE` so data is kept.
+- **Never commit `database/schema/*.sql`** (Laravel schema dumps). `migrate` auto-loads them
+  before any migration when the `migrations` table is empty — even with `--path=` — and the dump
+  starts with `DROP TABLE` statements. The folder is gitignored; if a dump reappears, delete it.
+- **New tables:** guard with `Schema::hasTable()`. Columns referencing legacy tables
+  (`users`, `customers`, `items`, `tags`, `item_group`, `transactions`, …) must be
+  `integer()` / `unsignedInteger()` — **never `foreignId()`/BIGINT**, because legacy PKs are
+  `INT(11)`. FKs between two *new* L12 tables may use `foreignId()`.
+- **No FK constraints to `transactions` or `transaction_details`** — they are RANGE-partitioned
+  by date and MySQL rejects FKs to partitioned tables (errno 150). Store the id + index only.
+- **NOT NULL columns need defaults.** Legacy tables are full of NOT NULL columns without
+  DEFAULTs; partial inserts throw MySQL 1364. Give new NOT NULL columns a `->default(...)`, and
+  model-level fallbacks live in `App\Support\ProductionColumnDefaults`.
+- A one-off greenfield `create_*` migration that later changes shape must be turned into a
+  no-op and replaced by a guarded `install_*` migration (see the standalone-invoice pair
+  `2026_08_19_040000` / `2026_08_19_070000`) — prod may have run the old version already.
+- Fresh prod bootstrap = `2026_08_13_100000_production_database_bootstrap` (+ seeder). Add new
+  L12 tables to the bootstrap's `up()` list as well as shipping the standalone migration.
+
 ## Testing & workflow preferences (IMPORTANT)
 
 - **Do NOT record demo videos or screen recordings, and do NOT run computerUse "demo" walkthroughs.**
