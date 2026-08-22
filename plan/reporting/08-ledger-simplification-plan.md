@@ -269,7 +269,13 @@ Replace entity flags on addrbook with:
 `entity_id, bank_addrbook_id` — PKP derived from entity, not bank column
 
 ### `reporting_channel_banks`
-`customer_addrbook_id, bank_addrbook_id` — marketplace customer → payment bank (C1)
+`customer_addrbook_id, bank_addrbook_id` — marketplace customer → payment bank
+
+### `reporting_warehouse_fulfillment` (new)
+Links physical shop warehouses to marketplace channels they ship for:
+`warehouse_addrbook_id` (WTC/Citos warehouse), `customer_addrbook_id` (Shopee-WTC, etc.), `notes`
+
+Used for fulfillment analysis only — **does not** change which expense ledger staff use.
 
 ### `reporting_ledger_roles`
 `addrbook_id, role` — enum: `material`, `production_cost`, `marketplace_cost`, `toko_cost`, `tax_payment`, `adjustment`, `exclude`
