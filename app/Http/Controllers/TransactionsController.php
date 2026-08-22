@@ -35,7 +35,7 @@ class TransactionsController extends Controller
         $direction = $request->input('direction', 'desc');
         $perPage = $this->resolvePerPage($request);
         $transactions = $this->filteredTransactionsQuery($request);
-        if (in_array($sort, ['date', 'invoice', 'type', 'real_total'], true)) {
+        if (in_array($sort, ['date', 'invoice', 'type', 'real_total', 'total_items'], true)) {
             $transactions->orderBy($sort, $direction)->orderBy('id', 'desc');
         } else {
             $transactions->orderBy('date', 'desc')->orderBy('id', 'desc');
@@ -58,7 +58,7 @@ class TransactionsController extends Controller
         $direction = $request->input('direction', 'desc');
         $perPage = $this->resolvePerPage($request);
         $transactions = $this->filteredTransactionsQuery($request);
-        if (in_array($sort, ['date', 'invoice', 'type', 'real_total'], true)) {
+        if (in_array($sort, ['date', 'invoice', 'type', 'real_total', 'total_items'], true)) {
             $transactions->orderBy($sort, $direction)->orderBy('id', 'desc');
         } else {
             $transactions->orderBy('date', 'desc')->orderBy('id', 'desc');
