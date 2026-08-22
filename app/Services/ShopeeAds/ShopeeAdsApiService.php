@@ -9,9 +9,16 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
+/**
+ * Shopee Open Platform v2 ads client — ported from bots/shopee_api.py.
+ *
+ * Working ad surfaces today: GMV-Max (GMS) campaign + individual manual product ads.
+ */
 class ShopeeAdsApiService
 {
     public const OAUTH_SETTING_SLUG = 'shopee_ads_oauth';
+
+    public const ITEM_AD_MIN_BUDGET = 25000;
 
     public function isConfigured(): bool
     {
@@ -61,7 +68,7 @@ class ShopeeAdsApiService
         ]);
     }
 
-  /**
+    /**
      * @return array<string, mixed>|null
      */
     public function exchangeAuthCode(string $code, int $shopId): ?array
@@ -162,86 +169,363 @@ class ShopeeAdsApiService
     }
 
     /**
-     * Read the campaign's current daily budget from Shopee (live value).
+     * @return list<int>
      */
-    public function getCurrentBudget(string $adType, string $campaignId): ?int
+    public function campaignIdList(string $adTypeFilter): array
     {
-        $path = $this->budgetReadPath($adType);
-        if ($path === null) {
-            return null;
+        $ids = [];
+        $offset = 0;
+        $limit = 50;
+
+        while (true) {
+            $response = $this->shopGet(
+                '/api/v2/ads/get_product_level_campaign_id_list',
+                ['ad_type' => $adTypeFilter, 'offset' => $offset, 'limit' => $limit],
+            );
+
+            if (! $response->successful()) {
+                break;
+            }
+
+            $resp = $response->json('response') ?? [];
+            $batch = $resp['campaign_list'] ?? $resp['campaign_id_list'] ?? [];
+
+            foreach ($batch as $entry) {
+                $cid = is_array($entry) ? ($entry['campaign_id'] ?? null) : $entry;
+                if ($cid !== null) {
+                    $ids[] = (int) $cid;
+                }
+            }
+
+            if (empty($batch) || ! ($resp['has_next_page'] ?? false)) {
+                break;
+            }
+
+            $offset += $limit;
         }
 
-        $response = $this->shopGet($path, $this->budgetReadParams($adType, $campaignId));
-
-        if (! $response->successful()) {
-            Log::warning('Shopee Ads budget read failed', [
-                'ad_type' => $adType,
-                'campaign_id' => $campaignId,
-                'body' => Str::limit($response->body(), 500),
-            ]);
-
-            return null;
-        }
-
-        $data = $response->json();
-        $responseBody = $data['response'] ?? $data;
-
-        return $this->extractBudgetFromResponse($adType, $responseBody, $campaignId);
+        return $ids;
     }
 
     /**
-     * Set absolute daily budget on Shopee.
+     * @param  list<int|string>  $campaignIds
+     * @return list<array{campaign_id: string, campaign_name: string, budget: float, status: string, item_id: int, raw: array}>
      */
-    public function setBudget(string $adType, string $campaignId, int $budget): bool
+    public function campaignSettingInfo(array $campaignIds): array
     {
-        $path = $this->budgetWritePath($adType);
-        if ($path === null) {
-            return false;
+        if ($campaignIds === []) {
+            return [];
         }
 
-        $body = $this->budgetWriteBody($adType, $campaignId, $budget);
-        $response = $this->shopPost($path, $body);
+        $out = [];
+        $ids = array_map('intval', $campaignIds);
 
-        if (! $response->successful()) {
-            Log::warning('Shopee Ads budget write failed', [
-                'ad_type' => $adType,
-                'campaign_id' => $campaignId,
-                'budget' => $budget,
-                'body' => Str::limit($response->body(), 500),
-            ]);
+        for ($i = 0; $i < count($ids); $i += 100) {
+            $chunk = array_slice($ids, $i, 100);
+            $response = $this->shopGet(
+                '/api/v2/ads/get_product_level_campaign_setting_info',
+                [
+                    'info_type_list' => '1,2,3',
+                    'campaign_id_list' => implode(',', $chunk),
+                ],
+            );
 
-            return false;
+            if (! $response->successful()) {
+                continue;
+            }
+
+            $resp = $response->json('response') ?? [];
+            foreach ($resp['campaign_list'] ?? [] as $c) {
+                $common = $c['common_info'] ?? [];
+                $budgetInfo = $c['manual_bidding_info'] ?? $c['auto_bidding_info'] ?? [];
+                $itemIds = $common['item_id_list'] ?? $c['item_id_list'] ?? [];
+                $itemId = 0;
+                if (is_array($itemIds) && $itemIds !== []) {
+                    $first = $itemIds[0];
+                    $itemId = is_array($first) ? (int) ($first['item_id'] ?? 0) : (int) $first;
+                }
+
+                $out[] = [
+                    'campaign_id' => (string) ($c['campaign_id'] ?? ''),
+                    'campaign_name' => (string) ($common['ad_name'] ?? $c['ad_name'] ?? 'Campaign '.($c['campaign_id'] ?? '')),
+                    'budget' => (float) (
+                        $budgetInfo['campaign_budget']
+                        ?? $common['campaign_budget']
+                        ?? $c['campaign_budget']
+                        ?? 0
+                    ),
+                    'status' => strtolower((string) ($common['campaign_status'] ?? $c['campaign_status'] ?? '')),
+                    'item_id' => $itemId,
+                    'raw' => $c,
+                ];
+            }
         }
 
-        return true;
+        return $out;
+    }
+
+    public function getCampaignLiveBudget(string $campaignId): ?int
+    {
+        $infos = $this->campaignSettingInfo([(int) $campaignId]);
+
+        if ($infos === []) {
+            return null;
+        }
+
+        $budget = (float) ($infos[0]['budget'] ?? 0);
+
+        return $budget > 0 ? (int) round($budget) : null;
     }
 
     /**
-     * Add increment to live budget (fixes stale starting-budget bug).
+     * @return array{campaign_id: string, roas: float, expense: float}|null
+     */
+    public function getGmsCampaign(int $daysBack = 0): ?array
+    {
+        [$start, $end] = $this->wibDateRange($daysBack);
+        $response = $this->shopPost(
+            '/api/v2/ads/get_gms_campaign_performance',
+            ['start_date' => $start, 'end_date' => $end],
+        );
+
+        if (! $response->successful()) {
+            return null;
+        }
+
+        $resp = $response->json('response') ?? [];
+        $cid = $resp['campaign_id'] ?? null;
+
+        if (! $cid) {
+            return null;
+        }
+
+        $rep = $resp['report'] ?? [];
+
+        return [
+            'campaign_id' => (string) $cid,
+            'roas' => (float) ($rep['broad_roi'] ?? $rep['roas'] ?? 0),
+            'expense' => (float) ($rep['expense'] ?? 0),
+        ];
+    }
+
+    public function setGmsBudget(string $campaignId, int $dailyBudget): bool
+    {
+        $response = $this->shopPost(
+            '/api/v2/ads/edit_gms_product_campaign',
+            [
+                'campaign_id' => (int) $campaignId,
+                'edit_action' => 'change_budget',
+                'daily_budget' => round($dailyBudget, 2),
+                'reference_id' => Str::uuid()->toString(),
+            ],
+        );
+
+        return $response->successful();
+    }
+
+    /**
+     * @return list<array{campaign_id: string, campaign_name: string, budget: float, status: string, item_id: int}>
+     */
+    public function listManualProductAds(bool $onlyActive = true): array
+    {
+        $ids = $this->campaignIdList('manual');
+        $infos = $this->campaignSettingInfo($ids);
+        $activeStatuses = ['', 'ongoing', 'running', 'active', 'scheduled'];
+
+        return collect($infos)
+            ->filter(function ($c) use ($onlyActive, $activeStatuses) {
+                return ! $onlyActive || in_array($c['status'], $activeStatuses, true);
+            })
+            ->map(fn ($c) => [
+                'campaign_id' => $c['campaign_id'],
+                'campaign_name' => $c['campaign_name'],
+                'budget' => $c['budget'],
+                'status' => $c['status'],
+                'item_id' => $c['item_id'],
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  list<int|string>  $campaignIds
+     * @return array<string, float>
+     */
+    public function getItemAdsRoas(array $campaignIds): array
+    {
+        if ($campaignIds === []) {
+            return [];
+        }
+
+        $today = $this->wibToday();
+        $roas = [];
+        $ids = array_map('intval', $campaignIds);
+
+        for ($i = 0; $i < count($ids); $i += 100) {
+            $chunk = array_slice($ids, $i, 100);
+            $response = $this->shopGet(
+                '/api/v2/ads/get_product_campaign_daily_performance',
+                [
+                    'start_date' => $today,
+                    'end_date' => $today,
+                    'campaign_id_list' => implode(',', $chunk),
+                ],
+            );
+
+            if (! $response->successful()) {
+                continue;
+            }
+
+            foreach ($response->json('response.campaign_list') ?? [] as $row) {
+                $cid = (string) ($row['campaign_id'] ?? '');
+                $rep = $row['report'] ?? $row;
+                $roas[$cid] = (float) ($rep['broad_roi'] ?? $rep['roas'] ?? 0);
+            }
+        }
+
+        return $roas;
+    }
+
+    public function setItemAdBudget(string $campaignId, int $newBudget): bool
+    {
+        $response = $this->shopPost(
+            '/api/v2/ads/edit_manual_product_ads',
+            [
+                'reference_id' => $campaignId,
+                'campaign_id' => (int) $campaignId,
+                'edit_action' => 'change_budget',
+                'budget' => round($newBudget, 2),
+            ],
+        );
+
+        return $response->successful();
+    }
+
+    public function stopItemAd(string $campaignId): bool
+    {
+        $response = $this->shopPost(
+            '/api/v2/ads/edit_manual_product_ads',
+            [
+                'reference_id' => $campaignId,
+                'campaign_id' => (int) $campaignId,
+                'edit_action' => 'stop',
+            ],
+        );
+
+        return $response->successful();
+    }
+
+    public function createManualProductAd(int $itemId, int $budget, float $roasTarget = 0): ?string
+    {
+        $body = [
+            'reference_id' => 'item-'.$itemId.'-'.Str::random(12),
+            'budget' => max($budget, self::ITEM_AD_MIN_BUDGET),
+            'start_date' => $this->wibToday(),
+            'bidding_method' => 'auto',
+            'item_id' => $itemId,
+        ];
+
+        if ($roasTarget > 0) {
+            $body['roas_target'] = round($roasTarget, 1);
+        }
+
+        $response = $this->shopPost('/api/v2/ads/create_manual_product_ads', $body);
+
+        if (! $response->successful()) {
+            Log::warning('create_manual_product_ads failed', ['body' => Str::limit($response->body(), 500)]);
+
+            return null;
+        }
+
+        $cid = $response->json('response.campaign_id');
+
+        return $cid ? (string) $cid : null;
+    }
+
+    /**
+     * @return list<array{item_id: int, sku_tags: list<string>}>
+     */
+    public function getRecommendedItems(): array
+    {
+        $response = $this->shopGet('/api/v2/ads/get_recommended_item_list');
+
+        if (! $response->successful()) {
+            return [];
+        }
+
+        $resp = $response->json('response');
+        if (is_array($resp) && isset($resp['item_list'])) {
+            $resp = $resp['item_list'];
+        }
+
+        if (! is_array($resp)) {
+            return [];
+        }
+
+        return collect($resp)
+            ->map(function ($it) {
+                return [
+                    'item_id' => (int) ($it['item_id'] ?? 0),
+                    'sku_tags' => array_map('strtolower', $it['sku_tag_list'] ?? []),
+                ];
+            })
+            ->filter(fn ($it) => $it['item_id'] > 0)
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Add increment on top of live Shopee budget (not stale DB / starting budget).
      *
      * @return array{before: int, after: int, applied_increment: int}|null
      */
-    public function addBudget(string $adType, string $campaignId, int $incrementIdr, int $dailyMaxBudget): ?array
+    public function addItemAdBudget(string $campaignId, int $incrementIdr, int $perAdCap): ?array
     {
-        $current = $this->getCurrentBudget($adType, $campaignId);
+        $current = $this->getCampaignLiveBudget($campaignId);
+
+        if ($current === null) {
+            $live = collect($this->listManualProductAds())->firstWhere('campaign_id', $campaignId);
+            $current = $live ? (int) round((float) $live['budget']) : null;
+        }
 
         if ($current === null) {
             return null;
         }
 
-        $after = ShopeeAdsBudgetAllocator::addToBudget($current, $incrementIdr, $dailyMaxBudget);
-        $applied = $after - $current;
+        return $this->applyIncrement($current, $incrementIdr, $perAdCap, function (int $after) use ($campaignId) {
+            return $this->setItemAdBudget($campaignId, $after);
+        });
+    }
 
-        if ($applied <= 0) {
-            return [
-                'before' => $current,
-                'after' => $current,
-                'applied_increment' => 0,
-            ];
+    /**
+     * @return array{before: int, after: int, applied_increment: int}|null
+     */
+    public function addGmsBudget(string $campaignId, int $trackedBudget, int $incrementIdr, int $combinedCap): ?array
+    {
+        $live = $this->getCampaignLiveBudget($campaignId);
+        $current = $live ?? $trackedBudget;
+
+        if ($current <= 0) {
+            return null;
         }
 
-        if (! $this->setBudget($adType, $campaignId, $after)) {
-            return null;
+        $perCampaignCap = $current + max(0, $combinedCap - $current);
+
+        return $this->applyIncrement($current, $incrementIdr, $perCampaignCap, function (int $after) use ($campaignId) {
+            return $this->setGmsBudget($campaignId, $after);
+        });
+    }
+
+    /**
+     * @return array{before: int, after: int, applied_increment: int}
+     */
+    private function applyIncrement(int $current, int $incrementIdr, int $cap, callable $setter): array
+    {
+        $after = ShopeeAdsBudgetAllocator::addToBudget($current, $incrementIdr, $cap);
+        $applied = $after - $current;
+
+        if ($applied > 0) {
+            $setter($after);
         }
 
         return [
@@ -252,196 +536,19 @@ class ShopeeAdsApiService
     }
 
     /**
-     * @return list<array{campaign_id: string, roas: float, budget: int, status: string}>
+     * @return array{0: string, 1: string}
      */
-    public function listActiveAdGroups(): array
+    private function wibDateRange(int $daysBack = 0): array
     {
-        $path = '/api/v2/ads/get_product_level_campaign_id_list';
-        $response = $this->shopGet($path, []);
+        $end = Carbon::now('Asia/Jakarta');
+        $start = $end->copy()->subDays(max(0, $daysBack));
 
-        if (! $response->successful()) {
-            return [];
-        }
-
-        $data = $response->json();
-        $ids = $data['response']['campaign_id_list'] ?? $data['response']['campaign_ids'] ?? [];
-
-        $groups = [];
-
-        foreach ($ids as $campaignId) {
-            $info = $this->getProductLevelCampaignInfo((string) $campaignId);
-            if ($info === null) {
-                continue;
-            }
-
-            $status = strtolower((string) ($info['campaign_status'] ?? $info['status'] ?? 'active'));
-
-            if (in_array($status, ['deleted', 'ended'], true)) {
-                continue;
-            }
-
-            $groups[] = [
-                'campaign_id' => (string) $campaignId,
-                'roas' => (float) ($info['roi'] ?? $info['roas'] ?? $info['roas_target'] ?? 0),
-                'budget' => (int) round((float) ($info['budget'] ?? $info['daily_budget'] ?? 0)),
-                'status' => $status,
-            ];
-        }
-
-        return $groups;
+        return [$start->format('d-m-Y'), $end->format('d-m-Y')];
     }
 
-    /**
-     * @return array<string, mixed>|null
-     */
-    public function getProductLevelCampaignInfo(string $campaignId): ?array
+    private function wibToday(): string
     {
-        $path = '/api/v2/ads/get_product_level_campaign_setting_info';
-        $response = $this->shopGet($path, ['campaign_id' => (int) $campaignId]);
-
-        if (! $response->successful()) {
-            return null;
-        }
-
-        $data = $response->json();
-
-        return $data['response'] ?? $data;
-    }
-
-    /**
-     * @return list<array{item_id: int, tag: string}>
-     */
-    public function getRecommendedItems(): array
-    {
-        $path = '/api/v2/ads/get_recommended_item_list';
-        $response = $this->shopGet($path, []);
-
-        if (! $response->successful()) {
-            return [];
-        }
-
-        $data = $response->json();
-        $items = $data['response']['item_list'] ?? $data['response']['items'] ?? [];
-
-        return collect($items)->map(function ($item) {
-            return [
-                'item_id' => (int) ($item['item_id'] ?? 0),
-                'tag' => (string) ($item['tag'] ?? $item['recommendation_type'] ?? 'recommended'),
-            ];
-        })->filter(fn ($item) => $item['item_id'] > 0)->values()->all();
-    }
-
-    public function turnOffGroupCampaign(string $campaignId): bool
-    {
-        return $this->setBudget('group', $campaignId, 0);
-    }
-
-    public function createManualProductAd(int $itemId, int $budget, float $roasTarget = 0): ?string
-    {
-        $path = '/api/v2/ads/create_manual_product_ads';
-        $body = [
-            'reference_id' => Str::uuid()->toString(),
-            'budget' => $budget,
-            'start_date' => now()->format('d-m-Y'),
-            'bidding_method' => 'auto',
-            'item_id' => $itemId,
-            'roas_target' => $roasTarget,
-        ];
-
-        $response = $this->shopPost($path, $body);
-
-        if (! $response->successful()) {
-            Log::warning('Shopee create_manual_product_ads failed', ['body' => Str::limit($response->body(), 500)]);
-
-            return null;
-        }
-
-        $data = $response->json();
-        $responseBody = $data['response'] ?? $data;
-
-        return isset($responseBody['campaign_id']) ? (string) $responseBody['campaign_id'] : null;
-    }
-
-    private function budgetReadPath(string $adType): ?string
-    {
-        return match ($adType) {
-            'toko_auto', 'booster' => '/api/v2/ads/get_gms_campaign_performance',
-            'toko_manual', 'produk_auto' => '/api/v2/ads/get_product_level_campaign_setting_info',
-            'group' => '/api/v2/ads/get_product_level_campaign_setting_info',
-            default => null,
-        };
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function budgetReadParams(string $adType, string $campaignId): array
-    {
-        if (in_array($adType, ['toko_auto', 'booster'], true)) {
-            return [
-                'campaign_id' => (int) $campaignId,
-                'start_date' => now()->format('d-m-Y'),
-                'end_date' => now()->format('d-m-Y'),
-            ];
-        }
-
-        return ['campaign_id' => (int) $campaignId];
-    }
-
-    private function budgetWritePath(string $adType): ?string
-    {
-        return match ($adType) {
-            'toko_auto', 'booster' => '/api/v2/ads/edit_gms_product_campaign',
-            'produk_auto' => '/api/v2/ads/edit_auto_product_ads',
-            'toko_manual', 'group' => '/api/v2/ads/edit_manual_product_ads',
-            default => null,
-        };
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function budgetWriteBody(string $adType, string $campaignId, int $budget): array
-    {
-        if (in_array($adType, ['toko_auto', 'booster'], true)) {
-            return [
-                'campaign_id' => (int) $campaignId,
-                'budget' => $budget,
-            ];
-        }
-
-        if ($adType === 'produk_auto') {
-            return [
-                'campaign_id' => (int) $campaignId,
-                'budget' => $budget,
-            ];
-        }
-
-        return [
-            'campaign_id' => (int) $campaignId,
-            'budget' => $budget,
-        ];
-    }
-
-    private function extractBudgetFromResponse(string $adType, array $responseBody, string $campaignId): ?int
-    {
-        if (isset($responseBody['budget'])) {
-            return (int) round((float) $responseBody['budget']);
-        }
-
-        if (isset($responseBody['daily_budget'])) {
-            return (int) round((float) $responseBody['daily_budget']);
-        }
-
-        if (isset($responseBody['campaign_list'])) {
-            foreach ($responseBody['campaign_list'] as $campaign) {
-                if ((string) ($campaign['campaign_id'] ?? '') === $campaignId) {
-                    return (int) round((float) ($campaign['budget'] ?? $campaign['daily_budget'] ?? 0));
-                }
-            }
-        }
-
-        return null;
+        return Carbon::now('Asia/Jakarta')->format('d-m-Y');
     }
 
     /**
@@ -486,7 +593,6 @@ class ShopeeAdsApiService
         ];
 
         $url = rtrim(config('services.shopee_ads.base_url'), '/').$path;
-
         $request = Http::timeout(30);
 
         if ($method === 'get') {

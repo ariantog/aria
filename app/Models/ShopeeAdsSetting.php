@@ -11,6 +11,7 @@ class ShopeeAdsSetting extends Model
     protected $fillable = [
         'status',
         'starting_budget',
+        'starting_budget_gmv_max',
         'daily_max_budget',
         'group_split_high',
         'group_split_mid',
@@ -26,11 +27,24 @@ class ShopeeAdsSetting extends Model
         'daily_reset_minute',
         'group_replenish_hour',
         'group_replenish_minute',
-        'toko_auto_campaign_id',
-        'toko_manual_campaign_id',
-        'produk_auto_campaign_id',
+        'gms_campaign_id',
+        'gms_current_budget',
+        'item_ads_enabled',
+        'max_item_ads',
+        'item_ad_starting_budget',
+        'item_replenish_enabled',
+        'item_replenish_max_per_run',
+        'item_roas_off_threshold',
+        'item_off_after_checks',
+        'item_new_roas_target',
+        'item_split_high',
+        'item_split_mid',
+        'item_split_low',
+        'item_replenish_hour',
+        'item_replenish_minute',
         'last_daily_reset_at',
         'last_replenish_at',
+        'last_item_replenish_at',
     ];
 
     protected function casts(): array
@@ -39,9 +53,14 @@ class ShopeeAdsSetting extends Model
             'group_roas_off_threshold' => 'float',
             'group_replenish_min_roas' => 'float',
             'group_roas_target' => 'float',
+            'item_roas_off_threshold' => 'float',
+            'item_new_roas_target' => 'float',
             'group_replenish_enabled' => 'boolean',
+            'item_ads_enabled' => 'boolean',
+            'item_replenish_enabled' => 'boolean',
             'last_daily_reset_at' => 'datetime',
             'last_replenish_at' => 'datetime',
+            'last_item_replenish_at' => 'datetime',
         ];
     }
 
@@ -52,7 +71,9 @@ class ShopeeAdsSetting extends Model
             [
                 'status' => 'active',
                 'starting_budget' => 100000,
+                'starting_budget_gmv_max' => 100000,
                 'daily_max_budget' => 500000,
+                'item_ad_starting_budget' => 25000,
             ]
         );
     }
@@ -60,15 +81,5 @@ class ShopeeAdsSetting extends Model
     public function isPaused(): bool
     {
         return $this->status !== 'active';
-    }
-
-    public function campaignIdForType(string $adType): ?string
-    {
-        return match ($adType) {
-            'toko_auto', 'booster' => $this->toko_auto_campaign_id,
-            'toko_manual' => $this->toko_manual_campaign_id,
-            'produk_auto' => $this->produk_auto_campaign_id,
-            default => null,
-        };
     }
 }

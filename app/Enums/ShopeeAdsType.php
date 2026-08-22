@@ -4,21 +4,40 @@ namespace App\Enums;
 
 enum ShopeeAdsType: string
 {
-    case TokoAuto = 'toko_auto';
-    case TokoManual = 'toko_manual';
-    case ProdukAuto = 'produk_auto';
-    case Group = 'group';
+    case GmvMax = 'gmv_max';
+    case ProdukManual = 'iklan_produk_manual';
 
-  /**
+    // Legacy schedule keys — API not functional; kept for old schedule rows / history.
+    case TokoAuto = 'iklan_toko_auto';
+    case TokoManual = 'iklan_toko_manual';
+    case ProdukAuto = 'iklan_produk_auto';
+    case Group = 'iklan_group';
+
+    /**
      * @return array<string, string>
      */
     public static function labels(): array
     {
         return [
-            self::TokoAuto->value => 'Iklan Toko Auto / Booster',
-            self::TokoManual->value => 'Iklan Toko Manual',
-            self::ProdukAuto->value => 'Iklan Produk Otomatis',
-            self::Group->value => 'Iklan Group',
+            self::GmvMax->value => 'Iklan Produk GMV Max',
+            self::ProdukManual->value => 'Iklan Produk (Individual)',
+            self::TokoAuto->value => 'Iklan Toko Auto (legacy — tidak aktif)',
+            self::TokoManual->value => 'Iklan Toko Manual (legacy — tidak aktif)',
+            self::ProdukAuto->value => 'Iklan Produk Otomatis (legacy — tidak aktif)',
+            self::Group->value => 'Iklan Group (legacy — tidak aktif)',
+        ];
+    }
+
+    /**
+     * Ad types the engine actually runs against Shopee APIs.
+     *
+     * @return list<string>
+     */
+    public static function supportedScheduleTypes(): array
+    {
+        return [
+            self::GmvMax->value,
+            self::ProdukManual->value,
         ];
     }
 
@@ -27,28 +46,23 @@ enum ShopeeAdsType: string
         return self::labels()[$this->value];
     }
 
-    /**
-     * @return list<string>
-     */
-    public static function singleAdTypes(): array
+    public function isSupported(): bool
     {
-        return [
-            self::TokoAuto->value,
-            self::TokoManual->value,
-            self::ProdukAuto->value,
-        ];
+        return in_array($this->value, self::supportedScheduleTypes(), true);
     }
 
-    public static function normalize(string $value): ?self
+    public static function normalizeScheduleType(string $value): ?self
     {
-        $normalized = match (strtolower($value)) {
-            'toko_auto', 'booster' => self::TokoAuto,
-            'toko_manual' => self::TokoManual,
-            'produk_auto' => self::ProdukAuto,
-            'group' => self::Group,
+        $key = strtolower(trim($value));
+
+        return match ($key) {
+            'gmv', 'gmv_max', 'gmvmax', 'gmv_max_roas', 'produk_gmv' => self::GmvMax,
+            'item', 'item_ads', 'itemads', 'produk_manual', 'individual', 'iklan_produk_manual' => self::ProdukManual,
+            'toko_auto', 'booster', 'iklan_toko_auto' => self::TokoAuto,
+            'toko_manual', 'iklan_toko_manual' => self::TokoManual,
+            'produk_auto', 'produk_otomatis', 'iklan_produk_auto' => self::ProdukAuto,
+            'group', 'iklan_group' => self::Group,
             default => null,
         };
-
-        return $normalized;
     }
 }
