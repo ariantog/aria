@@ -1,7 +1,20 @@
 # Reporting System — Planning Hub
 
 Branch: `cursor/reporting-d945`  
-Status: **Planning only** — no implementation yet.
+Status: **Phase 0 implemented** — schema + mapping UI.
+
+## Production deploy (schema only)
+
+Do **not** rely on bare `php artisan migrate` on production. Run the guarded install script:
+
+```bash
+php artisan migrate --path=database/migrations/2026_08_22_110000_install_reporting_tables.php --force
+php artisan db:seed --class=ReportingBootstrapSeeder
+php artisan reporting:apply-ledger-plan --dry-run
+php artisan reporting:apply-ledger-plan
+```
+
+The install migration is idempotent (`hasTable` / `hasColumn`), uses `INT(11)` for all `customers` references (no BIGINT), and adds `DEFAULT` values on new NOT NULL customer columns.
 
 ## Documents
 

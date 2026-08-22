@@ -13,8 +13,9 @@ use Illuminate\Database\Migrations\Migration;
  * 4. `2026_08_18_120000_create_warehouse_arrangement_refresh_jobs_table` — guarded CREATE
  * 5. `2026_08_19_070000_install_standalone_invoice_tables` — guarded CREATE/align
  * 6. `2026_08_19_080000_add_logo_path_to_standalone_invoices_table` — guarded column add
- * 7. `2026_08_13_120000_add_production_not_null_column_defaults` — MySQL `DEFAULT` on NOT NULL columns
- * 8. `2026_08_13_130000_fix_production_bigint_columns_to_int` — INT FK types for prod PKs
+ * 7. `2026_08_22_110000_install_reporting_tables` — guarded reporting schema install
+ * 8. `2026_08_13_120000_add_production_not_null_column_defaults` — MySQL `DEFAULT` on NOT NULL columns
+ * 9. `2026_08_13_130000_fix_production_bigint_columns_to_int` — INT FK types for prod PKs
  *
  * Safe to run on a fresh prod copy in one step:
  *
@@ -35,6 +36,7 @@ return new class extends Migration
         (require __DIR__.'/2026_08_18_120000_create_warehouse_arrangement_refresh_jobs_table.php')->up();
         (require __DIR__.'/2026_08_19_070000_install_standalone_invoice_tables.php')->up();
         (require __DIR__.'/2026_08_19_080000_add_logo_path_to_standalone_invoices_table.php')->up();
+        (require __DIR__.'/2026_08_22_110000_install_reporting_tables.php')->up();
         (require __DIR__.'/2026_08_13_120000_add_production_not_null_column_defaults.php')->up();
         (require __DIR__.'/2026_08_13_130000_fix_production_bigint_columns_to_int.php')->up();
     }
