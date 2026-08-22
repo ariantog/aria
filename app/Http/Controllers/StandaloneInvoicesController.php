@@ -8,6 +8,7 @@ use App\Services\InvoiceMakerSettingsService;
 use App\Services\StandaloneInvoiceService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\ValidationException;
 
 class StandaloneInvoicesController extends Controller
 {
@@ -170,11 +171,36 @@ class StandaloneInvoicesController extends Controller
             'sender_addrbook_id' => ['nullable', 'integer', 'exists:customers,id'],
             'preset_id' => ['required', 'string', 'max:64'],
             'notes' => ['nullable', 'string', 'max:5000'],
+            'dp_enabled' => ['nullable', 'boolean'],
+            'dp_amount' => ['nullable', 'numeric', 'min:0'],
             'lines' => ['required', 'array', 'min:1'],
             'lines.*.description' => ['required', 'string', 'max:500'],
             'lines.*.quantity' => ['required', 'numeric', 'min:0.0001'],
             'lines.*.price' => ['required', 'numeric', 'min:0'],
         ]);
+
+        $lines = array_values($validated['lines']);
+        $subtotal = app(StandaloneInvoiceService::class)->calculateLineTotals($lines)['subtotal'];
+        $dpEnabled = $request->boolean('dp_enabled');
+
+        if ($dpEnabled) {
+            $dpAmount = $validated['dp_amount'] ?? null;
+            if ($dpAmount === null || (float) $dpAmount <= 0) {
+                throw ValidationException::withMessages([
+                    'dp_amount' => 'Down payment amount is required when DP is enabled.',
+                ]);
+            }
+            if ((float) $dpAmount > $subtotal) {
+                throw ValidationException::withMessages([
+                    'dp_amount' => 'Down payment cannot exceed the subtotal.',
+                ]);
+            }
+            $validated['dp_amount'] = $dpAmount;
+        } else {
+            $validated['dp_amount'] = null;
+        }
+
+        unset($validated['dp_enabled']);
 
         $preset = app(InvoiceMakerSettingsService::class)->findPreset($validated['preset_id']);
         abort_unless($preset, 422, 'Selected invoice preset was not found.');
@@ -190,8 +216,6 @@ class StandaloneInvoicesController extends Controller
         if (! $existing && empty($data['number'])) {
             $data['number'] = StandaloneInvoice::generateNumber($data['date']);
         }
-
-        $lines = array_values($validated['lines']);
 
         return [$data, $lines];
     }

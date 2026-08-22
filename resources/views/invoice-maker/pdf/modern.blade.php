@@ -78,8 +78,18 @@
             </tbody>
             <tfoot>
                 <tr>
-                    <td colspan="3" class="right">Grand Total</td>
+                    <td colspan="3" class="right">Subtotal</td>
                     <td class="right">{{ format_currency($invoice->subtotal) }}</td>
+                </tr>
+                @if($invoice->hasDownPayment())
+                <tr>
+                    <td colspan="3" class="right" style="color:#dc2626;">DP</td>
+                    <td class="right" style="color:#dc2626;">{{ format_currency($invoice->dp_amount) }}</td>
+                </tr>
+                @endif
+                <tr>
+                    <td colspan="3" class="right">Grand Total</td>
+                    <td class="right">{{ format_currency($invoice->balanceDue()) }}</td>
                 </tr>
             </tfoot>
         </table>

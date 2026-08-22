@@ -65,6 +65,47 @@ it('creates a standalone invoice with free-text lines', function () {
     expect($invoice->lines)->toHaveCount(1);
     expect((float) $invoice->subtotal)->toBe(8_100_000.0);
     expect((float) $invoice->total_qty)->toBe(81.0);
+    expect($invoice->dp_amount)->toBeNull();
+    expect($invoice->hasDownPayment())->toBeFalse();
+    expect($invoice->balanceDue())->toBe(8_100_000.0);
+});
+
+it('creates a standalone invoice with down payment', function () {
+    $response = $this->actingAs($this->user)->post(route('invoice-maker.store'), [
+        'number' => 'INV/CA/2026/0100',
+        'date' => '2026-07-30',
+        'recipient' => 'EL PATRON',
+        'preset_id' => 'default',
+        'dp_enabled' => true,
+        'dp_amount' => 7_520_000,
+        'lines' => [
+            ['description' => 'EL PATRON JERSEY', 'quantity' => 103, 'price' => 160_000],
+        ],
+    ]);
+
+    $invoice = StandaloneInvoice::first();
+    $response->assertRedirect(route('invoice-maker.show', $invoice));
+
+    expect((float) $invoice->subtotal)->toBe(16_480_000.0);
+    expect((float) $invoice->dp_amount)->toBe(7_520_000.0);
+    expect($invoice->hasDownPayment())->toBeTrue();
+    expect($invoice->balanceDue())->toBe(8_960_000.0);
+});
+
+it('rejects down payment greater than subtotal', function () {
+    $this->actingAs($this->user)->post(route('invoice-maker.store'), [
+        'number' => 'INV/CA/2026/0101',
+        'date' => '2026-07-30',
+        'recipient' => 'EL PATRON',
+        'preset_id' => 'default',
+        'dp_enabled' => true,
+        'dp_amount' => 20_000_000,
+        'lines' => [
+            ['description' => 'EL PATRON JERSEY', 'quantity' => 103, 'price' => 160_000],
+        ],
+    ])->assertSessionHasErrors('dp_amount');
+
+    expect(StandaloneInvoice::count())->toBe(0);
 });
 
 it('generates and regenerates standalone invoice pdf', function () {
@@ -107,7 +148,7 @@ it('renders invoice maker pages for superadmin', function () {
     $this->actingAs($this->user)->get(route('invoice-maker.index'))->assertOk()->assertSee('Invoice Maker', false);
     $this->actingAs($this->user)->get(route('invoice-maker.create'))->assertOk()->assertSee('New Invoice', false);
     $this->actingAs($this->user)->get(route('invoice-maker.show', $invoice))->assertOk()->assertSee($invoice->number, false);
-    $this->actingAs($this->user)->get(route('invoice-maker.edit', $invoice))->assertOk()->assertSee('Edit Invoice', false);
+    $this->actingAs($this->user)->get(route('invoice-maker.edit', $invoice))->assertOk()->assertSee('Edit Invoice', false)->assertSee('Down Payment (DP)', false);
     $this->actingAs($this->user)->get(route('invoice-maker.settings.index'))->assertOk()->assertSee('Invoice Maker Settings', false);
     $this->actingAs($this->user)->get(route('invoice-maker.settings.create'))->assertOk()->assertSee('New Preset', false);
 });

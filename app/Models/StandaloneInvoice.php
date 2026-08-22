@@ -39,6 +39,7 @@ class StandaloneInvoice extends Model
         'logo_path',
         'total_qty',
         'subtotal',
+        'dp_amount',
         'notes',
         'user_id',
     ];
@@ -49,6 +50,7 @@ class StandaloneInvoice extends Model
             'date' => 'date',
             'total_qty' => 'decimal:4',
             'subtotal' => 'decimal:2',
+            'dp_amount' => 'decimal:2',
         ];
     }
 
@@ -83,6 +85,16 @@ class StandaloneInvoice extends Model
     public function formattedDate(): string
     {
         return $this->date?->locale('id')->translatedFormat('d F Y') ?? '-';
+    }
+
+    public function hasDownPayment(): bool
+    {
+        return $this->dp_amount !== null && (float) $this->dp_amount > 0;
+    }
+
+    public function balanceDue(): float
+    {
+        return (float) $this->subtotal - ($this->hasDownPayment() ? (float) $this->dp_amount : 0);
     }
 
     public static function generateNumber(?\DateTimeInterface $date = null): string

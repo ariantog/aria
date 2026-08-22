@@ -25,6 +25,7 @@ class StandaloneInvoiceFactory extends Factory
             'signatory_name' => 'Test Signatory',
             'total_qty' => 1,
             'subtotal' => 100_000,
+            'dp_amount' => null,
             'user_id' => User::factory(),
         ];
     }

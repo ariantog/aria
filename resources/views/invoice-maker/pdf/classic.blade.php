@@ -20,6 +20,7 @@
         table.items td.qty { text-align: center; }
         table.items td.money { text-align: right; }
         table.items tfoot td { font-weight: bold; }
+        table.items tfoot td.dp { color: #dc2626; }
         .footer { width: 100%; margin-top: 24px; }
         .footer td { vertical-align: top; width: 50%; }
         .payto { font-size: 10px; line-height: 1.5; }
@@ -89,9 +90,15 @@
                 <td class="money">SUB TOTAL</td>
                 <td class="money">{{ format_currency($invoice->subtotal) }}</td>
             </tr>
+            @if($invoice->hasDownPayment())
+            <tr>
+                <td colspan="3" class="money dp" style="text-align:right;">DP</td>
+                <td class="money dp">{{ format_currency($invoice->dp_amount) }}</td>
+            </tr>
+            @endif
             <tr>
                 <td colspan="3" class="money" style="text-align:right;">TOTAL</td>
-                <td class="money">{{ format_currency($invoice->subtotal) }}</td>
+                <td class="money">{{ format_currency($invoice->balanceDue()) }}</td>
             </tr>
         </tfoot>
     </table>
