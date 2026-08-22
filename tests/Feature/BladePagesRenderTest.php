@@ -114,6 +114,15 @@ it('renders the transaction show page', function () {
         ->assertOk();
 });
 
+it('renders the addrbook item sales page', function () {
+    $customer = Addrbook::factory()->customer()->create(['name' => 'Smoke Customer']);
+
+    $this->actingAs($this->user)
+        ->get(route('addrbook.type.item-sales', ['customer', $customer->id]))
+        ->assertOk()
+        ->assertSee('Item Sales', false);
+});
+
 it('renders the deleted transactions index', function () {
     $this->actingAs($this->user)
         ->get(route('transactions.deleted.index'))

@@ -96,6 +96,7 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::get('addrbook/{addrbook}/transactions', [App\Http\Controllers\AddrbookController::class, 'transactions'])->name('addrbook.transactions');
     Route::get('addrbook/{addrbook}/items', [App\Http\Controllers\AddrbookController::class, 'items'])->name('addrbook.items');
     Route::get('addrbook/{addrbook}/item-sales', [App\Http\Controllers\AddrbookController::class, 'itemSales'])->name('addrbook.item-sales');
+    Route::get('addrbook/{addrbook}/item-sales/export', [App\Http\Controllers\AddrbookController::class, 'itemSalesExport'])->name('addrbook.item-sales.export');
     Route::get('addrbook/{addrbook}/stats', [App\Http\Controllers\AddrbookController::class, 'stat'])->name('addrbook.stats');
     Route::get('system-settings/invoice/branding', [App\Http\Controllers\InvoiceSettingsController::class, 'edit'])->name('invoice-settings.edit');
     Route::put('system-settings/invoice/branding', [App\Http\Controllers\InvoiceSettingsController::class, 'update'])->name('invoice-settings.update');
@@ -137,6 +138,9 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::get('/{type}/{addrbook}/item-sales', [App\Http\Controllers\AddrbookController::class, 'itemSalesType'])
         ->where('type', $addrbookTypes)
         ->name('addrbook.type.item-sales');
+    Route::get('/{type}/{addrbook}/item-sales/export', [App\Http\Controllers\AddrbookController::class, 'itemSalesTypeExport'])
+        ->where('type', $addrbookTypes)
+        ->name('addrbook.type.item-sales.export');
 
     Route::get('/{type}/{addrbook}/edit', [App\Http\Controllers\AddrbookController::class, 'editType'])
         ->where('type', $addrbookTypes)

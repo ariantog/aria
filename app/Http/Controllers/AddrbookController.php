@@ -9,8 +9,11 @@ use App\Http\Requests\StoreAddrbookRequest;
 use App\Http\Requests\UpdateAddrbookRequest;
 use App\Models\Addrbook;
 use App\Models\Location;
-use App\Models\StatSell;
+use App\Services\ExportSellExportService;
+use App\Services\ExportSellQueryService;
 use App\Support\LikeSearch;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 
 class AddrbookController extends Controller
@@ -171,7 +174,12 @@ class AddrbookController extends Controller
 
     public function itemSalesType(string $type, Addrbook $addrbook)
     {
-        return $this->itemSales($addrbook->id);
+        return app()->call([$this, 'itemSales'], ['id' => $addrbook->id]);
+    }
+
+    public function itemSalesTypeExport(string $type, Addrbook $addrbook)
+    {
+        return app()->call([$this, 'itemSalesExport'], ['id' => $addrbook->id]);
     }
 
     public function edit(Addrbook $addrbook)
@@ -287,38 +295,43 @@ class AddrbookController extends Controller
         ]);
     }
 
-    public function itemSales($id)
+    public function itemSales($id, Request $request, ExportSellQueryService $queryService)
     {
         $a = Addrbook::withTrashed()->findOrFail($id);
         Gate::authorize(Addrbook::getPermissions($this->addrbookTypeSlug($a))['view']);
         $this->authorizeAddrbookLocation($a);
 
-        $q = StatSell::where('sender_id', $a->id)->with('group')
-            ->when(request('bulan'), fn ($q) => $q->where('bulan', request('bulan')))
-            ->when(request('tahun'), fn ($q) => $q->where('tahun', request('tahun')))
-            ->when(request('search'), fn ($q) => $q->whereHas('group', fn ($gq) => $gq
-                ->where('name', 'like', '%'.request('search').'%')
-                ->orWhere('description', 'like', '%'.request('search').'%')
-            ))
-            ->when(request('type'), fn ($q) => $q->where('type', request('type')))
-            ->orderBy('tahun', 'desc')->orderBy('bulan', 'desc');
+        $perPage = $queryService->resolvePerPage($request);
+        $filters = $queryService->filtersFromRequest($request);
+        $rows = $queryService
+            ->buildQuery($request, Auth::user(), $a->id)
+            ->paginate($perPage)
+            ->withQueryString();
 
         return view('addrbook.item-sales', [
             'addrbook' => $a,
-            'sales' => $q->paginate(50)->withQueryString(),
-            'filters' => [
-                'bulan' => request('bulan') ? (int) request('bulan') : null,
-                'tahun' => request('tahun') ? (int) request('tahun') : null,
-                'search' => request('search'),
-                'type' => request('type') ? (int) request('type') : null,
-            ],
-            'years' => range(date('Y'), date('Y') - 5),
-            'transactionTypes' => \App\Models\Transaction::getTypes(),
+            'rows' => $rows,
+            'filters' => $filters,
+            'perPage' => $perPage,
+            'typeOptions' => $queryService->typeOptions(),
             'can' => [
                 'bank_hidden_balance' => ! (request()->user()?->is_superadmin ?? false) && (request()->user()?->can('addrbook-bank-account-hidden-balance') ?? false),
             ],
             'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
+    }
+
+    public function itemSalesExport($id, Request $request, ExportSellQueryService $queryService, ExportSellExportService $exportService)
+    {
+        $a = Addrbook::withTrashed()->findOrFail($id);
+        Gate::authorize(Addrbook::getPermissions($this->addrbookTypeSlug($a))['view']);
+        $this->authorizeAddrbookLocation($a);
+
+        $rows = $queryService
+            ->buildQuery($request, Auth::user(), $a->id)
+            ->get();
+
+        return $exportService->download($rows);
     }
 
     public function stat($id)
