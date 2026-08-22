@@ -28,7 +28,7 @@
 @endphp
 
 <div class="flex h-full flex-1 flex-col gap-4 overflow-x-auto rounded-xl p-4"
-     x-data="{ showImage: true, showBarcode: true, showSku: false, waOpen: false, deleteConfirmOpen: false }">
+     x-data="transactionShowPage()">
 
     {{-- Top Action Bar --}}
     <div class="flex flex-col justify-between gap-4 md:flex-row md:items-center print:hidden">
@@ -372,4 +372,40 @@
         * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
     }
 </style>
+@endpush
+
+@push('scripts')
+<script>
+function transactionShowPage() {
+    const storageKey = 'aria-transaction-show-view';
+    const defaults = { showImage: true, showBarcode: true, showSku: false };
+    let saved = {};
+
+    try {
+        saved = JSON.parse(localStorage.getItem(storageKey) || '{}');
+    } catch (e) {
+        saved = {};
+    }
+
+    return {
+        showImage: typeof saved.showImage === 'boolean' ? saved.showImage : defaults.showImage,
+        showBarcode: typeof saved.showBarcode === 'boolean' ? saved.showBarcode : defaults.showBarcode,
+        showSku: typeof saved.showSku === 'boolean' ? saved.showSku : defaults.showSku,
+        waOpen: false,
+        deleteConfirmOpen: false,
+        init() {
+            this.$watch('showImage', () => this.persistViewPrefs());
+            this.$watch('showBarcode', () => this.persistViewPrefs());
+            this.$watch('showSku', () => this.persistViewPrefs());
+        },
+        persistViewPrefs() {
+            localStorage.setItem(storageKey, JSON.stringify({
+                showImage: this.showImage,
+                showBarcode: this.showBarcode,
+                showSku: this.showSku,
+            }));
+        },
+    };
+}
+</script>
 @endpush
