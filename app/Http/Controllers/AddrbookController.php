@@ -9,6 +9,9 @@ use App\Http\Requests\StoreAddrbookRequest;
 use App\Http\Requests\UpdateAddrbookRequest;
 use App\Models\Addrbook;
 use App\Models\Location;
+use App\Models\Operation;
+use App\Models\ReportingChannelBank;
+use App\Models\ReportingEntity;
 use App\Models\StatSell;
 use App\Support\LikeSearch;
 use Illuminate\Support\Facades\Gate;
@@ -101,6 +104,7 @@ class AddrbookController extends Controller
             'ppn_rate' => (float) \App\Models\Setting::getValue('ppn_rate', 11),
             ...$this->locationFormProps(),
             ...$this->arrangementFormProps(),
+            ...$this->reportingFormProps(),
         ]);
     }
 
@@ -113,6 +117,7 @@ class AddrbookController extends Controller
         $a->stat()->create(['balance' => $r->input('initial_balance', 0)]);
         $this->syncAddrbookLocations($a, $r->input('location_ids', []));
         $this->syncArrangementSources($a, $r->input('arrangement_source_ids', []));
+        $this->syncReportingChannelBank($a, $r->input('default_bank_id'));
 
         return redirect()->to(Addrbook::typeIndexRoute((int) $a->type))->with('success', 'Created.');
     }
@@ -186,6 +191,7 @@ class AddrbookController extends Controller
             'ppn_rate' => (float) \App\Models\Setting::getValue('ppn_rate', 11),
             ...$this->locationFormProps($a),
             ...$this->arrangementFormProps($a),
+            ...$this->reportingFormProps($a),
         ]);
     }
 
@@ -201,6 +207,7 @@ class AddrbookController extends Controller
         $a->update($r->safe()->except(['location_ids', 'arrangement_source_ids']));
         $this->syncAddrbookLocations($a, $r->input('location_ids', []));
         $this->syncArrangementSources($a, $r->input('arrangement_source_ids', []));
+        $this->syncReportingChannelBank($a, $r->input('default_bank_id'));
 
         return redirect()->to(Addrbook::typeIndexRoute((int) $a->type))->with('success', 'Updated.');
     }
@@ -509,5 +516,52 @@ class AddrbookController extends Controller
                 ->get(['id', 'name']),
             'selectedArrangementSourceIds' => $addrbook?->arrangementSources->pluck('id') ?? collect(),
         ];
+    }
+
+    /**
+     * @return array{
+     *     operations: \Illuminate\Support\Collection,
+     *     banks: \Illuminate\Support\Collection,
+     *     assignedEntity: ?ReportingEntity
+     * }
+     */
+    private function reportingFormProps(?Addrbook $addrbook = null): array
+    {
+        $assignedEntity = null;
+        if ($addrbook && (int) $addrbook->type === Addrbook::TYPE_BANK) {
+            $assignedEntity = ReportingEntity::query()
+                ->whereHas('banks', fn ($q) => $q->where('customers.id', $addrbook->id))
+                ->first();
+        }
+
+        return [
+            'operations' => Operation::query()->orderBy('name')->get(['id', 'name']),
+            'banks' => Addrbook::query()
+                ->where('type', Addrbook::TYPE_BANK)
+                ->where('is_active_in_reports', true)
+                ->orderBy('name')
+                ->get(['id', 'name']),
+            'assignedEntity' => $assignedEntity,
+        ];
+    }
+
+    private function syncReportingChannelBank(Addrbook $addrbook, mixed $bankId): void
+    {
+        $type = (int) $addrbook->type;
+        if (! in_array($type, [Addrbook::TYPE_CUSTOMER, Addrbook::TYPE_RESELLER], true)) {
+            return;
+        }
+
+        $bankId = $bankId ? (int) $bankId : null;
+        if ($bankId) {
+            ReportingChannelBank::updateOrCreate(
+                ['customer_id' => $addrbook->id],
+                ['bank_id' => $bankId],
+            );
+
+            return;
+        }
+
+        ReportingChannelBank::where('customer_id', $addrbook->id)->delete();
     }
 }

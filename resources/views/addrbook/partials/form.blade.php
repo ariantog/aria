@@ -180,6 +180,12 @@
     </div>
     @endif
 
+    @include('addrbook.partials.reporting-fields', [
+        'operations' => $operations ?? collect(),
+        'banks' => $banks ?? collect(),
+        'assignedEntity' => $assignedEntity ?? null,
+    ])
+
     {{-- Financials --}}
     <div class="rounded-xl border border-gray-200 bg-white shadow-sm">
         <div class="border-b border-gray-100 px-5 py-4">
