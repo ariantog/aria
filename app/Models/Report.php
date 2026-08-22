@@ -18,10 +18,14 @@ class Report
             'view-compare' => 'report-compare',
             'view-inventory-health' => 'report-inventory-health',
             'view-purchase' => 'report-purchase',
+            'view-export-sell' => 'report-export-sell',
             'view-expense' => 'report-expense',
             'view-warehouse-item' => 'report-warehouse-item',
             'view-item-sales' => 'report-item-sales',
-            'view-stock-intelligence' => 'report-stock-intelligence',
+            'view-warehouse-arrangement' => 'report-warehouse-arrangement',
+            'view-product-performance' => 'report-product-performance',
+            'view-produksi-potong' => 'report-produksi-potong',
+            'view-produksi-qc' => 'report-produksi-qc',
         ];
     }
 }

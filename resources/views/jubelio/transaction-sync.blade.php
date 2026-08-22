@@ -78,7 +78,7 @@ $activeDisplay = $filters['display'] ?? 'N';
                             <span class="font-bold text-gray-800">{{ \Carbon\Carbon::parse($item->date)->translatedFormat('d M Y') }}</span>
                         </td>
                         <td class="max-w-[150px] px-6 py-4 font-bold break-words text-blue-600">
-                            <a href="{{ route('jubelio.transaction.detail-sync', $item->id) }}" class="hover:underline">{{ $item->invoice_number }}</a>
+                            <a href="{{ route('jubelio.transaction.detail-sync', $item->id) }}" class="hover:underline">{{ $item->invoice }}</a>
                         </td>
                         <td class="px-6 py-4 text-[10px] font-bold whitespace-nowrap uppercase">
                             <span class="inline-flex rounded border border-gray-200 bg-white px-2 py-0.5">{{ $item->type_name }}</span>

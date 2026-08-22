@@ -45,7 +45,7 @@ class RecalculateAggregation extends Command
         $this->resetStats();
 
         // 2. Load basic lookups
-        $this->addrbookTypes = DB::table('addrbooks')->pluck('type', 'id')->toArray();
+        $this->addrbookTypes = DB::table('customers')->pluck('type', 'id')->toArray();
 
         // 3. Process Transactions in chunks
         $query = DB::table('transactions')
@@ -73,7 +73,7 @@ class RecalculateAggregation extends Command
             foreach ($transactions as $trx) {
                 $senderId = $trx->sender_id;
                 $receiverId = $trx->receiver_id;
-                $amount = (float) $trx->grand_total;
+                $amount = (float) $trx->real_total;
 
                 // Update Balances In-Memory
                 $this->calculateBalances($trx->type, $senderId, $receiverId, $amount);
@@ -115,9 +115,9 @@ class RecalculateAggregation extends Command
     protected function resetStats()
     {
         $this->info('Resetting current stats tables...');
-        DB::table('warehouse_items')->truncate();
-        DB::table('addrbook_stats')->truncate();
-        DB::table('addrbook_dailies')->truncate();
+        DB::table('warehouse_item')->truncate();
+        DB::table('customerstat')->truncate();
+        DB::table('customer_class')->truncate();
         DB::table('items')->update(['qty' => 0]);
     }
 
@@ -208,16 +208,16 @@ class RecalculateAggregation extends Command
                     'created_at' => now(),
                 ];
             }
-            DB::table('warehouse_items')->insert($data);
+            DB::table('warehouse_item')->insert($data);
         }
 
         $this->info('Saving balances to database...');
         foreach (array_chunk($this->balances, 1000, true) as $chunk) {
             $data = [];
             foreach ($chunk as $id => $bal) {
-                $data[] = ['addrbook_id' => $id, 'balance' => $bal];
+                $data[] = ['customer_id' => $id, 'balance' => $bal];
             }
-            DB::table('addrbook_stats')->insert($data);
+            DB::table('customerstat')->insert($data);
         }
 
         $this->info('Updating global items quantity...');
@@ -232,9 +232,9 @@ class RecalculateAggregation extends Command
             $data = [];
             foreach ($chunk as $key => $vals) {
                 [$id, $date] = explode('.', $key);
-                $data[] = array_merge(['addrbook_id' => $id, 'date' => $date, 'type' => $this->addrbookTypes[$id] ?? 99], $vals);
+                $data[] = array_merge(['customer_id' => $id, 'date' => $date, 'type' => $this->addrbookTypes[$id] ?? 99], $vals);
             }
-            DB::table('addrbook_dailies')->insert($data);
+            DB::table('customer_class')->insert($data);
         }
     }
 }

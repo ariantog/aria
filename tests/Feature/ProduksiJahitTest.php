@@ -27,7 +27,7 @@ it('can create jahit worker', function () {
     ]);
 
     $response->assertRedirect();
-    $this->assertDatabaseHas('workers', [
+    $this->assertDatabaseHas('prod_worker', [
         'name' => 'John Taylor',
         'type' => Worker::TYPE_JAHIT,
     ]);
@@ -41,7 +41,7 @@ it('can update jahit worker', function () {
     ]);
 
     $response->assertRedirect();
-    $this->assertDatabaseHas('workers', [
+    $this->assertDatabaseHas('prod_worker', [
         'id' => $worker->id,
         'name' => 'Jane Taylor',
     ]);
@@ -53,7 +53,7 @@ it('can delete jahit worker', function () {
     $response = $this->actingAs($this->user)->delete("/produksi/jahit/{$worker->id}/delete");
 
     $response->assertRedirect();
-    $this->assertSoftDeleted('workers', [
+    $this->assertSoftDeleted('prod_worker', [
         'id' => $worker->id,
     ]);
 });
@@ -71,7 +71,7 @@ it('can assign a jahit worker to a production entry', function () {
     ]);
 
     $response->assertRedirect();
-    $this->assertDatabaseHas('produksis', [
+    $this->assertDatabaseHas('prod_produksi', [
         'id' => $produksi->id,
         'jahit_id' => $worker->id,
     ]);

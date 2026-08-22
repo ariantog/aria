@@ -1,0 +1,112 @@
+<?php
+
+use App\Models\Produksi;
+use App\Models\Report;
+use App\Models\User;
+use App\Models\Worker;
+use App\Services\Produksi\ProduksiStatisticsService;
+use Spatie\Permission\Models\Permission;
+use Spatie\Permission\Models\Role;
+
+beforeEach(function () {
+    $this->user = User::factory()->create();
+    $role = Role::firstOrCreate(['name' => 'superadmin']);
+    $this->user->assignRole($role);
+});
+
+it('aggregates potong statistics by worker and month', function () {
+    $potongA = Worker::create(['name' => 'Potong A', 'type' => Worker::TYPE_POTONG]);
+    $potongB = Worker::create(['name' => 'Potong B', 'type' => Worker::TYPE_POTONG]);
+    $year = (int) date('Y');
+
+    Produksi::create([
+        'temp_name' => 'Shirt A',
+        'quantity' => 10,
+        'potong_id' => $potongA->id,
+        'potong_date' => "{$year}-03-05",
+        'surat_jalan_potong' => 'SJP-1',
+    ]);
+    Produksi::create([
+        'temp_name' => 'Shirt B',
+        'quantity' => 20,
+        'potong_id' => $potongA->id,
+        'potong_date' => "{$year}-03-12",
+        'surat_jalan_potong' => 'SJP-2',
+    ]);
+    Produksi::create([
+        'temp_name' => 'Pants C',
+        'quantity' => 15,
+        'potong_id' => $potongB->id,
+        'potong_date' => "{$year}-04-01",
+    ]);
+
+    $stats = app(ProduksiStatisticsService::class);
+    [$start, $end] = $stats->resolveDateRange(3, $year);
+
+    $summary = $stats->potongWorkerSummary($start, $end);
+
+    expect($summary)->toHaveCount(1);
+    expect($summary->first()->worker_name)->toBe('Potong A');
+    expect($summary->first()->kitir_count)->toBe(2);
+    expect($summary->first()->total_qty)->toBe(30);
+    expect($summary->first()->sjp_count)->toBe(2);
+
+    $monthly = $stats->potongMonthlyTotals($year);
+    expect($monthly->firstWhere('month', 3)?->total_qty)->toBe(30);
+    expect($monthly->firstWhere('month', 4)?->total_qty)->toBe(15);
+});
+
+it('aggregates qc statistics with lag metrics', function () {
+    $qc = Worker::create(['name' => 'QC One', 'type' => Worker::TYPE_QC]);
+    $year = (int) date('Y');
+
+    Produksi::create([
+        'temp_name' => 'QC Item',
+        'quantity' => 8,
+        'qc_id' => $qc->id,
+        'qc_date' => "{$year}-06-10",
+        'potong_date' => "{$year}-06-01",
+        'setor_date' => "{$year}-06-08",
+        'status' => Produksi::STATUS_SETOR,
+    ]);
+
+    $stats = app(ProduksiStatisticsService::class);
+    [$start, $end] = $stats->resolveDateRange(6, $year);
+
+    $summary = $stats->qcWorkerSummary($start, $end);
+
+    expect($summary)->toHaveCount(1);
+    expect($summary->first()->worker_name)->toBe('QC One');
+    expect($summary->first()->total_qty)->toBe(8);
+    expect($summary->first()->avg_potong_lag_days)->toBe(9.0);
+    expect($summary->first()->avg_setor_lag_days)->toBe(2.0);
+});
+
+it('denies potong statistics without permission', function () {
+    $user = User::factory()->create();
+    Permission::findOrCreate(Report::getPermissions()['view-produksi-potong']);
+
+    $this->actingAs($user)->get('/reports/produksi-potong')->assertForbidden();
+});
+
+it('allows potong statistics with permission', function () {
+    $user = User::factory()->create();
+    Permission::findOrCreate(Report::getPermissions()['view-produksi-potong']);
+    $user->givePermissionTo(Report::getPermissions()['view-produksi-potong']);
+
+    $this->actingAs($user)
+        ->get('/reports/produksi-potong')
+        ->assertSuccessful()
+        ->assertSee('Statistik Potong');
+});
+
+it('allows qc statistics with permission', function () {
+    $user = User::factory()->create();
+    Permission::findOrCreate(Report::getPermissions()['view-produksi-qc']);
+    $user->givePermissionTo(Report::getPermissions()['view-produksi-qc']);
+
+    $this->actingAs($user)
+        ->get('/reports/produksi-qc')
+        ->assertSuccessful()
+        ->assertSee('Statistik QC');
+});

@@ -50,9 +50,14 @@ $breadcrumbs = [
                 </thead>
                 <tbody class="divide-y divide-gray-200 bg-white">
                     @forelse($tags as $tag)
-                    @php $itemTypeLabel = array_search($tag->item_type, $itemTypes, true); @endphp
+                    @php
+                        $itemTypeLabel = array_search($tag->item_type, $itemTypes, true);
+                        $filterUrl = $tag->itemsIndexFilterUrl();
+                    @endphp
                     <tr class="hover:bg-gray-50">
-                        <td class="whitespace-nowrap px-6 py-4 font-semibold text-gray-900">{{ $tag->name }}</td>
+                        <td class="whitespace-nowrap px-6 py-4 font-semibold text-gray-900">
+                            <a href="{{ $filterUrl }}" class="text-blue-600 hover:text-blue-800 hover:underline" title="View tagged {{ $tag->filterItemType() === \App\Enums\ItemType::ASSET_LANCAR ? 'asset lancar' : 'items' }}">{{ $tag->name }}</a>
+                        </td>
                         <td class="whitespace-nowrap px-6 py-4 text-gray-500">{{ $tag->code ?: '-' }}</td>
                         <td class="whitespace-nowrap px-6 py-4">
                             <span class="inline-flex items-center rounded-full bg-indigo-100 px-2.5 py-0.5 text-[10px] font-bold uppercase text-indigo-700">{{ $types[$tag->type] ?? $tag->type }}</span>

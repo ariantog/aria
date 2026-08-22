@@ -38,3 +38,37 @@ it('keeps the search parameter separate when the endpoint has no query string', 
 
     expect($names)->toContain('Solo Warehouse')->not->toContain('Other Warehouse');
 });
+
+it('matches addrbook names when spaces are used as token separators', function () {
+    Addrbook::create(['name' => 'North Jakarta Warehouse', 'type' => Addrbook::TYPE_WAREHOUSE]);
+    Addrbook::create(['name' => 'South Jakarta Warehouse', 'type' => Addrbook::TYPE_WAREHOUSE]);
+    Addrbook::create(['name' => 'North Bandung Warehouse', 'type' => Addrbook::TYPE_WAREHOUSE]);
+
+    $url = route('transactions.lookup', ['type' => 'move', 'role' => 'sender']).'?search=North Jakarta';
+    $names = collect($this->getJson($url)->assertOk()->json())->pluck('name');
+
+    expect($names)->toContain('North Jakarta Warehouse')
+        ->not->toContain('South Jakarta Warehouse')
+        ->not->toContain('North Bandung Warehouse');
+});
+
+it('returns no addrbook results until the search term is longer than two characters', function () {
+    Addrbook::create(['name' => 'Zeta Customer', 'type' => Addrbook::TYPE_CUSTOMER]);
+
+    $url = route('transactions.lookup', ['type' => 'sell', 'role' => 'receiver', 'addrbook_type' => Addrbook::TYPE_CUSTOMER]);
+
+    $this->getJson($url)->assertOk()->assertExactJson([]);
+    $this->getJson($url.'&search=Ze')->assertOk()->assertExactJson([]);
+    $this->getJson($url.'&search=Zet')->assertOk()->assertJsonCount(1);
+});
+
+it('caps addrbook lookup results at eight rows', function () {
+    foreach (range(1, 10) as $i) {
+        Addrbook::create(['name' => "Lookup Customer {$i}", 'type' => Addrbook::TYPE_CUSTOMER]);
+    }
+
+    $url = route('transactions.lookup', ['type' => 'sell', 'role' => 'receiver', 'addrbook_type' => Addrbook::TYPE_CUSTOMER])
+        .'&search=Lookup';
+
+    expect($this->getJson($url)->assertOk()->json())->toHaveCount(8);
+});

@@ -44,8 +44,8 @@ class CompareReportController extends Controller
 
         if (! empty($warehouseIds)) {
             $query = Item::query()
-                ->join('warehouse_items', 'items.id', '=', 'warehouse_items.item_id')
-                ->whereIn('warehouse_items.warehouse_id', $warehouseIds)
+                ->join('warehouse_item', 'items.id', '=', 'warehouse_item.item_id')
+                ->whereIn('warehouse_item.warehouse_id', $warehouseIds)
                 ->select(
                     'items.id',
                     'items.name',
@@ -66,7 +66,7 @@ class CompareReportController extends Controller
 
             if (str_starts_with($sort, 'wh_')) {
                 $whId = str_replace('wh_', '', $sort);
-                $query->orderByRaw("(SELECT quantity FROM warehouse_items WHERE item_id = items.id AND warehouse_id = ?) $direction", [$whId]);
+                $query->orderByRaw("(SELECT quantity FROM warehouse_item WHERE item_id = items.id AND warehouse_id = ?) $direction", [$whId]);
             } else {
                 $query->orderBy("items.$sort", $direction);
             }
@@ -75,7 +75,7 @@ class CompareReportController extends Controller
 
             // 3. Load specific stock levels for each selected warehouse
             $itemIds = collect($paginator->items())->pluck('id')->toArray();
-            $stockDetails = DB::table('warehouse_items')
+            $stockDetails = DB::table('warehouse_item')
                 ->whereIn('warehouse_id', $warehouseIds)
                 ->whereIn('item_id', $itemIds)
                 ->get()

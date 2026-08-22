@@ -2,9 +2,6 @@
 
 namespace App\Actions\Transactions;
 
-use App\Enums\AddrbookType;
-use App\Enums\TransactionStatus;
-use App\Enums\TransactionType;
 use App\Http\Requests\StoreCashTransactionRequest;
 use App\Models\Addrbook;
 use App\Models\Transaction;
@@ -19,7 +16,7 @@ class CreateCashTransaction
     public function execute(StoreCashTransactionRequest $request, bool $isCashIn): array
     {
         $data = $request->validated();
-        $type = $isCashIn ? TransactionType::CashIn : TransactionType::CashOut;
+        $type = $isCashIn ? Transaction::TYPE_CASH_IN : Transaction::TYPE_CASH_OUT;
         $createdIds = [];
 
         DB::transaction(function () use ($type, $data, $isCashIn, &$createdIds) {
@@ -31,23 +28,26 @@ class CreateCashTransaction
                 $total = (float) $item['total'];
                 $grandTotal = $isCashIn ? $total : -$total;
                 $trx = Transaction::create([
-                    'date' => $data['date'], 'type' => $type->value,
-                    'sender_type' => $sender->type instanceof AddrbookType ? $sender->type->value : $sender->type,
+                    'date' => $data['date'], 'type' => $type,
+                    'sender_type' => (int) $sender->type,
                     'sender_id' => $sender->id,
-                    'receiver_type' => $receiver->type instanceof AddrbookType ? $receiver->type->value : $receiver->type,
+                    'receiver_type' => (int) $receiver->type,
                     'receiver_id' => $receiver->id,
-                    'invoice_number' => $item['invoice_number'] ?? null,
+                    'invoice' => $item['invoice'] ?? null,
                     'notes' => $item['note'] ?? null, 'user_id' => Auth::id(),
-                    'status' => TransactionStatus::Completed->value,
-                    'grand_total' => $grandTotal, 'total_items' => 0,
-                    'adjustment' => 0, 'discount' => 0, 'tax_amount' => 0,
+                    'status' => Transaction::STATUS_COMPLETED,
+                    'real_total' => $grandTotal, 'total_items' => 0,
+                    'adjustment' => 0, 'discount' => 0, 'ppn' => 0,
                     'submit_type' => Transaction::SUBMIT_TYPE_MANUAL,
                 ]);
-                if (empty($trx->invoice_number)) $trx->update(['invoice_number' => (string) $trx->id]);
+                if (empty($trx->invoice)) {
+                    $trx->update(['invoice' => (string) $trx->id]);
+                }
                 $this->transactionService->handleTransaction($trx);
                 $createdIds[] = $trx->id;
             }
         });
+
         return $createdIds;
     }
 }

@@ -140,7 +140,7 @@ $breadcrumbs = [
                     @php $visible = $item->warehouseItems; @endphp
                     @forelse($visible as $wh)
                     <div class="flex justify-between py-3" @if($wh->quantity < 1) x-show="showZero" @endif>
-                        <span class="font-medium text-gray-700">{{ optional($wh->warehouse)->name ?? 'Unknown Warehouse' }}</span>
+                        <span class="font-medium text-gray-700">{{ $wh->warehouse?->name ?? 'Warehouse #'.$wh->warehouse_id }}</span>
                         <span class="font-mono font-bold {{ $wh->quantity > 0 ? 'text-green-600' : 'text-gray-400' }}">{{ number_format($wh->quantity, 0, ',', '.') }}</span>
                     </div>
                     @empty

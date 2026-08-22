@@ -4,6 +4,8 @@ namespace App\Models;
 
 use App\Enums\ItemBrand;
 use App\Enums\ItemType;
+use App\Support\FillsProductionColumnDefaults;
+use App\Support\LikeSearch;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -16,7 +18,15 @@ use Illuminate\Support\Facades\DB;
 
 class Item extends Model
 {
-    use HasFactory, SoftDeletes;
+    use FillsProductionColumnDefaults, HasFactory, SoftDeletes;
+
+    const TYPE_ITEM = 1;
+
+    const TYPE_ASSET_LANCAR = 2;
+
+    const TYPE_ASSET_TETAP = 3;
+
+    const TYPE_SERVICE = 5;
 
     protected $fillable = [
         'group_id',
@@ -67,7 +77,7 @@ class Item extends Model
             'create' => 'items-create',
             'edit' => 'items-edit',
             'delete' => 'items-delete',
-            'contributor' => 'items-contributor',
+            'convert-legacy' => 'items-convert-legacy',
 
             // Asset Lancar
             'asset-lancar-view' => 'assetLancar-list',
@@ -95,12 +105,18 @@ class Item extends Model
     // Scopes
     public function scopeSearch(Builder $query, string $term): void
     {
-        $query->where(function ($q) use ($term) {
-            $q->where('name', 'like', "%{$term}%")
-                ->orWhere('code', 'like', "{$term}%")
-                ->orWhere('legacy_code', 'like', "{$term}%")
-                ->orWhere('pcode', 'like', "{$term}%")
-                ->orWhere('id', $term);
+        $contains = LikeSearch::contains($term);
+        $prefix = LikeSearch::prefix($term);
+
+        $query->where(function ($q) use ($term, $contains, $prefix) {
+            $q->where('name', 'like', $contains)
+                ->orWhere('code', 'like', $prefix)
+                ->orWhere('legacy_code', 'like', $prefix)
+                ->orWhere('pcode', 'like', $prefix);
+
+            if (ctype_digit(trim($term))) {
+                $q->orWhere('id', (int) trim($term));
+            }
         });
     }
 
@@ -132,7 +148,7 @@ class Item extends Model
             return config('core-nation.item_image_url').$folder.'/'.$filename;
         }
 
-        return asset('images/default-item.png');
+        return asset('images/default-item.svg');
     }
 
     public function getImagePathAttribute(): string
@@ -151,6 +167,34 @@ class Item extends Model
     public function getItemCodeAttribute(): string
     {
         return $this->getItemCode();
+    }
+
+    public function getItemName(): string
+    {
+        if ($this->type === ItemType::ASSET_LANCAR) {
+            return $this->name;
+        }
+
+        return $this->group?->alias ?? $this->name;
+    }
+
+    public function isAssetLancar(): bool
+    {
+        return $this->type === ItemType::ASSET_LANCAR;
+    }
+
+    public function showUrl(): string
+    {
+        return $this->isAssetLancar()
+            ? route('assetlancar.show', $this)
+            : route('items.show', $this);
+    }
+
+    public function editUrl(): string
+    {
+        return $this->isAssetLancar()
+            ? route('assetlancar.edit', $this)
+            : route('items.edit', $this);
     }
 
     /**

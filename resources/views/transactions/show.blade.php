@@ -1,12 +1,12 @@
 @extends('layouts.app')
 
-@section('title', 'Transaction #' . $transaction->invoice_number)
+@section('title', 'Transaction #' . $transaction->invoice)
 
 @section('content')
 @php
     $breadcrumbs = [
         ['title' => 'Transactions', 'href' => route('transactions.index')],
-        ['title' => 'Invoice #' . $transaction->invoice_number, 'href' => route('transactions.show', $transaction->id)],
+        ['title' => 'Invoice #' . $transaction->invoice, 'href' => route('transactions.show', $transaction->id)],
     ];
 
     $statuses = [
@@ -17,7 +17,10 @@
     $statusKey = $transaction->status instanceof \BackedEnum ? $transaction->status->value : $transaction->status;
     $status = $statuses[$statusKey] ?? ['label' => 'Unknown', 'color' => 'bg-gray-100 text-gray-800'];
 
-    $fmt = fn ($n) => number_format((float) $n, 0, ',', '.');
+    $fmt = fn ($n) => format_amount($n);
+    $grandTotalFormatted = $fmt(abs($transaction->real_total));
+    $grandTotalHeroClass = \App\Support\AmountFormatter::displayTextClass($grandTotalFormatted, 'hero');
+    $grandTotalCompactClass = \App\Support\AmountFormatter::displayTextClass($grandTotalFormatted, 'compact');
     $fmtDate = function ($d) {
         if (! $d) return '-';
         return \Illuminate\Support\Carbon::parse($d)->format('d/m/Y');
@@ -25,7 +28,7 @@
 @endphp
 
 <div class="flex h-full flex-1 flex-col gap-4 overflow-x-auto rounded-xl p-4"
-     x-data="{ showImage: true, showBarcode: true, showSku: false,
+     x-data="{ showImage: true, showBarcode: true, showSku: false, waOpen: false, deleteConfirmOpen: false,
         get nameColSpan() {
             const c = (this.showImage?1:0) + (this.showBarcode?1:0) + (this.showSku?1:0);
             return c === 3 ? 'sm:col-span-3' : c === 2 ? 'sm:col-span-4' : c === 1 ? 'sm:col-span-5' : 'sm:col-span-6';
@@ -42,66 +45,81 @@
                 <h1 class="text-2xl font-bold tracking-tight">Detail Transaction</h1>
                 <p class="flex items-center gap-2 text-sm text-gray-500">
                     <svg class="h-3.5 w-3.5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-                    Invoice #{{ $transaction->invoice_number }}
+                    Invoice #{{ $transaction->invoice }}
                 </p>
             </div>
         </div>
 
-        <div class="flex items-center gap-2">
-            <button type="button" onclick="window.print()"
-                    class="inline-flex items-center gap-2 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
-                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
-                Print
-            </button>
+        @include('transactions.partials.show-actions', [
+            'transaction' => $transaction,
+            'hasInvoicePdf' => $hasInvoicePdf,
+            'invoicePdfUrl' => $invoicePdfUrl,
+            'can' => $can,
+        ])
+    </div>
 
-            @if($can['delete_transaction'])
-            <div x-data="{ confirmOpen: false }">
-                <button type="button" @click="confirmOpen = true"
-                        class="inline-flex items-center gap-2 rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700">
-                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                    Hapus
-                </button>
-
-                {{-- Confirm dialog --}}
-                <div x-show="confirmOpen" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-                     @keydown.window.escape="confirmOpen = false">
-                    <div @click.away="confirmOpen = false" class="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
-                        <h3 class="text-lg font-semibold text-gray-900">Hapus Transaksi</h3>
-                        <p class="mt-2 text-sm text-gray-600">Apakah Anda yakin ingin menghapus transaksi ini? Transaksi akan dipindahkan ke daftar hapus dan dampak stok/saldo akan dibatalkan.</p>
-                        <div class="mt-6 flex justify-end gap-2">
-                            <button type="button" @click="confirmOpen = false"
-                                    class="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Batal</button>
-                            <form method="POST" action="{{ route('transactions.destroy', $transaction->id) }}">
-                                @csrf
-                                @method('DELETE')
-                                <button type="submit" class="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700">Hapus</button>
-                            </form>
-                        </div>
-                    </div>
-                </div>
+    {{-- Delete confirm dialog --}}
+    @if($can['delete_transaction'])
+    <div x-show="deleteConfirmOpen" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 print:hidden"
+         @keydown.window.escape="deleteConfirmOpen = false">
+        <div @click.away="deleteConfirmOpen = false" class="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
+            <h3 class="text-lg font-semibold text-gray-900">Hapus Transaksi</h3>
+            <p class="mt-2 text-sm text-gray-600">Apakah Anda yakin ingin menghapus transaksi ini? Transaksi akan dipindahkan ke daftar hapus dan dampak stok/saldo akan dibatalkan.</p>
+            <div class="mt-6 flex justify-end gap-2">
+                <button type="button" @click="deleteConfirmOpen = false"
+                        class="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Batal</button>
+                <form method="POST" action="{{ route('transactions.destroy', $transaction->id) }}">
+                    @csrf
+                    @method('DELETE')
+                    <button type="submit" class="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700">Hapus</button>
+                </form>
             </div>
-            @endif
+        </div>
+    </div>
+    @endif
+
+    {{-- WhatsApp dialog --}}
+    <div x-show="waOpen" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 print:hidden"
+         @keydown.window.escape="waOpen = false">
+        <div @click.away="waOpen = false" class="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
+            <h3 class="text-lg font-semibold text-gray-900">Kirim Invoice via WhatsApp</h3>
+            <p class="mt-2 text-sm text-gray-600">Masukkan nomor WhatsApp. Jika PDF belum ada, invoice akan dibuat otomatis lalu link dikirim (format angka saja, contoh: 62812244226656).</p>
+            <form method="POST" action="{{ route('transactions.whatsapp', $transaction->id) }}" class="mt-4 space-y-4">
+                @csrf
+                <div>
+                    <label for="wa-phone" class="mb-1 block text-sm font-medium text-gray-700">Nomor WhatsApp</label>
+                    <input type="text" id="wa-phone" name="phone" required inputmode="numeric" pattern="[0-9]{8,15}"
+                           placeholder="62812244226656"
+                           class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:ring-1 focus:ring-green-500">
+                </div>
+                <div class="flex justify-end gap-2">
+                    <button type="button" @click="waOpen = false"
+                            class="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Batal</button>
+                    <button type="submit"
+                            class="rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700">Kirim</button>
+                </div>
+            </form>
         </div>
     </div>
 
     {{-- Primary Info Cards --}}
-    <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
+    <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
         {{-- Summary Card --}}
         <div class="overflow-hidden rounded-xl border border-blue-100 bg-white shadow-sm">
-            <div class="h-2 w-full bg-blue-600"></div>
-            <div class="p-6 pb-2">
-                <div class="text-sm font-medium tracking-wider text-gray-500 uppercase">Grand Total</div>
-                <div class="mt-1 flex items-baseline gap-1">
-                    <span class="text-3xl font-black text-blue-600">IDR</span>
-                    <span class="text-4xl font-black tracking-tighter tabular-nums">{{ $fmt(abs($transaction->grand_total)) }}</span>
+            <div class="h-1.5 w-full bg-blue-600"></div>
+            <div class="px-4 pb-1 pt-4">
+                <div class="text-xs font-medium tracking-wider text-gray-500 uppercase">Grand Total</div>
+                <div class="mt-1 min-w-0">
+                    <div class="text-xs font-semibold text-blue-600">IDR</div>
+                    <div class="{{ $grandTotalHeroClass }} tabular-nums break-all text-blue-700">{{ $grandTotalFormatted }}</div>
                 </div>
             </div>
-            <div class="space-y-4 p-6 pt-4">
-                <div class="flex items-center justify-between rounded-lg border border-dashed bg-gray-50 p-3">
+            <div class="space-y-3 px-4 pb-4 pt-2">
+                <div class="flex items-center justify-between rounded-lg border border-dashed bg-gray-50 px-3 py-2">
                     <div class="text-sm font-medium">Status</div>
                     <span class="inline-flex items-center rounded-full px-3 py-0.5 text-xs font-semibold {{ $status['color'] }}">{{ $status['label'] }}</span>
                 </div>
-                <div class="space-y-2">
+                <div class="space-y-1.5">
                     <div class="flex justify-between text-sm">
                         <span class="flex items-center gap-1.5 text-gray-500">
                             <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg> Date
@@ -136,7 +154,7 @@
                         <span class="font-medium underline decoration-blue-500/30">{{ $transaction->user->name }}</span>
                     </div>
                     @endif
-                    @if($transaction->sync_cek)
+                    @if($transaction->sync_cek && ($can['jubelio_transaction_sync'] ?? false))
                     <div class="flex justify-between pt-2 text-sm">
                         <span class="flex items-center gap-1.5 font-bold text-blue-600">
                             <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg> Sinkron Jubelio
@@ -156,7 +174,6 @@
         @include('transactions.partials.show-party', [
             'party' => $transaction->sender,
             'label' => $config['sender_label'],
-            'sub' => 'Origin of these items',
             'direction' => 'From',
             'accent' => 'blue',
             'iconArrow' => false,
@@ -174,7 +191,6 @@
         @include('transactions.partials.show-party', [
             'party' => $transaction->receiver,
             'label' => $config['receiver_label'],
-            'sub' => 'Destination of these items',
             'direction' => 'To',
             'accent' => 'green',
             'iconArrow' => true,
@@ -188,6 +204,8 @@
             ],
         ])
     </div>
+
+    @include('transactions.partials.jubelio-sync', ['transaction' => $transaction, 'jubelioSync' => $jubelioSync ?? []])
 
     {{-- Items Section --}}
     <div class="rounded-xl bg-white shadow-md print:shadow-none">
@@ -244,6 +262,9 @@
                         </div>
                         <div class="flex flex-col">
                             <div class="font-bold text-gray-900">{{ $item?->name }}</div>
+                            @if($item?->code)
+                            <div class="font-mono text-[10px] text-gray-500">{{ $item?->code }}</div>
+                            @endif
                             <div class="flex flex-wrap gap-2 pt-1">
                                 <span class="font-mono text-[10px] font-medium text-blue-600" x-show="showBarcode">#{{ $item?->id }}</span>
                                 @if($item?->code)
@@ -275,7 +296,9 @@
                     {{-- Desktop: Name --}}
                     <div class="hidden sm:flex flex-col print:flex" :class="nameColSpan">
                         <span class="font-bold text-gray-900">{{ $item?->name }}</span>
-                        <span class="mt-0.5 line-clamp-1 text-[10px] leading-tight italic text-gray-500">{{ $detail->notes ?: $item?->description }}</span>
+                        @if($item?->code)
+                        <span class="mt-0.5 line-clamp-1 font-mono text-[10px] leading-tight text-gray-500">{{ $item?->code }}</span>
+                        @endif
                     </div>
 
                     <div class="flex items-center justify-between sm:col-span-1 sm:block sm:text-center print:block print:text-center">
@@ -291,7 +314,7 @@
                     <div class="flex items-center justify-between sm:col-span-1 sm:block sm:text-right print:block print:text-right">
                         <span class="text-[10px] font-bold text-gray-500 uppercase sm:hidden print:hidden">Disc</span>
                         @if($detail->discount > 0)
-                            <span class="inline-flex h-5 items-center rounded-md border border-dashed border-red-300 bg-red-50 px-1.5 text-[10px] font-bold text-red-600">-{{ $fmt($detail->discount) }}</span>
+                            <span class="inline-flex h-5 items-center rounded-md border border-dashed border-red-300 bg-red-50 px-1.5 text-[10px] font-bold text-red-600">-{{ number_format((float) $detail->discount, 2, ',', '.') }}%</span>
                         @else
                             <span class="text-gray-400">-</span>
                         @endif
@@ -341,7 +364,7 @@
                     <span class="font-bold">{{ $fmt($transaction->total) }}</span>
                 </div>
                 <div class="flex items-center justify-between text-sm">
-                    <span class="text-gray-500">Invoice Discount ({{ $transaction->discount_percent ?? 0 }}%)</span>
+                    <span class="text-gray-500">Invoice Discount ({{ $transaction->discount ?? 0 }}%)</span>
                     <span class="font-bold text-red-600">-{{ $fmt($transaction->discount) }}</span>
                 </div>
                 <hr class="border-dashed">
@@ -351,15 +374,15 @@
                 </div>
                 <div class="flex items-center justify-between text-sm">
                     <span class="text-gray-500">PPN / Tax</span>
-                    <span class="font-bold">{{ $fmt($transaction->tax_amount) }}</span>
+                    <span class="font-bold">{{ $fmt($transaction->ppn) }}</span>
                 </div>
                 <div class="pt-2">
-                    <div class="flex items-center justify-between rounded-lg bg-blue-600 p-4 text-white shadow-lg shadow-blue-500/20">
-                        <div class="flex flex-col">
+                    <div class="flex items-center justify-between gap-3 rounded-lg bg-blue-600 p-4 text-white shadow-lg shadow-blue-500/20">
+                        <div class="flex min-w-0 flex-shrink-0 flex-col">
                             <span class="text-[10px] font-black tracking-widest text-blue-100/70 uppercase">Grand Total</span>
                             <span class="text-xs font-medium italic text-blue-100">Net Amount Payable</span>
                         </div>
-                        <span class="text-2xl font-black">IDR {{ $fmt(abs($transaction->grand_total)) }}</span>
+                        <span class="min-w-0 break-all text-right tabular-nums {{ $grandTotalCompactClass }}">IDR {{ $grandTotalFormatted }}</span>
                     </div>
                 </div>
             </div>

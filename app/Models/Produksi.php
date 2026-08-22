@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\FillsProductionColumnDefaults;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -9,7 +10,9 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class Produksi extends Model
 {
     /** @use HasFactory<\Database\Factories\ProduksiFactory> */
-    use HasFactory, SoftDeletes;
+    use HasFactory, SoftDeletes, FillsProductionColumnDefaults;
+
+    protected $table = 'prod_produksi';
 
     const STATUS_PRODUKSI = 1;
 
@@ -29,6 +32,7 @@ class Produksi extends Model
             'potong_date' => 'date',
             'jahit_date' => 'datetime',
             'qc_date' => 'datetime',
+            'pritil_date' => 'datetime',
             'setor_date' => 'datetime',
             'gudang_date' => 'date',
             'status' => 'integer',
@@ -72,6 +76,35 @@ class Produksi extends Model
         return $this->belongsTo(Worker::class, 'qc_id');
     }
 
+    public function pritil()
+    {
+        return $this->belongsTo(Worker::class, 'pritil_id');
+    }
+
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
+
+    public function original()
+    {
+        return $this->belongsTo(self::class, 'original_id');
+    }
+
+    public function splits()
+    {
+        return $this->hasMany(self::class, 'original_id');
+    }
+
+    public function parentSerial(): ?string
+    {
+        if (! $this->original_id) {
+            return null;
+        }
+
+        return strtoupper(base_convert((string) $this->original_id, 10, 36));
+    }
+
     public static function getPermissions(): array
     {
         return [
@@ -82,6 +115,7 @@ class Produksi extends Model
             'setor' => 'production-setor',
             'setoran-view' => 'production-setoran-list',
             'gudang' => 'production-gudang',
+            'revert' => 'production-setoran-revert',
         ];
     }
 }

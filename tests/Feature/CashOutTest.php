@@ -16,7 +16,7 @@ test('cash out transaction can be stored', function () {
         'items' => [
             [
                 'customer_id' => $recipient->id,
-                'invoice_number' => 'CO-001',
+                'invoice' => 'CO-001',
                 'note' => 'Test payment',
                 'total' => 1000,
             ],
@@ -30,19 +30,28 @@ test('cash out transaction can be stored', function () {
         'type' => Transaction::TYPE_CASH_OUT,
         'sender_id' => $bank->id,    // Cashier/Bank is sender in Cash Out
         'receiver_id' => $recipient->id,
-        'grand_total' => -1000,
+        'real_total' => -1000,
     ]);
 
     // Check balance updates (AddrbookStat)
     // Both sides decrease balance in Cash Out
-    $this->assertDatabaseHas('addrbook_stats', [
-        'addrbook_id' => $bank->id,
+    $this->assertDatabaseHas('customerstat', [
+        'customer_id' => $bank->id,
         'balance' => -1000,
     ]);
 
-    $this->assertDatabaseHas('addrbook_stats', [
-        'addrbook_id' => $recipient->id,
+    $this->assertDatabaseHas('customerstat', [
+        'customer_id' => $recipient->id,
         'balance' => -1000,
+    ]);
+
+    $this->assertDatabaseHas('customer_class', [
+        'customer_id' => $bank->id,
+        'date' => now()->format('Y-m-d'),
+        'buy' => -1000,
+        'adjust' => 0,
+        'depreciation' => 0,
+        'class' => '',
     ]);
 });
 
@@ -69,8 +78,30 @@ test('multiple cash out rows create multiple transactions', function () {
 
     $this->assertEquals(2, Transaction::where('type', Transaction::TYPE_CASH_OUT)->count());
 
-    $this->assertDatabaseHas('addrbook_stats', [
-        'addrbook_id' => $bank->id,
+    $this->assertDatabaseHas('customerstat', [
+        'customer_id' => $bank->id,
         'balance' => -2000,
+    ]);
+});
+
+test('cash out accepts decimal totals', function () {
+    $user = User::factory()->create();
+    $bank = Addrbook::factory()->create(['type' => Addrbook::TYPE_BANK]);
+    $recipient = Addrbook::factory()->create(['type' => Addrbook::TYPE_CUSTOMER]);
+
+    $this->actingAs($user)->post(route('transactions.cash-out.store'), [
+        'date' => now()->format('Y-m-d'),
+        'account_id' => $bank->id,
+        'items' => [
+            [
+                'customer_id' => $recipient->id,
+                'total' => 99.75,
+            ],
+        ],
+    ])->assertRedirect();
+
+    $this->assertDatabaseHas('transactions', [
+        'type' => Transaction::TYPE_CASH_OUT,
+        'real_total' => -99.75,
     ]);
 });

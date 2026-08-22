@@ -22,8 +22,8 @@ return [
     'transfer' => [
         'id' => \App\Models\Transaction::TYPE_TRANSFER,
         'price_source' => 'price',
-        'sender_type' => [\App\Models\Addrbook::TYPE_BANK],
-        'receiver_type' => [\App\Models\Addrbook::TYPE_BANK],
+        'sender_type' => [\App\Models\Addrbook::TYPE_BANK, \App\Models\Addrbook::TYPE_V_ACCOUNT],
+        'receiver_type' => [\App\Models\Addrbook::TYPE_BANK, \App\Models\Addrbook::TYPE_V_ACCOUNT],
     ],
     'adjust' => [
         'id' => \App\Models\Transaction::TYPE_ADJUST,
@@ -45,7 +45,7 @@ return [
         'id' => \App\Models\Transaction::TYPE_RETURN_SUPPLIER,
         'price_source' => 'cost',
         'sender_type' => [\App\Models\Addrbook::TYPE_WAREHOUSE],
-        'receiver_type' => [\App\Models\Addrbook::TYPE_RESELLER],
+        'receiver_type' => [\App\Models\Addrbook::TYPE_SUPPLIER, \App\Models\Addrbook::TYPE_RESELLER],
     ],
     'cash-in' => [
         'id' => \App\Models\Transaction::TYPE_CASH_IN,

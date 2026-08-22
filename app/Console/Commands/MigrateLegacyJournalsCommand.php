@@ -21,7 +21,7 @@ class MigrateLegacyJournalsCommand extends Command
      *
      * @var string
      */
-    protected $description = 'Migrate legacy operations to the new operations table and update operation_ids in addrbooks.';
+    protected $description = 'Migrate legacy operations to the new operations table and update operation_ids in customers.';
 
     /**
      * Execute the console command.
@@ -49,13 +49,13 @@ class MigrateLegacyJournalsCommand extends Command
         }
         $this->info('Successfully migrated '.count($legacyOperations).' operations.');
 
-        // Update addrbooks' operation_id based on legacy customers type=8 parent_id
-        $this->info("Updating addrbooks' operation_id from legacy customers...");
+        // Update customers' operation_id based on legacy customers type=8 parent_id
+        $this->info("Updating customers' operation_id from legacy customers...");
         $legacyAccounts = $legacyDb->table('customers')->where('type', 8)->get();
 
         $updatedCount = 0;
         foreach ($legacyAccounts as $acc) {
-            // Find by ID in current DB addrbooks (including trashed ones)
+            // Find by ID in current DB customers (including trashed ones)
             $addrbook = Addrbook::withTrashed()->find($acc->id);
             $operationExists = DB::table('operations')->where('id', $acc->parent_id)->exists();
             $operationId = $operationExists ? $acc->parent_id : null;
@@ -80,7 +80,7 @@ class MigrateLegacyJournalsCommand extends Command
             }
         }
 
-        $this->info("Successfully updated/inserted {$updatedCount} addrbooks with operation IDs.");
+        $this->info("Successfully updated/inserted {$updatedCount} customers with operation IDs.");
 
         $this->info('Legacy migration completed successfully!');
     }

@@ -6,38 +6,33 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
-        Schema::create('addrbook_dailies', function (Blueprint $table) {
+        Schema::create('customer_class', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('addrbook_id');
-            $table->string('type')->nullable(); // Transaction type
+            $table->unsignedBigInteger('customer_id');
+            $table->integer('customer_type')->nullable();
             $table->date('date');
-            $table->decimal('cash_in', 15, 2)->default(0);
-            $table->decimal('cash_out', 15, 2)->default(0);
-            $table->decimal('sell', 15, 2)->default(0);
-            $table->decimal('buy', 15, 2)->default(0);
-            $table->decimal('return', 15, 2)->default(0);
-            $table->decimal('return_supplier', 15, 2)->default(0);
-            $table->decimal('use', 15, 2)->default(0);
-            $table->decimal('move', 15, 2)->default(0);
-            $table->decimal('transfer', 15, 2)->default(0);
-            $table->decimal('adjust', 15, 2)->default(0);
-            $table->decimal('depreciation', 15, 2)->default(0);
-            $table->timestamps();
+            $table->decimal('cash_in', 20, 2)->default(0);
+            $table->decimal('cash_out', 20, 2)->default(0);
+            $table->decimal('sell', 20, 2)->default(0);
+            $table->decimal('buy', 20, 2)->default(0);
+            $table->decimal('return', 20, 2)->default(0);
+            $table->decimal('return_supplier', 20, 2)->default(0);
+            $table->decimal('use', 20, 2)->default(0);
+            $table->decimal('move', 20, 2)->default(0);
+            $table->decimal('transfer', 20, 2)->default(0);
+            $table->decimal('adjust', 20, 2)->default(0);
+            $table->decimal('depreciation', 20, 2)->default(0);
+            $table->string('class')->default('');
 
-            $table->foreign('addrbook_id', 'addrbook_classes_addrbook_id_foreign')->references('id')->on('addrbooks')->onDelete('cascade');
+            $table->foreign('customer_id')->references('id')->on('customers')->cascadeOnDelete();
+            $table->unique(['customer_id', 'date']);
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
-        Schema::dropIfExists('addrbook_dailies');
+        Schema::dropIfExists('customer_class');
     }
 };

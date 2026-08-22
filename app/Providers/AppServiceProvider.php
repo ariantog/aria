@@ -3,8 +3,10 @@
 namespace App\Providers;
 
 use App\Models\Addrbook;
+use App\Models\User;
 use App\Models\Transaction;
 use App\Observers\TransactionObserver;
+use App\Support\PermissionTableConfig;
 use App\View\Composers\AppComposer;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Relations\Relation;
@@ -19,11 +21,13 @@ class AppServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        //
+        require_once app_path('Support/helpers.php');
     }
 
     public function boot(): void
     {
+        PermissionTableConfig::apply();
+
         $this->configureDefaults();
 
         Transaction::observe(TransactionObserver::class);
@@ -44,8 +48,7 @@ class AppServiceProvider extends ServiceProvider
         ]);
 
         Gate::before(function ($user, $ability) {
-            // User ID 1 is the one and only superadmin — bypass all authorization checks
-            if ($user->is_superadmin) {
+            if ($user instanceof User && User::isSuperadmin($user)) {
                 return true;
             }
 

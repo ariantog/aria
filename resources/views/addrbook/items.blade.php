@@ -6,7 +6,7 @@
 @php
 $baseUrl = '/' . $addrbook->type_slug . '/' . $addrbook->id . '/items';
 $breadcrumbs = [
-    ['title' => 'Address Book', 'href' => route('addrbook.index')],
+    ['title' => 'Address Book', 'href' => \App\Models\Addrbook::typeIndexRoute($addrbook->type_slug)],
     ['title' => $addrbook->name, 'href' => '/' . $addrbook->type_slug . '/' . $addrbook->id],
     ['title' => 'Items', 'href' => $baseUrl],
 ];
@@ -97,25 +97,31 @@ $idr = fn ($v) => 'IDR ' . number_format((float) $v, 0, ',', '.');
                         $onlineNm = $g->description2 ?? $g->description ?? $item->name;
                         $desc = $item->description ?: ($g->description ?? '-');
                         $qty = (float) ($item->pivot->quantity ?? 0);
+                        $itemShowUrl = $item->showUrl();
+                        $itemEditUrl = $item->editUrl();
                     @endphp
-                    <tr class="align-middle hover:bg-gray-50">
-                        <td class="px-2 py-2 font-mono text-gray-400">#{{ $item->id }}</td>
+                    <tr class="cursor-pointer align-middle hover:bg-gray-50" onclick="window.location='{{ $itemShowUrl }}'">
+                        <td class="px-2 py-2 font-mono">
+                            <a href="{{ $itemShowUrl }}" onclick="event.stopPropagation()" class="text-blue-600 hover:underline">#{{ $item->id }}</a>
+                        </td>
                         <td class="px-2 py-2" x-show="showImage">
                             <img src="{{ $item->image_url ?: '/images/default-item.png' }}" onerror="this.src='/images/default-item.png'" class="h-10 w-10 rounded-md border border-gray-200 object-cover">
                         </td>
                         <td class="px-2 py-2">
-                            <div class="truncate font-medium text-gray-800" title="{{ $onlineName ?? $normalName }}">
+                            <a href="{{ $itemShowUrl }}" onclick="event.stopPropagation()" class="block truncate font-medium text-gray-800 hover:text-blue-600" title="{{ $onlineName ?? $normalName }}">
                                 <span x-show="!onlineName">{{ $normalName }}</span>
                                 <span x-show="onlineName" x-cloak>{{ $onlineNm }}</span>
-                            </div>
+                            </a>
                             <div class="truncate font-mono text-[10px] text-gray-400">{{ $item->name }}</div>
                         </td>
-                        <td class="truncate px-2 py-2 font-mono text-blue-600" title="{{ $item->code }}">{{ $item->code }}</td>
+                        <td class="truncate px-2 py-2 font-mono">
+                            <a href="{{ $itemShowUrl }}" onclick="event.stopPropagation()" class="text-blue-600 hover:underline" title="{{ $item->code }}">{{ $item->code }}</a>
+                        </td>
                         <td class="truncate px-2 py-2 text-gray-500" title="{{ $desc }}">{{ $desc }}</td>
                         <td class="whitespace-nowrap px-2 py-2 text-right font-semibold text-gray-700">{{ $idr($item->price) }}</td>
                         <td class="whitespace-nowrap px-2 py-2 text-right font-mono font-bold {{ $qty > 0 ? 'text-emerald-600' : 'text-gray-400' }}">{{ number_format($qty, 0, ',', '.') }}</td>
                         <td class="px-2 py-2 text-center">
-                            <a href="/items/{{ $item->id }}/edit" class="inline-flex h-8 w-8 items-center justify-center rounded text-gray-500 hover:bg-blue-50 hover:text-blue-600">
+                            <a href="{{ $itemEditUrl }}" onclick="event.stopPropagation()" class="inline-flex h-8 w-8 items-center justify-center rounded text-gray-500 hover:bg-blue-50 hover:text-blue-600">
                                 <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                             </a>
                         </td>

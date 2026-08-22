@@ -21,12 +21,12 @@ beforeEach(function () {
 
     Transaction::factory()->create([
         'type'           => Transaction::TYPE_BUY,
-        'invoice_number' => 'INV-SMOKE-1',
+        'invoice' => 'INV-SMOKE-1',
         'sender_type'    => (string) Addrbook::TYPE_SUPPLIER,
         'sender_id'      => $supplier->id,
         'receiver_type'  => (string) Addrbook::TYPE_WAREHOUSE,
         'receiver_id'    => $warehouse->id,
-        'grand_total'    => 1_000_000,
+        'real_total'    => 1_000_000,
         'total_items'    => 5,
         'user_id'        => $this->user->id,
     ]);
@@ -48,16 +48,23 @@ it('renders the transactions index with its rows', function () {
         ->assertSee('Test Supplier', false);
 });
 
+it('renders the export sell page', function () {
+    $this->actingAs($this->user)
+        ->get(route('transactions.export-sell'))
+        ->assertOk()
+        ->assertSee('Export Sell', false);
+});
+
 it('sorts and filters the transactions index', function () {
     $this->actingAs($this->user)
-        ->get('/transactions?sort=grand_total&direction=asc&type='.Transaction::TYPE_BUY)
+        ->get('/transactions?sort=real_total&direction=asc&type='.Transaction::TYPE_BUY)
         ->assertOk()
         ->assertSee('INV-SMOKE-1', false);
 });
 
 it('applies a filter that excludes every row without erroring', function () {
     $this->actingAs($this->user)
-        ->get('/transactions?invoice_number=NOPE-DOES-NOT-EXIST')
+        ->get('/transactions?invoice=NOPE-DOES-NOT-EXIST')
         ->assertOk()
         ->assertDontSee('INV-SMOKE-1', false);
 });
@@ -66,8 +73,10 @@ it('renders the create form for each item transaction type', function (string $t
     $this->actingAs($this->user)
         ->get("/transactions/{$type}/create")
         ->assertOk()
-        ->assertSee('Line Items', false);
-})->with(['buy', 'sell', 'move']);
+        ->assertSee('Line Items', false)
+        ->assertSee('data-testid="barcode-scan-btn"', false)
+        ->assertSee('data-testid="barcode-scanner-modal"', false);
+})->with(['buy', 'sell', 'move', 'return', 'return-supplier']);
 
 it('renders the cash in page', function () {
     $this->actingAs($this->user)
@@ -138,14 +147,25 @@ it('renders migrated GET pages with a 200', function (string $route) {
     'report item-sales' => 'reports/item-sales',
     'report compare' => 'reports/compare',
     'report inventory-health' => 'reports/inventory-health',
-    'report stock-intelligence' => 'reports/stock-intelligence',
+    'report warehouse-arrangement' => 'reports/warehouse-arrangement',
+    'report product-performance' => 'reports/product-performance',
+    'report produksi potong' => 'reports/produksi-potong',
+    'report produksi qc' => 'reports/produksi-qc',
 
     // Admin / misc index pages
-    'addrbook' => 'addrbook',
+    'addrbook customer' => 'customer',
     'items' => 'items',
     'users' => 'users',
     'roles' => 'roles',
     'system-settings' => 'system-settings',
+    'cron manager' => 'cron-manager',
+    'invoice branding settings' => 'system-settings/invoice/branding',
+    'invoice maker index' => 'invoice-maker',
+    'invoice maker create' => 'invoice-maker/create',
+    'invoice maker settings' => 'invoice-maker/settings',
     'jubelio index' => 'jubelio',
+    'jubelio get orders' => 'jubelio-get-orders',
+    'jubelio cek order' => 'jubelio/order/cek',
+    'jubelio connection' => 'jubelio/token',
     'restock index' => 'restock',
 ]);

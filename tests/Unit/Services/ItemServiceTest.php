@@ -57,7 +57,7 @@ test('it creates manufactured item without product name using pcode placeholder'
 
     expect($this->itemService->create($input, $tags))->toBeTrue();
 
-    $this->assertDatabaseHas('item_groups', [
+    $this->assertDatabaseHas('item_group', [
         'name' => 'CX93249-03',
         'master' => 'CX93249',
         'variant' => '03',
@@ -92,7 +92,7 @@ test('it renames group product name and syncs all item display names', function 
 
     $this->itemService->renameGroupProductName($group, 'Slash Running Shirt');
 
-    $this->assertDatabaseHas('item_groups', ['id' => $group->id, 'name' => 'SLASH RUNNING SHIRT']);
+    $this->assertDatabaseHas('item_group', ['id' => $group->id, 'name' => 'SLASH RUNNING SHIRT']);
     $this->assertDatabaseHas('items', ['code' => 'AJD-CX90233-23-S', 'name' => 'SLASH RUNNING SHIRT - BLUE - S']);
     $this->assertDatabaseHas('items', ['code' => 'AJD-CX90233-23-M', 'name' => 'SLASH RUNNING SHIRT - BLUE - M']);
 });
@@ -151,7 +151,7 @@ test('it creates manufactured item with unified code and display name', function
 
     expect($this->itemService->create($input, $tags))->toBeTrue();
 
-    $this->assertDatabaseHas('item_groups', [
+    $this->assertDatabaseHas('item_group', [
         'name' => 'SLASH RUNNING SHIRT',
         'master' => 'CX90233',
         'variant' => '23',
@@ -321,11 +321,11 @@ test('it auto creates parent group when updating legacy asset lancar without gro
     $item->refresh();
 
     expect($item->group_id)->not->toBeNull();
-    $this->assertDatabaseHas('item_groups', [
+    $this->assertDatabaseHas('item_group', [
         'id' => $item->group_id,
         'master' => 'GLOVE-01',
         'variant' => 'BLUE',
-        'name' => 'BOXING GLOVES',
+        'name' => 'BOXING GLOVES - BLUE',
     ]);
     expect($item->code)->toBe('GLOVE-01-BLUE-S')
         ->and($item->price)->toBe('550000.00');

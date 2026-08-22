@@ -8,7 +8,7 @@ class AddrbookType extends Model
 {
     protected $guarded = ['id'];
 
-    public function addrbooks()
+    public function customers()
     {
         return $this->hasMany(Addrbook::class);
     }

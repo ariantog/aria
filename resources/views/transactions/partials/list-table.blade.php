@@ -42,24 +42,24 @@
                         @if($sortLink)<a href="{{ $sortLink('date') }}" class="inline-flex items-center gap-1 hover:text-gray-900">Date @if($sort==='date')<span class="text-blue-600">{{ $direction==='asc'?'↑':'↓' }}</span>@endif</a>@else Date @endif
                     </th>
                     <th class="px-3 py-2.5 text-left font-medium">
-                        @if($sortLink)<a href="{{ $sortLink('invoice_number') }}" class="inline-flex items-center gap-1 hover:text-gray-900">Invoice @if($sort==='invoice_number')<span class="text-blue-600">{{ $direction==='asc'?'↑':'↓' }}</span>@endif</a>@else Invoice @endif
+                        @if($sortLink)<a href="{{ $sortLink('invoice') }}" class="inline-flex items-center gap-1 hover:text-gray-900">Invoice @if($sort==='invoice')<span class="text-blue-600">{{ $direction==='asc'?'↑':'↓' }}</span>@endif</a>@else Invoice @endif
                     </th>
+                    <th class="px-3 py-2.5 text-right font-medium">
+                        @if($sortLink)<a href="{{ $sortLink('real_total') }}" class="inline-flex items-center gap-1 hover:text-gray-900">Grand Total @if($sort==='real_total')<span class="text-blue-600">{{ $direction==='asc'?'↑':'↓' }}</span>@endif</a>@else Grand Total @endif
+                    </th>
+                    <th class="hidden px-3 py-2.5 text-right font-medium xl:table-cell">Items</th>
                     <th class="px-3 py-2.5 text-left font-medium">
                         @if($sortLink)<a href="{{ $sortLink('type') }}" class="inline-flex items-center gap-1 hover:text-gray-900">Type @if($sort==='type')<span class="text-blue-600">{{ $direction==='asc'?'↑':'↓' }}</span>@endif</a>@else Type @endif
                     </th>
                     <th class="hidden px-3 py-2.5 text-left font-medium lg:table-cell">Sender</th>
                     <th class="hidden px-3 py-2.5 text-left font-medium lg:table-cell">Receiver</th>
-                    <th class="hidden px-3 py-2.5 text-right font-medium xl:table-cell">Items</th>
-                    <th class="px-3 py-2.5 text-right font-medium">
-                        @if($sortLink)<a href="{{ $sortLink('grand_total') }}" class="inline-flex items-center gap-1 hover:text-gray-900">Grand Total @if($sort==='grand_total')<span class="text-blue-600">{{ $direction==='asc'?'↑':'↓' }}</span>@endif</a>@else Grand Total @endif
-                    </th>
                     <th class="w-12 px-3 py-2.5 text-center font-medium"></th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-gray-100">
                 @forelse($rows as $tx)
                     @php
-                        $typeValue = $tx->type instanceof \App\Enums\TransactionType ? $tx->type->value : (int) $tx->type;
+                        $typeValue = (int) $tx->type;
                         [$label, $badgeCls, $dotCls] = $typeMap[$typeValue] ?? ['Unknown', 'text-gray-700 bg-gray-50', 'bg-gray-400'];
                     @endphp
                     <tr class="hover:bg-gray-50">
@@ -67,8 +67,14 @@
                             {{ $tx->date ? \Carbon\Carbon::parse($tx->date)->format('d/m/y') : '-' }}
                         </td>
                         <td class="px-3 py-2.5">
-                            <a href="{{ route('transactions.show', $tx->id) }}" class="font-mono text-xs text-blue-600 hover:underline">{{ $tx->invoice_number ?: '—' }}</a>
+                            <a href="{{ route('transactions.show', $tx->id) }}" class="font-mono text-xs text-blue-600 hover:underline">{{ $tx->invoice ?: '—' }}</a>
                             <div class="mt-0.5 text-xs text-gray-400 lg:hidden">{{ $tx->sender->name ?? '—' }} → {{ $tx->receiver->name ?? '—' }}</div>
+                        </td>
+                        <td class="whitespace-nowrap px-3 py-2.5 text-right font-semibold tabular-nums text-gray-900">
+                            {{ format_amount($tx->real_total) }}
+                        </td>
+                        <td class="hidden whitespace-nowrap px-3 py-2.5 text-right tabular-nums text-gray-500 xl:table-cell">
+                            {{ format_amount($tx->total_items) }}
                         </td>
                         <td class="whitespace-nowrap px-3 py-2.5">
                             <span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium {{ $badgeCls }}">
@@ -79,7 +85,7 @@
                             @if($tx->sender)
                                 <a href="{{ url('/'.$tx->sender->type_slug.'/'.$tx->sender->id) }}" class="block truncate hover:underline {{ $highlightId && $tx->sender->id === $highlightId ? 'font-bold text-blue-700' : 'text-blue-600' }}">{{ $tx->sender->name }}</a>
                                 @unless($hideBank && $tx->sender->type_slug === 'bank')
-                                    <span class="text-xs tabular-nums {{ (float) $tx->sender_balance < 0 ? 'text-rose-500' : 'text-gray-400' }}">{{ number_format($tx->sender_balance, 0, ',', '.') }}</span>
+                                    <span class="text-xs tabular-nums {{ (float) $tx->sender_balance < 0 ? 'text-rose-500' : 'text-gray-400' }}">{{ format_amount($tx->sender_balance) }}</span>
                                 @endunless
                             @else
                                 <span class="text-gray-400">—</span>
@@ -89,17 +95,11 @@
                             @if($tx->receiver)
                                 <a href="{{ url('/'.$tx->receiver->type_slug.'/'.$tx->receiver->id) }}" class="block truncate hover:underline {{ $highlightId && $tx->receiver->id === $highlightId ? 'font-bold text-blue-700' : 'text-blue-600' }}">{{ $tx->receiver->name }}</a>
                                 @unless($hideBank && $tx->receiver->type_slug === 'bank')
-                                    <span class="text-xs tabular-nums {{ (float) $tx->receiver_balance < 0 ? 'text-rose-500' : 'text-gray-400' }}">{{ number_format($tx->receiver_balance, 0, ',', '.') }}</span>
+                                    <span class="text-xs tabular-nums {{ (float) $tx->receiver_balance < 0 ? 'text-rose-500' : 'text-gray-400' }}">{{ format_amount($tx->receiver_balance) }}</span>
                                 @endunless
                             @else
                                 <span class="text-gray-400">—</span>
                             @endif
-                        </td>
-                        <td class="hidden whitespace-nowrap px-3 py-2.5 text-right tabular-nums text-gray-500 xl:table-cell">
-                            {{ number_format($tx->total_items, 0, ',', '.') }}
-                        </td>
-                        <td class="whitespace-nowrap px-3 py-2.5 text-right font-semibold tabular-nums text-gray-900">
-                            {{ number_format($tx->grand_total, 0, ',', '.') }}
                         </td>
                         <td class="px-3 py-2.5 text-center">
                             <div class="relative inline-block" x-data="{ open: false }">

@@ -8,7 +8,7 @@ use Spatie\Permission\Models\Permission;
 test('cash flow report can be viewed', function () {
     // 1. Setup
     $user = User::factory()->create([
-        'is_active' => true,
+        'active' => true,
         'email_verified_at' => now(),
     ]);
 

@@ -36,7 +36,7 @@ class RecalculateInventoryOnly extends Command
             DB::transaction(function () {
                 // 1. Reset
                 $this->info('Resetting current stock data...');
-                DB::table('warehouse_items')->delete();
+                DB::table('warehouse_item')->delete();
                 DB::table('items')->update(['qty' => 0]);
 
                 // 2. Global Stock (items.qty)
@@ -60,13 +60,13 @@ class RecalculateInventoryOnly extends Command
                     )
                 ');
 
-                // 3. Warehouse Stock (warehouse_items)
+                // 3. Warehouse Stock (warehouse_item)
                 $this->info('Recalculating Warehouse Stock...');
 
                 // Process Inbound (+)
                 $this->info(' - Processing Inbound items...');
                 DB::statement('
-                    INSERT INTO warehouse_items (warehouse_id, item_id, quantity, created_at, updated_at)
+                    INSERT INTO warehouse_item (warehouse_id, item_id, quantity, created_at, updated_at)
                     SELECT t.receiver_id, td.item_id, SUM(td.quantity), NOW(), NOW()
                     FROM transaction_details td
                     JOIN transactions t ON td.transaction_id = t.id
@@ -78,7 +78,7 @@ class RecalculateInventoryOnly extends Command
                 // Process Outbound (-)
                 $this->info(' - Processing Outbound items...');
                 DB::statement('
-                    INSERT INTO warehouse_items (warehouse_id, item_id, quantity, created_at, updated_at)
+                    INSERT INTO warehouse_item (warehouse_id, item_id, quantity, created_at, updated_at)
                     SELECT t.sender_id, td.item_id, SUM(-td.quantity), NOW(), NOW()
                     FROM transaction_details td
                     JOIN transactions t ON td.transaction_id = t.id

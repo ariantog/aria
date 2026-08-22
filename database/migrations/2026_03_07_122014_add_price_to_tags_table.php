@@ -11,8 +11,12 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (Schema::hasColumn('tags', 'price')) {
+            return;
+        }
+
         Schema::table('tags', function (Blueprint $table) {
-            $table->decimal('price', 10, 2)->default(0)->after('type');
+            $table->integer('price')->default(0)->after('type');
         });
     }
 

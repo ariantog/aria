@@ -2,22 +2,25 @@
 
 namespace App\Models;
 
+use App\Support\FillsProductionColumnDefaults;
 use Illuminate\Database\Eloquent\Model;
 
 class DeletedTransaction extends Model
 {
+    use FillsProductionColumnDefaults;
+    protected $table = 'deleted';
+
     public $incrementing = false;
 
     protected $guarded = [];
 
     protected $casts = [
         'date' => 'date',
-        'due_date' => 'date',
+        'due' => 'date',
         'total' => 'decimal:2',
         'discount' => 'decimal:2',
-        'discount_percent' => 'decimal:2',
-        'tax_amount' => 'decimal:2',
-        'grand_total' => 'decimal:2',
+        'ppn' => 'decimal:2',
+        'real_total' => 'decimal:2',
         'total_items' => 'decimal:2',
         'deleted_at' => 'datetime',
     ];

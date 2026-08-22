@@ -19,7 +19,7 @@ class UpdateScheduledTaskRequest extends FormRequest
         return [
             'name' => 'required|string|max:255',
             'frequency' => 'required|string|max:255',
-            'is_active' => 'required|boolean',
+            'active' => 'required|boolean',
             'description' => 'nullable|string',
         ];
     }

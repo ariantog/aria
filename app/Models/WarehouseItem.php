@@ -10,6 +10,8 @@ class WarehouseItem extends Model
 {
     use HasFactory;
 
+    protected $table = 'warehouse_item';
+
     protected $fillable = [
         'item_id',
         'warehouse_id',
@@ -26,8 +28,8 @@ class WarehouseItem extends Model
         return $this->belongsTo(Item::class);
     }
 
-    public function warehouse()
+    public function warehouse(): BelongsTo
     {
-        return $this->morphTo();
+        return $this->belongsTo(Addrbook::class, 'warehouse_id')->withTrashed();
     }
 }

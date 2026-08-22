@@ -9,7 +9,7 @@ $breadcrumbs = [
     ['title' => 'Account List', 'href' => route('account-list.index')],
     ['title' => 'Ledger: ' . $account->name, 'href' => route('account-list.ledger', $account->id)],
 ];
-$fmt = fn($v) => 'Rp ' . number_format((float)($v ?? 0), 0, ',', '.');
+$fmt = fn($v) => format_currency($v ?? 0);
 @endphp
 
 <div class="flex flex-col gap-4 overflow-x-auto p-4">
@@ -63,7 +63,7 @@ $fmt = fn($v) => 'Rp ' . number_format((float)($v ?? 0), 0, ',', '.');
                     <tr class="hover:bg-gray-50/50">
                         <td class="whitespace-nowrap px-6 py-4 text-sm text-gray-900">{{ \Carbon\Carbon::parse($trx->date)->format('d/m/Y') }}</td>
                         <td class="px-6 py-4 text-sm text-gray-900">
-                            <div class="font-semibold">{{ $trx->invoice_number ?: 'N/A' }}</div>
+                            <div class="font-semibold">{{ $trx->invoice ?: 'N/A' }}</div>
                             <div class="text-xs text-gray-500">{{ $trx->reference_number }}</div>
                         </td>
                         <td class="whitespace-nowrap px-6 py-4 text-right text-sm font-medium text-green-600">{{ $debit > 0 ? $fmt($debit) : '-' }}</td>

@@ -40,11 +40,11 @@
         body { font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
         [x-cloak] { display: none !important; }
 
-        /* Sidebar transition */
-        #sidebar { transition: width 0.2s ease, transform 0.2s ease; }
-        /* Only animate the sidebar-driven margin AFTER first paint, so navigating to a
-           new page doesn't visibly slide the content in. */
-        #main-content.anim-ready { transition: margin-left 0.2s ease; }
+        /* Sidebar transition (desktop only — mobile closes instantly on navigation) */
+        @media (min-width: 1024px) {
+            #sidebar { transition: width 0.2s ease, transform 0.2s ease; }
+            #main-content.anim-ready { transition: margin-left 0.2s ease; }
+        }
 
         /* Autocomplete dropdown */
         .combobox-options {
@@ -131,7 +131,8 @@
         </div>
 
         {{-- Nav --}}
-        <nav class="flex-1 overflow-y-auto overflow-x-hidden py-2 px-2">
+        <nav class="flex-1 overflow-y-auto overflow-x-hidden py-2 px-2"
+             @click="if (isMobile && $event.target.closest('a[href]')) sidebarOpen = false">
             @include('partials.sidebar-nav')
         </nav>
 
@@ -224,11 +225,17 @@
 <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 
 <script>
+function formatAmountId(value) {
+    return Number(value || 0).toLocaleString('id-ID', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+}
+
 function appShell() {
     return {
         sidebarOpen: localStorage.getItem('sidebarOpen') !== 'false',
         isMobile: window.innerWidth < 1024,
         init() {
+            this.isMobile = window.innerWidth < 1024;
+            if (this.isMobile) this.sidebarOpen = false;
             window.addEventListener('resize', () => {
                 this.isMobile = window.innerWidth < 1024;
                 if (this.isMobile) this.sidebarOpen = false;
@@ -239,6 +246,154 @@ function appShell() {
     };
 }
 
+// ─── Combobox keyboard helpers (mobile + external keyboard friendly) ───────
+function isMobileComboboxContext() {
+    if (window._isMobileCombobox != null) return window._isMobileCombobox;
+    const coarse = window.matchMedia('(pointer: coarse)').matches;
+    const ua = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+    window._isMobileCombobox = coarse || ua;
+    return window._isMobileCombobox;
+}
+
+// Resolve a navigation key across engines. Android/IME keyboards frequently send
+// key "Unidentified" with keyCode 229, so `code` and the legacy keyCode are both
+// consulted before falling back to `key`.
+function normalizeNavigationKey(e) {
+    const codeMap = { NumpadEnter: 'Enter' };
+    if (e.code) {
+        if (e.code.startsWith('Arrow') || ['Enter', 'NumpadEnter', 'Escape', 'Tab', 'Backspace', 'Delete'].includes(e.code)) {
+            return codeMap[e.code] || e.code;
+        }
+    }
+
+    const legacy = { 13: 'Enter', 27: 'Escape', 9: 'Tab', 38: 'ArrowUp', 40: 'ArrowDown', 37: 'ArrowLeft', 39: 'ArrowRight', 8: 'Backspace', 46: 'Delete' };
+    const kc = e.keyCode || e.which;
+    if (kc && legacy[kc]) return legacy[kc];
+
+    const key = e.key;
+    // 229 is the IME "processing" placeholder; there is no usable key here.
+    if (!key || key === 'Unidentified' || key === 'Process') return '';
+    const short = { Down: 'ArrowDown', Up: 'ArrowUp', Esc: 'Escape', Left: 'ArrowLeft', Right: 'ArrowRight' };
+    return short[key] || key;
+}
+
+function isPrintableComboboxKey(key, e) {
+    return key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey;
+}
+
+// Swallow Enter/Tab field navigation briefly after programmatic focus (Android IME).
+function suppressFieldNavigation(ms = 400) {
+    window._suppressFieldNavUntil = Date.now() + ms;
+}
+
+function isFieldNavigationSuppressed() {
+    return Date.now() < (window._suppressFieldNavUntil || 0);
+}
+
+// ─── Autocomplete defaults (addrbook + item comboboxes) ─────────────────────
+const COMBOBOX_MIN_CHARS = 3;
+const COMBOBOX_MAX_RESULTS = 8;
+
+function comboboxSearchable(q) {
+    return String(q || '').trim().length >= COMBOBOX_MIN_CHARS;
+}
+
+// ─── Submit guard (prevents double-click / double-submit) ───────────────────
+function submitGuardFields() {
+    return {
+        submitting: false,
+        _submitLocked: false,
+        _submitIdempotencyKey: null,
+    };
+}
+
+function beginSubmit(ctx) {
+    if (ctx._submitLocked) {
+        return false;
+    }
+    ctx._submitLocked = true;
+    ctx.submitting = true;
+    ctx._submitIdempotencyKey = (typeof crypto !== 'undefined' && crypto.randomUUID)
+        ? crypto.randomUUID()
+        : (Date.now().toString(36) + Math.random().toString(36).slice(2));
+    return true;
+}
+
+function endSubmit(ctx) {
+    ctx._submitLocked = false;
+    ctx.submitting = false;
+    ctx._submitIdempotencyKey = null;
+}
+
+function idempotencyHeaders(ctx) {
+    if (!ctx._submitIdempotencyKey) {
+        return {};
+    }
+    return { 'X-Idempotency-Key': ctx._submitIdempotencyKey };
+}
+
+function formSubmitGuard() {
+    return {
+        ...submitGuardFields(),
+        guardFormSubmit(event) {
+            if (!beginSubmit(this)) {
+                event.preventDefault();
+                return;
+            }
+            const form = event.target;
+            if (form instanceof HTMLFormElement) {
+                let input = form.querySelector('input[name="_idempotency_key"]');
+                if (!input) {
+                    input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = '_idempotency_key';
+                    form.appendChild(input);
+                }
+                input.value = this._submitIdempotencyKey;
+                window.markFormSubmitInFlight?.(form);
+            }
+        },
+    };
+}
+
+(function () {
+    const inFlightForms = new WeakSet();
+
+    window.markFormSubmitInFlight = function (form) {
+        if (!(form instanceof HTMLFormElement)) {
+            return;
+        }
+        inFlightForms.add(form);
+        form.querySelectorAll('button[type="submit"], input[type="submit"]').forEach((btn) => {
+            btn.disabled = true;
+        });
+    };
+
+    window.releaseFormSubmitGuard = function (form) {
+        if (!(form instanceof HTMLFormElement)) {
+            return;
+        }
+        inFlightForms.delete(form);
+        form.querySelectorAll('button[type="submit"], input[type="submit"]').forEach((btn) => {
+            btn.disabled = false;
+        });
+    };
+
+    document.addEventListener('submit', function (event) {
+        const form = event.target;
+        if (!(form instanceof HTMLFormElement)) {
+            return;
+        }
+        if (form.hasAttribute('data-skip-submit-guard')) {
+            return;
+        }
+        if (inFlightForms.has(form)) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+        }
+    }, true);
+})();
+
 // ─── Reusable Alpine async-combobox component ─────────────────────────────
 function asyncCombobox(config) {
     return {
@@ -248,6 +403,8 @@ function asyncCombobox(config) {
         open: false,
         selected: config.initial || null,
         activeIndex: -1,
+        _keydownHandled: false,
+        _outsideClick: null,
         debounceTimer: null,
         endpoint: config.endpoint,
         queryParam: config.queryParam || 'search',
@@ -256,18 +413,75 @@ function asyncCombobox(config) {
         hiddenField: config.hiddenField || null,
         onSelect: config.onSelect || null,
         excludedIds: config.excludedIds || [],
+        minChars: config.minChars ?? COMBOBOX_MIN_CHARS,
+        maxResults: config.maxResults ?? COMBOBOX_MAX_RESULTS,
 
         init() {
-            // Pre-load options
-            this.doSearch('');
+            if (this.selected) {
+                this.query = this.selected.name || '';
+                if (this.onSelect) {
+                    this.onSelect(this.selected);
+                }
+            }
+
+            this.$watch('open', (isOpen) => {
+                if (isOpen) {
+                    // Defer so the click that opened the panel does not count as "outside".
+                    setTimeout(() => {
+                        if (!this.open) return;
+                        this._attachOutsideClick();
+                    }, 0);
+                } else {
+                    this._detachOutsideClick();
+                }
+            });
+        },
+
+        destroy() {
+            this._detachOutsideClick();
+        },
+
+        _attachOutsideClick() {
+            if (this._outsideClick) return;
+            this._outsideClick = (e) => {
+                if (!this.$el.contains(e.target)) {
+                    this.open = false;
+                }
+            };
+            document.addEventListener('click', this._outsideClick, true);
+        },
+
+        _detachOutsideClick() {
+            if (!this._outsideClick) return;
+            document.removeEventListener('click', this._outsideClick, true);
+            this._outsideClick = null;
+        },
+
+        needsMoreChars() {
+            return String(this.query || '').trim().length < this.minChars;
+        },
+
+        emptyMessage() {
+            if (this.needsMoreChars()) {
+                return `Type at least ${this.minChars} characters to search.`;
+            }
+            if (this.loading) return 'Searching…';
+            return 'Nothing found.';
         },
 
         doSearch(q) {
             clearTimeout(this.debounceTimer);
+            const term = String(q || '').trim();
+            if (term.length < this.minChars) {
+                this.items = [];
+                this.loading = false;
+                this.activeIndex = -1;
+                return;
+            }
             this.loading = true;
             this.debounceTimer = setTimeout(async () => {
                 try {
-                    const params = new URLSearchParams({ [this.queryParam]: q, json: true, ...this.additionalParams });
+                    const params = new URLSearchParams({ [this.queryParam]: term, json: true, ...this.additionalParams });
                     const sep = this.endpoint.includes('?') ? '&' : '?';
                     const res = await fetch(`${this.endpoint}${sep}${params}`, {
                         headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
@@ -275,7 +489,7 @@ function asyncCombobox(config) {
                     const data = await res.json();
                     let all = Array.isArray(data) ? data : (data.data || []);
                     if (this.excludedIds.length) all = all.filter(i => !this.excludedIds.includes(String(i.id)));
-                    this.items = all;
+                    this.items = all.slice(0, this.maxResults);
                     this.activeIndex = -1;
                 } catch(e) { this.items = []; }
                 finally { this.loading = false; }
@@ -292,12 +506,13 @@ function asyncCombobox(config) {
                 if (el) el.value = item ? item.id : '';
             }
             if (this.onSelect) this.onSelect(item);
+            if (item) suppressFieldNavigation(400);
         },
 
         clearSelection() {
             this.selectItem(null);
             this.query = '';
-            this.doSearch('');
+            this.items = [];
         },
 
         handleInput() {
@@ -306,53 +521,107 @@ function asyncCombobox(config) {
         },
 
         handleFocus() {
+            if (this.needsMoreChars() && this.items.length === 0) {
+                return;
+            }
             this.open = true;
-            if (this.items.length === 0) this.doSearch(this.query);
+            if (this.items.length === 0 && comboboxSearchable(this.query)) {
+                this.doSearch(this.query);
+            }
+        },
+
+        keyboardNavLock() {
+            return isMobileComboboxContext() && this.open && this.items.length > 0;
         },
 
         handleKeydown(e) {
-            // Normalise key across browsers (older engines report "Down"/"Up"/"Esc").
-            const key = ({ Down: 'ArrowDown', Up: 'ArrowUp', Esc: 'Escape' })[e.key] || e.key;
+            this._keydownHandled = false;
+            if (this._processKey(e)) {
+                this._keydownHandled = true;
+                e.preventDefault();
+            }
+        },
+
+        // Fallback for keyboards whose keydown carries no usable key (Android/IME).
+        handleKeyup(e) {
+            if (this._keydownHandled) {
+                this._keydownHandled = false;
+                return;
+            }
+            const key = normalizeNavigationKey(e);
+            if (['ArrowDown', 'ArrowUp', 'Enter'].includes(key) && this._processKey(e)) {
+                e.preventDefault();
+            }
+        },
+
+        _processKey(e) {
+            const key = normalizeNavigationKey(e);
+            if (!key) return false;
             const len = this.items.length;
 
+            if (this.keyboardNavLock()) {
+                if (key === 'Backspace') {
+                    this.query = this.query.slice(0, -1);
+                    this.handleInput();
+                    return true;
+                }
+                if (key === 'Delete') {
+                    this.query = '';
+                    this.handleInput();
+                    return true;
+                }
+                if (isPrintableComboboxKey(key, e)) {
+                    this.query += key;
+                    this.activeIndex = -1;
+                    this.handleInput();
+                    return true;
+                }
+            }
+
             if (key === 'ArrowDown') {
-                e.preventDefault();
                 if (!this.open) {
                     this.open = true;
-                    if (len === 0) { this.doSearch(this.query); return; }
+                    if (len === 0 && comboboxSearchable(this.query)) { this.doSearch(this.query); return true; }
                 }
-                if (len === 0) return;
+                if (len === 0) return true;
                 this.activeIndex = this.activeIndex < len - 1 ? this.activeIndex + 1 : 0;
                 this.scrollActive();
-            } else if (key === 'ArrowUp') {
-                e.preventDefault();
+                return true;
+            }
+            if (key === 'ArrowUp') {
                 if (!this.open) {
                     this.open = true;
-                    if (len === 0) { this.doSearch(this.query); return; }
+                    if (len === 0 && comboboxSearchable(this.query)) { this.doSearch(this.query); return true; }
                 }
-                if (len === 0) return;
+                if (len === 0) return true;
                 this.activeIndex = this.activeIndex > 0 ? this.activeIndex - 1 : len - 1;
                 this.scrollActive();
-            } else if (key === 'Enter') {
-                // Always swallow Enter while focused so it never submits the surrounding form.
-                e.preventDefault();
+                return true;
+            }
+            if (key === 'Enter') {
                 if (!this.open) {
                     this.open = true;
-                    if (len === 0) this.doSearch(this.query);
-                    return;
+                    if (len === 0 && comboboxSearchable(this.query)) this.doSearch(this.query);
+                    return true;
                 }
                 if (this.activeIndex >= 0 && this.items[this.activeIndex]) {
                     this.selectItem(this.items[this.activeIndex]);
                 }
-            } else if (key === 'Escape') {
+                return true;
+            }
+            if (key === 'Escape') {
                 this.open = false;
                 this.activeIndex = -1;
-            } else if (key === 'Tab') {
+                return true;
+            }
+            if (key === 'Tab') {
                 if (this.open && this.activeIndex >= 0 && this.items[this.activeIndex]) {
                     this.selectItem(this.items[this.activeIndex]);
                 }
                 this.open = false;
+                return false;
             }
+            return false;
         },
 
         scrollActive() {

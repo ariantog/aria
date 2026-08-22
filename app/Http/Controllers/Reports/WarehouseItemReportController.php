@@ -15,8 +15,8 @@ class WarehouseItemReportController extends Controller
     {
         Gate::authorize(Report::getPermissions()['view-warehouse-item']);
 
-        // 1. AGGREGATE warehouse_items
-        $wi = DB::table('warehouse_items')
+        // 1. AGGREGATE warehouse_item
+        $wi = DB::table('warehouse_item')
             ->select(
                 'warehouse_id',
                 'item_id',
@@ -25,7 +25,7 @@ class WarehouseItemReportController extends Controller
             ->groupBy('warehouse_id', 'item_id');
 
         // 2. SUMMARY per warehouse
-        $data = DB::table('addrbooks as c')
+        $data = DB::table('customers as c')
             ->leftJoinSub($wi, 'wi', function ($join) {
                 $join->on('wi.warehouse_id', '=', 'c.id');
             })

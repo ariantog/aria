@@ -43,7 +43,7 @@ $breadcrumbs = [
                             <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100">
                                 <svg class="h-4 w-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-1.13a4 4 0 100-8 4 4 0 000 8z"/></svg>
                             </div>
-                            <span class="font-bold text-gray-900">{{ $worker->name }}</span>
+                            <a href="{{ route('produksi.'.$type.'.show', $worker->id) }}" class="font-bold text-blue-600 hover:underline">{{ $worker->name }}</a>
                         </div>
                     </td>
                     <td class="px-4 py-3 text-gray-500">{{ $worker->created_at?->format('d/m/Y') }}</td>
@@ -70,7 +70,7 @@ $breadcrumbs = [
                 @endforelse
             </tbody>
         </table>
-        @include('partials.pagination', ['paginator' => $workers, 'label' => 'workers'])
+        @include('partials.pagination', ['paginator' => $workers, 'label' => 'prod_worker'])
     </div>
 
     {{-- Modal --}}

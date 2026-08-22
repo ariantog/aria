@@ -12,8 +12,12 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('items', function (Blueprint $table) {
-            $table->integer('size')->default(0)->after('type');
-            $table->integer('genre')->default(0)->after('size');
+            if (! Schema::hasColumn('items', 'size')) {
+                $table->integer('size')->default(0)->after('type');
+            }
+            if (! Schema::hasColumn('items', 'genre')) {
+                $table->integer('genre')->default(0)->after('size');
+            }
         });
     }
 

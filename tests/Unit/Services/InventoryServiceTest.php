@@ -11,7 +11,7 @@ beforeEach(function () {
     $this->inventoryService = new InventoryService;
     $this->item = Item::factory()->create(['type' => ItemType::ITEM]);
 
-    // InventoryService operates on the addrbooks table (warehouses are addrbooks).
+    // InventoryService operates on the customers table (warehouses are customers).
     $this->addrbook = Addrbook::factory()->create(['type' => Addrbook::TYPE_WAREHOUSE]);
 });
 
@@ -19,7 +19,7 @@ test('it adds stock to addrbook', function () {
     $wi = $this->inventoryService->add($this->addrbook->id, $this->item, 10);
 
     expect($wi->quantity)->toEqual(10);
-    $this->assertDatabaseHas('warehouse_items', [
+    $this->assertDatabaseHas('warehouse_item', [
         'item_id' => $this->item->id,
         'warehouse_id' => $this->addrbook->id, // Addrbook is the warehouse
         'quantity' => 10,

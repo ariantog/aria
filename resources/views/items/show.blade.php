@@ -101,11 +101,13 @@ $nb = optional($item->group)->description2 ?? ($item->description2 ?? '-');
                         <div>
                             <p class="mb-2 text-[10px] font-bold uppercase tracking-widest text-gray-500">Group &amp; Tags</p>
                             <div class="flex flex-wrap items-center gap-2">
-                                @if($item->group)
-                                <span class="text-xs font-medium text-blue-600 underline underline-offset-4">{{ $item->group->name }}</span>
+                                @if($item->group && $groupUrl)
+                                <a href="{{ $groupUrl }}" class="rounded border border-blue-200 bg-blue-50 px-2 py-1 text-xs font-medium text-blue-600 hover:bg-blue-100 hover:underline">{{ $item->group->name }}</a>
+                                @elseif($item->group)
+                                <span class="text-xs font-medium text-gray-700">{{ $item->group->name }}</span>
                                 @endif
                                 @forelse($item->tags as $tag)
-                                <span class="rounded border border-blue-200 bg-blue-50 px-2 py-1 text-[9px] font-bold uppercase tracking-tighter text-blue-600">{{ $tag->name }}</span>
+                                <a href="{{ $tag->itemsIndexFilterUrl($item->type) }}" class="rounded border border-blue-200 bg-blue-50 px-2 py-1 text-[9px] font-bold uppercase tracking-tighter text-blue-600 hover:bg-blue-100 hover:underline">{{ $tag->name }}</a>
                                 @empty
                                     @unless($item->group)<span class="text-[10px] text-gray-400">No tags</span>@endunless
                                 @endforelse
@@ -138,8 +140,8 @@ $nb = optional($item->group)->description2 ?? ($item->description2 ?? '-');
                         <div class="flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50 p-4 {{ $wh->quantity < 1 ? 'opacity-60' : '' }}"
                              @if($wh->quantity < 1) x-show="showZero" @endif>
                             <div>
-                                <p class="font-medium text-gray-900">{{ optional($wh->warehouse)->name ?? 'Unknown' }}</p>
-                                <p class="text-[10px] uppercase text-gray-500">ID: {{ optional($wh->warehouse)->id }}</p>
+                                <p class="font-medium text-gray-900">{{ $wh->warehouse?->name ?? 'Warehouse #'.$wh->warehouse_id }}</p>
+                                <p class="text-[10px] uppercase text-gray-500">ID: {{ $wh->warehouse_id }}</p>
                             </div>
                             <div class="text-right">
                                 <p class="text-lg font-bold {{ $wh->quantity > 0 ? 'text-blue-600' : 'text-gray-400' }}">{{ number_format($wh->quantity, 0, ',', '.') }}</p>

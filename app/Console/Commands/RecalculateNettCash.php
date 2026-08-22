@@ -37,7 +37,7 @@ class RecalculateNettCash extends Command
         $results = Transaction::selectRaw("
             YEAR(date) as year,
             MONTH(date) as month,
-            $idCol as addrbook_id,
+            $idCol as customer_id,
             SUM(CASE WHEN type = ".Transaction::TYPE_CASH_IN.' THEN total ELSE 0 END) as cash_in,
             SUM(CASE WHEN type = '.Transaction::TYPE_CASH_OUT.' THEN total ELSE 0 END) as cash_out,
             SUM(CASE WHEN type = '.Transaction::TYPE_SELL.' THEN total ELSE 0 END) as sell,
@@ -49,14 +49,14 @@ class RecalculateNettCash extends Command
             ->get();
 
         foreach ($results as $row) {
-            if (! $row->addrbook_id) {
+            if (! $row->customer_id) {
                 continue;
             }
 
             $summary = MonthlyAccountSummary::firstOrNew([
                 'year' => $row->year,
                 'month' => $row->month,
-                'addrbook_id' => $row->addrbook_id,
+                'customer_id' => $row->customer_id,
             ]);
 
             $summary->cash_in += $row->cash_in;

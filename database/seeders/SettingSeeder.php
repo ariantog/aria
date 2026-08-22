@@ -2,7 +2,9 @@
 
 namespace Database\Seeders;
 
+use App\Support\SettingRegistry;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Schema;
 
 class SettingSeeder extends Seeder
 {
@@ -11,71 +13,33 @@ class SettingSeeder extends Seeder
      */
     public function run(): void
     {
-        $settings = [
-            [
-                'group' => 'Accounting',
-                'name' => 'PPN Rate',
-                'slug' => 'ppn_rate',
-                'value' => '11',
-            ],
-            [
-                'group' => 'Accounting',
-                'name' => 'Tutup Buku',
-                'slug' => 'tutup_buku',
-                'value' => '28',
-            ],
-            [
-                'group' => 'Accounting',
-                'name' => 'Account for 100% Discount',
-                'slug' => 'sell_100',
-                'value' => null,
-            ],
-            [
-                'group' => 'Accounting',
-                'name' => 'Account for Ongkir',
-                'slug' => 'ongkir',
-                'value' => null,
-            ],
-            [
-                'group' => 'HR',
-                'name' => 'Batas Cuti Tahunan',
-                'slug' => 'batas_cuti_tahunan',
-                'value' => '12',
-            ],
-            [
-                'group' => 'HR',
-                'name' => 'Batas Cuti Sakit',
-                'slug' => 'batas_cuti_sakit',
-                'value' => '30',
-            ],
-            [
-                'group' => 'Restock',
-                'name' => 'Default Supplier',
-                'slug' => 'restock.default_supplier_id',
-                'value' => null,
-            ],
-            [
-                'group' => 'Restock',
-                'name' => 'Default Receiver (Warehouse)',
-                'slug' => 'restock.default_receiver_id',
-                'value' => null,
-            ],
-            [
-                'group' => 'Restock',
-                'name' => 'Stock Display Warehouses',
-                'slug' => 'restock.default_warehouse_ids',
-                'value' => [],
-            ],
-        ];
+        if (! Schema::hasTable('settings')) {
+            return;
+        }
 
-        foreach ($settings as $setting) {
+        if (! Schema::hasColumn('settings', 'slug')) {
+            $this->command?->warn(
+                'settings.slug missing — run: php artisan migrate '
+                .'--path=database/migrations/2026_08_12_210000_align_settings_table_for_l12.php --force'
+            );
+
+            return;
+        }
+
+        foreach (SettingRegistry::definitions() as $slug => $definition) {
+            $attributes = [
+                'group' => $definition['group'],
+                'name' => $definition['name'],
+                'value' => $definition['default'],
+            ];
+
+            if (Schema::hasColumn('settings', 'location_id')) {
+                $attributes['location_id'] = 0;
+            }
+
             \App\Models\Setting::updateOrCreate(
-                ['slug' => $setting['slug']],
-                [
-                    'group' => $setting['group'],
-                    'name' => $setting['name'],
-                    'value' => $setting['value'],
-                ]
+                ['slug' => $slug],
+                $attributes
             );
         }
     }

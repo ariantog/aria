@@ -11,6 +11,8 @@ class Borongan extends Model
 {
     use HasFactory;
 
+    protected $table = 'prod_borongan';
+
     protected $guarded = ['id'];
 
     protected $casts = [
@@ -56,6 +58,7 @@ class Borongan extends Model
             'view' => 'borongan-list',
             'create' => 'borongan-create',
             'view-details' => 'borongan-view',
+            'edit' => 'borongan-edit',
             'delete' => 'borongan-delete',
         ];
     }

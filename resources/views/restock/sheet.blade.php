@@ -1,16 +1,127 @@
 @extends('layouts.app')
 
 @push('head-css')
-<link href="https://unpkg.com/tabulator-tables@6.3.1/dist/css/tabulator.min.css" rel="stylesheet">
+<link href="{{ asset('vendor/tabulator/tabulator.min.css') }}" rel="stylesheet">
 <style>
-    .tabulator { font-size: 13px; border-radius: 0.5rem; overflow: hidden; width: max-content; max-width: 100%; }
-    .tabulator .tabulator-header .tabulator-col.tabulator-col-group-restock { background: #dbeafe; }
-    .tabulator .tabulator-header .tabulator-col.tabulator-col-group-production { background: #fde68a; }
-    .tabulator .tabulator-header .tabulator-col.tabulator-col-group-shipped { background: #e5e7eb; }
-    .tabulator .tabulator-header .tabulator-col.tabulator-col-group-stock { background: #d1fae5; }
-    .tabulator-cell.tabulator-editing { border: 2px solid #2563eb !important; }
+    .restock-grid-wrap {
+        overflow-x: auto;
+        background: transparent;
+    }
+    .restock-grid-wrap .tabulator {
+        display: inline-block;
+        vertical-align: top;
+        font-size: 13px;
+        border-radius: 0.375rem;
+        width: auto;
+        max-width: 100%;
+        background: transparent;
+    }
+    .restock-grid-wrap .tabulator .tabulator-tableholder,
+    .restock-grid-wrap .tabulator .tabulator-header,
+    .restock-grid-wrap .tabulator .tabulator-table,
+    .restock-grid-wrap .tabulator .tabulator-row {
+        background: transparent;
+    }
+    .restock-grid-wrap .tabulator .tabulator-header .tabulator-col.tabulator-col-group.tabulator-col-group-restock { background: #dbeafe; }
+    .restock-grid-wrap .tabulator .tabulator-header .tabulator-col.tabulator-col-group.tabulator-col-group-production { background: #fde68a; }
+    .restock-grid-wrap .tabulator .tabulator-header .tabulator-col.tabulator-col-group.tabulator-col-group-shipped { background: #e5e7eb; }
+    .restock-grid-wrap .tabulator .tabulator-header .tabulator-col.tabulator-col-group.tabulator-col-group-stock { background: #d1fae5; }
+    .restock-grid-matrix .tabulator .tabulator-header .tabulator-col.restock-col-restock:not(.tabulator-col-group),
+    .restock-grid-matrix .tabulator .tabulator-header .tabulator-col.restock-col-production:not(.tabulator-col-group),
+    .restock-grid-matrix .tabulator .tabulator-header .tabulator-col.restock-col-shipped:not(.tabulator-col-group),
+    .restock-grid-matrix .tabulator .tabulator-header .tabulator-col.restock-col-stock:not(.tabulator-col-group) {
+        background: transparent !important;
+    }
+    .restock-grid-flat .tabulator .tabulator-header .tabulator-col.restock-col-restock { background: #dbeafe; }
+    .restock-grid-flat .tabulator .tabulator-header .tabulator-col.restock-col-production { background: #fde68a; }
+    .restock-grid-flat .tabulator .tabulator-header .tabulator-col.restock-col-shipped { background: #e5e7eb; }
+    .restock-grid-flat .tabulator .tabulator-header .tabulator-col.restock-col-stock { background: #d1fae5; }
+
+    /* Matrix: hide nested sub-col headers (Tabulator 6 col-group-cols); keep inline-flex layout */
+    .restock-grid-matrix .tabulator-header .tabulator-col.tabulator-col-group .tabulator-col-group-cols {
+        display: none !important;
+        height: 0 !important;
+        min-height: 0 !important;
+        border: none !important;
+        margin: 0 !important;
+        overflow: hidden !important;
+    }
+    .restock-grid-matrix .tabulator-header .tabulator-col.tabulator-col-group {
+        justify-content: center !important;
+        vertical-align: middle;
+    }
+    .restock-grid-matrix .tabulator-header .tabulator-col.tabulator-col-group > .tabulator-col-content {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        height: 100%;
+        min-height: 36px;
+        box-sizing: border-box;
+    }
+    .restock-grid-matrix .tabulator-header .tabulator-col.tabulator-col-group .tabulator-col-title {
+        text-align: center;
+        width: 100%;
+        padding: 8px 4px;
+    }
+
+    html.dark .restock-grid-wrap .tabulator .tabulator-header .tabulator-col.tabulator-col-group.tabulator-col-group-restock { background: #1e3a5f; }
+    html.dark .restock-grid-wrap .tabulator .tabulator-header .tabulator-col.tabulator-col-group.tabulator-col-group-production { background: #5c4a14; }
+    html.dark .restock-grid-wrap .tabulator .tabulator-header .tabulator-col.tabulator-col-group.tabulator-col-group-shipped { background: #374151; }
+    html.dark .restock-grid-wrap .tabulator .tabulator-header .tabulator-col.tabulator-col-group.tabulator-col-group-stock { background: #14532d; }
+    .restock-grid-wrap .tabulator-cell.tabulator-editing { border: 2px solid #2563eb !important; }
+
+    .restock-grid-wrap .tabulator .tabulator-row.restock-data-row .tabulator-cell {
+        padding: 5px 8px;
+    }
+    .restock-grid-wrap .tabulator .tabulator-row.restock-section-row .tabulator-cell {
+        padding: 6px 8px;
+    }
+
+    .restock-grid-wrap .tabulator .tabulator-row.restock-section-row .tabulator-cell.restock-size-label-cell {
+        padding: 4px 6px !important;
+        font-weight: 600;
+        font-size: 12px;
+        color: #6b7280;
+        text-align: center;
+        vertical-align: middle;
+    }
+    .restock-grid-wrap .tabulator .tabulator-row.restock-section-row .tabulator-cell.restock-col-restock,
+    .restock-grid-wrap .tabulator .tabulator-row.restock-section-row .tabulator-cell.restock-col-production,
+    .restock-grid-wrap .tabulator .tabulator-row.restock-section-row .tabulator-cell.restock-col-shipped,
+    .restock-grid-wrap .tabulator .tabulator-row.restock-section-row .tabulator-cell.restock-col-stock {
+        border-bottom: 1px solid rgba(107, 114, 128, 0.55) !important;
+    }
+    html.dark .restock-grid-wrap .tabulator .tabulator-row.restock-section-row .tabulator-cell.restock-size-label-cell {
+        color: #9ca3af;
+    }
+
+    /* Group separator: border-top on every cell in the divider row. */
+    .restock-grid-wrap .tabulator .tabulator-row.restock-section-divider > .tabulator-cell {
+        border-top: 1px solid rgba(156, 163, 175, 0.55) !important;
+        padding-top: 10px !important;
+    }
+
     .restock-urgent-cell { background-color: #fef2f2 !important; color: #b91c1c; font-weight: 600; }
-    .restock-grid-scroll { overflow-x: auto; }
+    .restock-na-cell {
+        background-color: rgba(156, 163, 175, 0.22) !important;
+        color: #9ca3af !important;
+        cursor: default;
+        user-select: none;
+    }
+    html.dark .restock-na-cell {
+        background-color: rgba(17, 24, 39, 0.85) !important;
+        color: #6b7280 !important;
+    }
+    .restock-section-title {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .restock-sheet-actions {
+        position: sticky;
+        top: 0;
+        z-index: 20;
+    }
 </style>
 @endpush
 
@@ -26,88 +137,101 @@ $breadcrumbs = [
 ];
 @endphp
 
-<div class="flex flex-col gap-4 p-4" x-data="restockSheetPage()" x-init="init()">
-    @include('restock.partials.type-tabs', [
-        'typeTags' => $typeTags,
-        'activeTypeTag' => $sheet->typeTag,
-    ])
+<div x-data="restockSheetPage()" x-init="init()">
+    <div class="flex flex-col gap-4 p-4 pb-0">
+        @include('restock.partials.type-tabs', [
+            'typeTags' => $typeTags,
+            'activeTypeTag' => $sheet->typeTag,
+        ])
 
-    <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div class="flex items-start gap-4">
-            <img src="{{ $sheet->image_url }}" alt="" class="h-16 w-16 rounded-lg border border-gray-200 object-cover">
-            <div>
-                <h1 class="text-2xl font-bold text-gray-900">{{ $sheet->name }}</h1>
-                <p class="text-sm text-gray-500">{{ count($grid['parents']) }} parent variant(s)</p>
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div class="flex items-start gap-4">
+                <img src="{{ $sheet->image_url }}" alt="" class="h-16 w-16 rounded-lg border border-gray-200 object-cover"
+                     onerror="this.onerror=null;this.src='{{ asset('images/default-item.svg') }}'">
+                <div>
+                    <h1 class="text-2xl font-bold text-gray-900">{{ $sheet->name }}</h1>
+                    <p class="text-sm text-gray-500">{{ count($grid['parents']) }} parent variant(s)</p>
+                </div>
             </div>
         </div>
-        <div class="flex flex-wrap items-center gap-2">
-            @can('restock-edit')
-            <button type="button" @click="save()" :disabled="saving || !canEdit"
-                    class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
-                <span x-text="saving ? 'Saving…' : 'Save sheet'"></span>
-            </button>
-            <button type="button" @click="move('to_production')" :disabled="moving || !canEdit || selectionCount === 0"
-                    class="rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-sm font-medium text-amber-900 hover:bg-amber-100 disabled:opacity-50">
-                Restock → Production
-            </button>
-            <button type="button" @click="move('to_shipped')" :disabled="moving || !canEdit || selectionCount === 0"
-                    class="rounded-md border border-gray-300 bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-800 hover:bg-gray-200 disabled:opacity-50">
-                Production → Shipped
-            </button>
-            <button type="button" @click="openReceiveModal()" :disabled="receiving || !canEdit || !receiveReady || selectionCount === 0"
-                    title="{{ $receiveReady ? 'Receive shipped qty into warehouse (Buy transaction)' : 'Configure supplier and receiver in Restock settings' }}"
-                    class="rounded-md border border-green-300 bg-green-50 px-3 py-1.5 text-sm font-medium text-green-900 hover:bg-green-100 disabled:opacity-50">
-                Receive → Warehouse
-            </button>
-            <form method="POST" action="{{ route('restock.sheets.sync', $sheet) }}">
-                @csrf
-                <button type="submit" class="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
-                    Sync SKUs
+
+        <div class="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+            Select color row(s) with the checkboxes, then use move buttons to advance quantities through the pipeline, or <strong>Receive → Warehouse</strong> for shipped qty. Edit restock / production / shipped cells directly and click <strong>Save sheet</strong> for manual adjustments. <strong>Stock</strong> shows warehouse qty from settings ({{ $stockWarehouseLabel }}). Any receive shortfall is recorded on the <a href="{{ route('restock.type.missing', $sheet->typeTag) }}" class="font-medium underline">Missing SKUs</a> page.
+            @unless($receiveReady)
+                <span class="mt-1 block text-amber-800">Receive is disabled until defaults are configured in <a href="{{ route('restock.settings.edit') }}" class="font-medium underline">Restock settings</a>.</span>
+            @endunless
+        </div>
+    </div>
+
+    <div class="restock-sheet-actions border-b border-gray-200 bg-gray-50/95 px-4 py-2 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-gray-50/90">
+        <div class="flex flex-col gap-2">
+            <div class="flex flex-wrap items-center gap-2">
+                @can('restock-edit')
+                <button type="button" @click="save()" :disabled="saving || !canEdit"
+                        class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
+                    <span x-text="saving ? 'Saving…' : 'Save sheet'"></span>
                 </button>
-            </form>
-            @endcan
-            <a href="{{ route('restock.sheets.export', $sheet) }}"
-               class="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
-                Export Excel
-            </a>
-            <a href="{{ route('restock.type.missing', $sheet->typeTag) }}"
-               class="rounded-md border border-red-200 bg-red-50 px-3 py-1.5 text-sm font-medium text-red-800 hover:bg-red-100">
-                Missing SKUs
-            </a>
-            <a href="{{ route('restock.type.show', $sheet->typeTag) }}"
-               class="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
-                Back to list
-            </a>
+                <button type="button" @click="move('to_production')" :disabled="moving || !canEdit || selectionCount === 0"
+                        class="rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-sm font-medium text-amber-900 hover:bg-amber-100 disabled:opacity-50">
+                    Restock → Production
+                </button>
+                <button type="button" @click="move('to_shipped')" :disabled="moving || !canEdit || selectionCount === 0"
+                        class="rounded-md border border-gray-300 bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-800 hover:bg-gray-200 disabled:opacity-50">
+                    Production → Shipped
+                </button>
+                <button type="button" @click="openReceiveModal()" :disabled="receiving || !canEdit || !receiveReady || selectionCount === 0"
+                        title="{{ $receiveReady ? 'Receive shipped qty into warehouse (Buy transaction)' : 'Configure supplier and receiver in Restock settings' }}"
+                        class="rounded-md border border-green-300 bg-green-50 px-3 py-1.5 text-sm font-medium text-green-900 hover:bg-green-100 disabled:opacity-50">
+                    Receive → Warehouse
+                </button>
+                <form method="POST" action="{{ route('restock.sheets.sync', $sheet) }}">
+                    @csrf
+                    <button type="submit" class="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                        Sync SKUs
+                    </button>
+                </form>
+                @endcan
+                <a href="{{ route('restock.sheets.export', $sheet) }}"
+                   class="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                    Export Excel
+                </a>
+                <a href="{{ route('restock.type.missing', $sheet->typeTag) }}"
+                   class="rounded-md border border-red-200 bg-red-50 px-3 py-1.5 text-sm font-medium text-red-800 hover:bg-red-100">
+                    Missing SKUs
+                </a>
+                <a href="{{ route('restock.type.show', $sheet->typeTag) }}"
+                   class="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                    Back to list
+                </a>
+            </div>
+
+            @if(session('success'))
+                <div class="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">{{ session('success') }}</div>
+            @endif
+
+            <div x-show="flash" x-cloak class="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800" x-text="flash"></div>
+            <div x-show="error" x-cloak class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" x-text="error"></div>
         </div>
     </div>
 
-    @if(session('success'))
-        <div class="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">{{ session('success') }}</div>
-    @endif
-
-    <div x-show="flash" x-cloak class="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800" x-text="flash"></div>
-    <div x-show="error" x-cloak class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" x-text="error"></div>
-
-    <div class="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
-        Select color row(s) with the checkboxes, then use move buttons to advance quantities through the pipeline, or <strong>Receive → Warehouse</strong> for shipped qty. Edit restock / production / shipped cells directly and click <strong>Save sheet</strong> for manual adjustments. <strong>Stock</strong> shows warehouse qty from settings ({{ $stockWarehouseLabel }}). Any receive shortfall is recorded on the <a href="{{ route('restock.type.missing', $sheet->typeTag) }}" class="font-medium underline">Missing SKUs</a> page.
-        @unless($receiveReady)
-            <span class="mt-1 block text-amber-800">Receive is disabled until defaults are configured in <a href="{{ route('restock.settings.edit') }}" class="font-medium underline">Restock settings</a>.</span>
-        @endunless
-    </div>
-
-    @forelse($grid['parents'] as $parent)
-        <section id="parent-{{ $parent['pcode'] }}" class="scroll-mt-4 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-            <div class="border-b border-gray-100 bg-gray-50 px-4 py-3">
-                <h2 class="font-semibold text-gray-900">{{ $parent['name'] }}</h2>
-                <p class="font-mono text-xs text-gray-500">{{ $parent['pcode'] }}</p>
+    <div class="flex flex-col gap-4 p-4 pt-3">
+    @forelse($grid['blocks'] as $block)
+        <section class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+            @if(count($grid['blocks']) > 1)
+                <div class="border-b border-gray-100 bg-gray-50 px-4 py-2">
+                    <h2 class="text-sm font-semibold text-gray-700">{{ $block['title'] }}</h2>
+                </div>
+            @endif
+            <div class="restock-grid-wrap restock-grid-{{ $block['kind'] }} p-2">
+                <div data-block-grid="{{ $block['id'] }}" data-block-kind="{{ $block['kind'] }}"></div>
             </div>
-            <div class="restock-grid-scroll p-2" data-parent-grid="{{ $parent['pcode'] }}"></div>
         </section>
     @empty
         <div class="rounded-xl border border-gray-200 bg-white p-8 text-center text-gray-500">
             No cells seeded. Try Sync SKUs.
         </div>
     @endforelse
+    </div>
 
     <div x-show="receiveModalOpen" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" @click.self="receiveModalOpen = false">
         <div class="w-full max-w-2xl rounded-xl border border-gray-200 bg-white p-5 shadow-xl">
@@ -121,7 +245,7 @@ $breadcrumbs = [
                 </div>
                 <div>
                     <label for="receive-invoice" class="block text-sm font-medium text-gray-700">Invoice (optional)</label>
-                    <input id="receive-invoice" type="text" x-model="receiveForm.invoice_number" placeholder="Invoice number"
+                    <input id="receive-invoice" type="text" x-model="receiveForm.invoice" placeholder="Invoice number"
                            class="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
                 </div>
             </div>
@@ -141,7 +265,7 @@ $breadcrumbs = [
                                 <td class="px-3 py-2 text-gray-900" x-text="line.label"></td>
                                 <td class="px-3 py-2 text-right tabular-nums text-gray-600" x-text="line.shipped"></td>
                                 <td class="px-3 py-2 text-right">
-                                    <input type="number" min="0" :max="line.shipped" x-model.number="receiveLines[idx].qty"
+                                    <input type="number" min="0" x-model.number="receiveLines[idx].qty"
                                            class="w-20 rounded border border-gray-300 px-2 py-1 text-right text-sm tabular-nums">
                                 </td>
                                 <td class="px-3 py-2 text-right tabular-nums text-red-700" x-text="receiveShortfall(line)"></td>
@@ -167,7 +291,7 @@ $breadcrumbs = [
 @endsection
 
 @push('scripts')
-<script src="https://unpkg.com/tabulator-tables@6.3.1/dist/js/tabulator.min.js"></script>
+<script src="{{ asset('vendor/tabulator/tabulator.min.js') }}"></script>
 <script>
 function restockSheetPage() {
     return {
@@ -177,6 +301,7 @@ function restockSheetPage() {
         saveUrl: @json(route('restock.sheets.update', $sheet)),
         moveUrl: @json(route('restock.sheets.move', $sheet)),
         receiveUrl: @json(route('restock.sheets.receive', $sheet)),
+        defaultImageUrl: @json(asset('images/default-item.svg')),
         tables: {},
         selectionCount: 0,
         saving: false,
@@ -186,41 +311,228 @@ function restockSheetPage() {
         receiveLines: [],
         receiveForm: {
             date: @json(now()->toDateString()),
-            invoice_number: '',
+            invoice: '',
         },
         flash: '',
         error: '',
 
         init() {
+            if (typeof Tabulator === 'undefined') {
+                this.error = 'Grid library failed to load. Try refreshing the page.';
+                return;
+            }
+
             this.$nextTick(() => {
-                for (const parent of this.grid.parents) {
-                    const el = document.querySelector(`[data-parent-grid="${parent.pcode}"]`);
+                for (const block of this.grid.blocks ?? []) {
+                    const el = document.querySelector(`[data-block-grid="${block.id}"]`);
                     if (!el) continue;
-                    this.tables[parent.pcode] = new Tabulator(el, {
-                        data: parent.rows,
-                        layout: 'fitData',
-                        height: Math.max(120, (parent.rows.length + 1) * 38 + 20),
+
+                    const isMatrix = block.kind === 'matrix';
+                    const table = new Tabulator(el, {
+                        data: block.rows,
+                        index: '_rowKey',
+                        renderVertical: 'basic',
+                        layout: 'fitDataTable',
+                        height: this.tableHeightForBlock(block),
+                        columnHeaderVertAlign: 'middle',
                         selectableRows: this.canEdit,
-                        rowHeader: this.canEdit ? {
-                            formatter: 'rowSelection',
-                            titleFormatter: 'rowSelection',
-                            headerSort: false,
-                            frozen: true,
-                            width: 40,
-                        } : false,
-                        columnDefaults: { headerHozAlign: 'center', hozAlign: 'right', widthGrow: 0 },
-                        columns: this.buildColumns(parent.sizes),
-                        rowFormatter: (row) => this.formatUrgentRow(row),
+                        selectableRowsCheck: (row) => row.getData()._type === 'data',
+                        columnDefaults: { headerHozAlign: 'center', hozAlign: 'right', widthGrow: 0, headerSort: false },
+                        columns: block.kind === 'flat'
+                            ? this.buildFlatColumns()
+                            : this.buildMatrixColumns(block.sizes ?? []),
+                        rowFormatter: (row) => this.formatRow(row),
                     });
-                    this.tables[parent.pcode].on('rowSelectionChanged', () => this.syncSelectionCount());
+
+                    this.tables[block.id] = table;
+                    if (isMatrix) {
+                        table.on('tableBuilt', () => this.collapseMatrixSubHeader(table));
+                        table.on('columnResized', () => this.collapseMatrixSubHeader(table));
+                    }
+                    table.on('rowSelectionChanged', () => {
+                        this.syncSelectionCount();
+                        this.syncCheckboxCells(table);
+                    });
                 }
             });
         },
 
-        buildColumns(sizes) {
-            const cols = [
-                { title: 'Color', field: 'color_name', frozen: true, width: 130, widthGrow: 0, hozAlign: 'left', headerHozAlign: 'left', editor: false },
-            ];
+        tableHeightForBlock(block) {
+            const rows = block?.rows ?? [];
+            const isMatrix = block?.kind === 'matrix';
+
+            return Math.max(160, rows.length * 34 + (isMatrix ? 40 : 48));
+        },
+
+        async parseJsonResponse(res) {
+            const text = await res.text();
+            try {
+                return JSON.parse(text);
+            } catch {
+                throw new Error('Unexpected server response. Try refreshing the page.');
+            }
+        },
+
+        async persistQuantities() {
+            if (!this.canEdit) return;
+
+            const cells = this.collectCells();
+            if (!cells.length) return;
+
+            const res = await fetch(this.saveUrl, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: JSON.stringify({ cells }),
+            });
+            const data = await this.parseJsonResponse(res);
+            if (!res.ok) {
+                throw new Error(data.message || 'Failed to save quantities');
+            }
+        },
+
+        collapseMatrixSubHeader(table) {
+            const root = table.element.closest('.restock-grid-matrix');
+            if (!root) return;
+
+            root.querySelectorAll('.tabulator-header .tabulator-col-group-cols').forEach((el) => {
+                el.style.setProperty('display', 'none', 'important');
+                el.style.setProperty('height', '0', 'important');
+                el.style.setProperty('border', 'none', 'important');
+            });
+        },
+
+        syncCheckboxCells(table) {
+            for (const row of table.getRows()) {
+                if (row.getData()._type !== 'data') continue;
+                const cell = row.getCell('_select');
+                if (!cell) continue;
+                const checkbox = cell.getElement().querySelector('input[type="checkbox"]');
+                if (checkbox) checkbox.checked = row.isSelected();
+            }
+        },
+
+        buildFrozenColumns() {
+            const cols = [this.buildImageColumn()];
+
+            if (this.canEdit) {
+                cols.push(this.buildCheckboxColumn());
+            }
+
+            cols.push(this.buildColorColumn());
+
+            return cols;
+        },
+
+        buildImageColumn() {
+            return {
+                title: '',
+                field: '_image',
+                width: 72,
+                widthGrow: 0,
+                hozAlign: 'center',
+                headerHozAlign: 'center',
+                vertAlign: 'middle',
+                editor: false,
+                formatter: (cell) => this.formatImageCell(cell),
+            };
+        },
+
+        formatImageCell(cell) {
+            const data = cell.getRow().getData();
+
+            if (data._type !== 'section') {
+                return '';
+            }
+
+            const img = document.createElement('img');
+            img.src = data.image_url || this.defaultImageUrl;
+            img.alt = '';
+            img.className = 'h-9 w-9 rounded border border-gray-200 object-cover';
+            img.onerror = () => { img.onerror = null; img.src = this.defaultImageUrl; };
+
+            return img;
+        },
+
+        buildCheckboxColumn() {
+            return {
+                title: '',
+                field: '_select',
+                width: 26,
+                minWidth: 26,
+                widthGrow: 0,
+                hozAlign: 'center',
+                headerHozAlign: 'center',
+                vertAlign: 'middle',
+                editor: false,
+                formatter: (cell) => this.formatCheckboxCell(cell),
+                titleFormatter: 'rowSelection',
+            };
+        },
+
+        formatCheckboxCell(cell) {
+            const row = cell.getRow();
+
+            if (row.getData()._type !== 'data') {
+                return '';
+            }
+
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.setAttribute('aria-label', 'Select row');
+            checkbox.checked = row.isSelected();
+            checkbox.addEventListener('click', (event) => {
+                event.stopPropagation();
+                row.toggleSelect();
+            });
+
+            return checkbox;
+        },
+
+        buildColorColumn() {
+            return {
+                title: 'Color',
+                field: 'color_name',
+                width: 220,
+                widthGrow: 0,
+                hozAlign: 'left',
+                headerHozAlign: 'left',
+                vertAlign: 'middle',
+                editor: false,
+                formatter: (cell) => this.formatColorCell(cell),
+            };
+        },
+
+        formatColorCell(cell) {
+            const data = cell.getRow().getData();
+
+            if (data._type === 'section') {
+                const wrap = document.createElement('div');
+                wrap.className = 'min-w-0';
+
+                const name = document.createElement('div');
+                name.className = 'restock-section-title font-semibold text-gray-900 leading-tight';
+                name.textContent = data.name || data.pcode || '';
+                name.title = data.name || data.pcode || '';
+
+                const pcode = document.createElement('div');
+                pcode.className = 'restock-section-title font-mono text-xs text-gray-500';
+                pcode.textContent = data.pcode || '';
+
+                wrap.append(name, pcode);
+
+                return wrap;
+            }
+
+            return document.createTextNode(data.color_name ?? '');
+        },
+
+        buildMatrixColumns(sizes) {
+            const cols = this.buildFrozenColumns();
 
             const stages = [
                 { key: 'restock', title: 'Restock', groupClass: 'tabulator-col-group-restock', editable: true },
@@ -233,25 +545,31 @@ function restockSheetPage() {
                 const children = sizes.map((size) => {
                     const prefix = this.sizePrefix(size);
                     const field = prefix + stage.key;
+
                     return {
-                        title: size,
+                        title: '',
                         field,
+                        cssClass: 'restock-col-' + stage.key,
                         width: 58,
                         widthGrow: 0,
+                        vertAlign: 'middle',
                         editor: stage.editable && this.canEdit ? 'number' : false,
-                        formatter: (cell) => cell.getValue() ?? 0,
+                        editable: (cell) => this.canEditMatrixCell(cell, size, stage.editable),
+                        formatter: (cell) => this.formatQtyCell(cell, size),
                     };
                 });
 
                 if (sizes.length > 1) {
                     children.push({
-                        title: 'Total',
+                        title: '',
                         field: stage.key + '_total',
-                        width: 64,
+                        cssClass: 'restock-col-' + stage.key,
+                        width: 72,
                         widthGrow: 0,
+                        vertAlign: 'middle',
                         editor: false,
                         hozAlign: 'right',
-                        formatter: (cell) => cell.getValue() ?? 0,
+                        formatter: (cell) => this.formatQtyCell(cell, null),
                     });
                 }
 
@@ -261,9 +579,113 @@ function restockSheetPage() {
             return cols;
         },
 
+        buildFlatColumns() {
+            const cols = this.buildFrozenColumns();
+
+            const stages = [
+                { key: 'restock', title: 'Restock', groupClass: 'tabulator-col-group-restock', editable: true },
+                { key: 'production', title: 'Production', groupClass: 'tabulator-col-group-production', editable: true },
+                { key: 'shipped', title: 'Shipped', groupClass: 'tabulator-col-group-shipped', editable: true },
+                { key: 'stock', title: 'Stock', groupClass: 'tabulator-col-group-stock', editable: false },
+            ];
+
+            for (const stage of stages) {
+                cols.push({
+                    title: stage.title,
+                    field: stage.key,
+                    cssClass: 'restock-col-' + stage.key,
+                    width: 108,
+                    minWidth: 108,
+                    widthGrow: 0,
+                    vertAlign: 'middle',
+                    editor: stage.editable && this.canEdit ? 'number' : false,
+                    editable: (cell) => this.canEditFlatCell(cell, stage.editable),
+                    formatter: (cell) => this.formatQtyCell(cell, '—'),
+                });
+            }
+
+            return cols;
+        },
+
+        canEditMatrixCell(cell, size, stageEditable) {
+            if (!this.canEdit || !stageEditable) return false;
+
+            const row = cell.getRow().getData();
+            if (row._type !== 'data') return false;
+
+            return (row.parent_sizes ?? []).includes(size);
+        },
+
+        canEditFlatCell(cell, stageEditable) {
+            if (!this.canEdit || !stageEditable) return false;
+
+            return cell.getRow().getData()._type === 'data';
+        },
+
+        formatQtyCell(cell, size) {
+            const row = cell.getRow().getData();
+            const el = cell.getElement();
+
+            el.classList.remove('restock-na-cell', 'restock-size-label-cell');
+
+            if (row._type === 'section') {
+                const parentSizes = row.sizes ?? [];
+
+                if (size === null) {
+                    if (parentSizes.length <= 1) {
+                        el.classList.add('restock-na-cell');
+                        return '—';
+                    }
+                    el.classList.add('restock-size-label-cell');
+                    return 'Total';
+                }
+
+                if (!parentSizes.includes(size)) {
+                    el.classList.add('restock-na-cell');
+                    return '—';
+                }
+
+                el.classList.add('restock-size-label-cell');
+                return size;
+            }
+
+            if (row._type !== 'data') {
+                return '';
+            }
+
+            if (size !== null && size !== '—' && !(row.parent_sizes ?? []).includes(size)) {
+                el.classList.add('restock-na-cell');
+                return '—';
+            }
+
+            return cell.getValue() ?? 0;
+        },
+
         sizePrefix(size) {
             if (size === '—') return '';
             return size.toLowerCase().replace(/[. ]/g, '_') + '_';
+        },
+
+        formatRow(row) {
+            const data = row.getData();
+            const el = row.getElement();
+
+            el.classList.remove('restock-section-row', 'restock-section-divider', 'restock-data-row');
+
+            if (data._type === 'section') {
+                el.classList.add('restock-section-row');
+                if (data._section_divider) {
+                    el.classList.add('restock-section-divider');
+                }
+                el.style.height = '';
+                return;
+            }
+
+            if (data._type === 'data') {
+                el.classList.add('restock-data-row');
+                el.style.height = '';
+                this.formatUrgentRow(row);
+            }
         },
 
         formatUrgentRow(row) {
@@ -280,6 +702,7 @@ function restockSheetPage() {
         collectCellsFromRows(rows) {
             const cells = [];
             for (const row of rows) {
+                if (row._type !== 'data') continue;
                 for (const meta of Object.values(row._meta || {})) {
                     if (meta?.cell_id) cells.push({ id: meta.cell_id });
                 }
@@ -289,8 +712,8 @@ function restockSheetPage() {
 
         selectedRows() {
             const rows = [];
-            for (const parent of this.grid.parents) {
-                const table = this.tables[parent.pcode];
+            for (const block of this.grid.blocks ?? []) {
+                const table = this.tables[block.id];
                 if (!table) continue;
                 rows.push(...table.getSelectedRows().map((row) => row.getData()));
             }
@@ -306,17 +729,33 @@ function restockSheetPage() {
         },
 
         applyGrid(grid) {
-            this.grid = grid;
-            for (const parent of grid.parents) {
-                const table = this.tables[parent.pcode];
-                if (!table) continue;
-                table.setData(parent.rows);
-                table.deselectRow();
-                for (const row of table.getRows()) {
-                    this.formatUrgentRow(row);
-                }
+            if (!grid || !Array.isArray(grid.blocks)) {
+                this.error = 'Could not refresh the sheet grid.';
+                return;
             }
-            this.syncSelectionCount();
+
+            this.grid = grid;
+
+            for (const block of grid.blocks) {
+                const table = this.tables[block.id];
+                if (!table) continue;
+
+                const rows = block.rows ?? [];
+                const isMatrix = block.kind === 'matrix';
+                table.setHeight(this.tableHeightForBlock(block));
+
+                table.replaceData(rows).then(() => {
+                    if (isMatrix) this.collapseMatrixSubHeader(table);
+                    table.redraw(true);
+                    table.deselectRow();
+                    for (const row of table.getRows()) {
+                        this.formatRow(row);
+                    }
+                    this.syncSelectionCount();
+                }).catch(() => {
+                    this.error = 'Failed to refresh the sheet table.';
+                });
+            }
         },
 
         async move(direction) {
@@ -331,6 +770,8 @@ function restockSheetPage() {
             this.flash = '';
             this.error = '';
             try {
+                await this.persistQuantities();
+
                 const res = await fetch(this.moveUrl, {
                     method: 'POST',
                     headers: {
@@ -341,7 +782,7 @@ function restockSheetPage() {
                     },
                     body: JSON.stringify({ direction, cells }),
                 });
-                const data = await res.json();
+                const data = await this.parseJsonResponse(res);
                 if (!res.ok) throw new Error(data.message || 'Move failed');
                 if (data.grid) this.applyGrid(data.grid);
                 this.flash = data.message || 'Moved.';
@@ -355,6 +796,7 @@ function restockSheetPage() {
         buildReceiveLines(rows) {
             const lines = [];
             for (const row of rows) {
+                if (row._type !== 'data') continue;
                 for (const [prefix, meta] of Object.entries(row._meta || {})) {
                     const shipped = Number(row[prefix + 'shipped'] ?? 0);
                     if (!meta?.cell_id || shipped <= 0) continue;
@@ -373,7 +815,8 @@ function restockSheetPage() {
 
         receiveShortfall(line) {
             const shipped = Number(line.shipped ?? 0);
-            const qty = Math.min(Math.max(0, Number(line.qty ?? 0)), shipped);
+            const qty = Math.max(0, Number(line.qty ?? 0));
+
             return Math.max(0, shipped - qty);
         },
 
@@ -395,13 +838,15 @@ function restockSheetPage() {
                 .filter((line) => Number(line.qty ?? 0) > 0)
                 .map((line) => ({
                     id: line.id,
-                    qty: Math.min(Number(line.qty), Number(line.shipped)),
+                    qty: Math.max(0, Number(line.qty)),
                 }));
 
             this.receiving = true;
             this.flash = '';
             this.error = '';
             try {
+                await this.persistQuantities();
+
                 const res = await fetch(this.receiveUrl, {
                     method: 'POST',
                     headers: {
@@ -412,11 +857,11 @@ function restockSheetPage() {
                     },
                     body: JSON.stringify({
                         date: this.receiveForm.date,
-                        invoice_number: this.receiveForm.invoice_number || null,
+                        invoice: this.receiveForm.invoice || null,
                         cells,
                     }),
                 });
-                const data = await res.json();
+                const data = await this.parseJsonResponse(res);
                 if (!res.ok) throw new Error(data.message || 'Receive failed');
                 if (data.grid) this.applyGrid(data.grid);
                 this.receiveModalOpen = false;
@@ -433,10 +878,11 @@ function restockSheetPage() {
 
         collectCells() {
             const cells = [];
-            for (const parent of this.grid.parents) {
-                const table = this.tables[parent.pcode];
+            for (const block of this.grid.blocks ?? []) {
+                const table = this.tables[block.id];
                 if (!table) continue;
                 for (const row of table.getData()) {
+                    if (row._type !== 'data') continue;
                     for (const [prefix, meta] of Object.entries(row._meta || {})) {
                         if (!meta?.cell_id) continue;
                         cells.push({
@@ -467,7 +913,7 @@ function restockSheetPage() {
                     },
                     body: JSON.stringify({ cells: this.collectCells() }),
                 });
-                const data = await res.json();
+                const data = await this.parseJsonResponse(res);
                 if (!res.ok) throw new Error(data.message || 'Save failed');
                 this.flash = data.message || 'Saved.';
             } catch (e) {

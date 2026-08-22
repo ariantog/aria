@@ -8,8 +8,69 @@ beforeEach(function () {
     $this->user = User::factory()->create();
 });
 
+it('shows only manufactured type tags on item create page', function () {
+    Tag::factory()->create([
+        'type' => Tag::TYPE_TYPE,
+        'item_type' => ItemType::ITEM->value,
+        'code' => 'AJD',
+        'name' => 'Jacket Mfg',
+    ]);
+    Tag::factory()->create([
+        'type' => Tag::TYPE_TYPE,
+        'item_type' => ItemType::ASSET_LANCAR->value,
+        'code' => 'ELBOW',
+        'name' => 'Elbow Support',
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('items.create'))
+        ->assertOk()
+        ->assertSee('Jacket Mfg', false)
+        ->assertDontSee('Elbow Support', false);
+});
+
+it('shows universal tags on both item and asset lancar forms', function () {
+    Tag::factory()->create([
+        'type' => Tag::TYPE_WARNA,
+        'item_type' => 0,
+        'code' => 'UNIVERSAL',
+        'name' => 'UNIVERSAL',
+    ]);
+    Tag::factory()->create([
+        'type' => Tag::TYPE_WARNA,
+        'item_type' => ItemType::ITEM->value,
+        'code' => 'MFGONLY',
+        'name' => 'MFGONLY',
+    ]);
+    Tag::factory()->create([
+        'type' => Tag::TYPE_WARNA,
+        'item_type' => ItemType::ASSET_LANCAR->value,
+        'code' => 'ASSETONLY',
+        'name' => 'ASSETONLY',
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('items.create'))
+        ->assertOk()
+        ->assertSee('UNIVERSAL', false)
+        ->assertSee('MFGONLY', false)
+        ->assertDontSee('ASSETONLY', false);
+
+    $this->actingAs($this->user)
+        ->get(route('assetlancar.create'))
+        ->assertOk()
+        ->assertSee('UNIVERSAL', false)
+        ->assertSee('ASSETONLY', false)
+        ->assertDontSee('MFGONLY', false);
+});
+
 it('allows manufactured item create without product name', function () {
-    $typeTag = Tag::factory()->create(['type' => Tag::TYPE_TYPE, 'code' => 'AJD', 'name' => 'Jacket']);
+    $typeTag = Tag::factory()->create([
+        'type' => Tag::TYPE_TYPE,
+        'item_type' => ItemType::ITEM->value,
+        'code' => 'AJD',
+        'name' => 'Jacket',
+    ]);
     $sizeTag = Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'S', 'name' => 'S']);
     $warnaTag = Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'BLUE', 'name' => 'BLUE']);
     $jahitTag = Tag::factory()->create(['type' => Tag::TYPE_JAHIT, 'code' => 'J1', 'name' => 'J1']);
@@ -56,7 +117,12 @@ it('repopulates item create form after validation errors', function () {
 });
 
 it('repopulates item create form after service error', function () {
-    $typeTag = Tag::factory()->create(['type' => Tag::TYPE_TYPE, 'code' => 'AJD', 'name' => 'Jacket']);
+    $typeTag = Tag::factory()->create([
+        'type' => Tag::TYPE_TYPE,
+        'item_type' => ItemType::ITEM->value,
+        'code' => 'AJD',
+        'name' => 'Jacket',
+    ]);
     $sizeTag = Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'S', 'name' => 'S']);
     $warnaTag = Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'BLUE', 'name' => 'BLUE']);
     $jahitTag = Tag::factory()->create(['type' => Tag::TYPE_JAHIT, 'code' => 'J1', 'name' => 'J1']);

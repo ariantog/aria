@@ -9,15 +9,25 @@ use App\Enums\TransactionType;
 use App\Http\Requests\StoreItemRequest;
 use App\Models\Item;
 use App\Models\ItemGroup;
+use App\Models\Tag;
 use App\Models\TransactionDetail;
 use App\Services\ItemService;
+use App\Services\Items\ItemGroupHierarchyService;
+use App\Services\Items\ItemGroupParentExportService;
+use App\Services\Items\ItemIdentityBuilder;
+use App\Services\ProductPerformanceService;
 use App\Services\JubelioService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 
 class ItemsController extends Controller
 {
-    public function __construct(protected ItemService $itemService) {}
+    public function __construct(
+        protected ItemService $itemService,
+        protected ProductPerformanceService $performance,
+        protected ItemGroupHierarchyService $groupHierarchy,
+        protected ItemIdentityBuilder $identityBuilder,
+    ) {}
 
     public function index(Request $request, ?ItemType $type = null)
     {
@@ -49,7 +59,16 @@ class ItemsController extends Controller
 
         // Combobox / autocomplete JSON (unpaginated, limited) — used by asyncCombobox.
         if ($this->isJson($request) && ! $request->boolean('table')) {
-            return $q->with('warehouseItems')->limit(50)->get();
+            if ($request->filled('id') || $request->filled('code')) {
+                return $q->with('warehouseItems')->limit(8)->get();
+            }
+
+            $search = trim((string) $request->input('search', ''));
+            if (strlen($search) <= 2) {
+                return response()->json([]);
+            }
+
+            return $q->with('warehouseItems')->limit(8)->get();
         }
 
         // Tabulator remote pagination JSON.
@@ -92,7 +111,7 @@ class ItemsController extends Controller
             'filters' => $request->only(['search', 'brand', 'type', 'jahit', 'size', 'warna', 'item_type', 'code', 'name', 'product_name', 'desc']),
             'brands' => $this->brandOptions(),
             'types' => $this->typeOptions(),
-            'tags' => \App\Models\Tag::all()->groupBy('type'),
+            'tags' => $this->tagGroupsForList($type),
             'can' => $this->itemPermissions($type),
             'isAsset' => $type === ItemType::ASSET_LANCAR,
             'baseUrl' => $type === ItemType::ASSET_LANCAR ? '/assetlancar' : '/items',
@@ -148,13 +167,21 @@ class ItemsController extends Controller
             'group',
             'tags',
             'warehouseItems' => fn ($q) => $q
-                ->whereIn('warehouse_id', fn ($s) => $s->select('id')->from('addrbooks')->where('type', AddrbookType::Warehouse->value))
+                ->whereIn('warehouse_id', fn ($s) => $s->select('id')->from('customers')->whereIn('type', [
+                    AddrbookType::Warehouse->value,
+                    AddrbookType::VirtualWarehouse->value,
+                ]))
                 ->with('warehouse'),
         ]);
 
         return view('items.show', [
             'item' => $item,
             'isAsset' => $item->type === ItemType::ASSET_LANCAR,
+            'groupUrl' => $item->group_id
+                ? route('items.group-parent-detail', $this->identityBuilder->parentKeyToSlug(
+                    $this->identityBuilder->itemParentKey($item)
+                ))
+                : null,
         ]);
     }
 
@@ -163,13 +190,10 @@ class ItemsController extends Controller
         $p = Item::getPermissions();
         Gate::authorize($item->type === ItemType::ASSET_LANCAR ? $p['asset-lancar-edit'] : $p['edit']);
 
-        return view('items.edit', [
+        return view('items.edit', array_merge($this->formProps($item->type), [
             'item' => $item->load(['group', 'tags']),
-            'brands' => $this->brandOptions(),
             'types' => $this->typeOptions(),
-            'tags' => \App\Models\Tag::all()->groupBy('type'),
-            'isAsset' => $item->type === ItemType::ASSET_LANCAR,
-        ]);
+        ]));
     }
 
     public function update(Request $request, Item $item)
@@ -238,18 +262,14 @@ class ItemsController extends Controller
     {
         Gate::authorize(Item::getPermissions()['edit']);
 
-        $token = $jubelioService->getCachedToken();
-        if (! $token) {
-            return back()->withErrors(['message' => 'Gagal otentikasi Jubelio']);
-        }
-
         try {
-            $response = \Illuminate\Support\Facades\Http::withHeaders([
-                'Content-Type' => 'application/json',
-                'authorization' => $token,
-            ])->get('https://api2.jubelio.com/inventory/items/to-stock/', [
+            $response = $jubelioService->get('https://api2.jubelio.com/inventory/items/to-stock/', [
                 'q' => $request->input('q', $item->code),
             ]);
+
+            if (! $response) {
+                return back()->withErrors(['message' => 'Gagal otentikasi Jubelio']);
+            }
 
             if ($response->successful()) {
                 return view('items.jubelio-search', [
@@ -278,41 +298,83 @@ class ItemsController extends Controller
     {
         Gate::authorize(ItemGroup::getPermissions()['view']);
 
-        $query = ItemGroup::query()
-            ->when($request->filled('kode'), fn ($q) => $q->where('name', 'like', "%{$request->kode}%"))
-            ->when($request->filled('product_name'), fn ($q) => $q->where('name', 'like', "%{$request->product_name}%"))
-            ->when($request->filled('desc'), fn ($q) => $q->where('description', 'like', "%{$request->desc}%"));
+        $filters = $request->only(['kode', 'product_name', 'desc']);
 
         return view('items.group', [
-            'groups' => $query->orderBy('id', 'desc')->paginate(20)->withQueryString(),
-            'filters' => $request->only(['kode', 'product_name', 'desc']),
+            'parents' => $this->groupHierarchy->paginateParents($filters, 20),
+            'filters' => $filters,
             'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
+    }
+
+    public function groupParentDetail(string $parentSlug)
+    {
+        Gate::authorize(ItemGroup::getPermissions()['view']);
+
+        $parentKey = $this->identityBuilder->parentKeyFromSlug($parentSlug);
+        $detail = $this->groupHierarchy->parentDetail($parentKey);
+
+        abort_if($detail === null, 404);
+
+        return view('items.group-parent-detail', [
+            'detail' => $detail,
+            'canEditGroup' => auth()->user()->can(ItemGroup::getPermissions()['edit']),
+            'flash' => ['success' => session('success'), 'error' => session('error')],
+        ]);
+    }
+
+    public function exportGroupParent(string $parentSlug, ItemGroupParentExportService $exportService)
+    {
+        Gate::authorize(ItemGroup::getPermissions()['view']);
+
+        $parentKey = $this->identityBuilder->parentKeyFromSlug($parentSlug);
+
+        return $exportService->download($parentKey);
+    }
+
+    public function updateGroupParent(Request $request, string $parentSlug)
+    {
+        Gate::authorize(ItemGroup::getPermissions()['edit']);
+
+        $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+        ], [
+            'name.required' => 'Product name is required.',
+        ]);
+
+        $parentKey = $this->identityBuilder->parentKeyFromSlug($parentSlug);
+        $detail = $this->groupHierarchy->parentDetail($parentKey, fetchJubelio: false);
+
+        abort_if($detail === null, 404);
+
+        try {
+            foreach ($detail['group_ids'] as $groupId) {
+                $group = ItemGroup::findOrFail($groupId);
+                $this->itemService->renameGroupProductName($group, $request->input('name'));
+            }
+
+            return redirect()
+                ->route('items.group-parent-detail', $parentSlug)
+                ->with('success', 'Product name updated for all colors in this group.');
+        } catch (\Exception $e) {
+            return back()->withErrors(['message' => $e->getMessage()])->withInput();
+        }
     }
 
     public function groupDetail(ItemGroup $group)
     {
         Gate::authorize(ItemGroup::getPermissions()['view']);
 
-        $group->load(['items.warehouseItems' => fn ($q) => $q
-            ->whereIn('warehouse_id', fn ($sq) => $sq->select('id')->from('addrbooks')->where('type', AddrbookType::Warehouse->value))
-            ->with('warehouse'),
-        ]);
+        $group->load(['items.tags']);
+        $sample = $group->items->first();
 
-        $sampleItem = $group->items->first();
-        $isManufacturedGroup = $sampleItem && $sampleItem->type === ItemType::ITEM;
-        $pcode = $sampleItem?->pcode ?? '';
-        $usesPlaceholder = $isManufacturedGroup
-            && $pcode !== ''
-            && strtoupper($group->name) === strtoupper($pcode);
+        abort_if($sample === null, 404);
 
-        return view('items.group-detail', [
-            'group' => $group,
-            'pcode' => $pcode,
-            'usesPlaceholder' => $usesPlaceholder,
-            'canEditGroup' => auth()->user()->can(ItemGroup::getPermissions()['edit']),
-            'flash' => ['success' => session('success'), 'error' => session('error')],
-        ]);
+        $slug = $this->identityBuilder->parentKeyToSlug(
+            $this->identityBuilder->itemParentKey($sample)
+        );
+
+        return redirect()->route('items.group-parent-detail', $slug);
     }
 
     public function updateGroup(Request $request, ItemGroup $group)
@@ -328,8 +390,15 @@ class ItemsController extends Controller
         try {
             $this->itemService->renameGroupProductName($group, $request->input('name'));
 
+            $sample = $group->items()->with('tags')->first();
+            $redirect = $sample
+                ? route('items.group-parent-detail', $this->identityBuilder->parentKeyToSlug(
+                    $this->identityBuilder->itemParentKey($sample)
+                ))
+                : route('items.group');
+
             return redirect()
-                ->route('items.group-detail', $group->id)
+                ->to($redirect)
                 ->with('success', 'Product name updated for all items in this group.');
         } catch (\Exception $e) {
             return back()->withErrors(['message' => $e->getMessage()])->withInput();
@@ -370,6 +439,7 @@ class ItemsController extends Controller
 
         $transactions = TransactionDetail::with(['transaction.sender', 'transaction.receiver'])
             ->where('item_id', $item->id)
+            ->visibleToUser($request->user())
             ->whereHas('transaction')
             ->orderBy('transaction_id', 'desc')
             ->paginate(50)
@@ -384,47 +454,26 @@ class ItemsController extends Controller
 
     public function itemStats(Request $request, Item $item)
     {
-        Gate::authorize(Item::getPermissions()['view']);
+        $p = Item::getPermissions();
+        Gate::authorize($item->type === ItemType::ASSET_LANCAR ? $p['asset-lancar-view'] : $p['view']);
 
-        $from = $request->input('from');
-        $to = $request->input('to');
-        $addrId = $request->input('addr');
-
-        $query = TransactionDetail::select([
-            'transaction_type',
-            \DB::raw("DATE_FORMAT(date,'%M %Y') AS showdate"),
-            \DB::raw("DATE_FORMAT(date,'%m') AS bulan"),
-            \DB::raw("DATE_FORMAT(date,'%Y') AS tahun"),
-            \DB::raw('SUM(quantity) as total_qty'),
-        ])
-            ->where('item_id', $item->id)
-            ->whereIn('transaction_type', [
-                TransactionType::Sell->value,
-                TransactionType::Move->value,
-                TransactionType::Return->value,
-                TransactionType::Production->value,
-            ])
-            ->groupBy('showdate', 'transaction_type', 'bulan', 'tahun')
-            ->orderBy('tahun', 'DESC')
-            ->orderBy('bulan', 'DESC')
-            ->when($from, fn ($q) => $q->whereDate('date', '>=', $from))
-            ->when($to, fn ($q) => $q->whereDate('date', '<=', $to))
-            ->when($addrId, fn ($q) => $q->where(fn ($sq) => $sq
-                ->where('sender_id', $addrId)
-                ->orWhere('receiver_id', $addrId)
-            ));
-
-        $addrbooks = \App\Models\Addrbook::whereIn('type', [
-            AddrbookType::Customer->value,
-            AddrbookType::Reseller->value,
-            AddrbookType::Warehouse->value,
-        ])->orderBy('name')->get(['id', 'name', 'type']);
+        $periodDays = $this->performance->normalizePeriodDays($request->query('period', 90));
+        $warehouseId = $request->query('warehouse_id') ? (int) $request->query('warehouse_id') : null;
+        $stats = $this->performance->itemMonthlyBreakdown($item->id, $periodDays, $warehouseId);
 
         return view('items.item-stats', [
             'item' => $item->load('group'),
-            'data' => $query->get(),
-            'addrbooks' => $addrbooks,
-            'filters' => compact('from', 'to') + ['addr' => $addrId],
+            'months' => $stats['months'],
+            'totals' => $stats['totals'],
+            'syncedAt' => $stats['synced_at'],
+            'stale' => $stats['stale'],
+            'hasData' => $stats['has_data'],
+            'warehouses' => $this->performance->warehouses(),
+            'periodOptions' => ProductPerformanceService::periodOptions(),
+            'filters' => [
+                'period' => $periodDays,
+                'warehouse_id' => $warehouseId,
+            ],
             'isAsset' => $item->type === ItemType::ASSET_LANCAR,
         ]);
     }
@@ -459,10 +508,10 @@ class ItemsController extends Controller
 
         return [
             'brands' => $this->brandOptions(),
-            'jahitTags' => \App\Models\Tag::where('type', \App\Models\Tag::TYPE_JAHIT)->get(),
-            'typeTags' => \App\Models\Tag::where('type', \App\Models\Tag::TYPE_TYPE)->get(),
-            'sizeTags' => \App\Models\Tag::where('type', \App\Models\Tag::TYPE_SIZE)->get(),
-            'warnaTags' => \App\Models\Tag::where('type', \App\Models\Tag::TYPE_WARNA)->get(),
+            'jahitTags' => Tag::tagsForItemForm($t, Tag::TYPE_JAHIT),
+            'typeTags' => Tag::typeTagsForItem($t),
+            'sizeTags' => Tag::tagsForItemForm($t, Tag::TYPE_SIZE),
+            'warnaTags' => Tag::tagsForItemForm($t, Tag::TYPE_WARNA),
             'itemType' => $t->value,
             'isAsset' => $isAsset,
             'assetPcodeSuggestions' => $isAsset
@@ -475,6 +524,14 @@ class ItemsController extends Controller
                     ->pluck('pcode')
                 : collect(),
         ];
+    }
+
+    private function tagGroupsForList(ItemType $itemType): \Illuminate\Support\Collection
+    {
+        $tags = Tag::all()->groupBy('type');
+        $tags[Tag::TYPE_TYPE] = Tag::typeTagsForItem($itemType);
+
+        return $tags;
     }
 
     private function brandOptions(): array
@@ -508,18 +565,14 @@ class ItemsController extends Controller
             return ['Item belum terhubung', []];
         }
 
-        $t = $s->getCachedToken();
-        if (! $t) {
-            return ['Gagal otentikasi', []];
-        }
-
         try {
-            $r = \Illuminate\Support\Facades\Http::withHeaders([
-                'Content-Type' => 'application/json',
-                'authorization' => $t,
-            ])->post('https://api2.jubelio.com/inventory/items/all-stocks/', [
+            $r = $s->post('https://api2.jubelio.com/inventory/items/all-stocks/', [
                 'ids' => [$item->jubelio_item_id],
             ]);
+
+            if (! $r) {
+                return ['Gagal otentikasi', []];
+            }
 
             if ($r->successful()) {
                 $j = $r->json();

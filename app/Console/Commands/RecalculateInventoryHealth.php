@@ -51,7 +51,7 @@ class RecalculateInventoryHealth extends Command
                     FROM transaction_details td
                     JOIN transactions t ON td.transaction_id = t.id
                     JOIN items i ON td.item_id = i.id
-                    JOIN addrbooks a ON t.sender_id = a.id
+                    JOIN customers a ON t.sender_id = a.id
                     WHERE t.type = $typeSell 
                       AND a.type = $whType 
                       AND YEAR(t.date) = $year
@@ -84,8 +84,8 @@ class RecalculateInventoryHealth extends Command
             INSERT INTO daily_inventory_summaries 
             (date, warehouse_id, item_id, stock_on_hand, created_at, updated_at)
             SELECT CURDATE(), wi.warehouse_id, wi.item_id, wi.quantity, NOW(), NOW()
-            FROM warehouse_items wi
-            JOIN addrbooks a ON wi.warehouse_id = a.id
+            FROM warehouse_item wi
+            JOIN customers a ON wi.warehouse_id = a.id
             WHERE a.type = $whType
             ON DUPLICATE KEY UPDATE 
                 stock_on_hand = VALUES(stock_on_hand),

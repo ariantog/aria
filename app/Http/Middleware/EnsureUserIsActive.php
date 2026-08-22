@@ -16,7 +16,7 @@ class EnsureUserIsActive
      */
     public function handle(Request $request, Closure $next): Response
     {
-        if (Auth::check() && ! Auth::user()->is_active) {
+        if (Auth::check() && ! Auth::user()->active) {
             // If the request expects JSON (e.g. API/Inertia partial reload),
             // you might want to return 403 or redirect responsibly.
             // For standard Inertia app, redirect works.

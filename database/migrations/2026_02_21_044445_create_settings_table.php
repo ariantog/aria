@@ -7,22 +7,22 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration
 {
     /**
-     * Run the migrations.
+     * Greenfield / SQLite bootstrap for settings. Production L10 rows are aligned
+     * by 2026_08_12_* migrations (slug, group, location_id).
      */
     public function up(): void
     {
         Schema::create('settings', function (Blueprint $table) {
             $table->id();
+            $table->string('group')->nullable()->index();
             $table->string('name');
-            $table->string('slug')->unique();
+            $table->string('slug', 100)->nullable();
             $table->text('value')->nullable();
+            $table->integer('location_id')->default(0);
             $table->timestamps();
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('settings');

@@ -74,7 +74,7 @@ class RestockSheetService
         return [
           'pcode' => $parentPcode,
           'name' => $name,
-          'image_url' => $group?->image_url ?? asset('images/default-item.png'),
+          'image_url' => $group?->image_url ?? asset('images/default-item.svg'),
           'sku_count' => $items->count(),
           'totals' => [
             'restock' => (int) $cells->sum('qty_restock'),

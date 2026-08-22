@@ -5,17 +5,18 @@ namespace App\Http\Controllers;
 use App\Models\Addrbook;
 use App\Models\Jubelio;
 use App\Models\Jubeliosync;
+use App\Services\JubelioService;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
-use Illuminate\Support\Facades\Http;
 use Illuminate\View\View;
 
 class JubelioSyncController extends Controller
 {
+    public function __construct(private JubelioService $jubelioService) {}
+
     /**
      * Display a listing of the resource.
      */
@@ -46,20 +47,14 @@ class JubelioSyncController extends Controller
     {
         Gate::authorize(Jubelio::getPermissions()['sync']);
 
-        $token = Cache::get('jubelio_data')['token'] ?? null;
-
         $dataList = ['data' => []];
-        if ($token) {
-            $response = Http::withHeaders([
-                'Authorization' => $token,
-            ])->get('https://api2.jubelio.com/locations/', [
-                'page' => 1,
-                'pageSize' => 200,
-            ]);
+        $response = $this->jubelioService->get('https://api2.jubelio.com/locations/', [
+            'page' => 1,
+            'pageSize' => 200,
+        ]);
 
-            if ($response->successful()) {
-                $dataList = $response->json();
-            }
+        if ($response && $response->successful()) {
+            $dataList = $response->json();
         }
 
         return view('jubelio.sync.create', [
@@ -82,19 +77,12 @@ class JubelioSyncController extends Controller
         $request->validate([
             'location_id' => 'required',
             'location_name' => 'required',
-            'warehouse_id' => 'required|exists:addrbooks,id',
+            'warehouse_id' => 'required|exists:customers,id',
         ]);
 
-        $token = Cache::get('jubelio_data')['token'] ?? null;
-        if (! $token) {
-            return back()->with('errorMessage', 'Jubelio token not found in cache.');
-        }
+        $response = $this->jubelioService->get('https://api2.jubelio.com/locations/'.$request->location_id);
 
-        $response = Http::withHeaders([
-            'Authorization' => $token,
-        ])->get('https://api2.jubelio.com/locations/'.$request->location_id);
-
-        if (! $response->successful()) {
+        if (! $response || ! $response->successful()) {
             return back()->with('errorMessage', 'Failed to fetch location details from Jubelio.');
         }
 
@@ -150,8 +138,8 @@ class JubelioSyncController extends Controller
         Gate::authorize(Jubelio::getPermissions()['sync']);
 
         $request->validate([
-            'warehouse_id' => 'required|exists:addrbooks,id',
-            'customer_id' => 'nullable|exists:addrbooks,id',
+            'warehouse_id' => 'required|exists:customers,id',
+            'customer_id' => 'nullable|exists:customers,id',
         ]);
 
         $sync->update([
@@ -175,32 +163,114 @@ class JubelioSyncController extends Controller
     }
 
     /**
-     * Update bin ID from Jubelio.
+     * Update bin ID from Jubelio for one mapping row.
      */
     public function getBin(Jubeliosync $sync): RedirectResponse
     {
         Gate::authorize(Jubelio::getPermissions()['sync']);
 
-        $token = Cache::get('jubelio_data')['token'] ?? null;
-        if (! $token) {
-            return back()->with('errorMessage', 'Jubelio token not found.');
+        $result = $this->fetchDefaultBinId((int) $sync->jubelio_location_id);
+
+        if (! $result['ok']) {
+            return redirect()->route('jubelio.sync.index')
+                ->with('fail', $result['message']);
         }
 
-        $response = Http::withHeaders([
-            'Content-Type' => 'application/json',
-            'authorization' => $token,
-        ])->get('https://api2.jubelio.com/wms/default-bin/'.$sync->jubelio_location_id);
+        $sync->update(['bin_id' => $result['bin_id']]);
+
+        return redirect()->route('jubelio.sync.index')->with('success', 'Jubelio updated bin id.');
+    }
+
+    /**
+     * Fetch default bin IDs from Jubelio for every mapped location (deduped by location).
+     */
+    public function refreshAllBins(Request $request): RedirectResponse
+    {
+        Gate::authorize(Jubelio::getPermissions()['sync']);
+
+        $query = Jubeliosync::query();
+
+        if ($request->name) {
+            $name = str_replace(' ', '%', $request->name);
+            $query->where('jubelio_location_name', 'LIKE', "%$name%");
+        }
+
+        $locationIds = $query
+            ->pluck('jubelio_location_id')
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn (int $id) => $id > 0)
+            ->unique()
+            ->values();
+
+        if ($locationIds->isEmpty()) {
+            return redirect()->route('jubelio.sync.index', $request->only('name'))
+                ->with('errorMessage', 'Tidak ada mapping untuk dicek.');
+        }
+
+        $updatedRows = 0;
+        $updatedLocations = 0;
+        $failures = [];
+
+        foreach ($locationIds as $locationId) {
+            $result = $this->fetchDefaultBinId($locationId);
+
+            if (! $result['ok']) {
+                $failures[] = "Lokasi {$locationId}: {$result['message']}";
+
+                continue;
+            }
+
+            $updatedRows += Jubeliosync::query()
+                ->where('jubelio_location_id', $locationId)
+                ->update([
+                    'bin_id' => $result['bin_id'],
+                    'updated_at' => now(),
+                ]);
+            $updatedLocations++;
+        }
+
+        $redirect = redirect()->route('jubelio.sync.index', $request->only('name'));
+
+        if ($updatedLocations === 0) {
+            return $redirect->with('fail', implode('; ', $failures));
+        }
+
+        $message = "Bin diperbarui untuk {$updatedRows} mapping ({$updatedLocations} lokasi Jubelio).";
+
+        if ($failures !== []) {
+            $message .= ' Gagal: '.count($failures).' lokasi — '.implode('; ', array_slice($failures, 0, 3));
+            if (count($failures) > 3) {
+                $message .= '…';
+            }
+
+            return $redirect->with('fail', $message);
+        }
+
+        return $redirect->with('success', $message);
+    }
+
+    /**
+     * @return array{ok: bool, bin_id?: int, message?: string}
+     */
+    private function fetchDefaultBinId(int $locationId): array
+    {
+        $response = $this->jubelioService->get('https://api2.jubelio.com/wms/default-bin/'.$locationId);
+
+        if (! $response) {
+            return ['ok' => false, 'message' => 'Jubelio authentication failed.'];
+        }
 
         if ($response->successful()) {
             $result = $response->json();
-            $sync->update(['bin_id' => $result['bin_id'] ?? 0]);
 
-            return redirect()->route('jubelio.sync.index')->with('success', 'Jubelio updated bin id.');
-        } else {
-            $error = $response->json();
-            $message = $error['message'] ?? 'Terjadi kesalahan saat mengambil bin.';
-
-            return redirect()->route('jubelio.sync.index')->with('fail', $message);
+            return ['ok' => true, 'bin_id' => (int) ($result['bin_id'] ?? 0)];
         }
+
+        $error = $response->json();
+
+        return [
+            'ok' => false,
+            'message' => $error['message'] ?? 'Terjadi kesalahan saat mengambil bin.',
+        ];
     }
 }

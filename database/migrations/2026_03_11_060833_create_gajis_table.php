@@ -30,7 +30,7 @@ return new class extends Migration
             $table->integer('sanksi')->default(0);
             $table->integer('total_gaji')->default(0);
             $table->integer('flag')->default(1);
-            $table->foreignId('bank_id')->nullable()->constrained('addrbooks')->nullOnDelete();
+            $table->foreignId('bank_id')->nullable()->constrained('customers')->nullOnDelete();
             $table->timestamps();
             $table->softDeletes();
         });

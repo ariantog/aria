@@ -11,13 +11,55 @@ class ScheduledTaskSeeder extends Seeder
      */
     public function run(): void
     {
+        \App\Models\ScheduledTask::where('command', 'queue:work --stop-when-empty --max-time=55')->delete();
+
         \App\Models\ScheduledTask::updateOrCreate(
-            ['command' => 'app:generate-stock-intelligence'],
+            ['command' => 'app:process-queue'],
             [
-                'name' => 'Generate Stock Intelligence',
+                'name' => 'Process Queue Jobs',
+                'frequency' => 'everyMinute',
+                'active' => true,
+                'description' => 'Drains the jobs table (transaction report aggregates, Jubelio import jobs, etc.).',
+            ]
+        );
+
+        \App\Models\ScheduledTask::updateOrCreate(
+            ['command' => 'app:recalculate-warehouse-item-stats'],
+            [
+                'name' => 'Recalculate Warehouse Item Stats',
+                'frequency' => 'weekly',
+                'active' => true,
+                'description' => 'Rebuilds monthly per-warehouse SKU sell/return statistics for arrangement reports.',
+            ]
+        );
+
+        \App\Models\ScheduledTask::updateOrCreate(
+            ['command' => 'app:process-warehouse-arrangement-refresh'],
+            [
+                'name' => 'Process Warehouse Arrangement Refresh',
+                'frequency' => 'everyMinute',
+                'active' => true,
+                'description' => 'Processes queued warehouse arrangement rebuild jobs (~300 SKUs per minute per warehouse).',
+            ]
+        );
+
+        \App\Models\ScheduledTask::updateOrCreate(
+            ['command' => 'app:sync-warehouse-arrangement'],
+            [
+                'name' => 'Sync Warehouse Arrangement',
                 'frequency' => 'daily',
-                'is_active' => true,
-                'description' => 'Generates daily stock intelligence reports.',
+                'active' => true,
+                'description' => 'Pre-computes arrangement candidates and source warehouse matches for fast report loads.',
+            ]
+        );
+
+        \App\Models\ScheduledTask::updateOrCreate(
+            ['command' => 'app:sync-product-performance'],
+            [
+                'name' => 'Sync Product Performance',
+                'frequency' => 'daily',
+                'active' => true,
+                'description' => 'Rebuilds product performance rollups for sales contribution and warehouse demand reports.',
             ]
         );
 
@@ -26,8 +68,48 @@ class ScheduledTaskSeeder extends Seeder
             [
                 'name' => 'Sync Jubelio Orders',
                 'frequency' => 'everyMinute',
-                'is_active' => true,
-                'description' => 'Processes pending Jubelio orders into Aria transactions.',
+                'active' => true,
+                'description' => 'Processes pending Jubelio orders into Aria transactions (one per minute).',
+            ]
+        );
+
+        \App\Models\ScheduledTask::updateOrCreate(
+            ['command' => 'jubelio:check-connection'],
+            [
+                'name' => 'Jubelio Check Connection',
+                'frequency' => 'hourly',
+                'active' => true,
+                'description' => 'Refreshes Jubelio token and pings the API to detect auth/connectivity issues.',
+            ]
+        );
+
+        \App\Models\ScheduledTask::updateOrCreate(
+            ['command' => 'jubelio:poll-missing-orders'],
+            [
+                'name' => 'Jubelio Poll Missing Orders',
+                'frequency' => 'hourly',
+                'active' => true,
+                'description' => 'Polls Jubelio for recent orders missing from Aria (catches failed webhooks).',
+            ]
+        );
+
+        \App\Models\ScheduledTask::updateOrCreate(
+            ['command' => 'jubelio:get-orders'],
+            [
+                'name' => 'Jubelio Get Orders (legacy resume)',
+                'frequency' => 'everyMinute',
+                'active' => false,
+                'description' => 'Legacy fallback to resume interrupted manual imports. Prefer the queued sync job from Get Orders UI.',
+            ]
+        );
+
+        \App\Models\ScheduledTask::updateOrCreate(
+            ['command' => 'app:jubelio-stock-check'],
+            [
+                'name' => 'Jubelio Stock Check',
+                'frequency' => 'everyMinute',
+                'active' => true,
+                'description' => 'Compares Aria vs Jubelio stock per synced warehouse (demand-based SKUs).',
             ]
         );
     }

@@ -37,7 +37,7 @@ class SuperAdminSeeder extends Seeder
                 'name' => 'Super Admin',
                 'email' => 'superadmin@mail.com',
                 'password' => Hash::make('password'),
-                'is_active' => true,
+                'active' => true,
                 'location_id' => $locationId,
             ]
         );

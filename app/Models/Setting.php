@@ -2,15 +2,16 @@
 
 namespace App\Models;
 
+use App\Support\FillsProductionColumnDefaults;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class Setting extends Model
 {
     /** @use HasFactory<\Database\Factories\SettingFactory> */
-    use HasFactory;
+    use HasFactory, FillsProductionColumnDefaults;
 
-    protected $fillable = ['group', 'name', 'slug', 'value'];
+    protected $fillable = ['group', 'name', 'slug', 'value', 'location_id'];
 
     const DAY_MAP = [
         'Senin' => 'Monday',
@@ -41,16 +42,20 @@ class Setting extends Model
             'edit' => 'setting-general-edit',
             'create' => 'setting-general-create',
             'delete' => 'setting-general-delete',
-
-            // Cron Manager
-            'cron-view' => 'setting-cron-manager-view',
-            'cron-edit' => 'setting-cron-manager-edit',
         ];
     }
 
     public static function getValue(string $slug, mixed $default = null): mixed
     {
-        $setting = self::where('slug', $slug)->first();
+        $query = self::query();
+
+        if (\Illuminate\Support\Facades\Schema::hasColumn((new static)->getTable(), 'slug')) {
+            $query->where('slug', $slug);
+        } else {
+            $query->where('name', $slug);
+        }
+
+        $setting = $query->orderByDesc('id')->first();
 
         return $setting ? $setting->value : $default;
     }

@@ -5,7 +5,7 @@
 @section('content')
 @php
 $breadcrumbs = [
-    ['title' => 'Address Book', 'href' => route('addrbook.index')],
+    ['title' => 'Address Book', 'href' => \App\Models\Addrbook::typeIndexRoute($addrbook->type_slug)],
     ['title' => 'Detail', 'href' => '/' . $addrbook->type_slug . '/' . $addrbook->id],
 ];
 $balance = (float) ($addrbook->stat->balance ?? 0);
@@ -25,7 +25,7 @@ $balance = (float) ($addrbook->stat->balance ?? 0);
                 </div>
                 <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-500">
                     <span class="font-mono">ID: #{{ $addrbook->id }}</span>
-                    @if($addrbook->member_id)<span class="font-mono">Member ID: {{ $addrbook->member_id }}</span>@endif
+                    @if($addrbook->memberId)<span class="font-mono">Member ID: {{ $addrbook->memberId }}</span>@endif
                     <span class="flex items-center gap-1.5">
                         <span class="h-2 w-2 rounded-full {{ $addrbook->is_online ? 'bg-emerald-500' : 'bg-gray-300' }}"></span>
                         {{ $addrbook->is_online ? 'Online' : 'Offline' }}
@@ -114,7 +114,7 @@ $balance = (float) ($addrbook->stat->balance ?? 0);
                 </div>
                 <div class="p-8">
                     <p class="mb-1 text-sm font-medium uppercase tracking-widest text-blue-100">Current Balance</p>
-                    <h3 class="truncate text-3xl font-extrabold">IDR {{ number_format($balance, 0, ',', '.') }}</h3>
+                    <h3 class="truncate text-3xl font-extrabold">IDR {{ format_amount($balance) }}</h3>
                     <p class="mt-4 text-xs text-blue-200">Total outstanding or credit balance</p>
                 </div>
             </div>

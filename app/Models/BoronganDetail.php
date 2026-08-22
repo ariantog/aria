@@ -10,6 +10,8 @@ class BoronganDetail extends Model
 {
     use HasFactory;
 
+    protected $table = 'prod_borongandetail';
+
     protected $guarded = ['id'];
 
     protected $casts = [

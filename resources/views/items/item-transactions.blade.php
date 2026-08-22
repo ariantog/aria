@@ -59,9 +59,9 @@ $typeColors = [
                             <span class="inline-flex rounded border px-2 py-0.5 text-[10px] font-bold uppercase {{ $typeColors[$tt] ?? 'bg-gray-50 text-gray-600 border-gray-200' }}">{{ $typeLabels[$tt] ?? 'Other' }}</span>
                         </td>
                         <td class="whitespace-nowrap px-6 py-3">
-                            <a href="/transactions/{{ $td->transaction_id }}" class="font-mono text-blue-600 hover:underline">{{ optional($td->transaction)->invoice_number ?? '-' }}</a>
+                            <a href="/transactions/{{ $td->transaction_id }}" class="font-mono text-blue-600 hover:underline">{{ optional($td->transaction)->invoice ?? '-' }}</a>
                         </td>
-                        <td class="whitespace-nowrap px-6 py-3 text-right font-medium text-gray-600">Rp {{ number_format($td->price, 0, ',', '.') }}</td>
+                        <td class="whitespace-nowrap px-6 py-3 text-right font-medium text-gray-600">{{ format_currency($td->price) }}</td>
                         <td class="px-6 py-3">
                             <div class="flex flex-col">
                                 <span class="font-medium text-gray-700">{{ optional(optional($td->transaction)->sender)->name ?? '-' }}</span>
@@ -78,7 +78,7 @@ $typeColors = [
                             <p class="max-w-[200px] truncate text-xs text-gray-500" title="{{ $td->notes ?? optional($td->transaction)->description }}">{{ $td->notes ?? optional($td->transaction)->description ?? '-' }}</p>
                         </td>
                         <td class="whitespace-nowrap px-6 py-3 text-right font-mono font-bold {{ $isOut ? 'text-rose-500' : 'text-emerald-500' }}">
-                            {{ $isOut ? '-' : '+' }}{{ number_format($td->quantity, 0, ',', '.') }}
+                            {{ $isOut ? '-' : '+' }}{{ format_amount($td->quantity) }}
                         </td>
                     </tr>
                     @empty

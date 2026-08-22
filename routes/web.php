@@ -4,6 +4,10 @@ use Illuminate\Support\Facades\Route;
 use Laravel\Fortify\Features;
 
 Route::get('/', function () {
+    if (auth()->check()) {
+        return redirect()->route('dashboard');
+    }
+
     return view('welcome', [
         'canRegister' => Features::enabled(Features::registration()),
     ]);
@@ -14,32 +18,65 @@ Route::get('dashboard', function () {
 })->middleware(['auth', 'verified', 'active'])->name('dashboard');
 
 Route::middleware(['auth', 'active'])->get('/banned', function () {
-    if (request()->user()->is_active) {
+    if (request()->user()->active) {
         return redirect('dashboard');
     }
 
     return view('auth.banned');
 })->withoutMiddleware(['active'])->name('banned');
 
+// Jubelio webhook — must stay public (no auth); CSRF exempt in bootstrap/app.php
+Route::post('jubelio/webhook/order', [App\Http\Controllers\JubelioController::class, 'webhookOrder'])
+    ->name('jubelio.webhook.order');
+Route::post('jubelio/webhook/return', [App\Http\Controllers\JubelioController::class, 'webhookReturn'])
+    ->name('jubelio.webhook.return');
+
 Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::get('/permissions', [App\Http\Controllers\PermissionController::class, 'index'])->name('permissions.index');
     Route::post('/permissions/generate', [App\Http\Controllers\PermissionController::class, 'generate'])->name('permissions.generate');
     Route::resource('roles', App\Http\Controllers\RoleController::class);
-    Route::resource('users', \App\Http\Controllers\UserController::class);
+    Route::post('users/{user}/ban', [\App\Http\Controllers\UserController::class, 'ban'])->name('users.ban');
+    Route::post('users/{user}/unban', [\App\Http\Controllers\UserController::class, 'unban'])->name('users.unban');
+    Route::resource('users', \App\Http\Controllers\UserController::class)->except(['destroy']);
     Route::resource('locations', \App\Http\Controllers\LocationController::class);
-    Route::resource('posts', App\Http\Controllers\PostController::class);
+    Route::get('locations/{location}/customers', [\App\Http\Controllers\LocationController::class, 'customers'])->name('locations.customers');
+    Route::post('locations/{location}/customers', [\App\Http\Controllers\LocationController::class, 'attachAddrbook'])->name('locations.customers.attach');
+    Route::delete('locations/{location}/customers/{addrbook}', [\App\Http\Controllers\LocationController::class, 'detachAddrbook'])->name('locations.customers.detach');
+    Route::get('items/legacy-converter', [App\Http\Controllers\LegacyItemConverterController::class, 'index'])->name('items.legacy-converter');
+    Route::post('items/legacy-converter/preview', [App\Http\Controllers\LegacyItemConverterController::class, 'preview'])->name('items.legacy-converter.preview');
+    Route::post('items/legacy-converter/purge-useless', [App\Http\Controllers\LegacyItemConverterController::class, 'purgeUseless'])->name('items.legacy-converter.purge-useless');
+    Route::post('items/legacy-converter/run', [App\Http\Controllers\LegacyItemConverterController::class, 'run'])->name('items.legacy-converter.run');
+    Route::get('items/special-converter', [App\Http\Controllers\SpecialSkuConverterController::class, 'index'])->name('items.special-converter');
+    Route::post('items/special-converter/preview', [App\Http\Controllers\SpecialSkuConverterController::class, 'preview'])->name('items.special-converter.preview');
+    Route::post('items/special-converter/run', [App\Http\Controllers\SpecialSkuConverterController::class, 'run'])->name('items.special-converter.run');
     Route::get('items/{item}/transactions', [App\Http\Controllers\ItemsController::class, 'itemTransactions'])->name('items.transactions');
     Route::get('items/{item}/stats', [App\Http\Controllers\ItemsController::class, 'itemStats'])->name('items.stats');
     Route::get('items/{item}/jubelio', [App\Http\Controllers\ItemsController::class, 'jubelio'])->name('items.jubelio');
     Route::get('items/{item}/jubelio-search', [App\Http\Controllers\ItemsController::class, 'getJubelioItems'])->name('items.jubelio-search');
     Route::post('items/{item}/jubelio-link', [App\Http\Controllers\ItemsController::class, 'updateJubelioId'])->name('items.jubelio-link');
     Route::resource('items', App\Http\Controllers\ItemsController::class);
+    Route::get('jubelio/order/cek', [App\Http\Controllers\JubelioController::class, 'cekOrder'])->name('jubelio.order.cek');
+    Route::post('jubelio/order/cek/queue', [App\Http\Controllers\JubelioController::class, 'queueCekOrder'])->name('jubelio.order.cek.queue');
+    Route::get('jubelio/token', [App\Http\Controllers\JubelioTokenController::class, 'index'])->name('jubelio.token.index');
+    Route::post('jubelio/token/refresh', [App\Http\Controllers\JubelioTokenController::class, 'refresh'])->name('jubelio.token.refresh');
+    Route::post('jubelio/token/check', [App\Http\Controllers\JubelioTokenController::class, 'check'])->name('jubelio.token.check');
+    Route::get('jubelio/{jubelio}/payload', [App\Http\Controllers\JubelioController::class, 'payload'])->name('jubelio.payload');
+    Route::post('jubelio/{jubelio}/process', [App\Http\Controllers\JubelioController::class, 'processOrder'])->name('jubelio.process');
+    Route::post('jubelio/{jubelio}/solve', [App\Http\Controllers\JubelioController::class, 'markSolved'])->name('jubelio.solve');
     Route::resource('jubelio', App\Http\Controllers\JubelioController::class);
+    Route::get('jubelio-returns', [App\Http\Controllers\JubelioReturnController::class, 'index'])->name('jubelio.returns.index');
+    Route::get('jubelio-returns/{jubelioReturn}', [App\Http\Controllers\JubelioReturnController::class, 'show'])->name('jubelio.returns.show');
+    Route::post('jubelio-returns/{jubelioReturn}/process', [App\Http\Controllers\JubelioReturnController::class, 'process'])->name('jubelio.returns.process');
+    Route::post('jubelio-returns/{jubelioReturn}/solve', [App\Http\Controllers\JubelioReturnController::class, 'markSolved'])->name('jubelio.returns.solve');
+    Route::get('jubelio-get-orders', [App\Http\Controllers\JubelioGetOrderController::class, 'index'])->name('jubelio.get-orders.index');
+    Route::post('jubelio-get-orders', [App\Http\Controllers\JubelioGetOrderController::class, 'store'])->name('jubelio.get-orders.store');
+    Route::post('jubelio-get-orders/reset', [App\Http\Controllers\JubelioGetOrderController::class, 'reset'])->name('jubelio.get-orders.reset');
     Route::get('jubelio-transaction/sync', [App\Http\Controllers\JubelioController::class, 'transactionSync'])->name('jubelio.transaction.sync');
     Route::get('jubelio-transaction/{transaction}/detail-sync', [App\Http\Controllers\JubelioController::class, 'detailJubelioSync'])->name('jubelio.transaction.detail-sync');
     Route::patch('jubelio-transaction/{transaction}/sync-display', [App\Http\Controllers\JubelioController::class, 'transactionSyncDisplay'])->name('jubelio.transaction.sync-display');
+    Route::post('jubelio-transaction/{transaction}/sync-confirm', [App\Http\Controllers\JubelioController::class, 'confirmSyncWarning'])->name('jubelio.transaction.sync-confirm');
+    Route::post('jubelio-transaction/{transaction}/sync-clear', [App\Http\Controllers\JubelioController::class, 'clearSyncWarning'])->name('jubelio.transaction.sync-clear');
     Route::post('jubelio-transaction/{id}/adjust-stok', [App\Http\Controllers\JubelioController::class, 'adjustStok'])->name('jubelio.adjustStok');
-    Route::post('jubelio/webhook/order', [App\Http\Controllers\JubelioController::class, 'webhookOrder'])->name('jubelio.webhook.order');
 
     // Jubelio Stock Check Routes
     Route::resource('jubelio-stock-checks', App\Http\Controllers\JubelioStockCheckController::class)->only(['index', 'create', 'store', 'show', 'destroy']);
@@ -48,16 +85,21 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::get('jubelio-sync', [App\Http\Controllers\JubelioSyncController::class, 'index'])->name('jubelio.sync.index');
     Route::get('jubelio-sync/create', [App\Http\Controllers\JubelioSyncController::class, 'create'])->name('jubelio.sync.create');
     Route::post('jubelio-sync', [App\Http\Controllers\JubelioSyncController::class, 'store'])->name('jubelio.sync.store');
+    Route::post('jubelio-sync/refresh-bins', [App\Http\Controllers\JubelioSyncController::class, 'refreshAllBins'])->name('jubelio.sync.refreshBins');
     Route::get('jubelio-sync/{sync}/edit', [App\Http\Controllers\JubelioSyncController::class, 'edit'])->name('jubelio.sync.edit');
     Route::patch('jubelio-sync/{sync}', [App\Http\Controllers\JubelioSyncController::class, 'update'])->name('jubelio.sync.update');
     Route::delete('jubelio-sync/{sync}', [App\Http\Controllers\JubelioSyncController::class, 'destroy'])->name('jubelio.sync.delete');
     Route::get('jubelio-sync/{sync}/bin', [App\Http\Controllers\JubelioSyncController::class, 'getBin'])->name('jubelio.sync.getBin');
 
-    Route::resource('addrbook', App\Http\Controllers\AddrbookController::class);
+    Route::get('addrbook', fn () => abort(404));
+    Route::resource('addrbook', App\Http\Controllers\AddrbookController::class)->except(['index']);
     Route::get('addrbook/{addrbook}/transactions', [App\Http\Controllers\AddrbookController::class, 'transactions'])->name('addrbook.transactions');
     Route::get('addrbook/{addrbook}/items', [App\Http\Controllers\AddrbookController::class, 'items'])->name('addrbook.items');
     Route::get('addrbook/{addrbook}/item-sales', [App\Http\Controllers\AddrbookController::class, 'itemSales'])->name('addrbook.item-sales');
     Route::get('addrbook/{addrbook}/stats', [App\Http\Controllers\AddrbookController::class, 'stat'])->name('addrbook.stats');
+    Route::get('system-settings/invoice/branding', [App\Http\Controllers\InvoiceSettingsController::class, 'edit'])->name('invoice-settings.edit');
+    Route::put('system-settings/invoice/branding', [App\Http\Controllers\InvoiceSettingsController::class, 'update'])->name('invoice-settings.update');
+    Route::get('system-settings/lookup/{type}', [App\Http\Controllers\SettingController::class, 'lookup'])->name('system-settings.lookup');
     Route::resource('system-settings', App\Http\Controllers\SettingController::class)->except(['show']);
 
     // Cron Manager
@@ -113,6 +155,9 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
 
     // Item Group Routes
     Route::get('items-group', [App\Http\Controllers\ItemsController::class, 'group'])->name('items.group');
+    Route::get('items-group/parent/{parentSlug}', [App\Http\Controllers\ItemsController::class, 'groupParentDetail'])->name('items.group-parent-detail');
+    Route::get('items-group/parent/{parentSlug}/export', [App\Http\Controllers\ItemsController::class, 'exportGroupParent'])->name('items.group-parent-export');
+    Route::put('items-group/parent/{parentSlug}', [App\Http\Controllers\ItemsController::class, 'updateGroupParent'])->name('items.group-parent-update');
     Route::get('items-group/{group}', [App\Http\Controllers\ItemsController::class, 'groupDetail'])->name('items.group-detail');
     Route::put('items-group/{group}', [App\Http\Controllers\ItemsController::class, 'updateGroup'])->name('items.group-update');
     Route::get('items-group/{group}/stats', [App\Http\Controllers\ItemsController::class, 'groupStats'])->name('items.group-stats');
@@ -125,30 +170,53 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::get('transactions/deleted', [App\Http\Controllers\DeletedTransactionsController::class, 'index'])->name('transactions.deleted.index');
     Route::get('transactions/deleted/{id}', [App\Http\Controllers\DeletedTransactionsController::class, 'show'])->name('transactions.deleted.show');
     Route::get('transactions', [App\Http\Controllers\TransactionsController::class, 'index'])->name('transactions.index');
-    Route::post('transactions', [App\Http\Controllers\TransactionsController::class, 'store'])->name('transactions.store');
+    Route::post('transactions', [App\Http\Controllers\TransactionsController::class, 'store'])->middleware('prevent.duplicate')->name('transactions.store');
     Route::post('transactions/batch-parse', [App\Http\Controllers\TransactionsController::class, 'batchParse'])->name('transactions.batch-parse');
 
     Route::get('transactions/cash-in', [App\Http\Controllers\TransactionsController::class, 'cashIn'])->name('transactions.cash-in');
-    Route::post('transactions/cash-in', [App\Http\Controllers\TransactionsController::class, 'storeCashIn'])->name('transactions.cash-in.store');
+    Route::post('transactions/cash-in', [App\Http\Controllers\TransactionsController::class, 'storeCashIn'])->middleware('prevent.duplicate')->name('transactions.cash-in.store');
 
     Route::get('transactions/cash-out', [App\Http\Controllers\TransactionsController::class, 'cashOut'])->name('transactions.cash-out');
-    Route::post('transactions/cash-out', [App\Http\Controllers\TransactionsController::class, 'storeCashOut'])->name('transactions.cash-out.store');
+    Route::post('transactions/cash-out', [App\Http\Controllers\TransactionsController::class, 'storeCashOut'])->middleware('prevent.duplicate')->name('transactions.cash-out.store');
 
     Route::get('transactions/transfer', [App\Http\Controllers\TransactionsController::class, 'transfer'])->name('transactions.transfer');
-    Route::post('transactions/transfer', [App\Http\Controllers\TransactionsController::class, 'storeTransfer'])->name('transactions.transfer.store');
+    Route::post('transactions/transfer', [App\Http\Controllers\TransactionsController::class, 'storeTransfer'])->middleware('prevent.duplicate')->name('transactions.transfer.store');
 
     Route::get('transactions/adjust', [App\Http\Controllers\TransactionsController::class, 'adjust'])->name('transactions.adjust');
-    Route::post('transactions/adjust', [App\Http\Controllers\TransactionsController::class, 'storeAdjust'])->name('transactions.adjust.store');
+    Route::post('transactions/adjust', [App\Http\Controllers\TransactionsController::class, 'storeAdjust'])->middleware('prevent.duplicate')->name('transactions.adjust.store');
+
+    Route::get('transactions/export', [App\Http\Controllers\TransactionsController::class, 'export'])->name('transactions.export');
+    Route::get('transactions/export-sell', [App\Http\Controllers\ExportSellController::class, 'index'])->name('transactions.export-sell');
+    Route::get('transactions/export-sell/build', [App\Http\Controllers\ExportSellController::class, 'export'])->name('transactions.export-sell.build');
+    Route::get('transactions/{transaction}/receipt', [App\Http\Controllers\TransactionsController::class, 'receipt'])->name('transactions.receipt');
+    Route::get('transactions/{transaction}/print', [App\Http\Controllers\TransactionsController::class, 'printInvoice'])->name('transactions.print');
+    Route::get('transactions/{transaction}/pdf', [App\Http\Controllers\TransactionsController::class, 'showPdf'])->name('transactions.pdf.show');
+    Route::post('transactions/{transaction}/pdf', [App\Http\Controllers\TransactionsController::class, 'storePdf'])->name('transactions.pdf.store');
+    Route::match(['get', 'post'], 'transactions/{transaction}/draft-return', [App\Http\Controllers\TransactionsController::class, 'draftReturn'])->name('transactions.draft-return');
+    Route::post('transactions/{transaction}/whatsapp', [App\Http\Controllers\TransactionsController::class, 'sendWhatsapp'])->name('transactions.whatsapp');
+
+    Route::get('invoice-maker/settings', [App\Http\Controllers\InvoiceMakerSettingsController::class, 'index'])->name('invoice-maker.settings.index');
+    Route::get('invoice-maker/settings/create', [App\Http\Controllers\InvoiceMakerSettingsController::class, 'create'])->name('invoice-maker.settings.create');
+    Route::post('invoice-maker/settings', [App\Http\Controllers\InvoiceMakerSettingsController::class, 'store'])->name('invoice-maker.settings.store');
+    Route::get('invoice-maker/settings/{preset}/edit', [App\Http\Controllers\InvoiceMakerSettingsController::class, 'edit'])->name('invoice-maker.settings.edit');
+    Route::put('invoice-maker/settings/{preset}', [App\Http\Controllers\InvoiceMakerSettingsController::class, 'update'])->name('invoice-maker.settings.update');
+    Route::delete('invoice-maker/settings/{preset}', [App\Http\Controllers\InvoiceMakerSettingsController::class, 'destroy'])->name('invoice-maker.settings.destroy');
+    Route::get('invoice-maker/{invoice}/pdf', [App\Http\Controllers\StandaloneInvoicesController::class, 'showPdf'])->name('invoice-maker.pdf.show');
+    Route::get('invoice-maker/{invoice}/pdf/download', [App\Http\Controllers\StandaloneInvoicesController::class, 'downloadPdf'])->name('invoice-maker.pdf.download');
+    Route::post('invoice-maker/{invoice}/pdf', [App\Http\Controllers\StandaloneInvoicesController::class, 'storePdf'])->name('invoice-maker.pdf.store');
+    Route::resource('invoice-maker', App\Http\Controllers\StandaloneInvoicesController::class)
+        ->parameters(['invoice-maker' => 'invoice']);
 
     Route::get('transactions/{transaction}', [App\Http\Controllers\TransactionsController::class, 'show'])->name('transactions.show');
     Route::delete('transactions/{transaction}', [App\Http\Controllers\TransactionsController::class, 'destroy'])->name('transactions.destroy');
 
     Route::get('transactions/{type}/create', [App\Http\Controllers\TransactionsController::class, 'create'])->name('transactions.create');
+    Route::get('transactions/{type}/item-by-id', [App\Http\Controllers\TransactionsController::class, 'itemById'])->name('transactions.item-by-id');
     Route::get('transactions/{type}/lookup/{role}', [App\Http\Controllers\TransactionLookupController::class, 'search'])->name('transactions.lookup');
     Route::get('tags/lookup', [App\Http\Controllers\TagLookupController::class, 'search'])->name('tags.lookup');
     Route::resource('tags', \App\Http\Controllers\Stuff\TagController::class);
-    Route::resource('contributors', \App\Http\Controllers\Stuff\ContributorController::class);
-    Route::get('contributors/filter', [\App\Http\Controllers\Stuff\ContributorController::class, 'index'])->name('contributor.filter');
+    Route::redirect('/contributors', '/reports/product-performance');
+    Route::redirect('/contributors/filter', '/reports/product-performance');
     // Journal Module
     Route::resource('journals/operations', \App\Http\Controllers\Journal\OperationController::class);
     Route::resource('journals/account-list', \App\Http\Controllers\Journal\AccountListController::class)->parameters([
@@ -168,6 +236,7 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
 
         // Assign QC to Production Entry
         Route::patch('/{produksi}/qc', [App\Http\Controllers\ProduksiController::class, 'postSaveQc'])->name('assign-qc');
+        Route::patch('/{produksi}/pritil', [App\Http\Controllers\ProduksiController::class, 'postSavePritil'])->name('assign-pritil');
 
         Route::patch('/{produksi}/setor', [App\Http\Controllers\ProduksiController::class, 'postSetor'])->name('setor');
         Route::get('/setoran', [App\Http\Controllers\ProduksiController::class, 'setoranIndex'])->name('setoran.index');
@@ -181,12 +250,13 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
         Route::post('/{produksi}/split', [App\Http\Controllers\ProduksiController::class, 'split'])->name('split');
         Route::patch('/{produksi}/worker', [App\Http\Controllers\ProduksiController::class, 'gantiJahit'])->name('ganti-jahit');
 
-        foreach (['potong', 'jahit', 'qc'] as $type) {
+        foreach (['potong', 'jahit', 'qc', 'pritil'] as $type) {
             Route::prefix($type)->name($type.'.')->group(function () use ($type) {
                 Route::get('/list', [App\Http\Controllers\ProduksiController::class, 'workerIndex'])->defaults('type', $type)->name('index');
+                Route::get('/{worker}', [App\Http\Controllers\ProduksiController::class, 'workerShow'])->defaults('type', $type)->name('show');
                 Route::post('/store', [App\Http\Controllers\ProduksiController::class, 'workerStore'])->defaults('type', $type)->name('store');
-                Route::put('/{worker}', [App\Http\Controllers\ProduksiController::class, 'workerUpdate'])->name('update');
-                Route::delete('/{worker}/delete', [App\Http\Controllers\ProduksiController::class, 'workerDestroy'])->name('destroy');
+                Route::put('/{worker}', [App\Http\Controllers\ProduksiController::class, 'workerUpdate'])->defaults('type', $type)->name('update');
+                Route::delete('/{worker}/delete', [App\Http\Controllers\ProduksiController::class, 'workerDestroy'])->defaults('type', $type)->name('destroy');
             });
         }
     });
@@ -197,6 +267,8 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
         Route::get('/create', [App\Http\Controllers\BoronganController::class, 'create'])->name('create');
         Route::post('/', [App\Http\Controllers\BoronganController::class, 'store'])->name('store');
         Route::get('/ajax', [App\Http\Controllers\BoronganController::class, 'getAjaxBorongan'])->name('ajax');
+        Route::get('/{borongan}/edit', [App\Http\Controllers\BoronganController::class, 'edit'])->name('edit');
+        Route::patch('/{borongan}', [App\Http\Controllers\BoronganController::class, 'update'])->name('update');
         Route::get('/{borongan}', [App\Http\Controllers\BoronganController::class, 'show'])->name('show');
     });
 
@@ -222,11 +294,15 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
         Route::delete('/compare/{compare}', [\App\Http\Controllers\Reports\CompareReportController::class, 'destroy'])->name('compare.destroy');
         Route::get('/inventory-health', [\App\Http\Controllers\ReportController::class, 'inventoryHealth'])->name('inventory-health');
         Route::get('/item-sales', \App\Http\Controllers\Reports\ItemSaleReportController::class)->name('item-sales');
-        Route::get('/stock-intelligence', [\App\Http\Controllers\ReportController::class, 'stockIntelligence'])->name('stock-intelligence');
-        Route::post('/stock-intelligence/generate', [\App\Http\Controllers\ReportController::class, 'generateManual'])->name('stock-intelligence.generate');
-        Route::post('/stock-settings', [\App\Http\Controllers\ReportController::class, 'updateStockSettings'])->name('stock-settings.update');
-        Route::post('/stock-settings/reset', [\App\Http\Controllers\ReportController::class, 'resetStockSettings'])->name('stock-settings.reset');
-        Route::get('/rebalance-detail', [\App\Http\Controllers\ReportController::class, 'rebalanceDetail'])->name('rebalance-detail');
+        Route::get('/warehouse-arrangement', [\App\Http\Controllers\Reports\WarehouseArrangementController::class, 'index'])->name('warehouse-arrangement');
+        Route::get('/warehouse-arrangement/export', [\App\Http\Controllers\Reports\WarehouseArrangementController::class, 'export'])->name('warehouse-arrangement.export');
+        Route::post('/warehouse-arrangement/draft-move', [\App\Http\Controllers\Reports\WarehouseArrangementController::class, 'draftMove'])->name('warehouse-arrangement.draft-move');
+        Route::post('/warehouse-arrangement/refresh', [\App\Http\Controllers\Reports\WarehouseArrangementController::class, 'refresh'])->name('warehouse-arrangement.refresh');
+        Route::post('/warehouse-arrangement/cancel-refresh', [\App\Http\Controllers\Reports\WarehouseArrangementController::class, 'cancelRefresh'])->name('warehouse-arrangement.cancel-refresh');
+        Route::post('/warehouse-arrangement/tick-refresh', [\App\Http\Controllers\Reports\WarehouseArrangementController::class, 'tickRefresh'])->name('warehouse-arrangement.tick-refresh');
+        Route::get('/product-performance', [\App\Http\Controllers\Reports\ProductPerformanceController::class, 'index'])->name('product-performance');
+        Route::get('/produksi-potong', \App\Http\Controllers\Reports\ProduksiPotongReportController::class)->name('produksi-potong');
+        Route::get('/produksi-qc', \App\Http\Controllers\Reports\ProduksiQcReportController::class)->name('produksi-qc');
     });
 
     // Restock Module

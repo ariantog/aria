@@ -39,7 +39,7 @@ class MigrateLegacyItems extends Command
                 $this->warn('Clearing existing item tables...');
                 DB::table('item_tag')->truncate();
                 DB::table('items')->truncate();
-                DB::table('item_groups')->truncate();
+                DB::table('item_group')->truncate();
                 DB::table('tags')->truncate();
                 $this->info('Tables truncated.');
             } else {
@@ -61,11 +61,11 @@ class MigrateLegacyItems extends Command
                     'description2' => $group->description2,
                 ];
 
-                if (Schema::hasColumn('item_groups', 'alias')) {
+                if (Schema::hasColumn('item_group', 'alias')) {
                     $row['alias'] = $group->alias;
                 }
 
-                DB::table('item_groups')->insert($row);
+                DB::table('item_group')->insert($row);
                 $barGroups->advance();
             }
             $barGroups->finish();

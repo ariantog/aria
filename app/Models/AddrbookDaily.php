@@ -2,14 +2,17 @@
 
 namespace App\Models;
 
+use App\Support\FillsProductionColumnDefaults;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class AddrbookDaily extends Model
 {
-    use HasFactory;
+    use HasFactory, FillsProductionColumnDefaults;
 
-    protected $table = 'addrbook_dailies';
+    protected $table = 'customer_class';
+
+    public $timestamps = false;
 
     protected $guarded = ['id'];
 
@@ -30,6 +33,6 @@ class AddrbookDaily extends Model
 
     public function addrbook()
     {
-        return $this->belongsTo(Addrbook::class);
+        return $this->belongsTo(Addrbook::class, 'customer_id');
     }
 }

@@ -16,7 +16,7 @@ return new class extends Migration
             $table->string('name');
             $table->string('command')->unique();
             $table->string('expression')->default('0 0 * * *'); // Default daily at midnight
-            $table->boolean('is_active')->default(true);
+            $table->boolean('active')->default(true);
             $table->text('description')->nullable();
             $table->timestamp('last_run_at')->nullable();
             $table->timestamps();

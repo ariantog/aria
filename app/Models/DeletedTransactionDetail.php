@@ -2,10 +2,14 @@
 
 namespace App\Models;
 
+use App\Support\FillsProductionColumnDefaults;
 use Illuminate\Database\Eloquent\Model;
 
 class DeletedTransactionDetail extends Model
 {
+    use FillsProductionColumnDefaults;
+    protected $table = 'deleted_details';
+
     public $incrementing = false;
 
     protected $guarded = [];
@@ -16,7 +20,6 @@ class DeletedTransactionDetail extends Model
         'price' => 'decimal:2',
         'discount' => 'decimal:2',
         'total' => 'decimal:2',
-        'deleted_at' => 'datetime',
     ];
 
     public function transaction()

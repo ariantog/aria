@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('items', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('group_id')->nullable()->constrained('item_groups')->nullOnDelete();
+            $table->foreignId('group_id')->nullable()->constrained('item_group')->nullOnDelete();
             $table->string('name');
             $table->string('code')->index();
             $table->string('pcode')->index();

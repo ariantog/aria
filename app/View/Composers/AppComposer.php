@@ -3,6 +3,7 @@
 namespace App\View\Composers;
 
 use App\Models\Addrbook;
+use App\Models\User;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
 
@@ -24,7 +25,9 @@ class AppComposer
 
         $view->with('_sidebar', [
             'user'          => $user,
-            'permissions'   => $user->getAllPermissions()->pluck('name')->toArray(),
+            'permissions'   => User::isSuperadmin($user)
+                ? ['*']
+                : $user->getAllPermissions()->pluck('name')->toArray(),
             'roles'         => $user->getRoleNames()->toArray(),
             'addrbook_types' => collect(Addrbook::getTypes())->map(function ($type) {
                 $type['permission'] = Addrbook::getPermissions($type['slug'])['view'];

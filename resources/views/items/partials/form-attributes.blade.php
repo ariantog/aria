@@ -41,7 +41,7 @@
                                data-code="{{ $t->code }}"
                                @if(in_array((string)$t->id, array_map('strval',(array)$curWarna), true) || (string)$curWarna === (string)$t->id) checked @endif
                                @change="onWarnaMulti($event)" class="rounded border-gray-300">
-                        {{ $t->name }} <span class="text-xs text-gray-400">({{ $t->code }})</span>
+                        {{ $t->name }}@if(strtoupper($t->name) !== strtoupper($t->code)) <span class="text-xs text-gray-400">({{ $t->code }})</span>@endif
                     </label>
                     @endforeach
                 </div>
@@ -50,7 +50,7 @@
                         class="w-full rounded-lg border px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 @if($warnaError) border-red-500 @else border-gray-300 @endif">
                     <option value="">— Select Warna —</option>
                     @foreach($warnaTags as $t)
-                    <option value="{{ $t->id }}" data-code="{{ $t->code }}" @selected((string)$curWarna === (string)$t->id)>{{ $t->name }} ({{ $t->code }})</option>
+                    <option value="{{ $t->id }}" data-code="{{ $t->code }}" @selected((string)$curWarna === (string)$t->id)>{{ $t->name }}@if(strtoupper($t->name) !== strtoupper($t->code)) ({{ $t->code }})@endif</option>
                     @endforeach
                 </select>
             @endif
@@ -90,7 +90,7 @@
                     @else
                         @selected((string)$curType === (string)$t->id)
                     @endif
-                >{{ $t->name }} ({{ $t->code }})</option>
+                >{{ $t->name }}@if(strtoupper($t->name) !== strtoupper($t->code)) ({{ $t->code }})@endif</option>
                 @endforeach
             </select>
             @error('tags.types')<p class="mt-1 text-xs text-red-500">{{ is_array($message) ? implode(', ', $message) : $message }}</p>@enderror
@@ -112,7 +112,7 @@
                                data-code="{{ $t->code }}"
                                @if(in_array((string)$t->id, array_map('strval',(array)$curSizes), true)) checked @endif
                                @change="onSizeMulti($event)" class="rounded border-gray-300">
-                        {{ $t->name }} <span class="text-xs text-gray-400">({{ $t->code }})</span>
+                        {{ $t->name }}@if(strtoupper($t->name) !== strtoupper($t->code)) <span class="text-xs text-gray-400">({{ $t->code }})</span>@endif
                     </label>
                     @endforeach
                 </div>
@@ -121,7 +121,7 @@
                         class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 @error('tags.sizes') border-red-500 @enderror">
                     <option value="">— Select Size —</option>
                     @foreach($sizeTags as $t)
-                    <option value="{{ $t->id }}" data-code="{{ $t->code }}" @selected(in_array((string)$t->id, array_map('strval',(array)$curSizes), true))>{{ $t->name }} ({{ $t->code }})</option>
+                    <option value="{{ $t->id }}" data-code="{{ $t->code }}" @selected(in_array((string)$t->id, array_map('strval',(array)$curSizes), true))>{{ $t->name }}@if(strtoupper($t->name) !== strtoupper($t->code)) ({{ $t->code }})@endif</option>
                     @endforeach
                 </select>
             @endif

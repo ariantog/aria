@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Transaction;
+use App\Support\LikeSearch;
 use Illuminate\Http\Request;
 
 class TransactionLookupController extends Controller
@@ -16,13 +17,14 @@ class TransactionLookupController extends Controller
      */
     public function search(Request $request, string $type, string $role)
     {
-        \Illuminate\Support\Facades\Gate::authorize(\App\Models\Transaction::getPermissions()['view']);
+        abort_unless(Transaction::userCanAccessType($request->user(), $type), 403);
         // Remove dd and use request input
         // Configuration now gives us the Addrbook Type ID directly, or we get it from request
         $typeId = $request->input('addrbook_type') ?? ($request['addrbook_type'] ?? null);
 
         // We default to Addrbook model for all types now as per config
-        $query = \App\Models\Addrbook::query();
+        $query = \App\Models\Addrbook::query()
+            ->visibleToUser($request->user());
 
         // Apply type filtering
         if ($typeId !== null) {
@@ -30,19 +32,23 @@ class TransactionLookupController extends Controller
             $query->whereIn('type', $typeIds);
         }
 
-        // Apply search term
-        if ($search = $request->input('search')) {
-            $query->where(function ($q) use ($search) {
-                $q->where('addrbooks.name', 'like', "%{$search}%")
-                    ->orWhere('addrbooks.id', 'like', "%{$search}%");
-            });
+        // Apply search term (require 3+ characters; empty/short queries return nothing)
+        $search = trim((string) $request->input('search', ''));
+        if (strlen($search) <= 2) {
+            return response()->json([]);
         }
 
+        $pattern = LikeSearch::contains($search);
+        $query->where(function ($q) use ($pattern) {
+            $q->where('customers.name', 'like', $pattern)
+                ->orWhere('customers.id', 'like', $pattern);
+        });
+
         $results = $query
-            ->leftJoin('addrbook_stats', 'addrbooks.id', '=', 'addrbook_stats.addrbook_id')
-            ->select('addrbooks.id', 'addrbooks.name', 'addrbooks.ppn', 'addrbooks.type', 'addrbook_stats.balance')
-            ->orderBy('addrbooks.name')
-            ->limit(20)
+            ->leftJoin('customerstat', 'customers.id', '=', 'customerstat.customer_id')
+            ->select('customers.id', 'customers.name', 'customers.ppn', 'customers.type', 'customerstat.balance')
+            ->orderBy('customers.name')
+            ->limit(8)
             ->get();
 
         return response()->json($results);

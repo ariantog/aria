@@ -8,36 +8,49 @@ use App\Enums\TransactionType;
 use App\Http\Requests\StoreAddrbookRequest;
 use App\Http\Requests\UpdateAddrbookRequest;
 use App\Models\Addrbook;
+use App\Models\Location;
 use App\Models\StatSell;
+use App\Support\LikeSearch;
 use Illuminate\Support\Facades\Gate;
 
 class AddrbookController extends Controller
 {
     public function index(?string $type = null)
     {
+        if ($type === null) {
+            abort(404);
+        }
+
         Gate::authorize(Addrbook::getPermissions($type)['view']);
 
         $typeId = null;
         if ($type) {
             $d = collect(Addrbook::getTypes())->firstWhere('slug', $type);
-            if (! $d) abort(404);
+            if (! $d) {
+                abort(404);
+            }
             $typeId = $d['id'];
         }
 
         $q = Addrbook::with(['stat'])
+            ->visibleToUser(request()->user())
             ->when(request('trashed') === 'with', fn ($q) => $q->withTrashed())
             ->when(request('trashed') === 'only', fn ($q) => $q->onlyTrashed())
             ->when($typeId, fn ($q) => $q->where('type', $typeId))
             ->when(request('type') && ! $typeId, fn ($q) => $q->where('type', request('type')))
-            ->when($s = request('search'), fn ($q) => $q->where(fn ($q) => $q
-                ->where('name', 'like', "%{$s}%")
-                ->orWhere('contact_person', 'like', "%{$s}%")
-                ->orWhere('id', 'like', "%{$s}%")
-                ->orWhere('phone', 'like', "%{$s}%")
-                ->orWhere('member_id', 'like', "%{$s}%")
-                ->orWhere('description', 'like', "%{$s}%")
-                ->orWhere('address', 'like', "%{$s}%")
-            ))
+            ->when($s = request('search'), function ($q) use ($s) {
+                $pattern = LikeSearch::contains($s);
+
+                return $q->where(fn ($q) => $q
+                    ->where('name', 'like', $pattern)
+                    ->orWhere('contact_person', 'like', $pattern)
+                    ->orWhere('id', 'like', $pattern)
+                    ->orWhere('phone', 'like', $pattern)
+                    ->orWhere('memberId', 'like', $pattern)
+                    ->orWhere('description', 'like', $pattern)
+                    ->orWhere('address', 'like', $pattern)
+                );
+            })
             ->latest();
 
         // Combobox / autocomplete requests (?json=1)
@@ -58,7 +71,7 @@ class AddrbookController extends Controller
         }
 
         return view('addrbook.index', [
-            'addrbooks' => $q->paginate(50)->withQueryString(),
+            'customers' => $q->paginate(50)->withQueryString(),
             'filters' => request()->all(['search', 'type', 'trashed']),
             'can' => $can,
             'current_type' => $type,
@@ -69,6 +82,10 @@ class AddrbookController extends Controller
 
     public function create(?string $type = null)
     {
+        if ($type === null) {
+            abort(404);
+        }
+
         Gate::authorize(Addrbook::getPermissions($type)['create']);
 
         $pt = null;
@@ -82,6 +99,8 @@ class AddrbookController extends Controller
             'preselected_type_id' => $pt,
             'current_type' => $type,
             'ppn_rate' => (float) \App\Models\Setting::getValue('ppn_rate', 11),
+            ...$this->locationFormProps(),
+            ...$this->arrangementFormProps(),
         ]);
     }
 
@@ -90,10 +109,12 @@ class AddrbookController extends Controller
         $td = collect(Addrbook::getTypes())->firstWhere('id', $r->type);
         Gate::authorize(Addrbook::getPermissions($td['slug'] ?? null)['create']);
 
-        $a = Addrbook::create($r->validated());
+        $a = Addrbook::create($r->safe()->except(['location_ids', 'arrangement_source_ids', 'initial_balance']));
         $a->stat()->create(['balance' => $r->input('initial_balance', 0)]);
+        $this->syncAddrbookLocations($a, $r->input('location_ids', []));
+        $this->syncArrangementSources($a, $r->input('arrangement_source_ids', []));
 
-        return redirect()->route('addrbook.index')->with('success', 'Created.');
+        return redirect()->to(Addrbook::typeIndexRoute((int) $a->type))->with('success', 'Created.');
     }
 
     public function show(Addrbook $addrbook)
@@ -101,6 +122,7 @@ class AddrbookController extends Controller
         $a = $addrbook;
         $slug = $this->addrbookTypeSlug($a);
         Gate::authorize(Addrbook::getPermissions($slug)['view']);
+        $this->authorizeAddrbookLocation($a);
 
         $load = ['stat', 'dailies' => fn ($q) => $q->latest('date')->limit(50)];
 
@@ -127,44 +149,73 @@ class AddrbookController extends Controller
         ]);
     }
 
-    public function showType(string $type, Addrbook $addrbook) { return $this->show($addrbook); }
-    public function transactionsType(string $type, Addrbook $addrbook) { return $this->transactions($addrbook->id); }
-    public function itemsType(string $type, Addrbook $addrbook) { return $this->items($addrbook->id); }
-    public function statType(string $type, Addrbook $addrbook) { return $this->stat($addrbook->id); }
-    public function itemSalesType(string $type, Addrbook $addrbook) { return $this->itemSales($addrbook->id); }
+    public function showType(string $type, Addrbook $addrbook)
+    {
+        return $this->show($addrbook);
+    }
+
+    public function transactionsType(string $type, Addrbook $addrbook)
+    {
+        return $this->transactions($addrbook->id);
+    }
+
+    public function itemsType(string $type, Addrbook $addrbook)
+    {
+        return $this->items($addrbook->id);
+    }
+
+    public function statType(string $type, Addrbook $addrbook)
+    {
+        return $this->stat($addrbook->id);
+    }
+
+    public function itemSalesType(string $type, Addrbook $addrbook)
+    {
+        return $this->itemSales($addrbook->id);
+    }
 
     public function edit(Addrbook $addrbook)
     {
         $a = $addrbook;
         Gate::authorize(Addrbook::getPermissions($this->addrbookTypeSlug($a))['edit']);
+        $this->authorizeAddrbookLocation($a);
 
         return view('addrbook.edit', [
-            'addrbook' => $a->load('stat'),
+            'addrbook' => $a->load(['stat', 'locations', 'arrangementSources']),
             'types' => Addrbook::getTypes(),
             'ppn_rate' => (float) \App\Models\Setting::getValue('ppn_rate', 11),
+            ...$this->locationFormProps($a),
+            ...$this->arrangementFormProps($a),
         ]);
     }
 
-    public function editType(string $type, Addrbook $addrbook) { return $this->edit($addrbook); }
+    public function editType(string $type, Addrbook $addrbook)
+    {
+        return $this->edit($addrbook);
+    }
 
     public function update(UpdateAddrbookRequest $r, Addrbook $addrbook)
     {
         $a = $addrbook;
         Gate::authorize(Addrbook::getPermissions($this->addrbookTypeSlug($a))['edit']);
-        $a->update($r->validated());
+        $a->update($r->safe()->except(['location_ids', 'arrangement_source_ids']));
+        $this->syncAddrbookLocations($a, $r->input('location_ids', []));
+        $this->syncArrangementSources($a, $r->input('arrangement_source_ids', []));
 
-        return redirect()->route('addrbook.index')->with('success', 'Updated.');
+        return redirect()->to(Addrbook::typeIndexRoute((int) $a->type))->with('success', 'Updated.');
     }
 
     public function transactions($id)
     {
         $a = Addrbook::withTrashed()->findOrFail($id);
         Gate::authorize(Addrbook::getPermissions($this->addrbookTypeSlug($a))['view']);
+        $this->authorizeAddrbookLocation($a);
 
         $q = \App\Models\Transaction::where(fn ($q) => $q
             ->where('sender_id', $a->id)
             ->orWhere('receiver_id', $a->id)
         )
+            ->visibleToUser(request()->user())
             ->with(['sender', 'receiver', 'user'])
             ->when(request('from'), fn ($q) => $q->whereDate('date', '>=', request('from')))
             ->when(request('to'), fn ($q) => $q->whereDate('date', '<=', request('to')))
@@ -198,6 +249,7 @@ class AddrbookController extends Controller
     {
         $a = Addrbook::withTrashed()->findOrFail($id);
         Gate::authorize(Addrbook::getPermissions($this->addrbookTypeSlug($a))['view']);
+        $this->authorizeAddrbookLocation($a);
 
         $q = $a->items()->with('group')
             ->when(request('name'), fn ($q) => $q->where(fn ($sq) => $sq
@@ -206,7 +258,7 @@ class AddrbookController extends Controller
             ))
             // Qualified pivot column: inside a when() closure the callback receives the base
             // query builder, where wherePivot() is unavailable and degrades to a broken where.
-            ->when(request('show0') !== 'show', fn ($q) => $q->where('warehouse_items.quantity', '>', 0));
+            ->when(request('show0') !== 'show', fn ($q) => $q->where('warehouse_item.quantity', '>', 0));
 
         $sort = request('sort', 'qtydesc');
         match ($sort) {
@@ -239,6 +291,7 @@ class AddrbookController extends Controller
     {
         $a = Addrbook::withTrashed()->findOrFail($id);
         Gate::authorize(Addrbook::getPermissions($this->addrbookTypeSlug($a))['view']);
+        $this->authorizeAddrbookLocation($a);
 
         $q = StatSell::where('sender_id', $a->id)->with('group')
             ->when(request('bulan'), fn ($q) => $q->where('bulan', request('bulan')))
@@ -272,6 +325,7 @@ class AddrbookController extends Controller
     {
         $a = Addrbook::withTrashed()->findOrFail($id);
         Gate::authorize(Addrbook::getPermissions($this->addrbookTypeSlug($a))['view']);
+        $this->authorizeAddrbookLocation($a);
 
         $mo = request('month');
         $yr = request('year', date('Y'));
@@ -295,10 +349,12 @@ class AddrbookController extends Controller
 
         foreach ($tx as $t) {
             $op = ($t->sender_id == $a->id) ? $t->receiver : $t->sender;
-            if (! $op) continue;
+            if (! $op) {
+                continue;
+            }
 
             $cat = $this->categorizeAddrbook($op);
-            $amt = (float) $t->grand_total;
+            $amt = (float) $t->real_total;
             $txType = $t->type instanceof TransactionType ? $t->type->value : $t->type;
 
             if ($txType == TransactionType::CashIn->value) {
@@ -334,7 +390,15 @@ class AddrbookController extends Controller
         Gate::authorize(Addrbook::getPermissions($this->addrbookTypeSlug($a))['delete']);
         $a->delete();
 
-        return redirect()->route('addrbook.index')->with('success', 'Deleted.');
+        return redirect()->to(Addrbook::typeIndexRoute((int) $a->type))->with('success', 'Deleted.');
+    }
+
+    private function authorizeAddrbookLocation(Addrbook $addrbook): void
+    {
+        abort_unless(
+            app(\App\Services\LocationAccessService::class)->canAccessAddrbook(request()->user(), $addrbook),
+            403
+        );
     }
 
     private function isJsonRequest(): bool
@@ -344,12 +408,16 @@ class AddrbookController extends Controller
 
     private function addrbookTypeSlug(Addrbook $a): ?string
     {
-        return $a->type instanceof AddrbookType ? $a->type->slug() : null;
+        $type = $a->type instanceof AddrbookType
+            ? $a->type
+            : AddrbookType::tryFrom((int) $a->type);
+
+        return $type?->slug();
     }
 
     private function addrbookIsWarehouse(Addrbook $a): bool
     {
-        return $a->type instanceof AddrbookType && $a->type->isWarehouse();
+        return Addrbook::typeIsWarehouse((int) $a->type);
     }
 
     private function categorizeAddrbook($addrbook): string
@@ -375,5 +443,71 @@ class AddrbookController extends Controller
             AddrbookType::Warehouse->value, AddrbookType::VirtualWarehouse->value => 'warehouse',
             default => 'other',
         };
+    }
+
+    /**
+     * @return array{locations: \Illuminate\Support\Collection, selectedLocationIds: \Illuminate\Support\Collection<int, int>}
+     */
+    private function locationFormProps(?Addrbook $addrbook = null): array
+    {
+        return [
+            'locations' => Location::query()->orderBy('name')->get(),
+            'selectedLocationIds' => $addrbook?->locations->pluck('id') ?? collect(),
+        ];
+    }
+
+    private function syncAddrbookLocations(Addrbook $addrbook, array $locationIds): void
+    {
+        $type = $addrbook->type instanceof AddrbookType
+            ? $addrbook->type
+            : AddrbookType::tryFrom((int) $addrbook->type);
+
+        if (! in_array($type, [AddrbookType::Customer, AddrbookType::Warehouse], true)) {
+            return;
+        }
+
+        $addrbook->locations()->sync($locationIds);
+    }
+
+    private function syncArrangementSources(Addrbook $addrbook, array $sourceIds): void
+    {
+        if ((int) $addrbook->type !== Addrbook::TYPE_WAREHOUSE || ! $addrbook->arrangement_enabled) {
+            $addrbook->arrangementSources()->sync([]);
+
+            return;
+        }
+
+        $sourceIds = collect($sourceIds)
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn (int $id) => $id > 0 && $id !== $addrbook->id)
+            ->unique()
+            ->values()
+            ->all();
+
+        $sourceIds = Addrbook::query()
+            ->where('type', AddrbookType::Warehouse)
+            ->whereIn('id', $sourceIds)
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        $addrbook->arrangementSources()->sync($sourceIds);
+    }
+
+    /**
+     * @return array{
+     *     arrangementWarehouses: \Illuminate\Support\Collection,
+     *     selectedArrangementSourceIds: \Illuminate\Support\Collection<int, int>
+     * }
+     */
+    private function arrangementFormProps(?Addrbook $addrbook = null): array
+    {
+        return [
+            'arrangementWarehouses' => Addrbook::query()
+                ->where('type', AddrbookType::Warehouse)
+                ->orderBy('name')
+                ->get(['id', 'name']),
+            'selectedArrangementSourceIds' => $addrbook?->arrangementSources->pluck('id') ?? collect(),
+        ];
     }
 }

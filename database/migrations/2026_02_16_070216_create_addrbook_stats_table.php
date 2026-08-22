@@ -6,24 +6,18 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
-        Schema::create('addrbook_stats', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('addrbook_id')->constrained()->cascadeOnDelete();
-            $table->decimal('balance', 15, 2)->default(0);
+        Schema::create('customerstat', function (Blueprint $table) {
+            $table->unsignedBigInteger('customer_id')->primary();
+            $table->decimal('balance', 20, 2)->default(0);
             $table->timestamps();
+            $table->foreign('customer_id')->references('id')->on('customers')->cascadeOnDelete();
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
-        Schema::dropIfExists('addrbook_stats');
+        Schema::dropIfExists('customerstat');
     }
 };

@@ -5,10 +5,10 @@ php artisan migrate:legacy-journals
 php artisan migrate:legacy-transactions --year=2025
 php artisan report:recalculate
 php artisan db:seed --class=SuperAdminSeeder
-php artisan app:generate-stock-intelligence
+php artisan app:recalculate-warehouse-item-stats
 php artisan app:sync-stat-sells --refresh
 
-php artisan app:generate-stock-intelligence --date=2026-04-12
+php artisan app:recalculate-warehouse-item-stats
 php artisan app:truncate-items
 php artisan app:reset-legacy-items-migration --force
 

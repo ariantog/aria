@@ -9,7 +9,7 @@
         ['title' => 'Deleted', 'href' => route('transactions.deleted.index')],
     ];
 
-    $fmt = fn ($n) => number_format((float) $n, 0, ',', '.');
+    $fmt = fn ($n) => format_amount($n);
     $fmtDate = function ($d) {
         if (! $d) return '-';
         return \Illuminate\Support\Carbon::parse($d)->format('d/m/y');
@@ -81,10 +81,10 @@
                             <span class="inline-flex items-center rounded-md border px-2 py-0.5 text-center text-xs {{ $tb[1] }}">{{ $tb[0] }}</span>
                         </td>
                         <td class="px-3 py-1 font-mono text-[10px]">
-                            <a href="{{ route('transactions.deleted.show', $transaction->id) }}" class="text-blue-600 hover:underline">{{ $transaction->invoice_number }}</a>
+                            <a href="{{ route('transactions.deleted.show', $transaction->id) }}" class="text-blue-600 hover:underline">{{ $transaction->invoice }}</a>
                         </td>
                         <td class="max-w-[150px] px-3 py-1 text-[10px] text-zinc-500">{{ $transaction->description ?: ($transaction->notes ?: '-') }}</td>
-                        <td class="px-3 py-1 text-right font-bold text-zinc-900 tabular-nums">{{ $fmt($transaction->grand_total) }}</td>
+                        <td class="px-3 py-1 text-right font-bold text-zinc-900 tabular-nums">{{ $fmt($transaction->real_total) }}</td>
                         <td class="px-3 py-1 text-right text-zinc-500 tabular-nums">{{ $fmt($transaction->total_items) }}</td>
                         <td class="max-w-[120px] truncate px-3 py-1 text-zinc-700">{{ $transaction->sender?->name ?: '-' }}</td>
                         <td class="px-3 py-1 text-right italic text-zinc-500 tabular-nums">{{ $fmt($transaction->sender_balance ?? 0) }}</td>

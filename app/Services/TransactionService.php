@@ -2,8 +2,6 @@
 
 namespace App\Services;
 
-use App\Enums\AddrbookType;
-use App\Enums\TransactionType;
 use App\Models\Addrbook;
 use App\Models\AddrbookDaily;
 use App\Models\AddrbookStat;
@@ -54,14 +52,15 @@ class TransactionService
         }
 
         $qty = $revert ? -$detail->quantity : $detail->quantity;
+        $type = (int) $transaction->type;
 
-        if ($transaction->type === TransactionType::Buy) {
+        if ($type === Transaction::TYPE_BUY) {
             $item->increment('qty', $qty);
-        } elseif ($transaction->type === TransactionType::Sell) {
+        } elseif ($type === Transaction::TYPE_SELL) {
             $item->decrement('qty', $qty);
-        } elseif ($transaction->type === TransactionType::Return) {
+        } elseif ($type === Transaction::TYPE_RETURN) {
             $item->increment('qty', $qty);
-        } elseif ($transaction->type === TransactionType::ReturnSupplier) {
+        } elseif ($type === Transaction::TYPE_RETURN_SUPPLIER) {
             $item->decrement('qty', $qty);
         }
     }
@@ -83,16 +82,16 @@ class TransactionService
 
     protected function updateBalances(Transaction $transaction, bool $revert = false)
     {
-        $amount = $revert ? -$transaction->grand_total : $transaction->grand_total;
+        $amount = $revert ? -$transaction->real_total : $transaction->real_total;
+        $type = (int) $transaction->type;
 
-        // Use enum comparisons (not old integer constants) since type is now cast to TransactionType
-        if ($transaction->type === TransactionType::Buy && $transaction->sender_id) {
+        if ($type === Transaction::TYPE_BUY && $transaction->sender_id) {
             $this->updateEntityBalance($transaction, 'sender', $amount);
             $this->updateDailyReports($transaction, 'sender', $amount);
-        } elseif ($transaction->type === TransactionType::Sell && $transaction->receiver_id) {
+        } elseif ($type === Transaction::TYPE_SELL && $transaction->receiver_id) {
             $this->updateEntityBalance($transaction, 'receiver', $amount);
             $this->updateDailyReports($transaction, 'receiver', $amount);
-        } elseif ($transaction->type === TransactionType::Return) {
+        } elseif ($type === Transaction::TYPE_RETURN) {
             if ($transaction->sender_id) {
                 $this->updateEntityBalance($transaction, 'sender', $amount);
                 $this->updateDailyReports($transaction, 'sender', $amount);
@@ -101,17 +100,17 @@ class TransactionService
                 $this->updateEntityBalance($transaction, 'receiver', $amount);
                 $this->updateDailyReports($transaction, 'receiver', $amount);
             }
-        } elseif ($transaction->type === TransactionType::CashIn) {
+        } elseif ($type === Transaction::TYPE_CASH_IN) {
             $this->updateEntityBalance($transaction, 'sender', $amount);
             $this->updateDailyReports($transaction, 'sender', $amount);
             $this->updateEntityBalance($transaction, 'receiver', $amount);
             $this->updateDailyReports($transaction, 'receiver', $amount);
-        } elseif ($transaction->type === TransactionType::CashOut) {
+        } elseif ($type === Transaction::TYPE_CASH_OUT) {
             $this->updateEntityBalance($transaction, 'sender', $amount);
             $this->updateDailyReports($transaction, 'sender', $amount);
             $this->updateEntityBalance($transaction, 'receiver', $amount);
             $this->updateDailyReports($transaction, 'receiver', $amount);
-        } elseif ($transaction->type === TransactionType::Transfer || $transaction->type === TransactionType::Adjust) {
+        } elseif ($type === Transaction::TYPE_TRANSFER || $type === Transaction::TYPE_ADJUST) {
             $this->updateEntityBalance($transaction, 'sender', -$amount);
             $this->updateDailyReports($transaction, 'sender', -$amount);
             $this->updateEntityBalance($transaction, 'receiver', $amount);
@@ -121,7 +120,7 @@ class TransactionService
 
     protected function updateDailyReports(Transaction $transaction, string $side, $amount)
     {
-        $column = $this->getDailyReportColumn($transaction->type);
+        $column = Transaction::dailyReportColumn((int) $transaction->type);
         if (! $column) {
             return;
         }
@@ -138,38 +137,24 @@ class TransactionService
         $dateStr = \Illuminate\Support\Carbon::parse($date)->format('Y-m-d');
 
         $addrbook = Addrbook::find($addrbookId);
-        $type = $addrbook ? $addrbook->type : null;
+        $type = $addrbook ? (int) $addrbook->type : null;
 
         $daily = AddrbookDaily::firstOrCreate([
-            'addrbook_id' => $addrbookId,
+            'customer_id' => $addrbookId,
             'date' => $dateStr,
         ], [
-            'type' => $type instanceof AddrbookType ? $type->value : $type,
+            'customer_type' => $type,
+            'class' => '',
+            'adjust' => 0,
+            'depreciation' => 0,
         ]);
 
-        if ($daily->type === null && $type !== null) {
-            $daily->type = $type instanceof AddrbookType ? $type->value : $type;
+        if ($daily->customer_type === null && $type !== null) {
+            $daily->customer_type = $type;
             $daily->save();
         }
 
         $daily->increment($column, $amount);
-    }
-
-    protected function getDailyReportColumn(TransactionType $type): ?string
-    {
-        return match ($type) {
-            TransactionType::Buy => 'buy',
-            TransactionType::Sell => 'sell',
-            TransactionType::Return => 'return',
-            TransactionType::ReturnSupplier => 'return_supplier',
-            TransactionType::Move => 'move',
-            TransactionType::Transfer => 'transfer',
-            TransactionType::Adjust => 'adjust',
-            TransactionType::Production => 'use',
-            TransactionType::CashIn => 'sell',
-            TransactionType::CashOut => 'buy',
-            default => null,
-        };
     }
 
     protected function updateEntityBalance(Transaction $transaction, string $side, $amount)
@@ -192,7 +177,10 @@ class TransactionService
     protected function updateStat($entity, $amount, $date)
     {
         if ($entity instanceof Addrbook) {
-            $stat = AddrbookStat::firstOrCreate(['addrbook_id' => $entity->id]);
+            $stat = AddrbookStat::firstOrCreate(
+                ['customer_id' => $entity->id],
+                ['balance' => 0]
+            );
             $stat->balance += $amount;
             $stat->save();
         }
@@ -204,7 +192,7 @@ class TransactionService
             return 0;
         }
 
-        $entityType = $entity->type instanceof AddrbookType ? $entity->type->value : $entity->type;
+        $entityType = (int) $entity->type;
 
         $query = Transaction::where(function ($q) use ($entity, $entityType) {
             $q->where(function ($q2) use ($entity, $entityType) {
@@ -247,7 +235,7 @@ class TransactionService
             return;
         }
 
-        $entityType = $entity->type instanceof AddrbookType ? $entity->type->value : $entity->type;
+        $entityType = (int) $entity->type;
 
         $query = Transaction::where(function ($q) use ($entity, $entityType) {
             $q->where(function ($q2) use ($entity, $entityType) {

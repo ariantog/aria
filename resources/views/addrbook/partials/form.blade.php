@@ -1,17 +1,22 @@
 @php
     $isEdit = ($mode ?? 'create') === 'edit';
+    $addrbook = $addrbook ?? null;
     $val = function ($field, $default = '') use ($isEdit, $addrbook) {
         if (old($field) !== null) return old($field);
-        if ($isEdit && isset($addrbook)) return $addrbook->{$field};
+        if ($isEdit && $addrbook) return $addrbook->{$field};
         return $default;
     };
     $preselected = $preselected_type_id ?? null;
-    $typeValue = old('type', $isEdit ? (string) ($addrbook->type instanceof \App\Enums\AddrbookType ? $addrbook->type->value : $addrbook->type) : ($preselected ? (string) $preselected : ''));
-    $isOnline = (bool) old('is_online', $isEdit ? $addrbook->is_online : false);
-    $ppn = (bool) old('ppn', $isEdit ? $addrbook->ppn : false);
+    $typeValue = old('type', $isEdit && $addrbook
+        ? (string) ($addrbook->type instanceof \App\Enums\AddrbookType ? $addrbook->type->value : $addrbook->type)
+        : ($preselected ? (string) $preselected : ''));
+    $isOnline = (bool) old('is_online', $isEdit && $addrbook ? $addrbook->is_online : false);
+    $ppn = (bool) old('ppn', $isEdit && $addrbook ? $addrbook->ppn : false);
+    $arrangementEnabled = (bool) old('arrangement_enabled', $isEdit && $addrbook ? ($addrbook->arrangement_enabled ?? false) : false);
+    $warehouseType = (string) \App\Enums\AddrbookType::Warehouse->value;
 @endphp
 
-<div class="grid grid-cols-1 gap-6 md:grid-cols-2">
+<div class="grid grid-cols-1 gap-6 md:grid-cols-2" x-data="{ selectedType: '{{ $typeValue }}' }" @change.capture="if ($event.target && $event.target.name === 'type') selectedType = $event.target.value">
     {{-- Basic Information --}}
     <div class="rounded-xl border border-gray-200 bg-white shadow-sm md:col-span-2">
         <div class="border-b border-gray-100 px-5 py-4">
@@ -78,6 +83,15 @@
                           class="min-h-[100px] w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 @error('address') border-red-500 @enderror">{{ $val('address') }}</textarea>
                 @error('address')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
             </div>
+
+            <div>
+                <label for="description" class="mb-1 block text-sm font-medium text-gray-700">Invoice Header</label>
+                <textarea id="description" name="description" rows="4"
+                          placeholder="Store name on first line&#10;Address line 1&#10;Address line 2"
+                          class="min-h-[100px] w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 @error('description') border-red-500 @enderror">{{ $val('description') }}</textarea>
+                <p class="mt-1 text-xs text-gray-500">Used on invoices when this contact is the transaction sender. First line = store name, following lines = address. Phone above is also shown.</p>
+                @error('description')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
+            </div>
         </div>
     </div>
 
@@ -111,8 +125,60 @@
                     <span :class="on ? 'translate-x-5' : 'translate-x-0.5'" class="mt-0.5 inline-block h-5 w-5 transform rounded-full bg-white transition-transform"></span>
                 </button>
             </div>
+
+            <div x-show="selectedType === '{{ $warehouseType }}'" x-cloak
+                 x-data="{ on: {{ $arrangementEnabled ? 'true' : 'false' }} }"
+                 class="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                <div class="flex items-center justify-between gap-4">
+                    <div>
+                        <p class="text-sm font-medium text-gray-900">Arrangement destination</p>
+                        <p class="text-xs text-gray-500">Receive suggested stock consolidation moves for manufactured items.</p>
+                    </div>
+                    <input type="hidden" name="arrangement_enabled" :value="on ? 1 : 0">
+                    <button type="button" @click="on = !on" :class="on ? 'bg-blue-600' : 'bg-gray-300'"
+                            class="relative inline-flex h-6 w-11 flex-shrink-0 rounded-full transition-colors">
+                        <span :class="on ? 'translate-x-5' : 'translate-x-0.5'" class="mt-0.5 inline-block h-5 w-5 transform rounded-full bg-white transition-transform"></span>
+                    </button>
+                </div>
+                @if(($arrangementWarehouses ?? collect())->isNotEmpty())
+                <div class="mt-4 border-t border-gray-200 pt-4" x-show="on" x-cloak>
+                    <p class="mb-2 text-xs font-medium uppercase text-gray-500">Source warehouses</p>
+                    <p class="mb-3 text-xs text-gray-500">Only check stock at these warehouses when suggesting moves.</p>
+                    @php $selectedSources = collect(old('arrangement_source_ids', ($selectedArrangementSourceIds ?? collect())->all())); @endphp
+                    <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                        @foreach($arrangementWarehouses as $warehouse)
+                        <label class="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                            <input type="checkbox" name="arrangement_source_ids[]" value="{{ $warehouse->id }}"
+                                   @checked($selectedSources->contains($warehouse->id))>
+                            <span>{{ $warehouse->name }}</span>
+                        </label>
+                        @endforeach
+                    </div>
+                </div>
+                @endif
+            </div>
         </div>
     </div>
+
+    @if(($locations ?? collect())->isNotEmpty())
+    <div class="rounded-xl border border-gray-200 bg-white shadow-sm md:col-span-2"
+         x-show="selectedType === '{{ \App\Enums\AddrbookType::Customer->value }}' || selectedType === '{{ \App\Enums\AddrbookType::Warehouse->value }}'" x-cloak>
+        <div class="border-b border-gray-100 px-5 py-4">
+            <h3 class="text-sm font-semibold text-gray-900">Locations</h3>
+            <p class="text-xs text-gray-500">Assign this contact to one or more locations. Required for transaction list visibility.</p>
+        </div>
+        <div class="grid grid-cols-1 gap-2 p-5 sm:grid-cols-2 lg:grid-cols-3">
+            @php $selectedIds = collect(old('location_ids', ($selectedLocationIds ?? collect())->all())); @endphp
+            @foreach($locations as $location)
+            <label class="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                <input type="checkbox" name="location_ids[]" value="{{ $location->id }}"
+                       @checked($selectedIds->contains($location->id))>
+                <span>{{ $location->name }}</span>
+            </label>
+            @endforeach
+        </div>
+    </div>
+    @endif
 
     {{-- Financials --}}
     <div class="rounded-xl border border-gray-200 bg-white shadow-sm">
@@ -129,7 +195,7 @@
                         </div>
                         <div>
                             <p class="text-sm text-gray-500">Current Balance</p>
-                            <p class="text-xl font-bold text-gray-900">IDR {{ number_format((float) ($addrbook->stat->balance ?? 0), 0, ',', '.') }}</p>
+                            <p class="text-xl font-bold text-gray-900">IDR {{ format_amount($addrbook->stat->balance ?? 0) }}</p>
                         </div>
                     </div>
                 </div>

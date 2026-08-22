@@ -2,13 +2,18 @@
 
 namespace App\Models;
 
+use App\Support\FillsProductionColumnDefaults;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ItemGroup extends Model
 {
-    use HasFactory;
+    use HasFactory, FillsProductionColumnDefaults;
+
+    protected $table = 'item_group';
+
+    public $timestamps = false;
 
     protected $appends = ['image_url', 'in_warehouse_qty'];
 
@@ -45,11 +50,11 @@ class ItemGroup extends Model
             return config('core-nation.item_image_url').$folder.'/'.$filename;
         }
 
-        return asset('images/default-item.png');
+        return asset('images/default-item.svg');
     }
 
     public function getInWarehouseQtyAttribute(): float
     {
-        return $this->items()->join('warehouse_items', 'items.id', '=', 'warehouse_items.item_id')->sum('warehouse_items.quantity');
+        return $this->items()->join('warehouse_item', 'items.id', '=', 'warehouse_item.item_id')->sum('warehouse_item.quantity');
     }
 }

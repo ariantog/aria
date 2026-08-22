@@ -1,0 +1,640 @@
+<?php
+
+namespace App\Services;
+
+use App\Models\Setting;
+use App\Models\StandaloneInvoice;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\File;
+use Illuminate\Support\Str;
+
+class InvoiceMakerSettingsService
+{
+    public const SETTING_PRESETS = 'invoice_maker.presets';
+
+    public const SETTING_DEFAULT_PRESET_ID = 'invoice_maker.default_preset_id';
+
+    public const SIGNATURE_DIRECTORY = 'asset/invoice-signatures';
+
+    public const LOGO_DIRECTORY = 'asset/invoice-logos';
+
+    private const LEGACY_SETTING_TERMS = 'invoice_maker.terms_of_payment';
+
+    private const LEGACY_SETTING_PAY_TO = 'invoice_maker.pay_to';
+
+    private const LEGACY_SETTING_SIGNATORY = 'invoice_maker.signatory_name';
+
+    private const LEGACY_SETTING_TEMPLATE = 'invoice_maker.default_template';
+
+    private const DEFAULT_TERMS = "Pembayaran lunas sebelum barang dikirim.\nHarga belum termasuk PPN 11%.";
+
+    private const DEFAULT_PAY_TO = "BCA\n5105251588\nCV ACTIVEWEAR GLOBAL MANDIRI";
+
+    private const DEFAULT_SIGNATORY = 'Arianto Gunawan';
+
+    /**
+     * @return list<array{
+     *     id: string,
+     *     name: string,
+     *     terms_of_payment: string,
+     *     pay_to: string,
+     *     signatory_name: string,
+     *     signature_path: ?string,
+     *     signature_url: ?string,
+     *     logo_path: ?string,
+     *     logo_url: ?string,
+     *     template: string,
+     * }>
+     */
+    public function presets(): array
+    {
+        $stored = Setting::getValue(self::SETTING_PRESETS);
+        if (is_array($stored) && $stored !== []) {
+            return array_map(fn (array $preset) => $this->hydratePresetUrls($preset), $stored);
+        }
+
+        $legacy = $this->buildLegacyPreset();
+        $this->persistPresets([$legacy], $legacy['id']);
+
+        return [$this->hydratePresetUrls($legacy)];
+    }
+
+    /**
+     * @return array{
+     *     id: string,
+     *     name: string,
+     *     terms_of_payment: string,
+     *     pay_to: string,
+     *     signatory_name: string,
+     *     signature_path: ?string,
+     *     signature_url: ?string,
+     *     logo_path: ?string,
+     *     logo_url: ?string,
+     *     template: string,
+     * }
+     */
+    public function defaultPreset(): array
+    {
+        $presets = $this->presets();
+        $defaultId = (string) (Setting::getValue(self::SETTING_DEFAULT_PRESET_ID) ?? '');
+
+        if ($defaultId !== '') {
+            $match = $this->findPreset($defaultId);
+            if ($match) {
+                return $match;
+            }
+        }
+
+        return $presets[0];
+    }
+
+    /**
+     * @return array{
+     *     id: string,
+     *     name: string,
+     *     terms_of_payment: string,
+     *     pay_to: string,
+     *     signatory_name: string,
+     *     signature_path: ?string,
+     *     signature_url: ?string,
+     *     logo_path: ?string,
+     *     logo_url: ?string,
+     *     template: string,
+     * }|null
+     */
+    public function findPreset(string $id): ?array
+    {
+        foreach ($this->presets() as $preset) {
+            if ($preset['id'] === $id) {
+                return $preset;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  array{
+     *     name: string,
+     *     terms_of_payment: string,
+     *     pay_to: string,
+     *     signatory_name: string,
+     *     template: string,
+     * }  $data
+     */
+    public function createPreset(array $data, ?UploadedFile $signature = null, ?UploadedFile $logo = null): array
+    {
+        $preset = [
+            'id' => $this->generatePresetId($data['name']),
+            'name' => trim($data['name']),
+            'terms_of_payment' => $data['terms_of_payment'] ?? '',
+            'pay_to' => $data['pay_to'] ?? '',
+            'signatory_name' => $data['signatory_name'] ?? '',
+            'signature_path' => null,
+            'logo_path' => null,
+            'template' => $data['template'] ?? StandaloneInvoice::TEMPLATE_CLASSIC,
+        ];
+
+        if ($signature) {
+            $preset['signature_path'] = $this->storeSignature($preset['id'], $signature);
+        }
+
+        if ($logo) {
+            $preset['logo_path'] = $this->storeLogo($preset['id'], $logo);
+        }
+
+        $presets = $this->presets();
+        $presets[] = $preset;
+        $existingDefault = (string) (Setting::getValue(self::SETTING_DEFAULT_PRESET_ID) ?? '');
+        $defaultId = $existingDefault !== '' ? $existingDefault : $preset['id'];
+        $this->persistPresets($presets, $defaultId);
+
+        return $this->hydratePresetUrls($preset);
+    }
+
+    /**
+     * @param  array{
+     *     name: string,
+     *     terms_of_payment: string,
+     *     pay_to: string,
+     *     signatory_name: string,
+     *     template: string,
+     * }  $data
+     */
+    public function updatePreset(string $id, array $data, ?UploadedFile $signature = null, ?UploadedFile $logo = null): array
+    {
+        $presets = $this->presets();
+        $updated = null;
+
+        foreach ($presets as $index => $preset) {
+            if ($preset['id'] !== $id) {
+                continue;
+            }
+
+            $preset['name'] = trim($data['name']);
+            $preset['terms_of_payment'] = $data['terms_of_payment'] ?? '';
+            $preset['pay_to'] = $data['pay_to'] ?? '';
+            $preset['signatory_name'] = $data['signatory_name'] ?? '';
+            $preset['template'] = $data['template'] ?? StandaloneInvoice::TEMPLATE_CLASSIC;
+
+            if ($signature) {
+                $this->deleteSignatureFiles($preset['id']);
+                $preset['signature_path'] = $this->storeSignature($preset['id'], $signature);
+            }
+
+            if ($logo) {
+                $this->deleteLogoFiles($preset['id']);
+                $preset['logo_path'] = $this->storeLogo($preset['id'], $logo);
+            }
+
+            $presets[$index] = $preset;
+            $updated = $preset;
+            break;
+        }
+
+        abort_unless($updated, 404);
+
+        $this->persistPresets($presets, (string) (Setting::getValue(self::SETTING_DEFAULT_PRESET_ID) ?? $updated['id']));
+
+        return $this->hydratePresetUrls($updated);
+    }
+
+    public function deletePreset(string $id): void
+    {
+        $presets = array_values(array_filter(
+            $this->presets(),
+            fn (array $preset) => $preset['id'] !== $id
+        ));
+
+        abort_if($presets === [], 422, 'At least one invoice preset must remain.');
+
+        $this->deleteSignatureFiles($id);
+        $this->deleteLogoFiles($id);
+
+        $defaultId = (string) (Setting::getValue(self::SETTING_DEFAULT_PRESET_ID) ?? '');
+        if ($defaultId === $id) {
+            $defaultId = $presets[0]['id'];
+        }
+
+        $this->persistPresets($presets, $defaultId);
+    }
+
+    public function setDefaultPreset(string $id): void
+    {
+        abort_unless($this->findPreset($id), 404);
+
+        $this->upsertSetting(self::SETTING_DEFAULT_PRESET_ID, 'Invoice Maker — Default Preset', $id);
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function termsBullets(?string $terms): array
+    {
+        $lines = preg_split('/\R+/', (string) $terms) ?: [];
+
+        return array_values(array_filter(array_map('trim', $lines), fn (string $line) => $line !== ''));
+    }
+
+    /**
+     * @return array{bank: string, account_number: string, account_name: string}
+     */
+    public function parsePayTo(?string $payTo): array
+    {
+        $lines = array_values(array_filter(
+            array_map('trim', preg_split('/\R+/', (string) $payTo) ?: []),
+            fn (string $line) => $line !== ''
+        ));
+
+        return [
+            'bank' => $lines[0] ?? '',
+            'account_number' => $lines[1] ?? '',
+            'account_name' => $lines[2] ?? '',
+        ];
+    }
+
+    public function signatureDiskPath(?string $relativePath): ?string
+    {
+        if (! $relativePath) {
+            return null;
+        }
+
+        $path = public_path($relativePath);
+
+        return File::exists($path) ? $path : null;
+    }
+
+    public function signaturePublicUrl(?string $relativePath): ?string
+    {
+        if (! $relativePath || ! File::exists(public_path($relativePath))) {
+            return null;
+        }
+
+        return asset($relativePath);
+    }
+
+    public function logoDiskPath(?string $relativePath): ?string
+    {
+        if (! $relativePath) {
+            return null;
+        }
+
+        $path = public_path($relativePath);
+
+        return File::exists($path) ? $path : null;
+    }
+
+    public function logoPublicUrl(?string $relativePath): ?string
+    {
+        if (! $relativePath || ! File::exists(public_path($relativePath))) {
+            return null;
+        }
+
+        return asset($relativePath);
+    }
+
+    /**
+     * Resolve a public asset to an absolute filesystem path for DomPDF.
+     *
+     * Never returns HTTP URLs — remote fetches can deadlock single-worker PHP hosts.
+     */
+    public function pdfImagePath(?string $relativeOrAbsolutePath): ?string
+    {
+        $diskPath = $this->resolvePublicAssetPath($relativeOrAbsolutePath);
+        if (! $diskPath) {
+            return null;
+        }
+
+        $optimizedPath = $this->ensurePdfOptimizedImage($diskPath);
+
+        return $this->normalizeFilesystemPath($optimizedPath);
+    }
+
+    /**
+     * @deprecated Use pdfImagePath() — data URIs bloat HTML and slow DomPDF.
+     */
+    public function pdfImageDataUri(?string $relativeOrAbsolutePath): ?string
+    {
+        $path = $this->pdfImagePath($relativeOrAbsolutePath);
+        if (! $path) {
+            return null;
+        }
+
+        $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+        $mime = match ($extension) {
+            'jpg', 'jpeg' => 'image/jpeg',
+            'gif' => 'image/gif',
+            default => 'image/png',
+        };
+
+        return 'data:'.$mime.';base64,'.base64_encode((string) File::get($path));
+    }
+
+    /**
+     * @return array{
+     *     id: string,
+     *     name: string,
+     *     terms_of_payment: string,
+     *     pay_to: string,
+     *     signatory_name: string,
+     *     signature_path: ?string,
+     *     template: string,
+     * }
+     */
+    private function buildLegacyPreset(): array
+    {
+        $legacySignature = $this->migrateLegacySignatureIfNeeded();
+        $legacyLogo = $this->migrateLegacyLogoIfNeeded();
+
+        return [
+            'id' => 'default',
+            'name' => 'Default',
+            'terms_of_payment' => (string) (Setting::getValue(self::LEGACY_SETTING_TERMS) ?? self::DEFAULT_TERMS),
+            'pay_to' => (string) (Setting::getValue(self::LEGACY_SETTING_PAY_TO) ?? self::DEFAULT_PAY_TO),
+            'signatory_name' => (string) (Setting::getValue(self::LEGACY_SETTING_SIGNATORY) ?? self::DEFAULT_SIGNATORY),
+            'signature_path' => $legacySignature,
+            'logo_path' => $legacyLogo,
+            'template' => (string) (Setting::getValue(self::LEGACY_SETTING_TEMPLATE) ?? StandaloneInvoice::TEMPLATE_CLASSIC),
+        ];
+    }
+
+    private function migrateLegacySignatureIfNeeded(): ?string
+    {
+        foreach (['png', 'jpg', 'jpeg', 'webp'] as $ext) {
+            $legacy = public_path('asset/invoice-signature.'.$ext);
+            if (! File::exists($legacy)) {
+                continue;
+            }
+
+            File::ensureDirectoryExists(public_path(self::SIGNATURE_DIRECTORY));
+            $relative = self::SIGNATURE_DIRECTORY.'/default.'.$ext;
+            $target = public_path($relative);
+
+            if (! File::exists($target)) {
+                File::copy($legacy, $target);
+            }
+
+            return $relative;
+        }
+
+        return null;
+    }
+
+    private function migrateLegacyLogoIfNeeded(): ?string
+    {
+        foreach (['png', 'jpg', 'jpeg', 'webp'] as $ext) {
+            $legacy = public_path(InvoiceBrandingService::LOGO_RELATIVE_PATH.'.'.$ext);
+            if (! File::exists($legacy)) {
+                continue;
+            }
+
+            File::ensureDirectoryExists(public_path(self::LOGO_DIRECTORY));
+            $relative = self::LOGO_DIRECTORY.'/default.'.$ext;
+            $target = public_path($relative);
+
+            if (! File::exists($target)) {
+                File::copy($legacy, $target);
+            }
+
+            return $relative;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $presets
+     */
+    private function persistPresets(array $presets, string $defaultPresetId): void
+    {
+        $normalized = array_map(function (array $preset) {
+            return [
+                'id' => (string) $preset['id'],
+                'name' => (string) $preset['name'],
+                'terms_of_payment' => (string) ($preset['terms_of_payment'] ?? ''),
+                'pay_to' => (string) ($preset['pay_to'] ?? ''),
+                'signatory_name' => (string) ($preset['signatory_name'] ?? ''),
+                'signature_path' => $preset['signature_path'] ?? null,
+                'logo_path' => $preset['logo_path'] ?? null,
+                'template' => (string) ($preset['template'] ?? StandaloneInvoice::TEMPLATE_CLASSIC),
+            ];
+        }, array_values($presets));
+
+        $this->upsertSetting(self::SETTING_PRESETS, 'Invoice Maker Presets', $normalized);
+
+        if ($defaultPresetId === '' || ! collect($normalized)->contains(fn (array $preset) => $preset['id'] === $defaultPresetId)) {
+            $defaultPresetId = $normalized[0]['id'] ?? 'default';
+        }
+
+        $this->upsertSetting(self::SETTING_DEFAULT_PRESET_ID, 'Invoice Maker — Default Preset', $defaultPresetId);
+    }
+
+    /**
+     * @param  array<string, mixed>  $preset
+     * @return array<string, mixed>
+     */
+    private function hydratePresetUrls(array $preset): array
+    {
+        $preset['signature_url'] = $this->signaturePublicUrl($preset['signature_path'] ?? null);
+        $preset['logo_url'] = $this->logoPublicUrl($preset['logo_path'] ?? null);
+
+        return $preset;
+    }
+
+    private function generatePresetId(string $name): string
+    {
+        $base = Str::slug($name) ?: 'preset';
+        $id = $base;
+        $suffix = 1;
+
+        while ($this->findPreset($id)) {
+            $id = $base.'-'.$suffix;
+            $suffix++;
+        }
+
+        return $id;
+    }
+
+    private function storeSignature(string $presetId, UploadedFile $signature): string
+    {
+        $this->deleteSignatureFiles($presetId);
+
+        return $this->storeOptimizedPublicImage(
+            $signature,
+            self::SIGNATURE_DIRECTORY,
+            $presetId,
+            500,
+            180,
+        );
+    }
+
+    private function deleteSignatureFiles(string $presetId): void
+    {
+        foreach (['png', 'jpg', 'jpeg', 'webp'] as $ext) {
+            $path = public_path(self::SIGNATURE_DIRECTORY.'/'.$presetId.'.'.$ext);
+            if (File::exists($path)) {
+                File::delete($path);
+            }
+        }
+    }
+
+    private function storeLogo(string $presetId, UploadedFile $logo): string
+    {
+        $this->deleteLogoFiles($presetId);
+
+        return $this->storeOptimizedPublicImage(
+            $logo,
+            self::LOGO_DIRECTORY,
+            $presetId,
+            800,
+            240,
+        );
+    }
+
+    private function deleteLogoFiles(string $presetId): void
+    {
+        foreach (['png', 'jpg', 'jpeg', 'webp'] as $ext) {
+            $path = public_path(self::LOGO_DIRECTORY.'/'.$presetId.'.'.$ext);
+            if (File::exists($path)) {
+                File::delete($path);
+            }
+        }
+    }
+
+    private function storeOptimizedPublicImage(
+        UploadedFile $file,
+        string $directory,
+        string $basename,
+        int $maxWidth,
+        int $maxHeight,
+    ): string {
+        File::ensureDirectoryExists(public_path($directory));
+        $relative = $directory.'/'.$basename.'.png';
+        $absolute = public_path($relative);
+
+        if ($this->optimizeImageFile($file->getRealPath(), $absolute, $maxWidth, $maxHeight)) {
+            return $relative;
+        }
+
+        $extension = strtolower($file->getClientOriginalExtension() ?: 'png');
+        if (! in_array($extension, ['png', 'jpg', 'jpeg', 'webp'], true)) {
+            $extension = 'png';
+        }
+
+        $relative = $directory.'/'.$basename.'.'.$extension;
+        $file->move(public_path($directory), $basename.'.'.$extension);
+
+        return $relative;
+    }
+
+    private function resolvePublicAssetPath(?string $relativeOrAbsolutePath): ?string
+    {
+        if (! $relativeOrAbsolutePath) {
+            return null;
+        }
+
+        if (preg_match('#^https?://#i', $relativeOrAbsolutePath)) {
+            return null;
+        }
+
+        if (File::isFile($relativeOrAbsolutePath)) {
+            return $relativeOrAbsolutePath;
+        }
+
+        $normalized = ltrim(str_replace('\\', '/', $relativeOrAbsolutePath), '/');
+        $candidates = [
+            public_path($relativeOrAbsolutePath),
+            public_path($normalized),
+            base_path($normalized),
+        ];
+
+        foreach ($candidates as $candidate) {
+            if (File::isFile($candidate)) {
+                return $candidate;
+            }
+        }
+
+        return null;
+    }
+
+    private function ensurePdfOptimizedImage(string $diskPath): string
+    {
+        $extension = strtolower(pathinfo($diskPath, PATHINFO_EXTENSION));
+        $needsConversion = in_array($extension, ['webp'], true) || filesize($diskPath) > 750_000;
+
+        if (! $needsConversion || ! extension_loaded('gd')) {
+            return $diskPath;
+        }
+
+        $cacheDir = storage_path('app/pdf-image-cache');
+        File::ensureDirectoryExists($cacheDir);
+        $cachePath = $cacheDir.'/'.md5($diskPath.(string) filemtime($diskPath)).'.png';
+
+        if (File::isFile($cachePath)) {
+            return $cachePath;
+        }
+
+        if ($this->optimizeImageFile($diskPath, $cachePath, 1200, 400)) {
+            return $cachePath;
+        }
+
+        return $diskPath;
+    }
+
+    private function optimizeImageFile(string $sourcePath, string $targetPath, int $maxWidth, int $maxHeight): bool
+    {
+        if (! extension_loaded('gd')) {
+            return false;
+        }
+
+        $contents = @file_get_contents($sourcePath);
+        if ($contents === false) {
+            return false;
+        }
+
+        $image = @imagecreatefromstring($contents);
+        if ($image === false) {
+            return false;
+        }
+
+        $width = imagesx($image);
+        $height = imagesy($image);
+        $scale = min(1, $maxWidth / max($width, 1), $maxHeight / max($height, 1));
+        $targetWidth = max(1, (int) round($width * $scale));
+        $targetHeight = max(1, (int) round($height * $scale));
+
+        $canvas = imagecreatetruecolor($targetWidth, $targetHeight);
+        if ($canvas === false) {
+            imagedestroy($image);
+
+            return false;
+        }
+
+        imagealphablending($canvas, false);
+        imagesavealpha($canvas, true);
+        $transparent = imagecolorallocatealpha($canvas, 0, 0, 0, 127);
+        imagefilledrectangle($canvas, 0, 0, $targetWidth, $targetHeight, $transparent);
+        imagecopyresampled($canvas, $image, 0, 0, 0, 0, $targetWidth, $targetHeight, $width, $height);
+        imagepng($canvas, $targetPath, 6);
+
+        imagedestroy($image);
+        imagedestroy($canvas);
+
+        return File::isFile($targetPath);
+    }
+
+    private function normalizeFilesystemPath(string $path): string
+    {
+        $realPath = realpath($path);
+
+        return str_replace('\\', '/', $realPath ?: $path);
+    }
+
+    private function upsertSetting(string $slug, string $name, mixed $value): void
+    {
+        Setting::updateOrCreate(
+            ['slug' => $slug],
+            ['group' => 'Invoice', 'name' => $name, 'value' => $value]
+        );
+    }
+}

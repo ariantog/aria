@@ -26,7 +26,7 @@ class ItemService
      */
     public function update(int $id, object $input, array $tags, ?UploadedFile $file = null): Item
     {
-        $inputType = ItemType::tryFrom($input->type ?? 1) ?? ItemType::ITEM;
+        $inputType = $this->resolveItemType($input->type ?? ItemType::ITEM->value);
 
         return DB::transaction(function () use ($id, $input, $tags, $file, $inputType) {
             $item = Item::with(['group', 'tags'])->findOrFail($id);
@@ -73,9 +73,15 @@ class ItemService
             $warnaTag = $warnaId ? Tag::find($warnaId) : null;
 
             $pcode = strtoupper(trim((string) $input->pcode));
-            $previousGroupName = $item->group?->name ?? '';
             $groupName = $this->groupNameFromInput($input, $inputType, $pcode, $item->group, $item);
-            $nameChanged = strtoupper($previousGroupName) !== strtoupper($groupName);
+            $variant = $this->identityBuilder->groupVariant($inputType, $pcode, $warnaTag);
+            $storedName = $this->identityBuilder->storedGroupName($inputType, $groupName, $pcode, $variant);
+            $storedName = $this->ensureUniqueStoredGroupName(
+                $storedName,
+                $this->identityBuilder->parsePcode($inputType, $pcode)['master'],
+                $variant,
+            );
+            $nameChanged = strtoupper(trim((string) ($item->group?->name ?? ''))) !== strtoupper($storedName);
             $group = $this->resolveGroup($inputType, $pcode, $groupName, $warnaTag, $input);
 
             $this->applyItemIdentity(
@@ -88,6 +94,7 @@ class ItemService
                 $sizeTag,
                 $input,
                 isUpdate: true,
+                productName: $groupName,
             );
 
             $item->group_id = $group->id;
@@ -120,7 +127,22 @@ class ItemService
         }
 
         return DB::transaction(function () use ($group, $productName) {
-            $group->name = $productName;
+            $sampleItem = $group->items()->first();
+            $itemType = $sampleItem
+                ? $this->resolveItemType($sampleItem->getAttributes()['type'] ?? $sampleItem->type)
+                : ItemType::ITEM;
+            $storedName = $this->identityBuilder->storedGroupName(
+                $itemType,
+                $productName,
+                (string) ($sampleItem?->pcode ?? ''),
+                (string) ($group->variant ?? ''),
+            );
+            $storedName = $this->ensureUniqueStoredGroupName(
+                $storedName,
+                (string) ($group->master ?? ''),
+                (string) ($group->variant ?? ''),
+            );
+            $group->name = $storedName;
             $group->save();
 
             $this->syncItemNamesForGroup($group);
@@ -134,7 +156,7 @@ class ItemService
      */
     public function create(object $input, array $tags, ?UploadedFile $file = null): bool
     {
-        $inputType = ItemType::tryFrom($input->type ?? 1) ?? ItemType::ITEM;
+        $inputType = $this->resolveItemType($input->type ?? ItemType::ITEM->value);
 
         try {
             $this->identityBuilder->validatePcode($inputType, (string) ($input->pcode ?? ''));
@@ -190,6 +212,7 @@ class ItemService
                             (int) $typeId,
                             (int) $sizeId,
                             $warnaId ? (int) $warnaId : null,
+                            $groupName,
                         );
 
                         if ($file) {
@@ -225,6 +248,7 @@ class ItemService
         int $typeId,
         int $sizeId,
         ?int $warnaId,
+        string $groupName,
     ): Item {
         $item = new Item;
         $item->type = $itemType;
@@ -239,6 +263,7 @@ class ItemService
             $warnaTag,
             $sizeTag,
             $input,
+            productName: $groupName,
         );
 
         $tagIds = $this->collectTagIds($tags, $typeId, $sizeId, $warnaId);
@@ -259,6 +284,7 @@ class ItemService
         ?Tag $sizeTag,
         object $input,
         bool $isUpdate = false,
+        ?string $productName = null,
     ): void {
         $pcode = strtoupper(trim($pcode));
         $code = $this->identityBuilder->buildCode($itemType, $pcode, $typeTag, $warnaTag, $sizeTag);
@@ -271,9 +297,15 @@ class ItemService
             $this->preserveLegacyCode($item, $code);
         }
 
+        $displayName = $productName ?? $this->identityBuilder->productDisplayName(
+            $itemType,
+            (string) $group->name,
+            (string) ($group->variant ?? ''),
+        );
+
         $item->pcode = $pcode;
         $item->code = $code;
-        $item->name = $this->identityBuilder->buildName($group->name, $warnaTag, $sizeTag);
+        $item->name = $this->identityBuilder->buildName($displayName, $warnaTag, $sizeTag);
         $item->price = $input->price ?? $item->price ?? 0;
         $item->cost = $input->cost ?? $item->cost ?? 0;
         $item->description = $input->description ?? $item->description ?? '';
@@ -292,6 +324,8 @@ class ItemService
     ): ItemGroup {
         $parsed = $this->identityBuilder->parsePcode($type, $pcode);
         $variant = $this->identityBuilder->groupVariant($type, $pcode, $warnaTag);
+        $storedName = $this->identityBuilder->storedGroupName($type, $groupName, $pcode, $variant);
+        $storedName = $this->ensureUniqueStoredGroupName($storedName, $parsed['master'], $variant);
 
         $group = ItemGroup::firstOrCreate(
             [
@@ -299,13 +333,15 @@ class ItemService
                 'variant' => $variant,
             ],
             [
-                'name' => strtoupper($groupName),
+                'name' => $storedName,
                 'description' => isset($input->description) ? strtoupper($input->description) : null,
                 'description2' => isset($input->description2) ? strtoupper($input->description2) : null,
             ],
         );
 
-        $group->name = strtoupper($groupName);
+        if (strtoupper(trim((string) $group->name)) !== strtoupper($storedName)) {
+            $group->name = $storedName;
+        }
 
         if (isset($input->description)) {
             $group->description = strtoupper($input->description);
@@ -318,6 +354,22 @@ class ItemService
         $group->save();
 
         return $group;
+    }
+
+    protected function ensureUniqueStoredGroupName(string $storedName, string $master, string $variant): string
+    {
+        $existing = ItemGroup::query()->where('name', $storedName)->first();
+
+        if (! $existing) {
+            return $storedName;
+        }
+
+        if (strtoupper((string) $existing->master) === strtoupper($master)
+            && strtoupper((string) $existing->variant) === strtoupper($variant)) {
+            return $storedName;
+        }
+
+        return strtoupper(trim("{$storedName} ({$master}/{$variant})"));
     }
 
     protected function groupNameFromInput(
@@ -421,11 +473,17 @@ class ItemService
     protected function syncItemNamesForGroup(ItemGroup $group): void
     {
         $items = Item::with('tags')->where('group_id', $group->id)->get();
+        $sampleType = $this->resolveItemType($items->first()?->type ?? ItemType::ITEM->value);
+        $displayName = $this->identityBuilder->productDisplayName(
+            $sampleType,
+            (string) $group->name,
+            (string) ($group->variant ?? ''),
+        );
 
         foreach ($items as $item) {
             $warnaTag = $item->tags->firstWhere('type', Tag::TYPE_WARNA);
             $sizeTag = $item->tags->firstWhere('type', Tag::TYPE_SIZE);
-            $item->name = $this->identityBuilder->buildName($group->name, $warnaTag, $sizeTag);
+            $item->name = $this->identityBuilder->buildName($displayName, $warnaTag, $sizeTag);
             $item->save();
         }
     }
@@ -505,5 +563,14 @@ class ItemService
             'sizes' => array_values(array_filter($sizes)),
             'jahit' => array_values(array_filter($jahit)),
         ];
+    }
+
+    private function resolveItemType(mixed $value): ItemType
+    {
+        if ($value instanceof ItemType) {
+            return $value;
+        }
+
+        return ItemType::tryFrom((int) $value) ?? ItemType::ITEM;
     }
 }

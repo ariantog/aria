@@ -11,7 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('produksis', function (Blueprint $table) {
+        Schema::create('prod_produksi', function (Blueprint $table) {
             $table->id();
             $table->string('temp_name')->nullable();
             $table->foreignId('size_id')->nullable();
@@ -19,6 +19,7 @@ return new class extends Migration
             $table->string('customer')->nullable();
             $table->string('warna')->nullable();
             $table->foreignId('potong_id')->nullable();
+            $table->unsignedBigInteger('user_id')->nullable();
             $table->date('potong_date')->nullable();
             $table->string('surat_jalan_potong')->nullable();
             $table->integer('status')->default(1)->comment('1: Produksi, 2: Setor');
@@ -33,6 +34,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('produksis');
+        Schema::dropIfExists('prod_produksi');
     }
 };

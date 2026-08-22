@@ -7,23 +7,31 @@
 $breadcrumbs = [
     ['title' => 'System Settings', 'href' => route('system-settings.index')],
 ];
-$groupList = $groups->map(fn ($g) => $g ?: 'General')->unique()->values();
-$firstGroup = $groupList->first() ?? 'General';
+$groupList = $groups->values();
+$firstGroup = $groupList->first() ?? 'Accounting';
 @endphp
 
 <div class="flex flex-col gap-4 p-3 sm:p-4" x-data="{ activeGroup: @js($firstGroup) }">
-    <div class="flex flex-col items-start justify-between gap-2 sm:flex-row sm:items-center">
+        <div class="flex flex-col items-start justify-between gap-2 sm:flex-row sm:items-center">
         <div>
             <h2 class="text-2xl font-bold tracking-tight text-gray-900">System Settings</h2>
-            <p class="mt-0.5 text-sm text-gray-500">Configure application wide settings and parameters.</p>
+            <p class="mt-0.5 text-sm text-gray-500">Configure application-wide settings. Invoice headers come from each warehouse's <strong>Invoice Header</strong> field on the addrbook form.</p>
         </div>
-        @if($can['create'])
-        <a href="{{ route('system-settings.create') }}"
-           class="inline-flex items-center gap-1.5 rounded-lg bg-blue-700 px-4 py-2 text-sm font-medium text-white hover:bg-blue-800">
-            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-            Add New Setting
+        <div class="flex flex-wrap gap-2">
+        @if($can['cron_view'] ?? false)
+        <a href="{{ route('scheduled-tasks.index') }}"
+           class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            Cron Manager
         </a>
         @endif
+        @if($can['edit'])
+        <a href="{{ route('invoice-settings.edit') }}"
+           class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+            Invoice Logo
+        </a>
+        @endif
+        </div>
     </div>
 
     <div class="flex flex-col gap-6 lg:flex-row">
@@ -48,7 +56,7 @@ $firstGroup = $groupList->first() ?? 'General';
         {{-- Content --}}
         <div class="min-w-0 flex-1">
             @forelse($groupList as $group)
-            @php $groupSettings = $settings->filter(fn ($s) => ($s->group ?: 'General') === $group); @endphp
+            @php $groupSettings = $settings->filter(fn ($s) => $s->group === $group); @endphp
             <div x-show="activeGroup === @js($group)" class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
                 <div class="flex items-center justify-between border-b border-gray-100 bg-gray-50 p-5">
                     <h3 class="flex items-center gap-2 text-lg font-bold text-gray-900">
@@ -75,29 +83,15 @@ $firstGroup = $groupList->first() ?? 'General';
                                     <code class="rounded border border-gray-200 bg-gray-100 px-1.5 py-0.5 font-mono text-xs text-gray-600">{{ $setting->slug }}</code>
                                 </td>
                                 <td class="px-6 py-4 text-gray-700">
-                                    <div class="max-w-xs truncate font-medium">
-                                        @php $val = $setting->value; @endphp
-                                        {{ is_array($val) || is_object($val) ? (data_get($val, 'name') ?? json_encode($val)) : $val }}
-                                    </div>
+                                    <div class="max-w-xs truncate font-medium">{{ $displayValues[$setting->id] ?? '—' }}</div>
                                 </td>
                                 <td class="px-6 py-4 text-right">
-                                    <div class="flex justify-end gap-1">
-                                        @if($can['edit'])
-                                        <a href="{{ route('system-settings.edit', $setting->id) }}"
-                                           class="inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-400 hover:bg-blue-50 hover:text-blue-500" title="Edit">
-                                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
-                                        </a>
-                                        @endif
-                                        @if($can['delete'])
-                                        <form method="POST" action="{{ route('system-settings.destroy', $setting->id) }}" onsubmit="return confirm('Are you sure you want to delete this setting?')">
-                                            @csrf
-                                            @method('DELETE')
-                                            <button type="submit" class="inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-400 hover:bg-red-50 hover:text-red-500" title="Delete">
-                                                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                                            </button>
-                                        </form>
-                                        @endif
-                                    </div>
+                                    @if($can['edit'])
+                                    <a href="{{ route('system-settings.edit', $setting->id) }}"
+                                       class="inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-400 hover:bg-blue-50 hover:text-blue-500" title="Edit">
+                                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                                    </a>
+                                    @endif
                                 </td>
                             </tr>
                             @empty
