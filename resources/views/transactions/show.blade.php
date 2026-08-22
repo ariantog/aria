@@ -28,11 +28,7 @@
 @endphp
 
 <div class="flex h-full flex-1 flex-col gap-4 overflow-x-auto rounded-xl p-4"
-     x-data="{ showImage: true, showBarcode: true, showSku: false, waOpen: false, deleteConfirmOpen: false,
-        get nameColSpan() {
-            const c = (this.showImage?1:0) + (this.showBarcode?1:0) + (this.showSku?1:0);
-            return c === 3 ? 'sm:col-span-3' : c === 2 ? 'sm:col-span-4' : c === 1 ? 'sm:col-span-5' : 'sm:col-span-6';
-        } }">
+     x-data="{ showImage: true, showBarcode: true, showSku: false, waOpen: false, deleteConfirmOpen: false }">
 
     {{-- Top Action Bar --}}
     <div class="flex flex-col justify-between gap-4 md:flex-row md:items-center print:hidden">
@@ -233,104 +229,60 @@
             </div>
         </div>
 
-        <div class="flex flex-col print:block">
-            {{-- Header --}}
-            <div class="hidden grid-cols-12 gap-4 border-y bg-gray-50 p-3 text-[10px] font-bold tracking-wider text-gray-500 uppercase sm:grid print:grid">
-                <div class="col-span-1 text-center font-black" x-show="showImage">Img</div>
-                <div class="col-span-1 font-black" x-show="showBarcode">Barcode</div>
-                <div class="col-span-1 font-black" x-show="showSku">SKU</div>
-                <div class="font-black" :class="nameColSpan">Item Name</div>
-                <div class="col-span-1 text-center font-black">Qty</div>
-                <div class="col-span-2 text-right font-black">Price</div>
-                <div class="col-span-1 text-right font-black">Disc(%)</div>
-                <div class="col-span-2 text-right font-black">Subtotal</div>
-            </div>
-
-            {{-- Rows --}}
-            <div class="divide-y print:block print:divide-y">
-                @foreach($transaction->details as $detail)
-                @php $item = $detail->item; @endphp
-                <div class="group flex flex-col gap-4 p-4 transition-colors hover:bg-gray-50 sm:grid sm:grid-cols-12 sm:items-center sm:gap-4 sm:p-3 sm:text-sm print:grid print:grid-cols-12 print:items-center print:gap-4 print:p-3">
-                    {{-- Mobile: image & name header --}}
-                    <div class="flex items-start gap-3 sm:hidden">
-                        <div class="relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded border bg-white shadow-sm" x-show="showImage">
-                            @if($item?->image_url)
-                                <img src="{{ $item->image_url }}" alt="{{ $item?->name }}" class="h-full w-full object-cover">
-                            @else
-                                <svg class="h-7 w-7 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
-                            @endif
-                        </div>
-                        <div class="flex flex-col">
-                            <div class="font-bold text-gray-900">{{ $item?->name }}</div>
-                            @if($item?->code)
-                            <div class="font-mono text-[10px] text-gray-500">{{ $item?->code }}</div>
-                            @endif
-                            <div class="flex flex-wrap gap-2 pt-1">
-                                <span class="font-mono text-[10px] font-medium text-blue-600" x-show="showBarcode">#{{ $item?->id }}</span>
-                                @if($item?->code)
-                                <span class="font-mono text-[10px] italic text-gray-500" x-show="showSku">SKU: {{ $item?->code }}</span>
+        <div class="overflow-x-auto">
+            <table class="w-full min-w-[720px] text-sm">
+                <thead class="border-y bg-gray-50 text-[10px] font-bold tracking-wider text-gray-500 uppercase">
+                    <tr>
+                        <th class="px-3 py-2.5 text-center font-black" x-show="showImage">Img</th>
+                        <th class="px-3 py-2.5 text-left font-black" x-show="showBarcode">Barcode</th>
+                        <th class="px-3 py-2.5 text-left font-black" x-show="showSku">SKU</th>
+                        <th class="min-w-[12rem] px-3 py-2.5 text-left font-black">Item Name</th>
+                        <th class="px-3 py-2.5 text-center font-black">Qty</th>
+                        <th class="px-3 py-2.5 text-right font-black">Price</th>
+                        <th class="px-3 py-2.5 text-right font-black">Disc(%)</th>
+                        <th class="px-3 py-2.5 text-right font-black">Subtotal</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    @foreach($transaction->details as $detail)
+                    @php $item = $detail->item; @endphp
+                    <tr class="group transition-colors hover:bg-gray-50">
+                        <td class="px-3 py-2.5 text-center align-middle" x-show="showImage">
+                            <div class="relative mx-auto flex h-12 w-12 items-center justify-center overflow-hidden rounded border bg-white shadow-sm transition-transform duration-200 group-hover:scale-105">
+                                @if($item?->image_url)
+                                    <img src="{{ $item->image_url }}" alt="{{ $item?->name }}" class="h-full w-full object-cover">
+                                @else
+                                    <svg class="h-6 w-6 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
                                 @endif
                             </div>
-                        </div>
-                    </div>
-
-                    {{-- Desktop: Image --}}
-                    <div class="hidden col-span-1 text-center sm:block print:block" x-show="showImage">
-                        <div class="relative mx-auto flex h-12 w-12 items-center justify-center overflow-hidden rounded border bg-white shadow-sm transition-transform duration-200 group-hover:scale-105">
-                            @if($item?->image_url)
-                                <img src="{{ $item->image_url }}" alt="{{ $item?->name }}" class="h-full w-full object-cover">
-                            @else
-                                <svg class="h-6 w-6 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+                        </td>
+                        <td class="whitespace-nowrap px-3 py-2.5 align-middle font-mono text-xs" x-show="showBarcode">
+                            <a href="{{ $item ? route('items.show', $item->id) : '#' }}" class="text-blue-600 hover:underline">{{ $item?->id }}</a>
+                        </td>
+                        <td class="whitespace-nowrap px-3 py-2.5 align-middle font-mono text-xs italic text-gray-500" x-show="showSku">{{ $item?->code ?: '-' }}</td>
+                        <td class="px-3 py-2.5 align-middle">
+                            <div class="font-bold text-gray-900">{{ $item?->name }}</div>
+                            @if($item?->code)
+                            <div class="mt-0.5 font-mono text-[10px] leading-tight text-gray-500">{{ $item?->code }}</div>
                             @endif
-                        </div>
-                    </div>
-
-                    {{-- Desktop: Barcode --}}
-                    <div class="hidden col-span-1 font-mono text-xs sm:block print:block" x-show="showBarcode">
-                        <a href="{{ $item ? route('items.show', $item->id) : '#' }}" class="text-blue-600 hover:underline">{{ $item?->id }}</a>
-                    </div>
-
-                    {{-- Desktop: SKU --}}
-                    <div class="hidden col-span-1 font-mono text-xs italic text-gray-500 sm:block print:block" x-show="showSku">{{ $item?->code ?: '-' }}</div>
-
-                    {{-- Desktop: Name --}}
-                    <div class="hidden sm:flex flex-col print:flex" :class="nameColSpan">
-                        <span class="font-bold text-gray-900">{{ $item?->name }}</span>
-                        @if($item?->code)
-                        <span class="mt-0.5 line-clamp-1 font-mono text-[10px] leading-tight text-gray-500">{{ $item?->code }}</span>
-                        @endif
-                    </div>
-
-                    <div class="flex items-center justify-between sm:col-span-1 sm:block sm:text-center print:block print:text-center">
-                        <span class="text-[10px] font-bold text-gray-500 uppercase sm:hidden print:hidden">Qty</span>
-                        <span class="inline-flex items-center justify-center rounded bg-gray-100 px-2 py-1 text-xs font-black sm:bg-transparent sm:p-0">{{ $detail->quantity }}</span>
-                    </div>
-
-                    <div class="flex items-center justify-between sm:col-span-2 sm:block sm:text-right print:block print:text-right">
-                        <span class="text-[10px] font-bold text-gray-500 uppercase sm:hidden print:hidden">Price</span>
-                        <span class="font-medium">{{ $fmt($detail->price) }}</span>
-                    </div>
-
-                    <div class="flex items-center justify-between sm:col-span-1 sm:block sm:text-right print:block print:text-right">
-                        <span class="text-[10px] font-bold text-gray-500 uppercase sm:hidden print:hidden">Disc</span>
-                        @if($detail->discount > 0)
-                            <span class="inline-flex h-5 items-center rounded-md border border-dashed border-red-300 bg-red-50 px-1.5 text-[10px] font-bold text-red-600">-{{ number_format((float) $detail->discount, 2, ',', '.') }}%</span>
-                        @else
-                            <span class="text-gray-400">-</span>
-                        @endif
-                    </div>
-
-                    <div class="flex items-center justify-between border-t pt-3 sm:col-span-2 sm:block sm:border-0 sm:pt-0 sm:text-right print:block print:text-right">
-                        <span class="text-[10px] font-bold text-gray-900 uppercase sm:hidden print:hidden">Subtotal</span>
-                        <span class="text-lg font-black text-blue-700 sm:text-sm">{{ $fmt($detail->total) }}</span>
-                    </div>
-
-                    @if($detail->notes)
-                    <div class="mt-1 rounded bg-gray-50 p-2 text-xs italic text-gray-500 sm:hidden">📝 {{ $detail->notes }}</div>
-                    @endif
-                </div>
-                @endforeach
-            </div>
+                            @if($detail->notes)
+                            <div class="mt-1 text-xs italic text-gray-500">📝 {{ $detail->notes }}</div>
+                            @endif
+                        </td>
+                        <td class="whitespace-nowrap px-3 py-2.5 text-center align-middle font-black tabular-nums">{{ $detail->quantity }}</td>
+                        <td class="whitespace-nowrap px-3 py-2.5 text-right align-middle font-medium tabular-nums">{{ $fmt($detail->price) }}</td>
+                        <td class="whitespace-nowrap px-3 py-2.5 text-right align-middle tabular-nums">
+                            @if($detail->discount > 0)
+                                <span class="inline-flex h-5 items-center rounded-md border border-dashed border-red-300 bg-red-50 px-1.5 text-[10px] font-bold text-red-600">-{{ number_format((float) $detail->discount, 2, ',', '.') }}%</span>
+                            @else
+                                <span class="text-gray-400">-</span>
+                            @endif
+                        </td>
+                        <td class="whitespace-nowrap px-3 py-2.5 text-right align-middle font-black text-blue-700 tabular-nums">{{ $fmt($detail->total) }}</td>
+                    </tr>
+                    @endforeach
+                </tbody>
+            </table>
         </div>
     </div>
 
