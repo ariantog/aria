@@ -21,7 +21,7 @@ class ShopeeAdsProcessCommand extends Command
 
         $schedulesRan = $engine->runDueSchedules();
         $reset = $engine->runDailyResetIfDue();
-        $replenish = $engine->runReplenishIfDue();
+        $replenish = $engine->runItemReplenishIfDue();
 
         $this->info("Schedules ran: {$schedulesRan}; daily reset: ".($reset ? 'yes' : 'no').'; replenish: '.($replenish ? 'yes' : 'no'));
 

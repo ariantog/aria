@@ -1,9 +1,17 @@
 # Shopee Ads Budget Management — Indonesia 🇮🇩🛍
 
-> **L12 web UI:** This bot is now integrated into Aria Core (Laravel). Manage schedules,
-> settings, OAuth, and history at **`/shopee-ads`** in the app. Automation runs via
-> `shopee-ads:process` every minute through `/cron-manager` (not a standalone Python
-> systemd service). OAuth relay: `public/shopeebot.php` → `shopee-ads/oauth/callback`.
+> **L12 web UI:** Manage schedules, settings, OAuth, and history at **`/shopee-ads`**.
+> Automation runs via `shopee-ads:process` every minute through `/cron-manager`.
+
+**Working ad types (Shopee API):** `gmv_max` (GMV Max campaign) and `iklan_produk_manual`
+(individual manual product ads). Legacy types (`iklan_toko_auto`, `iklan_toko_manual`,
+`iklan_produk_auto`, `iklan_group`) remain in the Python bot for schedule/history compatibility
+but **do not have working budget APIs** — the PHP UI only schedules the two working types.
+
+**Budget increment bug:** increments must use the **live** Shopee budget (after manual edits),
+not `starting_budget` or a stale DB value. Item ads sync live budgets before each increment
+(`engine.py` ~1508). GMV Max reads live budget via `get_product_level_campaign_setting_info`
+when possible, then falls back to tracked `gms_current_budget`.
 
 A production-ready system that ramps **Shopee Ads (Indonesia)** budgets on a
 **time-based, fixed-IDR schedule**, anchored to **Asia/Jakarta (WIB, GMT+7)**.

@@ -5,7 +5,7 @@ namespace App\Http\Controllers;
 use App\Enums\ShopeeAdsType;
 use App\Models\ShopeeAds;
 use App\Models\ShopeeAdsBudgetHistory;
-use App\Models\ShopeeAdsGroupState;
+use App\Models\ShopeeAdsItemAd;
 use App\Models\ShopeeAdsSchedule;
 use App\Models\ShopeeAdsSetting;
 use App\Services\ShopeeAds\ShopeeAdsApiService;
@@ -24,18 +24,17 @@ class ShopeeAdsController extends Controller
         $settings = ShopeeAdsSetting::current();
         $schedules = ShopeeAdsSchedule::query()->orderBy('ad_type')->orderBy('run_time')->get();
         $history = ShopeeAdsBudgetHistory::query()->orderByDesc('created_at')->limit(50)->get();
-        $groupStates = ShopeeAdsGroupState::query()->orderByDesc('updated_at')->limit(20)->get();
-
-        $planned = $this->plannedEndOfDay($settings, $schedules);
+        $itemAds = ShopeeAdsItemAd::query()->orderByDesc('updated_at')->limit(30)->get();
 
         return view('shopee-ads.index', [
             'settings' => $settings,
             'schedules' => $schedules,
             'history' => $history,
-            'groupStates' => $groupStates,
+            'itemAds' => $itemAds,
             'adTypeLabels' => ShopeeAdsType::labels(),
+            'supportedTypes' => ShopeeAdsType::supportedScheduleTypes(),
             'connection' => $api->getConnectionStatus(),
-            'planned' => $planned,
+            'planned' => $this->plannedEndOfDay($settings, $schedules),
             'canEdit' => request()->user()?->can(ShopeeAds::getPermissions()['edit']) ?? false,
         ]);
     }
@@ -45,29 +44,26 @@ class ShopeeAdsController extends Controller
         Gate::authorize(ShopeeAds::getPermissions()['edit']);
 
         $validated = $request->validate([
-            'starting_budget' => ['required', 'integer', 'min:0'],
+            'starting_budget_gmv_max' => ['required', 'integer', 'min:0'],
             'daily_max_budget' => ['required', 'integer', 'min:1'],
-            'group_split_high' => ['required', 'integer', 'min:0', 'max:100'],
-            'group_split_mid' => ['required', 'integer', 'min:0', 'max:100'],
-            'group_split_low' => ['required', 'integer', 'min:0', 'max:100'],
-            'group_roas_off_threshold' => ['required', 'numeric', 'min:0'],
-            'group_off_after_increments' => ['required', 'integer', 'min:1'],
-            'group_replenish_enabled' => ['sometimes', 'boolean'],
-            'group_target_active_count' => ['required', 'integer', 'min:1'],
-            'group_replenish_max_per_run' => ['required', 'integer', 'min:1'],
-            'group_replenish_min_roas' => ['required', 'numeric', 'min:0'],
-            'group_roas_target' => ['required', 'numeric', 'min:0'],
+            'item_ad_starting_budget' => ['required', 'integer', 'min:25000'],
+            'max_item_ads' => ['required', 'integer', 'min:1'],
+            'item_split_high' => ['required', 'integer', 'min:0', 'max:100'],
+            'item_split_mid' => ['required', 'integer', 'min:0', 'max:100'],
+            'item_split_low' => ['required', 'integer', 'min:0', 'max:100'],
+            'item_roas_off_threshold' => ['required', 'numeric', 'min:0'],
+            'item_off_after_checks' => ['required', 'integer', 'min:1'],
+            'item_new_roas_target' => ['required', 'numeric', 'min:0'],
+            'item_replenish_max_per_run' => ['required', 'integer', 'min:1'],
             'daily_reset_hour' => ['required', 'integer', 'min:0', 'max:23'],
             'daily_reset_minute' => ['required', 'integer', 'min:0', 'max:59'],
-            'group_replenish_hour' => ['required', 'integer', 'min:0', 'max:23'],
-            'group_replenish_minute' => ['required', 'integer', 'min:0', 'max:59'],
-            'toko_auto_campaign_id' => ['nullable', 'string', 'max:64'],
-            'toko_manual_campaign_id' => ['nullable', 'string', 'max:64'],
-            'produk_auto_campaign_id' => ['nullable', 'string', 'max:64'],
+            'item_replenish_hour' => ['required', 'integer', 'min:0', 'max:23'],
+            'item_replenish_minute' => ['required', 'integer', 'min:0', 'max:59'],
         ]);
 
         $settings = ShopeeAdsSetting::current();
-        $validated['group_replenish_enabled'] = $request->boolean('group_replenish_enabled');
+        $validated['item_ads_enabled'] = $request->boolean('item_ads_enabled');
+        $validated['item_replenish_enabled'] = $request->boolean('item_replenish_enabled');
         $settings->update($validated);
 
         return back()->with('success', 'Pengaturan Shopee Ads disimpan.');
@@ -83,9 +79,13 @@ class ShopeeAdsController extends Controller
             'increment_idr' => ['required', 'integer', 'min:1'],
         ]);
 
-        $type = ShopeeAdsType::normalize($validated['ad_type']);
+        $type = ShopeeAdsType::normalizeScheduleType($validated['ad_type']);
         if ($type === null) {
             return back()->with('error', 'Tipe iklan tidak dikenal.');
+        }
+
+        if (! $type->isSupported()) {
+            return back()->with('error', 'Tipe iklan legacy — hanya gmv_max dan iklan_produk_manual yang didukung API Shopee.');
         }
 
         ShopeeAdsSchedule::query()->updateOrCreate(
@@ -151,7 +151,7 @@ class ShopeeAdsController extends Controller
         Gate::authorize(ShopeeAds::getPermissions()['edit']);
 
         $settings = ShopeeAdsSetting::current();
-        $result = $engine->replenishGroups($settings);
+        $result = $engine->replenishItemAds($settings);
 
         return back()->with('success', $result['message']);
     }
@@ -169,29 +169,35 @@ class ShopeeAdsController extends Controller
 
     /**
      * @param  \Illuminate\Support\Collection<int, ShopeeAdsSchedule>  $schedules
-     * @return array<string, array{start: int, planned: int, cap: int}>
+     * @return array<string, array<string, mixed>>
      */
     private function plannedEndOfDay(ShopeeAdsSetting $settings, $schedules): array
     {
-        $planned = [];
+        $gmvStart = (int) ($settings->starting_budget_gmv_max ?: $settings->starting_budget);
+        $gmvInc = (int) $schedules
+            ->where('ad_type', ShopeeAdsType::GmvMax->value)
+            ->where('enabled', true)
+            ->sum('increment_idr');
 
-        foreach (ShopeeAdsType::singleAdTypes() as $adType) {
-            $sum = (int) $schedules->where('ad_type', $adType)->where('enabled', true)->sum('increment_idr');
-            $planned[$adType] = [
-                'start' => $settings->starting_budget,
-                'planned' => min($settings->starting_budget + $sum, $settings->daily_max_budget),
-                'cap' => $settings->daily_max_budget,
-            ];
-        }
+        $itemPool = (int) $schedules
+            ->where('ad_type', ShopeeAdsType::ProdukManual->value)
+            ->where('enabled', true)
+            ->sum('increment_idr');
 
-        $groupSum = (int) $schedules->where('ad_type', ShopeeAdsType::Group->value)->where('enabled', true)->sum('increment_idr');
-        $planned[ShopeeAdsType::Group->value] = [
-            'start' => $settings->starting_budget,
-            'planned' => $groupSum,
-            'cap' => $settings->daily_max_budget,
-            'note' => 'Pool total per run (split by ROAS)',
+        return [
+            ShopeeAdsType::GmvMax->value => [
+                'start' => $gmvStart,
+                'tracked' => (int) $settings->gms_current_budget,
+                'increments' => $gmvInc,
+                'planned' => min($gmvStart + $gmvInc, $settings->daily_max_budget),
+                'cap' => (int) $settings->daily_max_budget,
+            ],
+            ShopeeAdsType::ProdukManual->value => [
+                'pool_per_run' => $itemPool,
+                'active_ads' => ShopeeAdsItemAd::query()->where('turned_off', false)->count(),
+                'cap' => (int) $settings->daily_max_budget,
+                'note' => 'Pool dibagi per item ad by ROAS tier',
+            ],
         ];
-
-        return $planned;
     }
 }
