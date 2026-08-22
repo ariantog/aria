@@ -43,6 +43,7 @@ class AccountListController extends Controller
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
+            'ledger_hint' => 'nullable|string|max:500',
             'operation_id' => 'required|exists:operations,id',
         ]);
 
@@ -68,6 +69,7 @@ class AccountListController extends Controller
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
+            'ledger_hint' => 'nullable|string|max:500',
             'operation_id' => 'required|exists:operations,id',
         ]);
 
