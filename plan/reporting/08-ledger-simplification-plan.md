@@ -40,38 +40,42 @@ transactions                 →  unchanged; CashOut points at ledger id
 
 ## 3. Proposed simplified categories (operations)
 
-Reduce **22 → 14** active categories. Old categories soft-deleted after ledger migration.
+Reduce **22 → 15** active categories. Split digital marketplace costs from physical **toko** (shop) costs.
 
-| # | New name | Slug | Absorbs old operation(s) |
-|---|----------|------|--------------------------|
-| 1 | **Biaya Channel** | `channel` | Marketing channel costs, Operational Luar, Shopee Cost, scattered `* Cost` |
-| 2 | **Marketing Umum** | `marketing` | Marketing non-channel: iklan, pameran, sponsor, CSR, packing promosi |
-| 3 | **Gaji & Upah** | `gaji` | Gaji dan Upah (op 4) |
-| 4 | **Produksi** | `produksi` | Ongkos Produksi (op 27) + Permak + Jahit Luar |
-| 5 | **Sewa** | `sewa` | Sewa Menyewa — **rent only**, not store operating costs |
-| 6 | **Logistik** | `logistik` | Ongkir, bensin, tol, kendaraan (not channel-specific) |
-| 7 | **Kantor & Utilitas** | `kantor` | Perlengkapan Kantor + Utilitas + Biaya Langganan |
-| 8 | **Perawatan & Mesin** | `maintenance` | Repair & Maintenance (op 13) |
-| 9 | **Jasa Profesional** | `jasa` | Konsultan, print, personal (no revenue accounts) |
-| 10 | **Kesejahteraan Karyawan** | `sdm` | Biaya Karyawan (op 21) |
-| 11 | **Pajak & Retribusi** | `pajak` | Generic pajak only — **not** entity-specific PPN/PPH/SPT |
-| 12 | **Perbankan** | `bank` | Perbankan (op 10) |
-| 13 | **Penyesuaian** | `penyesuaian` | Penyesuaian, pembulatan, kembalian, penghapusan hutang |
-| 14 | **Lain-lain** | `lain` | Donasi, sumbangan, entertain — minimal use |
+| # | New name | Slug | Purpose |
+|---|----------|------|---------|
+| 1 | **Biaya Marketplace** | `marketplace` | Online channel fees — compare Shopee vs TikTok vs Lazada cost |
+| 2 | **Biaya Toko** | `toko` | Physical shop upkeep — WTC, Citos (rent + transport + misc in one ledger per shop) |
+| 3 | **Marketing Umum** | `marketing` | Non-channel marketing: iklan, pameran, sponsor, CSR |
+| 4 | **Gaji & Upah** | `gaji` | Payroll |
+| 5 | **Produksi** | `produksi` | Material, biaya produksi, permak |
+| 6 | **Logistik** | `logistik` | HQ/generic shipping, bensin, tol (not shop-specific) |
+| 7 | **Kantor & Utilitas** | `kantor` | Office + utilities + subscriptions |
+| 8 | **Perawatan & Mesin** | `maintenance` | Repair & maintenance |
+| 9 | **Jasa Profesional** | `jasa` | Konsultan, print |
+| 10 | **Kesejahteraan Karyawan** | `sdm` | Staff welfare |
+| 11 | **Pajak & Retribusi** | `pajak` | Generic tax only (SSP, PBB, etc.) |
+| 12 | **Perbankan** | `bank` | Bank fees |
+| 13 | **Penyesuaian** | `penyesuaian` | Adjustments |
+| 14 | **Lain-lain** | `lain` | Donasi, entertain — minimal |
+| 15 | **Sewa HQ** | `sewa` | **Optional:** HQ/building rent only (Gedung Cost) — see §4.1 |
+
+**Drop old category "Sewa Menyewa" per-shop ledgers** — folded into Biaya Toko (see maintainer note §9C).
 
 ### Categories to **soft-delete** (after migrating child ledgers)
 
 | Old ID | Name | Action |
 |--------|------|--------|
-| 28 | Operational Luar | Merge all into **Biaya Channel** |
-| 25 | General | Dissolve (see ledger table) |
-| 24 | Non-Operational | Split: Shopee→Channel; Penyesuaian→Penyesuaian; Permak→Produksi; rest→Lain |
-| 11 | Research & Development | CleanEat Cost → Channel; R&D → Marketing Umum |
+| 28 | Operational Luar | Marketplace + Toko split |
+| 7 | Sewa Menyewa | Per-shop sewa → Biaya Toko; optional HQ-only sewa remains |
+| 25 | General | Dissolve |
+| 24 | Non-Operational | Split per ledger table |
+| 11 | Research & Development | CleanEat → Marketing Digital; R&D → Marketing |
 | 15 | Jasa Training | Biaya HRD → SDM |
 | 26 | Sumbangan | → Lain-lain |
-| 19 | Entertain | → Lain-lain (or keep if you use it often) |
-| 22 | Lain-lain (old) | Replace with new minimal **Lain-lain** |
-| 12 | Asuransi | → Kantor (single account) or keep as 15th category |
+| 19 | Entertain | → Lain-lain |
+| 22 | Lain-lain (old) | Replace |
+| 3 | Marketing (old) | Split → Marketplace vs Marketing Umum |
 
 **Keep op 18 (Pajak)** but gut entity-specific children — see §5.
 
@@ -79,33 +83,48 @@ Reduce **22 → 14** active categories. Old categories soft-deleted after ledger
 
 ## 4. Proposed simplified ledger names
 
-### 4.1 Biaya Channel (consolidate ~25 → ~15 ledgers)
+### 4.1 Biaya Toko vs Biaya Marketplace (key split)
 
-One ledger per sales channel / location cost centre. Rename for consistency: **`Biaya {Channel}`**.
+**Physical shops (rented outside HQ)** — one ledger per shop for **all upkeep** (rent, transport, utilities, misc). Staff use transaction **notes** for detail (e.g. "sewa Juli", "ojek sample").
 
-| New name | Keep ID | Absorbs / soft-delete |
-|----------|--------:|------------------------|
-| Biaya Shopee | 2234 | (move from Non-Operational) |
+| New name | Keep ID | Absorbs | Description (for autocomplete) |
+|----------|--------:|---------|-------------------------------|
+| **Biaya Toko WTC** | 2889 | 2184 WTC Transport Cost | All WTC shop costs: rent, transport, utilities, supplies. Staff at WTC post here. |
+| **Biaya Toko Citos** | 2842 | 2854 FX Cost, 2844 Biaya Sewa Citos | All Citos shop costs including rent. |
+
+**Soft-delete after merge:** 2184, 2854, 2844 (separate sewa ledgers — too tedious per maintainer)
+
+**HQ / other rent:** 830 Biaya Sewa Sambisari → keep under **Sewa HQ** only if still paid separately; else fold into Kantor. 2959 Gedung Cost → Sewa HQ.
+
+**Why not separate Sewa per store?** Maintainers found `Biaya Sewa {toko}` tedious — every payment needs the right ledger. One **Biaya Toko {name}** ledger + notes is simpler and still gives WTC vs Citos totals in reports.
+
+---
+
+### 4.2 Biaya Marketplace (~20 ledgers — compare channel costs)
+
+Online / partner channel fees. Name pattern: **`Biaya {Channel}`**.
+
+| New name | Keep ID | Absorbs |
+|----------|--------:|---------|
+| Biaya Shopee | 2234 | |
 | Biaya TikTok | 2788 | |
 | Biaya Lazada | 2881 | |
-| Biaya Tokopedia | 2273 | rename from "Toped Cost" |
-| Biaya WTC | 2889 | absorb 2184 WTC Transport Cost |
+| Biaya Tokopedia | 2273 | rename Toped Cost |
 | Biaya BSD | 2899 | |
-| Biaya Citos | 2842 | absorb 2854 FX Cost |
-| Biaya Metro | 2099 | rename "Metro Costs" |
+| Biaya Metro | 2099 | offline partner? keep for comparison |
 | Biaya Sogo | 2178 | |
-| Biaya Central | 2633 | rename "Central - Cost" |
-| Biaya FitBox | 2719 | absorb 2729 FitBox JKT Cost |
+| Biaya Central | 2633 | |
+| Biaya FitBox | 2719 | absorb 2729 FitBox JKT |
 | Biaya MUKU | 2957 | |
 | Biaya AF | 2963 | |
 | Biaya Prop | 2964 | |
-| Biaya Marketing Digital | **new** | absorb 2250 Social Media, 2640 Collab, 2691 Rangers, 2070 Counter, 2724 CleanEat |
+| Biaya Marketing Digital | **new** | 2250 Social Media, 2640 Collab, 2691 Rangers, 2070 Counter, 2724 CleanEat |
 
-**Soft-delete after migration:** 2184, 2729, 2854, 2250, 2640, 2691, 2070, 2724
+**Not marketplace** (moved to Toko): WTC Cost, Citos Cost, WTC Transport.
 
-**Sewa stays separate:** 2844 Biaya Sewa Citos, 830 Biaya Sewa Sambisari, 2959 Gedung Cost → category **Sewa** (not channel).
+Reports can show: "which marketplace costs us most" (Shopee vs TikTok…) separately from "WTC shop vs Citos shop upkeep".
 
-### 4.2 Marketing Umum (~28 → ~12 ledgers)
+**Soft-delete after migration:** 2729, 2250, 2640, 2691, 2070, 2724
 
 | New name | Keep ID | Notes |
 |----------|--------:|-------|
@@ -126,33 +145,30 @@ One ledger per sales channel / location cost centre. Rename for consistency: **`
 
 **Soft-delete vague/duplicate:** 2814 Konsultan Pak Dian → Jasa; 2835 Operational Lain2 → Lain
 
-### 4.3 Gaji & Upah (14 → 6 ledgers)
+### 4.3 Marketing Umum (~28 → ~12 ledgers)
+
+### 4.4 Gaji & Upah (14 → 5 ledgers)
 
 | New name | Keep ID | Absorbs |
 |----------|--------:|---------|
 | Gaji Bulanan | 822 | |
 | Gaji Mingguan | 2696 | **reporting production cost** |
-| Gaji Harian | 817 | |
-| Gaji Outsourcing | 814 | rename Biaya Outsource; absorb 909 Helper, 899 Jahit Luar, 825 Finishing |
-| Bonus & Insentif | 905 | absorb 820 Insentif, 937 Lembur, 813 THR |
-| Gaji Lain | **new** | absorb 816 SPG, 821 Pembantu, 2509 Guru, 903 Pesangon |
+| Gaji Outsourcing | 814 | Outsource + 909 Helper + 899 Jahit Luar + 825 Finishing |
+| Bonus & Insentif | 905 | 820 Insentif + 937 Lembur + 813 THR |
+| Gaji Lain | **new** | 816 SPG + 821 Pembantu + 2509 Guru + 903 Pesangon |
 
-**Soft-delete:** 909, 899, 825, 820, 937, 813, 816, 821, 2509, 903 (after balance migration to targets)
+**Soft-delete (unused / merged):** 817 Gaji Harian (**not used**), 909, 899, 825, 820, 937, 813, 816, 821, 2509, 903
 
-### 4.4 Produksi (6 → 4 ledgers)
+### 4.5 Produksi (6 → 3 ledgers)
 
 | New name | Keep ID | Notes |
 |----------|--------:|-------|
 | Material Produksi | 1558 | pembelian bahan / persediaan |
 | Biaya Produksi | 2846 | non-quantifiable production |
-| Perlengkapan Produksi | 2799 | rename; absorb 2800 Mesin Pelengkap, 863 Aksesoris Mesin |
+| Perlengkapan Produksi | 2799 | absorb 2800 Mesin Pelengkap, 863 Aksesoris Mesin |
 | Permak | 885 | move from Non-Operational |
 
-**Move to reporting / soft-delete:** 2818 Pengeluaran PT CORE (entity-specific → reporting)
-
-**Soft-delete / merge:** 1644 Plotter → Perlengkapan Produksi or Maintenance (your call)
-
-### 4.5 Pajak — gut entity ledgers (22 → 6 ledgers)
+**Soft-delete:** 1644 Plotter (obsolete machine), 2818 Pengeluaran PT CORE → reporting
 
 Entity-specific PPN/PPH/SPT moves to **`reporting_tax_lines`** (or similar). Keep only generic:
 
@@ -171,7 +187,7 @@ Entity-specific PPN/PPH/SPT moves to **`reporting_tax_lines`** (or similar). Kee
 
 Historical CashOut to deleted tax ledgers: keep transaction history; map old id → reporting dimension via migration mapping table.
 
-### 4.6 Penyesuaian (new category)
+### 4.6 Pajak — gut entity ledgers (22 → 6 ledgers)
 
 | New name | Keep ID |
 |----------|--------:|
@@ -182,7 +198,22 @@ Historical CashOut to deleted tax ledgers: keep transaction history; map old id 
 
 **Soft-delete:** 2938 TF Misteri (investigate first), 891 Biaya Operational, 900 Biaya Lain2
 
-### 4.7 Other categories — light rename only
+**`reporting_tax_accounts`** maps deleted ledger id → entity + tax_type. Entities from legacy names:
+
+| Entity slug | From legacy ledgers |
+|-------------|---------------------|
+| `cv-crystal` | PPH Crystal, SPT CRYSTAL |
+| `cv-cipta` | PPH CIPTA, SPT CIPTA |
+| `pt-core` | PPN/SPT/PENYESUAIAN PT CORE, PEMBAYARAN PPN |
+| `pt-indosport` | PPN PT INDOSPORT, SPT INDOSPORT, PPH INDOSPORT |
+| `cv-cakra` | PPH PT CAKRA, PPH CV CAKRA |
+| `agm` | PPH AGM |
+| `uai` | PPH UAI |
+| `pribadi` | PPH Pribadi, SPT PRIBADI |
+
+Historical CashOut auto-attributes to correct entity in reports (locked §9E).
+
+### 4.7 Penyesuaian (new category)
 
 Keep most accounts, standardise prefix **`Biaya `** where missing. Examples:
 
@@ -190,15 +221,13 @@ Keep most accounts, standardise prefix **`Biaya `** where missing. Examples:
 - 855 Biaya Bensin (ok)
 - 873 Perijinan (ok)
 
-### 4.8 Misclassified — fix
+### 4.8 Other categories — light rename only
 
 | ID | Current | Action |
 |----|---------|--------|
 | 2731 | Pendapatan FitBox SBY | **Soft-delete** — revenue should not be expense ledger; track via Sell/CashIn to customer |
 
----
-
-## 5. Reporting tables (separate from addrbook)
+### 4.9 Misclassified — fix
 
 Replace entity flags on addrbook with:
 
@@ -212,14 +241,25 @@ Replace entity flags on addrbook with:
 `customer_addrbook_id, bank_addrbook_id` — marketplace customer → payment bank (C1)
 
 ### `reporting_ledger_roles`
-`addrbook_id, role` — enum: `material`, `production_cost`, `channel_cost`, `tax_payment`, `adjustment`, `exclude`
+`addrbook_id, role` — enum: `material`, `production_cost`, `marketplace_cost`, `toko_cost`, `tax_payment`, `adjustment`, `exclude`
 
-Example: 1558 → `material`; 2696 → `production_cost`; 2234 → `channel_cost`
+### Ledger descriptions in Cash In/Out UI (locked §9D)
 
-### `reporting_tax_accounts` (optional)
-Maps old deleted tax ledger ids to `entity_id` + `tax_type` for historical transaction interpretation.
+Legacy `customers.description` is mostly empty. During migration:
 
-### `reporting_settings`
+1. Populate `addrbooks.description` for every active ledger (one-line purpose + hint).
+2. Cash transaction autocomplete (`transactions/cash.blade.php`): show **name** + **description** subtitle under selected ledger.
+3. Optional: `reporting_ledger_roles.hint` for longer help text.
+
+Example autocomplete row:
+```
+Biaya Toko WTC
+Semua biaya toko WTC: sewa, transport, utilitas. Isi catatan untuk detail.
+```
+
+---
+
+## 5. Reporting tables (separate from addrbook)
 Cutover date `2025-01-01` (omit 2024), persediaan awal Jan 2026, etc.
 
 ---
@@ -236,9 +276,9 @@ Cutover date `2025-01-01` (omit 2024), persediaan awal Jan 2026, etc.
 | Action | ~Count |
 |--------|-------:|
 | Categories soft-deleted | 8 |
-| Categories active (new/kept) | 14 |
-| Ledgers kept (renamed) | ~95 |
-| Ledgers soft-deleted (incl. tax) | ~35 |
+| Categories active (new/kept) | 15 |
+| Ledgers kept (renamed) | ~93 |
+| Ledgers soft-deleted (incl. tax, plotter, gaji harian) | ~38 |
 | New ledgers to create | ~3 (Biaya Marketing Digital, Gaji Lain, optional merges) |
 
 ---
@@ -271,42 +311,18 @@ Step 8  Verify expense report totals match pre-migration (2025 sample month)
 
 ---
 
-## 9. Decisions needed from you before coding
+## 9. Locked decisions (Aug 2026)
 
-### A. Simplification level
-
-- **Moderate** (this plan): ~95 ledgers, 14 categories  
-- **Aggressive**: collapse all channel costs into one "Biaya Marketplace" + one "Biaya Offline" — fewer names, less detail  
-
-Which do you prefer?
-
-### B. Plotter (1644)
-
-Maintenance asset or Produksi consumable?
-
-### C. Sewa vs Channel
-
-Confirm: **Citos Cost / FX Cost** = channel operating cost (Biaya Citos), while **Biaya Sewa Citos** = rent (Sewa)?
-
-### D. Gaji consolidation
-
-OK to merge SPG/Pembantu/Guru/Pesangon into **Gaji Lain**, or keep separate?
-
-### E. Tax ledger history
-
-When we soft-delete PPN PT CORE etc., OK to show historical amounts under reporting entity "PT CORE" automatically (no manual re-entry)?
-
-### F. Already-deleted 49 ledgers
-
-Leave as-is in DB, or purge from import when syncing `customers.sql` → `addrbooks`?
+| # | Decision |
+|---|----------|
+| A | **Moderate** — keep per-marketplace ledgers to compare which channels cost most |
+| B | **Plotter (1644)** — soft-delete (obsolete machine) |
+| C | **Sewa vs Toko** — drop per-shop sewa ledgers; use **Biaya Toko WTC/Citos** for all shop costs incl. rent; notes for detail |
+| D | **Ledger UX** — populate descriptions; show in Cash In/Out autocomplete under selected ledger |
+| E | **Tax history** — auto-attribute deleted entity tax ledgers to CV CRYSTAL, CV CIPTA, PT CORE, INDOSPORT, CAKRA, AGM, UAI, PRIBADI |
+| F | **49 deleted ledgers** — leave in DB (may have related transactions) |
+| — | **Gaji Harian (817)** — not used; soft-delete |
 
 ---
 
-## 10. Next step after approval
-
-1. You confirm §9 decisions  
-2. Composer implements **reporting tables + ledger/category migration** (not tax reports yet)  
-3. You map channel→bank in reporting UI  
-4. Then aggregate job + PPN reports  
-
-**No addrbook PKP/entity flags.** All tax entity logic lives in `reporting_*`.
+## 10. Next step
