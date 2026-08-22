@@ -226,6 +226,9 @@
                 <label class="flex cursor-pointer items-center gap-2 text-xs font-bold">
                     <input type="checkbox" x-model="showSku" class="h-4 w-4 rounded border-gray-300"> SKU
                 </label>
+                <label class="flex cursor-pointer items-center gap-2 text-xs font-bold">
+                    <input type="checkbox" x-model="showName" class="h-4 w-4 rounded border-gray-300"> Name
+                </label>
             </div>
         </div>
 
@@ -236,7 +239,7 @@
                         <th class="px-3 py-2.5 text-center font-black" x-show="showImage">Img</th>
                         <th class="px-3 py-2.5 text-left font-black" x-show="showBarcode">Barcode</th>
                         <th class="px-3 py-2.5 text-left font-black" x-show="showSku">SKU</th>
-                        <th class="min-w-[12rem] px-3 py-2.5 text-left font-black">Item Name</th>
+                        <th class="min-w-[12rem] px-3 py-2.5 text-left font-black" x-show="showName">Item Name</th>
                         <th class="px-3 py-2.5 text-center font-black">Qty</th>
                         <th class="px-3 py-2.5 text-right font-black">Price</th>
                         <th class="px-3 py-2.5 text-right font-black">Disc(%)</th>
@@ -260,7 +263,7 @@
                             <a href="{{ $item ? route('items.show', $item->id) : '#' }}" class="text-blue-600 hover:underline">{{ $item?->id }}</a>
                         </td>
                         <td class="whitespace-nowrap px-3 py-2.5 align-middle font-mono text-xs italic text-gray-500" x-show="showSku">{{ $item?->code ?: '-' }}</td>
-                        <td class="px-3 py-2.5 align-middle">
+                        <td class="px-3 py-2.5 align-middle" x-show="showName">
                             <div class="font-bold text-gray-900">{{ $item?->name }}</div>
                             @if($item?->code)
                             <div class="mt-0.5 font-mono text-[10px] leading-tight text-gray-500">{{ $item?->code }}</div>
@@ -378,7 +381,7 @@
 <script>
 function transactionShowPage() {
     const storageKey = 'aria-transaction-show-view';
-    const defaults = { showImage: true, showBarcode: true, showSku: false };
+    const defaults = { showImage: true, showBarcode: true, showSku: false, showName: true };
     let saved = {};
 
     try {
@@ -391,18 +394,21 @@ function transactionShowPage() {
         showImage: typeof saved.showImage === 'boolean' ? saved.showImage : defaults.showImage,
         showBarcode: typeof saved.showBarcode === 'boolean' ? saved.showBarcode : defaults.showBarcode,
         showSku: typeof saved.showSku === 'boolean' ? saved.showSku : defaults.showSku,
+        showName: typeof saved.showName === 'boolean' ? saved.showName : defaults.showName,
         waOpen: false,
         deleteConfirmOpen: false,
         init() {
             this.$watch('showImage', () => this.persistViewPrefs());
             this.$watch('showBarcode', () => this.persistViewPrefs());
             this.$watch('showSku', () => this.persistViewPrefs());
+            this.$watch('showName', () => this.persistViewPrefs());
         },
         persistViewPrefs() {
             localStorage.setItem(storageKey, JSON.stringify({
                 showImage: this.showImage,
                 showBarcode: this.showBarcode,
                 showSku: this.showSku,
+                showName: this.showName,
             }));
         },
     };
