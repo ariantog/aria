@@ -58,7 +58,7 @@ Reduce **22 → 15** active categories. Split digital marketplace costs from phy
 | 12 | **Perbankan** | `bank` | Bank fees |
 | 13 | **Penyesuaian** | `penyesuaian` | Adjustments |
 | 14 | **Lain-lain** | `lain` | Donasi, entertain — minimal |
-| 15 | **Sewa HQ** | `sewa` | **Optional:** HQ/building rent only (Gedung Cost) — see §4.1 |
+| 15 | **Sewa HQ** | `sewa` | HQ rent only: Sambisari + Gedung (not shop rent) |
 
 **Drop old category "Sewa Menyewa" per-shop ledgers** — folded into Biaya Toko (see maintainer note §9C).
 
@@ -85,46 +85,79 @@ Reduce **22 → 15** active categories. Split digital marketplace costs from phy
 
 ### 4.1 Biaya Toko vs Biaya Marketplace (key split)
 
-**Physical shops (rented outside HQ)** — one ledger per shop for **all upkeep** (rent, transport, utilities, misc). Staff use transaction **notes** for detail (e.g. "sewa Juli", "ojek sample").
+#### WTC & Citos — dual role (important)
+
+WTC and Citos are **rented physical shops** that also act as **marketplace shipping warehouses**:
+
+- Walk-in customers (offline sales at that location)
+- Online orders fulfilled / shipped from that location (Shopee, TokTok, etc.)
+
+**Expense rule (simple for staff):**
+
+| Cost type | Post to | Examples |
+|-----------|---------|----------|
+| Keeping the shop running | **Biaya Toko WTC** or **Biaya Toko Citos** | Rent, utilities, local transport, packing supplies at shop, AC repair |
+| Platform / channel fees | **Biaya Shopee**, **Biaya TikTok**, etc. | Marketplace commission, ads, platform charges |
+| Dept store partner costs | **Biaya Metro**, **Biaya Sogo**, **Biaya Central** | Samples, fixtures, lights, banners at partner stores |
+
+Do **not** double-count: shop upkeep stays on Toko ledgers; channel fees stay on Marketplace ledgers. Revenue attribution (walk-in vs online from WTC) is a **reporting** concern later (warehouse + customer mapping), not a third expense ledger.
+
+**Reporting layer (future):** link warehouse addrbooks (WTC, Citos) to marketplace customer contacts that ship from there — for fulfillment analysis, not for CashOut classification.
+
+#### Toko ledgers (location upkeep)
+
+One ledger per shop for **all physical upkeep** (rent, transport, utilities, misc). Staff use transaction **notes** for detail.
 
 | New name | Keep ID | Absorbs | Description (for autocomplete) |
 |----------|--------:|---------|-------------------------------|
-| **Biaya Toko WTC** | 2889 | 2184 WTC Transport Cost | All WTC shop costs: rent, transport, utilities, supplies. Staff at WTC post here. |
-| **Biaya Toko Citos** | 2842 | 2854 FX Cost, 2844 Biaya Sewa Citos | All Citos shop costs including rent. |
+| **Biaya Toko WTC** | 2889 | 2184 WTC Transport Cost | Biaya operasional toko WTC: sewa, transport, utilitas, perlengkapan. Juga gudang pengiriman marketplace. Catatan untuk detail. |
+| **Biaya Toko Citos** | 2842 | 2854 FX Cost, 2844 Biaya Sewa Citos | Biaya operasional toko Citos: sewa, utilitas, perlengkapan. Juga gudang pengiriman marketplace. |
 
-**Soft-delete after merge:** 2184, 2854, 2844 (separate sewa ledgers — too tedious per maintainer)
+**Soft-delete after merge:** 2184, 2854, 2844
 
-**HQ / other rent:** 830 Biaya Sewa Sambisari → keep under **Sewa HQ** only if still paid separately; else fold into Kantor. 2959 Gedung Cost → Sewa HQ.
+#### Sewa HQ (not shop rent)
 
-**Why not separate Sewa per store?** Maintainers found `Biaya Sewa {toko}` tedious — every payment needs the right ledger. One **Biaya Toko {name}** ledger + notes is simpler and still gives WTC vs Citos totals in reports.
+| New name | Keep ID | Notes |
+|----------|--------:|-------|
+| **Biaya Sewa Sambisari** | 830 | **Keep** — HQ rent (locked) |
+| **Biaya Sewa Gedung** | 2959 | rename Gedung Cost; HQ/building rent |
+
+Shop rent at WTC/Citos → **Biaya Toko** ledgers above, not Sewa HQ.
+
+**Why not separate Sewa per shop?** Too tedious — one Toko ledger + notes is simpler; reports still split WTC vs Citos totals.
 
 ---
 
 ### 4.2 Biaya Marketplace (~20 ledgers — compare channel costs)
 
-Online / partner channel fees. Name pattern: **`Biaya {Channel}`**.
+**Online platforms** + **department store partners** (not physical shop upkeep).
 
-| New name | Keep ID | Absorbs |
-|----------|--------:|---------|
-| Biaya Shopee | 2234 | |
-| Biaya TikTok | 2788 | |
-| Biaya Lazada | 2881 | |
-| Biaya Tokopedia | 2273 | rename Toped Cost |
-| Biaya BSD | 2899 | |
-| Biaya Metro | 2099 | offline partner? keep for comparison |
-| Biaya Sogo | 2178 | |
-| Biaya Central | 2633 | |
-| Biaya FitBox | 2719 | absorb 2729 FitBox JKT |
-| Biaya MUKU | 2957 | |
-| Biaya AF | 2963 | |
-| Biaya Prop | 2964 | |
-| Biaya Marketing Digital | **new** | 2250 Social Media, 2640 Collab, 2691 Rangers, 2070 Counter, 2724 CleanEat |
+| New name | Keep ID | Type | Description (autocomplete) |
+|----------|--------:|------|---------------------------|
+| Biaya Shopee | 2234 | platform | Komisi, iklan, biaya platform Shopee |
+| Biaya TikTok | 2788 | platform | Komisi, iklan TikTok Shop |
+| Biaya Lazada | 2881 | platform | Biaya platform Lazada |
+| Biaya Tokopedia | 2273 | platform | Biaya platform Tokopedia |
+| Biaya BSD | 2899 | platform | Biaya channel BSD |
+| **Biaya Metro** | 2099 | **dept store** | Biaya partner Metro: sample, fixture, lampu, banner, display |
+| **Biaya Sogo** | 2178 | **dept store** | Biaya partner Sogo: sample, fixture, display |
+| **Biaya Central** | 2633 | **dept store** | Biaya partner Central: sample, fixture, display |
+| Biaya FitBox | 2719 | partner | absorb 2729 FitBox JKT |
+| Biaya MUKU | 2957 | partner | |
+| Biaya AF | 2963 | partner | |
+| Biaya Prop | 2964 | partner | |
+| Biaya Marketing Digital | **new** | marketing | Social media, collab, influencers — absorb 2250, 2640, 2691, 2070, 2724 |
 
-**Not marketplace** (moved to Toko): WTC Cost, Citos Cost, WTC Transport.
+**Not here** (→ Biaya Toko): WTC Cost, Citos Cost, WTC Transport.
 
-Reports can show: "which marketplace costs us most" (Shopee vs TikTok…) separately from "WTC shop vs Citos shop upkeep".
+Reports:
+- **Platform comparison** — Shopee vs TikTok vs Lazada fees
+- **Dept store comparison** — Metro vs Sogo vs Central partner spend
+- **Toko comparison** — WTC vs Citos shop upkeep (separate category)
 
 **Soft-delete after migration:** 2729, 2250, 2640, 2691, 2070, 2724
+
+### 4.3 Marketing Umum (~12 ledgers)
 
 | New name | Keep ID | Notes |
 |----------|--------:|-------|
@@ -144,8 +177,6 @@ Reports can show: "which marketplace costs us most" (Shopee vs TikTok…) separa
 **Move to reporting table (soft-delete ledger):** 2809 PEMBAYARAN PPN - PT CORE, 2862 PPH INDOSPORT
 
 **Soft-delete vague/duplicate:** 2814 Konsultan Pak Dian → Jasa; 2835 Operational Lain2 → Lain
-
-### 4.3 Marketing Umum (~28 → ~12 ledgers)
 
 ### 4.4 Gaji & Upah (14 → 5 ledgers)
 
@@ -322,7 +353,18 @@ Step 8  Verify expense report totals match pre-migration (2025 sample month)
 | E | **Tax history** — auto-attribute deleted entity tax ledgers to CV CRYSTAL, CV CIPTA, PT CORE, INDOSPORT, CAKRA, AGM, UAI, PRIBADI |
 | F | **49 deleted ledgers** — leave in DB (may have related transactions) |
 | — | **Gaji Harian (817)** — not used; soft-delete |
+| — | **Biaya Sewa Sambisari (830)** — keep under Sewa HQ |
+| — | **Metro / Sogo / Central** — dept store partner fees (samples, fixtures, banners), not shop upkeep |
+| — | **WTC / Citos** — dual role: walk-in + marketplace warehouse; expenses split Toko vs platform ledgers |
 
 ---
 
 ## 10. Next step
+
+1. Composer implements **reporting tables + ledger/category migration** (not tax reports yet)
+2. Populate ledger `description` on every active account
+3. Cash In/Out form shows description in autocomplete under selected ledger
+4. You map marketplace customers → banks in reporting UI
+5. Then aggregate job + PPN reports
+
+**No addrbook PKP/entity flags.** All tax entity logic lives in `reporting_*`.
