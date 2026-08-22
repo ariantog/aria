@@ -43,6 +43,7 @@ return new class extends Migration
                 $table->string('signature_path')->nullable();
                 $table->decimal('total_qty', 16, 4)->default(0);
                 $table->decimal('subtotal', 16, 2)->default(0);
+                $table->decimal('dp_amount', 16, 2)->nullable();
                 $table->text('notes')->nullable();
                 $table->unsignedInteger('user_id')->nullable()->index();
                 $table->timestamps();
@@ -118,6 +119,9 @@ return new class extends Migration
             }
             if (! Schema::hasColumn('standalone_invoices', 'subtotal')) {
                 $table->decimal('subtotal', 16, 2)->default(0);
+            }
+            if (! Schema::hasColumn('standalone_invoices', 'dp_amount')) {
+                $table->decimal('dp_amount', 16, 2)->nullable()->after('subtotal');
             }
             if (! Schema::hasColumn('standalone_invoices', 'notes')) {
                 $table->text('notes')->nullable();

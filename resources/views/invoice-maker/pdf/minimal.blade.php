@@ -52,7 +52,15 @@
         </tbody>
     </table>
 
-    <div class="total">Total {{ format_currency($invoice->subtotal) }}</div>
+    <div class="total">
+        @if($invoice->hasDownPayment())
+            Subtotal {{ format_currency($invoice->subtotal) }} ·
+            <span style="color:#dc2626;">DP {{ format_currency($invoice->dp_amount) }}</span> ·
+            Total {{ format_currency($invoice->balanceDue()) }}
+        @else
+            Total {{ format_currency($invoice->subtotal) }}
+        @endif
+    </div>
 
     <div class="cols">
         <div class="col">
