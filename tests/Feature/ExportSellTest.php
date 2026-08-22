@@ -20,7 +20,9 @@ it('renders export sell page for authorized users', function () {
         ->get(route('transactions.export-sell'))
         ->assertOk()
         ->assertSee('Export Sell', false)
-        ->assertSee('value="100"', false);
+        ->assertSee('value="100"', false)
+        ->assertSee('data-testid="toggle-export-sell-filters"', false)
+        ->assertSee('showFilters: true', false);
 });
 
 it('forbids export sell without permission', function () {
