@@ -196,6 +196,7 @@ class PermissionGrouper
                 'borongan' => 'Borongan',
                 'restock' => 'Restock',
                 'jubelio' => 'Jubelio',
+                'shopee-ads' => 'Shopee Ads',
                 default => ucfirst($module),
             };
         }
