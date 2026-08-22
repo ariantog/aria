@@ -53,7 +53,7 @@ class ExportSellQueryService
         ]);
     }
 
-    public function buildQuery(Request $request, ?User $user): Builder
+    public function buildQuery(Request $request, ?User $user, ?int $addrbookId = null): Builder
     {
         $type = $request->input('type', (string) Transaction::TYPE_SELL);
 
@@ -65,6 +65,14 @@ class ExportSellQueryService
                 'receiver',
             ])
             ->visibleToUser($user)
+            ->when(
+                $addrbookId !== null,
+                fn (Builder $q) => $q->where(function (Builder $partyQuery) use ($addrbookId) {
+                    $partyQuery
+                        ->where('transaction_details.sender_id', $addrbookId)
+                        ->orWhere('transaction_details.receiver_id', $addrbookId);
+                }),
+            )
             ->when(
                 $type !== '' && $type !== null,
                 fn (Builder $q) => $q->where('transaction_details.transaction_type', (int) $type),
@@ -94,7 +102,7 @@ class ExportSellQueryService
             ->when($request->input('discount_max'), fn (Builder $q, $v) => $q->where('transaction_details.discount', '<=', $v))
             ->when($request->input('subtotal_min'), fn (Builder $q, $v) => $q->where('transaction_details.total', '>=', $v))
             ->when($request->input('subtotal_max'), fn (Builder $q, $v) => $q->where('transaction_details.total', '<=', $v))
-            ->when($request->input('sender'), function (Builder $q, $v) {
+            ->when($addrbookId === null && $request->input('sender'), function (Builder $q, $v) {
                 $term = trim((string) $v);
                 if ($term === '') {
                     return $q;
@@ -108,7 +116,7 @@ class ExportSellQueryService
 
                 return $q->whereHas('sender', fn (Builder $sq) => $sq->where('customers.name', 'like', $pattern));
             })
-            ->when($request->input('receiver'), function (Builder $q, $v) {
+            ->when($addrbookId === null && $request->input('receiver'), function (Builder $q, $v) {
                 $term = trim((string) $v);
                 if ($term === '') {
                     return $q;
