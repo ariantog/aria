@@ -219,6 +219,9 @@
         @if($hasPerm('jubelio-stock-check') || $isSuperAdmin)
         <a href="{{ route('jubelio-stock-checks.index') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/jubelio-stock-checks') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Stock Check</a>
         @endif
+        @if($hasPerm('shopee-ads-view') || $isSuperAdmin)
+        <a href="{{ route('shopee-ads.index') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/shopee-ads') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Shopee Ads</a>
+        @endif
     </div>
 </div>
 @endif

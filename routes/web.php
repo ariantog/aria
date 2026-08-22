@@ -31,6 +31,10 @@ Route::post('jubelio/webhook/order', [App\Http\Controllers\JubelioController::cl
 Route::post('jubelio/webhook/return', [App\Http\Controllers\JubelioController::class, 'webhookReturn'])
     ->name('jubelio.webhook.return');
 
+// Shopee Ads OAuth callback — public (Shopee redirects here after seller approval)
+Route::get('shopee-ads/oauth/callback', [App\Http\Controllers\ShopeeAdsController::class, 'oauthCallback'])
+    ->name('shopee-ads.oauth.callback');
+
 Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::get('/permissions', [App\Http\Controllers\PermissionController::class, 'index'])->name('permissions.index');
     Route::post('/permissions/generate', [App\Http\Controllers\PermissionController::class, 'generate'])->name('permissions.generate');
@@ -107,6 +111,15 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::get('cron-manager', [App\Http\Controllers\ScheduledTaskController::class, 'index'])->name('scheduled-tasks.index');
     Route::patch('cron-manager/{scheduledTask}', [App\Http\Controllers\ScheduledTaskController::class, 'update'])->name('scheduled-tasks.update');
     Route::post('cron-manager/{scheduledTask}/toggle', [App\Http\Controllers\ScheduledTaskController::class, 'toggle'])->name('scheduled-tasks.toggle');
+
+    Route::get('shopee-ads', [App\Http\Controllers\ShopeeAdsController::class, 'index'])->name('shopee-ads.index');
+    Route::patch('shopee-ads/settings', [App\Http\Controllers\ShopeeAdsController::class, 'updateSettings'])->name('shopee-ads.settings.update');
+    Route::post('shopee-ads/schedules', [App\Http\Controllers\ShopeeAdsController::class, 'storeSchedule'])->name('shopee-ads.schedules.store');
+    Route::delete('shopee-ads/schedules/{shopeeAdsSchedule}', [App\Http\Controllers\ShopeeAdsController::class, 'destroySchedule'])->name('shopee-ads.schedules.destroy');
+    Route::post('shopee-ads/toggle-pause', [App\Http\Controllers\ShopeeAdsController::class, 'togglePause'])->name('shopee-ads.toggle-pause');
+    Route::get('shopee-ads/authorize', [App\Http\Controllers\ShopeeAdsController::class, 'authorizeShop'])->name('shopee-ads.authorize');
+    Route::post('shopee-ads/replenish', [App\Http\Controllers\ShopeeAdsController::class, 'replenish'])->name('shopee-ads.replenish');
+    Route::post('shopee-ads/daily-reset', [App\Http\Controllers\ShopeeAdsController::class, 'dailyReset'])->name('shopee-ads.daily-reset');
 
     // Dynamic Addrbook Type Routes (e.g., /customer, /supplier)
     $addrbookTypes = implode('|', array_column(\App\Models\Addrbook::getTypes(), 'slug'));

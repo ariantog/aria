@@ -1,10 +1,12 @@
-# Shopee Ads Budget Management Bot — Indonesia 🇮🇩🛍
+# Shopee Ads Budget Management — Indonesia 🇮🇩🛍
 
-A production-ready, **fully asynchronous** Telegram bot that ramps **Shopee Ads
-(Indonesia)** budgets on a **time-based, fixed-IDR schedule**, anchored to
-**Asia/Jakarta (WIB, GMT+7)**. It is a sibling to the TikTok bot and runs
-completely independently (own folder, own database, own Telegram token, own
-callback port) — the TikTok bot is untouched.
+> **L12 web UI:** This bot is now integrated into Aria Core (Laravel). Manage schedules,
+> settings, OAuth, and history at **`/shopee-ads`** in the app. Automation runs via
+> `shopee-ads:process` every minute through `/cron-manager` (not a standalone Python
+> systemd service). OAuth relay: `public/shopeebot.php` → `shopee-ads/oauth/callback`.
+
+A production-ready system that ramps **Shopee Ads (Indonesia)** budgets on a
+**time-based, fixed-IDR schedule**, anchored to **Asia/Jakarta (WIB, GMT+7)**.
 
 It talks to the **Shopee Open Platform API v2**
 (`https://partner.shopeemobile.com`), persists to a local **SQLite** database,
