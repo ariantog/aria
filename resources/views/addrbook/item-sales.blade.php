@@ -8,7 +8,7 @@ $baseUrl = '/' . $addrbook->type_slug . '/' . $addrbook->id . '/item-sales';
 $exportUrl = '/' . $addrbook->type_slug . '/' . $addrbook->id . '/item-sales/export';
 $perPage = $perPage ?? (int) request()->query('per_page', 100);
 $exportQuery = request()->query();
-$selectedType = (string) ($filters['type'] ?? \App\Models\Transaction::TYPE_SELL);
+$selectedType = (string) ($filters['type'] ?? '');
 @endphp
 
 <div class="flex flex-col gap-4 p-3 sm:p-4">
@@ -22,7 +22,7 @@ $selectedType = (string) ($filters['type'] ?? \App\Models\Transaction::TYPE_SELL
       </div>
       <h1 class="text-2xl font-bold text-gray-900">Item Sales</h1>
       <p class="text-sm text-gray-500">
-        Sell lines for <span class="text-blue-600">{{ $addrbook->name }}</span>
+        Item lines for <span class="text-blue-600">{{ $addrbook->name }}</span>
         — {{ number_format($rows->total()) }} line{{ $rows->total() === 1 ? '' : 's' }} found.
       </p>
     </div>
@@ -74,26 +74,6 @@ $selectedType = (string) ($filters['type'] ?? \App\Models\Transaction::TYPE_SELL
       <label class="text-xs font-medium uppercase text-gray-500">Qty max</label>
       <input type="number" step="0.01" name="qty_max" value="{{ $filters['qty_max'] ?? '' }}"
              class="w-24 rounded-md border border-gray-300 px-2.5 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
-    </div>
-    <div class="flex flex-col gap-1">
-      <label class="text-xs font-medium uppercase text-gray-500">Disc % min</label>
-      <input type="number" step="0.01" name="discount_min" value="{{ $filters['discount_min'] ?? '' }}"
-             class="w-24 rounded-md border border-gray-300 px-2.5 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
-    </div>
-    <div class="flex flex-col gap-1">
-      <label class="text-xs font-medium uppercase text-gray-500">Disc % max</label>
-      <input type="number" step="0.01" name="discount_max" value="{{ $filters['discount_max'] ?? '' }}"
-             class="w-24 rounded-md border border-gray-300 px-2.5 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
-    </div>
-    <div class="flex flex-col gap-1">
-      <label class="text-xs font-medium uppercase text-gray-500">Subtotal min</label>
-      <input type="number" step="0.01" name="subtotal_min" value="{{ $filters['subtotal_min'] ?? '' }}"
-             class="w-28 rounded-md border border-gray-300 px-2.5 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
-    </div>
-    <div class="flex flex-col gap-1">
-      <label class="text-xs font-medium uppercase text-gray-500">Subtotal max</label>
-      <input type="number" step="0.01" name="subtotal_max" value="{{ $filters['subtotal_max'] ?? '' }}"
-             class="w-28 rounded-md border border-gray-300 px-2.5 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
     </div>
     <div class="flex flex-col gap-1">
       <label class="text-xs font-medium uppercase text-gray-500">Rows / page</label>
@@ -185,7 +165,7 @@ $selectedType = (string) ($filters['type'] ?? \App\Models\Transaction::TYPE_SELL
             </tr>
           @empty
             <tr>
-              <td colspan="10" class="px-4 py-12 text-center text-sm italic text-gray-500">No sell lines found.</td>
+              <td colspan="10" class="px-4 py-12 text-center text-sm italic text-gray-500">No transaction lines found.</td>
             </tr>
           @endforelse
         </tbody>

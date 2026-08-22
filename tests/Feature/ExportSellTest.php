@@ -160,6 +160,48 @@ it('filters export sell lines by user location', function () {
         ->assertDontSee('SELL-LOC-HIDDEN', false);
 });
 
+it('lists non-cash transaction detail lines by default', function () {
+    $supplier = Addrbook::factory()->supplier()->create(['name' => 'Supplier Export']);
+    $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'WH Export']);
+
+    $sellTx = Transaction::factory()->create([
+        'type' => Transaction::TYPE_SELL,
+        'invoice' => 'SELL-EXP-ALL-1',
+        'sender_id' => $warehouse->id,
+        'receiver_id' => Addrbook::factory()->customer()->create()->id,
+    ]);
+    $buyTx = Transaction::factory()->create([
+        'type' => Transaction::TYPE_BUY,
+        'invoice' => 'BUY-EXP-ALL-1',
+        'sender_id' => $supplier->id,
+        'receiver_id' => $warehouse->id,
+    ]);
+    $cashTx = Transaction::factory()->create([
+        'type' => Transaction::TYPE_CASH_IN,
+        'invoice' => 'CASH-EXP-HIDDEN',
+    ]);
+
+    TransactionDetail::factory()->create([
+        'transaction_id' => $sellTx->id,
+        'transaction_type' => Transaction::TYPE_SELL,
+    ]);
+    TransactionDetail::factory()->create([
+        'transaction_id' => $buyTx->id,
+        'transaction_type' => Transaction::TYPE_BUY,
+    ]);
+    TransactionDetail::factory()->create([
+        'transaction_id' => $cashTx->id,
+        'transaction_type' => Transaction::TYPE_CASH_IN,
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('transactions.export-sell'))
+        ->assertOk()
+        ->assertSee('SELL-EXP-ALL-1', false)
+        ->assertSee('BUY-EXP-ALL-1', false)
+        ->assertDontSee('CASH-EXP-HIDDEN', false);
+});
+
 it('respects per_page options in export sell query service', function () {
     $service = app(ExportSellQueryService::class);
 
