@@ -42,6 +42,8 @@ class Addrbook extends Model
             'ppn' => 'boolean',
             'is_online' => 'boolean',
             'arrangement_enabled' => 'boolean',
+            'is_internal_lending' => 'boolean',
+            'is_active_in_reports' => 'boolean',
         ];
     }
 
@@ -199,6 +201,21 @@ class Addrbook extends Model
     public function operation()
     {
         return $this->belongsTo(Operation::class, 'operation_id');
+    }
+
+    public function defaultBank()
+    {
+        return $this->belongsTo(Addrbook::class, 'default_bank_id');
+    }
+
+    public function reportingLedgerRole()
+    {
+        return $this->hasOne(ReportingLedgerRole::class, 'customer_id');
+    }
+
+    public function reportingChannelBank()
+    {
+        return $this->hasOne(ReportingChannelBank::class, 'customer_id');
     }
 
     public function locations(): BelongsToMany
