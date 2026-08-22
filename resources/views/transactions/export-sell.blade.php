@@ -5,7 +5,7 @@
 @php
     $perPage = $perPage ?? (int) request()->query('per_page', 100);
     $exportQuery = request()->query();
-    $selectedType = (string) ($filters['type'] ?? \App\Models\Transaction::TYPE_SELL);
+    $selectedType = (string) ($filters['type'] ?? '');
 @endphp
 
 @section('content')
@@ -64,26 +64,6 @@
             <label class="text-xs font-medium uppercase text-gray-500">Qty max</label>
             <input type="number" step="0.01" name="qty_max" value="{{ $filters['qty_max'] ?? '' }}"
                    class="w-24 rounded-md border border-gray-300 px-2.5 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
-        </div>
-        <div class="flex flex-col gap-1">
-            <label class="text-xs font-medium uppercase text-gray-500">Disc % min</label>
-            <input type="number" step="0.01" name="discount_min" value="{{ $filters['discount_min'] ?? '' }}"
-                   class="w-24 rounded-md border border-gray-300 px-2.5 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
-        </div>
-        <div class="flex flex-col gap-1">
-            <label class="text-xs font-medium uppercase text-gray-500">Disc % max</label>
-            <input type="number" step="0.01" name="discount_max" value="{{ $filters['discount_max'] ?? '' }}"
-                   class="w-24 rounded-md border border-gray-300 px-2.5 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
-        </div>
-        <div class="flex flex-col gap-1">
-            <label class="text-xs font-medium uppercase text-gray-500">Subtotal min</label>
-            <input type="number" step="0.01" name="subtotal_min" value="{{ $filters['subtotal_min'] ?? '' }}"
-                   class="w-28 rounded-md border border-gray-300 px-2.5 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
-        </div>
-        <div class="flex flex-col gap-1">
-            <label class="text-xs font-medium uppercase text-gray-500">Subtotal max</label>
-            <input type="number" step="0.01" name="subtotal_max" value="{{ $filters['subtotal_max'] ?? '' }}"
-                   class="w-28 rounded-md border border-gray-300 px-2.5 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
         </div>
         <div class="flex flex-col gap-1">
             <label class="text-xs font-medium uppercase text-gray-500">Sender</label>
@@ -185,7 +165,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="10" class="px-4 py-12 text-center text-sm italic text-gray-500">No sell lines found.</td>
+                            <td colspan="10" class="px-4 py-12 text-center text-sm italic text-gray-500">No transaction lines found.</td>
                         </tr>
                     @endforelse
                 </tbody>

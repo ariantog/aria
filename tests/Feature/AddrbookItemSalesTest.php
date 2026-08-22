@@ -78,6 +78,31 @@ it('does not leak the route type segment into sell line filters', function () {
         ->assertSee('SELL-ROUTE-LEAK', false);
 });
 
+it('lists buy lines on addrbook item sales page', function () {
+    $user = User::factory()->create();
+    $supplier = Addrbook::factory()->supplier()->create(['name' => 'Supplier Item Sales']);
+    $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'WH Item Sales']);
+
+    $buyTx = Transaction::factory()->create([
+        'type' => Transaction::TYPE_BUY,
+        'invoice' => 'BUY-CUST-VISIBLE',
+        'sender_id' => $supplier->id,
+        'receiver_id' => $warehouse->id,
+    ]);
+
+    TransactionDetail::factory()->create([
+        'transaction_id' => $buyTx->id,
+        'transaction_type' => Transaction::TYPE_BUY,
+        'sender_id' => $supplier->id,
+        'receiver_id' => $warehouse->id,
+    ]);
+
+    $this->actingAs($user)
+        ->get(route('addrbook.type.item-sales', ['warehouse', $warehouse->id]))
+        ->assertOk()
+        ->assertSee('BUY-CUST-VISIBLE', false);
+});
+
 it('exports addrbook item sales to excel', function () {
     $user = User::factory()->create();
     $warehouse = Addrbook::factory()->warehouse()->create();

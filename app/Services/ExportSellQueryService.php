@@ -12,14 +12,31 @@ use Illuminate\Http\Request;
 class ExportSellQueryService
 {
     /**
-     * @return array<int, string>
+     * @return array<int>
+     */
+    public function includedTransactionTypes(): array
+    {
+        return array_values(array_filter(
+            array_column(Transaction::getTypes(), 'id'),
+            fn (int $id) => ! in_array($id, [
+                Transaction::TYPE_CASH_IN,
+                Transaction::TYPE_CASH_OUT,
+            ], true),
+        ));
+    }
+
+    /**
+     * @return array<int|string, string>
      */
     public function typeOptions(): array
     {
-        return [
-            Transaction::TYPE_SELL => 'Sell',
-            Transaction::TYPE_RETURN => 'Return',
-        ];
+        $options = ['' => 'All types'];
+
+        foreach ($this->includedTransactionTypes() as $typeId) {
+            $options[$typeId] = Transaction::typeLabel($typeId);
+        }
+
+        return $options;
     }
 
     public function resolvePerPage(Request $request): int
@@ -43,10 +60,6 @@ class ExportSellQueryService
             'item_code',
             'qty_min',
             'qty_max',
-            'discount_min',
-            'discount_max',
-            'subtotal_min',
-            'subtotal_max',
             'sender',
             'receiver',
             'per_page',
@@ -55,7 +68,8 @@ class ExportSellQueryService
 
     public function buildQuery(Request $request, ?User $user, ?int $addrbookId = null): Builder
     {
-        $type = $request->input('type', (string) Transaction::TYPE_SELL);
+        $type = $request->input('type');
+        $includedTypes = $this->includedTransactionTypes();
 
         return TransactionDetail::query()
             ->with([
@@ -65,6 +79,7 @@ class ExportSellQueryService
                 'receiver',
             ])
             ->visibleToUser($user)
+            ->whereIn('transaction_details.transaction_type', $includedTypes)
             ->when(
                 $addrbookId !== null,
                 fn (Builder $q) => $q->where(function (Builder $partyQuery) use ($addrbookId) {
@@ -76,10 +91,6 @@ class ExportSellQueryService
             ->when(
                 $type !== '' && $type !== null,
                 fn (Builder $q) => $q->where('transaction_details.transaction_type', (int) $type),
-                fn (Builder $q) => $q->whereIn('transaction_details.transaction_type', [
-                    Transaction::TYPE_SELL,
-                    Transaction::TYPE_RETURN,
-                ]),
             )
             ->when($request->input('from'), fn (Builder $q, $v) => $q->whereDate('transaction_details.date', '>=', $v))
             ->when($request->input('to'), fn (Builder $q, $v) => $q->whereDate('transaction_details.date', '<=', $v))
@@ -98,10 +109,6 @@ class ExportSellQueryService
             })
             ->when($request->input('qty_min'), fn (Builder $q, $v) => $q->where('transaction_details.quantity', '>=', $v))
             ->when($request->input('qty_max'), fn (Builder $q, $v) => $q->where('transaction_details.quantity', '<=', $v))
-            ->when($request->input('discount_min'), fn (Builder $q, $v) => $q->where('transaction_details.discount', '>=', $v))
-            ->when($request->input('discount_max'), fn (Builder $q, $v) => $q->where('transaction_details.discount', '<=', $v))
-            ->when($request->input('subtotal_min'), fn (Builder $q, $v) => $q->where('transaction_details.total', '>=', $v))
-            ->when($request->input('subtotal_max'), fn (Builder $q, $v) => $q->where('transaction_details.total', '<=', $v))
             ->when($addrbookId === null && $request->input('sender'), function (Builder $q, $v) {
                 $term = trim((string) $v);
                 if ($term === '') {
