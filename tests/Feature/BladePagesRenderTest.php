@@ -176,5 +176,6 @@ it('renders migrated GET pages with a 200', function (string $route) {
     'jubelio get orders' => 'jubelio-get-orders',
     'jubelio cek order' => 'jubelio/order/cek',
     'jubelio connection' => 'jubelio/token',
+    'shopee ads' => 'shopee-ads',
     'restock index' => 'restock',
 ]);

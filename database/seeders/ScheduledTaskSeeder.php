@@ -112,5 +112,15 @@ class ScheduledTaskSeeder extends Seeder
                 'description' => 'Compares Aria vs Jubelio stock per synced warehouse (demand-based SKUs).',
             ]
         );
+
+        \App\Models\ScheduledTask::updateOrCreate(
+            ['command' => 'shopee-ads:process'],
+            [
+                'name' => 'Shopee Ads Process',
+                'frequency' => 'everyMinute',
+                'active' => false,
+                'description' => 'Runs Shopee Ads budget schedules, daily reset (WIB), and group replenishment.',
+            ]
+        );
     }
 }
