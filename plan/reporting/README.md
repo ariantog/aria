@@ -11,7 +11,10 @@ Status: **Planning only** — no implementation yet.
 | [02-data-model.md](./02-data-model.md) | How existing tables map to reports; new tables/settings needed |
 | [03-composer-implementation-plan.md](./03-composer-implementation-plan.md) | Phased build plan for Composer agent (v1 — superseded in parts) |
 | [04-revised-architecture-v2.md](./04-revised-architecture-v2.md) | **Current** architecture: entities, bank-PKP tax, cash categories |
-| [05-pre-implementation-questions.md](./05-pre-implementation-questions.md) | **Answer before coding** |
+| [05-pre-implementation-questions.md](./05-pre-implementation-questions.md) | Answered — see 06 |
+| [06-answered-decisions.md](./06-answered-decisions.md) | Locked maintainer decisions |
+| [07-phase0-addrbook-mapping.md](./07-phase0-addrbook-mapping.md) | Superseded in part by 08 |
+| [08-ledger-simplification-plan.md](./08-ledger-simplification-plan.md) | **Current priority:** simplify ledgers; reporting in separate tables |
 
 ## Context (read first)
 
