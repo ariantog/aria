@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\ExportSellController;
 use App\Models\Addrbook;
 use App\Models\Item;
 use App\Models\Location;
@@ -31,11 +32,39 @@ it('returns addrbook matches for export sell party lookup', function () {
     $sender = Addrbook::factory()->warehouse()->create(['name' => 'Lookup Warehouse Alpha']);
     Addrbook::factory()->warehouse()->create(['name' => 'Lookup Warehouse Beta']);
 
+    $url = ExportSellController::exportSellPartyLookups()['sender_route'].'&search=Alpha';
+
     $this->actingAs($this->user)
-        ->getJson(route('transactions.export-sell.lookup', ['search' => 'Alpha']))
+        ->getJson($url)
         ->assertOk()
         ->assertJsonFragment(['id' => $sender->id, 'name' => 'Lookup Warehouse Alpha'])
         ->assertJsonMissing(['name' => 'Lookup Warehouse Beta']);
+});
+
+it('excludes ledger and virtual accounts from export sell party lookup', function () {
+    Addrbook::create(['name' => 'Ledger Account Party', 'type' => Addrbook::TYPE_ACCOUNT]);
+    Addrbook::create(['name' => 'Virtual Account Party', 'type' => Addrbook::TYPE_V_ACCOUNT]);
+    $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'Warehouse Party Match']);
+
+    $url = ExportSellController::exportSellPartyLookups()['sender_route'].'&search=Party';
+
+    $names = collect($this->actingAs($this->user)->getJson($url)->assertOk()->json())->pluck('name');
+
+    expect($names)->toContain('Warehouse Party Match')
+        ->not->toContain('Ledger Account Party')
+        ->not->toContain('Virtual Account Party');
+});
+
+it('party type ids exclude ledger and virtual accounts', function () {
+    $service = app(ExportSellQueryService::class);
+
+    expect($service->partyTypeIds())
+        ->not->toContain(Addrbook::TYPE_ACCOUNT, Addrbook::TYPE_V_ACCOUNT)
+        ->toContain(
+            Addrbook::TYPE_CUSTOMER,
+            Addrbook::TYPE_WAREHOUSE,
+            Addrbook::TYPE_SUPPLIER,
+        );
 });
 
 it('filters export sell lines by selected sender id', function () {

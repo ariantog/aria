@@ -29,7 +29,10 @@
         'perPage' => $perPage,
         'showPartyFilters' => true,
         'defaultOpen' => true,
-        'partyLookupUrl' => $partyLookupUrl,
+        'senderLookupUrl' => $senderLookupUrl,
+        'receiverLookupUrl' => $receiverLookupUrl,
+        'senderLabel' => $senderLabel,
+        'receiverLabel' => $receiverLabel,
         'selectedSender' => $selectedSender,
         'selectedReceiver' => $selectedReceiver,
     ])

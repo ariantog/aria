@@ -24,7 +24,10 @@
                 'perPage' => $perPage ?? (int) request()->query('per_page', 100),
                 'showPartyFilters' => $showPartyFilters ?? false,
                 'resetUrl' => $resetUrl,
-                'partyLookupUrl' => $partyLookupUrl ?? route('transactions.export-sell.lookup'),
+                'senderLookupUrl' => $senderLookupUrl ?? '',
+                'receiverLookupUrl' => $receiverLookupUrl ?? '',
+                'senderLabel' => $senderLabel ?? null,
+                'receiverLabel' => $receiverLabel ?? null,
                 'selectedSender' => $selectedSender ?? null,
                 'selectedReceiver' => $selectedReceiver ?? null,
             ])
