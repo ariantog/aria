@@ -10,9 +10,9 @@ use Illuminate\Support\Facades\Log;
 class JubelioStockCheckCommand extends Command
 {
     protected $signature = 'app:jubelio-stock-check
-                            {--sync : Process all remaining synced warehouses in one run}';
+                            {--single : Process only one synced warehouse per run}';
 
-    protected $description = 'Compare Aria warehouse stock with Jubelio on-hand for high-demand SKUs';
+    protected $description = 'Compare Aria warehouse stock with Jubelio available for linked SKUs';
 
     public function handle(JubelioStockCheckService $service): int
     {
@@ -20,12 +20,16 @@ class JubelioStockCheckCommand extends Command
 
         config(['services.jubelio.active' => true]);
 
-        $job = JubelioStockCheck::whereIn('status', ['created', 'processing'])
-            ->orderByDesc('created_at')
-            ->first();
+        $job = $service->ensureDailyJob();
 
         if (! $job) {
-            $this->comment('Tidak ada job pengecekan aktif.');
+            $job = JubelioStockCheck::whereIn('status', ['created', 'processing'])
+                ->orderByDesc('created_at')
+                ->first();
+        }
+
+        if (! $job) {
+            $this->comment('Tidak ada job pengecekan aktif dan job harian sudah dibuat hari ini.');
 
             return self::SUCCESS;
         }
@@ -49,16 +53,22 @@ class JubelioStockCheckCommand extends Command
 
                 if ($result['warehouse']) {
                     $this->info(sprintf(
-                        'Gudang %s: %d SKU dicek, %d selisih.',
+                        'Gudang %s (ronde %d): %d SKU dicek, %d selisih baru, %d total selisih.',
                         $result['warehouse'],
+                        $job->scan_round,
                         $result['checked'],
                         $result['discrepancies'],
+                        $job->discrepancies()->count(),
                     ));
                 }
-            } while ($this->option('sync') && ! $result['done']);
+            } while (! $this->option('single') && ! $result['done']);
 
             if ($result['done']) {
-                $this->info('Pengecekan selesai untuk semua gudang tersinkron.');
+                $this->info(sprintf(
+                    'Pengecekan selesai — %d ketidakcocokan (target %d).',
+                    $job->discrepancies()->count(),
+                    $job->target_discrepancies ?: JubelioStockCheckService::DEFAULT_TARGET_DISCREPANCIES,
+                ));
             } else {
                 $remaining = count($syncs) - $job->sync_cursor;
                 $this->comment("{$remaining} gudang tersisa — lanjutkan cron berikutnya.");

@@ -47,7 +47,7 @@ $sortOptions = [
         </div>
         <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
             <p class="text-sm font-medium text-gray-700">Perbandingan</p>
-            <p class="mt-2 text-sm text-gray-600">Aria qty vs Jubelio <strong>available</strong> (stok siap jual)</p>
+            <p class="mt-2 text-sm text-gray-600">Aria qty vs Jubelio <strong>available</strong> — menangkap lag webhook (Aria belum turun, Jubelio sudah)</p>
             <p class="mt-1 text-xs text-gray-500">On-hand / reserved / on-order ditampilkan sebagai referensi.</p>
         </div>
     </div>

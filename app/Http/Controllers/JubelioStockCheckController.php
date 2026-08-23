@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\StoreJubelioStockCheckRequest;
 use App\Models\Jubelio;
 use App\Models\JubelioStockCheck;
+use App\Services\JubelioStockCheckService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\View\View;
@@ -59,6 +60,8 @@ class JubelioStockCheckController extends Controller
             'sync_cursor' => 0,
             'per_type_limit' => $request->integer('per_type_limit'),
             'demand_days' => $request->integer('demand_days'),
+            'target_discrepancies' => $request->integer('target_discrepancies', JubelioStockCheckService::DEFAULT_TARGET_DISCREPANCIES),
+            'scan_round' => 0,
             'status' => 'created',
         ]);
 

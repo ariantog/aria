@@ -19,6 +19,7 @@ class StoreJubelioStockCheckRequest extends FormRequest
         return [
             'per_type_limit' => 'required|integer|min:10|max:100',
             'demand_days' => 'required|integer|min:7|max:365',
+            'target_discrepancies' => 'nullable|integer|min:10|max:200',
         ];
     }
 }

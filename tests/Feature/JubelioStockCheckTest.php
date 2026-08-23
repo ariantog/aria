@@ -66,7 +66,7 @@ it('compares aria qty against jubelio available stock', function () {
             ]);
     });
 
-    $this->artisan('app:jubelio-stock-check')->assertSuccessful();
+    $this->artisan('app:jubelio-stock-check', ['--single' => true])->assertSuccessful();
 
     $discrepancy = $job->fresh()->discrepancies()->first();
     expect($discrepancy)->toBeNull();
@@ -113,7 +113,7 @@ it('flags a mismatch using available even when on-hand differs', function () {
             ]);
     });
 
-    $this->artisan('app:jubelio-stock-check')->assertSuccessful();
+    $this->artisan('app:jubelio-stock-check', ['--single' => true])->assertSuccessful();
 
     $discrepancy = $job->fresh()->discrepancies()->first();
     expect($discrepancy)->not->toBeNull();
@@ -123,7 +123,7 @@ it('flags a mismatch using available even when on-hand differs', function () {
     expect((float) $discrepancy->jubelio_qty)->toBe(40.0);
 });
 
-it('does not flag a false -1 mismatch when an open order reserved stock in jubelio', function () {
+it('flags webhook lag when aria is still 10 but jubelio available dropped to 9', function () {
     $warehouse = Addrbook::factory()->warehouse()->create();
     seedStockCheckSync($warehouse);
 
@@ -136,13 +136,15 @@ it('does not flag a false -1 mismatch when an open order reserved stock in jubel
         'item_id' => $item->id,
         'warehouse_id' => $warehouse->id,
         'warehouse_type' => Addrbook::class,
-        'quantity' => 9,
+        'quantity' => 10,
     ]);
 
     $job = JubelioStockCheck::create([
         'sync_cursor' => 0,
         'per_type_limit' => 50,
         'demand_days' => 90,
+        'target_discrepancies' => 50,
+        'scan_round' => 0,
         'status' => 'processing',
     ]);
 
@@ -163,12 +165,16 @@ it('does not flag a false -1 mismatch when an open order reserved stock in jubel
             ]);
     });
 
-    $this->artisan('app:jubelio-stock-check')->assertSuccessful();
+    $this->artisan('app:jubelio-stock-check', ['--single' => true])->assertSuccessful();
 
-    expect($job->fresh()->discrepancies()->count())->toBe(0);
+    $discrepancy = $job->fresh()->discrepancies()->first();
+    expect($discrepancy)->not->toBeNull();
+    expect((float) $discrepancy->aria_qty)->toBe(10.0);
+    expect((float) $discrepancy->jubelio_qty)->toBe(9.0);
+    expect($discrepancy->qty_diff)->toBe(1.0);
 });
 
-it('would have flagged a -1 mismatch when comparing on-hand instead of available', function () {
+it('on-hand comparison would miss webhook lag when on-hand has not dropped yet', function () {
     $service = app(JubelioStockCheckService::class);
 
     $quantities = $service->resolveLocationQuantities([
@@ -178,14 +184,12 @@ it('would have flagged a -1 mismatch when comparing on-hand instead of available
         'available' => 9,
     ]);
 
-    expect($quantities['comparable'])->toBe(9.0);
+    $ariaQty = 10.0;
+    $onHandMatch = $ariaQty === $quantities['on_hand'];
+    $availableMismatch = $ariaQty !== $quantities['comparable'];
 
-    $ariaQty = 9.0;
-    $onHandMismatch = $ariaQty !== $quantities['on_hand'];
-    $availableMatch = $ariaQty === $quantities['comparable'];
-
-    expect($onHandMismatch)->toBeTrue();
-    expect($availableMatch)->toBeTrue();
+    expect($onHandMatch)->toBeTrue();
+    expect($availableMismatch)->toBeTrue();
 });
 
 it('selects high-demand skus per warehouse and type', function () {
@@ -286,7 +290,7 @@ it('processes synced warehouses one per cron run', function () {
             ]);
     });
 
-    $this->artisan('app:jubelio-stock-check')->assertSuccessful();
+    $this->artisan('app:jubelio-stock-check', ['--single' => true])->assertSuccessful();
 
     $job->refresh();
     expect($job->sync_cursor)->toBe(1);
@@ -303,7 +307,7 @@ it('processes synced warehouses one per cron run', function () {
             ]);
     });
 
-    $this->artisan('app:jubelio-stock-check')->assertSuccessful();
+    $this->artisan('app:jubelio-stock-check', ['--single' => true])->assertSuccessful();
 
     expect($job->fresh()->sync_cursor)->toBe(2);
     expect($job->fresh()->status)->toBe('completed');
@@ -346,9 +350,76 @@ it('ignores warehouses not mapped in jubeliosyncs', function () {
             ]);
     });
 
-    $this->artisan('app:jubelio-stock-check')->assertSuccessful();
+    $this->artisan('app:jubelio-stock-check', ['--single' => true])->assertSuccessful();
 
     expect(JubelioStockCheck::latest()->first()->discrepancies()->count())->toBe(0);
+});
+
+it('auto-creates a daily stock check job when none exists today', function () {
+    $service = app(JubelioStockCheckService::class);
+
+    $job = $service->ensureDailyJob();
+
+    expect($job)->not->toBeNull();
+    expect($job->target_discrepancies)->toBe(JubelioStockCheckService::DEFAULT_TARGET_DISCREPANCIES);
+    expect($service->ensureDailyJob()?->id)->toBe($job->id);
+});
+
+it('starts another scan round when target discrepancies are not met', function () {
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    seedStockCheckSync($warehouse);
+
+    $items = collect();
+    for ($i = 0; $i < 3; $i++) {
+        $item = Item::factory()->create([
+            'type' => Item::TYPE_ITEM,
+            'jubelio_item_id' => 801 + $i,
+        ]);
+        $items->push($item);
+        WarehouseItem::create([
+            'item_id' => $item->id,
+            'warehouse_id' => $warehouse->id,
+            'warehouse_type' => Addrbook::class,
+            'quantity' => 10,
+        ]);
+    }
+
+    $job = JubelioStockCheck::create([
+        'sync_cursor' => 0,
+        'per_type_limit' => 1,
+        'demand_days' => 90,
+        'target_discrepancies' => 50,
+        'scan_round' => 0,
+        'status' => 'processing',
+    ]);
+
+    $this->mock(JubelioService::class, function (MockInterface $mock) {
+        $mock->shouldReceive('fetchItemsAllStocks')
+            ->andReturnUsing(function (array $ids) {
+                return [
+                    'data' => collect($ids)->map(fn ($id) => [
+                        'item_id' => $id,
+                        'location_stocks' => [[
+                            'location_id' => 10,
+                            'on_hand' => 9,
+                            'on_order' => 0,
+                            'reserved' => 0,
+                            'available' => 9,
+                        ]],
+                    ])->all(),
+                ];
+            });
+    });
+
+    $service = app(JubelioStockCheckService::class);
+    $service->processNextWarehouse($job);
+    $job->refresh();
+    $service->processNextWarehouse($job);
+    $job->refresh();
+
+    expect($job->scan_round)->toBe(1)
+        ->and($job->sync_cursor)->toBe(0)
+        ->and($job->status)->toBe('processing');
 });
 
 it('sorts stock check discrepancies by absolute quantity difference', function () {

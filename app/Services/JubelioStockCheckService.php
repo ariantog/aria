@@ -14,6 +14,10 @@ use Illuminate\Support\Facades\DB;
 
 class JubelioStockCheckService
 {
+    public const DEFAULT_TARGET_DISCREPANCIES = 50;
+
+    public const MAX_SCAN_ROUNDS = 20;
+
     public function __construct(
         private JubelioService $jubelioService,
     ) {}
@@ -31,6 +35,35 @@ class JubelioStockCheckService
             ->all();
     }
 
+    public function ensureDailyJob(): ?JubelioStockCheck
+    {
+        $activeJob = JubelioStockCheck::query()
+            ->whereIn('status', ['created', 'processing'])
+            ->orderByDesc('created_at')
+            ->first();
+
+        if ($activeJob) {
+            return $activeJob;
+        }
+
+        $hasJobToday = JubelioStockCheck::query()
+            ->whereDate('created_at', today())
+            ->exists();
+
+        if ($hasJobToday) {
+            return null;
+        }
+
+        return JubelioStockCheck::create([
+            'sync_cursor' => 0,
+            'per_type_limit' => 100,
+            'demand_days' => 30,
+            'target_discrepancies' => self::DEFAULT_TARGET_DISCREPANCIES,
+            'scan_round' => 0,
+            'status' => 'created',
+        ]);
+    }
+
     /**
      * Process the next synced warehouse for a stock-check job.
      *
@@ -41,14 +74,19 @@ class JubelioStockCheckService
         $syncs = $this->syncedWarehouses();
 
         if ($job->sync_cursor >= count($syncs)) {
-            $job->update(['status' => 'completed']);
+            if ($this->shouldContinueScanning($job)) {
+                $this->startNextScanRound($job);
+                $job->refresh();
+            } else {
+                $job->update(['status' => 'completed']);
+            }
 
-            return ['done' => true, 'warehouse' => null, 'checked' => 0, 'discrepancies' => 0];
+            return ['done' => $job->status === 'completed', 'warehouse' => null, 'checked' => 0, 'discrepancies' => 0];
         }
 
         /** @var Jubeliosync $sync */
         $sync = $syncs[$job->sync_cursor];
-        $items = $this->selectItemsForWarehouse($sync, $job->per_type_limit, $job->demand_days);
+        $items = $this->selectItemsForWarehouse($sync, $job->per_type_limit, $job->demand_days, $job->scan_round);
 
         $discrepancyCount = 0;
         if ($items->isNotEmpty()) {
@@ -57,7 +95,9 @@ class JubelioStockCheckService
 
         $job->update([
             'sync_cursor' => $job->sync_cursor + 1,
-            'status' => $job->sync_cursor + 1 >= count($syncs) ? 'completed' : 'processing',
+            'status' => $job->sync_cursor + 1 >= count($syncs) && ! $this->shouldContinueScanning($job)
+                ? 'completed'
+                : 'processing',
         ]);
 
         return [
@@ -68,20 +108,63 @@ class JubelioStockCheckService
         ];
     }
 
+    public function shouldContinueScanning(JubelioStockCheck $job): bool
+    {
+        $target = max(1, (int) ($job->target_discrepancies ?: self::DEFAULT_TARGET_DISCREPANCIES));
+
+        if ($job->discrepancies()->count() >= $target) {
+            return false;
+        }
+
+        if ($job->scan_round >= self::MAX_SCAN_ROUNDS) {
+            return false;
+        }
+
+        return $this->hasMoreItemsToScan($job);
+    }
+
+    public function startNextScanRound(JubelioStockCheck $job): void
+    {
+        $job->update([
+            'sync_cursor' => 0,
+            'scan_round' => $job->scan_round + 1,
+            'status' => 'processing',
+        ]);
+    }
+
+    public function hasMoreItemsToScan(JubelioStockCheck $job): bool
+    {
+        foreach ($this->syncedWarehouses() as $sync) {
+            foreach ([Item::TYPE_ITEM, Item::TYPE_ASSET_LANCAR] as $type) {
+                $offset = ($job->scan_round + 1) * $job->per_type_limit;
+                if ($this->linkedItemIds($sync->warehouse_id, $type, 1, $offset)->isNotEmpty()) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
     /**
      * @return Collection<int, Item>
      */
-    public function selectItemsForWarehouse(Jubeliosync $sync, int $perTypeLimit, int $demandDays): Collection
+    public function selectItemsForWarehouse(Jubeliosync $sync, int $perTypeLimit, int $demandDays, int $scanRound = 0): Collection
     {
         $selected = collect();
 
         foreach ([Item::TYPE_ITEM, Item::TYPE_ASSET_LANCAR] as $type) {
-            $ids = $this->topDemandItemIds($sync->warehouse_id, $type, $perTypeLimit, $demandDays);
+            if ($scanRound === 0) {
+                $ids = $this->topDemandItemIds($sync->warehouse_id, $type, $perTypeLimit, $demandDays);
 
-            if ($ids->count() < $perTypeLimit) {
-                $ids = $ids->merge(
-                    $this->fallbackItemIds($sync->warehouse_id, $type, $perTypeLimit - $ids->count(), $ids->all()),
-                );
+                if ($ids->count() < $perTypeLimit) {
+                    $ids = $ids->merge(
+                        $this->fallbackItemIds($sync->warehouse_id, $type, $perTypeLimit - $ids->count(), $ids->all()),
+                    );
+                }
+            } else {
+                $offset = $scanRound * $perTypeLimit;
+                $ids = $this->linkedItemIds($sync->warehouse_id, $type, $perTypeLimit, $offset);
             }
 
             $selected = $selected->merge(
@@ -142,6 +225,27 @@ class JubelioStockCheckService
     }
 
     /**
+     * @return Collection<int, int>
+     */
+    public function linkedItemIds(int $warehouseId, int $type, int $limit, int $offset = 0): Collection
+    {
+        if ($limit <= 0) {
+            return collect();
+        }
+
+        return WarehouseItem::query()
+            ->select('warehouse_item.item_id')
+            ->join('items', 'items.id', '=', 'warehouse_item.item_id')
+            ->where('warehouse_item.warehouse_id', $warehouseId)
+            ->where('items.type', $type)
+            ->where('items.jubelio_item_id', '>', 0)
+            ->orderBy('warehouse_item.item_id')
+            ->offset($offset)
+            ->limit($limit)
+            ->pluck('warehouse_item.item_id');
+    }
+
+    /**
      * @param  Collection<int, Item>  $items
      */
     public function compareItemsAtWarehouse(JubelioStockCheck $job, Jubeliosync $sync, Collection $items): int
@@ -173,17 +277,22 @@ class JubelioStockCheckService
             $jubelioQty = $quantities['comparable'];
             $ariaQty = (float) ($ariaQtyByItemId[$item->id] ?? 0);
 
+            $identity = [
+                'jubelio_stock_check_id' => $job->id,
+                'item_id' => $item->id,
+                'warehouse_id' => $sync->warehouse_id,
+            ];
+
             if ($ariaQty === $jubelioQty) {
+                JubelioStockDiscrepancy::query()->where($identity)->delete();
+
                 continue;
             }
 
-            JubelioStockDiscrepancy::create([
-                'jubelio_stock_check_id' => $job->id,
-                'item_id' => $item->id,
+            JubelioStockDiscrepancy::updateOrCreate($identity, [
                 'jubelio_item_id' => $item->jubelio_item_id,
                 'jubelio_location_id' => $sync->jubelio_location_id,
                 'jubelio_location_name' => $sync->jubelio_location_name,
-                'warehouse_id' => $sync->warehouse_id,
                 'aria_qty' => $ariaQty,
                 'jubelio_qty' => $jubelioQty,
                 'jubelio_on_hand' => $quantities['on_hand'],
@@ -239,8 +348,9 @@ class JubelioStockCheckService
     }
 
     /**
-     * Jubelio reserves stock for open orders (available drops) while on-hand may stay
-     * higher until shipment. Aria deducts on sell, so compare against available.
+     * Jubelio drops available when an order is placed (before Aria webhook). Compare
+     * against available so webhook-lag rows like Aria 10 vs Jubelio 9 are caught.
+     * On-hand may still read 10 while available is already 9.
      *
      * @param  array<string, mixed>  $locationStock
      * @return array{on_hand: float, on_order: float, reserved: float, available: float, comparable: float}
