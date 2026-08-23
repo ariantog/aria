@@ -24,7 +24,7 @@ class ExportSellController extends Controller
             ->paginate($perPage)
             ->withQueryString();
 
-        $partyLookups = $this->sellPartyLookups();
+        $partyLookups = self::exportSellPartyLookups($queryService);
 
         return view('transactions.export-sell', [
             'rows' => $rows,
@@ -54,36 +54,28 @@ class ExportSellController extends Controller
     /**
      * @return array{sender_route: string, receiver_route: string, sender_label: string, receiver_label: string}
      */
-    public static function sellPartyLookups(): array
+    public static function exportSellPartyLookups(?ExportSellQueryService $queryService = null): array
     {
-        $config = config('transaction_rules.sell');
+        $queryService ??= app(ExportSellQueryService::class);
+        $partyTypeIds = $queryService->partyTypeIds();
 
-        $labelFor = function (string $role) use ($config): string {
-            if (! isset($config[$role.'_type'])) {
-                return 'Contact';
-            }
+        $typeNames = collect(Addrbook::getTypes())
+            ->whereIn('id', $partyTypeIds)
+            ->pluck('name')
+            ->all();
 
-            $names = collect(Addrbook::getTypes())
-                ->whereIn('id', (array) $config[$role.'_type'])
-                ->pluck('name')
-                ->all();
+        $partyLabel = $typeNames !== [] ? implode(' / ', $typeNames) : 'Contact';
 
-            return $names !== [] ? implode(' / ', $names) : 'Contact';
-        };
+        $lookupParams = [
+            'type' => 'sell',
+            'addrbook_type' => $partyTypeIds,
+        ];
 
         return [
-            'sender_route' => route('transactions.lookup', [
-                'type' => 'sell',
-                'role' => 'sender',
-                'addrbook_type' => $config['sender_type'] ?? null,
-            ]),
-            'receiver_route' => route('transactions.lookup', [
-                'type' => 'sell',
-                'role' => 'receiver',
-                'addrbook_type' => $config['receiver_type'] ?? null,
-            ]),
-            'sender_label' => $labelFor('sender'),
-            'receiver_label' => $labelFor('receiver'),
+            'sender_route' => route('transactions.lookup', [...$lookupParams, 'role' => 'sender']),
+            'receiver_route' => route('transactions.lookup', [...$lookupParams, 'role' => 'receiver']),
+            'sender_label' => $partyLabel,
+            'receiver_label' => $partyLabel,
         ];
     }
 

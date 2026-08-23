@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Addrbook;
 use App\Models\Transaction;
 use App\Models\TransactionDetail;
 use App\Models\User;
@@ -37,6 +38,37 @@ class ExportSellQueryService
         }
 
         return $options;
+    }
+
+    /**
+     * Addrbook types that may appear as sender/receiver on export-sell detail lines,
+     * derived from item transaction rules and excluding ledger / virtual accounts.
+     *
+     * @return list<int>
+     */
+    public function partyTypeIds(): array
+    {
+        $excluded = [Addrbook::TYPE_ACCOUNT, Addrbook::TYPE_V_ACCOUNT];
+        $includedTxTypes = array_flip($this->includedTransactionTypes());
+        $typeIds = [];
+
+        foreach (config('transaction_rules', []) as $config) {
+            if (! isset($config['id'], $includedTxTypes[$config['id']])) {
+                continue;
+            }
+
+            foreach (['sender_type', 'receiver_type'] as $roleKey) {
+                if (empty($config[$roleKey])) {
+                    continue;
+                }
+
+                foreach ((array) $config[$roleKey] as $typeId) {
+                    $typeIds[] = (int) $typeId;
+                }
+            }
+        }
+
+        return array_values(array_unique(array_diff($typeIds, $excluded)));
     }
 
     public function resolvePerPage(Request $request): int
