@@ -5,6 +5,9 @@
 @section('content')
 @php
 $baseUrl = '/' . $addrbook->type_slug . '/' . $addrbook->id . '/items';
+$exportUrl = '/' . $addrbook->type_slug . '/' . $addrbook->id . '/items/export';
+$exportQuery = request()->query();
+$perPage = $perPage ?? (int) request()->query('per_page', 1000);
 $breadcrumbs = [
     ['title' => 'Address Book', 'href' => \App\Models\Addrbook::typeIndexRoute($addrbook->type_slug)],
     ['title' => $addrbook->name, 'href' => '/' . $addrbook->type_slug . '/' . $addrbook->id],
@@ -51,7 +54,7 @@ $idr = fn ($v) => 'IDR ' . number_format((float) $v, 0, ',', '.');
             <div class="flex items-center gap-2 py-2">
                 <label class="flex cursor-pointer items-center gap-2 text-sm font-medium text-gray-600">
                     <input type="checkbox" name="show0" value="show" @checked(($filters['show0'] ?? '') === 'show') class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
-                    Show Zero Stock
+                    Show empty stock (&lt; 1)
                 </label>
             </div>
             <div class="flex gap-2">
@@ -60,7 +63,8 @@ $idr = fn ($v) => 'IDR ' . number_format((float) $v, 0, ',', '.');
             </div>
         </form>
 
-        <div class="flex flex-wrap items-center gap-4">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+            <div class="flex flex-wrap items-center gap-4">
             <span class="text-[10px] font-bold uppercase text-gray-500">Display Options:</span>
             <button type="button" @click="showImage = !showImage"
                     :class="showImage ? 'border-blue-500/20 bg-blue-50 text-blue-600' : 'border-gray-200 text-gray-500'"
@@ -71,6 +75,12 @@ $idr = fn ($v) => 'IDR ' . number_format((float) $v, 0, ',', '.');
                 <button type="button" @click="onlineName = false" :class="!onlineName ? 'bg-gray-800 text-white' : 'text-gray-500'" class="rounded-md px-3 py-1 text-[10px] font-bold uppercase">Normal Name</button>
                 <button type="button" @click="onlineName = true" :class="onlineName ? 'bg-gray-800 text-white' : 'text-gray-500'" class="rounded-md px-3 py-1 text-[10px] font-bold uppercase">Online Name</button>
             </div>
+            </div>
+            <a href="{{ $exportUrl . (count($exportQuery) ? '?' . http_build_query($exportQuery) : '') }}"
+               class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                Export Excel
+            </a>
         </div>
     </div>
 

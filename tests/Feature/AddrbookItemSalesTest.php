@@ -36,6 +36,18 @@ it('allows addrbook item sales with item-sales permission', function () {
         ->assertSee('Item Sales', false);
 });
 
+it('returns not found for item sales on bank accounts', function () {
+    User::factory()->create();
+    $user = User::factory()->create();
+    $user->givePermissionTo('addrbook-bank-account-list');
+
+    $bank = Addrbook::factory()->create(['type' => Addrbook::TYPE_BANK]);
+
+    $this->actingAs($user)
+        ->get(route('addrbook.type.item-sales', ['bank', $bank->id]))
+        ->assertNotFound();
+});
+
 it('renders addrbook item sales with sell lines for the contact', function () {
     $user = User::factory()->create();
     $item = Item::factory()->create(['code' => 'SKU-CUST-1']);
