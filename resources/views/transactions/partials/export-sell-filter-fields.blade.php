@@ -51,14 +51,14 @@
     @include('transactions.partials.export-sell-party-combobox', [
         'name' => 'sender',
         'label' => $senderLabel ?? 'Sender',
-        'placeholder' => 'Select '.($senderLabel ?? 'sender').'...',
+        'placeholder' => 'Search sender...',
         'endpoint' => $senderLookupUrl ?? '',
         'initial' => $selectedSender ?? null,
     ])
     @include('transactions.partials.export-sell-party-combobox', [
         'name' => 'receiver',
         'label' => $receiverLabel ?? 'Receiver',
-        'placeholder' => 'Select '.($receiverLabel ?? 'receiver').'...',
+        'placeholder' => 'Search receiver...',
         'endpoint' => $receiverLookupUrl ?? '',
         'initial' => $selectedReceiver ?? null,
     ])

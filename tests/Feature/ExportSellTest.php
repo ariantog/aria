@@ -41,9 +41,11 @@ it('returns addrbook matches for export sell party lookup', function () {
         ->assertJsonMissing(['name' => 'Lookup Warehouse Beta']);
 });
 
-it('excludes ledger and virtual accounts from export sell party lookup', function () {
+it('excludes non-inventory parties from export sell party lookup', function () {
     Addrbook::create(['name' => 'Ledger Account Party', 'type' => Addrbook::TYPE_ACCOUNT]);
     Addrbook::create(['name' => 'Virtual Account Party', 'type' => Addrbook::TYPE_V_ACCOUNT]);
+    Addrbook::factory()->supplier()->create(['name' => 'Supplier Party Match']);
+    Addrbook::create(['name' => 'Bank Party Match', 'type' => Addrbook::TYPE_BANK]);
     $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'Warehouse Party Match']);
 
     $url = ExportSellController::exportSellPartyLookups()['sender_route'].'&search=Party';
@@ -52,19 +54,20 @@ it('excludes ledger and virtual accounts from export sell party lookup', functio
 
     expect($names)->toContain('Warehouse Party Match')
         ->not->toContain('Ledger Account Party')
-        ->not->toContain('Virtual Account Party');
+        ->not->toContain('Virtual Account Party')
+        ->not->toContain('Supplier Party Match')
+        ->not->toContain('Bank Party Match');
 });
 
-it('party type ids exclude ledger and virtual accounts', function () {
+it('party type ids are customer reseller warehouse and vwarehouse only', function () {
     $service = app(ExportSellQueryService::class);
 
-    expect($service->partyTypeIds())
-        ->not->toContain(Addrbook::TYPE_ACCOUNT, Addrbook::TYPE_V_ACCOUNT)
-        ->toContain(
-            Addrbook::TYPE_CUSTOMER,
-            Addrbook::TYPE_WAREHOUSE,
-            Addrbook::TYPE_SUPPLIER,
-        );
+    expect($service->partyTypeIds())->toEqual([
+        Addrbook::TYPE_CUSTOMER,
+        Addrbook::TYPE_RESELLER,
+        Addrbook::TYPE_WAREHOUSE,
+        Addrbook::TYPE_V_WAREHOUSE,
+    ]);
 });
 
 it('filters export sell lines by selected sender id', function () {
