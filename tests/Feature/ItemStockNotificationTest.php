@@ -27,7 +27,10 @@ beforeEach(function () {
 });
 
 it('creates notifications when a sell depletes stock at one warehouse but stock remains elsewhere', function () {
-    $shopA = Addrbook::factory()->warehouse()->create(['name' => 'Consignment Stylo']);
+    $shopA = Addrbook::factory()->warehouse()->create([
+        'name' => 'Consignment Stylo',
+        'arrangement_enabled' => true,
+    ]);
     $shopB = Addrbook::factory()->warehouse()->create(['name' => 'Consignment Matahari']);
     $customer = Addrbook::factory()->customer()->create();
 
@@ -79,7 +82,7 @@ it('creates notifications when a sell depletes stock at one warehouse but stock 
 });
 
 it('classifies slow moving stock at the source warehouse', function () {
-    $shopA = Addrbook::factory()->warehouse()->create();
+    $shopA = Addrbook::factory()->warehouse()->create(['arrangement_enabled' => true]);
     $shopB = Addrbook::factory()->warehouse()->create();
     $customer = Addrbook::factory()->customer()->create();
 
@@ -145,6 +148,54 @@ it('classifies slow moving stock at the source warehouse', function () {
 
     expect(ItemStockNotification::query()->first()?->source_status)
         ->toBe(ItemStockSourceStatus::SlowMoving);
+});
+
+it('skips alerts when the sold-out warehouse is not arrangement-enabled', function () {
+    $customShop = Addrbook::factory()->warehouse()->create([
+        'name' => 'Custom Only Shop',
+        'arrangement_enabled' => false,
+    ]);
+    $otherShop = Addrbook::factory()->warehouse()->create(['name' => 'Consignment Shop']);
+    $customer = Addrbook::factory()->customer()->create();
+    $item = Item::factory()->create();
+
+    WarehouseItem::create([
+        'warehouse_id' => $customShop->id,
+        'item_id' => $item->id,
+        'quantity' => 0,
+    ]);
+
+    WarehouseItem::create([
+        'warehouse_id' => $otherShop->id,
+        'item_id' => $item->id,
+        'quantity' => 4,
+    ]);
+
+    $transaction = Transaction::factory()->create([
+        'type' => Transaction::TYPE_SELL,
+        'sender_type' => (string) AddrbookType::Warehouse->value,
+        'sender_id' => $customShop->id,
+        'receiver_type' => (string) AddrbookType::Customer->value,
+        'receiver_id' => $customer->id,
+        'user_id' => $this->user->id,
+    ]);
+
+    $transaction->details()->create([
+        'item_id' => $item->id,
+        'date' => $transaction->date,
+        'transaction_type' => Transaction::TYPE_SELL,
+        'sender_id' => $customShop->id,
+        'receiver_id' => $customer->id,
+        'quantity' => 1,
+        'price' => 100000,
+        'discount' => 0,
+        'total' => 100000,
+    ]);
+
+    $ids = app(ItemStockNotificationService::class)->checkAfterSell($transaction->fresh('details'));
+
+    expect($ids)->toBeEmpty()
+        ->and(ItemStockNotification::query()->count())->toBe(0);
 });
 
 it('dispatches stock notification check after sell summary update', function () {

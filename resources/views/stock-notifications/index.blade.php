@@ -16,7 +16,8 @@ $fmtNum = fn ($v) => number_format((float) $v, 0, ',', '.');
         <div>
             <h1 class="text-2xl font-bold tracking-tight">Stock Alerts</h1>
             <p class="text-gray-500">
-                Items sold out at one shop while stock remains at another — available, slow moving, or dead stock.
+                Items sold out at arrangement-enabled shops while stock remains at another warehouse — available, slow moving, or dead stock.
+                Only warehouses with <span class="font-medium">Warehouse Arrangement</span> enabled on the addrbook form trigger alerts.
             </p>
         </div>
         <div class="flex flex-wrap items-center gap-2">

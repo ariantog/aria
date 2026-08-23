@@ -32,7 +32,9 @@ class ItemStockNotificationService
         }
 
         $soldOutWarehouse = Addrbook::query()->find($soldOutWarehouseId);
-        if (! $soldOutWarehouse || (int) $soldOutWarehouse->type !== AddrbookType::Warehouse->value) {
+        if (! $soldOutWarehouse
+            || (int) $soldOutWarehouse->type !== AddrbookType::Warehouse->value
+            || ! $soldOutWarehouse->arrangement_enabled) {
             return [];
         }
 
