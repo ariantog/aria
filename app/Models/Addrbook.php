@@ -132,7 +132,13 @@ class Addrbook extends Model
             $cleanName = str_replace(['(', ')', '.', '-', '_'], ' ', $t['name']);
             $kebabName = \Illuminate\Support\Str::kebab(str_replace(' ', '', $cleanName));
             $group = 'addrbook-'.$kebabName;
-            $typePermissions = ['view' => "{$group}-list", 'create' => "{$group}-create", 'edit' => "{$group}-edit", 'delete' => "{$group}-delete"];
+            $typePermissions = [
+                'view' => "{$group}-list",
+                'create' => "{$group}-create",
+                'edit' => "{$group}-edit",
+                'delete' => "{$group}-delete",
+                'item-sales' => "{$group}-item-sales",
+            ];
             if ($t['slug'] === 'bank') {
                 $typePermissions['hidden-balance'] = "{$group}-hidden-balance";
             }
@@ -143,6 +149,7 @@ class Addrbook extends Model
             $permissions["{$t['slug']}-create"] = $typePermissions['create'];
             $permissions["{$t['slug']}-edit"] = $typePermissions['edit'];
             $permissions["{$t['slug']}-delete"] = $typePermissions['delete'];
+            $permissions["{$t['slug']}-item-sales"] = $typePermissions['item-sales'];
             if (isset($typePermissions['hidden-balance'])) {
                 $permissions["{$t['slug']}-hidden-balance"] = $typePermissions['hidden-balance'];
             }

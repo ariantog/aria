@@ -5,6 +5,36 @@ use App\Models\Item;
 use App\Models\Transaction;
 use App\Models\TransactionDetail;
 use App\Models\User;
+use App\Services\PermissionGenerator;
+
+beforeEach(function () {
+    app(PermissionGenerator::class)->generateForModule('Addrbook');
+});
+
+it('forbids addrbook item sales without item-sales permission', function () {
+    User::factory()->create();
+    $user = User::factory()->create();
+    $user->givePermissionTo('addrbook-customer-list');
+
+    $customer = Addrbook::factory()->customer()->create();
+
+    $this->actingAs($user)
+        ->get(route('addrbook.type.item-sales', ['customer', $customer->id]))
+        ->assertForbidden();
+});
+
+it('allows addrbook item sales with item-sales permission', function () {
+    User::factory()->create();
+    $user = User::factory()->create();
+    $user->givePermissionTo('addrbook-customer-item-sales');
+
+    $customer = Addrbook::factory()->customer()->create();
+
+    $this->actingAs($user)
+        ->get(route('addrbook.type.item-sales', ['customer', $customer->id]))
+        ->assertOk()
+        ->assertSee('Item Sales', false);
+});
 
 it('renders addrbook item sales with sell lines for the contact', function () {
     $user = User::factory()->create();
