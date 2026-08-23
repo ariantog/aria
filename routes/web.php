@@ -203,6 +203,7 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::post('transactions/adjust', [App\Http\Controllers\TransactionsController::class, 'storeAdjust'])->middleware('prevent.duplicate')->name('transactions.adjust.store');
 
     Route::get('transactions/export', [App\Http\Controllers\TransactionsController::class, 'export'])->name('transactions.export');
+    Route::get('transactions/export-sell/lookup', [App\Http\Controllers\ExportSellController::class, 'lookup'])->name('transactions.export-sell.lookup');
     Route::get('transactions/export-sell', [App\Http\Controllers\ExportSellController::class, 'index'])->name('transactions.export-sell');
     Route::get('transactions/export-sell/build', [App\Http\Controllers\ExportSellController::class, 'export'])->name('transactions.export-sell.build');
     Route::get('transactions/{transaction}/receipt', [App\Http\Controllers\TransactionsController::class, 'receipt'])->name('transactions.receipt');
