@@ -2,8 +2,6 @@
 
 use App\Enums\AddrbookType;
 use App\Enums\ItemStockSourceStatus;
-use App\Jobs\CheckItemStockNotifications;
-use App\Jobs\UpdateTransactionSummaries;
 use App\Models\Addrbook;
 use App\Models\Item;
 use App\Models\ItemStockNotification;
@@ -12,7 +10,7 @@ use App\Models\User;
 use App\Models\WarehouseItem;
 use App\Services\ItemStockNotificationService;
 use App\Services\PermissionGenerator;
-use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Permission;
 
 beforeEach(function () {
@@ -198,19 +196,54 @@ it('skips alerts when the sold-out warehouse is not arrangement-enabled', functi
         ->and(ItemStockNotification::query()->count())->toBe(0);
 });
 
-it('dispatches stock notification check after sell summary update', function () {
-    Queue::fake();
+it('creates notifications after handleTransaction commits stock changes', function () {
+    $shopA = Addrbook::factory()->warehouse()->create([
+        'name' => 'Consignment Stylo',
+        'arrangement_enabled' => true,
+    ]);
+    $shopB = Addrbook::factory()->warehouse()->create(['name' => 'Consignment Matahari']);
+    $customer = Addrbook::factory()->customer()->create();
+    $item = Item::factory()->create(['code' => 'FLOW-SKU-M']);
+
+    WarehouseItem::create([
+        'warehouse_id' => $shopA->id,
+        'item_id' => $item->id,
+        'quantity' => 1,
+    ]);
+
+    WarehouseItem::create([
+        'warehouse_id' => $shopB->id,
+        'item_id' => $item->id,
+        'quantity' => 5,
+    ]);
 
     $transaction = Transaction::factory()->create([
         'type' => Transaction::TYPE_SELL,
-        'status' => Transaction::STATUS_COMPLETED,
+        'sender_type' => (string) AddrbookType::Warehouse->value,
+        'sender_id' => $shopA->id,
+        'receiver_type' => (string) AddrbookType::Customer->value,
+        'receiver_id' => $customer->id,
+        'user_id' => $this->user->id,
     ]);
 
-    (new UpdateTransactionSummaries($transaction->id))->handle(app(\App\Services\WarehouseItemStatsRecorder::class));
+    $transaction->details()->create([
+        'item_id' => $item->id,
+        'date' => $transaction->date,
+        'transaction_type' => Transaction::TYPE_SELL,
+        'sender_id' => $shopA->id,
+        'receiver_id' => $customer->id,
+        'quantity' => 1,
+        'price' => 100000,
+        'discount' => 0,
+        'total' => 100000,
+    ]);
 
-    Queue::assertPushed(CheckItemStockNotifications::class, function ($job) use ($transaction) {
-        return $job->transactionId === $transaction->id;
+    DB::transaction(function () use ($transaction) {
+        app(\App\Services\TransactionService::class)->handleTransaction($transaction->fresh('details'));
     });
+
+    expect(ItemStockNotification::query()->count())->toBe(1)
+        ->and((float) WarehouseItem::query()->where('warehouse_id', $shopA->id)->where('item_id', $item->id)->value('quantity'))->toBe(0.0);
 });
 
 it('renders the stock notifications page for authorized users', function () {
