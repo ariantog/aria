@@ -113,7 +113,7 @@ $idr = fn ($v) => 'IDR ' . number_format((float) $v, 0, ',', '.');
                     <th class="w-16 px-2 py-2.5 font-bold" x-show="showImage">Image</th>
                     <th class="whitespace-nowrap px-2 py-2.5 font-bold">Item Name</th>
                     <th class="min-w-[7rem] px-2 py-2.5 font-bold">Code</th>
-                    <th class="min-w-[8rem] px-2 py-2.5 font-bold">Description</th>
+                    <th class="min-w-[8rem] max-w-[14rem] px-2 py-2.5 font-bold">Description</th>
                     <th class="whitespace-nowrap px-2 py-2.5 text-right font-bold">Price</th>
                     <th class="whitespace-nowrap px-2 py-2.5 text-right font-bold">Stock</th>
                     @if($jubelioSync ?? null)
@@ -134,7 +134,7 @@ $idr = fn ($v) => 'IDR ' . number_format((float) $v, 0, ',', '.');
                         $itemShowUrl = $item->showUrl();
                         $itemEditUrl = $item->editUrl();
                     @endphp
-                    <tr class="cursor-pointer align-middle hover:bg-gray-50" onclick="window.location='{{ $itemShowUrl }}'">
+                    <tr class="cursor-pointer align-top hover:bg-gray-50" onclick="window.location='{{ $itemShowUrl }}'">
                         <td class="px-2 py-2 font-mono">
                             <a href="{{ $itemShowUrl }}" onclick="event.stopPropagation()" class="text-blue-600 hover:underline">#{{ $item->id }}</a>
                         </td>
@@ -151,7 +151,7 @@ $idr = fn ($v) => 'IDR ' . number_format((float) $v, 0, ',', '.');
                         <td class="truncate px-2 py-2 font-mono">
                             <a href="{{ $itemShowUrl }}" onclick="event.stopPropagation()" class="text-blue-600 hover:underline" title="{{ $item->code }}">{{ $item->code }}</a>
                         </td>
-                        <td class="truncate px-2 py-2 text-gray-500" title="{{ $desc }}">{{ $desc }}</td>
+                        <td class="min-w-[8rem] max-w-[14rem] break-words px-2 py-2 text-gray-500 whitespace-pre-line">{{ $desc }}</td>
                         <td class="whitespace-nowrap px-2 py-2 text-right font-semibold text-gray-700">{{ $idr($item->price) }}</td>
                         <td class="whitespace-nowrap px-2 py-2 text-right font-mono font-bold {{ $qty > 0 ? 'text-emerald-600' : 'text-gray-400' }}">{{ number_format($qty, 0, ',', '.') }}</td>
                         @if($jubelioSync ?? null)
