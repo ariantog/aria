@@ -94,6 +94,16 @@ class Addrbook extends Model
         return in_array($type, [self::TYPE_BANK, self::TYPE_ACCOUNT, self::TYPE_V_ACCOUNT], true);
     }
 
+    public static function typeSupportsItemSales(int $type): bool
+    {
+        return ! self::typeIsFinancial($type);
+    }
+
+    public static function typeHasWarehouseStock(int $type): bool
+    {
+        return self::typeIsWarehouse($type);
+    }
+
     /** @return list<int> */
     public static function transferAccountTypes(): array
     {
@@ -137,8 +147,13 @@ class Addrbook extends Model
                 'create' => "{$group}-create",
                 'edit' => "{$group}-edit",
                 'delete' => "{$group}-delete",
-                'item-sales' => "{$group}-item-sales",
             ];
+            if (self::typeSupportsItemSales($t['id'])) {
+                $typePermissions['item-sales'] = "{$group}-item-sales";
+            }
+            if (self::typeHasWarehouseStock($t['id'])) {
+                $typePermissions['warehouse-items'] = "{$group}-items";
+            }
             if ($t['slug'] === 'bank') {
                 $typePermissions['hidden-balance'] = "{$group}-hidden-balance";
             }
@@ -149,7 +164,12 @@ class Addrbook extends Model
             $permissions["{$t['slug']}-create"] = $typePermissions['create'];
             $permissions["{$t['slug']}-edit"] = $typePermissions['edit'];
             $permissions["{$t['slug']}-delete"] = $typePermissions['delete'];
-            $permissions["{$t['slug']}-item-sales"] = $typePermissions['item-sales'];
+            if (isset($typePermissions['item-sales'])) {
+                $permissions["{$t['slug']}-item-sales"] = $typePermissions['item-sales'];
+            }
+            if (isset($typePermissions['warehouse-items'])) {
+                $permissions["{$t['slug']}-warehouse-items"] = $typePermissions['warehouse-items'];
+            }
             if (isset($typePermissions['hidden-balance'])) {
                 $permissions["{$t['slug']}-hidden-balance"] = $typePermissions['hidden-balance'];
             }

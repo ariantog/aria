@@ -11,6 +11,8 @@ use App\Models\Addrbook;
 use App\Models\Location;
 use App\Services\ExportSellExportService;
 use App\Services\ExportSellQueryService;
+use App\Services\WarehouseStockExportService;
+use App\Services\WarehouseStockQueryService;
 use App\Support\LikeSearch;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -164,7 +166,7 @@ class AddrbookController extends Controller
 
     public function itemsType(string $type, Addrbook $addrbook)
     {
-        return $this->items($addrbook->id);
+        return app()->call([$this, 'items'], ['id' => $addrbook->id]);
     }
 
     public function statType(string $type, Addrbook $addrbook)
@@ -180,6 +182,11 @@ class AddrbookController extends Controller
     public function itemSalesTypeExport(string $type, Addrbook $addrbook)
     {
         return app()->call([$this, 'itemSalesExport'], ['id' => $addrbook->id]);
+    }
+
+    public function itemsTypeExport(string $type, Addrbook $addrbook)
+    {
+        return app()->call([$this, 'itemsExport'], ['id' => $addrbook->id]);
     }
 
     public function edit(Addrbook $addrbook)
@@ -253,41 +260,26 @@ class AddrbookController extends Controller
         ]);
     }
 
-    public function items($id)
+    public function items($id, Request $request, WarehouseStockQueryService $queryService)
     {
         $a = Addrbook::withTrashed()->findOrFail($id);
-        Gate::authorize(Addrbook::getPermissions($this->addrbookTypeSlug($a))['view']);
+        if (! Addrbook::typeHasWarehouseStock((int) $a->type)) {
+            abort(404);
+        }
+        Gate::authorize(Addrbook::getPermissions($this->addrbookTypeSlug($a))['warehouse-items']);
         $this->authorizeAddrbookLocation($a);
 
-        $q = $a->items()->with('group')
-            ->when(request('name'), fn ($q) => $q->where(fn ($sq) => $sq
-                ->where('items.name', 'like', '%'.request('name').'%')
-                ->orWhere('items.code', 'like', '%'.request('name').'%')
-            ))
-            // Qualified pivot column: inside a when() closure the callback receives the base
-            // query builder, where wherePivot() is unavailable and degrades to a broken where.
-            ->when(request('show0') !== 'show', fn ($q) => $q->where('warehouse_item.quantity', '>', 0));
+        $query = $queryService->buildItemsQuery($a, $request);
 
-        $sort = request('sort', 'qtydesc');
-        match ($sort) {
-            'qtyasc' => $q->orderByPivot('quantity', 'asc'),
-            'codedesc' => $q->orderBy('items.code', 'desc'),
-            'codeasc' => $q->orderBy('items.code', 'asc'),
-            'namedesc' => $q->orderBy('items.name', 'desc'),
-            'nameasc' => $q->orderBy('items.name', 'asc'),
-            'iddesc' => $q->orderBy('items.id', 'desc'),
-            'idasc' => $q->orderBy('items.id', 'asc'),
-            default => $q->orderByPivot('quantity', 'desc'),
-        };
-
-        if (request()->expectsJson() || request()->ajax()) {
-            return response()->json($q->paginate((int) request('size', 50))->withQueryString());
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json($query->paginate($queryService->resolvePerPage($request))->withQueryString());
         }
 
         return view('addrbook.items', [
             'addrbook' => $a,
-            'items' => $q->paginate(50)->withQueryString(),
-            'filters' => request()->all(['name', 'sort', 'show0']),
+            'items' => $query->paginate($queryService->resolvePerPage($request))->withQueryString(),
+            'perPage' => $queryService->resolvePerPage($request),
+            'filters' => $request->only(['name', 'sort', 'show0']),
             'can' => [
                 'bank_hidden_balance' => ! (request()->user()?->is_superadmin ?? false) && (request()->user()?->can('addrbook-bank-account-hidden-balance') ?? false),
             ],
@@ -295,9 +287,26 @@ class AddrbookController extends Controller
         ]);
     }
 
+    public function itemsExport($id, Request $request, WarehouseStockQueryService $queryService, WarehouseStockExportService $exportService)
+    {
+        $a = Addrbook::withTrashed()->findOrFail($id);
+        if (! Addrbook::typeHasWarehouseStock((int) $a->type)) {
+            abort(404);
+        }
+        Gate::authorize(Addrbook::getPermissions($this->addrbookTypeSlug($a))['warehouse-items']);
+        $this->authorizeAddrbookLocation($a);
+
+        $items = $queryService->buildItemsQuery($a, $request)->get();
+
+        return $exportService->download($items, $a->name);
+    }
+
     public function itemSales($id, Request $request, ExportSellQueryService $queryService)
     {
         $a = Addrbook::withTrashed()->findOrFail($id);
+        if (! Addrbook::typeSupportsItemSales((int) $a->type)) {
+            abort(404);
+        }
         Gate::authorize(Addrbook::getPermissions($this->addrbookTypeSlug($a))['item-sales']);
         $this->authorizeAddrbookLocation($a);
 
@@ -324,6 +333,9 @@ class AddrbookController extends Controller
     public function itemSalesExport($id, Request $request, ExportSellQueryService $queryService, ExportSellExportService $exportService)
     {
         $a = Addrbook::withTrashed()->findOrFail($id);
+        if (! Addrbook::typeSupportsItemSales((int) $a->type)) {
+            abort(404);
+        }
         Gate::authorize(Addrbook::getPermissions($this->addrbookTypeSlug($a))['item-sales']);
         $this->authorizeAddrbookLocation($a);
 

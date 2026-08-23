@@ -95,6 +95,7 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::resource('addrbook', App\Http\Controllers\AddrbookController::class)->except(['index']);
     Route::get('addrbook/{addrbook}/transactions', [App\Http\Controllers\AddrbookController::class, 'transactions'])->name('addrbook.transactions');
     Route::get('addrbook/{addrbook}/items', [App\Http\Controllers\AddrbookController::class, 'items'])->name('addrbook.items');
+    Route::get('addrbook/{addrbook}/items/export', [App\Http\Controllers\AddrbookController::class, 'itemsExport'])->name('addrbook.items.export');
     Route::get('addrbook/{addrbook}/item-sales', [App\Http\Controllers\AddrbookController::class, 'itemSales'])->name('addrbook.item-sales');
     Route::get('addrbook/{addrbook}/item-sales/export', [App\Http\Controllers\AddrbookController::class, 'itemSalesExport'])->name('addrbook.item-sales.export');
     Route::get('addrbook/{addrbook}/stats', [App\Http\Controllers\AddrbookController::class, 'stat'])->name('addrbook.stats');
@@ -130,6 +131,9 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::get('/{type}/{addrbook}/items', [App\Http\Controllers\AddrbookController::class, 'itemsType'])
         ->where('type', $addrbookTypes)
         ->name('addrbook.type.items');
+    Route::get('/{type}/{addrbook}/items/export', [App\Http\Controllers\AddrbookController::class, 'itemsTypeExport'])
+        ->where('type', $addrbookTypes)
+        ->name('addrbook.type.items.export');
 
     Route::get('/{type}/{addrbook}/stats', [App\Http\Controllers\AddrbookController::class, 'statType'])
         ->where('type', $addrbookTypes)

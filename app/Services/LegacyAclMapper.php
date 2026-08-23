@@ -169,9 +169,14 @@ class LegacyAclMapper
         }
 
         return match ($action) {
-            'index', 'detail', 'transactions', 'stat', 'items', 'sales',
+            'index', 'detail', 'transactions', 'stat', 'sales',
             'search-item', 'summary' => ["{$prefix}-list"],
-            'itemsale' => ["{$prefix}-item-sales"],
+            'item', 'items' => in_array($appId, [self::WAREHOUSES, self::VWAREHOUSES], true)
+                ? ["{$prefix}-items"]
+                : ["{$prefix}-list"],
+            'itemsale' => in_array($appId, [self::BANKACCOUNTS, self::VACCOUNTS], true)
+                ? []
+                : ["{$prefix}-item-sales"],
             'create' => ["{$prefix}-create"],
             'edit', 'restore' => ["{$prefix}-edit"],
             'delete' => ["{$prefix}-delete"],
