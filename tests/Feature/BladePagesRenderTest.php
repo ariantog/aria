@@ -16,19 +16,19 @@ beforeEach(function () {
 
     expect($this->user->is_superadmin)->toBeTrue();
 
-    $supplier  = Addrbook::factory()->supplier()->create(['name' => 'Test Supplier']);
+    $supplier = Addrbook::factory()->supplier()->create(['name' => 'Test Supplier']);
     $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'Test Warehouse']);
 
     Transaction::factory()->create([
-        'type'           => Transaction::TYPE_BUY,
+        'type' => Transaction::TYPE_BUY,
         'invoice' => 'INV-SMOKE-1',
-        'sender_type'    => (string) Addrbook::TYPE_SUPPLIER,
-        'sender_id'      => $supplier->id,
-        'receiver_type'  => (string) Addrbook::TYPE_WAREHOUSE,
-        'receiver_id'    => $warehouse->id,
-        'real_total'    => 1_000_000,
-        'total_items'    => 5,
-        'user_id'        => $this->user->id,
+        'sender_type' => (string) Addrbook::TYPE_SUPPLIER,
+        'sender_id' => $supplier->id,
+        'receiver_type' => (string) Addrbook::TYPE_WAREHOUSE,
+        'receiver_id' => $warehouse->id,
+        'real_total' => 1_000_000,
+        'total_items' => 5,
+        'user_id' => $this->user->id,
     ]);
 });
 
@@ -157,6 +157,7 @@ it('renders migrated GET pages with a 200', function (string $route) {
     'report compare' => 'reports/compare',
     'report inventory-health' => 'reports/inventory-health',
     'report warehouse-arrangement' => 'reports/warehouse-arrangement',
+    'stock notifications' => 'stock-notifications',
     'report product-performance' => 'reports/product-performance',
     'report produksi potong' => 'reports/produksi-potong',
     'report produksi qc' => 'reports/produksi-qc',
