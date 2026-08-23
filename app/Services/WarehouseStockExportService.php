@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Item;
+use App\Models\Jubeliosync;
 use Illuminate\Support\Collection;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -12,9 +13,14 @@ class WarehouseStockExportService
 {
     /**
      * @param  Collection<int, Item>  $items
+     * @param  array<int, array{linked: bool, on_hand: ?float, mismatch: bool}>  $jubelioStocks
      */
-    public function download(Collection $items, string $warehouseName): StreamedResponse
-    {
+    public function download(
+        Collection $items,
+        string $warehouseName,
+        ?Jubeliosync $jubelioSync = null,
+        array $jubelioStocks = [],
+    ): StreamedResponse {
         $spreadsheet = new Spreadsheet;
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle('Warehouse Stock');
@@ -27,25 +33,48 @@ class WarehouseStockExportService
             'Price',
             'Stock',
         ];
+
+        if ($jubelioSync) {
+            $headers[] = 'Jubelio On Hand';
+            $headers[] = 'Jubelio Linked';
+        }
+
         $sheet->fromArray($headers, null, 'A1');
-        $sheet->getStyle('A1:F1')->getFont()->setBold(true);
+        $lastCol = chr(ord('A') + count($headers) - 1);
+        $sheet->getStyle('A1:'.$lastCol.'1')->getFont()->setBold(true);
 
         $rowNum = 2;
         foreach ($items as $item) {
             $group = $item->group;
-            $sheet->fromArray([
+            $row = [
                 (int) $item->id,
                 $item->code ?? '',
                 $group->description ?? $item->name ?? '',
                 $item->description ?: ($group->description ?? ''),
                 (float) $item->price,
                 (float) ($item->pivot->quantity ?? 0),
-            ], null, 'A'.$rowNum);
+            ];
+
+            if ($jubelioSync) {
+                $jubelio = $jubelioStocks[$item->id] ?? null;
+                if ($jubelio && $jubelio['linked'] && $jubelio['on_hand'] !== null) {
+                    $row[] = $jubelio['on_hand'];
+                    $row[] = 'Yes';
+                } elseif ($jubelio && $jubelio['linked']) {
+                    $row[] = '';
+                    $row[] = 'Yes';
+                } else {
+                    $row[] = '';
+                    $row[] = 'No';
+                }
+            }
+
+            $sheet->fromArray($row, null, 'A'.$rowNum);
 
             $rowNum++;
         }
 
-        foreach (range('A', 'F') as $col) {
+        foreach (range('A', $lastCol) as $col) {
             $sheet->getColumnDimension($col)->setAutoSize(true);
         }
 

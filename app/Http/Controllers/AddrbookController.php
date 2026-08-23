@@ -11,6 +11,7 @@ use App\Models\Addrbook;
 use App\Models\Location;
 use App\Services\ExportSellExportService;
 use App\Services\ExportSellQueryService;
+use App\Services\WarehouseJubelioStockService;
 use App\Services\WarehouseStockExportService;
 use App\Services\WarehouseStockQueryService;
 use App\Support\LikeSearch;
@@ -260,7 +261,7 @@ class AddrbookController extends Controller
         ]);
     }
 
-    public function items($id, Request $request, WarehouseStockQueryService $queryService)
+    public function items($id, Request $request, WarehouseStockQueryService $queryService, WarehouseJubelioStockService $jubelioStockService)
     {
         $a = Addrbook::withTrashed()->findOrFail($id);
         if (! Addrbook::typeHasWarehouseStock((int) $a->type)) {
@@ -275,11 +276,28 @@ class AddrbookController extends Controller
             return response()->json($query->paginate($queryService->resolvePerPage($request))->withQueryString());
         }
 
+        $items = $query->paginate($queryService->resolvePerPage($request))->withQueryString();
+        $jubelioSync = $jubelioStockService->syncForWarehouse($a->id);
+        $jubelioStocks = [];
+        $jubelioFetchFailed = false;
+        $jubelioUnlinkedCount = 0;
+
+        if ($jubelioSync) {
+            $jubelioData = $jubelioStockService->stockDataForItems($jubelioSync, $items->getCollection());
+            $jubelioStocks = $jubelioData['stocks'];
+            $jubelioFetchFailed = $jubelioData['fetch_failed'];
+            $jubelioUnlinkedCount = $jubelioData['unlinked_count'];
+        }
+
         return view('addrbook.items', [
             'addrbook' => $a,
-            'items' => $query->paginate($queryService->resolvePerPage($request))->withQueryString(),
+            'items' => $items,
             'perPage' => $queryService->resolvePerPage($request),
             'filters' => $request->only(['name', 'sort', 'show0']),
+            'jubelioSync' => $jubelioSync,
+            'jubelioStocks' => $jubelioStocks,
+            'jubelioFetchFailed' => $jubelioFetchFailed,
+            'jubelioUnlinkedCount' => $jubelioUnlinkedCount,
             'can' => [
                 'bank_hidden_balance' => ! (request()->user()?->is_superadmin ?? false) && (request()->user()?->can('addrbook-bank-account-hidden-balance') ?? false),
             ],
@@ -287,7 +305,7 @@ class AddrbookController extends Controller
         ]);
     }
 
-    public function itemsExport($id, Request $request, WarehouseStockQueryService $queryService, WarehouseStockExportService $exportService)
+    public function itemsExport($id, Request $request, WarehouseStockQueryService $queryService, WarehouseStockExportService $exportService, WarehouseJubelioStockService $jubelioStockService)
     {
         $a = Addrbook::withTrashed()->findOrFail($id);
         if (! Addrbook::typeHasWarehouseStock((int) $a->type)) {
@@ -297,8 +315,14 @@ class AddrbookController extends Controller
         $this->authorizeAddrbookLocation($a);
 
         $items = $queryService->buildItemsQuery($a, $request)->get();
+        $jubelioSync = $jubelioStockService->syncForWarehouse($a->id);
+        $jubelioStocks = [];
 
-        return $exportService->download($items, $a->name);
+        if ($jubelioSync) {
+            $jubelioStocks = $jubelioStockService->stockDataForItems($jubelioSync, $items)['stocks'];
+        }
+
+        return $exportService->download($items, $a->name, $jubelioSync, $jubelioStocks);
     }
 
     public function itemSales($id, Request $request, ExportSellQueryService $queryService)

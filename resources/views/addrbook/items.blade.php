@@ -28,10 +28,29 @@ $idr = fn ($v) => 'IDR ' . number_format((float) $v, 0, ',', '.');
             </div>
             <h1 class="text-2xl font-bold text-gray-900">Warehouse Stock</h1>
             <p class="text-sm text-gray-500">Available inventory for <span class="text-blue-600">{{ $addrbook->name }}</span></p>
+            @if($jubelioSync ?? null)
+                <p class="mt-1 text-xs text-gray-500">
+                    Jubelio location:
+                    <span class="font-medium text-gray-700">{{ $jubelioSync->jubelio_location_name }}</span>
+                    <span class="text-gray-400">· on-hand stock at mapped location</span>
+                </p>
+            @endif
         </div>
     </div>
 
     @include('addrbook.partials.tabs', ['active' => 'items'])
+
+    @if(($jubelioUnlinkedCount ?? 0) > 0)
+        <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            <strong>{{ $jubelioUnlinkedCount }}</strong> item(s) on this page are not linked to Jubelio (missing Jubelio item ID).
+        </div>
+    @endif
+
+    @if(($jubelioFetchFailed ?? false) && ($jubelioSync ?? null))
+        <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+            Could not fetch Jubelio stock right now. Aria stock is still shown below.
+        </div>
+    @endif
 
     {{-- Filters --}}
     <div class="space-y-4 rounded-xl border border-gray-200 bg-white p-4">
@@ -96,6 +115,9 @@ $idr = fn ($v) => 'IDR ' . number_format((float) $v, 0, ',', '.');
                     <th class="px-2 py-2.5 font-bold">Description</th>
                     <th class="w-28 px-2 py-2.5 text-right font-bold">Price</th>
                     <th class="w-20 px-2 py-2.5 text-right font-bold">Stock</th>
+                    @if($jubelioSync ?? null)
+                        <th class="w-24 px-2 py-2.5 text-right font-bold">Jubelio</th>
+                    @endif
                     <th class="w-14 px-2 py-2.5 text-center font-bold"></th>
                 </tr>
             </thead>
@@ -107,6 +129,7 @@ $idr = fn ($v) => 'IDR ' . number_format((float) $v, 0, ',', '.');
                         $onlineNm = $g->description2 ?? $g->description ?? $item->name;
                         $desc = $item->description ?: ($g->description ?? '-');
                         $qty = (float) ($item->pivot->quantity ?? 0);
+                        $jubelio = ($jubelioStocks ?? [])[$item->id] ?? null;
                         $itemShowUrl = $item->showUrl();
                         $itemEditUrl = $item->editUrl();
                     @endphp
@@ -130,6 +153,21 @@ $idr = fn ($v) => 'IDR ' . number_format((float) $v, 0, ',', '.');
                         <td class="truncate px-2 py-2 text-gray-500" title="{{ $desc }}">{{ $desc }}</td>
                         <td class="whitespace-nowrap px-2 py-2 text-right font-semibold text-gray-700">{{ $idr($item->price) }}</td>
                         <td class="whitespace-nowrap px-2 py-2 text-right font-mono font-bold {{ $qty > 0 ? 'text-emerald-600' : 'text-gray-400' }}">{{ number_format($qty, 0, ',', '.') }}</td>
+                        @if($jubelioSync ?? null)
+                            <td class="whitespace-nowrap px-2 py-2 text-right">
+                                @if(! $jubelio || ! ($jubelio['linked'] ?? false))
+                                    <span class="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700" title="Item is not linked to Jubelio">
+                                        Not linked
+                                    </span>
+                                @elseif($jubelio['on_hand'] !== null)
+                                    <span class="font-mono font-bold {{ ($jubelio['mismatch'] ?? false) ? 'text-red-600' : 'text-blue-600' }}" title="Jubelio on-hand at {{ $jubelioSync->jubelio_location_name }}">
+                                        {{ number_format($jubelio['on_hand'], 0, ',', '.') }}
+                                    </span>
+                                @else
+                                    <span class="text-gray-400">—</span>
+                                @endif
+                            </td>
+                        @endif
                         <td class="px-2 py-2 text-center">
                             <a href="{{ $itemEditUrl }}" onclick="event.stopPropagation()" class="inline-flex h-8 w-8 items-center justify-center rounded text-gray-500 hover:bg-blue-50 hover:text-blue-600">
                                 <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
@@ -137,7 +175,7 @@ $idr = fn ($v) => 'IDR ' . number_format((float) $v, 0, ',', '.');
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="8" class="px-4 py-12 text-center text-sm italic text-gray-500">No items found in this warehouse.</td></tr>
+                    <tr><td colspan="{{ ($jubelioSync ?? null) ? 9 : 8 }}" class="px-4 py-12 text-center text-sm italic text-gray-500">No items found in this warehouse.</td></tr>
                 @endforelse
             </tbody>
         </table>
