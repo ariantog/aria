@@ -269,7 +269,8 @@
                             <div class="relative sm:col-span-3">
                                 <label class="mb-1 block text-xs font-medium text-gray-500 sm:hidden">Item Name</label>
                                 <input type="text" x-model="item.name" :id="'name_' + idx"
-                                       @input="searchItems(idx, $event)" @focus="item.showDropdown = true"
+                                       @input="searchItems(idx, $event)" @focus="onNameFocus(idx)"
+                                       @pointerdown="onNamePointerDown(idx)"
                                        @keydown="nameKeydown(idx, $event)"
                                        @keyup="nameKeyup(idx, $event)"
                                        :readonly="nameKeyboardNavLock(item)"
@@ -953,7 +954,22 @@ function createTransaction() {
         },
 
         nameKeyboardNavLock(row) {
-            return isMobileComboboxContext() && row.showDropdown && row.results.length > 0;
+            // Only lock while arrow-navigating results; locking as soon as the
+            // dropdown opens blocks the mobile soft keyboard when fixing a typo.
+            return isMobileComboboxContext() && row.showDropdown && row.results.length > 0 && row.activeIndex >= 0;
+        },
+
+        onNameFocus(idx) {
+            const row = this.form.items[idx];
+            if (!row) return;
+            row.showDropdown = true;
+            row.activeIndex = -1;
+        },
+
+        onNamePointerDown(idx) {
+            const row = this.form.items[idx];
+            if (!row || !isMobileComboboxContext()) return;
+            row.activeIndex = -1;
         },
 
         nameKeydown(idx, e) {
@@ -1022,6 +1038,7 @@ function createTransaction() {
             }
             if (key === 'Escape') {
                 row.showDropdown = false;
+                row.activeIndex = -1;
                 return true;
             }
             return false;

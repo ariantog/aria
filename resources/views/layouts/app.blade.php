@@ -537,6 +537,7 @@ function asyncCombobox(config) {
         },
 
         handleFocus() {
+            this.activeIndex = -1;
             if (this.needsMoreChars() && this.items.length === 0) {
                 return;
             }
@@ -547,7 +548,16 @@ function asyncCombobox(config) {
         },
 
         keyboardNavLock() {
-            return isMobileComboboxContext() && this.open && this.items.length > 0;
+            // Only lock once the user is arrow-navigating results. Locking while
+            // activeIndex is still -1 blocks the mobile soft keyboard when correcting
+            // a partially typed search term.
+            return isMobileComboboxContext() && this.open && this.items.length > 0 && this.activeIndex >= 0;
+        },
+
+        handlePointerDown() {
+            if (isMobileComboboxContext()) {
+                this.activeIndex = -1;
+            }
         },
 
         handleKeydown(e) {
