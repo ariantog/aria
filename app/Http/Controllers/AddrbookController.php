@@ -298,7 +298,7 @@ class AddrbookController extends Controller
     public function itemSales($id, Request $request, ExportSellQueryService $queryService)
     {
         $a = Addrbook::withTrashed()->findOrFail($id);
-        Gate::authorize(Addrbook::getPermissions($this->addrbookTypeSlug($a))['view']);
+        Gate::authorize(Addrbook::getPermissions($this->addrbookTypeSlug($a))['item-sales']);
         $this->authorizeAddrbookLocation($a);
 
         $perPage = $queryService->resolvePerPage($request);
@@ -324,7 +324,7 @@ class AddrbookController extends Controller
     public function itemSalesExport($id, Request $request, ExportSellQueryService $queryService, ExportSellExportService $exportService)
     {
         $a = Addrbook::withTrashed()->findOrFail($id);
-        Gate::authorize(Addrbook::getPermissions($this->addrbookTypeSlug($a))['view']);
+        Gate::authorize(Addrbook::getPermissions($this->addrbookTypeSlug($a))['item-sales']);
         $this->authorizeAddrbookLocation($a);
 
         $rows = $queryService
