@@ -27,16 +27,10 @@
     <input type="text" name="invoice" value="{{ $filters['invoice'] ?? '' }}" placeholder="Invoice…"
            class="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
 </div>
-<div class="flex flex-col gap-1">
-    <label class="text-xs font-medium uppercase text-gray-500">Item ID</label>
-    <input type="number" name="item_id" value="{{ $filters['item_id'] ?? '' }}" placeholder="Barcode / ID"
-           class="w-28 rounded-md border border-gray-300 px-2.5 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
-</div>
-<div class="flex flex-col gap-1">
-    <label class="text-xs font-medium uppercase text-gray-500">Item Code</label>
-    <input type="text" name="item_code" value="{{ $filters['item_code'] ?? '' }}" placeholder="SKU…"
-           class="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
-</div>
+@include('transactions.partials.export-sell-item-combobox', [
+    'endpoint' => $itemLookupUrl ?? route('items.index'),
+    'initial' => $selectedItem ?? null,
+])
 <div class="flex flex-col gap-1">
     <label class="text-xs font-medium uppercase text-gray-500">Qty min</label>
     <input type="number" step="0.01" name="qty_min" value="{{ $filters['qty_min'] ?? '' }}"

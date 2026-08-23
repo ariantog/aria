@@ -35,6 +35,8 @@
         'receiverLabel' => $receiverLabel,
         'selectedSender' => $selectedSender,
         'selectedReceiver' => $selectedReceiver,
+        'itemLookupUrl' => $itemLookupUrl ?? route('items.index'),
+        'selectedItem' => $selectedItem ?? null,
     ])
 
     <div class="flex items-center justify-end">
@@ -66,8 +68,10 @@
                     @forelse($rows as $row)
                         @php
                             $itemUrl = \App\Http\Controllers\ExportSellController::itemShowUrl($row->item?->type, (int) $row->item_id);
-                            $senderUrl = \App\Http\Controllers\ExportSellController::addrbookShowUrl($row->sender);
-                            $receiverUrl = \App\Http\Controllers\ExportSellController::addrbookShowUrl($row->receiver);
+                            $sender = $row->sender ?? $row->transaction?->sender;
+                            $receiver = $row->receiver ?? $row->transaction?->receiver;
+                            $senderUrl = \App\Http\Controllers\ExportSellController::addrbookShowUrl($sender);
+                            $receiverUrl = \App\Http\Controllers\ExportSellController::addrbookShowUrl($receiver);
                         @endphp
                         <tr class="align-top hover:bg-gray-50">
                             <td class="whitespace-nowrap px-3 py-2 text-gray-700">

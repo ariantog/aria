@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Enums\ItemType;
 use App\Models\Addrbook;
+use App\Models\Item;
 use App\Models\Report;
 use App\Services\ExportSellExportService;
 use App\Services\ExportSellQueryService;
@@ -37,6 +38,8 @@ class ExportSellController extends Controller
             'receiverLabel' => $partyLookups['receiver_label'],
             'selectedSender' => $this->resolveSelectedParty($filters['sender'] ?? null),
             'selectedReceiver' => $this->resolveSelectedParty($filters['receiver'] ?? null),
+            'itemLookupUrl' => route('items.index'),
+            'selectedItem' => $this->resolveSelectedItem($filters['item_id'] ?? null),
         ]);
     }
 
@@ -97,6 +100,35 @@ class ExportSellController extends Controller
         return [
             'id' => $addrbook->id,
             'name' => $addrbook->name,
+        ];
+    }
+
+    /**
+     * @return array{id: int, name: string, code: string|null}|null
+     */
+    private function resolveSelectedItem(mixed $value): ?array
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        $term = trim((string) $value);
+        if ($term === '' || ! ctype_digit($term)) {
+            return null;
+        }
+
+        $item = Item::query()->find((int) $term);
+        if (! $item) {
+            return null;
+        }
+
+        $code = $item->code ?: (string) $item->id;
+        $name = trim($code.' — '.$item->name, ' —');
+
+        return [
+            'id' => $item->id,
+            'name' => $name,
+            'code' => $item->code,
         ];
     }
 

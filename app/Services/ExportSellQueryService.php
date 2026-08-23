@@ -90,23 +90,34 @@ class ExportSellQueryService
         return TransactionDetail::query()
             ->with([
                 'transaction',
+                'transaction.sender',
+                'transaction.receiver',
                 'item',
                 'sender',
                 'receiver',
             ])
             ->visibleToUser($user)
-            ->whereIn('transaction_details.transaction_type', $includedTypes)
+            ->where(function (Builder $typeQuery) use ($includedTypes) {
+                $typeQuery
+                    ->whereIn('transaction_details.transaction_type', $includedTypes)
+                    ->orWhereHas('transaction', fn (Builder $tq) => $tq->whereIn('type', $includedTypes));
+            })
             ->when(
                 $addrbookId !== null,
                 fn (Builder $q) => $q->where(function (Builder $partyQuery) use ($addrbookId) {
-                    $partyQuery
-                        ->where('transaction_details.sender_id', $addrbookId)
-                        ->orWhere('transaction_details.receiver_id', $addrbookId);
+                    $this->applyPartyIdFilter($partyQuery, 'sender', $addrbookId)
+                        ->orWhere(function (Builder $receiverQuery) use ($addrbookId) {
+                            $this->applyPartyIdFilter($receiverQuery, 'receiver', $addrbookId);
+                        });
                 }),
             )
             ->when(
                 $type !== '' && $type !== null,
-                fn (Builder $q) => $q->where('transaction_details.transaction_type', (int) $type),
+                fn (Builder $q) => $q->where(function (Builder $typeQuery) use ($type) {
+                    $typeQuery
+                        ->where('transaction_details.transaction_type', (int) $type)
+                        ->orWhereHas('transaction', fn (Builder $tq) => $tq->where('type', (int) $type));
+                }),
             )
             ->when($request->input('from'), fn (Builder $q, $v) => $q->whereDate('transaction_details.date', '>=', $v))
             ->when($request->input('to'), fn (Builder $q, $v) => $q->whereDate('transaction_details.date', '<=', $v))
@@ -132,12 +143,10 @@ class ExportSellQueryService
                 }
 
                 if (ctype_digit($term)) {
-                    return $q->where('transaction_details.sender_id', (int) $term);
+                    return $this->applyPartyIdFilter($q, 'sender', (int) $term);
                 }
 
-                $pattern = LikeSearch::contains($term);
-
-                return $q->whereHas('sender', fn (Builder $sq) => $sq->where('customers.name', 'like', $pattern));
+                return $this->applyPartyNameFilter($q, 'sender', $term);
             })
             ->when($addrbookId === null && $request->input('receiver'), function (Builder $q, $v) {
                 $term = trim((string) $v);
@@ -146,15 +155,37 @@ class ExportSellQueryService
                 }
 
                 if (ctype_digit($term)) {
-                    return $q->where('transaction_details.receiver_id', (int) $term);
+                    return $this->applyPartyIdFilter($q, 'receiver', (int) $term);
                 }
 
-                $pattern = LikeSearch::contains($term);
-
-                return $q->whereHas('receiver', fn (Builder $sq) => $sq->where('customers.name', 'like', $pattern));
+                return $this->applyPartyNameFilter($q, 'receiver', $term);
             })
             ->orderByDesc('transaction_details.date')
             ->orderByDesc('transaction_details.transaction_id')
             ->orderByDesc('transaction_details.id');
+    }
+
+    private function applyPartyIdFilter(Builder $query, string $role, int $partyId): Builder
+    {
+        $detailColumn = $role === 'sender' ? 'transaction_details.sender_id' : 'transaction_details.receiver_id';
+        $transactionColumn = $role === 'sender' ? 'sender_id' : 'receiver_id';
+
+        return $query->where(function (Builder $partyQuery) use ($detailColumn, $transactionColumn, $partyId) {
+            $partyQuery
+                ->where($detailColumn, $partyId)
+                ->orWhereHas('transaction', fn (Builder $tq) => $tq->where($transactionColumn, $partyId));
+        });
+    }
+
+    private function applyPartyNameFilter(Builder $query, string $role, string $term): Builder
+    {
+        $pattern = LikeSearch::contains($term);
+        $transactionRelation = 'transaction.'.$role;
+
+        return $query->where(function (Builder $partyQuery) use ($role, $transactionRelation, $pattern) {
+            $partyQuery
+                ->whereHas($role, fn (Builder $sq) => $sq->where('customers.name', 'like', $pattern))
+                ->orWhereHas($transactionRelation, fn (Builder $sq) => $sq->where('customers.name', 'like', $pattern));
+        });
     }
 }

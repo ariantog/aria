@@ -30,6 +30,8 @@
                 'receiverLabel' => $receiverLabel ?? null,
                 'selectedSender' => $selectedSender ?? null,
                 'selectedReceiver' => $selectedReceiver ?? null,
+                'itemLookupUrl' => $itemLookupUrl ?? route('items.index'),
+                'selectedItem' => $selectedItem ?? null,
             ])
         </form>
     </div>

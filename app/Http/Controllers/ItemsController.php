@@ -9,6 +9,7 @@ use App\Enums\TransactionType;
 use App\Http\Requests\StoreItemRequest;
 use App\Models\Item;
 use App\Models\ItemGroup;
+use App\Models\Report;
 use App\Models\Tag;
 use App\Models\TransactionDetail;
 use App\Services\ItemService;
@@ -33,7 +34,13 @@ class ItemsController extends Controller
     {
         $type = $type ?? ItemType::ITEM;
         $p = Item::getPermissions();
-        Gate::authorize($type === ItemType::ASSET_LANCAR ? $p['asset-lancar-view'] : $p['view']);
+        $permission = $type === ItemType::ASSET_LANCAR ? $p['asset-lancar-view'] : $p['view'];
+        $canViewItems = Gate::check($permission);
+        $canExportSellLookup = $this->isJson($request) && Gate::check(Report::getPermissions()['view-export-sell']);
+
+        if (! $canViewItems && ! $canExportSellLookup) {
+            Gate::authorize($permission);
+        }
 
         $q = Item::with('group');
         if ($this->isJson($request)) {
