@@ -147,6 +147,32 @@ it('filters export sell lines by parent transaction sender when detail sender is
         ->assertDontSee('PARENT-SENDER-HIDDEN', false);
 });
 
+it('filters export sell lines by sender id greater than one', function () {
+    Addrbook::factory()->warehouse()->create();
+    $sender = Addrbook::factory()->warehouse()->create(['name' => 'High Id Sender']);
+    expect($sender->id)->toBeGreaterThan(1);
+
+    $receiver = Addrbook::factory()->customer()->create();
+    $transaction = Transaction::factory()->create([
+        'type' => Transaction::TYPE_SELL,
+        'invoice' => 'HIGH-ID-SENDER-FILTER',
+        'sender_id' => $sender->id,
+        'receiver_id' => $receiver->id,
+    ]);
+
+    TransactionDetail::factory()->create([
+        'transaction_id' => $transaction->id,
+        'transaction_type' => Transaction::TYPE_SELL,
+        'sender_id' => 0,
+        'receiver_id' => 0,
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('transactions.export-sell', ['sender' => $sender->id]))
+        ->assertOk()
+        ->assertSee('HIGH-ID-SENDER-FILTER', false);
+});
+
 it('returns item matches for export sell item lookup', function () {
     $item = Item::factory()->create(['code' => 'EXPORT-LOOKUP-SKU', 'name' => 'Lookup Export Item']);
     Item::factory()->create(['code' => 'OTHER-SKU', 'name' => 'Other Item']);
