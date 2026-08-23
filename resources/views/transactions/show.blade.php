@@ -215,7 +215,16 @@
             </div>
 
             {{-- Column Controls --}}
-            <div class="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-full border border-dashed bg-gray-50 px-4 py-2 print:hidden">
+            <div class="flex flex-wrap items-center gap-2 print:hidden">
+                <button type="button"
+                        @click="copyItemsTable()"
+                        data-testid="copy-items-table"
+                        title="Copy items table for Excel"
+                        class="inline-flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50">
+                    <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                    <span x-text="copyFeedback ? 'Copied!' : 'Copy table'"></span>
+                </button>
+                <div class="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-full border border-dashed bg-gray-50 px-4 py-2">
                 <span class="text-[10px] font-black tracking-widest text-gray-500 uppercase">View:</span>
                 <label class="flex cursor-pointer items-center gap-2 text-xs font-bold">
                     <input type="checkbox" x-model="showImage" class="h-4 w-4 rounded border-gray-300"> Image
@@ -229,11 +238,12 @@
                 <label class="flex cursor-pointer items-center gap-2 text-xs font-bold">
                     <input type="checkbox" x-model="showName" class="h-4 w-4 rounded border-gray-300"> Name
                 </label>
+                </div>
             </div>
         </div>
 
         <div class="overflow-x-auto">
-            <table class="w-full min-w-[720px] text-sm">
+            <table x-ref="itemsTable" class="w-full min-w-[720px] text-sm">
                 <thead class="border-y bg-gray-50 text-[10px] font-bold tracking-wider text-gray-500 uppercase">
                     <tr>
                         <th class="px-3 py-2.5 text-center font-black" x-show="showImage">Img</th>
@@ -395,6 +405,8 @@ function transactionShowPage() {
         showBarcode: typeof saved.showBarcode === 'boolean' ? saved.showBarcode : defaults.showBarcode,
         showSku: typeof saved.showSku === 'boolean' ? saved.showSku : defaults.showSku,
         showName: typeof saved.showName === 'boolean' ? saved.showName : defaults.showName,
+        copyFeedback: false,
+        copyFeedbackTimer: null,
         waOpen: false,
         deleteConfirmOpen: false,
         init() {
@@ -410,6 +422,85 @@ function transactionShowPage() {
                 showSku: this.showSku,
                 showName: this.showName,
             }));
+        },
+        showCopyFeedback() {
+            this.copyFeedback = true;
+            clearTimeout(this.copyFeedbackTimer);
+            this.copyFeedbackTimer = setTimeout(() => {
+                this.copyFeedback = false;
+            }, 2000);
+        },
+        cellCopyValue(cell) {
+            const img = cell.querySelector('img');
+            if (img) {
+                return (img.getAttribute('alt') || img.getAttribute('src') || '').trim();
+            }
+
+            const link = cell.querySelector('a');
+            if (link) {
+                return link.textContent.trim();
+            }
+
+            return cell.innerText.replace(/\s+/g, ' ').trim();
+        },
+        tableNodeToTsv(table) {
+            const rows = [];
+
+            table.querySelectorAll('thead tr, tbody tr').forEach((row) => {
+                const values = [];
+
+                row.querySelectorAll('th, td').forEach((cell) => {
+                    if (window.getComputedStyle(cell).display === 'none') {
+                        return;
+                    }
+
+                    values.push(this.cellCopyValue(cell));
+                });
+
+                if (values.length) {
+                    rows.push(values.join('\t'));
+                }
+            });
+
+            return rows.join('\n');
+        },
+        async copyItemsTable() {
+            const table = this.$refs.itemsTable;
+            if (!table) {
+                return;
+            }
+
+            const clone = table.cloneNode(true);
+            clone.querySelectorAll('th, td').forEach((cell) => {
+                if (window.getComputedStyle(cell).display === 'none') {
+                    cell.remove();
+                }
+            });
+
+            const plain = this.tableNodeToTsv(clone);
+            const html = clone.outerHTML;
+
+            try {
+                if (window.ClipboardItem && navigator.clipboard?.write) {
+                    await navigator.clipboard.write([
+                        new ClipboardItem({
+                            'text/plain': new Blob([plain], { type: 'text/plain' }),
+                            'text/html': new Blob([html], { type: 'text/html' }),
+                        }),
+                    ]);
+                } else {
+                    await navigator.clipboard.writeText(plain);
+                }
+
+                this.showCopyFeedback();
+            } catch (e) {
+                try {
+                    await navigator.clipboard.writeText(plain);
+                    this.showCopyFeedback();
+                } catch (fallbackError) {
+                    console.error('Failed to copy items table', fallbackError);
+                }
+            }
         },
     };
 }
