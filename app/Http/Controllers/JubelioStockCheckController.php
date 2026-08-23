@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\StoreJubelioStockCheckRequest;
 use App\Models\Jubelio;
 use App\Models\JubelioStockCheck;
+use App\Services\JubelioStockCheckService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\View\View;
@@ -59,6 +60,8 @@ class JubelioStockCheckController extends Controller
             'sync_cursor' => 0,
             'per_type_limit' => $request->integer('per_type_limit'),
             'demand_days' => $request->integer('demand_days'),
+            'target_discrepancies' => $request->integer('target_discrepancies', JubelioStockCheckService::DEFAULT_TARGET_DISCREPANCIES),
+            'scan_round' => 0,
             'status' => 'created',
         ]);
 
@@ -73,8 +76,19 @@ class JubelioStockCheckController extends Controller
     {
         Gate::authorize(Jubelio::getPermissions()['stock-check']);
 
+        $sort = request()->query('sort', 'abs_diff_desc');
+        $discrepanciesQuery = $jubelioStockCheck->discrepancies()->with('warehouse', 'item');
+
+        match ($sort) {
+            'diff_asc' => $discrepanciesQuery->orderByRaw('(aria_qty - jubelio_qty) ASC'),
+            'diff_desc' => $discrepanciesQuery->orderByRaw('(aria_qty - jubelio_qty) DESC'),
+            default => $discrepanciesQuery->orderByRaw('ABS(aria_qty - jubelio_qty) DESC'),
+        };
+
         return view('jubelio.stock-check.show', [
-            'stockCheck' => $jubelioStockCheck->load('discrepancies.warehouse', 'discrepancies.item'),
+            'stockCheck' => $jubelioStockCheck,
+            'discrepancies' => $discrepanciesQuery->get(),
+            'sort' => $sort,
             'syncedWarehouseCount' => \App\Models\Jubeliosync::where('warehouse_id', '>', 0)->where('jubelio_location_id', '>', 0)->count(),
             'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);

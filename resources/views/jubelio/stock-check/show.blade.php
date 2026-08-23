@@ -8,6 +8,11 @@ $breadcrumbs = [
     ['title' => 'Pengecekan Stok', 'href' => route('jubelio-stock-checks.index')],
     ['title' => 'Detail Pengecekan', 'href' => route('jubelio-stock-checks.show', $stockCheck->id)],
 ];
+$sortOptions = [
+    'abs_diff_desc' => 'Selisih terbesar',
+    'diff_desc' => 'Aria lebih banyak',
+    'diff_asc' => 'Jubelio lebih banyak',
+];
 @endphp
 
 <div class="flex flex-col gap-6 p-4">
@@ -38,17 +43,27 @@ $breadcrumbs = [
         </div>
         <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
             <p class="text-sm font-medium text-gray-700">Total Ketidakcocokan</p>
-            <div class="mt-2 text-2xl font-bold text-red-600">{{ $stockCheck->discrepancies->count() }}</div>
+            <div class="mt-2 text-2xl font-bold text-red-600">{{ $discrepancies->count() }}</div>
         </div>
         <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
             <p class="text-sm font-medium text-gray-700">Perbandingan</p>
-            <p class="mt-2 text-sm text-gray-600">Aria qty vs Jubelio <strong>on-hand</strong></p>
+            <p class="mt-2 text-sm text-gray-600">Aria qty vs Jubelio <strong>available</strong> — menangkap lag webhook (Aria belum turun, Jubelio sudah)</p>
+            <p class="mt-1 text-xs text-gray-500">On-hand / reserved / on-order ditampilkan sebagai referensi.</p>
         </div>
     </div>
 
     <div class="rounded-xl border border-gray-200 bg-white shadow-sm">
-        <div class="border-b border-gray-100 px-6 py-4">
+        <div class="flex flex-col gap-3 border-b border-gray-100 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
             <h3 class="text-sm font-semibold text-gray-900">Daftar Ketidakcocokan</h3>
+            <div class="flex items-center gap-2">
+                <label for="sort" class="text-xs font-medium text-gray-500 uppercase">Urutkan</label>
+                <select id="sort" onchange="window.location.href='{{ route('jubelio-stock-checks.show', $stockCheck->id) }}?sort=' + this.value"
+                        class="h-9 rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                    @foreach($sortOptions as $value => $label)
+                    <option value="{{ $value }}" @selected($sort === $value)>{{ $label }}</option>
+                    @endforeach
+                </select>
+            </div>
         </div>
         <div class="p-6">
             <div class="overflow-x-auto">
@@ -60,14 +75,16 @@ $breadcrumbs = [
                             <th class="px-4 py-3">Warehouse (Aria)</th>
                             <th class="px-4 py-3">Location (Jubelio)</th>
                             <th class="px-4 py-3 text-center">Qty Aria</th>
-                            <th class="px-4 py-3 text-center">Jubelio On Hand</th>
-                            <th class="px-4 py-3 text-center">On Order (ref)</th>
+                            <th class="px-4 py-3 text-center">Jubelio Available</th>
+                            <th class="px-4 py-3 text-center">On Hand</th>
+                            <th class="px-4 py-3 text-center">Reserved</th>
+                            <th class="px-4 py-3 text-center">On Order</th>
                             <th class="px-4 py-3 text-center">Selisih</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-100">
-                        @forelse($stockCheck->discrepancies as $item)
-                        @php $diff = $item->aria_qty - $item->jubelio_qty; @endphp
+                        @forelse($discrepancies as $item)
+                        @php $diff = $item->qty_diff; @endphp
                         <tr class="hover:bg-gray-50">
                             <td class="px-4 py-3">
                                 @if($item->item)
@@ -88,7 +105,9 @@ $breadcrumbs = [
                                 </div>
                             </td>
                             <td class="px-4 py-3 text-center font-bold">{{ $item->aria_qty }}</td>
-                            <td class="px-4 py-3 text-center font-bold text-blue-600">{{ $item->jubelio_on_hand ?? $item->jubelio_qty }}</td>
+                            <td class="px-4 py-3 text-center font-bold text-green-600">{{ $item->jubelio_available ?? $item->jubelio_qty }}</td>
+                            <td class="px-4 py-3 text-center text-blue-600">{{ $item->jubelio_on_hand ?? '—' }}</td>
+                            <td class="px-4 py-3 text-center text-gray-500">{{ $item->jubelio_reserved ?? '—' }}</td>
                             <td class="px-4 py-3 text-center text-gray-500">{{ $item->jubelio_on_order ?? '—' }}</td>
                             <td class="px-4 py-3 text-center">
                                 <span class="inline-flex rounded px-2 py-0.5 text-xs font-medium {{ $diff < 0 ? 'bg-red-600 text-white' : ($diff > 0 ? 'bg-yellow-500 text-white' : 'bg-gray-800 text-white') }}">
@@ -98,7 +117,7 @@ $breadcrumbs = [
                         </tr>
                         @empty
                         <tr>
-                            <td colspan="8" class="px-4 py-8 text-center italic text-gray-500">Tidak ada ketidakcocokan ditemukan pada pengecekan ini.</td>
+                            <td colspan="10" class="px-4 py-8 text-center italic text-gray-500">Tidak ada ketidakcocokan ditemukan pada pengecekan ini.</td>
                         </tr>
                         @endforelse
                     </tbody>

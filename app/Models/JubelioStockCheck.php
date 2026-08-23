@@ -15,6 +15,8 @@ class JubelioStockCheck extends Model
         'sync_cursor',
         'per_type_limit',
         'demand_days',
+        'target_discrepancies',
+        'scan_round',
         'status',
     ];
 
@@ -24,6 +26,8 @@ class JubelioStockCheck extends Model
             'sync_cursor' => 'integer',
             'per_type_limit' => 'integer',
             'demand_days' => 'integer',
+            'target_discrepancies' => 'integer',
+            'scan_round' => 'integer',
         ];
     }
 

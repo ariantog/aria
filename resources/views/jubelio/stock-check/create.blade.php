@@ -58,9 +58,19 @@ $breadcrumbs = [
                     @error('demand_days')<p class="text-sm text-red-500">{{ $message }}</p>@enderror
                 </div>
 
+                <div class="space-y-2">
+                    <label for="target_discrepancies" class="block text-sm font-medium text-gray-700">Target ketidakcocokan harian</label>
+                    <input type="number" name="target_discrepancies" id="target_discrepancies" min="10" max="200"
+                           value="{{ old('target_discrepancies', 50) }}"
+                           class="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                    <p class="text-xs text-gray-500">Cron akan memindai lebih banyak SKU (ronde tambahan) sampai target tercapai atau katalog habis.</p>
+                    @error('target_discrepancies')<p class="text-sm text-red-500">{{ $message }}</p>@enderror
+                </div>
+
                 <div class="rounded-lg bg-gray-50 p-4 text-sm text-gray-600">
                     <p class="font-medium text-gray-800">Perbandingan stok</p>
-                    <p class="mt-1">Aria qty di gudang dibandingkan dengan Jubelio <strong>on-hand</strong> (bukan <code class="text-xs">available</code>). Kolom on-order ditampilkan hanya sebagai referensi.</p>
+                    <p class="mt-1">Aria qty di gudang dibandingkan dengan Jubelio <strong>available</strong>. Contoh: keduanya 10, lalu terjual di Jubelio → Jubelio 9, Aria masih 10 (webhook belum masuk) → selisih <strong>+1</strong> dan muncul di daftar.</p>
+                    <p class="mt-2">Hasil diurutkan berdasarkan selisih terbesar. Cron harian otomatis membuat job baru dan memindai sampai target ketidakcocokan tercapai.</p>
                 </div>
 
                 @error('active_job')<p class="text-sm text-red-500">{{ $message }}</p>@enderror
