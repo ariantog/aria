@@ -17,6 +17,25 @@ class TransactionService
             $this->updateStock($transaction);
             $this->updateBalances($transaction);
         });
+
+        $this->queueStockNotificationCheckIfNeeded($transaction);
+    }
+
+    private function queueStockNotificationCheckIfNeeded(Transaction $transaction): void
+    {
+        if ((int) $transaction->status !== Transaction::STATUS_COMPLETED) {
+            return;
+        }
+
+        if ((int) $transaction->type !== Transaction::TYPE_SELL) {
+            return;
+        }
+
+        DB::afterCommit(function () use ($transaction) {
+            app(ItemStockNotificationService::class)->checkAfterSell(
+                $transaction->loadMissing('details')
+            );
+        });
     }
 
     public function revertTransaction(Transaction $transaction)
