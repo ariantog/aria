@@ -25,6 +25,7 @@ it('renders export sell page for authorized users', function () {
         ->assertSee('data-testid="toggle-export-sell-filters"', false)
         ->assertSee('data-testid="export-sell-sender-combobox"', false)
         ->assertSee('data-testid="export-sell-receiver-combobox"', false)
+        ->assertSee('data-testid="export-sell-item-combobox"', false)
         ->assertSee('showFilters: true', false);
 });
 
@@ -107,6 +108,54 @@ it('filters export sell lines by selected sender id', function () {
         ->assertSee('SENDER-FILTER-VISIBLE', false)
         ->assertDontSee('SENDER-FILTER-HIDDEN', false)
         ->assertSee('Sender Filter A', false);
+});
+
+it('filters export sell lines by parent transaction sender when detail sender is null', function () {
+    $sender = Addrbook::factory()->warehouse()->create(['name' => 'Parent Sender WH']);
+    $receiver = Addrbook::factory()->customer()->create();
+
+    $visibleTx = Transaction::factory()->create([
+        'type' => Transaction::TYPE_SELL,
+        'invoice' => 'PARENT-SENDER-VISIBLE',
+        'sender_id' => $sender->id,
+        'receiver_id' => $receiver->id,
+    ]);
+    $hiddenTx = Transaction::factory()->create([
+        'type' => Transaction::TYPE_SELL,
+        'invoice' => 'PARENT-SENDER-HIDDEN',
+        'sender_id' => Addrbook::factory()->warehouse()->create()->id,
+        'receiver_id' => $receiver->id,
+    ]);
+
+    TransactionDetail::factory()->create([
+        'transaction_id' => $visibleTx->id,
+        'transaction_type' => Transaction::TYPE_SELL,
+        'sender_id' => null,
+        'receiver_id' => null,
+    ]);
+    TransactionDetail::factory()->create([
+        'transaction_id' => $hiddenTx->id,
+        'transaction_type' => Transaction::TYPE_SELL,
+        'sender_id' => null,
+        'receiver_id' => null,
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('transactions.export-sell', ['sender' => $sender->id]))
+        ->assertOk()
+        ->assertSee('PARENT-SENDER-VISIBLE', false)
+        ->assertDontSee('PARENT-SENDER-HIDDEN', false);
+});
+
+it('returns item matches for export sell item lookup', function () {
+    $item = Item::factory()->create(['code' => 'EXPORT-LOOKUP-SKU', 'name' => 'Lookup Export Item']);
+    Item::factory()->create(['code' => 'OTHER-SKU', 'name' => 'Other Item']);
+
+    $this->actingAs($this->user)
+        ->getJson(route('items.index', ['json' => 1, 'search' => 'EXPORT-LOOKUP']))
+        ->assertOk()
+        ->assertJsonFragment(['id' => $item->id, 'code' => 'EXPORT-LOOKUP-SKU'])
+        ->assertJsonMissing(['code' => 'OTHER-SKU']);
 });
 
 it('forbids export sell without permission', function () {
