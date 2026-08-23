@@ -101,15 +101,15 @@
                             <td class="whitespace-nowrap px-3 py-2 text-right font-mono">{{ format_amount($row->discount) }}%</td>
                             <td class="whitespace-nowrap px-3 py-2 text-right font-mono">{{ format_currency($row->total) }}</td>
                             <td class="px-3 py-2">
-                                @if($senderUrl && $row->sender)
-                                    <a href="{{ $senderUrl }}" class="text-blue-600 hover:underline">{{ $row->sender->name }}</a>
+                                @if($senderUrl && $sender)
+                                    <a href="{{ $senderUrl }}" class="text-blue-600 hover:underline">{{ $sender->name }}</a>
                                 @else
                                     <span class="text-gray-400">—</span>
                                 @endif
                             </td>
                             <td class="px-3 py-2">
-                                @if($receiverUrl && $row->receiver)
-                                    <a href="{{ $receiverUrl }}" class="text-blue-600 hover:underline">{{ $row->receiver->name }}</a>
+                                @if($receiverUrl && $receiver)
+                                    <a href="{{ $receiverUrl }}" class="text-blue-600 hover:underline">{{ $receiver->name }}</a>
                                 @else
                                     <span class="text-gray-400">—</span>
                                 @endif
