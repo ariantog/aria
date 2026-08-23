@@ -246,21 +246,21 @@
             <table x-ref="itemsTable" class="w-full min-w-[720px] text-sm">
                 <thead class="border-y bg-gray-50 text-[10px] font-bold tracking-wider text-gray-500 uppercase">
                     <tr>
-                        <th class="px-3 py-2.5 text-center font-black" x-show="showImage">Img</th>
-                        <th class="px-3 py-2.5 text-left font-black" x-show="showBarcode">Barcode</th>
-                        <th class="px-3 py-2.5 text-left font-black" x-show="showSku">SKU</th>
-                        <th class="min-w-[12rem] px-3 py-2.5 text-left font-black" x-show="showName">Item Name</th>
-                        <th class="px-3 py-2.5 text-center font-black">Qty</th>
-                        <th class="px-3 py-2.5 text-right font-black">Price</th>
-                        <th class="px-3 py-2.5 text-right font-black">Disc(%)</th>
-                        <th class="px-3 py-2.5 text-right font-black">Subtotal</th>
+                        <th class="px-3 py-2.5 text-center font-black" data-copy-col="image" x-show="showImage">Img</th>
+                        <th class="px-3 py-2.5 text-left font-black" data-copy-col="barcode" x-show="showBarcode">Barcode</th>
+                        <th class="px-3 py-2.5 text-left font-black" data-copy-col="sku" x-show="showSku">SKU</th>
+                        <th class="min-w-[12rem] px-3 py-2.5 text-left font-black" data-copy-col="name" x-show="showName">Item Name</th>
+                        <th class="px-3 py-2.5 text-center font-black" data-copy-col="qty">Qty</th>
+                        <th class="px-3 py-2.5 text-right font-black" data-copy-col="price">Price</th>
+                        <th class="px-3 py-2.5 text-right font-black" data-copy-col="disc">Disc(%)</th>
+                        <th class="px-3 py-2.5 text-right font-black" data-copy-col="subtotal">Subtotal</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100">
                     @foreach($transaction->details as $detail)
                     @php $item = $detail->item; @endphp
                     <tr class="group transition-colors hover:bg-gray-50">
-                        <td class="px-3 py-2.5 text-center align-middle" x-show="showImage">
+                        <td class="px-3 py-2.5 text-center align-middle" data-copy-col="image" x-show="showImage">
                             <div class="relative mx-auto flex h-12 w-12 items-center justify-center overflow-hidden rounded border bg-white shadow-sm transition-transform duration-200 group-hover:scale-105">
                                 @if($item?->image_url)
                                     <img src="{{ $item->image_url }}" alt="{{ $item?->name }}" class="h-full w-full object-cover">
@@ -269,11 +269,11 @@
                                 @endif
                             </div>
                         </td>
-                        <td class="whitespace-nowrap px-3 py-2.5 align-middle font-mono text-xs" x-show="showBarcode">
+                        <td class="whitespace-nowrap px-3 py-2.5 align-middle font-mono text-xs" data-copy-col="barcode" x-show="showBarcode">
                             <a href="{{ $item ? route('items.show', $item->id) : '#' }}" class="text-blue-600 hover:underline">{{ $item?->id }}</a>
                         </td>
-                        <td class="whitespace-nowrap px-3 py-2.5 align-middle font-mono text-xs italic text-gray-500" x-show="showSku">{{ $item?->code ?: '-' }}</td>
-                        <td class="px-3 py-2.5 align-middle" x-show="showName">
+                        <td class="whitespace-nowrap px-3 py-2.5 align-middle font-mono text-xs italic text-gray-500" data-copy-col="sku" x-show="showSku">{{ $item?->code ?: '-' }}</td>
+                        <td class="px-3 py-2.5 align-middle" data-copy-col="name" x-show="showName">
                             <div class="font-bold text-gray-900">{{ $item?->name }}</div>
                             @if($item?->code)
                             <div class="mt-0.5 font-mono text-[10px] leading-tight text-gray-500">{{ $item?->code }}</div>
@@ -282,16 +282,16 @@
                             <div class="mt-1 text-xs italic text-gray-500">📝 {{ $detail->notes }}</div>
                             @endif
                         </td>
-                        <td class="whitespace-nowrap px-3 py-2.5 text-center align-middle font-black tabular-nums">{{ $detail->quantity }}</td>
-                        <td class="whitespace-nowrap px-3 py-2.5 text-right align-middle font-medium tabular-nums">{{ $fmt($detail->price) }}</td>
-                        <td class="whitespace-nowrap px-3 py-2.5 text-right align-middle tabular-nums">
+                        <td class="whitespace-nowrap px-3 py-2.5 text-center align-middle font-black tabular-nums" data-copy-col="qty">{{ $detail->quantity }}</td>
+                        <td class="whitespace-nowrap px-3 py-2.5 text-right align-middle font-medium tabular-nums" data-copy-col="price">{{ $fmt($detail->price) }}</td>
+                        <td class="whitespace-nowrap px-3 py-2.5 text-right align-middle tabular-nums" data-copy-col="disc">
                             @if($detail->discount > 0)
                                 <span class="inline-flex h-5 items-center rounded-md border border-dashed border-red-300 bg-red-50 px-1.5 text-[10px] font-bold text-red-600">-{{ number_format((float) $detail->discount, 2, ',', '.') }}%</span>
                             @else
                                 <span class="text-gray-400">-</span>
                             @endif
                         </td>
-                        <td class="whitespace-nowrap px-3 py-2.5 text-right align-middle font-black text-blue-700 tabular-nums">{{ $fmt($detail->total) }}</td>
+                        <td class="whitespace-nowrap px-3 py-2.5 text-right align-middle font-black text-blue-700 tabular-nums" data-copy-col="subtotal">{{ $fmt($detail->total) }}</td>
                     </tr>
                     @endforeach
                 </tbody>
@@ -430,6 +430,14 @@ function transactionShowPage() {
                 this.copyFeedback = false;
             }, 2000);
         },
+        isCopyColumnVisible(col) {
+            if (col === 'image') return this.showImage;
+            if (col === 'barcode') return this.showBarcode;
+            if (col === 'sku') return this.showSku;
+            if (col === 'name') return this.showName;
+
+            return true;
+        },
         cellCopyValue(cell) {
             const img = cell.querySelector('img');
             if (img) {
@@ -449,8 +457,8 @@ function transactionShowPage() {
             table.querySelectorAll('thead tr, tbody tr').forEach((row) => {
                 const values = [];
 
-                row.querySelectorAll('th, td').forEach((cell) => {
-                    if (window.getComputedStyle(cell).display === 'none') {
+                row.querySelectorAll('[data-copy-col]').forEach((cell) => {
+                    if (!this.isCopyColumnVisible(cell.dataset.copyCol)) {
                         return;
                     }
 
@@ -471,8 +479,8 @@ function transactionShowPage() {
             }
 
             const clone = table.cloneNode(true);
-            clone.querySelectorAll('th, td').forEach((cell) => {
-                if (window.getComputedStyle(cell).display === 'none') {
+            clone.querySelectorAll('[data-copy-col]').forEach((cell) => {
+                if (!this.isCopyColumnVisible(cell.dataset.copyCol)) {
                     cell.remove();
                 }
             });
