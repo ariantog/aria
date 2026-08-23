@@ -136,8 +136,8 @@ class ExportSellQueryService
             })
             ->when($request->input('qty_min'), fn (Builder $q, $v) => $q->where('transaction_details.quantity', '>=', $v))
             ->when($request->input('qty_max'), fn (Builder $q, $v) => $q->where('transaction_details.quantity', '<=', $v))
-            ->when($addrbookId === null && $request->input('sender'), function (Builder $q, $v) {
-                $term = trim((string) $v);
+            ->when($addrbookId === null && $request->filled('sender'), function (Builder $q) use ($request) {
+                $term = trim((string) $request->input('sender'));
                 if ($term === '') {
                     return $q;
                 }
@@ -148,8 +148,8 @@ class ExportSellQueryService
 
                 return $this->applyPartyNameFilter($q, 'sender', $term);
             })
-            ->when($addrbookId === null && $request->input('receiver'), function (Builder $q, $v) {
-                $term = trim((string) $v);
+            ->when($addrbookId === null && $request->filled('receiver'), function (Builder $q) use ($request) {
+                $term = trim((string) $request->input('receiver'));
                 if ($term === '') {
                     return $q;
                 }
