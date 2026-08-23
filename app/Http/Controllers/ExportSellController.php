@@ -7,7 +7,6 @@ use App\Models\Addrbook;
 use App\Models\Report;
 use App\Services\ExportSellExportService;
 use App\Services\ExportSellQueryService;
-use App\Support\LikeSearch;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
@@ -25,12 +24,17 @@ class ExportSellController extends Controller
             ->paginate($perPage)
             ->withQueryString();
 
+        $partyLookups = $this->sellPartyLookups();
+
         return view('transactions.export-sell', [
             'rows' => $rows,
             'filters' => $filters,
             'perPage' => $perPage,
             'typeOptions' => $queryService->typeOptions(),
-            'partyLookupUrl' => route('transactions.export-sell.lookup'),
+            'senderLookupUrl' => $partyLookups['sender_route'],
+            'receiverLookupUrl' => $partyLookups['receiver_route'],
+            'senderLabel' => $partyLookups['sender_label'],
+            'receiverLabel' => $partyLookups['receiver_label'],
             'selectedSender' => $this->resolveSelectedParty($filters['sender'] ?? null),
             'selectedReceiver' => $this->resolveSelectedParty($filters['receiver'] ?? null),
         ]);
@@ -47,28 +51,40 @@ class ExportSellController extends Controller
         return $exportService->download($rows);
     }
 
-    public function lookup(Request $request)
+    /**
+     * @return array{sender_route: string, receiver_route: string, sender_label: string, receiver_label: string}
+     */
+    public static function sellPartyLookups(): array
     {
-        Gate::authorize(Report::getPermissions()['view-export-sell']);
+        $config = config('transaction_rules.sell');
 
-        $search = trim((string) $request->input('search', ''));
-        if (strlen($search) <= 2) {
-            return response()->json([]);
-        }
+        $labelFor = function (string $role) use ($config): string {
+            if (! isset($config[$role.'_type'])) {
+                return 'Contact';
+            }
 
-        $pattern = LikeSearch::contains($search);
+            $names = collect(Addrbook::getTypes())
+                ->whereIn('id', (array) $config[$role.'_type'])
+                ->pluck('name')
+                ->all();
 
-        $results = Addrbook::query()
-            ->visibleToUser($request->user())
-            ->where(function ($query) use ($pattern) {
-                $query->where('name', 'like', $pattern)
-                    ->orWhere('id', 'like', $pattern);
-            })
-            ->orderBy('name')
-            ->limit(20)
-            ->get(['id', 'name']);
+            return $names !== [] ? implode(' / ', $names) : 'Contact';
+        };
 
-        return response()->json($results);
+        return [
+            'sender_route' => route('transactions.lookup', [
+                'type' => 'sell',
+                'role' => 'sender',
+                'addrbook_type' => $config['sender_type'] ?? null,
+            ]),
+            'receiver_route' => route('transactions.lookup', [
+                'type' => 'sell',
+                'role' => 'receiver',
+                'addrbook_type' => $config['receiver_type'] ?? null,
+            ]),
+            'sender_label' => $labelFor('sender'),
+            'receiver_label' => $labelFor('receiver'),
+        ];
     }
 
     /**
@@ -108,7 +124,7 @@ class ExportSellController extends Controller
         return route('items.show', $itemId);
     }
 
-    public static function addrbookShowUrl(?\App\Models\Addrbook $addrbook): ?string
+    public static function addrbookShowUrl(?Addrbook $addrbook): ?string
     {
         if (! $addrbook) {
             return null;

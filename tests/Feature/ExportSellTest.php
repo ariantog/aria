@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\ExportSellController;
 use App\Models\Addrbook;
 use App\Models\Item;
 use App\Models\Location;
@@ -27,12 +28,14 @@ it('renders export sell page for authorized users', function () {
         ->assertSee('showFilters: true', false);
 });
 
-it('returns addrbook matches for export sell party lookup', function () {
+it('returns addrbook matches for export sell party lookup via sell transaction routes', function () {
     $sender = Addrbook::factory()->warehouse()->create(['name' => 'Lookup Warehouse Alpha']);
     Addrbook::factory()->warehouse()->create(['name' => 'Lookup Warehouse Beta']);
 
+    $url = ExportSellController::sellPartyLookups()['sender_route'].'&search=Alpha';
+
     $this->actingAs($this->user)
-        ->getJson(route('transactions.export-sell.lookup', ['search' => 'Alpha']))
+        ->getJson($url)
         ->assertOk()
         ->assertJsonFragment(['id' => $sender->id, 'name' => 'Lookup Warehouse Alpha'])
         ->assertJsonMissing(['name' => 'Lookup Warehouse Beta']);

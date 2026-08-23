@@ -50,16 +50,16 @@
 @if($showPartyFilters)
     @include('transactions.partials.export-sell-party-combobox', [
         'name' => 'sender',
-        'label' => 'Sender',
-        'placeholder' => 'Search sender...',
-        'lookupUrl' => $partyLookupUrl ?? route('transactions.export-sell.lookup'),
+        'label' => $senderLabel ?? 'Warehouse',
+        'placeholder' => 'Select '.($senderLabel ?? 'Warehouse').'...',
+        'endpoint' => $senderLookupUrl ?? '',
         'initial' => $selectedSender ?? null,
     ])
     @include('transactions.partials.export-sell-party-combobox', [
         'name' => 'receiver',
-        'label' => 'Receiver',
-        'placeholder' => 'Search receiver...',
-        'lookupUrl' => $partyLookupUrl ?? route('transactions.export-sell.lookup'),
+        'label' => $receiverLabel ?? 'Customer / Reseller',
+        'placeholder' => 'Select '.($receiverLabel ?? 'Customer / Reseller').'...',
+        'endpoint' => $receiverLookupUrl ?? '',
         'initial' => $selectedReceiver ?? null,
     ])
 @endif

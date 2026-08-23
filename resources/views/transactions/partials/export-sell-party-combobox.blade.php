@@ -3,14 +3,14 @@
     $label = $label ?? 'Sender';
     $placeholder = $placeholder ?? 'Search contact...';
     $initial = $initial ?? null;
-    $lookupUrl = $lookupUrl ?? route('transactions.export-sell.lookup');
+    $endpoint = $endpoint ?? '';
 @endphp
 
 <div class="flex min-w-[220px] flex-col gap-1">
     <label class="text-xs font-medium uppercase text-gray-500">{{ $label }}</label>
     <div class="relative"
          x-data="asyncCombobox({
-            endpoint: @js($lookupUrl),
+            endpoint: @js($endpoint),
             placeholder: @js($placeholder),
             initial: @js($initial),
          })"
@@ -49,7 +49,7 @@
                      class="combobox-option"
                      :class="{ 'active': activeIndex === idx }">
                     <span x-text="item.name"></span>
-                    <span class="ml-auto text-xs text-gray-400" x-text="'#' + item.id"></span>
+                    <span x-show="item.balance !== undefined" x-text="' — Rp ' + formatAmountId(item.balance || 0)" class="ml-auto text-xs opacity-60"></span>
                 </div>
             </template>
         </div>
