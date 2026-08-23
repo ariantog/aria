@@ -105,18 +105,19 @@ $idr = fn ($v) => 'IDR ' . number_format((float) $v, 0, ',', '.');
 
     {{-- Table --}}
     <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-        <table class="w-full table-fixed text-left text-xs">
+        <div class="overflow-x-auto">
+        <table class="w-full min-w-[1100px] text-left text-xs">
             <thead class="border-b border-gray-200 bg-gray-50 text-[10px] uppercase tracking-wider text-gray-500">
                 <tr>
                     <th class="w-14 px-2 py-2.5 font-bold">ID</th>
                     <th class="w-16 px-2 py-2.5 font-bold" x-show="showImage">Image</th>
-                    <th class="px-2 py-2.5 font-bold">Item Name</th>
-                    <th class="w-28 px-2 py-2.5 font-bold">Code</th>
-                    <th class="px-2 py-2.5 font-bold">Description</th>
-                    <th class="w-28 px-2 py-2.5 text-right font-bold">Price</th>
-                    <th class="w-20 px-2 py-2.5 text-right font-bold">Stock</th>
+                    <th class="whitespace-nowrap px-2 py-2.5 font-bold">Item Name</th>
+                    <th class="min-w-[7rem] px-2 py-2.5 font-bold">Code</th>
+                    <th class="min-w-[8rem] px-2 py-2.5 font-bold">Description</th>
+                    <th class="whitespace-nowrap px-2 py-2.5 text-right font-bold">Price</th>
+                    <th class="whitespace-nowrap px-2 py-2.5 text-right font-bold">Stock</th>
                     @if($jubelioSync ?? null)
-                        <th class="w-24 px-2 py-2.5 text-right font-bold">Jubelio</th>
+                        <th class="whitespace-nowrap px-2 py-2.5 text-right font-bold">Jubelio</th>
                     @endif
                     <th class="w-14 px-2 py-2.5 text-center font-bold"></th>
                 </tr>
@@ -140,7 +141,7 @@ $idr = fn ($v) => 'IDR ' . number_format((float) $v, 0, ',', '.');
                         <td class="px-2 py-2" x-show="showImage">
                             <img src="{{ $item->image_url ?: '/images/default-item.png' }}" onerror="this.src='/images/default-item.png'" class="h-10 w-10 rounded-md border border-gray-200 object-cover">
                         </td>
-                        <td class="px-2 py-2">
+                        <td class="min-w-[10rem] max-w-[16rem] px-2 py-2">
                             <a href="{{ $itemShowUrl }}" onclick="event.stopPropagation()" class="block truncate font-medium text-gray-800 hover:text-blue-600" title="{{ $onlineName ?? $normalName }}">
                                 <span x-show="!onlineName">{{ $normalName }}</span>
                                 <span x-show="onlineName" x-cloak>{{ $onlineNm }}</span>
@@ -179,6 +180,7 @@ $idr = fn ($v) => 'IDR ' . number_format((float) $v, 0, ',', '.');
                 @endforelse
             </tbody>
         </table>
+        </div>
         @include('partials.pagination', ['paginator' => $items, 'label' => 'items'])
     </div>
 </div>
