@@ -60,7 +60,8 @@ $breadcrumbs = [
 
                 <div class="rounded-lg bg-gray-50 p-4 text-sm text-gray-600">
                     <p class="font-medium text-gray-800">Perbandingan stok</p>
-                    <p class="mt-1">Aria qty di gudang dibandingkan dengan Jubelio <strong>on-hand</strong> (bukan <code class="text-xs">available</code>). Kolom on-order ditampilkan hanya sebagai referensi.</p>
+                    <p class="mt-1">Aria qty di gudang dibandingkan dengan Jubelio <strong>available</strong> (stok siap jual). Saat ada order masuk, Jubelio menurunkan <code class="text-xs">available</code> / menaikkan <code class="text-xs">reserved</code> sementara <code class="text-xs">on-hand</code> bisa tetap — itulah penyebab selisih -1 jika memakai on-hand.</p>
+                    <p class="mt-2">Hasil ketidakcocokan diurutkan berdasarkan selisih terbesar.</p>
                 </div>
 
                 @error('active_job')<p class="text-sm text-red-500">{{ $message }}</p>@enderror

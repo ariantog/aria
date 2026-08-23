@@ -169,9 +169,8 @@ class JubelioStockCheckService
                 continue;
             }
 
-            $onHand = (float) ($locationStock['on_hand'] ?? 0);
-            $onOrder = (float) ($locationStock['on_order'] ?? 0);
-            $jubelioQty = $onHand;
+            $quantities = $this->resolveLocationQuantities($locationStock);
+            $jubelioQty = $quantities['comparable'];
             $ariaQty = (float) ($ariaQtyByItemId[$item->id] ?? 0);
 
             if ($ariaQty === $jubelioQty) {
@@ -187,8 +186,10 @@ class JubelioStockCheckService
                 'warehouse_id' => $sync->warehouse_id,
                 'aria_qty' => $ariaQty,
                 'jubelio_qty' => $jubelioQty,
-                'jubelio_on_hand' => $onHand,
-                'jubelio_on_order' => $onOrder,
+                'jubelio_on_hand' => $quantities['on_hand'],
+                'jubelio_on_order' => $quantities['on_order'],
+                'jubelio_available' => $quantities['available'],
+                'jubelio_reserved' => $quantities['reserved'],
             ]);
 
             $discrepancies++;
@@ -235,5 +236,30 @@ class JubelioStockCheckService
         }
 
         return null;
+    }
+
+    /**
+     * Jubelio reserves stock for open orders (available drops) while on-hand may stay
+     * higher until shipment. Aria deducts on sell, so compare against available.
+     *
+     * @param  array<string, mixed>  $locationStock
+     * @return array{on_hand: float, on_order: float, reserved: float, available: float, comparable: float}
+     */
+    public function resolveLocationQuantities(array $locationStock): array
+    {
+        $onHand = (float) ($locationStock['on_hand'] ?? 0);
+        $onOrder = (float) ($locationStock['on_order'] ?? 0);
+        $reserved = (float) ($locationStock['reserved'] ?? 0);
+        $available = array_key_exists('available', $locationStock)
+            ? (float) $locationStock['available']
+            : $onHand - $reserved;
+
+        return [
+            'on_hand' => $onHand,
+            'on_order' => $onOrder,
+            'reserved' => $reserved,
+            'available' => $available,
+            'comparable' => $available,
+        ];
     }
 }

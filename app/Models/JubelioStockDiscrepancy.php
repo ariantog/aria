@@ -21,7 +21,19 @@ class JubelioStockDiscrepancy extends Model
         'jubelio_qty',
         'jubelio_on_hand',
         'jubelio_on_order',
+        'jubelio_available',
+        'jubelio_reserved',
     ];
+
+    public function getQtyDiffAttribute(): float
+    {
+        return (float) $this->aria_qty - (float) $this->jubelio_qty;
+    }
+
+    public function getAbsQtyDiffAttribute(): float
+    {
+        return abs($this->qty_diff);
+    }
 
     public function stockCheck(): BelongsTo
     {

@@ -6,10 +6,12 @@ use App\Models\JubelioStockCheck;
 use App\Models\Jubeliosync;
 use App\Models\Transaction;
 use App\Models\TransactionDetail;
+use App\Models\User;
 use App\Models\WarehouseItem;
 use App\Services\JubelioService;
 use App\Services\JubelioStockCheckService;
 use Mockery\MockInterface;
+use Spatie\Permission\Models\Permission;
 
 function seedStockCheckSync(Addrbook $warehouse, int $locationId = 10, string $locationName = 'Gudang Pusat'): Jubeliosync
 {
@@ -24,7 +26,7 @@ function seedStockCheckSync(Addrbook $warehouse, int $locationId = 10, string $l
     ]);
 }
 
-it('compares aria qty against jubelio on-hand only', function () {
+it('compares aria qty against jubelio available stock', function () {
     $warehouse = Addrbook::factory()->warehouse()->create();
     seedStockCheckSync($warehouse);
 
@@ -55,8 +57,57 @@ it('compares aria qty against jubelio on-hand only', function () {
                     'item_id' => 123,
                     'location_stocks' => [[
                         'location_id' => 10,
-                        'on_hand' => 40,
+                        'on_hand' => 55,
                         'on_order' => 5,
+                        'reserved' => 5,
+                        'available' => 50,
+                    ]],
+                ]],
+            ]);
+    });
+
+    $this->artisan('app:jubelio-stock-check')->assertSuccessful();
+
+    $discrepancy = $job->fresh()->discrepancies()->first();
+    expect($discrepancy)->toBeNull();
+    expect($job->fresh()->status)->toBe('completed');
+});
+
+it('flags a mismatch using available even when on-hand differs', function () {
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    seedStockCheckSync($warehouse);
+
+    $item = Item::factory()->create([
+        'jubelio_item_id' => 123,
+        'type' => Item::TYPE_ITEM,
+    ]);
+
+    WarehouseItem::create([
+        'item_id' => $item->id,
+        'warehouse_id' => $warehouse->id,
+        'warehouse_type' => Addrbook::class,
+        'quantity' => 50,
+    ]);
+
+    $job = JubelioStockCheck::create([
+        'sync_cursor' => 0,
+        'per_type_limit' => 50,
+        'demand_days' => 90,
+        'status' => 'processing',
+    ]);
+
+    $this->mock(JubelioService::class, function (MockInterface $mock) {
+        $mock->shouldReceive('fetchItemsAllStocks')
+            ->once()
+            ->andReturn([
+                'data' => [[
+                    'item_id' => 123,
+                    'location_stocks' => [[
+                        'location_id' => 10,
+                        'on_hand' => 51,
+                        'on_order' => 0,
+                        'reserved' => 0,
+                        'available' => 40,
                     ]],
                 ]],
             ]);
@@ -67,13 +118,12 @@ it('compares aria qty against jubelio on-hand only', function () {
     $discrepancy = $job->fresh()->discrepancies()->first();
     expect($discrepancy)->not->toBeNull();
     expect((float) $discrepancy->aria_qty)->toBe(50.0);
-    expect((float) $discrepancy->jubelio_on_hand)->toBe(40.0);
-    expect((float) $discrepancy->jubelio_on_order)->toBe(5.0);
+    expect((float) $discrepancy->jubelio_on_hand)->toBe(51.0);
+    expect((float) $discrepancy->jubelio_available)->toBe(40.0);
     expect((float) $discrepancy->jubelio_qty)->toBe(40.0);
-    expect($job->fresh()->status)->toBe('completed');
 });
 
-it('does not flag a match when aria equals jubelio on-hand', function () {
+it('does not flag a false -1 mismatch when an open order reserved stock in jubelio', function () {
     $warehouse = Addrbook::factory()->warehouse()->create();
     seedStockCheckSync($warehouse);
 
@@ -86,7 +136,7 @@ it('does not flag a match when aria equals jubelio on-hand', function () {
         'item_id' => $item->id,
         'warehouse_id' => $warehouse->id,
         'warehouse_type' => Addrbook::class,
-        'quantity' => 40,
+        'quantity' => 9,
     ]);
 
     $job = JubelioStockCheck::create([
@@ -104,8 +154,10 @@ it('does not flag a match when aria equals jubelio on-hand', function () {
                     'item_id' => 200,
                     'location_stocks' => [[
                         'location_id' => 10,
-                        'on_hand' => 40,
-                        'on_order' => 5,
+                        'on_hand' => 10,
+                        'on_order' => 1,
+                        'reserved' => 1,
+                        'available' => 9,
                     ]],
                 ]],
             ]);
@@ -114,6 +166,26 @@ it('does not flag a match when aria equals jubelio on-hand', function () {
     $this->artisan('app:jubelio-stock-check')->assertSuccessful();
 
     expect($job->fresh()->discrepancies()->count())->toBe(0);
+});
+
+it('would have flagged a -1 mismatch when comparing on-hand instead of available', function () {
+    $service = app(JubelioStockCheckService::class);
+
+    $quantities = $service->resolveLocationQuantities([
+        'on_hand' => 10,
+        'on_order' => 1,
+        'reserved' => 1,
+        'available' => 9,
+    ]);
+
+    expect($quantities['comparable'])->toBe(9.0);
+
+    $ariaQty = 9.0;
+    $onHandMismatch = $ariaQty !== $quantities['on_hand'];
+    $availableMatch = $ariaQty === $quantities['comparable'];
+
+    expect($onHandMismatch)->toBeTrue();
+    expect($availableMatch)->toBeTrue();
 });
 
 it('selects high-demand skus per warehouse and type', function () {
@@ -209,7 +281,7 @@ it('processes synced warehouses one per cron run', function () {
             ->andReturn([
                 'data' => [[
                     'item_id' => 501,
-                    'location_stocks' => [['location_id' => 10, 'on_hand' => 1, 'on_order' => 0]],
+                    'location_stocks' => [['location_id' => 10, 'on_hand' => 1, 'on_order' => 0, 'reserved' => 0, 'available' => 1]],
                 ]],
             ]);
     });
@@ -226,7 +298,7 @@ it('processes synced warehouses one per cron run', function () {
             ->andReturn([
                 'data' => [[
                     'item_id' => 501,
-                    'location_stocks' => [['location_id' => 20, 'on_hand' => 1, 'on_order' => 0]],
+                    'location_stocks' => [['location_id' => 20, 'on_hand' => 1, 'on_order' => 0, 'reserved' => 0, 'available' => 1]],
                 ]],
             ]);
     });
@@ -267,6 +339,8 @@ it('ignores warehouses not mapped in jubeliosyncs', function () {
                         'location_id' => 99,
                         'on_hand' => 1,
                         'on_order' => 0,
+                        'reserved' => 0,
+                        'available' => 1,
                     ]],
                 ]],
             ]);
@@ -275,4 +349,68 @@ it('ignores warehouses not mapped in jubeliosyncs', function () {
     $this->artisan('app:jubelio-stock-check')->assertSuccessful();
 
     expect(JubelioStockCheck::latest()->first()->discrepancies()->count())->toBe(0);
+});
+
+it('sorts stock check discrepancies by absolute quantity difference', function () {
+    Permission::firstOrCreate(['name' => 'jubelio-stock-check']);
+    $user = User::factory()->create();
+    $user->givePermissionTo('jubelio-stock-check');
+
+    $job = JubelioStockCheck::create([
+        'sync_cursor' => 1,
+        'per_type_limit' => 50,
+        'demand_days' => 90,
+        'status' => 'completed',
+    ]);
+
+    $smallDiff = Item::factory()->create(['code' => 'SKU-SMALL-DIFF']);
+    $bigDiff = Item::factory()->create(['code' => 'SKU-BIG-DIFF']);
+    $mediumDiff = Item::factory()->create(['code' => 'SKU-MED-DIFF']);
+
+    $job->discrepancies()->createMany([
+        [
+            'item_id' => $smallDiff->id,
+            'jubelio_item_id' => 1,
+            'jubelio_location_id' => 10,
+            'jubelio_location_name' => 'Gudang',
+            'warehouse_id' => 1,
+            'aria_qty' => 10,
+            'jubelio_qty' => 9,
+            'jubelio_on_hand' => 10,
+            'jubelio_on_order' => 0,
+            'jubelio_available' => 9,
+            'jubelio_reserved' => 1,
+        ],
+        [
+            'item_id' => $bigDiff->id,
+            'jubelio_item_id' => 2,
+            'jubelio_location_id' => 10,
+            'jubelio_location_name' => 'Gudang',
+            'warehouse_id' => 1,
+            'aria_qty' => 100,
+            'jubelio_qty' => 50,
+            'jubelio_on_hand' => 50,
+            'jubelio_on_order' => 0,
+            'jubelio_available' => 50,
+            'jubelio_reserved' => 0,
+        ],
+        [
+            'item_id' => $mediumDiff->id,
+            'jubelio_item_id' => 3,
+            'jubelio_location_id' => 10,
+            'jubelio_location_name' => 'Gudang',
+            'warehouse_id' => 1,
+            'aria_qty' => 5,
+            'jubelio_qty' => 7,
+            'jubelio_on_hand' => 7,
+            'jubelio_on_order' => 0,
+            'jubelio_available' => 7,
+            'jubelio_reserved' => 0,
+        ],
+    ]);
+
+    $this->actingAs($user)
+        ->get(route('jubelio-stock-checks.show', $job->id))
+        ->assertSuccessful()
+        ->assertSeeInOrder(['SKU-BIG-DIFF', 'SKU-MED-DIFF', 'SKU-SMALL-DIFF']);
 });
