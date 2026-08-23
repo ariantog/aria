@@ -36,6 +36,10 @@ class UpdateTransactionSummaries implements ShouldQueue
         foreach ($transaction->details as $detail) {
             $statsRecorder->recordDetail($transaction, $detail);
         }
+
+        if ((int) $transaction->type === Transaction::TYPE_SELL) {
+            CheckItemStockNotifications::dispatch($transaction->id);
+        }
     }
 
     private function updateAccountSummary(Transaction $transaction, int $year, int $month): void

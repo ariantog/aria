@@ -299,7 +299,6 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::get('karyawan/{karyawan}/gaji/create', [\App\Http\Controllers\GajiController::class, 'create'])->name('karyawan.gaji.create');
     Route::post('karyawan/{karyawan}/gaji', [\App\Http\Controllers\GajiController::class, 'store'])->name('karyawan.gaji.store');
 
-    // Reports Module
     Route::prefix('reports')->name('reports.')->group(function () {
         Route::get('/nett-cash-sby', \App\Http\Controllers\Reports\NettCashController::class)->name('nett-cash-sby');
         Route::get('/purchase', \App\Http\Controllers\Reports\PurchaseReportController::class)->name('purchase');
@@ -320,6 +319,14 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
         Route::get('/product-performance', [\App\Http\Controllers\Reports\ProductPerformanceController::class, 'index'])->name('product-performance');
         Route::get('/produksi-potong', \App\Http\Controllers\Reports\ProduksiPotongReportController::class)->name('produksi-potong');
         Route::get('/produksi-qc', \App\Http\Controllers\Reports\ProduksiQcReportController::class)->name('produksi-qc');
+    });
+
+    Route::prefix('stock-notifications')->name('stock-notifications.')->group(function () {
+        Route::get('/', [\App\Http\Controllers\ItemStockNotificationController::class, 'index'])->name('index');
+        Route::get('/unread-count', [\App\Http\Controllers\ItemStockNotificationController::class, 'unreadCount'])->name('unread-count');
+        Route::post('/mark-all-read', [\App\Http\Controllers\ItemStockNotificationController::class, 'markAllRead'])->name('mark-all-read');
+        Route::post('/{notification}/read', [\App\Http\Controllers\ItemStockNotificationController::class, 'markRead'])->name('read');
+        Route::post('/{notification}/dismiss', [\App\Http\Controllers\ItemStockNotificationController::class, 'dismiss'])->name('dismiss');
     });
 
     // Restock Module
