@@ -29,6 +29,9 @@
         'perPage' => $perPage,
         'showPartyFilters' => true,
         'defaultOpen' => true,
+        'partyLookupUrl' => $partyLookupUrl,
+        'selectedSender' => $selectedSender,
+        'selectedReceiver' => $selectedReceiver,
     ])
 
     <div class="flex items-center justify-end">

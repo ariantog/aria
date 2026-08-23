@@ -22,7 +22,59 @@ it('renders export sell page for authorized users', function () {
         ->assertSee('Export Sell', false)
         ->assertSee('value="100"', false)
         ->assertSee('data-testid="toggle-export-sell-filters"', false)
+        ->assertSee('data-testid="export-sell-sender-combobox"', false)
+        ->assertSee('data-testid="export-sell-receiver-combobox"', false)
         ->assertSee('showFilters: true', false);
+});
+
+it('returns addrbook matches for export sell party lookup', function () {
+    $sender = Addrbook::factory()->warehouse()->create(['name' => 'Lookup Warehouse Alpha']);
+    Addrbook::factory()->warehouse()->create(['name' => 'Lookup Warehouse Beta']);
+
+    $this->actingAs($this->user)
+        ->getJson(route('transactions.export-sell.lookup', ['search' => 'Alpha']))
+        ->assertOk()
+        ->assertJsonFragment(['id' => $sender->id, 'name' => 'Lookup Warehouse Alpha'])
+        ->assertJsonMissing(['name' => 'Lookup Warehouse Beta']);
+});
+
+it('filters export sell lines by selected sender id', function () {
+    $senderA = Addrbook::factory()->warehouse()->create(['name' => 'Sender Filter A']);
+    $senderB = Addrbook::factory()->warehouse()->create(['name' => 'Sender Filter B']);
+    $receiver = Addrbook::factory()->customer()->create();
+
+    $visibleTx = Transaction::factory()->create([
+        'type' => Transaction::TYPE_SELL,
+        'invoice' => 'SENDER-FILTER-VISIBLE',
+        'sender_id' => $senderA->id,
+        'receiver_id' => $receiver->id,
+    ]);
+    $hiddenTx = Transaction::factory()->create([
+        'type' => Transaction::TYPE_SELL,
+        'invoice' => 'SENDER-FILTER-HIDDEN',
+        'sender_id' => $senderB->id,
+        'receiver_id' => $receiver->id,
+    ]);
+
+    TransactionDetail::factory()->create([
+        'transaction_id' => $visibleTx->id,
+        'transaction_type' => Transaction::TYPE_SELL,
+        'sender_id' => $senderA->id,
+        'receiver_id' => $receiver->id,
+    ]);
+    TransactionDetail::factory()->create([
+        'transaction_id' => $hiddenTx->id,
+        'transaction_type' => Transaction::TYPE_SELL,
+        'sender_id' => $senderB->id,
+        'receiver_id' => $receiver->id,
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('transactions.export-sell', ['sender' => $senderA->id]))
+        ->assertOk()
+        ->assertSee('SENDER-FILTER-VISIBLE', false)
+        ->assertDontSee('SENDER-FILTER-HIDDEN', false)
+        ->assertSee('Sender Filter A', false);
 });
 
 it('forbids export sell without permission', function () {

@@ -24,6 +24,9 @@
                 'perPage' => $perPage ?? (int) request()->query('per_page', 100),
                 'showPartyFilters' => $showPartyFilters ?? false,
                 'resetUrl' => $resetUrl,
+                'partyLookupUrl' => $partyLookupUrl ?? route('transactions.export-sell.lookup'),
+                'selectedSender' => $selectedSender ?? null,
+                'selectedReceiver' => $selectedReceiver ?? null,
             ])
         </form>
     </div>

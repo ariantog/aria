@@ -48,17 +48,22 @@
            class="w-24 rounded-md border border-gray-300 px-2.5 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
 </div>
 @if($showPartyFilters)
-    <div class="flex flex-col gap-1">
-        <label class="text-xs font-medium uppercase text-gray-500">Sender</label>
-        <input type="text" name="sender" value="{{ $filters['sender'] ?? '' }}" placeholder="Name or ID"
-               class="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
-    </div>
-    <div class="flex flex-col gap-1">
-        <label class="text-xs font-medium uppercase text-gray-500">Receiver</label>
-        <input type="text" name="receiver" value="{{ $filters['receiver'] ?? '' }}" placeholder="Name or ID"
-               class="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
-    </div>
+    @include('transactions.partials.export-sell-party-combobox', [
+        'name' => 'sender',
+        'label' => 'Sender',
+        'placeholder' => 'Search sender...',
+        'lookupUrl' => $partyLookupUrl ?? route('transactions.export-sell.lookup'),
+        'initial' => $selectedSender ?? null,
+    ])
+    @include('transactions.partials.export-sell-party-combobox', [
+        'name' => 'receiver',
+        'label' => 'Receiver',
+        'placeholder' => 'Search receiver...',
+        'lookupUrl' => $partyLookupUrl ?? route('transactions.export-sell.lookup'),
+        'initial' => $selectedReceiver ?? null,
+    ])
 @endif
+<div class="flex flex-col gap-1">
     <label class="text-xs font-medium uppercase text-gray-500">Rows / page</label>
     <select name="per_page" class="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
         @foreach([100, 200, 300] as $size)
