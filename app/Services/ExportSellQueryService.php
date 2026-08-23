@@ -41,34 +41,18 @@ class ExportSellQueryService
     }
 
     /**
-     * Addrbook types that may appear as sender/receiver on export-sell detail lines,
-     * derived from item transaction rules and excluding ledger / virtual accounts.
+     * Addrbook types allowed in export-sell sender/receiver filters.
      *
      * @return list<int>
      */
     public function partyTypeIds(): array
     {
-        $excluded = [Addrbook::TYPE_ACCOUNT, Addrbook::TYPE_V_ACCOUNT];
-        $includedTxTypes = array_flip($this->includedTransactionTypes());
-        $typeIds = [];
-
-        foreach (config('transaction_rules', []) as $config) {
-            if (! isset($config['id'], $includedTxTypes[$config['id']])) {
-                continue;
-            }
-
-            foreach (['sender_type', 'receiver_type'] as $roleKey) {
-                if (empty($config[$roleKey])) {
-                    continue;
-                }
-
-                foreach ((array) $config[$roleKey] as $typeId) {
-                    $typeIds[] = (int) $typeId;
-                }
-            }
-        }
-
-        return array_values(array_unique(array_diff($typeIds, $excluded)));
+        return [
+            Addrbook::TYPE_CUSTOMER,
+            Addrbook::TYPE_RESELLER,
+            Addrbook::TYPE_WAREHOUSE,
+            Addrbook::TYPE_V_WAREHOUSE,
+        ];
     }
 
     public function resolvePerPage(Request $request): int

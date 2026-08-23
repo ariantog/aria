@@ -59,13 +59,6 @@ class ExportSellController extends Controller
         $queryService ??= app(ExportSellQueryService::class);
         $partyTypeIds = $queryService->partyTypeIds();
 
-        $typeNames = collect(Addrbook::getTypes())
-            ->whereIn('id', $partyTypeIds)
-            ->pluck('name')
-            ->all();
-
-        $partyLabel = $typeNames !== [] ? implode(' / ', $typeNames) : 'Contact';
-
         $lookupParams = [
             'type' => 'sell',
             'addrbook_type' => $partyTypeIds,
@@ -74,8 +67,8 @@ class ExportSellController extends Controller
         return [
             'sender_route' => route('transactions.lookup', [...$lookupParams, 'role' => 'sender']),
             'receiver_route' => route('transactions.lookup', [...$lookupParams, 'role' => 'receiver']),
-            'sender_label' => $partyLabel,
-            'receiver_label' => $partyLabel,
+            'sender_label' => 'Sender',
+            'receiver_label' => 'Receiver',
         ];
     }
 
