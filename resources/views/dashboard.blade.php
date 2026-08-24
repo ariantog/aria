@@ -13,7 +13,13 @@
     $bookClosing = $dashboard['book_closing'] ?? null;
     $warehouseArrangement = $dashboard['warehouse_arrangement'] ?? null;
     $hasOpsPanel = $dashboard['has_ops_panel'] ?? false;
+    $activity = $dashboard['activity'] ?? null;
+    $cashFlow = $dashboard['cash_flow'] ?? null;
+    $nettCash = $dashboard['nett_cash'] ?? null;
+    $produksi = $dashboard['produksi'] ?? null;
+    $hasAnalyticsPanel = $dashboard['has_analytics_panel'] ?? false;
     $fmtNum = fn ($v) => number_format((int) $v, 0, ',', '.');
+    $fmtMoney = fn ($v) => number_format((float) $v, 0, ',', '.');
 @endphp
 
 <div class="flex h-full flex-1 flex-col gap-4 p-4">
@@ -352,6 +358,160 @@
         </ul>
     </div>
     @endif
+    @endif
+
+    @if($hasAnalyticsPanel)
+    <div class="flex flex-col gap-4" data-testid="dashboard-analytics-panel">
+        <div>
+            <h3 class="text-lg font-semibold text-gray-900">Analytics</h3>
+            <p class="text-sm text-gray-500">Recent activity and monthly summaries</p>
+        </div>
+
+        <div class="grid grid-cols-1 gap-4 xl:grid-cols-2">
+            @if(($can['activity'] ?? false) && $activity)
+            <div class="rounded-xl border border-gray-200 bg-white shadow-sm" data-testid="dashboard-activity-chart">
+                <div class="flex flex-wrap items-start justify-between gap-3 border-b border-gray-100 px-5 py-4">
+                    <div>
+                        <h4 class="text-sm font-semibold text-gray-900">Transaction Activity</h4>
+                        <p class="text-xs text-gray-500">Sell volume over the last {{ count($activity['chart']) }} days</p>
+                    </div>
+                    <a href="{{ route('transactions.index') }}" class="text-sm font-medium text-blue-700 hover:underline">All transactions</a>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3 border-b border-gray-100 px-5 py-4 sm:grid-cols-4">
+                    <div>
+                        <p class="text-xs uppercase text-gray-500">Today sell</p>
+                        <p class="text-lg font-bold text-gray-900">{{ $fmtNum($activity['today']['sell_count']) }}</p>
+                    </div>
+                    <div>
+                        <p class="text-xs uppercase text-gray-500">Today buy</p>
+                        <p class="text-lg font-bold text-gray-900">{{ $fmtNum($activity['today']['buy_count']) }}</p>
+                    </div>
+                    <div>
+                        <p class="text-xs uppercase text-gray-500">Sell total</p>
+                        <p class="text-lg font-bold text-blue-900">{{ $fmtMoney($activity['today']['sell_total']) }}</p>
+                    </div>
+                    <div>
+                        <p class="text-xs uppercase text-gray-500">Buy total</p>
+                        <p class="text-lg font-bold text-green-900">{{ $fmtMoney($activity['today']['buy_total']) }}</p>
+                    </div>
+                </div>
+
+                <div class="flex items-end gap-2 px-5 py-6">
+                    @foreach($activity['chart'] as $day)
+                    <div class="flex min-w-0 flex-1 flex-col items-center gap-2">
+                        <span class="text-[10px] font-medium text-gray-500">{{ $fmtMoney($day['sell_total']) }}</span>
+                        <div class="flex h-28 w-full items-end justify-center rounded-md bg-gray-50 px-1">
+                            <div class="w-full max-w-[2rem] rounded-t bg-blue-500 transition-all"
+                                 style="height: {{ max($day['bar_percent'], $day['sell_count'] > 0 ? 8 : 0) }}%"
+                                 title="{{ $day['label'] }}: {{ $fmtNum($day['sell_count']) }} sells"></div>
+                        </div>
+                        <span class="truncate text-[10px] text-gray-500">{{ $day['label'] }}</span>
+                    </div>
+                    @endforeach
+                </div>
+            </div>
+            @endif
+
+            <div class="flex flex-col gap-4">
+                @if(($can['cash_flow'] ?? false) && $cashFlow)
+                <div class="rounded-xl border border-gray-200 bg-white shadow-sm" data-testid="dashboard-cash-flow-summary">
+                    <div class="flex items-center justify-between border-b border-gray-100 px-5 py-4">
+                        <div>
+                            <h4 class="text-sm font-semibold text-gray-900">Cash Flow</h4>
+                            <p class="text-xs text-gray-500">{{ $cashFlow['month_label'] }}</p>
+                        </div>
+                        <a href="{{ route('reports.cash-flow') }}" class="text-sm font-medium text-blue-700 hover:underline">Full report</a>
+                    </div>
+                    <dl class="grid grid-cols-2 gap-4 px-5 py-4 text-sm sm:grid-cols-3">
+                        <div>
+                            <dt class="text-xs uppercase text-gray-500">Cash in</dt>
+                            <dd class="mt-1 font-semibold text-green-700">{{ $fmtMoney($cashFlow['cash_in_total']) }}</dd>
+                        </div>
+                        <div>
+                            <dt class="text-xs uppercase text-gray-500">Cash out</dt>
+                            <dd class="mt-1 font-semibold text-red-700">{{ $fmtMoney($cashFlow['cash_out_total']) }}</dd>
+                        </div>
+                        <div>
+                            <dt class="text-xs uppercase text-gray-500">Sell</dt>
+                            <dd class="mt-1 font-semibold text-blue-700">{{ $fmtMoney($cashFlow['sell_total']) }}</dd>
+                        </div>
+                        <div>
+                            <dt class="text-xs uppercase text-gray-500">Buy</dt>
+                            <dd class="mt-1 font-semibold text-gray-900">{{ $fmtMoney($cashFlow['buy_total']) }}</dd>
+                        </div>
+                        <div>
+                            <dt class="text-xs uppercase text-gray-500">Return</dt>
+                            <dd class="mt-1 font-semibold text-gray-900">{{ $fmtMoney($cashFlow['return_total']) }}</dd>
+                        </div>
+                    </dl>
+                </div>
+                @endif
+
+                @if(($can['nett_cash'] ?? false) && $nettCash)
+                <div class="rounded-xl border border-gray-200 bg-white shadow-sm" data-testid="dashboard-nett-cash-summary">
+                    <div class="flex items-center justify-between border-b border-gray-100 px-5 py-4">
+                        <div>
+                            <h4 class="text-sm font-semibold text-gray-900">Nett Cash</h4>
+                            <p class="text-xs text-gray-500">{{ $nettCash['month_label'] }}</p>
+                        </div>
+                        <a href="{{ route('reports.nett-cash-sby') }}" class="text-sm font-medium text-blue-700 hover:underline">Full report</a>
+                    </div>
+                    <dl class="grid grid-cols-3 gap-4 px-5 py-4 text-sm">
+                        <div>
+                            <dt class="text-xs uppercase text-gray-500">Cash in</dt>
+                            <dd class="mt-1 font-semibold text-green-700">{{ $fmtMoney($nettCash['cash_in_total']) }}</dd>
+                        </div>
+                        <div>
+                            <dt class="text-xs uppercase text-gray-500">Cash out</dt>
+                            <dd class="mt-1 font-semibold text-red-700">{{ $fmtMoney($nettCash['cash_out_total']) }}</dd>
+                        </div>
+                        <div>
+                            <dt class="text-xs uppercase text-gray-500">Net</dt>
+                            <dd class="mt-1 font-semibold {{ $nettCash['net_total'] >= 0 ? 'text-green-700' : 'text-red-700' }}">{{ $fmtMoney($nettCash['net_total']) }}</dd>
+                        </div>
+                    </dl>
+                </div>
+                @endif
+
+                @if(($can['produksi_list'] ?? false) || ($can['produksi_setoran'] ?? false))
+                @if($produksi)
+                <div class="rounded-xl border border-gray-200 bg-white shadow-sm" data-testid="dashboard-produksi-summary">
+                    <div class="flex items-center justify-between border-b border-gray-100 px-5 py-4">
+                        <div>
+                            <h4 class="text-sm font-semibold text-gray-900">Produksi</h4>
+                            <p class="text-xs text-gray-500">Production and setoran queue</p>
+                        </div>
+                        @if($can['produksi_setoran'] ?? false)
+                        <a href="{{ route('produksi.setoran.index') }}" class="text-sm font-medium text-blue-700 hover:underline">Setoran</a>
+                        @elseif($can['produksi_list'] ?? false)
+                        <a href="{{ route('produksi.index') }}" class="text-sm font-medium text-blue-700 hover:underline">Production</a>
+                        @endif
+                    </div>
+                    <div class="grid grid-cols-2 gap-4 px-5 py-4">
+                        @if($can['produksi_list'] ?? false)
+                        <a href="{{ route('produksi.index') }}"
+                           class="rounded-lg border p-4 transition-colors hover:bg-gray-50 {{ ($produksi['pending_produksi'] ?? 0) > 0 ? 'border-indigo-200 bg-indigo-50/50' : 'border-gray-200' }}"
+                           data-testid="dashboard-kpi-produksi-pending">
+                            <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">In production</p>
+                            <p class="mt-1 text-2xl font-bold text-gray-900">{{ $fmtNum($produksi['pending_produksi'] ?? 0) }}</p>
+                        </a>
+                        @endif
+                        @if($can['produksi_setoran'] ?? false)
+                        <a href="{{ route('produksi.setoran.index') }}"
+                           class="rounded-lg border p-4 transition-colors hover:bg-gray-50 {{ ($produksi['active_setoran'] ?? 0) > 0 ? 'border-indigo-200 bg-indigo-50/50' : 'border-gray-200' }}"
+                           data-testid="dashboard-kpi-setoran-active">
+                            <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Active setoran</p>
+                            <p class="mt-1 text-2xl font-bold text-gray-900">{{ $fmtNum($produksi['active_setoran'] ?? 0) }}</p>
+                        </a>
+                        @endif
+                    </div>
+                </div>
+                @endif
+                @endif
+            </div>
+        </div>
+    </div>
     @endif
 
     {{-- Quick-links grid --}}

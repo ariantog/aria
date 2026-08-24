@@ -7,9 +7,13 @@ use App\Models\Jubelio;
 use App\Models\Jubelioorder;
 use App\Models\JubelioStockCheck;
 use App\Models\Jubelioreturn;
+use App\Models\Produksi;
 use App\Models\ScheduledTask;
+use App\Models\Tag;
+use App\Models\Transaction;
 use App\Models\User;
 use App\Models\WarehouseArrangementRefreshJob;
+use App\Models\Worker;
 use App\Services\PermissionGenerator;
 use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Permission;
@@ -168,6 +172,93 @@ test('superadmin sees phase 2 dashboard widgets', function () {
         ->assertSee('data-testid="dashboard-disabled-crons-list"', false)
         ->assertSee('Disabled Test Cron', false)
         ->assertSee('Dash Refresh WH', false);
+});
+
+test('superadmin sees phase 3 dashboard analytics', function () {
+    $user = User::factory()->create();
+    expect($user->is_superadmin)->toBeTrue();
+
+    $supplier = Addrbook::factory()->supplier()->create();
+    $warehouse = Addrbook::factory()->warehouse()->create();
+
+    Transaction::factory()->create([
+        'date' => now()->toDateString(),
+        'type' => Transaction::TYPE_SELL,
+        'status' => Transaction::STATUS_COMPLETED,
+        'real_total' => -250000,
+        'total' => -250000,
+        'sender_id' => $warehouse->id,
+        'receiver_id' => Addrbook::factory()->customer()->create()->id,
+        'user_id' => $user->id,
+    ]);
+
+    Transaction::factory()->create([
+        'date' => now()->subDay()->toDateString(),
+        'type' => Transaction::TYPE_SELL,
+        'status' => Transaction::STATUS_COMPLETED,
+        'real_total' => -100000,
+        'total' => -100000,
+        'sender_id' => $warehouse->id,
+        'receiver_id' => Addrbook::factory()->customer()->create()->id,
+        'user_id' => $user->id,
+    ]);
+
+    Transaction::factory()->create([
+        'date' => now()->toDateString(),
+        'type' => Transaction::TYPE_CASH_IN,
+        'status' => Transaction::STATUS_COMPLETED,
+        'real_total' => 500000,
+        'total' => 500000,
+        'sender_id' => Addrbook::factory()->customer()->create()->id,
+        'receiver_id' => Addrbook::factory()->create(['type' => Addrbook::TYPE_BANK])->id,
+        'user_id' => $user->id,
+    ]);
+
+    $worker = Worker::create(['name' => 'Dash Cutter', 'type' => Worker::TYPE_POTONG]);
+    $size = Tag::create(['name' => 'M', 'type' => Tag::TYPE_SIZE, 'item_type' => 0]);
+
+    Produksi::create([
+        'temp_name' => 'Dash Produksi',
+        'size_id' => $size->id,
+        'quantity' => 4,
+        'potong_id' => $worker->id,
+        'potong_date' => now(),
+        'status' => Produksi::STATUS_PRODUKSI,
+    ]);
+
+    Produksi::create([
+        'temp_name' => 'Dash Setoran',
+        'size_id' => $size->id,
+        'quantity' => 6,
+        'potong_id' => $worker->id,
+        'potong_date' => now(),
+        'status' => Produksi::STATUS_SETOR,
+    ]);
+
+    $this->actingAs($user)
+        ->get(route('dashboard'))
+        ->assertOk()
+        ->assertSee('data-testid="dashboard-analytics-panel"', false)
+        ->assertSee('data-testid="dashboard-activity-chart"', false)
+        ->assertSee('data-testid="dashboard-cash-flow-summary"', false)
+        ->assertSee('data-testid="dashboard-nett-cash-summary"', false)
+        ->assertSee('data-testid="dashboard-produksi-summary"', false)
+        ->assertSee('data-testid="dashboard-kpi-produksi-pending"', false)
+        ->assertSee('data-testid="dashboard-kpi-setoran-active"', false);
+});
+
+test('cash flow viewers see analytics without transaction activity chart', function () {
+    $user = User::factory()->create(['id' => 97]);
+    Permission::firstOrCreate(['name' => 'report-cash-flow', 'guard_name' => 'web']);
+    $user->givePermissionTo('report-cash-flow');
+
+    $this->actingAs($user)
+        ->get(route('dashboard'))
+        ->assertOk()
+        ->assertSee('data-testid="dashboard-analytics-panel"', false)
+        ->assertSee('data-testid="dashboard-cash-flow-summary"', false)
+        ->assertDontSee('data-testid="dashboard-activity-chart"', false)
+        ->assertDontSee('data-testid="dashboard-health-strip"', false);
 });
 
 test('users without ops permissions do not see the ops panel', function () {
