@@ -139,6 +139,30 @@ test('settings cleanup command removes duplicate slug rows', function () {
     expect(Setting::where('slug', 'produksi.default_warehouse_id')->count())->toBe(1);
 });
 
+test('legacy l10 account settings are not managed in l12', function () {
+    expect(SettingRegistry::isManaged('sell_100'))->toBeFalse()
+        ->and(SettingRegistry::isManaged('ongkir'))->toBeFalse()
+        ->and(SettingRegistry::isLegacy('sell_100'))->toBeTrue()
+        ->and(SettingRegistry::isLegacy('ongkir'))->toBeTrue();
+
+    Setting::create([
+        'group' => 'Accounting',
+        'name' => 'Account for 100% Discount',
+        'slug' => 'sell_100',
+        'value' => '123',
+    ]);
+    Setting::create([
+        'group' => 'Accounting',
+        'name' => 'Account for Ongkir',
+        'slug' => 'ongkir',
+        'value' => '456',
+    ]);
+
+    $this->artisan('settings:cleanup')->assertSuccessful();
+
+    expect(Setting::whereIn('slug', ['sell_100', 'ongkir'])->count())->toBe(0);
+});
+
 test('getValue reads the newest row when duplicate slug rows exist', function () {
     if (Schema::hasColumn('settings', 'slug')) {
         Schema::table('settings', function ($table) {

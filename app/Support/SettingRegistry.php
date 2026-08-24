@@ -13,6 +13,8 @@ class SettingRegistry
         'start_time',
         'stop_time',
         'bottom_line',
+        'sell_100',
+        'ongkir',
     ];
 
     /**
@@ -47,18 +49,6 @@ class SettingRegistry
                 'type' => 'tutup_buku',
                 'default' => '28',
                 'hint' => 'Day of month used as the book-closing cutoff.',
-            ],
-            'sell_100' => [
-                'group' => 'Accounting',
-                'name' => 'Account for 100% Discount',
-                'type' => 'account',
-                'default' => null,
-            ],
-            'ongkir' => [
-                'group' => 'Accounting',
-                'name' => 'Account for Ongkir',
-                'type' => 'account',
-                'default' => null,
             ],
             'batas_cuti_tahunan' => [
                 'group' => 'HR',
