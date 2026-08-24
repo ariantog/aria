@@ -15,6 +15,7 @@ class DatabaseSeeder extends Seeder
         $this->call([
             SettingSeeder::class,
             SuperAdminSeeder::class,
+            DemoDataSeeder::class,
         ]);
     }
 }

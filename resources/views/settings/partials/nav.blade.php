@@ -30,8 +30,7 @@
 
         <div class="flex-1 md:max-w-2xl">
             <section class="max-w-xl space-y-12">
-                {{ $slot ?? '' }}
-                @yield('settings-content')
+                @stack('settings-content')
             </section>
         </div>
     </div>

@@ -1,17 +1,7 @@
 @extends('layouts.app')
 @section('title', 'Appearance settings')
 
-@section('content')
-    @php
-        $breadcrumbs = [
-            ['title' => 'Appearance settings', 'href' => route('appearance.edit')],
-        ];
-    @endphp
-
-    @include('settings.partials.nav')
-@endsection
-
-@section('settings-content')
+@push('settings-content')
     <div class="space-y-6">
         <header>
             <h2 class="text-base font-medium text-gray-900">Appearance settings</h2>
@@ -49,6 +39,16 @@
             </div>
         </form>
     </div>
+@endpush
+
+@section('content')
+    @php
+        $breadcrumbs = [
+            ['title' => 'Appearance settings', 'href' => route('appearance.edit')],
+        ];
+    @endphp
+
+    @include('settings.partials.nav')
 @endsection
 
 @push('scripts')

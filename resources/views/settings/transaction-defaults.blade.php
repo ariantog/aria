@@ -1,17 +1,7 @@
 @extends('layouts.app')
 @section('title', 'Transaction defaults')
 
-@section('content')
-    @php
-        $breadcrumbs = [
-            ['title' => 'Transaction defaults', 'href' => route('transaction-defaults.edit')],
-        ];
-    @endphp
-
-    @include('settings.partials.nav')
-@endsection
-
-@section('settings-content')
+@push('settings-content')
     <div class="space-y-6">
         <header>
             <h2 class="text-base font-medium text-gray-900">Transaction defaults</h2>
@@ -67,4 +57,14 @@
             </div>
         </form>
     </div>
+@endpush
+
+@section('content')
+    @php
+        $breadcrumbs = [
+            ['title' => 'Transaction defaults', 'href' => route('transaction-defaults.edit')],
+        ];
+    @endphp
+
+    @include('settings.partials.nav')
 @endsection
