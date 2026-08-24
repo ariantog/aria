@@ -11,7 +11,7 @@
 <div class="px-4 py-6">
     <div class="mb-6">
         <h1 class="text-xl font-semibold text-gray-900">Settings</h1>
-        <p class="text-sm text-gray-500">Manage your profile and account settings</p>
+        <p class="text-sm text-gray-500">Personal preferences for your account. No special permission required.</p>
     </div>
 
     <div class="flex flex-col lg:flex-row lg:space-x-12">

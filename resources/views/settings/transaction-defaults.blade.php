@@ -15,7 +15,7 @@
     <div class="space-y-6">
         <header>
             <h2 class="text-base font-medium text-gray-900">Transaction defaults</h2>
-            <p class="text-sm text-gray-500">Pre-fill sender, receiver, warehouse, and bank accounts when creating transactions.</p>
+            <p class="text-sm text-gray-500">Pre-fill sender, receiver, warehouse, and bank accounts when creating transactions. Only contacts in your location are available.</p>
         </header>
 
         @if(session('success'))
