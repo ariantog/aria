@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Addrbook;
+use App\Models\Operation;
 use App\Models\ReportingEntity;
 use App\Models\ReportingTaxAccount;
 use Illuminate\Support\Facades\Artisan;
@@ -43,4 +44,32 @@ it('dry-run lists pt core retirement without applying changes', function () {
 
     expect($ptCore->fresh()->is_active)->toBeTrue()
         ->and($ptCore->fresh()->banks)->toHaveCount(1);
+});
+
+it('simplifies operation categories and re-parents accounts', function () {
+    $marketing = Operation::forceCreate(['id' => 3, 'name' => 'Marketing', 'description' => '']);
+    $utilitas = Operation::forceCreate(['id' => 9, 'name' => 'Utilitas', 'description' => '']);
+    $kantor = Operation::forceCreate(['id' => 8, 'name' => 'Perlengkapan Kantor', 'description' => '']);
+    $nonOp = Operation::forceCreate(['id' => 24, 'name' => 'Non-Operational', 'description' => '']);
+
+    $utilitasAccount = Addrbook::create([
+        'name' => 'PDAM',
+        'type' => Addrbook::TYPE_ACCOUNT,
+        'parent_id' => $utilitas->id,
+    ]);
+    $shopee = Addrbook::unguarded(fn () => Addrbook::create([
+        'id' => 2234,
+        'name' => 'Shopee Cost',
+        'type' => Addrbook::TYPE_ACCOUNT,
+        'parent_id' => $nonOp->id,
+    ]));
+
+    Artisan::call('reporting:apply-ledger-plan');
+
+    expect($marketing->fresh()->name)->toBe('Marketing Umum')
+        ->and($kantor->fresh()->name)->toBe('Kantor & Utilitas')
+        ->and($utilitasAccount->fresh()->parent_id)->toBe($kantor->id)
+        ->and($shopee->fresh()->parent_id)->toBe(29)
+        ->and(Operation::find(29)?->name)->toBe('Biaya Marketplace')
+        ->and(Operation::find(9))->toBeNull();
 });
