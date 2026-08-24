@@ -101,7 +101,7 @@ class TransactionService
 
     protected function updateBalances(Transaction $transaction, bool $revert = false)
     {
-        $amount = $revert ? -$transaction->real_total : $transaction->real_total;
+        $amount = $this->balanceAmount($transaction, $revert);
         $type = (int) $transaction->type;
 
         if ($type === Transaction::TYPE_BUY && $transaction->sender_id) {
@@ -140,6 +140,20 @@ class TransactionService
             $this->updateEntityBalance($transaction, 'receiver', $amount);
             $this->updateDailyReports($transaction, 'receiver', $amount);
         }
+    }
+
+    /**
+     * Signed balance delta from the transaction header total (already signed per type).
+     * Falls back to real_total only when total is unset (legacy adjust rows).
+     */
+    protected function balanceAmount(Transaction $transaction, bool $revert = false): float
+    {
+        $stored = (float) $transaction->total;
+        if ($stored === 0.0 && (float) $transaction->real_total !== 0.0) {
+            $stored = (float) $transaction->real_total;
+        }
+
+        return $revert ? -$stored : $stored;
     }
 
     protected function updateDailyReports(Transaction $transaction, string $side, $amount)
