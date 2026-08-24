@@ -6,7 +6,6 @@
     $typeSupplier = (string) \App\Models\Addrbook::TYPE_SUPPLIER;
     $isInternalLending = (bool) old('is_internal_lending', $isEdit && $addrbook ? $addrbook->is_internal_lending : false);
     $isActiveInReports = (bool) old('is_active_in_reports', $isEdit && $addrbook ? ($addrbook->is_active_in_reports ?? true) : true);
-    $defaultBankId = old('default_bank_id', $addrbook?->default_bank_id ?? '');
     $reportingRole = old('reporting_role', $addrbook?->reporting_role ?? '');
 @endphp
 
@@ -15,7 +14,7 @@
      x-cloak>
     <div class="border-b border-gray-100 px-5 py-4">
         <h3 class="text-sm font-semibold text-gray-900">Reporting</h3>
-        <p class="text-xs text-gray-500">Mapping for financial reports. Entity ↔ bank assignment is on <a href="{{ route('reports.entities.index') }}" class="text-blue-600 hover:underline">Reporting Entities</a>.</p>
+        <p class="text-xs text-gray-500">Revenue/tax entity comes from the <strong>bank on each Cash In</strong> (mapped under <a href="{{ route('reports.entities.index') }}" class="text-blue-600 hover:underline">Reporting Entities</a>), not a default on the customer.</p>
     </div>
     <div class="space-y-4 p-5">
         <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -67,16 +66,6 @@
 
         {{-- Customer / Reseller --}}
         <div x-show="selectedType === '{{ $typeCustomer }}' || selectedType === '{{ $typeReseller }}'" class="space-y-4">
-            <div>
-                <label for="default_bank_id" class="mb-1 block text-sm font-medium text-gray-700">Default payment bank</label>
-                <select id="default_bank_id" name="default_bank_id" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
-                    <option value="">— None —</option>
-                    @foreach($banks ?? [] as $bank)
-                        <option value="{{ $bank->id }}" @selected((string) $defaultBankId === (string) $bank->id)>{{ $bank->name }}</option>
-                    @endforeach
-                </select>
-                <p class="mt-1 text-xs text-gray-500">Marketplace / channel contacts: which bank receives payments.</p>
-            </div>
             <div x-data="{ on: {{ $isInternalLending ? 'true' : 'false' }} }" class="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 p-4">
                 <div>
                     <p class="text-sm font-medium text-gray-900">Internal lending</p>

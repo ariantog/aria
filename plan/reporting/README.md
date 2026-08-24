@@ -16,6 +16,8 @@ php artisan reporting:apply-ledger-plan
 
 The install migration is idempotent (`hasTable` / `hasColumn`), uses `INT(11)` for all `customers` references (no BIGINT), and adds `DEFAULT` values on new NOT NULL customer columns.
 
+**Revenue / tax entity:** derived from the **receiver bank on each Cash In** (`reporting_entity_banks`), not a per-customer default bank.
+
 ## Documents
 
 | File | Purpose |
