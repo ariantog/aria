@@ -64,6 +64,11 @@ migration file must be production-safe on its own**:
 - A one-off greenfield `create_*` migration that later changes shape must be turned into a
   no-op and replaced by a guarded `install_*` migration (see the standalone-invoice pair
   `2026_08_19_040000` / `2026_08_19_070000`) — prod may have run the old version already.
+- **ALTERs on production run against live traffic.** Wrap them in
+  `ProductionMysqlCompat::withRelaxedSqlMode()` / `alterTable()` — it caps metadata-lock
+  waits at 15s (MariaDB default is a day; a waiting ALTER freezes the whole site) and
+  relaxes sql_mode for legacy zero-date rows. Never add unbounded full-table scans to a
+  migration that targets big tables (`transactions`, `transaction_details`).
 - Fresh prod bootstrap = `2026_08_13_100000_production_database_bootstrap` (+ seeder). Add new
   L12 tables to the bootstrap's `up()` list as well as shipping the standalone migration.
 

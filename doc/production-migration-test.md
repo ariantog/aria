@@ -246,6 +246,38 @@ Login with an **existing production user** (username + password from prod DB). U
 
 ## Step 7 — If something breaks
 
+### Migration hangs, or the site returns 419 after interrupting it
+
+An `ALTER TABLE` must wait for a **metadata lock** while the live app / crons hold the
+table — and MariaDB's default lock wait is 86400s (a day), so the migration appears
+frozen and every later query on that table queues behind it (site freeze, session
+writes fail → 419 on login/POST). Interrupting artisan with Ctrl+C can leave the
+server-side thread running and still holding the queue.
+
+Recovery:
+
+```sql
+SHOW FULL PROCESSLIST;
+-- KILL any thread in state "Waiting for table metadata lock", "altering table",
+-- "copy to tmp table", or a long-running UPDATE/ALTER left by the migration:
+KILL <Id>;
+```
+
+Then:
+
+```bash
+php artisan config:clear
+php artisan cache:clear
+```
+
+If 419 persists, clear stale sessions (logs everyone out): `TRUNCATE sessions;` and
+reload the login page to get a fresh CSRF cookie.
+
+The interrupted migration was **not recorded** (`migrate:status` still shows Pending)
+and is safe to re-run. Migrations now cap lock waits at 15s per table: instead of
+hanging they fail fast, keep the tables that finished, and list the busy ones — pause
+crons (cron-manager or crontab) or wait for a quiet moment and re-run.
+
 ### Foreign key errno 150 on new L12 tables
 
 Production legacy tables use signed `INT(11)` primary keys (`customers.id`, `items.id`, etc.).
