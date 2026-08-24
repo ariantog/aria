@@ -29,6 +29,7 @@ test('adjust transaction can be stored and updates balances', function () {
         'type' => Transaction::TYPE_ADJUST,
         'sender_id' => $account->id,
         'receiver_id' => $customer->id,
+        'total' => 1000,
         'real_total' => 1000,
     ]);
 
