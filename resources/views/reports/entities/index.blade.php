@@ -53,7 +53,17 @@
                             <span class="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">Non-PKP</span>
                         @endif
                     </td>
-                    <td class="px-4 py-3 text-gray-600">{{ $entity->banks_count }}</td>
+                    <td class="px-4 py-3">
+                        @if($entity->banks->isEmpty())
+                            <span class="text-gray-400">None assigned</span>
+                        @else
+                            <ul class="flex flex-wrap gap-1.5">
+                                @foreach($entity->banks as $bank)
+                                <li class="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700">{{ $bank->name }}</li>
+                                @endforeach
+                            </ul>
+                        @endif
+                    </td>
                     <td class="px-4 py-3 text-right">
                         <a href="{{ route('reports.entities.edit', $entity) }}" class="text-blue-600 hover:underline">Edit</a>
                     </td>

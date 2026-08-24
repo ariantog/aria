@@ -6,8 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Models\Addrbook;
 use App\Models\ReportingEntity;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class ReportingEntityController extends Controller
 {
@@ -15,7 +17,10 @@ class ReportingEntityController extends Controller
     {
         $this->authorizeSuperadmin();
 
-        $entities = ReportingEntity::withCount('banks')->orderBy('name')->get();
+        $entities = ReportingEntity::query()
+            ->with(['banks' => fn ($query) => $query->orderBy('name')->select('customers.id', 'customers.name')])
+            ->orderBy('name')
+            ->get();
 
         return view('reports.entities.index', [
             'entities' => $entities,
@@ -71,6 +76,8 @@ class ReportingEntityController extends Controller
         ]);
 
         $bankIds = collect($data['bank_ids'] ?? [])->map(fn ($id) => (int) $id)->unique()->values();
+        $this->assertBanksAvailableForEntity($entity, $bankIds);
+
         $sync = [];
         foreach ($bankIds as $bankId) {
             $sync[$bankId] = ['is_active' => true];
@@ -103,5 +110,43 @@ class ReportingEntityController extends Controller
     private function authorizeSuperadmin(): void
     {
         abort_unless(request()->user()?->is_superadmin, 403);
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<int, int>  $bankIds
+     */
+    private function assertBanksAvailableForEntity(ReportingEntity $entity, $bankIds): void
+    {
+        if ($bankIds->isEmpty()) {
+            return;
+        }
+
+        $conflicts = DB::table('reporting_entity_banks as reb')
+            ->join('customers as bank', 'bank.id', '=', 'reb.bank_id')
+            ->join('reporting_entities as other_entity', 'other_entity.id', '=', 'reb.reporting_entity_id')
+            ->whereIn('reb.bank_id', $bankIds->all())
+            ->where('reb.reporting_entity_id', '!=', $entity->id)
+            ->orderBy('bank.name')
+            ->get([
+                'reb.bank_id',
+                'bank.name as bank_name',
+                'other_entity.name as entity_name',
+            ]);
+
+        if ($conflicts->isEmpty()) {
+            return;
+        }
+
+        $messages = $conflicts->map(
+            fn ($row) => sprintf(
+                '%s is already assigned to %s. Remove it from that entity first.',
+                $row->bank_name,
+                $row->entity_name,
+            )
+        )->values()->all();
+
+        throw ValidationException::withMessages([
+            'bank_ids' => $messages,
+        ]);
     }
 }
