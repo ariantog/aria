@@ -7,6 +7,7 @@ use App\Models\DailyInventorySummary;
 use App\Models\MonthlyAccountSummary;
 use App\Models\MonthlyCategorySummary;
 use App\Models\Transaction;
+use App\Services\Reporting\ReportingSummaryRecorder;
 use App\Services\WarehouseItemStatsRecorder;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -18,8 +19,10 @@ class UpdateTransactionSummaries implements ShouldQueue
 
     public function __construct(public int $transactionId) {}
 
-    public function handle(WarehouseItemStatsRecorder $statsRecorder): void
-    {
+    public function handle(
+        WarehouseItemStatsRecorder $statsRecorder,
+        ReportingSummaryRecorder $reportingSummaryRecorder,
+    ): void {
         $transaction = Transaction::with('details')->find($this->transactionId);
         if (! $transaction || (int) $transaction->status !== Transaction::STATUS_COMPLETED) {
             return;
@@ -29,6 +32,7 @@ class UpdateTransactionSummaries implements ShouldQueue
         $month = $transaction->date->month;
         $date = $transaction->date->toDateString();
 
+        $reportingSummaryRecorder->record($transaction);
         $this->updateAccountSummary($transaction, $year, $month);
         $this->updateCategorySummary($transaction, $year, $month);
         $this->updateInventorySummary($transaction, $date);
