@@ -127,16 +127,12 @@ class CreateItemTransaction
         $totalBeforeTax = $itemsTotal - $discountAmount + $adjustment;
         $taxAmount = $isPpn ? ($totalBeforeTax * $this->getPpnRate()) : 0;
         $grandTotal = $totalBeforeTax + $taxAmount;
-        if (Transaction::typeIsNegative($type)) {
-            $itemsTotal = -abs($itemsTotal);
-            $grandTotal = -abs($grandTotal);
-        }
         $transaction->update([
-            'total' => $itemsTotal,
+            'total' => Transaction::signedAmount($type, $itemsTotal),
             'discount' => $discountPercent,
             'adjustment' => $adjustment,
             'ppn' => $taxAmount,
-            'real_total' => $grandTotal,
+            'real_total' => Transaction::signedAmount($type, $grandTotal),
             'total_items' => $totalItems,
         ]);
     }

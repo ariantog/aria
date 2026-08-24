@@ -345,7 +345,9 @@ it('processes jubelio return into the original sell warehouse', function () {
     $returnTrx = Transaction::where('type', Transaction::TYPE_RETURN)->where('invoice', 'RET-WH-1')->first();
     expect($returnTrx)->not->toBeNull()
         ->and($returnTrx->receiver_id)->toBe($warehouseA->id)
-        ->and($returnTrx->sender_id)->toBe($customer->id);
+        ->and($returnTrx->sender_id)->toBe($customer->id)
+        ->and((float) $returnTrx->total)->toBe(10000.0)
+        ->and((float) $returnTrx->real_total)->toBe(10000.0);
 });
 
 it('rejects jubelio sell when mapped warehouse stock is insufficient', function () {

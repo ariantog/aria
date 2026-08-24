@@ -26,7 +26,7 @@ class CreateCashTransaction
                 $sender = $isCashIn ? $contact : $account;
                 $receiver = $isCashIn ? $account : $contact;
                 $total = (float) $item['total'];
-                $grandTotal = $isCashIn ? $total : -$total;
+                $grandTotal = Transaction::signedAmount($type, $total);
                 $trx = Transaction::create([
                     'date' => $data['date'], 'type' => $type,
                     'sender_type' => (int) $sender->type,
