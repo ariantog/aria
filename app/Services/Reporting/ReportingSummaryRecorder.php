@@ -277,7 +277,7 @@ class ReportingSummaryRecorder
         return (float) Setting::getValue('ppn_rate', 11) / 100;
     }
 
-    private function hasMatchingSellTax(Transaction $transaction): bool
+    public function hasMatchingSellTax(Transaction $transaction): bool
     {
         if (! filled($transaction->invoice)) {
             return false;

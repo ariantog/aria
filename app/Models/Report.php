@@ -26,6 +26,7 @@ class Report
             'view-product-performance' => 'report-product-performance',
             'view-produksi-potong' => 'report-produksi-potong',
             'view-produksi-qc' => 'report-produksi-qc',
+            'view-tax-ppn' => 'report-tax-ppn',
         ];
     }
 }
