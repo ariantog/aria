@@ -152,7 +152,7 @@
                     <label for="total" class="text-sm font-medium text-gray-700">Amount</label>
                     <div class="relative">
                         <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-medium text-gray-500">Rp</span>
-                        <input type="number" id="total" name="total" value="{{ old('total', '') }}" min="0.01" step="any" placeholder="0"
+                        <input type="number" id="total" name="total" value="{{ old('total') }}" min="0.01" step="any" placeholder=""
                                class="w-full rounded-lg border px-3 py-2 pl-10 text-right text-lg font-bold focus:border-blue-500 focus:ring-1 focus:ring-blue-500 @error('total') border-red-500 @else border-gray-300 @enderror">
                     </div>
                     <p class="text-xs text-gray-500">Enter a positive amount. To reverse direction, swap sender and receiver.</p>
