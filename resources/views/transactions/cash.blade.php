@@ -200,6 +200,7 @@ const _CashEndpoint = @js($config['endpoint']);
 const _CashCsrf = '{{ csrf_token() }}';
 const _TxIndex = '{{ route('transactions.index') }}';
 const _CashMaxRows = 7;
+const _CashDefaultAccount = @json($defaultAccount ?? null);
 
 function cashForm() {
     const today = new Date().toISOString().split('T')[0];
@@ -216,7 +217,12 @@ function cashForm() {
             items: [newRow()],
         },
 
-        init() {},
+        init() {
+            if (_CashDefaultAccount) {
+                this.form.account_id = String(_CashDefaultAccount.id);
+                this.form.account = _CashDefaultAccount;
+            }
+        },
 
         addRow() {
             if (!this.canAddRow()) return;

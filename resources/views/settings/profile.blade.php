@@ -1,18 +1,11 @@
 @extends('layouts.app')
 @section('title', 'Profile settings')
 
-@section('content')
-    @php
-        $breadcrumbs = [
-            ['title' => 'Profile settings', 'href' => route('profile.edit')],
-        ];
-        $user = auth()->user();
-    @endphp
+@php
+    $user = auth()->user();
+@endphp
 
-    @include('settings.partials.nav')
-@endsection
-
-@section('settings-content')
+@push('settings-content')
     <div class="space-y-6">
         <header>
             <h2 class="text-base font-medium text-gray-900">Profile information</h2>
@@ -73,4 +66,14 @@
             </form>
         @endif
     </div>
+@endpush
+
+@section('content')
+    @php
+        $breadcrumbs = [
+            ['title' => 'Profile settings', 'href' => route('profile.edit')],
+        ];
+    @endphp
+
+    @include('settings.partials.nav')
 @endsection

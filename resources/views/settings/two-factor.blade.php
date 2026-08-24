@@ -1,17 +1,7 @@
 @extends('layouts.app')
 @section('title', 'Two-Factor Authentication')
 
-@section('content')
-    @php
-        $breadcrumbs = [
-            ['title' => 'Two-Factor Authentication', 'href' => route('two-factor.show')],
-        ];
-    @endphp
-
-    @include('settings.partials.nav')
-@endsection
-
-@section('settings-content')
+@push('settings-content')
     <div class="space-y-6"
          x-data="twoFactor({{ ($twoFactorEnabled ?? false) ? 'true' : 'false' }}, {{ ($requiresConfirmation ?? false) ? 'true' : 'false' }})">
         <header>
@@ -159,6 +149,16 @@
             </div>
         </div>
     </div>
+@endpush
+
+@section('content')
+    @php
+        $breadcrumbs = [
+            ['title' => 'Two-Factor Authentication', 'href' => route('two-factor.show')],
+        ];
+    @endphp
+
+    @include('settings.partials.nav')
 @endsection
 
 @push('scripts')

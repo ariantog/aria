@@ -10,9 +10,7 @@ test('adjust transaction can be stored and updates balances', function () {
     $account = Addrbook::factory()->create(['type' => Addrbook::TYPE_ACCOUNT]);
     $customer = Addrbook::factory()->create(['type' => Addrbook::TYPE_CUSTOMER]);
 
-    // Adjust: Account (Sender/Debit+) -> Customer (Receiver/Credit+)
-    // Debit sender means sender balance decreases
-    // Credit receiver means receiver balance increases
+    // Adjust: positive amount; sender debited, receiver credited (swap parties to reverse).
     $response = $this->actingAs($user)->post(route('transactions.adjust.store'), [
         'date' => now()->format('Y-m-d'),
         'sender' => $account->id,
@@ -69,4 +67,24 @@ test('adjust requires sender and receiver', function () {
     ]);
 
     $response->assertSessionHasErrors(['sender', 'receiver']);
+});
+
+test('adjust rejects zero or negative amount', function () {
+    $user = User::factory()->create();
+    $account = Addrbook::factory()->create(['type' => Addrbook::TYPE_ACCOUNT]);
+    $customer = Addrbook::factory()->create(['type' => Addrbook::TYPE_CUSTOMER]);
+
+    $this->actingAs($user)->post(route('transactions.adjust.store'), [
+        'date' => now()->format('Y-m-d'),
+        'sender' => $account->id,
+        'receiver' => $customer->id,
+        'total' => -500,
+    ])->assertSessionHasErrors(['total']);
+
+    $this->actingAs($user)->post(route('transactions.adjust.store'), [
+        'date' => now()->format('Y-m-d'),
+        'sender' => $account->id,
+        'receiver' => $customer->id,
+        'total' => 0,
+    ])->assertSessionHasErrors(['total']);
 });

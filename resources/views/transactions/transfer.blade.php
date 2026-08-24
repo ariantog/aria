@@ -58,7 +58,7 @@
                             class="w-full rounded-lg border px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 @error('sender') border-red-500 @else border-gray-300 @enderror">
                         <option value="">Choose source account</option>
                         @foreach($bankList as $bank)
-                        <option value="{{ $bank->id }}" @selected(old('sender') == $bank->id)>{{ $bank->name }}</option>
+                        <option value="{{ $bank->id }}" @selected(old('sender', $defaultAccounts['sender_id'] ?? null) == $bank->id)>{{ $bank->name }}</option>
                         @endforeach
                     </select>
                     @error('sender')<p class="text-xs text-red-500">{{ $message }}</p>@enderror
@@ -71,7 +71,7 @@
                             class="w-full rounded-lg border px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 @error('receiver') border-red-500 @else border-gray-300 @enderror">
                         <option value="">Choose destination account</option>
                         @foreach($bankList as $bank)
-                        <option value="{{ $bank->id }}" @selected(old('receiver') == $bank->id)>{{ $bank->name }}</option>
+                        <option value="{{ $bank->id }}" @selected(old('receiver', $defaultAccounts['receiver_id'] ?? null) == $bank->id)>{{ $bank->name }}</option>
                         @endforeach
                     </select>
                     @error('receiver')<p class="text-xs text-red-500">{{ $message }}</p>@enderror
@@ -84,7 +84,7 @@
                     <label for="total" class="text-sm font-medium text-gray-700">Total Amount</label>
                     <div class="relative">
                         <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-medium text-gray-500">Rp</span>
-                        <input type="number" id="total" name="total" x-model.number="totalAmount" min="0" step="any" placeholder=""
+                        <input type="number" id="total" name="total" x-model.number="totalAmount" min="" step="any" placeholder=""
                                class="w-full rounded-lg border px-3 py-2 pl-10 text-right text-lg font-semibold focus:border-blue-500 focus:ring-1 focus:ring-blue-500 @error('total') border-red-500 @else border-gray-300 @enderror">
                     </div>
                     <p x-show="totalAmount > 0" x-cloak class="text-right text-sm tabular-nums text-gray-600"

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Models\UserPreference;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -138,6 +139,11 @@ class User extends Authenticatable
     public function location()
     {
         return $this->belongsTo(Location::class);
+    }
+
+    public function preferences()
+    {
+        return $this->hasMany(UserPreference::class);
     }
 
     public static function getPermissions(): array

@@ -25,16 +25,20 @@ echo "==> Running migrations"
 php artisan migrate --force
 
 echo "==> Ensuring the dev database has preview data"
-# The dev SQLite file is not tracked in git, so a merge can leave it empty. Re-seed only when
-# there are no users at all — never overwrite an existing dataset.
+# The dev SQLite file is not tracked in git, so a merge can leave it empty. Re-seed when
+# there are no users, or when addrbook contacts are missing (common after partial seed).
 USER_COUNT=$(php artisan tinker --execute="echo App\Models\User::count();" 2>/dev/null | tr -dc '0-9' | tail -c 4)
+ADDRBOOK_COUNT=$(php artisan tinker --execute="echo App\Models\Addrbook::count();" 2>/dev/null | tr -dc '0-9' | tail -c 6)
 if [ -z "$USER_COUNT" ] || [ "$USER_COUNT" = "0" ]; then
     echo "    empty database, seeding preview data"
     php artisan db:seed --class=SuperAdminSeeder --force
     php artisan db:seed --class=SettingSeeder --force
     php artisan db:seed --class=DemoDataSeeder --force
+elif [ -z "$ADDRBOOK_COUNT" ] || [ "$ADDRBOOK_COUNT" = "0" ]; then
+    echo "    users exist but no addrbook contacts, seeding demo contacts"
+    php artisan db:seed --class=DemoDataSeeder --force
 else
-    echo "    database already has $USER_COUNT user(s), skipping seed"
+    echo "    database already has $USER_COUNT user(s) and $ADDRBOOK_COUNT contact(s), skipping seed"
 fi
 
 echo "==> Clearing stale caches"

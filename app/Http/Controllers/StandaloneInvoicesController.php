@@ -108,11 +108,7 @@ class StandaloneInvoicesController extends Controller
     {
         Gate::authorize(StandaloneInvoice::getPermissions()['delete']);
 
-        $fileName = $service->invoiceFileName($invoice);
-        $filePath = $service->invoiceDiskPath($fileName);
-        if (file_exists($filePath)) {
-            unlink($filePath);
-        }
+        $service->deleteInvoicePdfs($invoice);
 
         $invoice->delete();
 
@@ -124,27 +120,28 @@ class StandaloneInvoicesController extends Controller
     public function showPdf(StandaloneInvoice $invoice, StandaloneInvoiceService $service)
     {
         Gate::authorize(StandaloneInvoice::getPermissions()['view']);
-        abort_unless($service->invoicePdfExists($invoice), 404);
 
-        $filePath = $service->invoiceDiskPath($service->invoiceFileName($invoice));
+        $filePath = $service->resolveInvoicePdfPath($invoice);
+        abort_unless($filePath, 404);
 
-        return response()->file($filePath, [
-            'Content-Type' => 'application/pdf',
-            'Content-Disposition' => 'inline; filename="'.$service->invoiceFileName($invoice).'"',
-        ]);
+        return response()->file($filePath, $this->pdfResponseHeaders(
+            $service->invoiceDownloadFileName($invoice),
+            inline: true,
+        ));
     }
 
     public function downloadPdf(StandaloneInvoice $invoice, StandaloneInvoiceService $service)
     {
         Gate::authorize(StandaloneInvoice::getPermissions()['view']);
-        abort_unless($service->invoicePdfExists($invoice), 404);
 
-        $filePath = $service->invoiceDiskPath($service->invoiceFileName($invoice));
-        $fileName = $service->invoiceDownloadFileName($invoice);
+        $filePath = $service->resolveInvoicePdfPath($invoice);
+        abort_unless($filePath, 404);
 
-        return response()->download($filePath, $fileName, [
-            'Content-Type' => 'application/pdf',
-        ]);
+        return response()->download(
+            $filePath,
+            $service->invoiceDownloadFileName($invoice),
+            $this->pdfResponseHeaders($service->invoiceDownloadFileName($invoice)),
+        );
     }
 
     public function storePdf(StandaloneInvoice $invoice, StandaloneInvoiceService $service)
@@ -232,6 +229,19 @@ class StandaloneInvoicesController extends Controller
             'edit' => $user?->can(StandaloneInvoice::getPermissions()['edit']) ?? false,
             'delete' => $user?->can(StandaloneInvoice::getPermissions()['delete']) ?? false,
             'settings' => $user?->can(StandaloneInvoice::getPermissions()['edit']) ?? false,
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    protected function pdfResponseHeaders(string $fileName, bool $inline = false): array
+    {
+        return [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => ($inline ? 'inline' : 'attachment').'; filename="'.$fileName.'"',
+            'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
+            'Pragma' => 'no-cache',
         ];
     }
 }

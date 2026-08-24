@@ -14,7 +14,7 @@ class StoreAdjustRequest extends FormRequest
             'receiver' => ['required', 'integer', 'exists:customers,id', 'different:sender'],
             'invoice' => ['nullable', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:5000'],
-            'total' => ['required', 'numeric'],
+            'total' => ['required', 'numeric', 'gt:0'],
         ];
     }
 
