@@ -5,9 +5,12 @@ use App\Models\Item;
 use App\Models\ItemStockNotification;
 use App\Models\Jubelio;
 use App\Models\Jubelioorder;
+use App\Models\Jubeliosync;
 use App\Models\JubelioStockCheck;
 use App\Models\Jubelioreturn;
 use App\Models\Produksi;
+use App\Models\RestockCell;
+use App\Models\RestockSheet;
 use App\Models\ScheduledTask;
 use App\Models\Tag;
 use App\Models\Transaction;
@@ -174,22 +177,34 @@ test('superadmin sees phase 2 dashboard widgets', function () {
         ->assertSee('Dash Refresh WH', false);
 });
 
-test('superadmin sees phase 3 dashboard analytics', function () {
+test('superadmin sees daily checklist widgets', function () {
     $user = User::factory()->create();
     expect($user->is_superadmin)->toBeTrue();
 
-    $supplier = Addrbook::factory()->supplier()->create();
     $warehouse = Addrbook::factory()->warehouse()->create();
+    Jubeliosync::create([
+        'jubelio_store_id' => 1,
+        'jubelio_store_name' => 'Store',
+        'jubelio_location_id' => 2,
+        'jubelio_location_name' => 'WH',
+        'warehouse_id' => $warehouse->id,
+        'customer_id' => 0,
+        'bin_id' => 0,
+    ]);
 
     Transaction::factory()->create([
         'date' => now()->toDateString(),
         'type' => Transaction::TYPE_SELL,
         'status' => Transaction::STATUS_COMPLETED,
+        'submit_type' => Transaction::SUBMIT_TYPE_MANUAL,
+        'sync_hide' => 'N',
+        'invoice' => 'INV-SYNC-PENDING',
         'real_total' => -250000,
         'total' => -250000,
         'sender_id' => $warehouse->id,
         'receiver_id' => Addrbook::factory()->customer()->create()->id,
         'user_id' => $user->id,
+        'a_submit_by' => null,
     ]);
 
     Transaction::factory()->create([
@@ -203,15 +218,23 @@ test('superadmin sees phase 3 dashboard analytics', function () {
         'user_id' => $user->id,
     ]);
 
-    Transaction::factory()->create([
-        'date' => now()->toDateString(),
-        'type' => Transaction::TYPE_CASH_IN,
-        'status' => Transaction::STATUS_COMPLETED,
-        'real_total' => 500000,
-        'total' => 500000,
-        'sender_id' => Addrbook::factory()->customer()->create()->id,
-        'receiver_id' => Addrbook::factory()->create(['type' => Addrbook::TYPE_BANK])->id,
-        'user_id' => $user->id,
+    $typeTag = Tag::factory()->create([
+        'type' => Tag::TYPE_TYPE,
+        'code' => 'DASH-TYPE',
+        'name' => 'Dash Type',
+        'item_type' => \App\Enums\ItemType::ASSET_LANCAR->value,
+    ]);
+    $item = Item::factory()->create(['code' => 'URG-RESTOCK']);
+    $sheet = RestockSheet::create([
+        'name' => 'Dash Sheet',
+        'type_tag_id' => $typeTag->id,
+        'created_by' => $user->id,
+    ]);
+    RestockCell::create([
+        'restock_sheet_id' => $sheet->id,
+        'item_id' => $item->id,
+        'qty_restock' => 2,
+        'is_urgent' => true,
     ]);
 
     $worker = Worker::create(['name' => 'Dash Cutter', 'type' => Worker::TYPE_POTONG]);
@@ -238,25 +261,48 @@ test('superadmin sees phase 3 dashboard analytics', function () {
     $this->actingAs($user)
         ->get(route('dashboard'))
         ->assertOk()
-        ->assertSee('data-testid="dashboard-analytics-panel"', false)
+        ->assertSee('data-testid="dashboard-daily-panel"', false)
+        ->assertSee('Daily checklist', false)
         ->assertSee('data-testid="dashboard-activity-chart"', false)
-        ->assertSee('data-testid="dashboard-cash-flow-summary"', false)
-        ->assertSee('data-testid="dashboard-nett-cash-summary"', false)
+        ->assertSee('data-testid="dashboard-jubelio-stock-sync"', false)
+        ->assertSee('data-testid="dashboard-restock-urgent"', false)
+        ->assertSee('INV-SYNC-PENDING', false)
+        ->assertSee('URG-RESTOCK', false)
         ->assertSee('data-testid="dashboard-produksi-summary"', false)
-        ->assertSee('data-testid="dashboard-kpi-produksi-pending"', false)
-        ->assertSee('data-testid="dashboard-kpi-setoran-active"', false);
+        ->assertDontSee('data-testid="dashboard-cash-flow-summary"', false)
+        ->assertDontSee('data-testid="dashboard-nett-cash-summary"', false);
 });
 
-test('cash flow viewers see analytics without transaction activity chart', function () {
-    $user = User::factory()->create(['id' => 97]);
-    Permission::firstOrCreate(['name' => 'report-cash-flow', 'guard_name' => 'web']);
-    $user->givePermissionTo('report-cash-flow');
+test('restock viewers see urgent restock checklist without ops panel', function () {
+    $user = User::factory()->create(['id' => 96]);
+    Permission::firstOrCreate(['name' => 'restock-list', 'guard_name' => 'web']);
+    $user->givePermissionTo('restock-list');
+
+    $typeTag = Tag::factory()->create([
+        'type' => Tag::TYPE_TYPE,
+        'code' => 'REST-TYPE',
+        'name' => 'Rest Type',
+        'item_type' => \App\Enums\ItemType::ASSET_LANCAR->value,
+    ]);
+    $item = Item::factory()->create(['code' => 'REST-URGENT']);
+    $sheet = RestockSheet::create([
+        'name' => 'Rest Sheet',
+        'type_tag_id' => $typeTag->id,
+        'created_by' => $user->id,
+    ]);
+    RestockCell::create([
+        'restock_sheet_id' => $sheet->id,
+        'item_id' => $item->id,
+        'qty_restock' => 1,
+        'is_urgent' => true,
+    ]);
 
     $this->actingAs($user)
         ->get(route('dashboard'))
         ->assertOk()
-        ->assertSee('data-testid="dashboard-analytics-panel"', false)
-        ->assertSee('data-testid="dashboard-cash-flow-summary"', false)
+        ->assertSee('data-testid="dashboard-daily-panel"', false)
+        ->assertSee('data-testid="dashboard-restock-urgent"', false)
+        ->assertSee('REST-URGENT', false)
         ->assertDontSee('data-testid="dashboard-activity-chart"', false)
         ->assertDontSee('data-testid="dashboard-health-strip"', false);
 });
