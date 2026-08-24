@@ -8,9 +8,13 @@ use App\Models\Jubelio;
 use App\Models\Jubelioorder;
 use App\Models\JubelioStockCheck;
 use App\Models\Jubelioreturn;
+use App\Models\Produksi;
 use App\Models\ScheduledTask;
+use App\Models\Transaction;
 use App\Models\User;
 use App\Models\WarehouseArrangementRefreshJob;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 
@@ -19,6 +23,8 @@ class DashboardService
     public const QUEUE_WARN_THRESHOLD = 1;
 
     public const QUEUE_CRITICAL_THRESHOLD = 50;
+
+    public const ACTIVITY_CHART_DAYS = 7;
 
     public function __construct(
         protected JubelioService $jubelioService,
@@ -36,6 +42,11 @@ class DashboardService
         $canCron = Gate::forUser($user)->allows(ScheduledTask::getPermissions()['view']);
         $canBookClosing = Gate::forUser($user)->allows('transactions-list');
         $canWarehouseArrangement = Gate::forUser($user)->allows('report-warehouse-arrangement');
+        $canActivity = Gate::forUser($user)->allows('transactions-list');
+        $canCashFlow = Gate::forUser($user)->allows('report-cash-flow');
+        $canNettCash = Gate::forUser($user)->allows('report-nett-cash');
+        $canProduksiList = Gate::forUser($user)->allows(Produksi::getPermissions()['view']);
+        $canProduksiSetoran = Gate::forUser($user)->allows(Produksi::getPermissions()['setoran-view']);
 
         $data = [
             'can' => [
@@ -46,6 +57,11 @@ class DashboardService
                 'cron_manager' => $canCron,
                 'book_closing' => $canBookClosing,
                 'warehouse_arrangement' => $canWarehouseArrangement,
+                'activity' => $canActivity,
+                'cash_flow' => $canCashFlow,
+                'nett_cash' => $canNettCash,
+                'produksi_list' => $canProduksiList,
+                'produksi_setoran' => $canProduksiSetoran,
             ],
             'has_ops_panel' => $canJubelio
                 || $canStockCheck
@@ -53,6 +69,11 @@ class DashboardService
                 || $canCron
                 || $canBookClosing
                 || $canWarehouseArrangement,
+            'has_analytics_panel' => $canActivity
+                || $canCashFlow
+                || $canNettCash
+                || $canProduksiList
+                || $canProduksiSetoran,
         ];
 
         if ($canJubelio) {
@@ -81,6 +102,22 @@ class DashboardService
 
         if ($canWarehouseArrangement) {
             $data['warehouse_arrangement'] = $this->warehouseArrangementPanel();
+        }
+
+        if ($canActivity) {
+            $data['activity'] = $this->activityPanel();
+        }
+
+        if ($canCashFlow) {
+            $data['cash_flow'] = $this->cashFlowPanel();
+        }
+
+        if ($canNettCash) {
+            $data['nett_cash'] = $this->nettCashPanel();
+        }
+
+        if ($canProduksiList || $canProduksiSetoran) {
+            $data['produksi'] = $this->produksiPanel($canProduksiList, $canProduksiSetoran);
         }
 
         return $data;
@@ -256,5 +293,167 @@ class DashboardService
             'active_jobs' => $activeJobs,
             'active_count' => $activeJobs->count(),
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    protected function activityPanel(): array
+    {
+        $today = now()->toDateString();
+        $chartStart = now()->subDays(self::ACTIVITY_CHART_DAYS - 1)->startOfDay();
+
+        $transactions = Transaction::query()
+            ->where('status', Transaction::STATUS_COMPLETED)
+            ->whereBetween('date', [$chartStart->toDateString(), $today])
+            ->whereIn('type', [
+                Transaction::TYPE_BUY,
+                Transaction::TYPE_SELL,
+                Transaction::TYPE_CASH_IN,
+                Transaction::TYPE_CASH_OUT,
+            ])
+            ->get(['date', 'type', 'real_total', 'total']);
+
+        $todayRows = $transactions->filter(fn (Transaction $row) => Carbon::parse($row->date)->toDateString() === $today);
+
+        $chartDays = collect(range(0, self::ACTIVITY_CHART_DAYS - 1))
+            ->map(function (int $offset) use ($chartStart, $transactions) {
+                $date = $chartStart->copy()->addDays($offset);
+                $dateString = $date->toDateString();
+                $dayRows = $transactions->filter(
+                    fn (Transaction $row) => Carbon::parse($row->date)->toDateString() === $dateString
+                );
+
+                $sellTotal = $this->sumTransactionAmount($dayRows, [Transaction::TYPE_SELL]);
+                $buyTotal = $this->sumTransactionAmount($dayRows, [Transaction::TYPE_BUY]);
+
+                return [
+                    'date' => $dateString,
+                    'label' => $date->translatedFormat('D d'),
+                    'sell_count' => $dayRows->where('type', Transaction::TYPE_SELL)->count(),
+                    'buy_count' => $dayRows->where('type', Transaction::TYPE_BUY)->count(),
+                    'sell_total' => $sellTotal,
+                    'buy_total' => $buyTotal,
+                ];
+            });
+
+        $maxSellTotal = max(1.0, (float) $chartDays->max('sell_total'));
+
+        return [
+            'today' => [
+                'sell_count' => $todayRows->where('type', Transaction::TYPE_SELL)->count(),
+                'buy_count' => $todayRows->where('type', Transaction::TYPE_BUY)->count(),
+                'cash_in_total' => $this->sumTransactionAmount($todayRows, [Transaction::TYPE_CASH_IN]),
+                'cash_out_total' => $this->sumTransactionAmount($todayRows, [Transaction::TYPE_CASH_OUT]),
+                'sell_total' => $this->sumTransactionAmount($todayRows, [Transaction::TYPE_SELL]),
+                'buy_total' => $this->sumTransactionAmount($todayRows, [Transaction::TYPE_BUY]),
+            ],
+            'chart' => $chartDays
+                ->map(function (array $day) use ($maxSellTotal) {
+                    $day['bar_percent'] = (int) round(($day['sell_total'] / $maxSellTotal) * 100);
+
+                    return $day;
+                })
+                ->values()
+                ->all(),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    protected function cashFlowPanel(): array
+    {
+        $start = now()->startOfMonth()->toDateString();
+        $end = now()->endOfMonth()->toDateString();
+
+        $rows = Transaction::query()
+            ->where('status', Transaction::STATUS_COMPLETED)
+            ->whereBetween('date', [$start, $end])
+            ->where('sender_type', '!=', '0')
+            ->where('receiver_type', '!=', '0')
+            ->get(['type', 'total', 'real_total']);
+
+        return [
+            'month_label' => now()->translatedFormat('F Y'),
+            'cash_in_total' => $this->sumTransactionAmount($rows, [Transaction::TYPE_CASH_IN]),
+            'cash_out_total' => $this->sumTransactionAmount($rows, [Transaction::TYPE_CASH_OUT]),
+            'sell_total' => $this->sumTransactionAmount($rows, [Transaction::TYPE_SELL]),
+            'buy_total' => $this->sumTransactionAmount($rows, [Transaction::TYPE_BUY]),
+            'return_total' => $this->sumTransactionAmount($rows, [Transaction::TYPE_RETURN]),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    protected function nettCashPanel(): array
+    {
+        $start = now()->startOfMonth()->toDateString();
+        $end = now()->endOfMonth()->toDateString();
+
+        $cashIn = (float) Transaction::query()
+            ->where('status', Transaction::STATUS_COMPLETED)
+            ->whereBetween('date', [$start, $end])
+            ->where('type', Transaction::TYPE_CASH_IN)
+            ->sum(DB::raw('ABS(COALESCE(real_total, total))'));
+
+        $cashOut = (float) Transaction::query()
+            ->where('status', Transaction::STATUS_COMPLETED)
+            ->whereBetween('date', [$start, $end])
+            ->where('type', Transaction::TYPE_CASH_OUT)
+            ->sum(DB::raw('ABS(COALESCE(real_total, total))'));
+
+        return [
+            'month_label' => now()->translatedFormat('F Y'),
+            'cash_in_total' => $cashIn,
+            'cash_out_total' => $cashOut,
+            'net_total' => $cashIn - $cashOut,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    protected function produksiPanel(bool $canList, bool $canSetoran): array
+    {
+        $data = [];
+
+        if ($canList) {
+            $data['pending_produksi'] = (int) Produksi::query()
+                ->where('status', Produksi::STATUS_PRODUKSI)
+                ->count();
+        }
+
+        if ($canSetoran) {
+            $data['active_setoran'] = (int) Produksi::query()
+                ->whereIn('status', Produksi::setoranStatuses())
+                ->count();
+
+            $data['setoran_by_status'] = collect(Produksi::setoranStatuses())
+                ->mapWithKeys(function (int $status) {
+                    return [
+                        $status => (int) Produksi::query()->where('status', $status)->count(),
+                    ];
+                })
+                ->all();
+        }
+
+        return $data;
+    }
+
+    /**
+     * @param  Collection<int, Transaction>  $rows
+     * @param  list<int>  $types
+     */
+    protected function sumTransactionAmount(Collection $rows, array $types): float
+    {
+        return (float) $rows
+            ->whereIn('type', $types)
+            ->sum(function (Transaction $row) {
+                $amount = (float) ($row->real_total ?? $row->total ?? 0);
+
+                return abs($amount);
+            });
     }
 }
