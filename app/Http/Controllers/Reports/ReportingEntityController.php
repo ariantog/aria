@@ -23,7 +23,8 @@ class ReportingEntityController extends Controller
             ->get();
 
         return view('reports.entities.index', [
-            'entities' => $entities,
+            'activeEntities' => $entities->where('is_active', true)->values(),
+            'retiredEntities' => $entities->where('is_active', false)->values(),
             'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
     }

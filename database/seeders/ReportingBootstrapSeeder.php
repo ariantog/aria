@@ -16,18 +16,24 @@ class ReportingBootstrapSeeder extends Seeder
     public function run(): void
     {
         $entities = [
-            ['name' => 'CV Crystal', 'slug' => 'cv-crystal', 'is_pkp' => true],
-            ['name' => 'CV Cipta', 'slug' => 'cv-cipta', 'is_pkp' => true],
-            ['name' => 'PT Core', 'slug' => 'pt-core', 'is_pkp' => true],
-            ['name' => 'PT Indosport', 'slug' => 'pt-indosport', 'is_pkp' => true],
-            ['name' => 'CV Cakra', 'slug' => 'cv-cakra', 'is_pkp' => false],
-            ['name' => 'AGM', 'slug' => 'agm', 'is_pkp' => true],
-            ['name' => 'UAI', 'slug' => 'uai', 'is_pkp' => true],
-            ['name' => 'Pribadi', 'slug' => 'pribadi', 'is_pkp' => false],
+            ['name' => 'CV Crystal', 'slug' => 'cv-crystal', 'is_pkp' => true, 'is_active' => true],
+            ['name' => 'CV Cipta', 'slug' => 'cv-cipta', 'is_pkp' => true, 'is_active' => true],
+            ['name' => 'PT Indosport', 'slug' => 'pt-indosport', 'is_pkp' => true, 'is_active' => true],
+            ['name' => 'CV Cakra', 'slug' => 'cv-cakra', 'is_pkp' => false, 'is_active' => true],
+            ['name' => 'AGM', 'slug' => 'agm', 'is_pkp' => true, 'is_active' => true],
+            ['name' => 'UAI', 'slug' => 'uai', 'is_pkp' => true, 'is_active' => true],
+            ['name' => 'Pribadi', 'slug' => 'pribadi', 'is_pkp' => false, 'is_active' => true],
+            ['name' => 'PT Core', 'slug' => 'pt-core', 'is_pkp' => true, 'is_active' => false],
         ];
 
         foreach ($entities as $row) {
-            ReportingEntity::updateOrCreate(['slug' => $row['slug']], $row + ['is_active' => true]);
+            ReportingEntity::updateOrCreate(['slug' => $row['slug']], $row);
+        }
+
+        $ptCore = ReportingEntity::where('slug', 'pt-core')->first();
+        if ($ptCore) {
+            $ptCore->banks()->detach();
+            ReportingTaxAccount::where('reporting_entity_id', $ptCore->id)->delete();
         }
 
         $operationSlugs = [
@@ -64,10 +70,6 @@ class ReportingBootstrapSeeder extends Seeder
             2883 => ['cv-crystal', 'spt'],
             2861 => ['cv-cipta', 'pph'],
             2884 => ['cv-cipta', 'spt'],
-            2805 => ['pt-core', 'ppn'],
-            2806 => ['pt-core', 'spt'],
-            2808 => ['pt-core', 'ppn_adjustment'],
-            2809 => ['pt-core', 'ppn_payment'],
             2849 => ['pt-indosport', 'ppn'],
             2885 => ['pt-indosport', 'spt'],
             2862 => ['pt-indosport', 'pph'],
