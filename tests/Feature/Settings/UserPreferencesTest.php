@@ -94,5 +94,7 @@ test('any authenticated user can access transaction defaults without special per
     $this->actingAs($regularUser)
         ->get(route('transaction-defaults.edit'))
         ->assertOk()
-        ->assertSee('Transaction defaults', false);
+        ->assertSee('Transaction defaults', false)
+        ->assertSee('Default supplier', false)
+        ->assertSee('Save defaults', false);
 });
