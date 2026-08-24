@@ -35,6 +35,7 @@ class DashboardService
     public const CACHE_TTL_CRON = 300;
 
     public const CACHE_TTL_BOOK_CLOSING = 600;
+
     public const QUEUE_WARN_THRESHOLD = 1;
 
     public const QUEUE_CRITICAL_THRESHOLD = 50;
@@ -47,6 +48,9 @@ class DashboardService
     ) {}
 
     /**
+     * Build dashboard data for a user. Permission flags are evaluated per request;
+     * panel payloads are loaded from sitewide cache keys (no user id in the key).
+     *
      * @return array<string, mixed>
      */
     public function forUser(User $user): array
@@ -86,27 +90,27 @@ class DashboardService
         ];
 
         if ($canJubelio) {
-            $data['jubelio'] = $this->rememberPanel('jubelio', self::CACHE_TTL_DEFAULT, fn () => $this->jubelioPanel());
+            $data['jubelio'] = $this->rememberSitewidePanel('jubelio', self::CACHE_TTL_DEFAULT, fn () => $this->jubelioPanel());
         }
 
         if ($canStockCheck) {
-            $data['jubelio_stock_check'] = $this->rememberPanel('jubelio-stock-check', self::CACHE_TTL_DEFAULT, fn () => $this->jubelioStockCheckPanel());
+            $data['jubelio_stock_check'] = $this->rememberSitewidePanel('jubelio-stock-check', self::CACHE_TTL_DEFAULT, fn () => $this->jubelioStockCheckPanel());
         }
 
         if ($canStockAlerts) {
-            $data['stock_alerts'] = $this->rememberPanel('stock-alerts', self::CACHE_TTL_FAST, fn () => $this->stockAlertsPanel());
+            $data['stock_alerts'] = $this->rememberSitewidePanel('stock-alerts', self::CACHE_TTL_FAST, fn () => $this->stockAlertsPanel());
         }
 
         if ($canCron || $canJubelio) {
-            $data['queue'] = $this->rememberPanel('queue', self::CACHE_TTL_QUEUE, fn () => $this->queuePanel());
+            $data['queue'] = $this->rememberSitewidePanel('queue', self::CACHE_TTL_QUEUE, fn () => $this->queuePanel());
         }
 
         if ($canCron) {
-            $data['cron'] = $this->rememberPanel('cron', self::CACHE_TTL_CRON, fn () => $this->cronPanel());
+            $data['cron'] = $this->rememberSitewidePanel('cron', self::CACHE_TTL_CRON, fn () => $this->cronPanel());
         }
 
         if ($canBookClosing) {
-            $data['book_closing'] = $this->rememberPanel(
+            $data['book_closing'] = $this->rememberSitewidePanel(
                 'book-closing.'.now()->toDateString(),
                 self::CACHE_TTL_BOOK_CLOSING,
                 fn () => $this->bookClosingPanel(),
@@ -114,11 +118,11 @@ class DashboardService
         }
 
         if ($canWarehouseArrangement) {
-            $data['warehouse_arrangement'] = $this->rememberPanel('warehouse-arrangement', self::CACHE_TTL_FAST, fn () => $this->warehouseArrangementPanel());
+            $data['warehouse_arrangement'] = $this->rememberSitewidePanel('warehouse-arrangement', self::CACHE_TTL_FAST, fn () => $this->warehouseArrangementPanel());
         }
 
         if ($canActivity) {
-            $data['activity'] = $this->rememberPanel(
+            $data['activity'] = $this->rememberSitewidePanel(
                 'activity.'.now()->toDateString(),
                 self::CACHE_TTL_ACTIVITY,
                 fn () => $this->activityPanel(),
@@ -126,11 +130,11 @@ class DashboardService
         }
 
         if ($canRestock) {
-            $data['restock'] = $this->rememberPanel('restock', self::CACHE_TTL_DEFAULT, fn () => $this->restockPanel());
+            $data['restock'] = $this->rememberSitewidePanel('restock', self::CACHE_TTL_DEFAULT, fn () => $this->restockPanel());
         }
 
         if ($canProduksiList) {
-            $data['produksi'] = $this->rememberPanel(
+            $data['produksi'] = $this->rememberSitewidePanel(
                 'produksi.'.now()->toDateString(),
                 self::CACHE_TTL_DEFAULT,
                 fn () => $this->produksiPanel(),
@@ -140,6 +144,7 @@ class DashboardService
         return $data;
     }
 
+    /** Sitewide cache key shared by all users (never includes a user id). */
     public static function panelCacheKey(string $panel): string
     {
         return 'dashboard.'.self::CACHE_VERSION.'.'.$panel;
@@ -151,7 +156,7 @@ class DashboardService
      * @param  callable(): T  $callback
      * @return T
      */
-    protected function rememberPanel(string $panel, int $ttlSeconds, callable $callback): mixed
+    protected function rememberSitewidePanel(string $panel, int $ttlSeconds, callable $callback): mixed
     {
         return Cache::remember(
             self::panelCacheKey($panel),

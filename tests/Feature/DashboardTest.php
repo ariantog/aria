@@ -35,23 +35,39 @@ test('authenticated users can visit the dashboard', function () {
     $response->assertOk();
 });
 
-test('dashboard panel queries are cached between requests', function () {
+test('dashboard panel cache is sitewide across users', function () {
     Cache::flush();
 
-    $user = User::factory()->create();
-    expect($user->is_superadmin)->toBeTrue();
+    $superadmin = User::factory()->create();
+    expect($superadmin->is_superadmin)->toBeTrue();
+
+    $limitedUser = User::factory()->create(['id' => 55]);
+    Permission::firstOrCreate(['name' => 'transactions-list', 'guard_name' => 'web']);
+    $limitedUser->givePermissionTo('transactions-list');
+
+    Transaction::factory()->create([
+        'date' => now()->toDateString(),
+        'type' => Transaction::TYPE_SELL,
+        'status' => Transaction::STATUS_COMPLETED,
+        'real_total' => -50000,
+        'total' => -50000,
+        'sender_id' => Addrbook::factory()->warehouse()->create()->id,
+        'receiver_id' => Addrbook::factory()->customer()->create()->id,
+        'user_id' => $superadmin->id,
+    ]);
 
     $activityKey = DashboardService::panelCacheKey('activity.'.now()->toDateString());
 
-    $this->actingAs($user)->get(route('dashboard'))->assertOk();
-    expect(Cache::has($activityKey))->toBeTrue();
+    $this->actingAs($superadmin)->get(route('dashboard'))->assertOk();
+    $cachedActivity = Cache::get($activityKey);
+    expect($cachedActivity)->not->toBeNull();
 
     Transaction::query()->delete();
 
-    $this->actingAs($user)
-        ->get(route('dashboard'))
-        ->assertOk()
-        ->assertSee('data-testid="dashboard-activity-chart"', false);
+    $this->actingAs($limitedUser)->get(route('dashboard'))->assertOk();
+    expect(Cache::get($activityKey))->toBe($cachedActivity);
+    expect(DashboardService::panelCacheKey('activity.'.now()->toDateString()))
+        ->not->toContain((string) $limitedUser->id);
 });
 
 test('superadmin sees phase 1 dashboard widgets', function () {
