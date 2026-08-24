@@ -142,8 +142,10 @@ test('settings cleanup command removes duplicate slug rows', function () {
 test('legacy l10 account settings are not managed in l12', function () {
     expect(SettingRegistry::isManaged('sell_100'))->toBeFalse()
         ->and(SettingRegistry::isManaged('ongkir'))->toBeFalse()
+        ->and(SettingRegistry::isManaged('tutup_buku'))->toBeFalse()
         ->and(SettingRegistry::isLegacy('sell_100'))->toBeTrue()
-        ->and(SettingRegistry::isLegacy('ongkir'))->toBeTrue();
+        ->and(SettingRegistry::isLegacy('ongkir'))->toBeTrue()
+        ->and(SettingRegistry::isLegacy('tutup_buku'))->toBeTrue();
 
     Setting::create([
         'group' => 'Accounting',
