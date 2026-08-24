@@ -2,7 +2,7 @@
 
 namespace App\Models;
 
-use App\Enums\ReportingLedgerRole;
+use App\Enums\ReportingLedgerRole as ReportingLedgerRoleEnum;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -12,7 +12,7 @@ class ReportingLedgerRole extends Model
 
     protected function casts(): array
     {
-        return ['role' => ReportingLedgerRole::class];
+        return ['role' => ReportingLedgerRoleEnum::class];
     }
 
     public function customer(): BelongsTo
