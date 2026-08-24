@@ -14,10 +14,10 @@
     $warehouseArrangement = $dashboard['warehouse_arrangement'] ?? null;
     $hasOpsPanel = $dashboard['has_ops_panel'] ?? false;
     $activity = $dashboard['activity'] ?? null;
-    $cashFlow = $dashboard['cash_flow'] ?? null;
-    $nettCash = $dashboard['nett_cash'] ?? null;
+    $jubelioStockSync = $dashboard['jubelio_stock_sync'] ?? null;
+    $restock = $dashboard['restock'] ?? null;
     $produksi = $dashboard['produksi'] ?? null;
-    $hasAnalyticsPanel = $dashboard['has_analytics_panel'] ?? false;
+    $hasDailyPanel = $dashboard['has_daily_panel'] ?? false;
     $fmtNum = fn ($v) => number_format((int) $v, 0, ',', '.');
     $fmtMoney = fn ($v) => number_format((float) $v, 0, ',', '.');
 @endphp
@@ -360,11 +360,11 @@
     @endif
     @endif
 
-    @if($hasAnalyticsPanel)
-    <div class="flex flex-col gap-4" data-testid="dashboard-analytics-panel">
+    @if($hasDailyPanel)
+    <div class="flex flex-col gap-4" data-testid="dashboard-daily-panel">
         <div>
-            <h3 class="text-lg font-semibold text-gray-900">Analytics</h3>
-            <p class="text-sm text-gray-500">Recent activity and monthly summaries</p>
+            <h3 class="text-lg font-semibold text-gray-900">Daily checklist</h3>
+            <p class="text-sm text-gray-500">Items staff should review and action today</p>
         </div>
 
         <div class="grid grid-cols-1 gap-4 xl:grid-cols-2">
@@ -414,63 +414,64 @@
             @endif
 
             <div class="flex flex-col gap-4">
-                @if(($can['cash_flow'] ?? false) && $cashFlow)
-                <div class="rounded-xl border border-gray-200 bg-white shadow-sm" data-testid="dashboard-cash-flow-summary">
-                    <div class="flex items-center justify-between border-b border-gray-100 px-5 py-4">
+                @if(($can['jubelio_stock_sync'] ?? false) && $jubelioStockSync)
+                <div class="rounded-xl border p-5 shadow-sm {{ $jubelioStockSync['pending_count'] > 0 ? 'border-orange-200 bg-orange-50/40' : 'border-gray-200 bg-white' }}"
+                     data-testid="dashboard-jubelio-stock-sync">
+                    <div class="flex items-center justify-between gap-3">
                         <div>
-                            <h4 class="text-sm font-semibold text-gray-900">Cash Flow</h4>
-                            <p class="text-xs text-gray-500">{{ $cashFlow['month_label'] }}</p>
+                            <h4 class="text-sm font-semibold text-gray-900">Push stock to Jubelio</h4>
+                            <p class="text-xs text-gray-500">Manual transactions waiting for Jubelio sync</p>
                         </div>
-                        <a href="{{ route('reports.cash-flow') }}" class="text-sm font-medium text-blue-700 hover:underline">Full report</a>
+                        <a href="{{ route('jubelio.transaction.sync') }}" class="text-sm font-medium text-blue-700 hover:underline">Stock Sync</a>
                     </div>
-                    <dl class="grid grid-cols-2 gap-4 px-5 py-4 text-sm sm:grid-cols-3">
-                        <div>
-                            <dt class="text-xs uppercase text-gray-500">Cash in</dt>
-                            <dd class="mt-1 font-semibold text-green-700">{{ $fmtMoney($cashFlow['cash_in_total']) }}</dd>
-                        </div>
-                        <div>
-                            <dt class="text-xs uppercase text-gray-500">Cash out</dt>
-                            <dd class="mt-1 font-semibold text-red-700">{{ $fmtMoney($cashFlow['cash_out_total']) }}</dd>
-                        </div>
-                        <div>
-                            <dt class="text-xs uppercase text-gray-500">Sell</dt>
-                            <dd class="mt-1 font-semibold text-blue-700">{{ $fmtMoney($cashFlow['sell_total']) }}</dd>
-                        </div>
-                        <div>
-                            <dt class="text-xs uppercase text-gray-500">Buy</dt>
-                            <dd class="mt-1 font-semibold text-gray-900">{{ $fmtMoney($cashFlow['buy_total']) }}</dd>
-                        </div>
-                        <div>
-                            <dt class="text-xs uppercase text-gray-500">Return</dt>
-                            <dd class="mt-1 font-semibold text-gray-900">{{ $fmtMoney($cashFlow['return_total']) }}</dd>
-                        </div>
-                    </dl>
+                    <p class="mt-3 text-3xl font-bold {{ $jubelioStockSync['pending_count'] > 0 ? 'text-orange-900' : 'text-gray-900' }}">
+                        {{ $fmtNum($jubelioStockSync['pending_count']) }}
+                    </p>
+                    @if($jubelioStockSync['recent']->isNotEmpty())
+                    <ul class="mt-4 divide-y divide-orange-100 rounded-lg border border-orange-100 bg-white/80 text-sm">
+                        @foreach($jubelioStockSync['recent'] as $transaction)
+                        <li class="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5">
+                            <div>
+                                <a href="{{ route('jubelio.transaction.detail-sync', $transaction) }}" class="font-medium text-blue-700 hover:underline">{{ $transaction->invoice ?: '#'.$transaction->id }}</a>
+                                <p class="text-xs text-gray-500">{{ $transaction->getTypeLabel() }} · {{ \Carbon\Carbon::parse($transaction->date)->translatedFormat('d M Y') }}</p>
+                            </div>
+                        </li>
+                        @endforeach
+                    </ul>
+                    @else
+                    <p class="mt-3 text-sm text-gray-500">All synced — nothing waiting.</p>
+                    @endif
                 </div>
                 @endif
 
-                @if(($can['nett_cash'] ?? false) && $nettCash)
-                <div class="rounded-xl border border-gray-200 bg-white shadow-sm" data-testid="dashboard-nett-cash-summary">
-                    <div class="flex items-center justify-between border-b border-gray-100 px-5 py-4">
+                @if(($can['restock'] ?? false) && $restock)
+                <div class="rounded-xl border p-5 shadow-sm {{ $restock['urgent_count'] > 0 ? 'border-rose-200 bg-rose-50/40' : 'border-gray-200 bg-white' }}"
+                     data-testid="dashboard-restock-urgent">
+                    <div class="flex items-center justify-between gap-3">
                         <div>
-                            <h4 class="text-sm font-semibold text-gray-900">Nett Cash</h4>
-                            <p class="text-xs text-gray-500">{{ $nettCash['month_label'] }}</p>
+                            <h4 class="text-sm font-semibold text-gray-900">Urgent restock</h4>
+                            <p class="text-xs text-gray-500">Asset lancar SKUs flagged on restock sheets</p>
                         </div>
-                        <a href="{{ route('reports.nett-cash-sby') }}" class="text-sm font-medium text-blue-700 hover:underline">Full report</a>
+                        <a href="{{ route('restock.index') }}" class="text-sm font-medium text-blue-700 hover:underline">Restock</a>
                     </div>
-                    <dl class="grid grid-cols-3 gap-4 px-5 py-4 text-sm">
-                        <div>
-                            <dt class="text-xs uppercase text-gray-500">Cash in</dt>
-                            <dd class="mt-1 font-semibold text-green-700">{{ $fmtMoney($nettCash['cash_in_total']) }}</dd>
-                        </div>
-                        <div>
-                            <dt class="text-xs uppercase text-gray-500">Cash out</dt>
-                            <dd class="mt-1 font-semibold text-red-700">{{ $fmtMoney($nettCash['cash_out_total']) }}</dd>
-                        </div>
-                        <div>
-                            <dt class="text-xs uppercase text-gray-500">Net</dt>
-                            <dd class="mt-1 font-semibold {{ $nettCash['net_total'] >= 0 ? 'text-green-700' : 'text-red-700' }}">{{ $fmtMoney($nettCash['net_total']) }}</dd>
-                        </div>
-                    </dl>
+                    <p class="mt-3 text-3xl font-bold {{ $restock['urgent_count'] > 0 ? 'text-rose-900' : 'text-gray-900' }}">
+                        {{ $fmtNum($restock['urgent_count']) }}
+                    </p>
+                    @if($restock['recent']->isNotEmpty())
+                    <ul class="mt-4 divide-y divide-rose-100 rounded-lg border border-rose-100 bg-white/80 text-sm">
+                        @foreach($restock['recent'] as $cell)
+                        <li class="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5">
+                            <div>
+                                <p class="font-medium text-gray-900">{{ $cell->item?->code }}</p>
+                                <p class="text-xs text-gray-500">{{ $cell->item?->name }} · {{ $cell->sheet?->typeTag?->name ?? $cell->sheet?->name }}</p>
+                            </div>
+                            <span class="text-xs font-medium text-rose-700">restock {{ $fmtNum($cell->qty_restock) }}</span>
+                        </li>
+                        @endforeach
+                    </ul>
+                    @else
+                    <p class="mt-3 text-sm text-gray-500">No urgent restock items.</p>
+                    @endif
                 </div>
                 @endif
 
