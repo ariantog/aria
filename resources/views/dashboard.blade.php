@@ -14,7 +14,6 @@
     $warehouseArrangement = $dashboard['warehouse_arrangement'] ?? null;
     $hasOpsPanel = $dashboard['has_ops_panel'] ?? false;
     $activity = $dashboard['activity'] ?? null;
-    $jubelioStockSync = $dashboard['jubelio_stock_sync'] ?? null;
     $restock = $dashboard['restock'] ?? null;
     $produksi = $dashboard['produksi'] ?? null;
     $hasDailyPanel = $dashboard['has_daily_panel'] ?? false;
@@ -367,150 +366,116 @@
             <p class="text-sm text-gray-500">Items staff should review and action today</p>
         </div>
 
+        @if(($can['activity'] ?? false) && $activity)
+        <div class="rounded-xl border border-gray-200 bg-white shadow-sm" data-testid="dashboard-activity-chart">
+            <div class="flex flex-wrap items-start justify-between gap-3 border-b border-gray-100 px-5 py-4">
+                <div>
+                    <h4 class="text-sm font-semibold text-gray-900">Transaction Activity</h4>
+                    <p class="text-xs text-gray-500">Sell volume over the last {{ count($activity['chart']) }} days</p>
+                </div>
+                <a href="{{ route('transactions.index') }}" class="text-sm font-medium text-blue-700 hover:underline">All transactions</a>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3 border-b border-gray-100 px-5 py-4 sm:grid-cols-4">
+                <div>
+                    <p class="text-xs uppercase text-gray-500">Today sell</p>
+                    <p class="text-lg font-bold text-gray-900">{{ $fmtNum($activity['today']['sell_count']) }}</p>
+                </div>
+                <div>
+                    <p class="text-xs uppercase text-gray-500">Today buy</p>
+                    <p class="text-lg font-bold text-gray-900">{{ $fmtNum($activity['today']['buy_count']) }}</p>
+                </div>
+                <div>
+                    <p class="text-xs uppercase text-gray-500">Sell total</p>
+                    <p class="text-lg font-bold text-blue-900">{{ $fmtMoney($activity['today']['sell_total']) }}</p>
+                </div>
+                <div>
+                    <p class="text-xs uppercase text-gray-500">Buy total</p>
+                    <p class="text-lg font-bold text-green-900">{{ $fmtMoney($activity['today']['buy_total']) }}</p>
+                </div>
+            </div>
+
+            <div class="flex items-end gap-2 px-5 py-6">
+                @foreach($activity['chart'] as $day)
+                <div class="flex min-w-0 flex-1 flex-col items-center gap-2">
+                    <span class="text-[10px] font-medium text-gray-500">{{ $fmtMoney($day['sell_total']) }}</span>
+                    <div class="flex h-28 w-full items-end justify-center rounded-md bg-gray-50 px-1">
+                        <div class="w-full max-w-[2rem] rounded-t bg-blue-500 transition-all"
+                             style="height: {{ max($day['bar_percent'], $day['sell_count'] > 0 ? 8 : 0) }}%"
+                             title="{{ $day['label'] }}: {{ $fmtNum($day['sell_count']) }} sells"></div>
+                    </div>
+                    <span class="truncate text-[10px] text-gray-500">{{ $day['label'] }}</span>
+                </div>
+                @endforeach
+            </div>
+        </div>
+        @endif
+
         <div class="grid grid-cols-1 gap-4 xl:grid-cols-2">
-            @if(($can['activity'] ?? false) && $activity)
-            <div class="rounded-xl border border-gray-200 bg-white shadow-sm" data-testid="dashboard-activity-chart">
-                <div class="flex flex-wrap items-start justify-between gap-3 border-b border-gray-100 px-5 py-4">
+            @if(($can['restock'] ?? false) && $restock)
+            <div class="rounded-xl border p-5 shadow-sm {{ $restock['urgent_count'] > 0 ? 'border-rose-200 bg-rose-50/40' : 'border-gray-200 bg-white' }}"
+                 data-testid="dashboard-restock-urgent">
+                <div class="flex items-center justify-between gap-3">
                     <div>
-                        <h4 class="text-sm font-semibold text-gray-900">Transaction Activity</h4>
-                        <p class="text-xs text-gray-500">Sell volume over the last {{ count($activity['chart']) }} days</p>
+                        <h4 class="text-sm font-semibold text-gray-900">Urgent restock</h4>
+                        <p class="text-xs text-gray-500">Asset lancar SKUs flagged on restock sheets</p>
                     </div>
-                    <a href="{{ route('transactions.index') }}" class="text-sm font-medium text-blue-700 hover:underline">All transactions</a>
+                    <a href="{{ route('restock.index') }}" class="text-sm font-medium text-blue-700 hover:underline">Restock</a>
                 </div>
-
-                <div class="grid grid-cols-2 gap-3 border-b border-gray-100 px-5 py-4 sm:grid-cols-4">
-                    <div>
-                        <p class="text-xs uppercase text-gray-500">Today sell</p>
-                        <p class="text-lg font-bold text-gray-900">{{ $fmtNum($activity['today']['sell_count']) }}</p>
-                    </div>
-                    <div>
-                        <p class="text-xs uppercase text-gray-500">Today buy</p>
-                        <p class="text-lg font-bold text-gray-900">{{ $fmtNum($activity['today']['buy_count']) }}</p>
-                    </div>
-                    <div>
-                        <p class="text-xs uppercase text-gray-500">Sell total</p>
-                        <p class="text-lg font-bold text-blue-900">{{ $fmtMoney($activity['today']['sell_total']) }}</p>
-                    </div>
-                    <div>
-                        <p class="text-xs uppercase text-gray-500">Buy total</p>
-                        <p class="text-lg font-bold text-green-900">{{ $fmtMoney($activity['today']['buy_total']) }}</p>
-                    </div>
-                </div>
-
-                <div class="flex items-end gap-2 px-5 py-6">
-                    @foreach($activity['chart'] as $day)
-                    <div class="flex min-w-0 flex-1 flex-col items-center gap-2">
-                        <span class="text-[10px] font-medium text-gray-500">{{ $fmtMoney($day['sell_total']) }}</span>
-                        <div class="flex h-28 w-full items-end justify-center rounded-md bg-gray-50 px-1">
-                            <div class="w-full max-w-[2rem] rounded-t bg-blue-500 transition-all"
-                                 style="height: {{ max($day['bar_percent'], $day['sell_count'] > 0 ? 8 : 0) }}%"
-                                 title="{{ $day['label'] }}: {{ $fmtNum($day['sell_count']) }} sells"></div>
+                <p class="mt-3 text-3xl font-bold {{ $restock['urgent_count'] > 0 ? 'text-rose-900' : 'text-gray-900' }}">
+                    {{ $fmtNum($restock['urgent_count']) }}
+                </p>
+                @if($restock['recent']->isNotEmpty())
+                <ul class="mt-4 divide-y divide-rose-100 rounded-lg border border-rose-100 bg-white/80 text-sm">
+                    @foreach($restock['recent'] as $cell)
+                    <li class="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5">
+                        <div>
+                            <p class="font-medium text-gray-900">{{ $cell->item?->code }}</p>
+                            <p class="text-xs text-gray-500">{{ $cell->item?->name }} · {{ $cell->sheet?->typeTag?->name ?? $cell->sheet?->name }}</p>
                         </div>
-                        <span class="truncate text-[10px] text-gray-500">{{ $day['label'] }}</span>
-                    </div>
+                        <span class="text-xs font-medium text-rose-700">restock {{ $fmtNum($cell->qty_restock) }}</span>
+                    </li>
                     @endforeach
-                </div>
+                </ul>
+                @else
+                <p class="mt-3 text-sm text-gray-500">No urgent restock items.</p>
+                @endif
             </div>
             @endif
 
-            <div class="flex flex-col gap-4">
-                @if(($can['jubelio_stock_sync'] ?? false) && $jubelioStockSync)
-                <div class="rounded-xl border p-5 shadow-sm {{ $jubelioStockSync['pending_count'] > 0 ? 'border-orange-200 bg-orange-50/40' : 'border-gray-200 bg-white' }}"
-                     data-testid="dashboard-jubelio-stock-sync">
-                    <div class="flex items-center justify-between gap-3">
-                        <div>
-                            <h4 class="text-sm font-semibold text-gray-900">Push stock to Jubelio</h4>
-                            <p class="text-xs text-gray-500">Manual transactions waiting for Jubelio sync</p>
-                        </div>
-                        <a href="{{ route('jubelio.transaction.sync') }}" class="text-sm font-medium text-blue-700 hover:underline">Stock Sync</a>
+            @if((($can['produksi_list'] ?? false) || ($can['produksi_setoran'] ?? false)) && $produksi)
+            <div class="rounded-xl border border-gray-200 bg-white shadow-sm" data-testid="dashboard-produksi-summary">
+                <div class="flex items-center justify-between border-b border-gray-100 px-5 py-4">
+                    <div>
+                        <h4 class="text-sm font-semibold text-gray-900">Produksi</h4>
+                        <p class="text-xs text-gray-500">Production queue and recent setoran</p>
                     </div>
-                    <p class="mt-3 text-3xl font-bold {{ $jubelioStockSync['pending_count'] > 0 ? 'text-orange-900' : 'text-gray-900' }}">
-                        {{ $fmtNum($jubelioStockSync['pending_count']) }}
-                    </p>
-                    @if($jubelioStockSync['recent']->isNotEmpty())
-                    <ul class="mt-4 divide-y divide-orange-100 rounded-lg border border-orange-100 bg-white/80 text-sm">
-                        @foreach($jubelioStockSync['recent'] as $transaction)
-                        <li class="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5">
-                            <div>
-                                <a href="{{ route('jubelio.transaction.detail-sync', $transaction) }}" class="font-medium text-blue-700 hover:underline">{{ $transaction->invoice ?: '#'.$transaction->id }}</a>
-                                <p class="text-xs text-gray-500">{{ $transaction->getTypeLabel() }} · {{ \Carbon\Carbon::parse($transaction->date)->translatedFormat('d M Y') }}</p>
-                            </div>
-                        </li>
-                        @endforeach
-                    </ul>
-                    @else
-                    <p class="mt-3 text-sm text-gray-500">All synced — nothing waiting.</p>
+                    @if($can['produksi_setoran'] ?? false)
+                    <a href="{{ route('produksi.setoran.index') }}" class="text-sm font-medium text-blue-700 hover:underline">Setoran</a>
+                    @elseif($can['produksi_list'] ?? false)
+                    <a href="{{ route('produksi.index') }}" class="text-sm font-medium text-blue-700 hover:underline">Production</a>
                     @endif
                 </div>
-                @endif
-
-                @if(($can['restock'] ?? false) && $restock)
-                <div class="rounded-xl border p-5 shadow-sm {{ $restock['urgent_count'] > 0 ? 'border-rose-200 bg-rose-50/40' : 'border-gray-200 bg-white' }}"
-                     data-testid="dashboard-restock-urgent">
-                    <div class="flex items-center justify-between gap-3">
-                        <div>
-                            <h4 class="text-sm font-semibold text-gray-900">Urgent restock</h4>
-                            <p class="text-xs text-gray-500">Asset lancar SKUs flagged on restock sheets</p>
-                        </div>
-                        <a href="{{ route('restock.index') }}" class="text-sm font-medium text-blue-700 hover:underline">Restock</a>
-                    </div>
-                    <p class="mt-3 text-3xl font-bold {{ $restock['urgent_count'] > 0 ? 'text-rose-900' : 'text-gray-900' }}">
-                        {{ $fmtNum($restock['urgent_count']) }}
-                    </p>
-                    @if($restock['recent']->isNotEmpty())
-                    <ul class="mt-4 divide-y divide-rose-100 rounded-lg border border-rose-100 bg-white/80 text-sm">
-                        @foreach($restock['recent'] as $cell)
-                        <li class="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5">
-                            <div>
-                                <p class="font-medium text-gray-900">{{ $cell->item?->code }}</p>
-                                <p class="text-xs text-gray-500">{{ $cell->item?->name }} · {{ $cell->sheet?->typeTag?->name ?? $cell->sheet?->name }}</p>
-                            </div>
-                            <span class="text-xs font-medium text-rose-700">restock {{ $fmtNum($cell->qty_restock) }}</span>
-                        </li>
-                        @endforeach
-                    </ul>
-                    @else
-                    <p class="mt-3 text-sm text-gray-500">No urgent restock items.</p>
+                <div class="grid grid-cols-2 gap-4 px-5 py-4">
+                    @if($can['produksi_list'] ?? false)
+                    <a href="{{ route('produksi.index') }}"
+                       class="rounded-lg border p-4 transition-colors hover:bg-gray-50 {{ ($produksi['pending_produksi'] ?? 0) > 0 ? 'border-indigo-200 bg-indigo-50/50' : 'border-gray-200' }}"
+                       data-testid="dashboard-kpi-produksi-pending">
+                        <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">In production</p>
+                        <p class="mt-1 text-2xl font-bold text-gray-900">{{ $fmtNum($produksi['pending_produksi'] ?? 0) }}</p>
+                    </a>
+                    @endif
+                    @if($can['produksi_setoran'] ?? false)
+                    <a href="{{ route('produksi.setoran.index') }}"
+                       class="rounded-lg border p-4 transition-colors hover:bg-gray-50 {{ ($produksi['pending_setoran'] ?? 0) > 0 ? 'border-indigo-200 bg-indigo-50/50' : 'border-gray-200' }}"
+                       data-testid="dashboard-kpi-setoran-pending">
+                        <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Setoran ({{ $produksi['recent_days'] ?? 7 }}d)</p>
+                        <p class="mt-1 text-2xl font-bold text-gray-900">{{ $fmtNum($produksi['pending_setoran'] ?? 0) }}</p>
+                    </a>
                     @endif
                 </div>
-                @endif
-
-                @if(($can['produksi_list'] ?? false) || ($can['produksi_setoran'] ?? false))
-                @if($produksi)
-                <div class="rounded-xl border border-gray-200 bg-white shadow-sm" data-testid="dashboard-produksi-summary">
-                    <div class="flex items-center justify-between border-b border-gray-100 px-5 py-4">
-                        <div>
-                            <h4 class="text-sm font-semibold text-gray-900">Produksi</h4>
-                            <p class="text-xs text-gray-500">Production and setoran queue</p>
-                        </div>
-                        @if($can['produksi_setoran'] ?? false)
-                        <a href="{{ route('produksi.setoran.index') }}" class="text-sm font-medium text-blue-700 hover:underline">Setoran</a>
-                        @elseif($can['produksi_list'] ?? false)
-                        <a href="{{ route('produksi.index') }}" class="text-sm font-medium text-blue-700 hover:underline">Production</a>
-                        @endif
-                    </div>
-                    <div class="grid grid-cols-2 gap-4 px-5 py-4">
-                        @if($can['produksi_list'] ?? false)
-                        <a href="{{ route('produksi.index') }}"
-                           class="rounded-lg border p-4 transition-colors hover:bg-gray-50 {{ ($produksi['pending_produksi'] ?? 0) > 0 ? 'border-indigo-200 bg-indigo-50/50' : 'border-gray-200' }}"
-                           data-testid="dashboard-kpi-produksi-pending">
-                            <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">In production</p>
-                            <p class="mt-1 text-2xl font-bold text-gray-900">{{ $fmtNum($produksi['pending_produksi'] ?? 0) }}</p>
-                        </a>
-                        @endif
-                        @if($can['produksi_setoran'] ?? false)
-                        <a href="{{ route('produksi.setoran.index') }}"
-                           class="rounded-lg border p-4 transition-colors hover:bg-gray-50 {{ ($produksi['active_setoran'] ?? 0) > 0 ? 'border-indigo-200 bg-indigo-50/50' : 'border-gray-200' }}"
-                           data-testid="dashboard-kpi-setoran-active">
-                            <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Active setoran</p>
-                            <p class="mt-1 text-2xl font-bold text-gray-900">{{ $fmtNum($produksi['active_setoran'] ?? 0) }}</p>
-                        </a>
-                        @endif
-                    </div>
-                </div>
-                @endif
-                @endif
             </div>
+            @endif
         </div>
     </div>
     @endif

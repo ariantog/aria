@@ -14,7 +14,6 @@ use App\Models\ScheduledTask;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Models\WarehouseArrangementRefreshJob;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -45,7 +44,6 @@ class DashboardService
         $canBookClosing = Gate::forUser($user)->allows('transactions-list');
         $canWarehouseArrangement = Gate::forUser($user)->allows('report-warehouse-arrangement');
         $canActivity = Gate::forUser($user)->allows('transactions-list');
-        $canJubelioStockSync = Gate::forUser($user)->allows(Jubelio::getPermissions()['sync']);
         $canRestock = Gate::forUser($user)->allows('restock-list');
         $canProduksiList = Gate::forUser($user)->allows(Produksi::getPermissions()['view']);
         $canProduksiSetoran = Gate::forUser($user)->allows(Produksi::getPermissions()['setoran-view']);
@@ -54,7 +52,6 @@ class DashboardService
             'can' => [
                 'jubelio' => $canJubelio,
                 'jubelio_stock_check' => $canStockCheck,
-                'jubelio_stock_sync' => $canJubelioStockSync,
                 'stock_alerts' => $canStockAlerts,
                 'queue' => $canCron || $canJubelio,
                 'cron_manager' => $canCron,
@@ -72,7 +69,6 @@ class DashboardService
                 || $canBookClosing
                 || $canWarehouseArrangement,
             'has_daily_panel' => $canActivity
-                || $canJubelioStockSync
                 || $canRestock
                 || $canProduksiList
                 || $canProduksiSetoran,
@@ -108,10 +104,6 @@ class DashboardService
 
         if ($canActivity) {
             $data['activity'] = $this->activityPanel();
-        }
-
-        if ($canJubelioStockSync) {
-            $data['jubelio_stock_sync'] = $this->jubelioStockSyncPanel();
         }
 
         if ($canRestock) {
@@ -303,80 +295,105 @@ class DashboardService
     protected function activityPanel(): array
     {
         $today = now()->toDateString();
-        $chartStart = now()->subDays(self::ACTIVITY_CHART_DAYS - 1)->startOfDay();
+        $chartStart = now()->subDays(self::ACTIVITY_CHART_DAYS - 1)->startOfDay()->toDateString();
 
-        $transactions = Transaction::query()
+        $aggregates = Transaction::query()
             ->where('status', Transaction::STATUS_COMPLETED)
-            ->whereBetween('date', [$chartStart->toDateString(), $today])
+            ->whereBetween('date', [$chartStart, $today])
             ->whereIn('type', [
                 Transaction::TYPE_BUY,
                 Transaction::TYPE_SELL,
                 Transaction::TYPE_CASH_IN,
                 Transaction::TYPE_CASH_OUT,
             ])
-            ->get(['date', 'type', 'real_total', 'total']);
+            ->selectRaw('date, type, COUNT(*) as row_count, SUM(ABS(COALESCE(real_total, total, 0))) as amount_total')
+            ->groupBy('date', 'type')
+            ->get();
 
-        $todayRows = $transactions->filter(fn (Transaction $row) => Carbon::parse($row->date)->toDateString() === $today);
+        $byDate = $aggregates->groupBy(fn ($row) => Carbon::parse($row->date)->toDateString());
+
+        $todayRows = $byDate->get($today, collect());
+        $todayStats = $this->aggregateActivityStats($todayRows);
 
         $chartDays = collect(range(0, self::ACTIVITY_CHART_DAYS - 1))
-            ->map(function (int $offset) use ($chartStart, $transactions) {
-                $date = $chartStart->copy()->addDays($offset);
+            ->map(function (int $offset) use ($chartStart) {
+                $date = Carbon::parse($chartStart)->addDays($offset);
                 $dateString = $date->toDateString();
-                $dayRows = $transactions->filter(
-                    fn (Transaction $row) => Carbon::parse($row->date)->toDateString() === $dateString
-                );
-
-                $sellTotal = $this->sumTransactionAmount($dayRows, [Transaction::TYPE_SELL]);
-                $buyTotal = $this->sumTransactionAmount($dayRows, [Transaction::TYPE_BUY]);
 
                 return [
                     'date' => $dateString,
                     'label' => $date->translatedFormat('D d'),
-                    'sell_count' => $dayRows->where('type', Transaction::TYPE_SELL)->count(),
-                    'buy_count' => $dayRows->where('type', Transaction::TYPE_BUY)->count(),
-                    'sell_total' => $sellTotal,
-                    'buy_total' => $buyTotal,
+                    'stats' => ['sell_count' => 0, 'buy_count' => 0, 'sell_total' => 0.0, 'buy_total' => 0.0],
                 ];
-            });
+            })
+            ->keyBy('date');
 
-        $maxSellTotal = max(1.0, (float) $chartDays->max('sell_total'));
+        foreach ($byDate as $dateString => $rows) {
+            if (! $chartDays->has($dateString)) {
+                continue;
+            }
+
+            $day = $chartDays->get($dateString);
+            $day['stats'] = $this->aggregateActivityStats($rows);
+            $chartDays->put($dateString, $day);
+        }
+
+        $maxSellTotal = max(1.0, (float) $chartDays->max('stats.sell_total'));
 
         return [
-            'today' => [
-                'sell_count' => $todayRows->where('type', Transaction::TYPE_SELL)->count(),
-                'buy_count' => $todayRows->where('type', Transaction::TYPE_BUY)->count(),
-                'cash_in_total' => $this->sumTransactionAmount($todayRows, [Transaction::TYPE_CASH_IN]),
-                'cash_out_total' => $this->sumTransactionAmount($todayRows, [Transaction::TYPE_CASH_OUT]),
-                'sell_total' => $this->sumTransactionAmount($todayRows, [Transaction::TYPE_SELL]),
-                'buy_total' => $this->sumTransactionAmount($todayRows, [Transaction::TYPE_BUY]),
-            ],
+            'today' => $todayStats,
             'chart' => $chartDays
+                ->values()
                 ->map(function (array $day) use ($maxSellTotal) {
+                    $day['sell_count'] = $day['stats']['sell_count'];
+                    $day['buy_count'] = $day['stats']['buy_count'];
+                    $day['sell_total'] = $day['stats']['sell_total'];
+                    $day['buy_total'] = $day['stats']['buy_total'];
                     $day['bar_percent'] = (int) round(($day['sell_total'] / $maxSellTotal) * 100);
+                    unset($day['stats']);
 
                     return $day;
                 })
-                ->values()
                 ->all(),
         ];
     }
 
     /**
-     * @return array<string, mixed>
+     * @param  Collection<int, object>  $rows
+     * @return array{sell_count: int, buy_count: int, cash_in_total: float, cash_out_total: float, sell_total: float, buy_total: float}
      */
-    protected function jubelioStockSyncPanel(): array
+    protected function aggregateActivityStats(Collection $rows): array
     {
-        $query = $this->pendingJubelioStockSyncQuery();
-
-        return [
-            'pending_count' => (int) (clone $query)->count(),
-            'recent' => (clone $query)
-                ->with(['sender:id,name', 'receiver:id,name'])
-                ->orderByDesc('date')
-                ->orderByDesc('id')
-                ->limit(5)
-                ->get(['id', 'date', 'invoice', 'type', 'sender_id', 'receiver_id']),
+        $stats = [
+            'sell_count' => 0,
+            'buy_count' => 0,
+            'cash_in_total' => 0.0,
+            'cash_out_total' => 0.0,
+            'sell_total' => 0.0,
+            'buy_total' => 0.0,
         ];
+
+        foreach ($rows as $row) {
+            $type = (int) $row->type;
+            $count = (int) $row->row_count;
+            $amount = (float) $row->amount_total;
+
+            match ($type) {
+                Transaction::TYPE_SELL => [
+                    $stats['sell_count'] += $count,
+                    $stats['sell_total'] += $amount,
+                ],
+                Transaction::TYPE_BUY => [
+                    $stats['buy_count'] += $count,
+                    $stats['buy_total'] += $amount,
+                ],
+                Transaction::TYPE_CASH_IN => $stats['cash_in_total'] += $amount,
+                Transaction::TYPE_CASH_OUT => $stats['cash_out_total'] += $amount,
+                default => null,
+            };
+        }
+
+        return $stats;
     }
 
     /**
@@ -397,24 +414,12 @@ class DashboardService
     }
 
     /**
-     * Manual transactions at Jubelio-synced warehouses that still need a stock push.
-     *
-     * @return Builder<Transaction>
-     */
-    protected function pendingJubelioStockSyncQuery(): Builder
-    {
-        return Transaction::query()
-            ->excludeJubelioImportOrigin()
-            ->where('sync_hide', 'N')
-            ->pendingManualJubelioStockSync();
-    }
-
-    /**
      * @return array<string, mixed>
      */
     protected function produksiPanel(bool $canList, bool $canSetoran): array
     {
-        $data = [];
+        $recentFrom = now()->subDays(self::ACTIVITY_CHART_DAYS - 1)->startOfDay()->toDateString();
+        $data = ['recent_days' => self::ACTIVITY_CHART_DAYS];
 
         if ($canList) {
             $data['pending_produksi'] = (int) Produksi::query()
@@ -423,34 +428,12 @@ class DashboardService
         }
 
         if ($canSetoran) {
-            $data['active_setoran'] = (int) Produksi::query()
-                ->whereIn('status', Produksi::setoranStatuses())
+            $data['pending_setoran'] = (int) Produksi::query()
+                ->where('status', Produksi::STATUS_SETOR)
+                ->whereDate('potong_date', '>=', $recentFrom)
                 ->count();
-
-            $data['setoran_by_status'] = collect(Produksi::setoranStatuses())
-                ->mapWithKeys(function (int $status) {
-                    return [
-                        $status => (int) Produksi::query()->where('status', $status)->count(),
-                    ];
-                })
-                ->all();
         }
 
         return $data;
-    }
-
-    /**
-     * @param  Collection<int, Transaction>  $rows
-     * @param  list<int>  $types
-     */
-    protected function sumTransactionAmount(Collection $rows, array $types): float
-    {
-        return (float) $rows
-            ->whereIn('type', $types)
-            ->sum(function (Transaction $row) {
-                $amount = (float) ($row->real_total ?? $row->total ?? 0);
-
-                return abs($amount);
-            });
     }
 }
