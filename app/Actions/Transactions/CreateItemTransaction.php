@@ -128,6 +128,7 @@ class CreateItemTransaction
         $taxAmount = $isPpn ? ($totalBeforeTax * $this->getPpnRate()) : 0;
         $grandTotal = $totalBeforeTax + $taxAmount;
         if (Transaction::typeIsNegative($type)) {
+            $itemsTotal = -abs($itemsTotal);
             $grandTotal = -abs($grandTotal);
         }
         $transaction->update([

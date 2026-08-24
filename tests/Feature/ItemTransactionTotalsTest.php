@@ -69,7 +69,7 @@ it('stores sell subtotal in total and signed grand total in real_total', functio
 
     $this->assertDatabaseHas('transactions', [
         'type' => Transaction::TYPE_SELL,
-        'total' => 20_000,
+        'total' => -20_000,
         'real_total' => -20_000,
         'ppn' => 0,
     ]);
@@ -124,7 +124,7 @@ it('stores return-supplier subtotal in total and signed grand total in real_tota
 
     $this->assertDatabaseHas('transactions', [
         'type' => Transaction::TYPE_RETURN_SUPPLIER,
-        'total' => 25_000,
+        'total' => -25_000,
         'real_total' => -25_000,
         'ppn' => 0,
     ]);
@@ -180,7 +180,7 @@ it('keeps total as line subtotal while real_total reflects header discount on se
 
     $this->assertDatabaseHas('transactions', [
         'type' => Transaction::TYPE_SELL,
-        'total' => 20_000,
+        'total' => -20_000,
         'real_total' => -18_000,
         'discount' => 10,
         'ppn' => 0,
