@@ -129,7 +129,12 @@ class TransactionService
             $this->updateDailyReports($transaction, 'sender', $amount);
             $this->updateEntityBalance($transaction, 'receiver', $amount);
             $this->updateDailyReports($transaction, 'receiver', $amount);
-        } elseif ($type === Transaction::TYPE_TRANSFER || $type === Transaction::TYPE_ADJUST) {
+        } elseif ($type === Transaction::TYPE_TRANSFER) {
+            $this->updateEntityBalance($transaction, 'sender', $amount);
+            $this->updateDailyReports($transaction, 'sender', $amount);
+            $this->updateEntityBalance($transaction, 'receiver', -$amount);
+            $this->updateDailyReports($transaction, 'receiver', -$amount);
+        } elseif ($type === Transaction::TYPE_ADJUST) {
             $this->updateEntityBalance($transaction, 'sender', -$amount);
             $this->updateDailyReports($transaction, 'sender', -$amount);
             $this->updateEntityBalance($transaction, 'receiver', $amount);
