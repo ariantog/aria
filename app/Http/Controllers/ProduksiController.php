@@ -265,7 +265,7 @@ class ProduksiController extends Controller
     {
         Gate::authorize(Produksi::getPermissions()['setoran-view']);
         $query = Produksi::with(['potong', 'size', 'jahit', 'qc', 'pritil', 'item'])
-            ->whereIn('status', [Produksi::STATUS_SETOR, Produksi::STATUS_GUDANG, Produksi::STATUS_BOTH])
+            ->whereIn('status', Produksi::setoranStatuses())
             ->when($request->filled('from') && $request->filled('to'), fn ($q) => $q->whereDate('potong_date', '>=', $request->from)->whereDate('potong_date', '<=', $request->to))
             ->when($request->filled('kode'), fn ($q) => $q->where('temp_name', 'like', '%'.$request->kode.'%'))
             ->when($request->filled('customer'), fn ($q) => $q->where('customer', 'like', '%'.$request->customer.'%'))
@@ -285,13 +285,7 @@ class ProduksiController extends Controller
             'filters' => $request->only(['from', 'to', 'kode', 'customer', 'warna', 'potong_id', 'jahit_id', 'surat_jalan_potong', 'serial', 'invoice', 'status']),
             'jahitList' => Worker::jahit()->get(),
             'potongList' => Worker::potong()->get(),
-            'statusList' => [
-                ['id' => Produksi::STATUS_SETOR, 'name' => 'Setor'],
-                ['id' => Produksi::STATUS_GUDANG, 'name' => 'Gudang'],
-                ['id' => Produksi::STATUS_BOTH, 'name' => 'Setor & Gudang'],
-            ],
-            'statusGudang' => Produksi::STATUS_GUDANG,
-            'statusBoth' => Produksi::STATUS_BOTH,
+            'statusList' => Produksi::statusFilterOptions(),
             'can' => [
                 'edit_setoran' => $u->can($p['edit']),
                 'gudang_setoran' => $u->can($p['gudang']),

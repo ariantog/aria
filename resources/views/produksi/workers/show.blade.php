@@ -99,15 +99,7 @@ $months = [
                         <td class="px-4 py-3 whitespace-nowrap">{{ $row->surat_jalan_potong ?: '-' }}</td>
                         <td class="px-4 py-3 whitespace-nowrap">{{ $row->customer ?: '-' }}</td>
                         <td class="px-4 py-3 whitespace-nowrap">
-                            @php
-                                $statusLabel = match ($row->status) {
-                                    \App\Models\Produksi::STATUS_PRODUKSI => 'Produksi',
-                                    \App\Models\Produksi::STATUS_SETOR => 'Setor',
-                                    \App\Models\Produksi::STATUS_GUDANG => 'Gudang',
-                                    \App\Models\Produksi::STATUS_BOTH => 'Setor & Gudang',
-                                    default => (string) $row->status,
-                                };
-                            @endphp
+                            @php $statusLabel = \App\Models\Produksi::statusLabel((int) $row->status); @endphp
                             {{ $statusLabel }}
                         </td>
                     </tr>
