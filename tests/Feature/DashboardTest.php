@@ -16,7 +16,9 @@ use App\Models\Transaction;
 use App\Models\User;
 use App\Models\WarehouseArrangementRefreshJob;
 use App\Models\Worker;
+use App\Services\DashboardService;
 use App\Services\PermissionGenerator;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Permission;
 
@@ -31,6 +33,25 @@ test('authenticated users can visit the dashboard', function () {
 
     $response = $this->get(route('dashboard'));
     $response->assertOk();
+});
+
+test('dashboard panel queries are cached between requests', function () {
+    Cache::flush();
+
+    $user = User::factory()->create();
+    expect($user->is_superadmin)->toBeTrue();
+
+    $activityKey = DashboardService::panelCacheKey('activity.'.now()->toDateString());
+
+    $this->actingAs($user)->get(route('dashboard'))->assertOk();
+    expect(Cache::has($activityKey))->toBeTrue();
+
+    Transaction::query()->delete();
+
+    $this->actingAs($user)
+        ->get(route('dashboard'))
+        ->assertOk()
+        ->assertSee('data-testid="dashboard-activity-chart"', false);
 });
 
 test('superadmin sees phase 1 dashboard widgets', function () {

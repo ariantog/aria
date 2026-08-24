@@ -16,11 +16,25 @@ use App\Models\User;
 use App\Models\WarehouseArrangementRefreshJob;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 
 class DashboardService
 {
+    public const CACHE_VERSION = 'v1';
+
+    public const CACHE_TTL_QUEUE = 30;
+
+    public const CACHE_TTL_FAST = 60;
+
+    public const CACHE_TTL_DEFAULT = 120;
+
+    public const CACHE_TTL_ACTIVITY = 300;
+
+    public const CACHE_TTL_CRON = 300;
+
+    public const CACHE_TTL_BOOK_CLOSING = 600;
     public const QUEUE_WARN_THRESHOLD = 1;
 
     public const QUEUE_CRITICAL_THRESHOLD = 50;
@@ -72,46 +86,78 @@ class DashboardService
         ];
 
         if ($canJubelio) {
-            $data['jubelio'] = $this->jubelioPanel();
+            $data['jubelio'] = $this->rememberPanel('jubelio', self::CACHE_TTL_DEFAULT, fn () => $this->jubelioPanel());
         }
 
         if ($canStockCheck) {
-            $data['jubelio_stock_check'] = $this->jubelioStockCheckPanel();
+            $data['jubelio_stock_check'] = $this->rememberPanel('jubelio-stock-check', self::CACHE_TTL_DEFAULT, fn () => $this->jubelioStockCheckPanel());
         }
 
         if ($canStockAlerts) {
-            $data['stock_alerts'] = $this->stockAlertsPanel();
+            $data['stock_alerts'] = $this->rememberPanel('stock-alerts', self::CACHE_TTL_FAST, fn () => $this->stockAlertsPanel());
         }
 
         if ($canCron || $canJubelio) {
-            $data['queue'] = $this->queuePanel();
+            $data['queue'] = $this->rememberPanel('queue', self::CACHE_TTL_QUEUE, fn () => $this->queuePanel());
         }
 
         if ($canCron) {
-            $data['cron'] = $this->cronPanel();
+            $data['cron'] = $this->rememberPanel('cron', self::CACHE_TTL_CRON, fn () => $this->cronPanel());
         }
 
         if ($canBookClosing) {
-            $data['book_closing'] = $this->bookClosingPanel();
+            $data['book_closing'] = $this->rememberPanel(
+                'book-closing.'.now()->toDateString(),
+                self::CACHE_TTL_BOOK_CLOSING,
+                fn () => $this->bookClosingPanel(),
+            );
         }
 
         if ($canWarehouseArrangement) {
-            $data['warehouse_arrangement'] = $this->warehouseArrangementPanel();
+            $data['warehouse_arrangement'] = $this->rememberPanel('warehouse-arrangement', self::CACHE_TTL_FAST, fn () => $this->warehouseArrangementPanel());
         }
 
         if ($canActivity) {
-            $data['activity'] = $this->activityPanel();
+            $data['activity'] = $this->rememberPanel(
+                'activity.'.now()->toDateString(),
+                self::CACHE_TTL_ACTIVITY,
+                fn () => $this->activityPanel(),
+            );
         }
 
         if ($canRestock) {
-            $data['restock'] = $this->restockPanel();
+            $data['restock'] = $this->rememberPanel('restock', self::CACHE_TTL_DEFAULT, fn () => $this->restockPanel());
         }
 
         if ($canProduksiList) {
-            $data['produksi'] = $this->produksiPanel();
+            $data['produksi'] = $this->rememberPanel(
+                'produksi.'.now()->toDateString(),
+                self::CACHE_TTL_DEFAULT,
+                fn () => $this->produksiPanel(),
+            );
         }
 
         return $data;
+    }
+
+    public static function panelCacheKey(string $panel): string
+    {
+        return 'dashboard.'.self::CACHE_VERSION.'.'.$panel;
+    }
+
+    /**
+     * @template T
+     *
+     * @param  callable(): T  $callback
+     * @return T
+     */
+    protected function rememberPanel(string $panel, int $ttlSeconds, callable $callback): mixed
+    {
+        return Cache::remember(
+            self::panelCacheKey($panel),
+            now()->addSeconds($ttlSeconds),
+            $callback,
+        );
     }
 
     /**
