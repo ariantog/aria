@@ -15,6 +15,7 @@ class SettingRegistry
         'bottom_line',
         'sell_100',
         'ongkir',
+        'tutup_buku',
     ];
 
     /**
@@ -42,13 +43,6 @@ class SettingRegistry
                 'type' => 'number',
                 'default' => '11',
                 'hint' => 'VAT percentage applied to taxable transaction lines.',
-            ],
-            'tutup_buku' => [
-                'group' => 'Accounting',
-                'name' => 'Tutup Buku',
-                'type' => 'tutup_buku',
-                'default' => '28',
-                'hint' => 'Day of month used as the book-closing cutoff.',
             ],
             'batas_cuti_tahunan' => [
                 'group' => 'HR',

@@ -256,8 +256,8 @@
                 @endif
             </p>
             <p class="mt-1 text-sm {{ $closingCardUrgent ? 'text-amber-800/80' : 'text-gray-500' }}">
-                Tutup buku tanggal {{ $bookClosing['closing_day'] }}
-                · closes {{ $bookClosing['closing_date']->translatedFormat('d M Y') }}
+                Tutup buku akhir bulan · {{ $bookClosing['closing_date']->translatedFormat('d M Y') }}
+                · entri dari {{ $bookClosing['min_allowed_date']->translatedFormat('d M Y') }}
             </p>
         </div>
         @endif
