@@ -1,8 +1,5 @@
 @php
     $settingsNav = [
-        ['title' => 'Profile', 'href' => route('profile.edit'), 'active' => request()->routeIs('profile.edit')],
-        ['title' => 'Password', 'href' => route('user-password.edit'), 'active' => request()->routeIs('user-password.edit')],
-        ['title' => 'Two-Factor Auth', 'href' => route('two-factor.show'), 'active' => request()->routeIs('two-factor.show')],
         ['title' => 'Transaction defaults', 'href' => route('transaction-defaults.edit'), 'active' => request()->routeIs('transaction-defaults.*')],
         ['title' => 'Appearance', 'href' => route('appearance.edit'), 'active' => request()->routeIs('appearance.*')],
     ];
@@ -10,8 +7,8 @@
 
 <div class="px-4 py-6">
     <div class="mb-6">
-        <h1 class="text-xl font-semibold text-gray-900">Settings</h1>
-        <p class="text-sm text-gray-500">Personal preferences for your account. No special permission required.</p>
+        <h1 class="text-xl font-semibold text-gray-900">Preferences</h1>
+        <p class="text-sm text-gray-500">Personal defaults for transactions and appearance.</p>
     </div>
 
     <div class="flex flex-col lg:flex-row lg:space-x-12">
