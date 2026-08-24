@@ -375,23 +375,43 @@ class TransactionsController extends Controller
         if (empty($array)) {
             return response()->json(['error' => 'Failed to parse CSV.'], 422);
         }
-        $codes = collect($array)->pluck('code')->unique();
+        $codes = collect($array)->pluck('code')->unique()->all();
         $whid = $request->warehouse_id;
-        $itemsQuery = \App\Models\Item::whereIn('code', $codes);
+        $itemsBySku = \App\Models\Item::findManyBySkus($codes);
+        $itemIds = $itemsBySku->pluck('id')->unique()->values();
+        $itemsQuery = \App\Models\Item::query()->whereIn('id', $itemIds);
         if ($whid) {
             $itemsQuery->with(['warehouseItems' => fn ($q) => $q->where('warehouse_id', $whid)]);
         }
-        $items = $itemsQuery->get()->keyBy('code');
+        $items = $itemsQuery->get()->keyBy('id');
         $dataList = [];
         foreach ($array as $row) {
-            $item = $items[$row['code']] ?? null;
+            $resolved = $itemsBySku->get(strtoupper($row['code']));
+            $item = $resolved ? ($items[$resolved->id] ?? $resolved) : null;
             if ($item) {
+                $warehouseItem = [];
                 $whQty = 0;
                 if ($whid && $item->relationLoaded('warehouseItems')) {
-                    $whItem = $item->warehouseItems->first();
-                    $whQty = $whItem ? (float) $whItem->quantity : 0;
+                    $warehouseItem = $item->warehouseItems->map(fn ($wi) => [
+                        'warehouse_id' => (string) $wi->warehouse_id,
+                        'quantity' => (float) $wi->quantity,
+                    ])->values()->all();
+                    $whQty = $warehouseItem[0]['quantity'] ?? 0;
                 }
-                $dataList[] = ['id' => (string) $item->id, 'item_id' => (string) $item->id, 'code' => $item->code, 'name' => $item->name, 'quantity' => (float) $row['qty'], 'warehouse_stock' => $whQty, 'warehouse_id' => $whid, 'price' => (float) $row['price'], 'discount' => 0, 'subtotal' => (float) $row['qty'] * (float) $row['price'], 'note' => ''];
+                $dataList[] = [
+                    'id' => (string) $item->id,
+                    'item_id' => (string) $item->id,
+                    'code' => $item->code,
+                    'name' => $item->name,
+                    'quantity' => (float) $row['qty'],
+                    'warehouse_stock' => $whQty,
+                    'warehouse_item' => $warehouseItem,
+                    'warehouse_id' => $whid,
+                    'price' => (float) $row['price'],
+                    'discount' => 0,
+                    'subtotal' => (float) $row['qty'] * (float) $row['price'],
+                    'note' => '',
+                ];
             }
         }
 

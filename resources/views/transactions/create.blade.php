@@ -554,7 +554,7 @@ function createTransaction() {
                     const gross = row.quantity * row.price;
                     row.discount = gross > 0 ? (Number(ci.discount || 0) / gross) * 100 : 0;
                     row.warehouse_item = this.warehouseItemsFrom(ci);
-                    row.warehouse_stock = this.stockFor(row);
+                    row.warehouse_stock = this.stockFor(row) || Number(ci.warehouse_stock || 0);
                     row.note = ci.note || '';
                     row.subtotal = gross - (gross * row.discount / 100);
                     this.form.items.push(row);
@@ -1119,7 +1119,7 @@ function createTransaction() {
                     const gross = row.quantity * row.price;
                     row.discount = gross > 0 ? (Number(ci.discount || 0) / gross) * 100 : 0;
                     row.warehouse_item = this.warehouseItemsFrom(ci);
-                    row.warehouse_stock = this.stockFor(row);
+                    row.warehouse_stock = this.stockFor(row) || Number(ci.warehouse_stock || 0);
                     row.note = ci.note || '';
                     row.subtotal = gross - (gross * row.discount / 100);
                     this.form.items.push(row);
