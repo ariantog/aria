@@ -24,6 +24,18 @@ it('renders reporting entities index for superadmin', function () {
         ->assertSee('Reporting Entities', false);
 });
 
+it('lists assigned banks on the entities index', function () {
+    $bank = Addrbook::create(['name' => 'BCA Crystal', 'type' => Addrbook::TYPE_BANK]);
+    $entity = ReportingEntity::create(['name' => 'CV Crystal', 'slug' => 'cv-crystal-test', 'is_pkp' => true]);
+    $entity->banks()->attach($bank->id, ['is_active' => true]);
+
+    $this->actingAs($this->user)
+        ->get(route('reports.entities.index'))
+        ->assertOk()
+        ->assertSee('BCA Crystal', false)
+        ->assertSee('CV Crystal', false);
+});
+
 it('forbids reporting entities for non-superadmin', function () {
     $other = User::factory()->create(['id' => 99]);
 
@@ -118,4 +130,26 @@ it('assigns banks to a reporting entity', function () {
         ->assertRedirect(route('reports.entities.index'));
 
     expect($entity->fresh()->banks->pluck('id')->all())->toBe([$bank->id]);
+});
+
+it('rejects assigning a bank that already belongs to another entity', function () {
+    $bank = Addrbook::create(['name' => 'Shared Bank', 'type' => Addrbook::TYPE_BANK]);
+    $entityA = ReportingEntity::create(['name' => 'Entity A', 'slug' => 'entity-a', 'is_pkp' => true]);
+    $entityB = ReportingEntity::create(['name' => 'Entity B', 'slug' => 'entity-b', 'is_pkp' => false]);
+    $entityA->banks()->attach($bank->id, ['is_active' => true]);
+
+    $this->actingAs($this->user)
+        ->from(route('reports.entities.edit', $entityB))
+        ->put(route('reports.entities.update', $entityB), [
+            'name' => 'Entity B',
+            'slug' => 'entity-b',
+            'is_pkp' => false,
+            'is_active' => true,
+            'bank_ids' => [$bank->id],
+        ])
+        ->assertRedirect(route('reports.entities.edit', $entityB))
+        ->assertSessionHasErrors('bank_ids');
+
+    expect($entityB->fresh()->banks)->toBeEmpty()
+        ->and($entityA->fresh()->banks->pluck('id')->all())->toBe([$bank->id]);
 });

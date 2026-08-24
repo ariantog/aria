@@ -13,6 +13,17 @@
         @csrf
         @method('PUT')
 
+        @if($errors->any())
+            <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+                <p class="font-medium">Could not save entity.</p>
+                <ul class="mt-2 list-disc space-y-1 pl-5">
+                    @foreach($errors->all() as $message)
+                        <li>{{ $message }}</li>
+                    @endforeach
+                </ul>
+            </div>
+        @endif
+
         <div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm space-y-4">
             <div class="grid gap-4 sm:grid-cols-2">
                 <div>
@@ -54,13 +65,27 @@
             </div>
         </div>
 
-        <div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+        <div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm @error('bank_ids') border-red-300 @enderror">
             <h3 class="mb-1 text-sm font-semibold text-gray-900">Bank accounts</h3>
-            <p class="mb-3 text-xs text-gray-500">CashIn to these banks uses this entity's PKP status for tax reporting.</p>
+            <p class="mb-3 text-xs text-gray-500">CashIn to these banks uses this entity's PKP status for tax reporting. Each bank can belong to only one entity.</p>
+            @error('bank_ids')
+                <div class="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+                    @if(is_array($message))
+                        <ul class="list-disc space-y-1 pl-5">
+                            @foreach($message as $line)
+                                <li>{{ $line }}</li>
+                            @endforeach
+                        </ul>
+                    @else
+                        {{ $message }}
+                    @endif
+                </div>
+            @enderror
             <div class="grid max-h-64 grid-cols-1 gap-2 overflow-y-auto sm:grid-cols-2">
+                @php $selectedBankIds = collect($assignedBankIds)->map(fn ($id) => (int) $id); @endphp
                 @foreach($banks as $bank)
                 <label class="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm hover:bg-gray-50">
-                    <input type="checkbox" name="bank_ids[]" value="{{ $bank->id }}" @checked(in_array($bank->id, $assignedBankIds))>
+                    <input type="checkbox" name="bank_ids[]" value="{{ $bank->id }}" @checked($selectedBankIds->contains($bank->id))>
                     <span>{{ $bank->name }}</span>
                 </label>
                 @endforeach
