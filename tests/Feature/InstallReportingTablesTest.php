@@ -20,6 +20,16 @@ it('installs reporting schema via dedicated migration path', function () {
         ->and(Schema::hasColumn('operations', 'report_slug'))->toBeTrue();
 });
 
+it('installs reporting summary tables via dedicated migration path', function () {
+    Artisan::call('migrate', [
+        '--path' => 'database/migrations/2026_08_24_120000_install_reporting_summary_tables.php',
+        '--force' => true,
+    ]);
+
+    expect(Schema::hasTable('reporting_entity_monthly_summaries'))->toBeTrue()
+        ->and(Schema::hasTable('reporting_operation_monthly_summaries'))->toBeTrue();
+});
+
 it('uses integer columns for customer references in reporting tables', function () {
     if (Schema::getConnection()->getDriverName() !== 'sqlite') {
         $this->markTestSkipped('SQLite column introspection only in this test.');
