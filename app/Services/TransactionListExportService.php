@@ -18,7 +18,7 @@ class TransactionListExportService
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle('Transactions');
 
-        $headers = ['Date', 'Invoice', 'Type', 'Sender', 'Sender Balance', 'Receiver', 'Receiver Balance', 'Items', 'Grand Total'];
+        $headers = ['Date', 'Invoice', 'Type', 'Sender', 'Sender Balance', 'Receiver', 'Receiver Balance', 'Items', 'Total'];
         $sheet->fromArray($headers, null, 'A1');
         $sheet->getStyle('A1:I1')->getFont()->setBold(true);
 
@@ -44,7 +44,7 @@ class TransactionListExportService
                 $tx->receiver?->name ?? '',
                 ($hideBankBalances && $receiverIsBank) ? '' : (float) $tx->receiver_balance,
                 (float) $tx->total_items,
-                (float) $tx->real_total,
+                (float) $tx->total,
             ], null, 'A'.$rowNum);
 
             $rowNum++;

@@ -48,7 +48,7 @@
                         @if($sortLink)<a href="{{ $sortLink('invoice') }}" class="inline-flex items-center gap-1 hover:text-gray-900">Invoice @if($sort==='invoice')<span class="text-blue-600">{{ $direction==='asc'?'↑':'↓' }}</span>@endif</a>@else Invoice @endif
                     </th>
                     <th class="px-3 py-2.5 text-right font-medium">
-                        @if($sortLink)<a href="{{ $sortLink('real_total') }}" class="inline-flex items-center gap-1 hover:text-gray-900">Grand Total @if($sort==='real_total')<span class="text-blue-600">{{ $direction==='asc'?'↑':'↓' }}</span>@endif</a>@else Grand Total @endif
+                        @if($sortLink)<a href="{{ $sortLink('total') }}" class="inline-flex items-center gap-1 hover:text-gray-900">Total @if($sort==='total')<span class="text-blue-600">{{ $direction==='asc'?'↑':'↓' }}</span>@endif</a>@else Total @endif
                     </th>
                     <th class="px-3 py-2.5 text-right font-medium">
                         @if($sortLink)<a href="{{ $sortLink('total_items') }}" class="inline-flex items-center gap-1 hover:text-gray-900">Total Items @if($sort==='total_items')<span class="text-blue-600">{{ $direction==='asc'?'↑':'↓' }}</span>@endif</a>@else Total Items @endif
@@ -78,7 +78,7 @@
                             <div class="mt-0.5 text-xs text-gray-400 lg:hidden">{{ $tx->sender->name ?? '—' }} → {{ $tx->receiver->name ?? '—' }}</div>
                         </td>
                         <td class="whitespace-nowrap px-3 py-2.5 text-right font-semibold tabular-nums text-gray-900">
-                            {{ format_amount($tx->real_total) }}
+                            {{ format_amount($tx->total) }}
                         </td>
                         <td class="whitespace-nowrap px-3 py-2.5 text-right tabular-nums text-gray-500">
                             {{ format_amount($tx->total_items) }}
