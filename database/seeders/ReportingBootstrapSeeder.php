@@ -8,6 +8,7 @@ use App\Models\Operation;
 use App\Models\ReportingEntity;
 use App\Models\ReportingLedgerRole as ReportingLedgerRoleModel;
 use App\Models\ReportingTaxAccount;
+use App\Support\OperationSimplificationPlan;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 
@@ -36,30 +37,13 @@ class ReportingBootstrapSeeder extends Seeder
             ReportingTaxAccount::where('reporting_entity_id', $ptCore->id)->delete();
         }
 
-        $operationSlugs = [
-            3 => 'marketing',
-            4 => 'gaji',
-            7 => 'sewa',
-            8 => 'kantor',
-            9 => 'kantor',
-            10 => 'bank',
-            11 => 'marketing',
-            13 => 'maintenance',
-            14 => 'jasa',
-            15 => 'sdm',
-            16 => 'kantor',
-            17 => 'logistik',
-            18 => 'pajak',
-            19 => 'lain',
-            20 => 'lain',
-            21 => 'sdm',
-            22 => 'lain',
-            24 => 'lain',
-            25 => 'lain',
-            26 => 'lain',
-            27 => 'produksi',
-            28 => 'marketplace',
-        ];
+        $operationSlugs = [];
+        foreach (array_merge(
+            OperationSimplificationPlan::newOperations(),
+            OperationSimplificationPlan::renames(),
+        ) as $id => $data) {
+            $operationSlugs[$id] = $data['report_slug'];
+        }
 
         foreach ($operationSlugs as $id => $slug) {
             Operation::where('id', $id)->update(['report_slug' => $slug]);

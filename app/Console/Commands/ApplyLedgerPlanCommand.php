@@ -4,8 +4,10 @@ namespace App\Console\Commands;
 
 use App\Models\Addrbook;
 use App\Models\LedgerMergeMap;
+use App\Models\Operation;
 use App\Models\ReportingEntity;
 use App\Models\ReportingTaxAccount;
+use App\Support\OperationSimplificationPlan;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
@@ -13,7 +15,7 @@ class ApplyLedgerPlanCommand extends Command
 {
     protected $signature = 'reporting:apply-ledger-plan {--dry-run : Show changes without applying}';
 
-    protected $description = 'Rename key ledgers, merge maps, and soft-delete obsolete accounts per reporting plan';
+    protected $description = 'Rename ledgers and operations, merge maps, and soft-delete obsolete accounts per reporting plan';
 
     public function handle(): int
     {
@@ -82,6 +84,7 @@ class ApplyLedgerPlanCommand extends Command
             }
 
             $this->retirePtCoreEntity($dry);
+            $this->applyOperationPlan($dry);
         });
 
         $this->info($dry ? 'Dry run complete.' : 'Ledger plan applied.');
@@ -109,5 +112,92 @@ class ApplyLedgerPlanCommand extends Command
             'is_active' => false,
             'notes' => trim(($entity->notes ? $entity->notes."\n" : '').'Retired Aug 2026 — legal entity no longer operating.'),
         ]);
+    }
+
+    private function applyOperationPlan(bool $dry): void
+    {
+        $this->info('Operation categories:');
+
+        foreach (OperationSimplificationPlan::newOperations() as $id => $data) {
+            $existing = Operation::withTrashed()->find($id);
+            $label = $data['name'];
+            if ($existing && ! $existing->trashed()) {
+                $this->line("Ensure op {$id}: {$label}");
+            } else {
+                $this->line("Create op {$id}: {$label}");
+            }
+            if (! $dry) {
+                $op = Operation::withTrashed()->find($id);
+                if ($op) {
+                    if ($op->trashed()) {
+                        $op->restore();
+                    }
+                    $op->update($data);
+                } else {
+                    Operation::forceCreate(array_merge(['id' => $id], $data));
+                }
+            }
+        }
+
+        foreach (OperationSimplificationPlan::renames() as $id => $data) {
+            $op = Operation::find($id);
+            if (! $op) {
+                continue;
+            }
+            $this->line("Rename op {$id}: {$op->name} → {$data['name']}");
+            if (! $dry) {
+                $op->update($data);
+            }
+        }
+
+        foreach (OperationSimplificationPlan::bulkReparentByOperationEarly() as $from => $to) {
+            $count = Addrbook::account()->where('parent_id', $from)->count();
+            if ($count === 0) {
+                continue;
+            }
+            $this->line("Re-parent {$count} account(s): operation {$from} → {$to}");
+            if (! $dry) {
+                Addrbook::account()->where('parent_id', $from)->update(['parent_id' => $to]);
+            }
+        }
+
+        foreach (OperationSimplificationPlan::ledgerReparents() as $ledgerId => $operationId) {
+            $ledger = Addrbook::account()->find($ledgerId);
+            if (! $ledger || (int) $ledger->parent_id === $operationId) {
+                continue;
+            }
+            $this->line("Re-parent ledger {$ledgerId} ({$ledger->name}): op {$ledger->parent_id} → {$operationId}");
+            if (! $dry) {
+                $ledger->update(['parent_id' => $operationId]);
+            }
+        }
+
+        foreach (OperationSimplificationPlan::bulkReparentByOperationLate() as $from => $to) {
+            $count = Addrbook::account()->where('parent_id', $from)->count();
+            if ($count === 0) {
+                continue;
+            }
+            $this->line("Re-parent {$count} account(s): operation {$from} → {$to}");
+            if (! $dry) {
+                Addrbook::account()->where('parent_id', $from)->update(['parent_id' => $to]);
+            }
+        }
+
+        foreach (OperationSimplificationPlan::softDeleteOperationIds() as $id) {
+            $op = Operation::find($id);
+            if (! $op) {
+                continue;
+            }
+            $remaining = Addrbook::account()->where('parent_id', $id)->count();
+            if ($remaining > 0) {
+                $this->warn("Skip soft-delete op {$id} ({$op->name}): {$remaining} account(s) still linked");
+
+                continue;
+            }
+            $this->line("Soft-delete op {$id}: {$op->name}");
+            if (! $dry) {
+                $op->delete();
+            }
+        }
     }
 }
