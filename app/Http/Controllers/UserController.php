@@ -29,7 +29,7 @@ class UserController extends Controller
             }));
 
         return view('users.index', [
-            'users' => $query->latest()->paginate(10)->withQueryString(),
+            'users' => $query->latest()->paginate(30)->withQueryString(),
             'filters' => ['status' => $status, 'q' => $search],
             'can' => [
                 'create_user' => request()->user()?->can(User::getPermissions()['create']) ?? false,
