@@ -167,10 +167,11 @@
 @endif
 
 {{-- ── Reports ───────────────────────────────────────────────────────── --}}
-@if($hasPerm('report-nett-cash') || $hasPerm('report-cash-flow') || $hasPerm('report-compare') || $hasPerm('report-expense') || $isSuperAdmin)
+@if($hasPerm('report-nett-cash') || $hasPerm('report-cash-flow') || $hasPerm('report-compare') || $hasPerm('report-expense') || $hasPerm('report-tax-ppn') || $isSuperAdmin)
 @php
     $repActive = $isActive('/reports/nett-cash-sby') || $isActive('/reports/cash-flow')
         || $isActive('/reports/compare') || $isActive('/reports/expense')
+        || $isActive('/reports/tax/ppn')
         || $isActive('/reports/entities');
 @endphp
 <div x-data="{ open: {{ $repActive ? 'true' : 'false' }} }" class="mb-1">
@@ -193,6 +194,9 @@
         @endif
         @if($hasPerm('report-expense') || $isSuperAdmin)
         <a href="{{ route('reports.expense') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/expense') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Laporan Biaya</a>
+        @endif
+        @if($hasPerm('report-tax-ppn') || $isSuperAdmin)
+        <a href="{{ route('reports.tax.ppn') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/tax/ppn') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Laporan PPN</a>
         @endif
         @if($isSuperAdmin)
         <a href="{{ route('reports.entities.index') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/entities') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Reporting Entities</a>
