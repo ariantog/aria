@@ -353,14 +353,9 @@ class JubelioController extends Controller
     {
         Gate::authorize(Jubelio::getPermissions()['sync']);
         $types = [Transaction::TYPE_SELL => 'SELL', Transaction::TYPE_RETURN_SUPPLIER => 'RETURN SUPPLIER', Transaction::TYPE_BUY => 'BUY', Transaction::TYPE_RETURN => 'RETURN', Transaction::TYPE_MOVE => 'MOVE'];
-        $q = Transaction::with(['sender', 'receiver'])
-            ->excludeJubelioImportOrigin()
-            ->when($request->display, fn ($q) => $q->where('sync_hide', $request->display), fn ($q) => $q->where('sync_hide', 'N'))
-            ->when($request->date, fn ($q) => $q->whereDate('date', '=', $request->date))
-            ->when($request->invoice, fn ($q) => $q->where('invoice', 'like', "%$request->invoice%"))
-            ->when($request->type, fn ($q) => $q->where('type', $request->type));
+        $q = Transaction::with(['sender', 'receiver'])->where('submit_type', Transaction::SUBMIT_TYPE_MANUAL)->when($request->display, fn ($q) => $q->where('sync_hide', $request->display), fn ($q) => $q->where('sync_hide', 'N'))->when($request->date, fn ($q) => $q->whereDate('date', '=', $request->date))->when($request->invoice, fn ($q) => $q->where('invoice', 'like', "%$request->invoice%"))->when($request->type, fn ($q) => $q->where('type', $request->type));
         if (! $request->invoice) {
-            $q->pendingManualJubelioStockSync();
+            $q->where(fn ($q) => $q->where(fn ($q) => $q->whereIn('type', [Transaction::TYPE_SELL, Transaction::TYPE_RETURN_SUPPLIER])->whereNull('a_submit_by')->whereIn('sender_id', fn ($s) => $s->select('warehouse_id')->from('jubeliosyncs')))->orWhere(fn ($q) => $q->whereIn('type', [Transaction::TYPE_BUY, Transaction::TYPE_RETURN])->whereNull('b_submit_by')->whereIn('receiver_id', fn ($s) => $s->select('warehouse_id')->from('jubeliosyncs')))->orWhere(fn ($q) => $q->where('type', Transaction::TYPE_MOVE)->where(fn ($q) => $q->where(fn ($w) => $w->whereIn('sender_id', fn ($s) => $s->select('warehouse_id')->from('jubeliosyncs'))->whereNull('a_submit_by'))->orWhere(fn ($w) => $w->whereIn('receiver_id', fn ($s) => $s->select('warehouse_id')->from('jubeliosyncs'))->whereNull('b_submit_by')))));
         }
         $t = $q->orderBy('date', 'desc')->orderBy('id', 'desc')->paginate(200)->withQueryString();
         $sw = Jubeliosync::pluck('warehouse_id')->toArray();

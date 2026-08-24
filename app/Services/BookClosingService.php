@@ -51,41 +51,6 @@ class BookClosingService
     }
 
     /**
-     * Summary for dashboard / UI reminders about the current closing window.
-     *
-     * @return array{
-     *     closing_day: int,
-     *     current_month_closed: bool,
-     *     closing_date: Carbon,
-     *     days_until_closing: int,
-     *     min_allowed_date: Carbon
-     * }
-     */
-    public function getClosingReminder(): array
-    {
-        $tutupBukuDay = $this->getTutupBukuDay();
-        $today = Carbon::now()->startOfDay();
-        $closingDayThisMonth = min($tutupBukuDay, $today->daysInMonth);
-        $closingDateThisMonth = $today->copy()->day($closingDayThisMonth);
-        $currentMonthClosed = $today->greaterThan($closingDateThisMonth);
-
-        if ($currentMonthClosed) {
-            $targetMonth = $today->copy()->addMonthNoOverflow();
-            $closingDate = $targetMonth->copy()->day(min($tutupBukuDay, $targetMonth->daysInMonth));
-        } else {
-            $closingDate = $closingDateThisMonth;
-        }
-
-        return [
-            'closing_day' => $tutupBukuDay,
-            'current_month_closed' => $currentMonthClosed,
-            'closing_date' => $closingDate,
-            'days_until_closing' => max(0, (int) $today->diffInDays($closingDate, false)),
-            'min_allowed_date' => $this->getMinAllowedDate(),
-        ];
-    }
-
-    /**
      * Get the minimum allowed date for new transactions.
      */
     public function getMinAllowedDate(): Carbon
