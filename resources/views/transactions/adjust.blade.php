@@ -53,10 +53,11 @@
 
                 {{-- Right: Entities --}}
                 <div class="space-y-5">
-                    {{-- Receiver / Credit (+) --}}
+                    {{-- Receiver: balance increases when amount is positive --}}
                     <div class="space-y-1.5">
-                        <label class="flex items-center gap-2 text-sm font-semibold text-emerald-600">
-                            Credit (+) / Receiver
+                        <label class="flex flex-col gap-0.5 text-sm font-semibold text-emerald-600">
+                            <span>Receiver (credit)</span>
+                            <span class="text-xs font-normal text-emerald-600/80">Balance increases by the amount</span>
                         </label>
                         <input type="hidden" name="receiver" :value="receiverId">
                         <div x-data="asyncCombobox({
@@ -93,10 +94,11 @@
                         @error('receiver')<p class="text-xs text-red-500">{{ $message }}</p>@enderror
                     </div>
 
-                    {{-- Sender / Debit (−) --}}
+                    {{-- Sender: balance decreases when amount is positive --}}
                     <div class="space-y-1.5">
-                        <label class="flex items-center gap-2 text-sm font-semibold text-rose-600">
-                            Debit (−) / Sender
+                        <label class="flex flex-col gap-0.5 text-sm font-semibold text-rose-600">
+                            <span>Sender (debit)</span>
+                            <span class="text-xs font-normal text-rose-600/80">Balance decreases by the amount</span>
                         </label>
                         <input type="hidden" name="sender" :value="senderId">
                         <div x-data="asyncCombobox({
@@ -147,12 +149,13 @@
                               class="w-full resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">{{ old('description') }}</textarea>
                 </div>
                 <div class="space-y-1.5">
-                    <label for="total" class="text-sm font-medium text-gray-700">Total Amount</label>
+                    <label for="total" class="text-sm font-medium text-gray-700">Amount</label>
                     <div class="relative">
                         <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-medium text-gray-500">Rp</span>
-                        <input type="number" id="total" name="total" value="{{ old('total', 0) }}" min="0" step="any" placeholder="0"
+                        <input type="number" id="total" name="total" value="{{ old('total', '') }}" min="0.01" step="any" placeholder="0"
                                class="w-full rounded-lg border px-3 py-2 pl-10 text-right text-lg font-bold focus:border-blue-500 focus:ring-1 focus:ring-blue-500 @error('total') border-red-500 @else border-gray-300 @enderror">
                     </div>
+                    <p class="text-xs text-gray-500">Enter a positive amount. To reverse direction, swap sender and receiver.</p>
                     @error('total')<p class="text-xs text-red-500">{{ $message }}</p>@enderror
                 </div>
             </div>
