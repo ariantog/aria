@@ -10,7 +10,7 @@ test('adjust transaction can be stored and updates balances', function () {
     $account = Addrbook::factory()->create(['type' => Addrbook::TYPE_ACCOUNT]);
     $customer = Addrbook::factory()->create(['type' => Addrbook::TYPE_CUSTOMER]);
 
-    // Adjust: Account (Sender/Debit+) -> Customer (Receiver/Credit+)
+    // Adjust: Account (Sender/Debit−) -> Customer (Receiver/Credit+)
     // Debit sender means sender balance decreases
     // Credit receiver means receiver balance increases
     $response = $this->actingAs($user)->post(route('transactions.adjust.store'), [

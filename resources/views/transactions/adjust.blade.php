@@ -93,10 +93,10 @@
                         @error('receiver')<p class="text-xs text-red-500">{{ $message }}</p>@enderror
                     </div>
 
-                    {{-- Sender / Debit (+) --}}
+                    {{-- Sender / Debit (−) --}}
                     <div class="space-y-1.5">
                         <label class="flex items-center gap-2 text-sm font-semibold text-rose-600">
-                            Debit (+) / Sender
+                            Debit (−) / Sender
                         </label>
                         <input type="hidden" name="sender" :value="senderId">
                         <div x-data="asyncCombobox({
