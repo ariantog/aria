@@ -21,7 +21,7 @@
     </div>
     @endif
 
-    <form method="POST" action="{{ route('transactions.transfer.store') }}" x-data="formSubmitGuard()" @submit="guardFormSubmit($event)" class="max-w-2xl space-y-5">
+    <form method="POST" action="{{ route('transactions.transfer.store') }}" x-data="transferForm()" x-init="init()" @submit="guardFormSubmit($event)" class="max-w-2xl space-y-5">
         @csrf
 
         <div class="rounded-xl border border-gray-200 bg-white shadow-sm">
@@ -84,9 +84,11 @@
                     <label for="total" class="text-sm font-medium text-gray-700">Total Amount</label>
                     <div class="relative">
                         <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-medium text-gray-500">Rp</span>
-                        <input type="number" id="total" name="total" value="{{ old('total', '') }}" min="0" step="any" placeholder=""
+                        <input type="number" id="total" name="total" x-model.number="totalAmount" min="0" step="any" placeholder=""
                                class="w-full rounded-lg border px-3 py-2 pl-10 text-right text-lg font-semibold focus:border-blue-500 focus:ring-1 focus:ring-blue-500 @error('total') border-red-500 @else border-gray-300 @enderror">
                     </div>
+                    <p x-show="totalAmount > 0" x-cloak class="text-right text-sm tabular-nums text-gray-600"
+                       x-text="'Rp ' + formatAmountId(totalAmount)"></p>
                     @error('total')<p class="text-xs text-red-500">{{ $message }}</p>@enderror
                 </div>
 
@@ -99,6 +101,12 @@
                     <textarea id="description" name="description" rows="3" placeholder="Add transaction details…"
                               class="w-full resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">{{ old('description') }}</textarea>
                 </div>
+            </div>
+
+            <div class="flex items-center justify-between border-t border-gray-100 bg-gray-50 px-6 py-3">
+                <span class="text-sm font-semibold text-gray-900">Total Amount</span>
+                <span class="text-lg font-bold tabular-nums text-blue-700"
+                      x-text="'Rp ' + formatAmountId(totalAmount)"></span>
             </div>
 
             <div class="flex items-center justify-between rounded-b-xl border-t border-gray-100 bg-gray-50 px-6 py-4">
@@ -120,4 +128,22 @@
         </div>
     </form>
 </div>
+
+@push('scripts')
+<script>
+const _TransferOldTotal = @js(old('total'));
+
+function transferForm() {
+    return {
+        ...formSubmitGuard(),
+        totalAmount: _TransferOldTotal != null && _TransferOldTotal !== '' ? Number(_TransferOldTotal) : 0,
+        init() {
+            if (Number.isNaN(this.totalAmount)) {
+                this.totalAmount = 0;
+            }
+        },
+    };
+}
+</script>
+@endpush
 @endsection
