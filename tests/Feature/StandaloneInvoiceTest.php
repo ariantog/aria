@@ -139,6 +139,69 @@ it('generates and regenerates standalone invoice pdf', function () {
         ->get(route('invoice-maker.pdf.download', $invoice))
         ->assertOk()
         ->assertHeader('content-disposition', 'attachment; filename=INV-CA-2026-0001.pdf');
+
+    expect($this->actingAs($this->user)
+        ->get(route('invoice-maker.pdf.download', $invoice))
+        ->headers->get('cache-control'))
+        ->toContain('no-store');
+});
+
+it('ignores legacy pdf files and replaces them on regenerate', function () {
+    $invoice = StandaloneInvoice::factory()->create([
+        'number' => 'INV/CA/2026/0200',
+        'template' => StandaloneInvoice::TEMPLATE_CLASSIC,
+    ]);
+    StandaloneInvoiceLine::factory()->create([
+        'standalone_invoice_id' => $invoice->id,
+        'description' => 'Fresh item',
+        'quantity' => 1,
+        'price' => 25_000,
+        'total' => 25_000,
+    ]);
+
+    $service = app(StandaloneInvoiceService::class);
+    $legacyPath = $service->invoiceDiskPath('standalone_invoice_'.$invoice->id.'.pdf');
+    File::put($legacyPath, '%PDF-1.4 legacy dev content');
+
+    expect($service->invoicePdfExists($invoice))->toBeFalse();
+
+    $this->actingAs($this->user)
+        ->post(route('invoice-maker.pdf.store', $invoice))
+        ->assertRedirect(route('invoice-maker.show', $invoice));
+
+    expect(File::exists($legacyPath))->toBeFalse();
+    expect($service->invoicePdfExists($invoice))->toBeTrue();
+    expect($service->invoiceFileName($invoice))->toContain('_'.$invoice->fresh()->updated_at->timestamp.'.pdf');
+
+    $pdf = file_get_contents($service->resolveInvoicePdfPath($invoice));
+    expect($pdf)->toStartWith('%PDF');
+    expect($pdf)->not->toContain('legacy dev content');
+});
+
+it('cache busts pdf urls and clears pdf after invoice update', function () {
+    $invoice = StandaloneInvoice::factory()->create([
+        'number' => 'INV/CA/2026/0300',
+        'recipient' => 'Before edit',
+    ]);
+    StandaloneInvoiceLine::factory()->create(['standalone_invoice_id' => $invoice->id]);
+
+    $service = app(StandaloneInvoiceService::class);
+    $service->createInvoicePdf($invoice, regenerate: true);
+
+    $url = $service->invoicePdfUrl($invoice);
+    expect($url)->toContain('?v=');
+
+    $this->actingAs($this->user)->put(route('invoice-maker.update', $invoice), [
+        'number' => $invoice->number,
+        'date' => $invoice->date->format('Y-m-d'),
+        'recipient' => 'After edit',
+        'preset_id' => 'default',
+        'lines' => [
+            ['description' => 'Updated item', 'quantity' => 1, 'price' => 10_000],
+        ],
+    ])->assertRedirect();
+
+    expect($service->invoicePdfExists($invoice->fresh()))->toBeFalse();
 });
 
 it('renders invoice maker pages for superadmin', function () {

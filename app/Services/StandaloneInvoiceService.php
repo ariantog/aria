@@ -16,7 +16,11 @@ class StandaloneInvoiceService
 
     public function invoiceFileName(StandaloneInvoice $invoice): string
     {
-        return 'standalone_invoice_'.$invoice->id.'.pdf';
+        $version = $invoice->updated_at?->timestamp
+            ?? $invoice->created_at?->timestamp
+            ?? time();
+
+        return 'standalone_invoice_'.$invoice->id.'_'.$version.'.pdf';
     }
 
     public function invoiceDiskPath(string $fileName): string
@@ -29,14 +33,41 @@ class StandaloneInvoiceService
         return $path.$fileName;
     }
 
+    public function invoiceDirectory(): string
+    {
+        $path = rtrim((string) config('core-nation.invoice_path'), DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR;
+        if (! File::isDirectory($path)) {
+            File::makeDirectory($path, 0755, true);
+        }
+
+        return $path;
+    }
+
     public function invoicePublicUrl(string $fileName): string
     {
         return rtrim((string) config('core-nation.invoice_url'), '/').'/'.$fileName;
     }
 
+    public function resolveInvoicePdfPath(StandaloneInvoice $invoice): ?string
+    {
+        $expected = $this->invoiceDiskPath($this->invoiceFileName($invoice));
+        if (File::exists($expected)) {
+            return $expected;
+        }
+
+        return null;
+    }
+
     public function invoicePdfExists(StandaloneInvoice $invoice): bool
     {
-        return File::exists($this->invoiceDiskPath($this->invoiceFileName($invoice)));
+        return $this->resolveInvoicePdfPath($invoice) !== null;
+    }
+
+    public function invoicePdfCacheVersion(StandaloneInvoice $invoice): int
+    {
+        $path = $this->resolveInvoicePdfPath($invoice);
+
+        return $path ? (int) File::lastModified($path) : ($invoice->updated_at?->timestamp ?? time());
     }
 
     public function invoicePdfUrl(StandaloneInvoice $invoice): ?string
@@ -45,7 +76,7 @@ class StandaloneInvoiceService
             return null;
         }
 
-        return route('invoice-maker.pdf.show', $invoice);
+        return route('invoice-maker.pdf.show', $invoice).'?v='.$this->invoicePdfCacheVersion($invoice);
     }
 
     public function invoicePdfDownloadUrl(StandaloneInvoice $invoice): ?string
@@ -54,7 +85,18 @@ class StandaloneInvoiceService
             return null;
         }
 
-        return route('invoice-maker.pdf.download', $invoice);
+        return route('invoice-maker.pdf.download', $invoice).'?v='.$this->invoicePdfCacheVersion($invoice);
+    }
+
+    public function deleteInvoicePdfs(StandaloneInvoice $invoice): void
+    {
+        $pattern = $this->invoiceDirectory().'standalone_invoice_'.$invoice->id.'*.pdf';
+
+        foreach (glob($pattern) ?: [] as $file) {
+            if (File::isFile($file)) {
+                File::delete($file);
+            }
+        }
     }
 
     public function invoiceDownloadFileName(StandaloneInvoice $invoice): string
@@ -71,6 +113,9 @@ class StandaloneInvoiceService
 
     public function createInvoicePdf(StandaloneInvoice $invoice, bool $regenerate = true): string
     {
+        $invoice->refresh();
+        $invoice->loadMissing(['lines', 'sender', 'user']);
+
         $fileName = $this->invoiceFileName($invoice);
         $filePath = $this->invoiceDiskPath($fileName);
 
@@ -78,7 +123,9 @@ class StandaloneInvoiceService
             return $this->invoicePublicUrl($fileName);
         }
 
-        $invoice->loadMissing(['lines', 'sender', 'user']);
+        if ($regenerate) {
+            $this->deleteInvoicePdfs($invoice);
+        }
         $preset = $invoice->preset_id
             ? $this->settingsService->findPreset($invoice->preset_id)
             : null;
@@ -106,13 +153,10 @@ class StandaloneInvoiceService
             $template = StandaloneInvoice::TEMPLATE_CLASSIC;
         }
 
-        if (File::exists($filePath)) {
-            File::delete($filePath);
-        }
-
         File::ensureDirectoryExists(storage_path('app/dompdf'));
 
         $view = 'invoice-maker.pdf.'.$template;
+        $tempPath = $filePath.'.'.uniqid('tmp', true);
 
         Pdf::loadView($view, compact(
             'invoice',
@@ -130,7 +174,9 @@ class StandaloneInvoiceService
                 'chroot' => base_path(),
                 'tempDir' => storage_path('app/dompdf'),
             ])
-            ->save($filePath);
+            ->save($tempPath);
+
+        File::move($tempPath, $filePath);
 
         return $this->invoicePublicUrl($fileName);
     }
@@ -152,6 +198,7 @@ class StandaloneInvoiceService
             ]);
 
             $this->syncLines($invoice, $lines);
+            $this->deleteInvoicePdfs($invoice->fresh());
 
             return $invoice->fresh(['lines', 'sender']);
         });
@@ -173,6 +220,7 @@ class StandaloneInvoiceService
             ]);
 
             $this->syncLines($invoice, $lines);
+            $this->deleteInvoicePdfs($invoice->fresh());
 
             return $invoice->fresh(['lines', 'sender']);
         });
