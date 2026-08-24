@@ -141,6 +141,7 @@ it('renders migrated GET pages with a 200', function (string $route) {
 })->with([
     // Settings
     'settings profile' => 'settings/profile',
+    'settings transaction defaults' => 'settings/transaction-defaults',
     'settings password' => 'settings/password',
     'settings appearance' => 'settings/appearance',
 

@@ -27,6 +27,17 @@
         }
     </script>
 
+    <script>
+        (function () {
+            const appearance = @json($appearance ?? 'system');
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            const isDark = appearance === 'dark' || (appearance === 'system' && prefersDark);
+            if (isDark) {
+                document.documentElement.classList.add('dark');
+            }
+        })();
+    </script>
+
     @stack('head-css')
     <style>
         :root {

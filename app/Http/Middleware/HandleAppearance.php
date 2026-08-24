@@ -2,8 +2,10 @@
 
 namespace App\Http\Middleware;
 
+use App\Services\UserPreferenceService;
 use Closure;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\View;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -16,7 +18,13 @@ class HandleAppearance
      */
     public function handle(Request $request, Closure $next): Response
     {
-        View::share('appearance', $request->cookie('appearance') ?? 'system');
+        $appearance = $request->cookie('appearance') ?? 'system';
+
+        if ($request->user() && Schema::hasTable('user_preferences')) {
+            $appearance = app(UserPreferenceService::class)->appearanceFor($request->user());
+        }
+
+        View::share('appearance', $appearance);
 
         return $next($request);
     }

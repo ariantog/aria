@@ -3,7 +3,8 @@
         ['title' => 'Profile', 'href' => route('profile.edit'), 'active' => request()->routeIs('profile.edit')],
         ['title' => 'Password', 'href' => route('user-password.edit'), 'active' => request()->routeIs('user-password.edit')],
         ['title' => 'Two-Factor Auth', 'href' => route('two-factor.show'), 'active' => request()->routeIs('two-factor.show')],
-        ['title' => 'Appearance', 'href' => route('appearance.edit'), 'active' => request()->routeIs('appearance.edit')],
+        ['title' => 'Transaction defaults', 'href' => route('transaction-defaults.edit'), 'active' => request()->routeIs('transaction-defaults.*')],
+        ['title' => 'Appearance', 'href' => route('appearance.edit'), 'active' => request()->routeIs('appearance.*')],
     ];
 @endphp
 

@@ -19,6 +19,7 @@ use App\Services\TransactionInvoiceService;
 use App\Services\TransactionListExportService;
 use App\Services\TransactionReturnDraftService;
 use App\Services\TransactionService;
+use App\Services\UserPreferenceService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -71,7 +72,7 @@ class TransactionsController extends Controller
         return $exportService->download($rows, $hideBank);
     }
 
-    public function create(string $type, Request $request, BookClosingService $bookClosingService, TransactionReturnDraftService $draftService)
+    public function create(string $type, Request $request, BookClosingService $bookClosingService, TransactionReturnDraftService $draftService, UserPreferenceService $userPreferences)
     {
         Transaction::authorizeTypeAccess($type);
         $config = config("transaction_rules.{$type}");
@@ -99,7 +100,7 @@ class TransactionsController extends Controller
             'config' => $config,
             'ppn_rate' => (float) \App\Models\Setting::getValue('ppn_rate', 11),
             'min_date' => $bookClosingService->getMinAllowedDate()->toDateString(),
-            'prefill' => $this->resolveCreatePrefill($type, $request, $draftService),
+            'prefill' => $this->resolveCreatePrefill($type, $request, $draftService, $userPreferences),
         ]);
     }
 
@@ -145,14 +146,16 @@ class TransactionsController extends Controller
         return redirect()->route('transactions.show', $transaction)->with('success', 'Transaction created.');
     }
 
-    public function cashIn(BookClosingService $bookClosingService)
+    public function cashIn(BookClosingService $bookClosingService, UserPreferenceService $userPreferences)
     {
         Gate::authorize(Transaction::getPermissions()['type-cash-in']);
 
         return view('transactions.cash', [
             'bankList' => \App\Models\Addrbook::where('type', \App\Models\Addrbook::TYPE_BANK)->orderBy('name')->get(),
             'ppn_rate' => (float) \App\Models\Setting::getValue('ppn_rate', 11),
-            'min_date' => $bookClosingService->getMinAllowedDate()->toDateString(), 'type' => 'in',
+            'min_date' => $bookClosingService->getMinAllowedDate()->toDateString(),
+            'type' => 'in',
+            'defaultAccount' => $userPreferences->defaultCashAccount(Auth::user(), true),
         ]);
     }
 
@@ -165,14 +168,16 @@ class TransactionsController extends Controller
         return redirect()->route('transactions.show', end($ids))->with('success', 'Cash In records created.');
     }
 
-    public function cashOut(BookClosingService $bookClosingService)
+    public function cashOut(BookClosingService $bookClosingService, UserPreferenceService $userPreferences)
     {
         Gate::authorize(Transaction::getPermissions()['type-cash-out']);
 
         return view('transactions.cash', [
             'bankList' => \App\Models\Addrbook::where('type', \App\Models\Addrbook::TYPE_BANK)->orderBy('name')->get(),
             'ppn_rate' => (float) \App\Models\Setting::getValue('ppn_rate', 11),
-            'min_date' => $bookClosingService->getMinAllowedDate()->toDateString(), 'type' => 'out',
+            'min_date' => $bookClosingService->getMinAllowedDate()->toDateString(),
+            'type' => 'out',
+            'defaultAccount' => $userPreferences->defaultCashAccount(Auth::user(), false),
         ]);
     }
 
@@ -185,7 +190,7 @@ class TransactionsController extends Controller
         return redirect()->route('transactions.show', end($ids))->with('success', 'Cash Out records created.');
     }
 
-    public function transfer(BookClosingService $bookClosingService)
+    public function transfer(BookClosingService $bookClosingService, UserPreferenceService $userPreferences)
     {
         Gate::authorize(Transaction::getPermissions()['type-transfer']);
 
@@ -195,6 +200,7 @@ class TransactionsController extends Controller
                 ->orderBy('name')
                 ->get(),
             'min_date' => $bookClosingService->getMinAllowedDate()->toDateString(),
+            'defaultAccounts' => $userPreferences->defaultTransferAccounts(Auth::user()),
         ]);
     }
 
@@ -459,17 +465,20 @@ class TransactionsController extends Controller
     /**
      * @return array<string, mixed>|null
      */
-    private function resolveCreatePrefill(string $type, Request $request, TransactionReturnDraftService $draftService): ?array
+    private function resolveCreatePrefill(string $type, Request $request, TransactionReturnDraftService $draftService, UserPreferenceService $userPreferences): ?array
     {
         if ($request->filled('from')) {
             return $this->buildReturnPrefillFromSource((int) $request->query('from'), $type, $draftService);
         }
 
         if ($type === 'move') {
-            return session()->pull('transaction_move_prefill');
+            $sessionPrefill = session()->pull('transaction_move_prefill');
+            if ($sessionPrefill) {
+                return $sessionPrefill;
+            }
         }
 
-        return null;
+        return $userPreferences->transactionPrefill(Auth::user(), $type);
     }
 
     /**
