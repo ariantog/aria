@@ -31,6 +31,7 @@ it('parses a csv and returns warehouse stock for the selected warehouse', functi
         ->postJson(route('transactions.batch-parse'), [
             'csv_file' => $csv,
             'warehouse_id' => $warehouse->id,
+            'type' => 'move',
         ]);
 
     $response->assertSuccessful()
@@ -41,6 +42,72 @@ it('parses a csv and returns warehouse stock for the selected warehouse', functi
         ->assertJsonPath('data.0.warehouse_item.0.warehouse_id', (string) $warehouse->id);
 
     expect((float) $response->json('data.0.warehouse_item.0.quantity'))->toBe(12.0);
+});
+
+it('uses csv price and sender warehouse stock for sell batch uploads', function () {
+    $warehouse = Addrbook::factory()->create(['type' => Addrbook::TYPE_WAREHOUSE]);
+    $item = Item::factory()->create([
+        'code' => 'SELL-SKU-01',
+        'name' => 'Sell Item',
+        'price' => 50_000,
+        'cost' => 30_000,
+    ]);
+    WarehouseItem::create([
+        'item_id' => $item->id,
+        'warehouse_id' => $warehouse->id,
+        'warehouse_type' => Addrbook::class,
+        'quantity' => 8,
+    ]);
+
+    $csv = UploadedFile::fake()->createWithContent('batch.csv', "SELL-SKU-01,2,75000\n");
+
+    $response = $this->actingAs($this->user)
+        ->postJson(route('transactions.batch-parse'), [
+            'csv_file' => $csv,
+            'warehouse_id' => $warehouse->id,
+            'type' => 'sell',
+        ]);
+
+    $response->assertSuccessful()
+        ->assertJsonPath('data.0.quantity', 2)
+        ->assertJsonPath('data.0.price', 75_000)
+        ->assertJsonPath('data.0.csv_price', 75_000)
+        ->assertJsonPath('data.0.item_price', 50_000)
+        ->assertJsonPath('data.0.warehouse_stock', 8)
+        ->assertJsonPath('data.0.subtotal', 150_000);
+});
+
+it('loads item cost from the database for buy batch uploads', function () {
+    $warehouse = Addrbook::factory()->create(['type' => Addrbook::TYPE_WAREHOUSE]);
+    $item = Item::factory()->create([
+        'code' => 'BUY-SKU-01',
+        'name' => 'Buy Item',
+        'price' => 99_000,
+        'cost' => 42_500,
+    ]);
+    WarehouseItem::create([
+        'item_id' => $item->id,
+        'warehouse_id' => $warehouse->id,
+        'warehouse_type' => Addrbook::class,
+        'quantity' => 3,
+    ]);
+
+    $csv = UploadedFile::fake()->createWithContent('batch.csv', "BUY-SKU-01,4,0\n");
+
+    $response = $this->actingAs($this->user)
+        ->postJson(route('transactions.batch-parse'), [
+            'csv_file' => $csv,
+            'warehouse_id' => $warehouse->id,
+            'type' => 'buy',
+        ]);
+
+    $response->assertSuccessful()
+        ->assertJsonPath('data.0.quantity', 4)
+        ->assertJsonPath('data.0.price', 42_500)
+        ->assertJsonPath('data.0.cost', 42_500)
+        ->assertJsonPath('data.0.csv_price', 0)
+        ->assertJsonPath('data.0.warehouse_stock', 3)
+        ->assertJsonPath('data.0.subtotal', 170_000);
 });
 
 it('resolves csv codes via legacy sku and skips a header row', function () {
