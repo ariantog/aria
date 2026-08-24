@@ -11,7 +11,7 @@ class Operation extends Model
 {
     use HasFactory, SoftDeletes, FillsProductionColumnDefaults;
 
-    protected $fillable = ['name', 'description'];
+    protected $fillable = ['name', 'description', 'report_slug'];
 
     public static function getPermissions(): array
     {

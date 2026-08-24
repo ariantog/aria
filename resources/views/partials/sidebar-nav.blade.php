@@ -170,7 +170,8 @@
 @if($hasPerm('report-nett-cash') || $hasPerm('report-cash-flow') || $hasPerm('report-compare') || $hasPerm('report-expense') || $isSuperAdmin)
 @php
     $repActive = $isActive('/reports/nett-cash-sby') || $isActive('/reports/cash-flow')
-        || $isActive('/reports/compare') || $isActive('/reports/expense');
+        || $isActive('/reports/compare') || $isActive('/reports/expense')
+        || $isActive('/reports/entities');
 @endphp
 <div x-data="{ open: {{ $repActive ? 'true' : 'false' }} }" class="mb-1">
     <button @click="open = !open"
@@ -192,6 +193,9 @@
         @endif
         @if($hasPerm('report-expense') || $isSuperAdmin)
         <a href="{{ route('reports.expense') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/expense') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Laporan Biaya</a>
+        @endif
+        @if($isSuperAdmin)
+        <a href="{{ route('reports.entities.index') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/entities') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Reporting Entities</a>
         @endif
     </div>
 </div>

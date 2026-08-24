@@ -71,7 +71,7 @@ $breadcrumbs = [
                                     <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
                                     Ledger
                                 </a>
-                                <button @click="openEdit({{ $acc->id }}, @js($acc->name), @js($acc->description), @js((string)$acc->operation_id))" class="flex h-8 w-8 items-center justify-center rounded text-gray-400 hover:text-gray-900">
+                                <button @click="openEdit({{ $acc->id }}, @js($acc->name), @js($acc->description), @js((string)$acc->operation_id), @js($acc->ledger_hint))" class="flex h-8 w-8 items-center justify-center rounded text-gray-400 hover:text-gray-900">
                                     <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                                 </button>
                                 <form method="POST" action="{{ route('account-list.destroy', $acc->id) }}" onsubmit="return confirm('Are you sure you want to delete this account?')">
@@ -110,6 +110,10 @@ $breadcrumbs = [
                 </div>
                 <div class="space-y-2"><label class="text-sm font-medium">Account Name</label><input name="name" x-model="name" required class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"></div>
                 <div class="space-y-2"><label class="text-sm font-medium">Description</label><input name="description" x-model="description" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"></div>
+                <div class="space-y-2">
+                    <label class="text-sm font-medium">Cash entry hint</label>
+                    <textarea name="ledger_hint" x-model="ledgerHint" rows="2" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm" placeholder="Shown when staff pick this ledger on Cash In/Out"></textarea>
+                </div>
                 <div class="flex justify-end gap-2">
                     <button type="button" @click="isOpen=false" class="rounded-md border border-gray-300 px-4 py-2 text-sm hover:bg-gray-50">Cancel</button>
                     <button type="submit" class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700" x-text="editingId ? 'Save Changes' : 'Create'"></button>
@@ -123,12 +127,12 @@ $breadcrumbs = [
 <script>
 function accListCrud() {
     return {
-        isOpen: false, editingId: null, name: '', description: '', operationId: '',
+        isOpen: false, editingId: null, name: '', description: '', operationId: '', ledgerHint: '',
         storeUrl: '{{ route('account-list.store') }}',
         base: '{{ url('journals/account-list') }}',
         get formAction() { return this.editingId ? `${this.base}/${this.editingId}` : this.storeUrl; },
-        openCreate() { this.editingId = null; this.name = ''; this.description = ''; this.operationId = ''; this.isOpen = true; },
-        openEdit(id, name, desc, opId) { this.editingId = id; this.name = name; this.description = desc || ''; this.operationId = opId || ''; this.isOpen = true; },
+        openCreate() { this.editingId = null; this.name = ''; this.description = ''; this.operationId = ''; this.ledgerHint = ''; this.isOpen = true; },
+        openEdit(id, name, desc, opId, hint) { this.editingId = id; this.name = name; this.description = desc || ''; this.operationId = opId || ''; this.ledgerHint = hint || ''; this.isOpen = true; },
     };
 }
 </script>

@@ -52,7 +52,14 @@ class TransactionLookupController extends Controller
 
         $results = $query
             ->leftJoin('customerstat', 'customers.id', '=', 'customerstat.customer_id')
-            ->select('customers.id', 'customers.name', 'customers.ppn', 'customers.type', 'customerstat.balance')
+            ->select(
+                'customers.id',
+                'customers.name',
+                'customers.ppn',
+                'customers.type',
+                'customers.ledger_hint',
+                'customerstat.balance'
+            )
             ->orderBy('customers.name')
             ->limit(8)
             ->get();

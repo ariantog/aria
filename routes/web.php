@@ -323,6 +323,10 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
         Route::get('/product-performance', [\App\Http\Controllers\Reports\ProductPerformanceController::class, 'index'])->name('product-performance');
         Route::get('/produksi-potong', \App\Http\Controllers\Reports\ProduksiPotongReportController::class)->name('produksi-potong');
         Route::get('/produksi-qc', \App\Http\Controllers\Reports\ProduksiQcReportController::class)->name('produksi-qc');
+        Route::get('/entities', [\App\Http\Controllers\Reports\ReportingEntityController::class, 'index'])->name('entities.index');
+        Route::post('/entities', [\App\Http\Controllers\Reports\ReportingEntityController::class, 'store'])->name('entities.store');
+        Route::get('/entities/{entity}/edit', [\App\Http\Controllers\Reports\ReportingEntityController::class, 'edit'])->name('entities.edit');
+        Route::put('/entities/{entity}', [\App\Http\Controllers\Reports\ReportingEntityController::class, 'update'])->name('entities.update');
     });
 
     Route::prefix('stock-notifications')->name('stock-notifications.')->group(function () {

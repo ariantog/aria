@@ -1,0 +1,101 @@
+@php
+    $typeAccount = (string) \App\Models\Addrbook::TYPE_ACCOUNT;
+    $typeBank = (string) \App\Models\Addrbook::TYPE_BANK;
+    $typeCustomer = (string) \App\Models\Addrbook::TYPE_CUSTOMER;
+    $typeReseller = (string) \App\Models\Addrbook::TYPE_RESELLER;
+    $typeSupplier = (string) \App\Models\Addrbook::TYPE_SUPPLIER;
+    $isInternalLending = (bool) old('is_internal_lending', $isEdit && $addrbook ? $addrbook->is_internal_lending : false);
+    $isActiveInReports = (bool) old('is_active_in_reports', $isEdit && $addrbook ? ($addrbook->is_active_in_reports ?? true) : true);
+    $defaultBankId = old('default_bank_id', $addrbook?->default_bank_id ?? '');
+    $reportingRole = old('reporting_role', $addrbook?->reporting_role ?? '');
+@endphp
+
+<div class="rounded-xl border border-gray-200 bg-white shadow-sm md:col-span-2"
+     x-show="selectedType === '{{ $typeAccount }}' || selectedType === '{{ $typeBank }}' || selectedType === '{{ $typeCustomer }}' || selectedType === '{{ $typeReseller }}' || selectedType === '{{ $typeSupplier }}'"
+     x-cloak>
+    <div class="border-b border-gray-100 px-5 py-4">
+        <h3 class="text-sm font-semibold text-gray-900">Reporting</h3>
+        <p class="text-xs text-gray-500">Mapping for financial reports. Entity ↔ bank assignment is on <a href="{{ route('reports.entities.index') }}" class="text-blue-600 hover:underline">Reporting Entities</a>.</p>
+    </div>
+    <div class="space-y-4 p-5">
+        <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div>
+                <label for="npwp" class="mb-1 block text-sm font-medium text-gray-700">NPWP</label>
+                <input type="text" id="npwp" name="npwp" value="{{ $val('npwp') }}" placeholder="Optional"
+                       class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+            </div>
+        </div>
+
+        {{-- Ledger account --}}
+        <div x-show="selectedType === '{{ $typeAccount }}'" class="space-y-4">
+            <div>
+                <label for="operation_id" class="mb-1 block text-sm font-medium text-gray-700">Category (Operation)</label>
+                <select id="operation_id" name="operation_id" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                    <option value="">— Select category —</option>
+                    @foreach($operations ?? [] as $op)
+                        <option value="{{ $op->id }}" @selected((string) old('operation_id', $addrbook?->operation_id ?? '') === (string) $op->id)>{{ $op->name }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div>
+                <label for="ledger_hint" class="mb-1 block text-sm font-medium text-gray-700">Cash entry hint</label>
+                <textarea id="ledger_hint" name="ledger_hint" rows="2" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                          placeholder="Shown when staff select this ledger on Cash In/Out">{{ old('ledger_hint', $addrbook?->ledger_hint ?? '') }}</textarea>
+            </div>
+        </div>
+
+        {{-- Bank --}}
+        <div x-show="selectedType === '{{ $typeBank }}'" class="space-y-3">
+            @if($isEdit && isset($assignedEntity) && $assignedEntity)
+                <p class="text-sm text-gray-600">Entity: <strong>{{ $assignedEntity->name }}</strong>
+                    @if($assignedEntity->is_pkp)<span class="ml-1 rounded bg-green-100 px-1.5 py-0.5 text-xs text-green-800">PKP</span>@else<span class="ml-1 rounded bg-gray-100 px-1.5 py-0.5 text-xs">Non-PKP</span>@endif
+                </p>
+            @elseif($isEdit)
+                <p class="text-sm text-amber-700">Not assigned to a reporting entity yet.</p>
+            @endif
+            <div x-data="{ on: {{ $isActiveInReports ? 'true' : 'false' }} }" class="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 p-4">
+                <div>
+                    <p class="text-sm font-medium text-gray-900">Active in reports</p>
+                    <p class="text-xs text-gray-500">Uncheck for Transfer Pending, Investment, etc.</p>
+                </div>
+                <input type="hidden" name="is_active_in_reports" :value="on ? 1 : 0">
+                <button type="button" @click="on = !on" :class="on ? 'bg-blue-600' : 'bg-gray-300'" class="relative inline-flex h-6 w-11 flex-shrink-0 rounded-full transition-colors">
+                    <span :class="on ? 'translate-x-5' : 'translate-x-0.5'" class="mt-0.5 inline-block h-5 w-5 transform rounded-full bg-white transition-transform"></span>
+                </button>
+            </div>
+        </div>
+
+        {{-- Customer / Reseller --}}
+        <div x-show="selectedType === '{{ $typeCustomer }}' || selectedType === '{{ $typeReseller }}'" class="space-y-4">
+            <div>
+                <label for="default_bank_id" class="mb-1 block text-sm font-medium text-gray-700">Default payment bank</label>
+                <select id="default_bank_id" name="default_bank_id" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                    <option value="">— None —</option>
+                    @foreach($banks ?? [] as $bank)
+                        <option value="{{ $bank->id }}" @selected((string) $defaultBankId === (string) $bank->id)>{{ $bank->name }}</option>
+                    @endforeach
+                </select>
+                <p class="mt-1 text-xs text-gray-500">Marketplace / channel contacts: which bank receives payments.</p>
+            </div>
+            <div x-data="{ on: {{ $isInternalLending ? 'true' : 'false' }} }" class="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 p-4">
+                <div>
+                    <p class="text-sm font-medium text-gray-900">Internal lending</p>
+                    <p class="text-xs text-gray-500">Investment / pinjaman to customer — exclude from sales tax totals.</p>
+                </div>
+                <input type="hidden" name="is_internal_lending" :value="on ? 1 : 0">
+                <button type="button" @click="on = !on" :class="on ? 'bg-blue-600' : 'bg-gray-300'" class="relative inline-flex h-6 w-11 flex-shrink-0 rounded-full transition-colors">
+                    <span :class="on ? 'translate-x-5' : 'translate-x-0.5'" class="mt-0.5 inline-block h-5 w-5 transform rounded-full bg-white transition-transform"></span>
+                </button>
+            </div>
+        </div>
+
+        {{-- Supplier --}}
+        <div x-show="selectedType === '{{ $typeSupplier }}'">
+            <label for="reporting_role" class="mb-1 block text-sm font-medium text-gray-700">Material supplier</label>
+            <select id="reporting_role" name="reporting_role" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                <option value="" @selected($reportingRole === '')>General supplier</option>
+                <option value="material" @selected($reportingRole === 'material')>Material / fabric supplier</option>
+            </select>
+        </div>
+    </div>
+</div>

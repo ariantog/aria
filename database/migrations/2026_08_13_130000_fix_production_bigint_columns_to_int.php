@@ -15,7 +15,7 @@ return new class extends Migration
 {
     /** @var array<string, list<string>> */
     private const COLUMNS = [
-        'customers' => ['operation_id'],
+        'customers' => ['operation_id', 'default_bank_id'],
         'prod_produksi' => ['qc_id', 'pritil_id', 'original_id', 'transaction_id'],
         'product_performance_rollups' => ['warehouse_id'],
     ];

@@ -124,10 +124,12 @@ $config = [
                                     <div x-show="!loading && items.length===0" class="px-3 py-2 text-sm text-gray-400" x-text="emptyMessage()"></div>
                                     <template x-for="(item, i) in items" :key="item.id">
                                         <div @mousedown.prevent="selectItem(item)" @mouseenter="activeIndex=i" class="combobox-option" :class="{'active': activeIndex===i}">
-                                            <span x-text="item.name"></span>
+                                            <span class="block font-medium" x-text="item.name"></span>
+                                            <span x-show="item.ledger_hint" class="block text-xs text-gray-500 line-clamp-2" x-text="item.ledger_hint"></span>
                                         </div>
                                     </template>
                                 </div>
+                                <p x-show="row.customer && row.customer.ledger_hint" x-cloak class="mt-1 text-xs text-gray-500 sm:col-span-4" x-text="row.customer.ledger_hint"></p>
                             </div>
                             <div class="sm:col-span-3">
                                 <label class="mb-1 block text-xs font-medium text-gray-500 sm:hidden">Invoice #</label>
