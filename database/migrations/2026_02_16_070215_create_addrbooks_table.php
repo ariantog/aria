@@ -22,6 +22,7 @@ return new class extends Migration
             $table->boolean('ppn')->default(false);
             $table->string('memberId')->nullable();
             $table->integer('type')->nullable();
+            $table->unsignedInteger('parent_id')->default(0);
             $table->text('description')->nullable();
             $table->softDeletes();
             $table->timestamps();

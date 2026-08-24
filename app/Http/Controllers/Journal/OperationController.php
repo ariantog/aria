@@ -30,7 +30,7 @@ class OperationController extends Controller
     {
         Gate::authorize(Operation::getPermissions()['operation-list']);
 
-        $query = $operation->accounts()->where('type', \App\Models\Addrbook::TYPE_ACCOUNT);
+        $query = $operation->accounts();
 
         if ($search = $request->search) {
             $query->where('name', 'like', "%{$search}%");

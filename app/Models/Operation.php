@@ -32,6 +32,7 @@ class Operation extends Model
 
     public function accounts()
     {
-        return $this->hasMany(Addrbook::class, 'operation_id');
+        return $this->hasMany(Addrbook::class, 'parent_id')
+            ->where('type', Addrbook::TYPE_ACCOUNT);
     }
 }

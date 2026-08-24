@@ -25,7 +25,7 @@ class AccountListController extends Controller
         }
 
         if ($operationId = $request->operation_id) {
-            $query->where('operation_id', $operationId);
+            $query->where('parent_id', $operationId);
         }
 
         return view('journals.account-list.index', [
