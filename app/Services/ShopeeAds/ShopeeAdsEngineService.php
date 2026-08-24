@@ -1,0 +1,447 @@
+<?php
+
+namespace App\Services\ShopeeAds;
+
+use App\Enums\ShopeeAdsType;
+use App\Models\ShopeeAdsBudgetHistory;
+use App\Models\ShopeeAdsItemAd;
+use App\Models\ShopeeAdsSchedule;
+use App\Models\ShopeeAdsSetting;
+use Carbon\Carbon;
+use Illuminate\Support\Facades\Log;
+
+/**
+ * Budget automation engine — aligned with bots/engine.py (GMV-Max + item ads only).
+ */
+class ShopeeAdsEngineService
+{
+    public function __construct(
+        private readonly ShopeeAdsApiService $api,
+    ) {}
+
+    public function jakartaNow(): Carbon
+    {
+        return Carbon::now('Asia/Jakarta');
+    }
+
+    public function runDueSchedules(): int
+    {
+        $settings = ShopeeAdsSetting::current();
+
+        if ($settings->isPaused() || ! $this->api->hasShopAuthorization()) {
+            return 0;
+        }
+
+        $now = $this->jakartaNow();
+        $currentSlot = $now->format('H:i');
+        $ran = 0;
+
+        $schedules = ShopeeAdsSchedule::query()
+            ->where('enabled', true)
+            ->where('run_time', $currentSlot)
+            ->get();
+
+        foreach ($schedules as $schedule) {
+            if ($this->scheduleAlreadyRanToday($schedule, $now)) {
+                continue;
+            }
+
+            if (! in_array($schedule->ad_type, ShopeeAdsType::supportedScheduleTypes(), true)) {
+                Log::warning('Shopee Ads schedule skipped (legacy / unsupported API)', ['ad_type' => $schedule->ad_type]);
+                $schedule->update(['last_run_at' => $now]);
+
+                continue;
+            }
+
+            if ($schedule->ad_type === ShopeeAdsType::GmvMax->value) {
+                $this->applyGmvMaxIncrement($settings, $schedule->increment_idr);
+            } elseif ($schedule->ad_type === ShopeeAdsType::ProdukManual->value) {
+                $this->applyItemAdsIncrement($settings, $schedule->increment_idr);
+            }
+
+            $schedule->update(['last_run_at' => $now]);
+            $ran++;
+        }
+
+        return $ran;
+    }
+
+    public function runDailyResetIfDue(): bool
+    {
+        $settings = ShopeeAdsSetting::current();
+        $now = $this->jakartaNow();
+
+        if (! $this->isDueAt($settings, $now, $settings->daily_reset_hour, $settings->daily_reset_minute, $settings->last_daily_reset_at)) {
+            return false;
+        }
+
+        if (! $this->api->hasShopAuthorization()) {
+            return false;
+        }
+
+        $this->dailyReset($settings);
+        $settings->update(['last_daily_reset_at' => $now]);
+
+        return true;
+    }
+
+    public function runItemReplenishIfDue(): bool
+    {
+        $settings = ShopeeAdsSetting::current();
+
+        if (! $settings->item_replenish_enabled) {
+            return false;
+        }
+
+        $now = $this->jakartaNow();
+
+        if (! $this->isDueAt($settings, $now, $settings->item_replenish_hour, $settings->item_replenish_minute, $settings->last_item_replenish_at)) {
+            return false;
+        }
+
+        if (! $this->api->hasShopAuthorization()) {
+            return false;
+        }
+
+        $this->replenishItemAds($settings);
+        $settings->update(['last_item_replenish_at' => $now]);
+
+        return true;
+    }
+
+    public function applyGmvMaxIncrement(ShopeeAdsSetting $settings, int $incrementIdr): bool
+    {
+        $campaignId = $this->discoverGmsCampaignId($settings);
+
+        if (! $campaignId) {
+            Log::error('GMV-Max increment skipped: no active campaign');
+
+            return false;
+        }
+
+        $tracked = (int) $settings->gms_current_budget;
+        $combinedCap = (int) $settings->daily_max_budget;
+
+        $result = $this->api->addGmsBudget($campaignId, $tracked, $incrementIdr, $combinedCap);
+
+        if ($result === null) {
+            return false;
+        }
+
+        if ($result['applied_increment'] > 0) {
+            $settings->update([
+                'gms_campaign_id' => $campaignId,
+                'gms_current_budget' => $result['after'],
+            ]);
+        }
+
+        $this->recordHistory(
+            ShopeeAdsType::GmvMax->value,
+            $campaignId,
+            'increment',
+            $result['before'],
+            $result['after'],
+            $result['applied_increment'],
+            'GMV-Max schedule increment (live budget + increment)',
+        );
+
+        return true;
+    }
+
+    public function applyItemAdsIncrement(ShopeeAdsSetting $settings, int $poolIdr): void
+    {
+        if (! $settings->item_ads_enabled) {
+            return;
+        }
+
+        $this->syncItemAds();
+
+        $ads = ShopeeAdsItemAd::query()
+            ->where('turned_off', false)
+            ->whereNotIn('status', ['ended', 'closed', 'berakhir'])
+            ->get();
+
+        if ($ads->isEmpty()) {
+            return;
+        }
+
+        $liveByCampaign = collect($this->api->listManualProductAds(true))
+            ->keyBy('campaign_id');
+
+        foreach ($ads as $ad) {
+            $live = $liveByCampaign->get($ad->campaign_id);
+            if ($live && (float) $live['budget'] > 0) {
+                $liveBudget = (int) round((float) $live['budget']);
+                if (abs($liveBudget - (int) $ad->budget) > 0) {
+                    $ad->update(['budget' => $liveBudget]);
+                }
+            }
+        }
+
+        $campaignIds = $ads->pluck('campaign_id')->map(fn ($id) => (int) $id)->all();
+        $roasMap = $this->api->getItemAdsRoas($campaignIds);
+
+        $roasGroups = $ads->map(fn ($ad) => [
+            'campaign_id' => $ad->campaign_id,
+            'roas' => (float) ($roasMap[$ad->campaign_id] ?? $ad->last_roas ?? 0),
+            'turned_off' => $ad->turned_off,
+        ])->all();
+
+        $currentBudgets = $ads->mapWithKeys(fn ($ad) => [$ad->campaign_id => (int) $ad->budget])->all();
+        $headroom = $this->combinedHeadroom($settings);
+
+        $effectivePool = min($poolIdr, $headroom);
+        $allocations = ShopeeAdsBudgetAllocator::splitPoolByRoas(
+            $roasGroups,
+            $effectivePool,
+            (int) $settings->item_split_high,
+            (int) $settings->item_split_mid,
+            (int) $settings->item_split_low,
+            (int) $settings->daily_max_budget,
+            $currentBudgets,
+        );
+
+        $runningHeadroom = $headroom;
+
+        foreach ($ads as $ad) {
+            $cid = $ad->campaign_id;
+            $roas = (float) ($roasMap[$cid] ?? $ad->last_roas ?? 0);
+            $streak = (int) $ad->low_roas_streak;
+            $streak = $roas < (float) $settings->item_roas_off_threshold ? $streak + 1 : 0;
+
+            if ($streak >= (int) $settings->item_off_after_checks) {
+                if ($this->api->stopItemAd($cid)) {
+                    $ad->update(['turned_off' => true, 'status' => 'ended', 'low_roas_streak' => $streak, 'last_roas' => $roas]);
+                    $this->recordHistory(ShopeeAdsType::ProdukManual->value, $cid, 'turn_off', (int) $ad->budget, (int) $ad->budget, null, 'Item ad ended (low ROAS)');
+                }
+
+                continue;
+            }
+
+            $increment = (int) ($allocations[$cid] ?? 0);
+            if ($increment <= 0) {
+                $ad->update(['low_roas_streak' => $streak, 'last_roas' => $roas]);
+
+                continue;
+            }
+
+            $perAdCap = (int) $ad->budget + $runningHeadroom;
+            $result = $this->api->addItemAdBudget($cid, $increment, $perAdCap);
+
+            if ($result === null) {
+                continue;
+            }
+
+            $runningHeadroom = max(0, $runningHeadroom - $result['applied_increment']);
+            $ad->update([
+                'budget' => $result['after'],
+                'increments_today' => $ad->increments_today + 1,
+                'low_roas_streak' => $streak,
+                'last_roas' => $roas,
+            ]);
+
+            $this->recordHistory(
+                ShopeeAdsType::ProdukManual->value,
+                $cid,
+                'increment',
+                $result['before'],
+                $result['after'],
+                $result['applied_increment'],
+                'Item pool increment',
+            );
+        }
+    }
+
+    public function syncItemAds(): void
+    {
+        $live = $this->api->listManualProductAds(false);
+
+        foreach ($live as $row) {
+            ShopeeAdsItemAd::query()->updateOrCreate(
+                ['campaign_id' => $row['campaign_id']],
+                [
+                    'item_id' => (int) $row['item_id'],
+                    'origin' => 'manual',
+                    'budget' => (int) round((float) $row['budget']),
+                    'status' => $row['status'] ?: 'ongoing',
+                ],
+            );
+        }
+    }
+
+    /**
+     * @return array{created: int, message: string}
+     */
+    public function replenishItemAds(ShopeeAdsSetting $settings): array
+    {
+        if (! $settings->item_ads_enabled || ! $settings->item_replenish_enabled) {
+            return ['created' => 0, 'message' => 'Item ads or auto-replenish disabled'];
+        }
+
+        $this->syncItemAds();
+
+        $active = ShopeeAdsItemAd::query()
+            ->where('turned_off', false)
+            ->whereNotIn('status', ['ended', 'closed', 'berakhir'])
+            ->count();
+
+        $cap = (int) $settings->max_item_ads;
+        $need = min($cap - $active, (int) $settings->item_replenish_max_per_run);
+
+        if ($need <= 0) {
+            return ['created' => 0, 'message' => 'Active item ads already at cap'];
+        }
+
+        $starting = max((int) $settings->item_ad_starting_budget, ShopeeAdsApiService::ITEM_AD_MIN_BUDGET);
+        $headroom = $this->combinedHeadroom($settings);
+        $affordable = $starting > 0 ? (int) floor($headroom / $starting) : 0;
+        $need = min($need, $affordable);
+
+        if ($need <= 0) {
+            return ['created' => 0, 'message' => 'No combined budget headroom for new item ads'];
+        }
+
+        $exclude = ShopeeAdsItemAd::query()->pluck('item_id')->all();
+        $candidates = collect($this->api->getRecommendedItems())
+            ->reject(fn ($c) => in_array($c['item_id'], $exclude, true))
+            ->take($need);
+
+        $created = 0;
+
+        foreach ($candidates as $candidate) {
+            $cid = $this->api->createManualProductAd(
+                $candidate['item_id'],
+                $starting,
+                (float) $settings->item_new_roas_target,
+            );
+
+            if (! $cid) {
+                continue;
+            }
+
+            ShopeeAdsItemAd::query()->create([
+                'campaign_id' => $cid,
+                'item_id' => $candidate['item_id'],
+                'origin' => 'bot',
+                'budget' => $starting,
+                'roas_target' => (float) $settings->item_new_roas_target,
+                'status' => 'ongoing',
+            ]);
+
+            $created++;
+            $this->recordHistory(ShopeeAdsType::ProdukManual->value, $cid, 'replenish_create', null, $starting, null, 'Created item ad for '.$candidate['item_id']);
+        }
+
+        return ['created' => $created, 'message' => "Replenish: {$created} item ad(s) created"];
+    }
+
+    public function dailyReset(ShopeeAdsSetting $settings): void
+    {
+        $gmvStart = (int) ($settings->starting_budget_gmv_max ?: $settings->starting_budget);
+        $itemStart = max((int) $settings->item_ad_starting_budget, ShopeeAdsApiService::ITEM_AD_MIN_BUDGET);
+
+        $campaignId = $this->discoverGmsCampaignId($settings);
+        if ($campaignId) {
+            $before = (int) $settings->gms_current_budget;
+            if ($this->api->setGmsBudget($campaignId, $gmvStart)) {
+                $settings->update(['gms_current_budget' => $gmvStart, 'gms_campaign_id' => $campaignId]);
+                $this->recordHistory(ShopeeAdsType::GmvMax->value, $campaignId, 'daily_reset', $before, $gmvStart, null, 'Daily reset GMV-Max');
+            }
+        }
+
+        $itemAds = ShopeeAdsItemAd::query()->get();
+        foreach ($itemAds as $ad) {
+            if ($ad->turned_off || $ad->status === 'ended') {
+                $ad->update(['status' => 'closed', 'turned_off' => false, 'increments_today' => 0, 'low_roas_streak' => 0]);
+
+                continue;
+            }
+
+            $before = (int) $ad->budget;
+            if ($this->api->setItemAdBudget($ad->campaign_id, $itemStart)) {
+                $ad->update([
+                    'budget' => $itemStart,
+                    'status' => 'ongoing',
+                    'increments_today' => 0,
+                    'low_roas_streak' => 0,
+                    'turned_off' => false,
+                ]);
+                $this->recordHistory(ShopeeAdsType::ProdukManual->value, $ad->campaign_id, 'daily_reset', $before, $itemStart, null, 'Daily reset item ad');
+            }
+        }
+    }
+
+    private function discoverGmsCampaignId(ShopeeAdsSetting $settings): ?string
+    {
+        if ($settings->gms_campaign_id) {
+            return (string) $settings->gms_campaign_id;
+        }
+
+        $camp = $this->api->getGmsCampaign();
+
+        if (! $camp) {
+            return null;
+        }
+
+        $settings->update(['gms_campaign_id' => $camp['campaign_id']]);
+
+        return $camp['campaign_id'];
+    }
+
+    private function combinedHeadroom(ShopeeAdsSetting $settings): int
+    {
+        $total = (int) $settings->gms_current_budget;
+
+        $itemTotal = ShopeeAdsItemAd::query()
+            ->where('turned_off', false)
+            ->whereNotIn('status', ['ended', 'closed', 'berakhir'])
+            ->sum('budget');
+
+        $total += (int) $itemTotal;
+
+        return max((int) $settings->daily_max_budget - $total, 0);
+    }
+
+    private function scheduleAlreadyRanToday(ShopeeAdsSchedule $schedule, Carbon $now): bool
+    {
+        if (! $schedule->last_run_at) {
+            return false;
+        }
+
+        return $schedule->last_run_at->timezone('Asia/Jakarta')->isSameDay($now);
+    }
+
+    private function isDueAt(ShopeeAdsSetting $settings, Carbon $now, int $hour, int $minute, ?Carbon $lastRun): bool
+    {
+        if ($now->hour !== $hour || $now->minute !== $minute) {
+            return false;
+        }
+
+        if (! $lastRun) {
+            return true;
+        }
+
+        return ! $lastRun->timezone('Asia/Jakarta')->isSameDay($now);
+    }
+
+    private function recordHistory(
+        ?string $adType,
+        ?string $campaignId,
+        string $action,
+        ?int $before,
+        ?int $after,
+        ?int $increment,
+        ?string $message,
+    ): void {
+        ShopeeAdsBudgetHistory::query()->create([
+            'ad_type' => $adType,
+            'campaign_id' => $campaignId,
+            'action' => $action,
+            'before_budget' => $before,
+            'after_budget' => $after,
+            'increment_idr' => $increment,
+            'message' => $message,
+            'created_at' => now(),
+        ]);
+    }
+}

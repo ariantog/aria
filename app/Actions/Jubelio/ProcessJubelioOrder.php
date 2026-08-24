@@ -413,11 +413,9 @@ class ProcessJubelioOrder
                     $subTotal += $item['subtotal'];
                 }
 
-                $transaction->total = $subTotal;
                 $grandTotal = $subTotal + (float) $transaction->adjustment;
-                $transaction->real_total = ($type === Transaction::TYPE_SELL)
-                    ? -abs($grandTotal)
-                    : $grandTotal;
+                $transaction->total = Transaction::signedAmount($type, $subTotal);
+                $transaction->real_total = Transaction::signedAmount($type, $grandTotal);
                 $transaction->total_items = $totalQty;
                 $transaction->save();
 

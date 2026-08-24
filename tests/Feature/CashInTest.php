@@ -30,6 +30,7 @@ test('cash in transaction can be stored', function () {
         'type' => Transaction::TYPE_CASH_IN,
         'sender_id' => $customer->id,
         'receiver_id' => $bank->id,
+        'total' => 1000,
         'real_total' => 1000,
     ]);
 
@@ -64,6 +65,7 @@ test('cash in accepts decimal totals', function () {
 
     $this->assertDatabaseHas('transactions', [
         'type' => Transaction::TYPE_CASH_IN,
+        'total' => 1234.56,
         'real_total' => 1234.56,
     ]);
 });

@@ -21,6 +21,8 @@ class CreateTransferTransaction
             $sender = Addrbook::findOrFail($data['sender']);
             $receiver = Addrbook::findOrFail($data['receiver']);
 
+            $amount = Transaction::signedAmount(Transaction::TYPE_TRANSFER, (float) $data['total']);
+
             $trx = Transaction::create([
                 'date' => $data['date'],
                 'type' => Transaction::TYPE_TRANSFER,
@@ -32,7 +34,8 @@ class CreateTransferTransaction
                 'notes' => $data['description'] ?? null,
                 'user_id' => Auth::id(),
                 'status' => Transaction::STATUS_COMPLETED,
-                'real_total' => (float) $data['total'],
+                'total' => $amount,
+                'real_total' => $amount,
                 'total_items' => 0,
                 'adjustment' => 0,
                 'discount' => 0,

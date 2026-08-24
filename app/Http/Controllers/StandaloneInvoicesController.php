@@ -8,6 +8,7 @@ use App\Services\InvoiceMakerSettingsService;
 use App\Services\StandaloneInvoiceService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\ValidationException;
 
 class StandaloneInvoicesController extends Controller
 {
@@ -107,11 +108,7 @@ class StandaloneInvoicesController extends Controller
     {
         Gate::authorize(StandaloneInvoice::getPermissions()['delete']);
 
-        $fileName = $service->invoiceFileName($invoice);
-        $filePath = $service->invoiceDiskPath($fileName);
-        if (file_exists($filePath)) {
-            unlink($filePath);
-        }
+        $service->deleteInvoicePdfs($invoice);
 
         $invoice->delete();
 
@@ -123,27 +120,28 @@ class StandaloneInvoicesController extends Controller
     public function showPdf(StandaloneInvoice $invoice, StandaloneInvoiceService $service)
     {
         Gate::authorize(StandaloneInvoice::getPermissions()['view']);
-        abort_unless($service->invoicePdfExists($invoice), 404);
 
-        $filePath = $service->invoiceDiskPath($service->invoiceFileName($invoice));
+        $filePath = $service->resolveInvoicePdfPath($invoice);
+        abort_unless($filePath, 404);
 
-        return response()->file($filePath, [
-            'Content-Type' => 'application/pdf',
-            'Content-Disposition' => 'inline; filename="'.$service->invoiceFileName($invoice).'"',
-        ]);
+        return response()->file($filePath, $this->pdfResponseHeaders(
+            $service->invoiceDownloadFileName($invoice),
+            inline: true,
+        ));
     }
 
     public function downloadPdf(StandaloneInvoice $invoice, StandaloneInvoiceService $service)
     {
         Gate::authorize(StandaloneInvoice::getPermissions()['view']);
-        abort_unless($service->invoicePdfExists($invoice), 404);
 
-        $filePath = $service->invoiceDiskPath($service->invoiceFileName($invoice));
-        $fileName = $service->invoiceDownloadFileName($invoice);
+        $filePath = $service->resolveInvoicePdfPath($invoice);
+        abort_unless($filePath, 404);
 
-        return response()->download($filePath, $fileName, [
-            'Content-Type' => 'application/pdf',
-        ]);
+        return response()->download(
+            $filePath,
+            $service->invoiceDownloadFileName($invoice),
+            $this->pdfResponseHeaders($service->invoiceDownloadFileName($invoice)),
+        );
     }
 
     public function storePdf(StandaloneInvoice $invoice, StandaloneInvoiceService $service)
@@ -170,11 +168,36 @@ class StandaloneInvoicesController extends Controller
             'sender_addrbook_id' => ['nullable', 'integer', 'exists:customers,id'],
             'preset_id' => ['required', 'string', 'max:64'],
             'notes' => ['nullable', 'string', 'max:5000'],
+            'dp_enabled' => ['nullable', 'boolean'],
+            'dp_amount' => ['nullable', 'numeric', 'min:0'],
             'lines' => ['required', 'array', 'min:1'],
             'lines.*.description' => ['required', 'string', 'max:500'],
             'lines.*.quantity' => ['required', 'numeric', 'min:0.0001'],
             'lines.*.price' => ['required', 'numeric', 'min:0'],
         ]);
+
+        $lines = array_values($validated['lines']);
+        $subtotal = app(StandaloneInvoiceService::class)->calculateLineTotals($lines)['subtotal'];
+        $dpEnabled = $request->boolean('dp_enabled');
+
+        if ($dpEnabled) {
+            $dpAmount = $validated['dp_amount'] ?? null;
+            if ($dpAmount === null || (float) $dpAmount <= 0) {
+                throw ValidationException::withMessages([
+                    'dp_amount' => 'Down payment amount is required when DP is enabled.',
+                ]);
+            }
+            if ((float) $dpAmount > $subtotal) {
+                throw ValidationException::withMessages([
+                    'dp_amount' => 'Down payment cannot exceed the subtotal.',
+                ]);
+            }
+            $validated['dp_amount'] = $dpAmount;
+        } else {
+            $validated['dp_amount'] = null;
+        }
+
+        unset($validated['dp_enabled']);
 
         $preset = app(InvoiceMakerSettingsService::class)->findPreset($validated['preset_id']);
         abort_unless($preset, 422, 'Selected invoice preset was not found.');
@@ -191,8 +214,6 @@ class StandaloneInvoicesController extends Controller
             $data['number'] = StandaloneInvoice::generateNumber($data['date']);
         }
 
-        $lines = array_values($validated['lines']);
-
         return [$data, $lines];
     }
 
@@ -208,6 +229,19 @@ class StandaloneInvoicesController extends Controller
             'edit' => $user?->can(StandaloneInvoice::getPermissions()['edit']) ?? false,
             'delete' => $user?->can(StandaloneInvoice::getPermissions()['delete']) ?? false,
             'settings' => $user?->can(StandaloneInvoice::getPermissions()['edit']) ?? false,
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    protected function pdfResponseHeaders(string $fileName, bool $inline = false): array
+    {
+        return [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => ($inline ? 'inline' : 'attachment').'; filename="'.$fileName.'"',
+            'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
+            'Pragma' => 'no-cache',
         ];
     }
 }

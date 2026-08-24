@@ -31,6 +31,10 @@ Route::post('jubelio/webhook/order', [App\Http\Controllers\JubelioController::cl
 Route::post('jubelio/webhook/return', [App\Http\Controllers\JubelioController::class, 'webhookReturn'])
     ->name('jubelio.webhook.return');
 
+// Shopee Ads OAuth callback — public (Shopee redirects here after seller approval)
+Route::get('shopee-ads/oauth/callback', [App\Http\Controllers\ShopeeAdsController::class, 'oauthCallback'])
+    ->name('shopee-ads.oauth.callback');
+
 Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::get('/permissions', [App\Http\Controllers\PermissionController::class, 'index'])->name('permissions.index');
     Route::post('/permissions/generate', [App\Http\Controllers\PermissionController::class, 'generate'])->name('permissions.generate');
@@ -95,7 +99,9 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::resource('addrbook', App\Http\Controllers\AddrbookController::class)->except(['index']);
     Route::get('addrbook/{addrbook}/transactions', [App\Http\Controllers\AddrbookController::class, 'transactions'])->name('addrbook.transactions');
     Route::get('addrbook/{addrbook}/items', [App\Http\Controllers\AddrbookController::class, 'items'])->name('addrbook.items');
+    Route::get('addrbook/{addrbook}/items/export', [App\Http\Controllers\AddrbookController::class, 'itemsExport'])->name('addrbook.items.export');
     Route::get('addrbook/{addrbook}/item-sales', [App\Http\Controllers\AddrbookController::class, 'itemSales'])->name('addrbook.item-sales');
+    Route::get('addrbook/{addrbook}/item-sales/export', [App\Http\Controllers\AddrbookController::class, 'itemSalesExport'])->name('addrbook.item-sales.export');
     Route::get('addrbook/{addrbook}/stats', [App\Http\Controllers\AddrbookController::class, 'stat'])->name('addrbook.stats');
     Route::get('system-settings/invoice/branding', [App\Http\Controllers\InvoiceSettingsController::class, 'edit'])->name('invoice-settings.edit');
     Route::put('system-settings/invoice/branding', [App\Http\Controllers\InvoiceSettingsController::class, 'update'])->name('invoice-settings.update');
@@ -106,6 +112,15 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::get('cron-manager', [App\Http\Controllers\ScheduledTaskController::class, 'index'])->name('scheduled-tasks.index');
     Route::patch('cron-manager/{scheduledTask}', [App\Http\Controllers\ScheduledTaskController::class, 'update'])->name('scheduled-tasks.update');
     Route::post('cron-manager/{scheduledTask}/toggle', [App\Http\Controllers\ScheduledTaskController::class, 'toggle'])->name('scheduled-tasks.toggle');
+
+    Route::get('shopee-ads', [App\Http\Controllers\ShopeeAdsController::class, 'index'])->name('shopee-ads.index');
+    Route::patch('shopee-ads/settings', [App\Http\Controllers\ShopeeAdsController::class, 'updateSettings'])->name('shopee-ads.settings.update');
+    Route::post('shopee-ads/schedules', [App\Http\Controllers\ShopeeAdsController::class, 'storeSchedule'])->name('shopee-ads.schedules.store');
+    Route::delete('shopee-ads/schedules/{shopeeAdsSchedule}', [App\Http\Controllers\ShopeeAdsController::class, 'destroySchedule'])->name('shopee-ads.schedules.destroy');
+    Route::post('shopee-ads/toggle-pause', [App\Http\Controllers\ShopeeAdsController::class, 'togglePause'])->name('shopee-ads.toggle-pause');
+    Route::get('shopee-ads/authorize', [App\Http\Controllers\ShopeeAdsController::class, 'authorizeShop'])->name('shopee-ads.authorize');
+    Route::post('shopee-ads/replenish', [App\Http\Controllers\ShopeeAdsController::class, 'replenish'])->name('shopee-ads.replenish');
+    Route::post('shopee-ads/daily-reset', [App\Http\Controllers\ShopeeAdsController::class, 'dailyReset'])->name('shopee-ads.daily-reset');
 
     // Dynamic Addrbook Type Routes (e.g., /customer, /supplier)
     $addrbookTypes = implode('|', array_column(\App\Models\Addrbook::getTypes(), 'slug'));
@@ -129,6 +144,9 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::get('/{type}/{addrbook}/items', [App\Http\Controllers\AddrbookController::class, 'itemsType'])
         ->where('type', $addrbookTypes)
         ->name('addrbook.type.items');
+    Route::get('/{type}/{addrbook}/items/export', [App\Http\Controllers\AddrbookController::class, 'itemsTypeExport'])
+        ->where('type', $addrbookTypes)
+        ->name('addrbook.type.items.export');
 
     Route::get('/{type}/{addrbook}/stats', [App\Http\Controllers\AddrbookController::class, 'statType'])
         ->where('type', $addrbookTypes)
@@ -137,6 +155,9 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::get('/{type}/{addrbook}/item-sales', [App\Http\Controllers\AddrbookController::class, 'itemSalesType'])
         ->where('type', $addrbookTypes)
         ->name('addrbook.type.item-sales');
+    Route::get('/{type}/{addrbook}/item-sales/export', [App\Http\Controllers\AddrbookController::class, 'itemSalesTypeExport'])
+        ->where('type', $addrbookTypes)
+        ->name('addrbook.type.item-sales.export');
 
     Route::get('/{type}/{addrbook}/edit', [App\Http\Controllers\AddrbookController::class, 'editType'])
         ->where('type', $addrbookTypes)
@@ -282,7 +303,6 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::get('karyawan/{karyawan}/gaji/create', [\App\Http\Controllers\GajiController::class, 'create'])->name('karyawan.gaji.create');
     Route::post('karyawan/{karyawan}/gaji', [\App\Http\Controllers\GajiController::class, 'store'])->name('karyawan.gaji.store');
 
-    // Reports Module
     Route::prefix('reports')->name('reports.')->group(function () {
         Route::get('/nett-cash-sby', \App\Http\Controllers\Reports\NettCashController::class)->name('nett-cash-sby');
         Route::get('/purchase', \App\Http\Controllers\Reports\PurchaseReportController::class)->name('purchase');
@@ -307,6 +327,14 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
         Route::post('/entities', [\App\Http\Controllers\Reports\ReportingEntityController::class, 'store'])->name('entities.store');
         Route::get('/entities/{entity}/edit', [\App\Http\Controllers\Reports\ReportingEntityController::class, 'edit'])->name('entities.edit');
         Route::put('/entities/{entity}', [\App\Http\Controllers\Reports\ReportingEntityController::class, 'update'])->name('entities.update');
+    });
+
+    Route::prefix('stock-notifications')->name('stock-notifications.')->group(function () {
+        Route::get('/', [\App\Http\Controllers\ItemStockNotificationController::class, 'index'])->name('index');
+        Route::get('/unread-count', [\App\Http\Controllers\ItemStockNotificationController::class, 'unreadCount'])->name('unread-count');
+        Route::post('/mark-all-read', [\App\Http\Controllers\ItemStockNotificationController::class, 'markAllRead'])->name('mark-all-read');
+        Route::post('/{notification}/read', [\App\Http\Controllers\ItemStockNotificationController::class, 'markRead'])->name('read');
+        Route::post('/{notification}/dismiss', [\App\Http\Controllers\ItemStockNotificationController::class, 'dismiss'])->name('dismiss');
     });
 
     // Restock Module

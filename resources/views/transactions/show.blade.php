@@ -28,11 +28,7 @@
 @endphp
 
 <div class="flex h-full flex-1 flex-col gap-4 overflow-x-auto rounded-xl p-4"
-     x-data="{ showImage: true, showBarcode: true, showSku: false, waOpen: false, deleteConfirmOpen: false,
-        get nameColSpan() {
-            const c = (this.showImage?1:0) + (this.showBarcode?1:0) + (this.showSku?1:0);
-            return c === 3 ? 'sm:col-span-3' : c === 2 ? 'sm:col-span-4' : c === 1 ? 'sm:col-span-5' : 'sm:col-span-6';
-        } }">
+     x-data="transactionShowPage()">
 
     {{-- Top Action Bar --}}
     <div class="flex flex-col justify-between gap-4 md:flex-row md:items-center print:hidden">
@@ -219,7 +215,16 @@
             </div>
 
             {{-- Column Controls --}}
-            <div class="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-full border border-dashed bg-gray-50 px-4 py-2 print:hidden">
+            <div class="flex flex-wrap items-center gap-2 print:hidden">
+                <button type="button"
+                        @click="copyItemsTable()"
+                        data-testid="copy-items-table"
+                        title="Copy items table for Excel"
+                        class="inline-flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50">
+                    <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                    <span x-text="copyFeedback ? 'Copied!' : 'Copy items'"></span>
+                </button>
+                <div class="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-full border border-dashed bg-gray-50 px-4 py-2">
                 <span class="text-[10px] font-black tracking-widest text-gray-500 uppercase">View:</span>
                 <label class="flex cursor-pointer items-center gap-2 text-xs font-bold">
                     <input type="checkbox" x-model="showImage" class="h-4 w-4 rounded border-gray-300"> Image
@@ -230,107 +235,67 @@
                 <label class="flex cursor-pointer items-center gap-2 text-xs font-bold">
                     <input type="checkbox" x-model="showSku" class="h-4 w-4 rounded border-gray-300"> SKU
                 </label>
+                <label class="flex cursor-pointer items-center gap-2 text-xs font-bold">
+                    <input type="checkbox" x-model="showName" class="h-4 w-4 rounded border-gray-300"> Name
+                </label>
+                </div>
             </div>
         </div>
 
-        <div class="flex flex-col print:block">
-            {{-- Header --}}
-            <div class="hidden grid-cols-12 gap-4 border-y bg-gray-50 p-3 text-[10px] font-bold tracking-wider text-gray-500 uppercase sm:grid print:grid">
-                <div class="col-span-1 text-center font-black" x-show="showImage">Img</div>
-                <div class="col-span-1 font-black" x-show="showBarcode">Barcode</div>
-                <div class="col-span-1 font-black" x-show="showSku">SKU</div>
-                <div class="font-black" :class="nameColSpan">Item Name</div>
-                <div class="col-span-1 text-center font-black">Qty</div>
-                <div class="col-span-2 text-right font-black">Price</div>
-                <div class="col-span-1 text-right font-black">Disc(%)</div>
-                <div class="col-span-2 text-right font-black">Subtotal</div>
-            </div>
-
-            {{-- Rows --}}
-            <div class="divide-y print:block print:divide-y">
-                @foreach($transaction->details as $detail)
-                @php $item = $detail->item; @endphp
-                <div class="group flex flex-col gap-4 p-4 transition-colors hover:bg-gray-50 sm:grid sm:grid-cols-12 sm:items-center sm:gap-4 sm:p-3 sm:text-sm print:grid print:grid-cols-12 print:items-center print:gap-4 print:p-3">
-                    {{-- Mobile: image & name header --}}
-                    <div class="flex items-start gap-3 sm:hidden">
-                        <div class="relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded border bg-white shadow-sm" x-show="showImage">
-                            @if($item?->image_url)
-                                <img src="{{ $item->image_url }}" alt="{{ $item?->name }}" class="h-full w-full object-cover">
-                            @else
-                                <svg class="h-7 w-7 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
-                            @endif
-                        </div>
-                        <div class="flex flex-col">
-                            <div class="font-bold text-gray-900">{{ $item?->name }}</div>
-                            @if($item?->code)
-                            <div class="font-mono text-[10px] text-gray-500">{{ $item?->code }}</div>
-                            @endif
-                            <div class="flex flex-wrap gap-2 pt-1">
-                                <span class="font-mono text-[10px] font-medium text-blue-600" x-show="showBarcode">#{{ $item?->id }}</span>
-                                @if($item?->code)
-                                <span class="font-mono text-[10px] italic text-gray-500" x-show="showSku">SKU: {{ $item?->code }}</span>
+        <div class="overflow-x-auto">
+            <table x-ref="itemsTable" class="w-full min-w-[720px] text-sm">
+                <thead class="border-y bg-gray-50 text-[10px] font-bold tracking-wider text-gray-500 uppercase">
+                    <tr>
+                        <th class="px-3 py-2.5 text-center font-black" data-copy-col="image" x-show="showImage">Img</th>
+                        <th class="px-3 py-2.5 text-left font-black" data-copy-col="barcode" x-show="showBarcode">Barcode</th>
+                        <th class="px-3 py-2.5 text-left font-black" data-copy-col="sku" x-show="showSku">SKU</th>
+                        <th class="min-w-[12rem] px-3 py-2.5 text-left font-black" data-copy-col="name" x-show="showName">Item Name</th>
+                        <th class="px-3 py-2.5 text-center font-black" data-copy-col="qty">Qty</th>
+                        <th class="px-3 py-2.5 text-right font-black" data-copy-col="price">Price</th>
+                        <th class="px-3 py-2.5 text-right font-black" data-copy-col="disc">Disc(%)</th>
+                        <th class="px-3 py-2.5 text-right font-black" data-copy-col="subtotal">Subtotal</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    @foreach($transaction->details as $detail)
+                    @php $item = $detail->item; @endphp
+                    <tr class="group transition-colors hover:bg-gray-50">
+                        <td class="px-3 py-2.5 text-center align-middle" data-copy-col="image" x-show="showImage">
+                            <div class="relative mx-auto flex h-12 w-12 items-center justify-center overflow-hidden rounded border bg-white shadow-sm transition-transform duration-200 group-hover:scale-105">
+                                @if($item?->image_url)
+                                    <img src="{{ $item->image_url }}" alt="{{ $item?->name }}" class="h-full w-full object-cover">
+                                @else
+                                    <svg class="h-6 w-6 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
                                 @endif
                             </div>
-                        </div>
-                    </div>
-
-                    {{-- Desktop: Image --}}
-                    <div class="hidden col-span-1 text-center sm:block print:block" x-show="showImage">
-                        <div class="relative mx-auto flex h-12 w-12 items-center justify-center overflow-hidden rounded border bg-white shadow-sm transition-transform duration-200 group-hover:scale-105">
-                            @if($item?->image_url)
-                                <img src="{{ $item->image_url }}" alt="{{ $item?->name }}" class="h-full w-full object-cover">
-                            @else
-                                <svg class="h-6 w-6 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+                        </td>
+                        <td class="whitespace-nowrap px-3 py-2.5 align-middle font-mono text-xs" data-copy-col="barcode" x-show="showBarcode">
+                            <a href="{{ $item ? route('items.show', $item->id) : '#' }}" class="text-blue-600 hover:underline">{{ $item?->id }}</a>
+                        </td>
+                        <td class="whitespace-nowrap px-3 py-2.5 align-middle font-mono text-xs italic text-gray-500" data-copy-col="sku" x-show="showSku">{{ $item?->code ?: '-' }}</td>
+                        <td class="px-3 py-2.5 align-middle" data-copy-col="name" x-show="showName">
+                            <div class="font-bold text-gray-900">{{ $item?->name }}</div>
+                            @if($item?->code)
+                            <div class="mt-0.5 font-mono text-[10px] leading-tight text-gray-500">{{ $item?->code }}</div>
                             @endif
-                        </div>
-                    </div>
-
-                    {{-- Desktop: Barcode --}}
-                    <div class="hidden col-span-1 font-mono text-xs sm:block print:block" x-show="showBarcode">
-                        <a href="{{ $item ? route('items.show', $item->id) : '#' }}" class="text-blue-600 hover:underline">{{ $item?->id }}</a>
-                    </div>
-
-                    {{-- Desktop: SKU --}}
-                    <div class="hidden col-span-1 font-mono text-xs italic text-gray-500 sm:block print:block" x-show="showSku">{{ $item?->code ?: '-' }}</div>
-
-                    {{-- Desktop: Name --}}
-                    <div class="hidden sm:flex flex-col print:flex" :class="nameColSpan">
-                        <span class="font-bold text-gray-900">{{ $item?->name }}</span>
-                        @if($item?->code)
-                        <span class="mt-0.5 line-clamp-1 font-mono text-[10px] leading-tight text-gray-500">{{ $item?->code }}</span>
-                        @endif
-                    </div>
-
-                    <div class="flex items-center justify-between sm:col-span-1 sm:block sm:text-center print:block print:text-center">
-                        <span class="text-[10px] font-bold text-gray-500 uppercase sm:hidden print:hidden">Qty</span>
-                        <span class="inline-flex items-center justify-center rounded bg-gray-100 px-2 py-1 text-xs font-black sm:bg-transparent sm:p-0">{{ $detail->quantity }}</span>
-                    </div>
-
-                    <div class="flex items-center justify-between sm:col-span-2 sm:block sm:text-right print:block print:text-right">
-                        <span class="text-[10px] font-bold text-gray-500 uppercase sm:hidden print:hidden">Price</span>
-                        <span class="font-medium">{{ $fmt($detail->price) }}</span>
-                    </div>
-
-                    <div class="flex items-center justify-between sm:col-span-1 sm:block sm:text-right print:block print:text-right">
-                        <span class="text-[10px] font-bold text-gray-500 uppercase sm:hidden print:hidden">Disc</span>
-                        @if($detail->discount > 0)
-                            <span class="inline-flex h-5 items-center rounded-md border border-dashed border-red-300 bg-red-50 px-1.5 text-[10px] font-bold text-red-600">-{{ number_format((float) $detail->discount, 2, ',', '.') }}%</span>
-                        @else
-                            <span class="text-gray-400">-</span>
-                        @endif
-                    </div>
-
-                    <div class="flex items-center justify-between border-t pt-3 sm:col-span-2 sm:block sm:border-0 sm:pt-0 sm:text-right print:block print:text-right">
-                        <span class="text-[10px] font-bold text-gray-900 uppercase sm:hidden print:hidden">Subtotal</span>
-                        <span class="text-lg font-black text-blue-700 sm:text-sm">{{ $fmt($detail->total) }}</span>
-                    </div>
-
-                    @if($detail->notes)
-                    <div class="mt-1 rounded bg-gray-50 p-2 text-xs italic text-gray-500 sm:hidden">📝 {{ $detail->notes }}</div>
-                    @endif
-                </div>
-                @endforeach
-            </div>
+                            @if($detail->notes)
+                            <div class="mt-1 text-xs italic text-gray-500">📝 {{ $detail->notes }}</div>
+                            @endif
+                        </td>
+                        <td class="whitespace-nowrap px-3 py-2.5 text-center align-middle font-black tabular-nums" data-copy-col="qty">{{ $detail->quantity }}</td>
+                        <td class="whitespace-nowrap px-3 py-2.5 text-right align-middle font-medium tabular-nums" data-copy-col="price">{{ $fmt($detail->price) }}</td>
+                        <td class="whitespace-nowrap px-3 py-2.5 text-right align-middle tabular-nums" data-copy-col="disc">
+                            @if($detail->discount > 0)
+                                <span class="inline-flex h-5 items-center rounded-md border border-dashed border-red-300 bg-red-50 px-1.5 text-[10px] font-bold text-red-600">-{{ number_format((float) $detail->discount, 2, ',', '.') }}%</span>
+                            @else
+                                <span class="text-gray-400">-</span>
+                            @endif
+                        </td>
+                        <td class="whitespace-nowrap px-3 py-2.5 text-right align-middle font-black text-blue-700 tabular-nums" data-copy-col="subtotal">{{ $fmt($detail->total) }}</td>
+                    </tr>
+                    @endforeach
+                </tbody>
+            </table>
         </div>
     </div>
 
@@ -420,4 +385,132 @@
         * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
     }
 </style>
+@endpush
+
+@push('scripts')
+<script>
+function transactionShowPage() {
+    const storageKey = 'aria-transaction-show-view';
+    const defaults = { showImage: true, showBarcode: true, showSku: false, showName: true };
+    let saved = {};
+
+    try {
+        saved = JSON.parse(localStorage.getItem(storageKey) || '{}');
+    } catch (e) {
+        saved = {};
+    }
+
+    return {
+        showImage: typeof saved.showImage === 'boolean' ? saved.showImage : defaults.showImage,
+        showBarcode: typeof saved.showBarcode === 'boolean' ? saved.showBarcode : defaults.showBarcode,
+        showSku: typeof saved.showSku === 'boolean' ? saved.showSku : defaults.showSku,
+        showName: typeof saved.showName === 'boolean' ? saved.showName : defaults.showName,
+        copyFeedback: false,
+        copyFeedbackTimer: null,
+        waOpen: false,
+        deleteConfirmOpen: false,
+        init() {
+            this.$watch('showImage', () => this.persistViewPrefs());
+            this.$watch('showBarcode', () => this.persistViewPrefs());
+            this.$watch('showSku', () => this.persistViewPrefs());
+            this.$watch('showName', () => this.persistViewPrefs());
+        },
+        persistViewPrefs() {
+            localStorage.setItem(storageKey, JSON.stringify({
+                showImage: this.showImage,
+                showBarcode: this.showBarcode,
+                showSku: this.showSku,
+                showName: this.showName,
+            }));
+        },
+        showCopyFeedback() {
+            this.copyFeedback = true;
+            clearTimeout(this.copyFeedbackTimer);
+            this.copyFeedbackTimer = setTimeout(() => {
+                this.copyFeedback = false;
+            }, 2000);
+        },
+        isCopyColumnVisible(col) {
+            if (col === 'image') return this.showImage;
+            if (col === 'barcode') return this.showBarcode;
+            if (col === 'sku') return this.showSku;
+            if (col === 'name') return this.showName;
+
+            return true;
+        },
+        cellCopyValue(cell) {
+            const img = cell.querySelector('img');
+            if (img) {
+                return (img.getAttribute('alt') || img.getAttribute('src') || '').trim();
+            }
+
+            const link = cell.querySelector('a');
+            if (link) {
+                return link.textContent.trim();
+            }
+
+            return cell.innerText.replace(/\s+/g, ' ').trim();
+        },
+        tableNodeToTsv(table) {
+            const rows = [];
+
+            table.querySelectorAll('thead tr, tbody tr').forEach((row) => {
+                const values = [];
+
+                row.querySelectorAll('[data-copy-col]').forEach((cell) => {
+                    if (!this.isCopyColumnVisible(cell.dataset.copyCol)) {
+                        return;
+                    }
+
+                    values.push(this.cellCopyValue(cell));
+                });
+
+                if (values.length) {
+                    rows.push(values.join('\t'));
+                }
+            });
+
+            return rows.join('\n');
+        },
+        async copyItemsTable() {
+            const table = this.$refs.itemsTable;
+            if (!table) {
+                return;
+            }
+
+            const clone = table.cloneNode(true);
+            clone.querySelectorAll('[data-copy-col]').forEach((cell) => {
+                if (!this.isCopyColumnVisible(cell.dataset.copyCol)) {
+                    cell.remove();
+                }
+            });
+
+            const plain = this.tableNodeToTsv(clone);
+            const html = clone.outerHTML;
+
+            try {
+                if (window.ClipboardItem && navigator.clipboard?.write) {
+                    await navigator.clipboard.write([
+                        new ClipboardItem({
+                            'text/plain': new Blob([plain], { type: 'text/plain' }),
+                            'text/html': new Blob([html], { type: 'text/html' }),
+                        }),
+                    ]);
+                } else {
+                    await navigator.clipboard.writeText(plain);
+                }
+
+                this.showCopyFeedback();
+            } catch (e) {
+                try {
+                    await navigator.clipboard.writeText(plain);
+                    this.showCopyFeedback();
+                } catch (fallbackError) {
+                    console.error('Failed to copy items table', fallbackError);
+                }
+            }
+        },
+    };
+}
+</script>
 @endpush

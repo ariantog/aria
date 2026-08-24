@@ -363,6 +363,10 @@ it('can process a jubelio cancellation into a return transaction', function () {
     expect($return->status)->toBe(1)
         ->and((int) $sell->jubelio_return)->toBe(2)
         ->and(Transaction::where('type', Transaction::TYPE_RETURN)->where('invoice', 'INV-CANCEL-PROC')->exists())->toBeTrue();
+
+    $returnTrx = Transaction::where('type', Transaction::TYPE_RETURN)->where('invoice', 'INV-CANCEL-PROC')->first();
+    expect((float) $returnTrx->total)->toBe(100000.0)
+        ->and((float) $returnTrx->real_total)->toBe(100000.0);
 });
 
 it('refetches jubelio order payload from API when processing polled order', function () {

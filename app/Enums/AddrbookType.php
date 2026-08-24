@@ -58,4 +58,14 @@ enum AddrbookType: int
     {
         return in_array($this, [self::Bank, self::Account, self::VirtualAccount], true);
     }
+
+    public function supportsItemSales(): bool
+    {
+        return ! $this->isFinancial();
+    }
+
+    public function hasWarehouseStock(): bool
+    {
+        return $this->isWarehouse();
+    }
 }

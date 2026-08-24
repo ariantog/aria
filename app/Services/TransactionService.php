@@ -17,6 +17,25 @@ class TransactionService
             $this->updateStock($transaction);
             $this->updateBalances($transaction);
         });
+
+        $this->queueStockNotificationCheckIfNeeded($transaction);
+    }
+
+    private function queueStockNotificationCheckIfNeeded(Transaction $transaction): void
+    {
+        if ((int) $transaction->status !== Transaction::STATUS_COMPLETED) {
+            return;
+        }
+
+        if ((int) $transaction->type !== Transaction::TYPE_SELL) {
+            return;
+        }
+
+        DB::afterCommit(function () use ($transaction) {
+            app(ItemStockNotificationService::class)->checkAfterSell(
+                $transaction->loadMissing('details')
+            );
+        });
     }
 
     public function revertTransaction(Transaction $transaction)
@@ -82,7 +101,7 @@ class TransactionService
 
     protected function updateBalances(Transaction $transaction, bool $revert = false)
     {
-        $amount = $revert ? -$transaction->real_total : $transaction->real_total;
+        $amount = $this->balanceAmount($transaction, $revert);
         $type = (int) $transaction->type;
 
         if ($type === Transaction::TYPE_BUY && $transaction->sender_id) {
@@ -110,12 +129,31 @@ class TransactionService
             $this->updateDailyReports($transaction, 'sender', $amount);
             $this->updateEntityBalance($transaction, 'receiver', $amount);
             $this->updateDailyReports($transaction, 'receiver', $amount);
-        } elseif ($type === Transaction::TYPE_TRANSFER || $type === Transaction::TYPE_ADJUST) {
+        } elseif ($type === Transaction::TYPE_TRANSFER) {
+            $this->updateEntityBalance($transaction, 'sender', $amount);
+            $this->updateDailyReports($transaction, 'sender', $amount);
+            $this->updateEntityBalance($transaction, 'receiver', -$amount);
+            $this->updateDailyReports($transaction, 'receiver', -$amount);
+        } elseif ($type === Transaction::TYPE_ADJUST) {
             $this->updateEntityBalance($transaction, 'sender', -$amount);
             $this->updateDailyReports($transaction, 'sender', -$amount);
             $this->updateEntityBalance($transaction, 'receiver', $amount);
             $this->updateDailyReports($transaction, 'receiver', $amount);
         }
+    }
+
+    /**
+     * Signed balance delta from the transaction header total (already signed per type).
+     * Falls back to real_total only when total is unset (legacy adjust rows).
+     */
+    protected function balanceAmount(Transaction $transaction, bool $revert = false): float
+    {
+        $stored = (float) $transaction->total;
+        if ($stored === 0.0 && (float) $transaction->real_total !== 0.0) {
+            $stored = (float) $transaction->real_total;
+        }
+
+        return $revert ? -$stored : $stored;
     }
 
     protected function updateDailyReports(Transaction $transaction, string $side, $amount)

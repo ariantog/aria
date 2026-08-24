@@ -2,6 +2,7 @@
 
 use App\Models\Addrbook;
 use App\Models\User;
+use Spatie\Permission\Models\Permission;
 
 beforeEach(function () {
     $this->actingAs(User::factory()->create());
@@ -60,6 +61,25 @@ it('returns no addrbook results until the search term is longer than two charact
     $this->getJson($url)->assertOk()->assertExactJson([]);
     $this->getJson($url.'&search=Ze')->assertOk()->assertExactJson([]);
     $this->getJson($url.'&search=Zet')->assertOk()->assertJsonCount(1);
+});
+
+it('allows export sell users to use sell transaction party lookup', function () {
+    Permission::firstOrCreate(['name' => 'report-export-sell']);
+    $user = User::factory()->create();
+    $user->givePermissionTo('report-export-sell');
+
+    Addrbook::create(['name' => 'Export Sell Warehouse', 'type' => Addrbook::TYPE_WAREHOUSE]);
+
+    $url = route('transactions.lookup', [
+        'type' => 'sell',
+        'role' => 'sender',
+        'addrbook_type' => Addrbook::TYPE_WAREHOUSE,
+    ]).'&search=Export';
+
+    $this->actingAs($user)
+        ->getJson($url)
+        ->assertOk()
+        ->assertJsonFragment(['name' => 'Export Sell Warehouse']);
 });
 
 it('caps addrbook lookup results at eight rows', function () {

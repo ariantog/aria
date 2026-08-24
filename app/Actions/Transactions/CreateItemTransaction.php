@@ -107,6 +107,19 @@ class CreateItemTransaction
         $transaction->refresh();
         $itemsTotal = (float) $transaction->details()->sum('total');
         $totalItems = (float) $transaction->details()->sum('quantity');
+        if ($type === Transaction::TYPE_MOVE) {
+            $transaction->update([
+                'total' => 0,
+                'real_total' => 0,
+                'discount' => 0,
+                'adjustment' => 0,
+                'ppn' => 0,
+                'total_items' => $totalItems,
+            ]);
+
+            return;
+        }
+
         $discountPercent = (float) ($data['discount_percent'] ?? 0);
         $adjustment = (float) ($data['adjustment'] ?? 0);
         $isPpn = $this->shouldApplyPpn($type, $sender->id, $receiver->id);
@@ -114,15 +127,12 @@ class CreateItemTransaction
         $totalBeforeTax = $itemsTotal - $discountAmount + $adjustment;
         $taxAmount = $isPpn ? ($totalBeforeTax * $this->getPpnRate()) : 0;
         $grandTotal = $totalBeforeTax + $taxAmount;
-        if (Transaction::typeIsNegative($type)) {
-            $grandTotal = -abs($grandTotal);
-        }
         $transaction->update([
-            'total' => $itemsTotal,
+            'total' => Transaction::signedAmount($type, $itemsTotal),
             'discount' => $discountPercent,
             'adjustment' => $adjustment,
             'ppn' => $taxAmount,
-            'real_total' => $grandTotal,
+            'real_total' => Transaction::signedAmount($type, $grandTotal),
             'total_items' => $totalItems,
         ]);
     }

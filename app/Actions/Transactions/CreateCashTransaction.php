@@ -26,7 +26,7 @@ class CreateCashTransaction
                 $sender = $isCashIn ? $contact : $account;
                 $receiver = $isCashIn ? $account : $contact;
                 $total = (float) $item['total'];
-                $grandTotal = $isCashIn ? $total : -$total;
+                $grandTotal = Transaction::signedAmount($type, $total);
                 $trx = Transaction::create([
                     'date' => $data['date'], 'type' => $type,
                     'sender_type' => (int) $sender->type,
@@ -36,7 +36,9 @@ class CreateCashTransaction
                     'invoice' => $item['invoice'] ?? null,
                     'notes' => $item['note'] ?? null, 'user_id' => Auth::id(),
                     'status' => Transaction::STATUS_COMPLETED,
-                    'real_total' => $grandTotal, 'total_items' => 0,
+                    'total' => $grandTotal,
+                    'real_total' => $grandTotal,
+                    'total_items' => 0,
                     'adjustment' => 0, 'discount' => 0, 'ppn' => 0,
                     'submit_type' => Transaction::SUBMIT_TYPE_MANUAL,
                 ]);

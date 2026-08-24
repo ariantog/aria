@@ -16,19 +16,20 @@ beforeEach(function () {
 
     expect($this->user->is_superadmin)->toBeTrue();
 
-    $supplier  = Addrbook::factory()->supplier()->create(['name' => 'Test Supplier']);
+    $supplier = Addrbook::factory()->supplier()->create(['name' => 'Test Supplier']);
     $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'Test Warehouse']);
 
     Transaction::factory()->create([
-        'type'           => Transaction::TYPE_BUY,
+        'type' => Transaction::TYPE_BUY,
         'invoice' => 'INV-SMOKE-1',
-        'sender_type'    => (string) Addrbook::TYPE_SUPPLIER,
-        'sender_id'      => $supplier->id,
-        'receiver_type'  => (string) Addrbook::TYPE_WAREHOUSE,
-        'receiver_id'    => $warehouse->id,
-        'real_total'    => 1_000_000,
-        'total_items'    => 5,
-        'user_id'        => $this->user->id,
+        'sender_type' => (string) Addrbook::TYPE_SUPPLIER,
+        'sender_id' => $supplier->id,
+        'receiver_type' => (string) Addrbook::TYPE_WAREHOUSE,
+        'receiver_id' => $warehouse->id,
+        'total' => 1_000_000,
+        'real_total' => 1_000_000,
+        'total_items' => 5,
+        'user_id' => $this->user->id,
     ]);
 });
 
@@ -43,7 +44,7 @@ it('renders the transactions index with its rows', function () {
     $this->actingAs($this->user)
         ->get('/transactions')
         ->assertOk()
-        ->assertSee('Grand Total', false)
+        ->assertSee('Total', false)
         ->assertSee('INV-SMOKE-1', false)
         ->assertSee('Test Supplier', false);
 });
@@ -57,7 +58,7 @@ it('renders the export sell page', function () {
 
 it('sorts and filters the transactions index', function () {
     $this->actingAs($this->user)
-        ->get('/transactions?sort=real_total&direction=asc&type='.Transaction::TYPE_BUY)
+        ->get('/transactions?sort=total&direction=asc&type='.Transaction::TYPE_BUY)
         ->assertOk()
         ->assertSee('INV-SMOKE-1', false);
 });
@@ -114,6 +115,15 @@ it('renders the transaction show page', function () {
         ->assertOk();
 });
 
+it('renders the addrbook item sales page', function () {
+    $customer = Addrbook::factory()->customer()->create(['name' => 'Smoke Customer']);
+
+    $this->actingAs($this->user)
+        ->get(route('addrbook.type.item-sales', ['customer', $customer->id]))
+        ->assertOk()
+        ->assertSee('Item Sales', false);
+});
+
 it('renders the deleted transactions index', function () {
     $this->actingAs($this->user)
         ->get(route('transactions.deleted.index'))
@@ -131,6 +141,7 @@ it('renders migrated GET pages with a 200', function (string $route) {
 })->with([
     // Settings
     'settings profile' => 'settings/profile',
+    'settings transaction defaults' => 'settings/transaction-defaults',
     'settings password' => 'settings/password',
     'settings appearance' => 'settings/appearance',
 
@@ -148,6 +159,7 @@ it('renders migrated GET pages with a 200', function (string $route) {
     'report compare' => 'reports/compare',
     'report inventory-health' => 'reports/inventory-health',
     'report warehouse-arrangement' => 'reports/warehouse-arrangement',
+    'stock notifications' => 'stock-notifications',
     'report product-performance' => 'reports/product-performance',
     'report produksi potong' => 'reports/produksi-potong',
     'report produksi qc' => 'reports/produksi-qc',
@@ -168,5 +180,6 @@ it('renders migrated GET pages with a 200', function (string $route) {
     'jubelio get orders' => 'jubelio-get-orders',
     'jubelio cek order' => 'jubelio/order/cek',
     'jubelio connection' => 'jubelio/token',
+    'shopee ads' => 'shopee-ads',
     'restock index' => 'restock',
 ]);

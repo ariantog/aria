@@ -42,14 +42,16 @@
                         @if($sortLink)<a href="{{ $sortLink('date') }}" class="inline-flex items-center gap-1 hover:text-gray-900">Date @if($sort==='date')<span class="text-blue-600">{{ $direction==='asc'?'↑':'↓' }}</span>@endif</a>@else Date @endif
                     </th>
                     <th class="px-3 py-2.5 text-left font-medium">
+                        @if($sortLink)<a href="{{ $sortLink('type') }}" class="inline-flex items-center gap-1 hover:text-gray-900">Type @if($sort==='type')<span class="text-blue-600">{{ $direction==='asc'?'↑':'↓' }}</span>@endif</a>@else Type @endif
+                    </th>
+                    <th class="px-3 py-2.5 text-left font-medium">
                         @if($sortLink)<a href="{{ $sortLink('invoice') }}" class="inline-flex items-center gap-1 hover:text-gray-900">Invoice @if($sort==='invoice')<span class="text-blue-600">{{ $direction==='asc'?'↑':'↓' }}</span>@endif</a>@else Invoice @endif
                     </th>
                     <th class="px-3 py-2.5 text-right font-medium">
-                        @if($sortLink)<a href="{{ $sortLink('real_total') }}" class="inline-flex items-center gap-1 hover:text-gray-900">Grand Total @if($sort==='real_total')<span class="text-blue-600">{{ $direction==='asc'?'↑':'↓' }}</span>@endif</a>@else Grand Total @endif
+                        @if($sortLink)<a href="{{ $sortLink('total') }}" class="inline-flex items-center gap-1 hover:text-gray-900">Total @if($sort==='total')<span class="text-blue-600">{{ $direction==='asc'?'↑':'↓' }}</span>@endif</a>@else Total @endif
                     </th>
-                    <th class="hidden px-3 py-2.5 text-right font-medium xl:table-cell">Items</th>
-                    <th class="px-3 py-2.5 text-left font-medium">
-                        @if($sortLink)<a href="{{ $sortLink('type') }}" class="inline-flex items-center gap-1 hover:text-gray-900">Type @if($sort==='type')<span class="text-blue-600">{{ $direction==='asc'?'↑':'↓' }}</span>@endif</a>@else Type @endif
+                    <th class="px-3 py-2.5 text-right font-medium">
+                        @if($sortLink)<a href="{{ $sortLink('total_items') }}" class="inline-flex items-center gap-1 hover:text-gray-900">Total Items @if($sort==='total_items')<span class="text-blue-600">{{ $direction==='asc'?'↑':'↓' }}</span>@endif</a>@else Total Items @endif
                     </th>
                     <th class="hidden px-3 py-2.5 text-left font-medium lg:table-cell">Sender</th>
                     <th class="hidden px-3 py-2.5 text-left font-medium lg:table-cell">Receiver</th>
@@ -66,20 +68,20 @@
                         <td class="whitespace-nowrap px-3 py-2.5 text-gray-600">
                             {{ $tx->date ? \Carbon\Carbon::parse($tx->date)->format('d/m/y') : '-' }}
                         </td>
+                        <td class="whitespace-nowrap px-3 py-2.5">
+                            <span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium {{ $badgeCls }}">
+                                <span class="h-1.5 w-1.5 flex-shrink-0 rounded-full {{ $dotCls }}"></span>{{ $label }}
+                            </span>
+                        </td>
                         <td class="px-3 py-2.5">
                             <a href="{{ route('transactions.show', $tx->id) }}" class="font-mono text-xs text-blue-600 hover:underline">{{ $tx->invoice ?: '—' }}</a>
                             <div class="mt-0.5 text-xs text-gray-400 lg:hidden">{{ $tx->sender->name ?? '—' }} → {{ $tx->receiver->name ?? '—' }}</div>
                         </td>
                         <td class="whitespace-nowrap px-3 py-2.5 text-right font-semibold tabular-nums text-gray-900">
-                            {{ format_amount($tx->real_total) }}
+                            {{ format_amount($tx->total) }}
                         </td>
-                        <td class="hidden whitespace-nowrap px-3 py-2.5 text-right tabular-nums text-gray-500 xl:table-cell">
+                        <td class="whitespace-nowrap px-3 py-2.5 text-right tabular-nums text-gray-500">
                             {{ format_amount($tx->total_items) }}
-                        </td>
-                        <td class="whitespace-nowrap px-3 py-2.5">
-                            <span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium {{ $badgeCls }}">
-                                <span class="h-1.5 w-1.5 flex-shrink-0 rounded-full {{ $dotCls }}"></span>{{ $label }}
-                            </span>
                         </td>
                         <td class="hidden max-w-[180px] px-3 py-2.5 lg:table-cell">
                             @if($tx->sender)

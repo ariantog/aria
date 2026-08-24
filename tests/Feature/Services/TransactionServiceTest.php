@@ -102,6 +102,47 @@ it('recalculates balances correctly for a retroactively inserted transaction', f
     expect($stat->balance)->toEqual(350);
 });
 
+it('applies and reverts balance changes from signed total column', function () {
+    $service = new TransactionService;
+    $customer = Addrbook::factory()->create(['type' => Addrbook::TYPE_CUSTOMER]);
+    $bankSource = Addrbook::factory()->create(['type' => Addrbook::TYPE_BANK]);
+    $bankDest = Addrbook::factory()->create(['type' => Addrbook::TYPE_BANK]);
+
+    $sell = Transaction::factory()->create([
+        'type' => Transaction::TYPE_SELL,
+        'date' => Carbon::now()->format('Y-m-d'),
+        'receiver_id' => $customer->id,
+        'receiver_type' => $customer->type,
+        'total' => -500,
+        'real_total' => -450,
+    ]);
+
+    $service->handleTransaction($sell);
+    expect($sell->fresh()->receiver_balance)->toEqual(-500);
+
+    $service->revertTransaction($sell);
+    expect(AddrbookStat::where('customer_id', $customer->id)->value('balance'))->toEqual(0);
+
+    $transfer = Transaction::factory()->create([
+        'type' => Transaction::TYPE_TRANSFER,
+        'date' => Carbon::now()->format('Y-m-d'),
+        'sender_id' => $bankSource->id,
+        'sender_type' => $bankSource->type,
+        'receiver_id' => $bankDest->id,
+        'receiver_type' => $bankDest->type,
+        'total' => -5000,
+        'real_total' => -5000,
+    ]);
+
+    $service->handleTransaction($transfer);
+    expect(AddrbookStat::where('customer_id', $bankSource->id)->value('balance'))->toEqual(-5000);
+    expect(AddrbookStat::where('customer_id', $bankDest->id)->value('balance'))->toEqual(5000);
+
+    $service->revertTransaction($transfer);
+    expect(AddrbookStat::where('customer_id', $bankSource->id)->value('balance'))->toEqual(0);
+    expect(AddrbookStat::where('customer_id', $bankDest->id)->value('balance'))->toEqual(0);
+});
+
 it('handles negative balances correctly when returned', function () {
     $service = new TransactionService;
     $customer = Addrbook::factory()->create(['type' => Addrbook::TYPE_CUSTOMER]);

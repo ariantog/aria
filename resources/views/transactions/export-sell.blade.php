@@ -5,7 +5,7 @@
 @php
     $perPage = $perPage ?? (int) request()->query('per_page', 100);
     $exportQuery = request()->query();
-    $selectedType = (string) ($filters['type'] ?? \App\Models\Transaction::TYPE_SELL);
+    $selectedType = (string) ($filters['type'] ?? '');
 @endphp
 
 @section('content')
@@ -20,94 +20,24 @@
         </div>
     </div>
 
-    <form method="GET" action="{{ route('transactions.export-sell') }}"
-          class="flex flex-wrap items-end gap-2 rounded-xl border border-gray-200 bg-white p-3">
-        <div class="flex flex-col gap-1">
-            <label class="text-xs font-medium uppercase text-gray-500">From</label>
-            <input type="date" name="from" value="{{ $filters['from'] ?? '' }}"
-                   class="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
-        </div>
-        <div class="flex flex-col gap-1">
-            <label class="text-xs font-medium uppercase text-gray-500">To</label>
-            <input type="date" name="to" value="{{ $filters['to'] ?? '' }}"
-                   class="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
-        </div>
-        <div class="flex flex-col gap-1">
-            <label class="text-xs font-medium uppercase text-gray-500">Type</label>
-            <select name="type" class="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
-                @foreach($typeOptions as $typeId => $label)
-                    <option value="{{ $typeId }}" @selected($selectedType == (string) $typeId)>{{ $label }}</option>
-                @endforeach
-            </select>
-        </div>
-        <div class="flex flex-col gap-1">
-            <label class="text-xs font-medium uppercase text-gray-500">Invoice</label>
-            <input type="text" name="invoice" value="{{ $filters['invoice'] ?? '' }}" placeholder="Invoice…"
-                   class="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
-        </div>
-        <div class="flex flex-col gap-1">
-            <label class="text-xs font-medium uppercase text-gray-500">Item ID</label>
-            <input type="number" name="item_id" value="{{ $filters['item_id'] ?? '' }}" placeholder="Barcode / ID"
-                   class="w-28 rounded-md border border-gray-300 px-2.5 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
-        </div>
-        <div class="flex flex-col gap-1">
-            <label class="text-xs font-medium uppercase text-gray-500">Item Code</label>
-            <input type="text" name="item_code" value="{{ $filters['item_code'] ?? '' }}" placeholder="SKU…"
-                   class="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
-        </div>
-        <div class="flex flex-col gap-1">
-            <label class="text-xs font-medium uppercase text-gray-500">Qty min</label>
-            <input type="number" step="0.01" name="qty_min" value="{{ $filters['qty_min'] ?? '' }}"
-                   class="w-24 rounded-md border border-gray-300 px-2.5 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
-        </div>
-        <div class="flex flex-col gap-1">
-            <label class="text-xs font-medium uppercase text-gray-500">Qty max</label>
-            <input type="number" step="0.01" name="qty_max" value="{{ $filters['qty_max'] ?? '' }}"
-                   class="w-24 rounded-md border border-gray-300 px-2.5 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
-        </div>
-        <div class="flex flex-col gap-1">
-            <label class="text-xs font-medium uppercase text-gray-500">Disc % min</label>
-            <input type="number" step="0.01" name="discount_min" value="{{ $filters['discount_min'] ?? '' }}"
-                   class="w-24 rounded-md border border-gray-300 px-2.5 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
-        </div>
-        <div class="flex flex-col gap-1">
-            <label class="text-xs font-medium uppercase text-gray-500">Disc % max</label>
-            <input type="number" step="0.01" name="discount_max" value="{{ $filters['discount_max'] ?? '' }}"
-                   class="w-24 rounded-md border border-gray-300 px-2.5 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
-        </div>
-        <div class="flex flex-col gap-1">
-            <label class="text-xs font-medium uppercase text-gray-500">Subtotal min</label>
-            <input type="number" step="0.01" name="subtotal_min" value="{{ $filters['subtotal_min'] ?? '' }}"
-                   class="w-28 rounded-md border border-gray-300 px-2.5 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
-        </div>
-        <div class="flex flex-col gap-1">
-            <label class="text-xs font-medium uppercase text-gray-500">Subtotal max</label>
-            <input type="number" step="0.01" name="subtotal_max" value="{{ $filters['subtotal_max'] ?? '' }}"
-                   class="w-28 rounded-md border border-gray-300 px-2.5 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
-        </div>
-        <div class="flex flex-col gap-1">
-            <label class="text-xs font-medium uppercase text-gray-500">Sender</label>
-            <input type="text" name="sender" value="{{ $filters['sender'] ?? '' }}" placeholder="Name or ID"
-                   class="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
-        </div>
-        <div class="flex flex-col gap-1">
-            <label class="text-xs font-medium uppercase text-gray-500">Receiver</label>
-            <input type="text" name="receiver" value="{{ $filters['receiver'] ?? '' }}" placeholder="Name or ID"
-                   class="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
-        </div>
-        <div class="flex flex-col gap-1">
-            <label class="text-xs font-medium uppercase text-gray-500">Rows / page</label>
-            <select name="per_page" class="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
-                @foreach([100, 200, 300] as $size)
-                    <option value="{{ $size }}" @selected($perPage == $size)>{{ $size }}</option>
-                @endforeach
-            </select>
-        </div>
-        <div class="flex gap-2">
-            <button type="submit" class="rounded-lg bg-blue-700 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-800">Filter</button>
-            <a href="{{ route('transactions.export-sell') }}" class="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-50">Reset</a>
-        </div>
-    </form>
+    @include('transactions.partials.export-sell-filters', [
+        'formAction' => route('transactions.export-sell'),
+        'resetUrl' => route('transactions.export-sell'),
+        'filters' => $filters,
+        'typeOptions' => $typeOptions,
+        'selectedType' => $selectedType,
+        'perPage' => $perPage,
+        'showPartyFilters' => true,
+        'defaultOpen' => true,
+        'senderLookupUrl' => $senderLookupUrl,
+        'receiverLookupUrl' => $receiverLookupUrl,
+        'senderLabel' => $senderLabel,
+        'receiverLabel' => $receiverLabel,
+        'selectedSender' => $selectedSender,
+        'selectedReceiver' => $selectedReceiver,
+        'itemLookupUrl' => $itemLookupUrl ?? route('items.index'),
+        'selectedItem' => $selectedItem ?? null,
+    ])
 
     <div class="flex items-center justify-end">
         <a href="{{ route('transactions.export-sell.build', $exportQuery) }}"
@@ -138,8 +68,10 @@
                     @forelse($rows as $row)
                         @php
                             $itemUrl = \App\Http\Controllers\ExportSellController::itemShowUrl($row->item?->type, (int) $row->item_id);
-                            $senderUrl = \App\Http\Controllers\ExportSellController::addrbookShowUrl($row->sender);
-                            $receiverUrl = \App\Http\Controllers\ExportSellController::addrbookShowUrl($row->receiver);
+                            $sender = $row->sender ?? $row->transaction?->sender;
+                            $receiver = $row->receiver ?? $row->transaction?->receiver;
+                            $senderUrl = \App\Http\Controllers\ExportSellController::addrbookShowUrl($sender);
+                            $receiverUrl = \App\Http\Controllers\ExportSellController::addrbookShowUrl($receiver);
                         @endphp
                         <tr class="align-top hover:bg-gray-50">
                             <td class="whitespace-nowrap px-3 py-2 text-gray-700">
@@ -169,15 +101,15 @@
                             <td class="whitespace-nowrap px-3 py-2 text-right font-mono">{{ format_amount($row->discount) }}%</td>
                             <td class="whitespace-nowrap px-3 py-2 text-right font-mono">{{ format_currency($row->total) }}</td>
                             <td class="px-3 py-2">
-                                @if($senderUrl && $row->sender)
-                                    <a href="{{ $senderUrl }}" class="text-blue-600 hover:underline">{{ $row->sender->name }}</a>
+                                @if($senderUrl && $sender)
+                                    <a href="{{ $senderUrl }}" class="text-blue-600 hover:underline">{{ $sender->name }}</a>
                                 @else
                                     <span class="text-gray-400">—</span>
                                 @endif
                             </td>
                             <td class="px-3 py-2">
-                                @if($receiverUrl && $row->receiver)
-                                    <a href="{{ $receiverUrl }}" class="text-blue-600 hover:underline">{{ $row->receiver->name }}</a>
+                                @if($receiverUrl && $receiver)
+                                    <a href="{{ $receiverUrl }}" class="text-blue-600 hover:underline">{{ $receiver->name }}</a>
                                 @else
                                     <span class="text-gray-400">—</span>
                                 @endif
@@ -185,7 +117,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="10" class="px-4 py-12 text-center text-sm italic text-gray-500">No sell lines found.</td>
+                            <td colspan="10" class="px-4 py-12 text-center text-sm italic text-gray-500">No transaction lines found.</td>
                         </tr>
                     @endforelse
                 </tbody>

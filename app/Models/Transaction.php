@@ -104,7 +104,26 @@ class Transaction extends Model
 
     public static function typeIsNegative(int $type): bool
     {
-        return in_array($type, [self::TYPE_SELL, self::TYPE_RETURN_SUPPLIER, self::TYPE_CASH_OUT], true);
+        return in_array($type, [
+            self::TYPE_SELL,
+            self::TYPE_RETURN_SUPPLIER,
+            self::TYPE_CASH_OUT,
+            self::TYPE_TRANSFER,
+        ], true);
+    }
+
+    /** Signed monetary amount for header total / real_total per transaction type. */
+    public static function signedAmount(int $type, float $amount): float
+    {
+        if (self::typeIsNegative($type)) {
+            return -abs($amount);
+        }
+
+        if (in_array($type, [self::TYPE_BUY, self::TYPE_RETURN, self::TYPE_CASH_IN], true)) {
+            return abs($amount);
+        }
+
+        return $amount;
     }
 
     public static function typeHasItems(int $type): bool

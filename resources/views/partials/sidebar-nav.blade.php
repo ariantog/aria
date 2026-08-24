@@ -108,9 +108,10 @@
 @endif
 
 {{-- ── Stuff (Items, etc.) ───────────────────────────────────────────── --}}
-@if($hasPerm('items-list') || $hasPerm('restock-list') || $hasPerm('report-item-sales') || $hasPerm('report-warehouse-item') || $hasPerm('report-warehouse-arrangement') || $hasPerm('report-product-performance') || $hasPerm('report-inventory-health') || $isSuperAdmin)
+@if($hasPerm('items-list') || $hasPerm('restock-list') || $hasPerm('report-item-sales') || $hasPerm('report-warehouse-item') || $hasPerm('report-warehouse-arrangement') || $hasPerm('report-product-performance') || $hasPerm('report-inventory-health') || $hasPerm('stock-notification-list') || $isSuperAdmin)
 @php
     $stuffActive = $isActive('/items') || $isActive('/assetlancar') || $isActive('/tags') || $isActive('/restock')
+        || $isActive('/stock-notifications')
         || $isActive('/reports/item-sales') || $isActive('/reports/warehouse-item')
         || $isActive('/reports/warehouse-arrangement') || $isActive('/reports/product-performance')
         || $isActive('/reports/inventory-health');
@@ -151,6 +152,9 @@
         @endif
         @if($hasPerm('report-warehouse-arrangement') || $isSuperAdmin)
         <a href="{{ route('reports.warehouse-arrangement') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/warehouse-arrangement') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Warehouse Arrangement</a>
+        @endif
+        @if($hasPerm('stock-notification-list') || $isSuperAdmin)
+        <a href="{{ route('stock-notifications.index') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/stock-notifications') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Stock Alerts</a>
         @endif
         @if($hasPerm('report-product-performance') || $isSuperAdmin)
         <a href="{{ route('reports.product-performance') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/product-performance') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Product Performance</a>
@@ -222,6 +226,9 @@
         @endif
         @if($hasPerm('jubelio-stock-check') || $isSuperAdmin)
         <a href="{{ route('jubelio-stock-checks.index') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/jubelio-stock-checks') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Stock Check</a>
+        @endif
+        @if($hasPerm('shopee-ads-view') || $isSuperAdmin)
+        <a href="{{ route('shopee-ads.index') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/shopee-ads') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Shopee Ads</a>
         @endif
     </div>
 </div>

@@ -15,6 +15,8 @@ $initialLines = old('lines', $invoice?->lines->map(fn ($line) => [
     'price' => (float) $line->price,
 ])->values()->all() ?? [['description' => '', 'quantity' => 1, 'price' => 0]]);
 $initialPresetId = old('preset_id', $invoice->preset_id ?? $selectedPreset['id']);
+$initialDpEnabled = (bool) old('dp_enabled', $invoice?->hasDownPayment() ?? false);
+$initialDpAmount = old('dp_amount', $invoice?->dp_amount ?? '');
 @endphp
 
 <div class="flex flex-col gap-4 p-3 sm:p-4" x-data="invoiceMakerForm(@js([
@@ -26,6 +28,8 @@ $initialPresetId = old('preset_id', $invoice->preset_id ?? $selectedPreset['id']
     'preset_id' => $initialPresetId,
     'presets' => $presets,
     'notes' => old('notes', $invoice->notes ?? ''),
+    'dp_enabled' => $initialDpEnabled,
+    'dp_amount' => $initialDpAmount,
     'lines' => $initialLines,
     'senderInitial' => $invoice?->sender ? ['id' => $invoice->sender->id, 'name' => $invoice->sender->name] : null,
 ]))">
@@ -127,6 +131,10 @@ $initialPresetId = old('preset_id', $invoice->preset_id ?? $selectedPreset['id']
                         <div class="space-y-1 text-right">
                             <div class="text-gray-500">Total Qty: <span class="font-mono font-medium text-gray-900" x-text="formatAmount(totalQty())"></span></div>
                             <div class="text-base font-semibold text-gray-900">Subtotal: <span class="font-mono" x-text="formatCurrency(grandTotal())"></span></div>
+                            <template x-if="form.dp_enabled">
+                                <div class="text-base font-semibold text-red-600">DP: <span class="font-mono" x-text="formatCurrency(dpAmount())"></span></div>
+                            </template>
+                            <div class="text-base font-bold text-gray-900">Total: <span class="font-mono" x-text="formatCurrency(balanceDue())"></span></div>
                         </div>
                     </div>
                 </div>
@@ -182,6 +190,31 @@ $initialPresetId = old('preset_id', $invoice->preset_id ?? $selectedPreset['id']
                             <label class="mb-1 block text-sm font-medium text-gray-700">Notes</label>
                             <textarea name="notes" rows="2" x-model="form.notes"
                                       class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500"></textarea>
+                        </div>
+
+                        <div class="rounded-lg border border-gray-100 bg-gray-50 p-3">
+                            <div class="flex items-center justify-between gap-3">
+                                <div>
+                                    <div class="text-sm font-medium text-gray-900">Down Payment (DP)</div>
+                                    <div class="text-xs text-gray-500">Show DP row on invoice and deduct from total</div>
+                                </div>
+                                <label class="relative inline-flex cursor-pointer items-center">
+                                    <input type="hidden" name="dp_enabled" value="0">
+                                    <input type="checkbox" name="dp_enabled" value="1" x-model="form.dp_enabled" @change="onDpToggle()"
+                                           data-testid="invoice-dp-toggle"
+                                           class="peer sr-only">
+                                    <span class="h-6 w-11 rounded-full bg-gray-300 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all peer-checked:bg-blue-600 peer-checked:after:translate-x-full peer-checked:after:border-white"></span>
+                                </label>
+                            </div>
+                            <div x-show="form.dp_enabled" x-cloak class="mt-3">
+                                <label class="mb-1 block text-sm font-medium text-gray-700">DP Amount</label>
+                                <input type="number" name="dp_amount" step="0.01" min="0" x-model.number="form.dp_amount"
+                                       data-testid="invoice-dp-amount"
+                                       :max="grandTotal()"
+                                       placeholder="Enter down payment amount"
+                                       class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500">
+                                <p class="mt-1 text-xs text-gray-500" x-show="dpAmount() > grandTotal()">DP cannot exceed subtotal.</p>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -241,6 +274,18 @@ function invoiceMakerForm(initial) {
         grandTotal() {
             return this.form.lines.reduce((sum, line) => sum + this.lineTotal(line), 0);
         },
+        dpAmount() {
+            if (!this.form.dp_enabled) return 0;
+            return Math.max(0, Number(this.form.dp_amount) || 0);
+        },
+        balanceDue() {
+            return Math.max(0, this.grandTotal() - this.dpAmount());
+        },
+        onDpToggle() {
+            if (!this.form.dp_enabled) {
+                this.form.dp_amount = '';
+            }
+        },
         recalc() {},
         formatAmount(value) {
             return formatAmountId(value);
@@ -252,6 +297,10 @@ function invoiceMakerForm(initial) {
             if (!this.form.recipient?.trim()) return false;
             if (!this.form.preset_id) return false;
             if (!this.form.lines.length) return false;
+            if (this.form.dp_enabled) {
+                const dp = this.dpAmount();
+                if (dp <= 0 || dp > this.grandTotal()) return false;
+            }
             return this.form.lines.every(line =>
                 line.description?.trim() &&
                 Number(line.quantity) > 0 &&

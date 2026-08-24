@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Report;
 use App\Models\Transaction;
 use App\Support\LikeSearch;
 use Illuminate\Http\Request;
@@ -17,7 +18,12 @@ class TransactionLookupController extends Controller
      */
     public function search(Request $request, string $type, string $role)
     {
-        abort_unless(Transaction::userCanAccessType($request->user(), $type), 403);
+        $user = $request->user();
+        abort_unless(
+            Transaction::userCanAccessType($user, $type)
+            || $user?->can(Report::getPermissions()['view-export-sell']),
+            403
+        );
         // Remove dd and use request input
         // Configuration now gives us the Addrbook Type ID directly, or we get it from request
         $typeId = $request->input('addrbook_type') ?? ($request['addrbook_type'] ?? null);

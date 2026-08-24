@@ -1,0 +1,19 @@
+[Unit]
+Description=Shopee Ads Budget Management Bot (Indonesia)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/shopee-budget-bot
+EnvironmentFile=/root/shopee-budget-bot/.env
+ExecStart=/root/shopee-budget-bot/venv/bin/python /root/shopee-budget-bot/bot.py
+Restart=always
+RestartSec=5
+# Keep logs in the journal (journalctl -u shopee-budget-bot -f)
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

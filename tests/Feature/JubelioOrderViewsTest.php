@@ -345,7 +345,9 @@ it('processes jubelio return into the original sell warehouse', function () {
     $returnTrx = Transaction::where('type', Transaction::TYPE_RETURN)->where('invoice', 'RET-WH-1')->first();
     expect($returnTrx)->not->toBeNull()
         ->and($returnTrx->receiver_id)->toBe($warehouseA->id)
-        ->and($returnTrx->sender_id)->toBe($customer->id);
+        ->and($returnTrx->sender_id)->toBe($customer->id)
+        ->and((float) $returnTrx->total)->toBe(10000.0)
+        ->and((float) $returnTrx->real_total)->toBe(10000.0);
 });
 
 it('rejects jubelio sell when mapped warehouse stock is insufficient', function () {
@@ -443,7 +445,7 @@ it('ignores inflated jubelio sub_total when line prices already match grand tota
     $transaction = Transaction::where('invoice', 'SP-SHOPEE-DISC')->first();
 
     expect($transaction)->not->toBeNull()
-        ->and((float) $transaction->total)->toBe(79000.0)
+        ->and((float) $transaction->total)->toBe(-79000.0)
         ->and((float) $transaction->adjustment)->toBe(0.0)
         ->and((float) $transaction->real_total)->toBe(-79000.0);
 
@@ -502,7 +504,7 @@ it('applies marketplace discount adjustment when line prices use list amounts', 
     $transaction = Transaction::where('invoice', 'SP-LIST-PRICE')->first();
 
     expect($transaction)->not->toBeNull()
-        ->and((float) $transaction->total)->toBe(122590.0)
+        ->and((float) $transaction->total)->toBe(-122590.0)
         ->and((float) $transaction->adjustment)->toBe(-79000.0)
         ->and((float) $transaction->real_total)->toBe(-43590.0);
 });
@@ -557,7 +559,7 @@ it('books seller income for marketplace orders with fee breakdown', function () 
     $transaction = Transaction::where('invoice', 'SP-SELLER-INCOME')->first();
 
     expect($transaction)->not->toBeNull()
-        ->and((float) $transaction->total)->toBe(64000.0)
+        ->and((float) $transaction->total)->toBe(-64000.0)
         ->and((float) $transaction->adjustment)->toBe(-21065.0)
         ->and((float) $transaction->real_total)->toBe(-42935.0);
 });

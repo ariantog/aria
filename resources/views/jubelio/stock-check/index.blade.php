@@ -16,7 +16,7 @@ $breadcrumbs = [
                 <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
                 Pengecekan Stok Jubelio
             </h1>
-            <p class="mt-1 text-sm text-gray-500">Cek stok per gudang tersinkron — SKU prioritas permintaan, bandingkan Aria vs Jubelio on-hand.</p>
+            <p class="mt-1 text-sm text-gray-500">Cek stok per gudang tersinkron — bandingkan Aria vs Jubelio available, urut selisih terbesar.</p>
         </div>
 
         <a href="{{ route('jubelio-stock-checks.create') }}" class="inline-flex items-center gap-2 rounded-lg bg-blue-700 px-4 py-2 text-sm font-medium text-white hover:bg-blue-800">

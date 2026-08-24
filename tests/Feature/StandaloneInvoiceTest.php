@@ -65,6 +65,47 @@ it('creates a standalone invoice with free-text lines', function () {
     expect($invoice->lines)->toHaveCount(1);
     expect((float) $invoice->subtotal)->toBe(8_100_000.0);
     expect((float) $invoice->total_qty)->toBe(81.0);
+    expect($invoice->dp_amount)->toBeNull();
+    expect($invoice->hasDownPayment())->toBeFalse();
+    expect($invoice->balanceDue())->toBe(8_100_000.0);
+});
+
+it('creates a standalone invoice with down payment', function () {
+    $response = $this->actingAs($this->user)->post(route('invoice-maker.store'), [
+        'number' => 'INV/CA/2026/0100',
+        'date' => '2026-07-30',
+        'recipient' => 'EL PATRON',
+        'preset_id' => 'default',
+        'dp_enabled' => true,
+        'dp_amount' => 7_520_000,
+        'lines' => [
+            ['description' => 'EL PATRON JERSEY', 'quantity' => 103, 'price' => 160_000],
+        ],
+    ]);
+
+    $invoice = StandaloneInvoice::first();
+    $response->assertRedirect(route('invoice-maker.show', $invoice));
+
+    expect((float) $invoice->subtotal)->toBe(16_480_000.0);
+    expect((float) $invoice->dp_amount)->toBe(7_520_000.0);
+    expect($invoice->hasDownPayment())->toBeTrue();
+    expect($invoice->balanceDue())->toBe(8_960_000.0);
+});
+
+it('rejects down payment greater than subtotal', function () {
+    $this->actingAs($this->user)->post(route('invoice-maker.store'), [
+        'number' => 'INV/CA/2026/0101',
+        'date' => '2026-07-30',
+        'recipient' => 'EL PATRON',
+        'preset_id' => 'default',
+        'dp_enabled' => true,
+        'dp_amount' => 20_000_000,
+        'lines' => [
+            ['description' => 'EL PATRON JERSEY', 'quantity' => 103, 'price' => 160_000],
+        ],
+    ])->assertSessionHasErrors('dp_amount');
+
+    expect(StandaloneInvoice::count())->toBe(0);
 });
 
 it('generates and regenerates standalone invoice pdf', function () {
@@ -98,6 +139,69 @@ it('generates and regenerates standalone invoice pdf', function () {
         ->get(route('invoice-maker.pdf.download', $invoice))
         ->assertOk()
         ->assertHeader('content-disposition', 'attachment; filename=INV-CA-2026-0001.pdf');
+
+    expect($this->actingAs($this->user)
+        ->get(route('invoice-maker.pdf.download', $invoice))
+        ->headers->get('cache-control'))
+        ->toContain('no-store');
+});
+
+it('ignores legacy pdf files and replaces them on regenerate', function () {
+    $invoice = StandaloneInvoice::factory()->create([
+        'number' => 'INV/CA/2026/0200',
+        'template' => StandaloneInvoice::TEMPLATE_CLASSIC,
+    ]);
+    StandaloneInvoiceLine::factory()->create([
+        'standalone_invoice_id' => $invoice->id,
+        'description' => 'Fresh item',
+        'quantity' => 1,
+        'price' => 25_000,
+        'total' => 25_000,
+    ]);
+
+    $service = app(StandaloneInvoiceService::class);
+    $legacyPath = $service->invoiceDiskPath('standalone_invoice_'.$invoice->id.'.pdf');
+    File::put($legacyPath, '%PDF-1.4 legacy dev content');
+
+    expect($service->invoicePdfExists($invoice))->toBeFalse();
+
+    $this->actingAs($this->user)
+        ->post(route('invoice-maker.pdf.store', $invoice))
+        ->assertRedirect(route('invoice-maker.show', $invoice));
+
+    expect(File::exists($legacyPath))->toBeFalse();
+    expect($service->invoicePdfExists($invoice))->toBeTrue();
+    expect($service->invoiceFileName($invoice))->toContain('_'.$invoice->fresh()->updated_at->timestamp.'.pdf');
+
+    $pdf = file_get_contents($service->resolveInvoicePdfPath($invoice));
+    expect($pdf)->toStartWith('%PDF');
+    expect($pdf)->not->toContain('legacy dev content');
+});
+
+it('cache busts pdf urls and clears pdf after invoice update', function () {
+    $invoice = StandaloneInvoice::factory()->create([
+        'number' => 'INV/CA/2026/0300',
+        'recipient' => 'Before edit',
+    ]);
+    StandaloneInvoiceLine::factory()->create(['standalone_invoice_id' => $invoice->id]);
+
+    $service = app(StandaloneInvoiceService::class);
+    $service->createInvoicePdf($invoice, regenerate: true);
+
+    $url = $service->invoicePdfUrl($invoice);
+    expect($url)->toContain('?v=');
+
+    $this->actingAs($this->user)->put(route('invoice-maker.update', $invoice), [
+        'number' => $invoice->number,
+        'date' => $invoice->date->format('Y-m-d'),
+        'recipient' => 'After edit',
+        'preset_id' => 'default',
+        'lines' => [
+            ['description' => 'Updated item', 'quantity' => 1, 'price' => 10_000],
+        ],
+    ])->assertRedirect();
+
+    expect($service->invoicePdfExists($invoice->fresh()))->toBeFalse();
 });
 
 it('renders invoice maker pages for superadmin', function () {
@@ -107,7 +211,7 @@ it('renders invoice maker pages for superadmin', function () {
     $this->actingAs($this->user)->get(route('invoice-maker.index'))->assertOk()->assertSee('Invoice Maker', false);
     $this->actingAs($this->user)->get(route('invoice-maker.create'))->assertOk()->assertSee('New Invoice', false);
     $this->actingAs($this->user)->get(route('invoice-maker.show', $invoice))->assertOk()->assertSee($invoice->number, false);
-    $this->actingAs($this->user)->get(route('invoice-maker.edit', $invoice))->assertOk()->assertSee('Edit Invoice', false);
+    $this->actingAs($this->user)->get(route('invoice-maker.edit', $invoice))->assertOk()->assertSee('Edit Invoice', false)->assertSee('Down Payment (DP)', false);
     $this->actingAs($this->user)->get(route('invoice-maker.settings.index'))->assertOk()->assertSee('Invoice Maker Settings', false);
     $this->actingAs($this->user)->get(route('invoice-maker.settings.create'))->assertOk()->assertSee('New Preset', false);
 });

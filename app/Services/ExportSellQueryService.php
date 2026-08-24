@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Addrbook;
 use App\Models\Transaction;
 use App\Models\TransactionDetail;
 use App\Models\User;
@@ -12,13 +13,45 @@ use Illuminate\Http\Request;
 class ExportSellQueryService
 {
     /**
-     * @return array<int, string>
+     * @return array<int>
+     */
+    public function includedTransactionTypes(): array
+    {
+        return array_values(array_filter(
+            array_column(Transaction::getTypes(), 'id'),
+            fn (int $id) => ! in_array($id, [
+                Transaction::TYPE_CASH_IN,
+                Transaction::TYPE_CASH_OUT,
+            ], true),
+        ));
+    }
+
+    /**
+     * @return array<int|string, string>
      */
     public function typeOptions(): array
     {
+        $options = ['' => 'All types'];
+
+        foreach ($this->includedTransactionTypes() as $typeId) {
+            $options[$typeId] = Transaction::typeLabel($typeId);
+        }
+
+        return $options;
+    }
+
+    /**
+     * Addrbook types allowed in export-sell sender/receiver filters.
+     *
+     * @return list<int>
+     */
+    public function partyTypeIds(): array
+    {
         return [
-            Transaction::TYPE_SELL => 'Sell',
-            Transaction::TYPE_RETURN => 'Return',
+            Addrbook::TYPE_CUSTOMER,
+            Addrbook::TYPE_RESELLER,
+            Addrbook::TYPE_WAREHOUSE,
+            Addrbook::TYPE_V_WAREHOUSE,
         ];
     }
 
@@ -43,35 +76,48 @@ class ExportSellQueryService
             'item_code',
             'qty_min',
             'qty_max',
-            'discount_min',
-            'discount_max',
-            'subtotal_min',
-            'subtotal_max',
             'sender',
             'receiver',
             'per_page',
         ]);
     }
 
-    public function buildQuery(Request $request, ?User $user): Builder
+    public function buildQuery(Request $request, ?User $user, ?int $addrbookId = null): Builder
     {
-        $type = $request->input('type', (string) Transaction::TYPE_SELL);
+        $type = $request->input('type');
+        $includedTypes = $this->includedTransactionTypes();
 
         return TransactionDetail::query()
             ->with([
                 'transaction',
+                'transaction.sender',
+                'transaction.receiver',
                 'item',
                 'sender',
                 'receiver',
             ])
             ->visibleToUser($user)
+            ->where(function (Builder $typeQuery) use ($includedTypes) {
+                $typeQuery
+                    ->whereIn('transaction_details.transaction_type', $includedTypes)
+                    ->orWhereHas('transaction', fn (Builder $tq) => $tq->whereIn('type', $includedTypes));
+            })
+            ->when(
+                $addrbookId !== null,
+                fn (Builder $q) => $q->where(function (Builder $partyQuery) use ($addrbookId) {
+                    $this->applyPartyIdFilter($partyQuery, 'sender', $addrbookId)
+                        ->orWhere(function (Builder $receiverQuery) use ($addrbookId) {
+                            $this->applyPartyIdFilter($receiverQuery, 'receiver', $addrbookId);
+                        });
+                }),
+            )
             ->when(
                 $type !== '' && $type !== null,
-                fn (Builder $q) => $q->where('transaction_details.transaction_type', (int) $type),
-                fn (Builder $q) => $q->whereIn('transaction_details.transaction_type', [
-                    Transaction::TYPE_SELL,
-                    Transaction::TYPE_RETURN,
-                ]),
+                fn (Builder $q) => $q->where(function (Builder $typeQuery) use ($type) {
+                    $typeQuery
+                        ->where('transaction_details.transaction_type', (int) $type)
+                        ->orWhereHas('transaction', fn (Builder $tq) => $tq->where('type', (int) $type));
+                }),
             )
             ->when($request->input('from'), fn (Builder $q, $v) => $q->whereDate('transaction_details.date', '>=', $v))
             ->when($request->input('to'), fn (Builder $q, $v) => $q->whereDate('transaction_details.date', '<=', $v))
@@ -90,40 +136,56 @@ class ExportSellQueryService
             })
             ->when($request->input('qty_min'), fn (Builder $q, $v) => $q->where('transaction_details.quantity', '>=', $v))
             ->when($request->input('qty_max'), fn (Builder $q, $v) => $q->where('transaction_details.quantity', '<=', $v))
-            ->when($request->input('discount_min'), fn (Builder $q, $v) => $q->where('transaction_details.discount', '>=', $v))
-            ->when($request->input('discount_max'), fn (Builder $q, $v) => $q->where('transaction_details.discount', '<=', $v))
-            ->when($request->input('subtotal_min'), fn (Builder $q, $v) => $q->where('transaction_details.total', '>=', $v))
-            ->when($request->input('subtotal_max'), fn (Builder $q, $v) => $q->where('transaction_details.total', '<=', $v))
-            ->when($request->input('sender'), function (Builder $q, $v) {
-                $term = trim((string) $v);
+            ->when($addrbookId === null && $request->filled('sender'), function (Builder $q) use ($request) {
+                $term = trim((string) $request->input('sender'));
                 if ($term === '') {
                     return $q;
                 }
 
                 if (ctype_digit($term)) {
-                    return $q->where('transaction_details.sender_id', (int) $term);
+                    return $this->applyPartyIdFilter($q, 'sender', (int) $term);
                 }
 
-                $pattern = LikeSearch::contains($term);
-
-                return $q->whereHas('sender', fn (Builder $sq) => $sq->where('customers.name', 'like', $pattern));
+                return $this->applyPartyNameFilter($q, 'sender', $term);
             })
-            ->when($request->input('receiver'), function (Builder $q, $v) {
-                $term = trim((string) $v);
+            ->when($addrbookId === null && $request->filled('receiver'), function (Builder $q) use ($request) {
+                $term = trim((string) $request->input('receiver'));
                 if ($term === '') {
                     return $q;
                 }
 
                 if (ctype_digit($term)) {
-                    return $q->where('transaction_details.receiver_id', (int) $term);
+                    return $this->applyPartyIdFilter($q, 'receiver', (int) $term);
                 }
 
-                $pattern = LikeSearch::contains($term);
-
-                return $q->whereHas('receiver', fn (Builder $sq) => $sq->where('customers.name', 'like', $pattern));
+                return $this->applyPartyNameFilter($q, 'receiver', $term);
             })
             ->orderByDesc('transaction_details.date')
             ->orderByDesc('transaction_details.transaction_id')
             ->orderByDesc('transaction_details.id');
+    }
+
+    private function applyPartyIdFilter(Builder $query, string $role, int $partyId): Builder
+    {
+        $detailColumn = $role === 'sender' ? 'transaction_details.sender_id' : 'transaction_details.receiver_id';
+        $transactionColumn = $role === 'sender' ? 'sender_id' : 'receiver_id';
+
+        return $query->where(function (Builder $partyQuery) use ($detailColumn, $transactionColumn, $partyId) {
+            $partyQuery
+                ->where($detailColumn, $partyId)
+                ->orWhereHas('transaction', fn (Builder $tq) => $tq->where($transactionColumn, $partyId));
+        });
+    }
+
+    private function applyPartyNameFilter(Builder $query, string $role, string $term): Builder
+    {
+        $pattern = LikeSearch::contains($term);
+        $transactionRelation = 'transaction.'.$role;
+
+        return $query->where(function (Builder $partyQuery) use ($role, $transactionRelation, $pattern) {
+            $partyQuery
+                ->whereHas($role, fn (Builder $sq) => $sq->where('customers.name', 'like', $pattern))
+                ->orWhereHas($transactionRelation, fn (Builder $sq) => $sq->where('customers.name', 'like', $pattern));
+        });
     }
 }

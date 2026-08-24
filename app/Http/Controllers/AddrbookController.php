@@ -13,7 +13,14 @@ use App\Models\Operation;
 use App\Models\ReportingChannelBank;
 use App\Models\ReportingEntity;
 use App\Models\StatSell;
+use App\Services\ExportSellExportService;
+use App\Services\ExportSellQueryService;
+use App\Services\WarehouseJubelioStockService;
+use App\Services\WarehouseStockExportService;
+use App\Services\WarehouseStockQueryService;
 use App\Support\LikeSearch;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 
 class AddrbookController extends Controller
@@ -166,7 +173,7 @@ class AddrbookController extends Controller
 
     public function itemsType(string $type, Addrbook $addrbook)
     {
-        return $this->items($addrbook->id);
+        return app()->call([$this, 'items'], ['id' => $addrbook->id]);
     }
 
     public function statType(string $type, Addrbook $addrbook)
@@ -176,7 +183,17 @@ class AddrbookController extends Controller
 
     public function itemSalesType(string $type, Addrbook $addrbook)
     {
-        return $this->itemSales($addrbook->id);
+        return app()->call([$this, 'itemSales'], ['id' => $addrbook->id]);
+    }
+
+    public function itemSalesTypeExport(string $type, Addrbook $addrbook)
+    {
+        return app()->call([$this, 'itemSalesExport'], ['id' => $addrbook->id]);
+    }
+
+    public function itemsTypeExport(string $type, Addrbook $addrbook)
+    {
+        return app()->call([$this, 'itemsExport'], ['id' => $addrbook->id]);
     }
 
     public function edit(Addrbook $addrbook)
@@ -252,41 +269,43 @@ class AddrbookController extends Controller
         ]);
     }
 
-    public function items($id)
+    public function items($id, Request $request, WarehouseStockQueryService $queryService, WarehouseJubelioStockService $jubelioStockService)
     {
         $a = Addrbook::withTrashed()->findOrFail($id);
-        Gate::authorize(Addrbook::getPermissions($this->addrbookTypeSlug($a))['view']);
+        if (! Addrbook::typeHasWarehouseStock((int) $a->type)) {
+            abort(404);
+        }
+        Gate::authorize(Addrbook::getPermissions($this->addrbookTypeSlug($a))['warehouse-items']);
         $this->authorizeAddrbookLocation($a);
 
-        $q = $a->items()->with('group')
-            ->when(request('name'), fn ($q) => $q->where(fn ($sq) => $sq
-                ->where('items.name', 'like', '%'.request('name').'%')
-                ->orWhere('items.code', 'like', '%'.request('name').'%')
-            ))
-            // Qualified pivot column: inside a when() closure the callback receives the base
-            // query builder, where wherePivot() is unavailable and degrades to a broken where.
-            ->when(request('show0') !== 'show', fn ($q) => $q->where('warehouse_item.quantity', '>', 0));
+        $query = $queryService->buildItemsQuery($a, $request);
 
-        $sort = request('sort', 'qtydesc');
-        match ($sort) {
-            'qtyasc' => $q->orderByPivot('quantity', 'asc'),
-            'codedesc' => $q->orderBy('items.code', 'desc'),
-            'codeasc' => $q->orderBy('items.code', 'asc'),
-            'namedesc' => $q->orderBy('items.name', 'desc'),
-            'nameasc' => $q->orderBy('items.name', 'asc'),
-            'iddesc' => $q->orderBy('items.id', 'desc'),
-            'idasc' => $q->orderBy('items.id', 'asc'),
-            default => $q->orderByPivot('quantity', 'desc'),
-        };
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json($query->paginate($queryService->resolvePerPage($request))->withQueryString());
+        }
 
-        if (request()->expectsJson() || request()->ajax()) {
-            return response()->json($q->paginate((int) request('size', 50))->withQueryString());
+        $items = $query->paginate($queryService->resolvePerPage($request))->withQueryString();
+        $jubelioSync = $jubelioStockService->syncForWarehouse($a->id);
+        $jubelioStocks = [];
+        $jubelioFetchFailed = false;
+        $jubelioUnlinkedCount = 0;
+
+        if ($jubelioSync) {
+            $jubelioData = $jubelioStockService->stockDataForItems($jubelioSync, $items->getCollection());
+            $jubelioStocks = $jubelioData['stocks'];
+            $jubelioFetchFailed = $jubelioData['fetch_failed'];
+            $jubelioUnlinkedCount = $jubelioData['unlinked_count'];
         }
 
         return view('addrbook.items', [
             'addrbook' => $a,
-            'items' => $q->paginate(50)->withQueryString(),
-            'filters' => request()->all(['name', 'sort', 'show0']),
+            'items' => $items,
+            'perPage' => $queryService->resolvePerPage($request),
+            'filters' => $request->only(['name', 'sort', 'show0']),
+            'jubelioSync' => $jubelioSync,
+            'jubelioStocks' => $jubelioStocks,
+            'jubelioFetchFailed' => $jubelioFetchFailed,
+            'jubelioUnlinkedCount' => $jubelioUnlinkedCount,
             'can' => [
                 'bank_hidden_balance' => ! (request()->user()?->is_superadmin ?? false) && (request()->user()?->can('addrbook-bank-account-hidden-balance') ?? false),
             ],
@@ -294,38 +313,69 @@ class AddrbookController extends Controller
         ]);
     }
 
-    public function itemSales($id)
+    public function itemsExport($id, Request $request, WarehouseStockQueryService $queryService, WarehouseStockExportService $exportService, WarehouseJubelioStockService $jubelioStockService)
     {
         $a = Addrbook::withTrashed()->findOrFail($id);
-        Gate::authorize(Addrbook::getPermissions($this->addrbookTypeSlug($a))['view']);
+        if (! Addrbook::typeHasWarehouseStock((int) $a->type)) {
+            abort(404);
+        }
+        Gate::authorize(Addrbook::getPermissions($this->addrbookTypeSlug($a))['warehouse-items']);
         $this->authorizeAddrbookLocation($a);
 
-        $q = StatSell::where('sender_id', $a->id)->with('group')
-            ->when(request('bulan'), fn ($q) => $q->where('bulan', request('bulan')))
-            ->when(request('tahun'), fn ($q) => $q->where('tahun', request('tahun')))
-            ->when(request('search'), fn ($q) => $q->whereHas('group', fn ($gq) => $gq
-                ->where('name', 'like', '%'.request('search').'%')
-                ->orWhere('description', 'like', '%'.request('search').'%')
-            ))
-            ->when(request('type'), fn ($q) => $q->where('type', request('type')))
-            ->orderBy('tahun', 'desc')->orderBy('bulan', 'desc');
+        $items = $queryService->buildItemsQuery($a, $request)->get();
+        $jubelioSync = $jubelioStockService->syncForWarehouse($a->id);
+        $jubelioStocks = [];
+
+        if ($jubelioSync) {
+            $jubelioStocks = $jubelioStockService->stockDataForItems($jubelioSync, $items)['stocks'];
+        }
+
+        return $exportService->download($items, $a->name, $jubelioSync, $jubelioStocks);
+    }
+
+    public function itemSales($id, Request $request, ExportSellQueryService $queryService)
+    {
+        $a = Addrbook::withTrashed()->findOrFail($id);
+        if (! Addrbook::typeSupportsItemSales((int) $a->type)) {
+            abort(404);
+        }
+        Gate::authorize(Addrbook::getPermissions($this->addrbookTypeSlug($a))['item-sales']);
+        $this->authorizeAddrbookLocation($a);
+
+        $perPage = $queryService->resolvePerPage($request);
+        $filters = $queryService->filtersFromRequest($request);
+        $rows = $queryService
+            ->buildQuery($request, Auth::user(), $a->id)
+            ->paginate($perPage)
+            ->withQueryString();
 
         return view('addrbook.item-sales', [
             'addrbook' => $a,
-            'sales' => $q->paginate(50)->withQueryString(),
-            'filters' => [
-                'bulan' => request('bulan') ? (int) request('bulan') : null,
-                'tahun' => request('tahun') ? (int) request('tahun') : null,
-                'search' => request('search'),
-                'type' => request('type') ? (int) request('type') : null,
-            ],
-            'years' => range(date('Y'), date('Y') - 5),
-            'transactionTypes' => \App\Models\Transaction::getTypes(),
+            'rows' => $rows,
+            'filters' => $filters,
+            'perPage' => $perPage,
+            'typeOptions' => $queryService->typeOptions(),
             'can' => [
                 'bank_hidden_balance' => ! (request()->user()?->is_superadmin ?? false) && (request()->user()?->can('addrbook-bank-account-hidden-balance') ?? false),
             ],
             'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
+    }
+
+    public function itemSalesExport($id, Request $request, ExportSellQueryService $queryService, ExportSellExportService $exportService)
+    {
+        $a = Addrbook::withTrashed()->findOrFail($id);
+        if (! Addrbook::typeSupportsItemSales((int) $a->type)) {
+            abort(404);
+        }
+        Gate::authorize(Addrbook::getPermissions($this->addrbookTypeSlug($a))['item-sales']);
+        $this->authorizeAddrbookLocation($a);
+
+        $rows = $queryService
+            ->buildQuery($request, Auth::user(), $a->id)
+            ->get();
+
+        return $exportService->download($rows);
     }
 
     public function stat($id)
