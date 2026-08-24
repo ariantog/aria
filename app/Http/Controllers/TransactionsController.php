@@ -35,7 +35,7 @@ class TransactionsController extends Controller
         $direction = $request->input('direction', 'desc');
         $perPage = $this->resolvePerPage($request);
         $transactions = $this->filteredTransactionsQuery($request);
-        if (in_array($sort, ['date', 'invoice', 'type', 'real_total', 'total_items'], true)) {
+        if (in_array($sort, ['date', 'invoice', 'type', 'total', 'total_items'], true)) {
             $transactions->orderBy($sort, $direction)->orderBy('id', 'desc');
         } else {
             $transactions->orderBy('date', 'desc')->orderBy('id', 'desc');
@@ -58,7 +58,7 @@ class TransactionsController extends Controller
         $direction = $request->input('direction', 'desc');
         $perPage = $this->resolvePerPage($request);
         $transactions = $this->filteredTransactionsQuery($request);
-        if (in_array($sort, ['date', 'invoice', 'type', 'real_total', 'total_items'], true)) {
+        if (in_array($sort, ['date', 'invoice', 'type', 'total', 'total_items'], true)) {
             $transactions->orderBy($sort, $direction)->orderBy('id', 'desc');
         } else {
             $transactions->orderBy('date', 'desc')->orderBy('id', 'desc');
@@ -494,8 +494,8 @@ class TransactionsController extends Controller
             ->visibleToUser(Auth::user())
             ->when($request->invoice, fn ($q, $v) => $q->where('invoice', 'like', "%{$v}%"))
             ->when($request->type, fn ($q, $v) => $q->where('type', $v))
-            ->when($request->min_total, fn ($q, $v) => $q->where('real_total', '>=', $v))
-            ->when($request->max_total, fn ($q, $v) => $q->where('real_total', '<=', $v))
+            ->when($request->min_total, fn ($q, $v) => $q->where('total', '>=', $v))
+            ->when($request->max_total, fn ($q, $v) => $q->where('total', '<=', $v))
             ->when($request->from, fn ($q, $v) => $q->whereDate('date', '>=', $v))
             ->when($request->to, fn ($q, $v) => $q->whereDate('date', '<=', $v));
     }

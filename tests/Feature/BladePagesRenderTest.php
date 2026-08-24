@@ -26,6 +26,7 @@ beforeEach(function () {
         'sender_id' => $supplier->id,
         'receiver_type' => (string) Addrbook::TYPE_WAREHOUSE,
         'receiver_id' => $warehouse->id,
+        'total' => 1_000_000,
         'real_total' => 1_000_000,
         'total_items' => 5,
         'user_id' => $this->user->id,
@@ -43,7 +44,7 @@ it('renders the transactions index with its rows', function () {
     $this->actingAs($this->user)
         ->get('/transactions')
         ->assertOk()
-        ->assertSee('Grand Total', false)
+        ->assertSee('Total', false)
         ->assertSee('INV-SMOKE-1', false)
         ->assertSee('Test Supplier', false);
 });
@@ -57,7 +58,7 @@ it('renders the export sell page', function () {
 
 it('sorts and filters the transactions index', function () {
     $this->actingAs($this->user)
-        ->get('/transactions?sort=real_total&direction=asc&type='.Transaction::TYPE_BUY)
+        ->get('/transactions?sort=total&direction=asc&type='.Transaction::TYPE_BUY)
         ->assertOk()
         ->assertSee('INV-SMOKE-1', false);
 });

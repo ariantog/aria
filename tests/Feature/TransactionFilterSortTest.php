@@ -68,11 +68,11 @@ class TransactionFilterSortTest extends TestCase
         $this->assertStringNotContainsString('SELL-1', $html);
     }
 
-    public function test_it_filters_by_real_total_range(): void
+    public function test_it_filters_by_total_range(): void
     {
-        Transaction::factory()->create(['real_total' => 50000, 'invoice' => 'LOW']);
-        Transaction::factory()->create(['real_total' => 150000, 'invoice' => 'MID']);
-        Transaction::factory()->create(['real_total' => 250000, 'invoice' => 'HIGH']);
+        Transaction::factory()->create(['total' => 50000, 'invoice' => 'LOW']);
+        Transaction::factory()->create(['total' => 150000, 'invoice' => 'MID']);
+        Transaction::factory()->create(['total' => 250000, 'invoice' => 'HIGH']);
 
         $html = $this->indexHtml(['min_total' => 100000, 'max_total' => 200000]);
 
@@ -94,13 +94,13 @@ class TransactionFilterSortTest extends TestCase
 
     public function test_it_sorts_by_column(): void
     {
-        Transaction::factory()->create(['real_total' => 100, 'invoice' => 'INV-CHEAP']);
-        Transaction::factory()->create(['real_total' => 200, 'invoice' => 'INV-PRICEY']);
+        Transaction::factory()->create(['total' => 100, 'invoice' => 'INV-CHEAP']);
+        Transaction::factory()->create(['total' => 200, 'invoice' => 'INV-PRICEY']);
 
-        $ascending = $this->indexHtml(['sort' => 'real_total', 'direction' => 'asc']);
+        $ascending = $this->indexHtml(['sort' => 'total', 'direction' => 'asc']);
         $this->assertOrder($ascending, 'INV-CHEAP', 'INV-PRICEY');
 
-        $descending = $this->indexHtml(['sort' => 'real_total', 'direction' => 'desc']);
+        $descending = $this->indexHtml(['sort' => 'total', 'direction' => 'desc']);
         $this->assertOrder($descending, 'INV-PRICEY', 'INV-CHEAP');
     }
 
