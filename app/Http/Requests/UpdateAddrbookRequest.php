@@ -2,9 +2,7 @@
 
 namespace App\Http\Requests;
 
-use App\Models\Addrbook;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
 
 class UpdateAddrbookRequest extends FormRequest
 {
@@ -41,11 +39,6 @@ class UpdateAddrbookRequest extends FormRequest
             'npwp' => ['nullable', 'string', 'max:20'],
             'operation_id' => ['nullable', 'integer', 'exists:operations,id'],
             'ledger_hint' => ['nullable', 'string', 'max:2000'],
-            'default_bank_id' => [
-                'nullable',
-                'integer',
-                Rule::exists('customers', 'id')->where(fn ($q) => $q->where('type', Addrbook::TYPE_BANK)),
-            ],
             'reporting_role' => ['nullable', 'string', 'max:30'],
             'is_internal_lending' => ['boolean'],
             'is_active_in_reports' => ['boolean'],

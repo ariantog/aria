@@ -2,7 +2,6 @@
 
 use App\Models\Addrbook;
 use App\Models\Operation;
-use App\Models\ReportingChannelBank;
 use App\Models\ReportingEntity;
 use App\Models\User;
 use Database\Seeders\ReportingBootstrapSeeder;
@@ -53,14 +52,11 @@ it('seeds reporting entities', function () {
 });
 
 it('stores reporting fields on customer create', function () {
-    $bank = Addrbook::create(['name' => 'BCA Report', 'type' => Addrbook::TYPE_BANK]);
-
     $this->actingAs($this->user)
         ->post(route('addrbook.store'), [
             'name' => 'Shopee Channel',
             'type' => Addrbook::TYPE_CUSTOMER,
             'npwp' => '12.345.678.9-000.000',
-            'default_bank_id' => $bank->id,
             'is_internal_lending' => true,
             'is_online' => false,
             'ppn' => false,
@@ -71,10 +67,15 @@ it('stores reporting fields on customer create', function () {
     $customer = Addrbook::where('name', 'Shopee Channel')->first();
     expect($customer)->not->toBeNull()
         ->and($customer->npwp)->toBe('12.345.678.9-000.000')
-        ->and($customer->default_bank_id)->toBe($bank->id)
         ->and($customer->is_internal_lending)->toBeTrue();
+});
 
-    expect(ReportingChannelBank::where('customer_id', $customer->id)->value('bank_id'))->toBe($bank->id);
+it('resolves reporting entity from cash-in receiver bank', function () {
+    $entity = ReportingEntity::create(['name' => 'CV Crystal', 'slug' => 'cv-crystal-test', 'is_pkp' => true]);
+    $bank = Addrbook::create(['name' => 'BCA Crystal', 'type' => Addrbook::TYPE_BANK]);
+    $entity->banks()->attach($bank->id, ['is_active' => true]);
+
+    expect(ReportingEntity::findActiveForBank($bank->id)?->slug)->toBe('cv-crystal-test');
 });
 
 it('stores ledger hint on account create', function () {

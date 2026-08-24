@@ -33,4 +33,15 @@ class ReportingEntity extends Model
     {
         return $this->hasMany(ReportingTaxAccount::class);
     }
+
+    /**
+     * Resolve the active reporting entity for a bank (CashIn receiver).
+     */
+    public static function findActiveForBank(int $bankId): ?self
+    {
+        return static::query()
+            ->where('is_active', true)
+            ->whereHas('banks', fn ($query) => $query->where('customers.id', $bankId))
+            ->first();
+    }
 }

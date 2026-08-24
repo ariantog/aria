@@ -182,7 +182,6 @@
 
     @include('addrbook.partials.reporting-fields', [
         'operations' => $operations ?? collect(),
-        'banks' => $banks ?? collect(),
         'assignedEntity' => $assignedEntity ?? null,
     ])
 
