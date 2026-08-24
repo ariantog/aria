@@ -1101,6 +1101,7 @@ function createTransaction() {
             const fd = new FormData();
             fd.append('csv_file', file);
             fd.append('warehouse_id', whId);
+            fd.append('type', _TxType);
             const res = await fetch('/transactions/batch-parse', {
                 method: 'POST',
                 headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'X-Requested-With': 'XMLHttpRequest' },

@@ -350,7 +350,12 @@ class TransactionsController extends Controller
 
     public function batchParse(Request $request)
     {
-        $request->validate(['csv_file' => 'required|mimes:csv,txt|max:5120', 'warehouse_id' => 'nullable|integer']);
+        $validated = $request->validate([
+            'csv_file' => 'required|mimes:csv,txt|max:5120',
+            'warehouse_id' => 'nullable|integer',
+            'type' => 'nullable|string',
+        ]);
+        $priceSource = config('transaction_rules.'.($validated['type'] ?? '').'.price_source', 'price');
         $file = $request->file('csv_file');
         $filePath = $file->getRealPath();
         $array = [];
@@ -398,6 +403,10 @@ class TransactionsController extends Controller
                     ])->values()->all();
                     $whQty = $warehouseItem[0]['quantity'] ?? 0;
                 }
+                $csvPrice = (float) $row['price'];
+                $itemPrice = (float) $item->price;
+                $itemCost = (float) $item->cost;
+                $unitPrice = $priceSource === 'cost' ? $itemCost : $csvPrice;
                 $dataList[] = [
                     'id' => (string) $item->id,
                     'item_id' => (string) $item->id,
@@ -407,9 +416,12 @@ class TransactionsController extends Controller
                     'warehouse_stock' => $whQty,
                     'warehouse_item' => $warehouseItem,
                     'warehouse_id' => $whid,
-                    'price' => (float) $row['price'],
+                    'price' => $unitPrice,
+                    'cost' => $itemCost,
+                    'item_price' => $itemPrice,
+                    'csv_price' => $csvPrice,
                     'discount' => 0,
-                    'subtotal' => (float) $row['qty'] * (float) $row['price'],
+                    'subtotal' => (float) $row['qty'] * $unitPrice,
                     'note' => '',
                 ];
             }
