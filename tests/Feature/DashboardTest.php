@@ -273,6 +273,84 @@ test('superadmin sees daily checklist widgets', function () {
         ->assertDontSee('data-testid="dashboard-nett-cash-summary"', false);
 });
 
+test('dashboard jubelio stock sync excludes jubelio-imported transactions', function () {
+    $user = User::factory()->create();
+    expect($user->is_superadmin)->toBeTrue();
+
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    Jubeliosync::create([
+        'jubelio_store_id' => 1,
+        'jubelio_store_name' => 'Store',
+        'jubelio_location_id' => 2,
+        'jubelio_location_name' => 'WH',
+        'warehouse_id' => $warehouse->id,
+        'customer_id' => 0,
+        'bin_id' => 0,
+    ]);
+
+    Transaction::factory()->create([
+        'date' => now()->toDateString(),
+        'type' => Transaction::TYPE_SELL,
+        'status' => Transaction::STATUS_COMPLETED,
+        'submit_type' => Transaction::SUBMIT_TYPE_MANUAL,
+        'sync_hide' => 'N',
+        'invoice' => 'INV-MANUAL-PENDING',
+        'real_total' => -150000,
+        'total' => -150000,
+        'sender_id' => $warehouse->id,
+        'receiver_id' => Addrbook::factory()->customer()->create()->id,
+        'user_id' => $user->id,
+        'a_submit_by' => null,
+    ]);
+
+    Transaction::factory()->create([
+        'date' => now()->toDateString(),
+        'type' => Transaction::TYPE_SELL,
+        'status' => Transaction::STATUS_COMPLETED,
+        'submit_type' => Transaction::SUBMIT_TYPE_JUBELIO,
+        'sync_hide' => 'N',
+        'invoice' => 'INV-JUBELIO-AUTO',
+        'real_total' => -200000,
+        'total' => -200000,
+        'sender_id' => $warehouse->id,
+        'receiver_id' => Addrbook::factory()->customer()->create()->id,
+        'user_id' => $user->id,
+        'a_submit_by' => null,
+    ]);
+
+    Transaction::factory()->create([
+        'date' => now()->toDateString(),
+        'type' => Transaction::TYPE_SELL,
+        'status' => Transaction::STATUS_COMPLETED,
+        'submit_type' => Transaction::SUBMIT_TYPE_MANUAL,
+        'sync_hide' => 'N',
+        'invoice' => 'INV-LEGACY-JUBELIO',
+        'real_total' => -300000,
+        'total' => -300000,
+        'sender_id' => $warehouse->id,
+        'receiver_id' => Addrbook::factory()->customer()->create()->id,
+        'user_id' => $user->id,
+        'a_submit_by' => null,
+    ]);
+
+    Jubelioorder::create([
+        'jubelio_order_id' => 'JO-LEGACY-1',
+        'source' => 1,
+        'invoice' => 'INV-LEGACY-JUBELIO',
+        'type' => 'SELL',
+        'order_status' => 'SHIPPED',
+        'run_count' => 1,
+        'status' => 2,
+    ]);
+
+    $this->actingAs($user)
+        ->get(route('dashboard'))
+        ->assertOk()
+        ->assertSee('INV-MANUAL-PENDING', false)
+        ->assertDontSee('INV-JUBELIO-AUTO', false)
+        ->assertDontSee('INV-LEGACY-JUBELIO', false);
+});
+
 test('restock viewers see urgent restock checklist without ops panel', function () {
     $user = User::factory()->create(['id' => 96]);
     Permission::firstOrCreate(['name' => 'restock-list', 'guard_name' => 'web']);

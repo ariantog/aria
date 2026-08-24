@@ -14,7 +14,7 @@ class JubelioTransactionSyncPresenter
     {
         $transaction->loadMissing(['sender', 'receiver', 'submitByA', 'submitByB', 'details.item']);
 
-        $isManual = $transaction->submit_type === Transaction::SUBMIT_TYPE_MANUAL;
+        $isManual = $transaction->isManual();
         $type = (int) $transaction->type;
 
         $syncRelevantA = in_array($type, [Transaction::TYPE_SELL, Transaction::TYPE_RETURN_SUPPLIER, Transaction::TYPE_MOVE], true);
@@ -59,7 +59,7 @@ class JubelioTransactionSyncPresenter
             'jubelio_b' => $jubelioB,
             'a_synced' => $isManual && (bool) $transaction->a_submit_by,
             'b_synced' => $isManual && (bool) $transaction->b_submit_by,
-            'is_from_jubelio' => $transaction->submit_type === Transaction::SUBMIT_TYPE_JUBELIO,
+            'is_from_jubelio' => $transaction->isFromJubelio(),
             'mapping_missing' => $mappingMissing,
             'adjust_type_a' => $adjustTypeA,
             'adjust_type_b' => $adjustTypeB,
