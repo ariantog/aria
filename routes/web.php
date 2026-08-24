@@ -13,9 +13,9 @@ Route::get('/', function () {
     ]);
 })->name('home');
 
-Route::get('dashboard', function () {
-    return view('dashboard');
-})->middleware(['auth', 'verified', 'active'])->name('dashboard');
+Route::get('dashboard', App\Http\Controllers\DashboardController::class)
+    ->middleware(['auth', 'verified', 'active'])
+    ->name('dashboard');
 
 Route::middleware(['auth', 'active'])->get('/banned', function () {
     if (request()->user()->active) {
