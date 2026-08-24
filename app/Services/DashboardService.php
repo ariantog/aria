@@ -9,10 +9,12 @@ use App\Models\Jubelioorder;
 use App\Models\JubelioStockCheck;
 use App\Models\Jubelioreturn;
 use App\Models\Produksi;
+use App\Models\RestockCell;
 use App\Models\ScheduledTask;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Models\WarehouseArrangementRefreshJob;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -43,8 +45,8 @@ class DashboardService
         $canBookClosing = Gate::forUser($user)->allows('transactions-list');
         $canWarehouseArrangement = Gate::forUser($user)->allows('report-warehouse-arrangement');
         $canActivity = Gate::forUser($user)->allows('transactions-list');
-        $canCashFlow = Gate::forUser($user)->allows('report-cash-flow');
-        $canNettCash = Gate::forUser($user)->allows('report-nett-cash');
+        $canJubelioStockSync = Gate::forUser($user)->allows(Jubelio::getPermissions()['sync']);
+        $canRestock = Gate::forUser($user)->allows('restock-list');
         $canProduksiList = Gate::forUser($user)->allows(Produksi::getPermissions()['view']);
         $canProduksiSetoran = Gate::forUser($user)->allows(Produksi::getPermissions()['setoran-view']);
 
@@ -52,14 +54,14 @@ class DashboardService
             'can' => [
                 'jubelio' => $canJubelio,
                 'jubelio_stock_check' => $canStockCheck,
+                'jubelio_stock_sync' => $canJubelioStockSync,
                 'stock_alerts' => $canStockAlerts,
                 'queue' => $canCron || $canJubelio,
                 'cron_manager' => $canCron,
                 'book_closing' => $canBookClosing,
                 'warehouse_arrangement' => $canWarehouseArrangement,
                 'activity' => $canActivity,
-                'cash_flow' => $canCashFlow,
-                'nett_cash' => $canNettCash,
+                'restock' => $canRestock,
                 'produksi_list' => $canProduksiList,
                 'produksi_setoran' => $canProduksiSetoran,
             ],
@@ -69,9 +71,9 @@ class DashboardService
                 || $canCron
                 || $canBookClosing
                 || $canWarehouseArrangement,
-            'has_analytics_panel' => $canActivity
-                || $canCashFlow
-                || $canNettCash
+            'has_daily_panel' => $canActivity
+                || $canJubelioStockSync
+                || $canRestock
                 || $canProduksiList
                 || $canProduksiSetoran,
         ];
@@ -108,12 +110,12 @@ class DashboardService
             $data['activity'] = $this->activityPanel();
         }
 
-        if ($canCashFlow) {
-            $data['cash_flow'] = $this->cashFlowPanel();
+        if ($canJubelioStockSync) {
+            $data['jubelio_stock_sync'] = $this->jubelioStockSyncPanel();
         }
 
-        if ($canNettCash) {
-            $data['nett_cash'] = $this->nettCashPanel();
+        if ($canRestock) {
+            $data['restock'] = $this->restockPanel();
         }
 
         if ($canProduksiList || $canProduksiSetoran) {
@@ -362,54 +364,70 @@ class DashboardService
     /**
      * @return array<string, mixed>
      */
-    protected function cashFlowPanel(): array
+    protected function jubelioStockSyncPanel(): array
     {
-        $start = now()->startOfMonth()->toDateString();
-        $end = now()->endOfMonth()->toDateString();
-
-        $rows = Transaction::query()
-            ->where('status', Transaction::STATUS_COMPLETED)
-            ->whereBetween('date', [$start, $end])
-            ->where('sender_type', '!=', '0')
-            ->where('receiver_type', '!=', '0')
-            ->get(['type', 'total', 'real_total']);
+        $query = $this->pendingJubelioStockSyncQuery();
 
         return [
-            'month_label' => now()->translatedFormat('F Y'),
-            'cash_in_total' => $this->sumTransactionAmount($rows, [Transaction::TYPE_CASH_IN]),
-            'cash_out_total' => $this->sumTransactionAmount($rows, [Transaction::TYPE_CASH_OUT]),
-            'sell_total' => $this->sumTransactionAmount($rows, [Transaction::TYPE_SELL]),
-            'buy_total' => $this->sumTransactionAmount($rows, [Transaction::TYPE_BUY]),
-            'return_total' => $this->sumTransactionAmount($rows, [Transaction::TYPE_RETURN]),
+            'pending_count' => (int) (clone $query)->count(),
+            'recent' => (clone $query)
+                ->with(['sender:id,name', 'receiver:id,name'])
+                ->orderByDesc('date')
+                ->orderByDesc('id')
+                ->limit(5)
+                ->get(['id', 'date', 'invoice', 'type', 'sender_id', 'receiver_id']),
         ];
     }
 
     /**
      * @return array<string, mixed>
      */
-    protected function nettCashPanel(): array
+    protected function restockPanel(): array
     {
-        $start = now()->startOfMonth()->toDateString();
-        $end = now()->endOfMonth()->toDateString();
-
-        $cashIn = (float) Transaction::query()
-            ->where('status', Transaction::STATUS_COMPLETED)
-            ->whereBetween('date', [$start, $end])
-            ->where('type', Transaction::TYPE_CASH_IN)
-            ->sum(DB::raw('ABS(COALESCE(real_total, total))'));
-
-        $cashOut = (float) Transaction::query()
-            ->where('status', Transaction::STATUS_COMPLETED)
-            ->whereBetween('date', [$start, $end])
-            ->where('type', Transaction::TYPE_CASH_OUT)
-            ->sum(DB::raw('ABS(COALESCE(real_total, total))'));
+        $urgentCells = RestockCell::query()
+            ->where('is_urgent', true)
+            ->with(['item:id,code,name', 'sheet:id,name,type_tag_id', 'sheet.typeTag:id,name'])
+            ->orderByDesc('urgent_flagged_at')
+            ->orderByDesc('updated_at');
 
         return [
-            'month_label' => now()->translatedFormat('F Y'),
-            'cash_in_total' => $cashIn,
-            'cash_out_total' => $cashOut,
-            'net_total' => $cashIn - $cashOut,
+            'urgent_count' => (int) (clone $urgentCells)->count(),
+            'recent' => (clone $urgentCells)->limit(5)->get(),
         ];
+    }
+
+    /**
+     * Manual transactions at Jubelio-synced warehouses that still need a stock push.
+     *
+     * @return Builder<Transaction>
+     */
+    protected function pendingJubelioStockSyncQuery(): Builder
+    {
+        return Transaction::query()
+            ->where('submit_type', Transaction::SUBMIT_TYPE_MANUAL)
+            ->where('sync_hide', 'N')
+            ->where(function ($query) {
+                $query->where(function ($query) {
+                    $query->whereIn('type', [Transaction::TYPE_SELL, Transaction::TYPE_RETURN_SUPPLIER])
+                        ->whereNull('a_submit_by')
+                        ->whereIn('sender_id', fn ($sub) => $sub->select('warehouse_id')->from('jubeliosyncs'));
+                })->orWhere(function ($query) {
+                    $query->whereIn('type', [Transaction::TYPE_BUY, Transaction::TYPE_RETURN])
+                        ->whereNull('b_submit_by')
+                        ->whereIn('receiver_id', fn ($sub) => $sub->select('warehouse_id')->from('jubeliosyncs'));
+                })->orWhere(function ($query) {
+                    $query->where('type', Transaction::TYPE_MOVE)
+                        ->where(function ($query) {
+                            $query->where(function ($query) {
+                                $query->whereIn('sender_id', fn ($sub) => $sub->select('warehouse_id')->from('jubeliosyncs'))
+                                    ->whereNull('a_submit_by');
+                            })->orWhere(function ($query) {
+                                $query->whereIn('receiver_id', fn ($sub) => $sub->select('warehouse_id')->from('jubeliosyncs'))
+                                    ->whereNull('b_submit_by');
+                            });
+                        });
+                });
+            });
     }
 
     /**
