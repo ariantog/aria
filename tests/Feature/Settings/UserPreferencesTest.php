@@ -85,3 +85,14 @@ test('transaction defaults lookup respects addrbook type', function () {
         ->assertJsonFragment(['id' => $this->supplier->id, 'name' => 'Pref Supplier'])
         ->assertJsonMissing(['id' => $this->warehouse->id]);
 });
+
+test('any authenticated user can access transaction defaults without special permission', function () {
+    $regularUser = User::factory()->create();
+
+    expect($regularUser->is_superadmin)->toBeFalse();
+
+    $this->actingAs($regularUser)
+        ->get(route('transaction-defaults.edit'))
+        ->assertOk()
+        ->assertSee('Transaction defaults', false);
+});
