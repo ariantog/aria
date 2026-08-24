@@ -26,6 +26,7 @@ test('bank transfer can be stored and updates balances', function () {
         'type' => Transaction::TYPE_TRANSFER,
         'sender_id' => $bankSource->id,
         'receiver_id' => $bankDest->id,
+        'total' => 5000,
         'real_total' => 5000,
     ]);
 
@@ -77,6 +78,7 @@ test('transfer accepts virtual accounts as source or destination', function () {
         'sender_type' => Addrbook::TYPE_V_ACCOUNT,
         'receiver_id' => $bank->id,
         'receiver_type' => Addrbook::TYPE_BANK,
+        'total' => 2500,
         'real_total' => 2500,
     ]);
 });

@@ -32,6 +32,7 @@ class CreateTransferTransaction
                 'notes' => $data['description'] ?? null,
                 'user_id' => Auth::id(),
                 'status' => Transaction::STATUS_COMPLETED,
+                'total' => (float) $data['total'],
                 'real_total' => (float) $data['total'],
                 'total_items' => 0,
                 'adjustment' => 0,

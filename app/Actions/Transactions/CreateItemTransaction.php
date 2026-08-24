@@ -107,6 +107,19 @@ class CreateItemTransaction
         $transaction->refresh();
         $itemsTotal = (float) $transaction->details()->sum('total');
         $totalItems = (float) $transaction->details()->sum('quantity');
+        if ($type === Transaction::TYPE_MOVE) {
+            $transaction->update([
+                'total' => 0,
+                'real_total' => 0,
+                'discount' => 0,
+                'adjustment' => 0,
+                'ppn' => 0,
+                'total_items' => $totalItems,
+            ]);
+
+            return;
+        }
+
         $discountPercent = (float) ($data['discount_percent'] ?? 0);
         $adjustment = (float) ($data['adjustment'] ?? 0);
         $isPpn = $this->shouldApplyPpn($type, $sender->id, $receiver->id);
