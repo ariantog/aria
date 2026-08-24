@@ -53,19 +53,23 @@ class ProductionMysqlCompat
     }
 
     /**
-     * Prepare a table then run ALTER statements under relaxed sql_mode.
+     * Run ALTER statements under relaxed sql_mode with short lock timeouts.
+     *
+     * Relaxed sql_mode already lets ALTERs succeed on tables that still contain
+     * legacy zero dates, so no per-table data scan is needed here — the actual
+     * data cleanup lives in 2026_08_13_115000_normalize_legacy_mysql_zero_dates.
      */
     public static function alterTable(string $table, callable $callback): void
     {
-        if (! self::isMysql()) {
-            $callback();
-
-            return;
-        }
-
-        self::normalizeZeroDatesOnTable($table);
         self::withRelaxedSqlMode($callback);
     }
+
+    /**
+     * MariaDB's default lock_wait_timeout is 86400s (one day). An ALTER waiting
+     * that long for a metadata lock also blocks every later query on the table,
+     * freezing a live site. Cap waits so a busy table fails fast instead.
+     */
+    public const LOCK_WAIT_SECONDS = 15;
 
     public static function withRelaxedSqlMode(callable $callback): void
     {
@@ -76,13 +80,29 @@ class ProductionMysqlCompat
         }
 
         DB::statement('SET @aria_old_sql_mode = @@SESSION.sql_mode');
+        DB::statement('SET @aria_old_lock_wait = @@SESSION.lock_wait_timeout');
+        DB::statement('SET @aria_old_innodb_wait = @@SESSION.innodb_lock_wait_timeout');
         DB::statement("SET SESSION sql_mode = 'ALLOW_INVALID_DATES'");
+        DB::statement('SET SESSION lock_wait_timeout = '.self::LOCK_WAIT_SECONDS);
+        DB::statement('SET SESSION innodb_lock_wait_timeout = '.self::LOCK_WAIT_SECONDS);
 
         try {
             $callback();
         } finally {
             DB::statement('SET SESSION sql_mode = @aria_old_sql_mode');
+            DB::statement('SET SESSION lock_wait_timeout = @aria_old_lock_wait');
+            DB::statement('SET SESSION innodb_lock_wait_timeout = @aria_old_innodb_wait');
         }
+    }
+
+    /**
+     * Lock-wait / deadlock errors mean "table busy right now, retry later" —
+     * they must not be swallowed like schema incompatibilities.
+     */
+    public static function isLockTimeoutError(\Throwable $e): bool
+    {
+        return str_contains($e->getMessage(), 'Lock wait timeout exceeded')
+            || str_contains($e->getMessage(), 'Deadlock found');
     }
 
     /**

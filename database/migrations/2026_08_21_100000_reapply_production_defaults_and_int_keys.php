@@ -1,5 +1,6 @@
 <?php
 
+use App\Support\ProductionMysqlCompat;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -55,7 +56,9 @@ return new class extends Migration
 
             $this->dropForeignKeyIfExists('standalone_invoices', "standalone_invoices_{$column}_foreign");
 
-            DB::statement("ALTER TABLE `standalone_invoices` MODIFY `{$column}` INT UNSIGNED NULL DEFAULT NULL");
+            ProductionMysqlCompat::withRelaxedSqlMode(function () use ($column) {
+                DB::statement("ALTER TABLE `standalone_invoices` MODIFY `{$column}` INT UNSIGNED NULL DEFAULT NULL");
+            });
         }
     }
 

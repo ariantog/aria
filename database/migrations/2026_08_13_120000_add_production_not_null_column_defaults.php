@@ -53,12 +53,27 @@ return new class extends Migration
             $byTable[$column->TABLE_NAME][] = [$column, $defaultSql];
         }
 
+        $busyTables = [];
+
         foreach ($byTable as $table => $alterations) {
-            ProductionMysqlCompat::alterTable($table, function () use ($alterations) {
+            ProductionMysqlCompat::alterTable($table, function () use ($alterations, $table, &$busyTables) {
                 foreach ($alterations as [$column, $defaultSql]) {
-                    $this->applyDefault($column, $defaultSql);
+                    if (! $this->applyDefault($column, $defaultSql)) {
+                        $busyTables[$table] = true;
+
+                        return;
+                    }
                 }
             });
+        }
+
+        if ($busyTables !== []) {
+            throw new \RuntimeException(
+                'Tables locked by other connections (lock wait exceeded '
+                .ProductionMysqlCompat::LOCK_WAIT_SECONDS.'s): '
+                .implode(', ', array_keys($busyTables))
+                .'. Completed tables are saved; pause crons / wait for a quiet moment and re-run this migration.'
+            );
         }
     }
 
@@ -94,7 +109,9 @@ return new class extends Migration
             in_array($type, ['varchar', 'char', 'varbinary', 'binary'], true) => "''",
             $type === 'enum' => $this->firstEnumDefault($column->COLUMN_TYPE),
             $type === 'date' => "'1970-01-01'",
-            in_array($type, ['datetime', 'timestamp'], true) => "'1970-01-01 00:00:00'",
+            $type === 'datetime' => "'1970-01-01 00:00:00'",
+            // '1970-01-01 00:00:00' is outside the TIMESTAMP range east of UTC.
+            $type === 'timestamp' => "'1971-01-01 00:00:00'",
             in_array($type, ['text', 'tinytext', 'mediumtext', 'longtext'], true) => "''",
             in_array($type, ['blob', 'tinyblob', 'mediumblob', 'longblob'], true) => "''",
             default => null,
@@ -117,7 +134,11 @@ return new class extends Migration
         return DB::getPdo()->quote($first);
     }
 
-    private function applyDefault(object $column, string $defaultSql): void
+    /**
+     * @return bool false when the table is locked by another connection and
+     *              the migration must be re-run later.
+     */
+    private function applyDefault(object $column, string $defaultSql): bool
     {
         $sql = sprintf(
             'ALTER TABLE `%s` MODIFY `%s` %s NOT NULL DEFAULT %s',
@@ -130,10 +151,14 @@ return new class extends Migration
         try {
             DB::statement($sql);
 
-            return;
-        } catch (\Throwable) {
+            return true;
+        } catch (\Throwable $e) {
+            if (ProductionMysqlCompat::isLockTimeoutError($e)) {
+                return false;
+            }
+
             if (! $this->canRelaxToNullable($column)) {
-                return;
+                return true;
             }
         }
 
@@ -144,9 +169,14 @@ return new class extends Migration
                 $column->COLUMN_NAME,
                 $column->COLUMN_TYPE
             ));
-        } catch (\Throwable) {
+        } catch (\Throwable $e) {
+            if (ProductionMysqlCompat::isLockTimeoutError($e)) {
+                return false;
+            }
             // Leave column unchanged if the host MySQL/MariaDB build rejects the ALTER.
         }
+
+        return true;
     }
 
     private function canRelaxToNullable(object $column): bool
