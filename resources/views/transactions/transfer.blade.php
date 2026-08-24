@@ -58,7 +58,7 @@
                             class="w-full rounded-lg border px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 @error('sender') border-red-500 @else border-gray-300 @enderror">
                         <option value="">Choose source account</option>
                         @foreach($bankList as $bank)
-                        <option value="{{ $bank->id }}" @selected(old('sender') == $bank->id)>{{ $bank->name }}</option>
+                        <option value="{{ $bank->id }}" @selected(old('sender', $defaultAccounts['sender_id'] ?? null) == $bank->id)>{{ $bank->name }}</option>
                         @endforeach
                     </select>
                     @error('sender')<p class="text-xs text-red-500">{{ $message }}</p>@enderror
@@ -71,7 +71,7 @@
                             class="w-full rounded-lg border px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 @error('receiver') border-red-500 @else border-gray-300 @enderror">
                         <option value="">Choose destination account</option>
                         @foreach($bankList as $bank)
-                        <option value="{{ $bank->id }}" @selected(old('receiver') == $bank->id)>{{ $bank->name }}</option>
+                        <option value="{{ $bank->id }}" @selected(old('receiver', $defaultAccounts['receiver_id'] ?? null) == $bank->id)>{{ $bank->name }}</option>
                         @endforeach
                     </select>
                     @error('receiver')<p class="text-xs text-red-500">{{ $message }}</p>@enderror
