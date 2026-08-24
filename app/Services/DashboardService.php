@@ -404,30 +404,9 @@ class DashboardService
     protected function pendingJubelioStockSyncQuery(): Builder
     {
         return Transaction::query()
-            ->where('submit_type', Transaction::SUBMIT_TYPE_MANUAL)
+            ->excludeJubelioImportOrigin()
             ->where('sync_hide', 'N')
-            ->where(function ($query) {
-                $query->where(function ($query) {
-                    $query->whereIn('type', [Transaction::TYPE_SELL, Transaction::TYPE_RETURN_SUPPLIER])
-                        ->whereNull('a_submit_by')
-                        ->whereIn('sender_id', fn ($sub) => $sub->select('warehouse_id')->from('jubeliosyncs'));
-                })->orWhere(function ($query) {
-                    $query->whereIn('type', [Transaction::TYPE_BUY, Transaction::TYPE_RETURN])
-                        ->whereNull('b_submit_by')
-                        ->whereIn('receiver_id', fn ($sub) => $sub->select('warehouse_id')->from('jubeliosyncs'));
-                })->orWhere(function ($query) {
-                    $query->where('type', Transaction::TYPE_MOVE)
-                        ->where(function ($query) {
-                            $query->where(function ($query) {
-                                $query->whereIn('sender_id', fn ($sub) => $sub->select('warehouse_id')->from('jubeliosyncs'))
-                                    ->whereNull('a_submit_by');
-                            })->orWhere(function ($query) {
-                                $query->whereIn('receiver_id', fn ($sub) => $sub->select('warehouse_id')->from('jubeliosyncs'))
-                                    ->whereNull('b_submit_by');
-                            });
-                        });
-                });
-            });
+            ->pendingManualJubelioStockSync();
     }
 
     /**

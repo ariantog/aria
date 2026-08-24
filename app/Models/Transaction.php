@@ -6,6 +6,7 @@ use App\Support\ProductionColumnDefaults;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Schema;
 
@@ -232,6 +233,63 @@ class Transaction extends Model
     public function scopeVisibleToUser(Builder $query, ?User $user): Builder
     {
         return app(\App\Services\LocationAccessService::class)->applyTransactionScope($query, $user);
+    }
+
+    /**
+     * Exclude transactions created by the Jubelio order-import cron (including legacy rows
+     * that still have submit_type = manual).
+     */
+    public function scopeExcludeJubelioImportOrigin(Builder $query): Builder
+    {
+        return $query
+            ->where('submit_type', self::SUBMIT_TYPE_MANUAL)
+            ->whereNotExists(function ($sub) {
+                $sub->select(DB::raw(1))
+                    ->from('jubelioorders')
+                    ->whereColumn('jubelioorders.invoice', 'transactions.invoice')
+                    ->where(function ($match) {
+                        $match->where(function ($match) {
+                            $match->where('jubelioorders.type', 'SELL')
+                                ->where('transactions.type', self::TYPE_SELL);
+                        })->orWhere(function ($match) {
+                            $match->where('jubelioorders.type', 'RETURN')
+                                ->where('transactions.type', self::TYPE_RETURN);
+                        });
+                    });
+            })
+            ->when(
+                Schema::getConnection()->getDriverName() === 'mysql',
+                fn (Builder $builder) => $builder->where('user_id', '!=', self::JUBELIO_CRON_USER_ID),
+            );
+    }
+
+    /**
+     * Manual Aria transactions at Jubelio-synced warehouses that still need a stock push.
+     */
+    public function scopePendingManualJubelioStockSync(Builder $query): Builder
+    {
+        return $query->where(function (Builder $query) {
+            $query->where(function (Builder $query) {
+                $query->whereIn('type', [self::TYPE_SELL, self::TYPE_RETURN_SUPPLIER])
+                    ->whereNull('a_submit_by')
+                    ->whereIn('sender_id', fn ($sub) => $sub->select('warehouse_id')->from('jubeliosyncs'));
+            })->orWhere(function (Builder $query) {
+                $query->whereIn('type', [self::TYPE_BUY, self::TYPE_RETURN])
+                    ->whereNull('b_submit_by')
+                    ->whereIn('receiver_id', fn ($sub) => $sub->select('warehouse_id')->from('jubeliosyncs'));
+            })->orWhere(function (Builder $query) {
+                $query->where('type', self::TYPE_MOVE)
+                    ->where(function (Builder $query) {
+                        $query->where(function (Builder $query) {
+                            $query->whereIn('sender_id', fn ($sub) => $sub->select('warehouse_id')->from('jubeliosyncs'))
+                                ->whereNull('a_submit_by');
+                        })->orWhere(function (Builder $query) {
+                            $query->whereIn('receiver_id', fn ($sub) => $sub->select('warehouse_id')->from('jubeliosyncs'))
+                                ->whereNull('b_submit_by');
+                        });
+                    });
+            });
+        });
     }
 
     public static function getPermissions(): array
