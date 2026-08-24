@@ -16,7 +16,9 @@ use App\Models\Transaction;
 use App\Models\User;
 use App\Models\WarehouseArrangementRefreshJob;
 use App\Models\Worker;
+use App\Services\DashboardService;
 use App\Services\PermissionGenerator;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Permission;
 
@@ -31,6 +33,41 @@ test('authenticated users can visit the dashboard', function () {
 
     $response = $this->get(route('dashboard'));
     $response->assertOk();
+});
+
+test('dashboard panel cache is sitewide across users', function () {
+    Cache::flush();
+
+    $superadmin = User::factory()->create();
+    expect($superadmin->is_superadmin)->toBeTrue();
+
+    $limitedUser = User::factory()->create(['id' => 55]);
+    Permission::firstOrCreate(['name' => 'transactions-list', 'guard_name' => 'web']);
+    $limitedUser->givePermissionTo('transactions-list');
+
+    Transaction::factory()->create([
+        'date' => now()->toDateString(),
+        'type' => Transaction::TYPE_SELL,
+        'status' => Transaction::STATUS_COMPLETED,
+        'real_total' => -50000,
+        'total' => -50000,
+        'sender_id' => Addrbook::factory()->warehouse()->create()->id,
+        'receiver_id' => Addrbook::factory()->customer()->create()->id,
+        'user_id' => $superadmin->id,
+    ]);
+
+    $activityKey = DashboardService::panelCacheKey('activity.'.now()->toDateString());
+
+    $this->actingAs($superadmin)->get(route('dashboard'))->assertOk();
+    $cachedActivity = Cache::get($activityKey);
+    expect($cachedActivity)->not->toBeNull();
+
+    Transaction::query()->delete();
+
+    $this->actingAs($limitedUser)->get(route('dashboard'))->assertOk();
+    expect(Cache::get($activityKey))->toBe($cachedActivity);
+    expect(DashboardService::panelCacheKey('activity.'.now()->toDateString()))
+        ->not->toContain((string) $limitedUser->id);
 });
 
 test('superadmin sees phase 1 dashboard widgets', function () {
