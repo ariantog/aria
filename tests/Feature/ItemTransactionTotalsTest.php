@@ -186,3 +186,32 @@ it('keeps total as line subtotal while real_total reflects header discount on se
         'ppn' => 0,
     ]);
 });
+
+it('stores move transactions without monetary total or real_total', function () {
+    $user = User::factory()->create();
+    $source = Addrbook::factory()->warehouse()->create();
+    $destination = Addrbook::factory()->warehouse()->create();
+    $item = Item::factory()->create(['price' => 10_000, 'cost' => 5_000]);
+    seedWarehouseStock($source, $item);
+
+    postItemTransaction($user, [
+        'date' => now()->toDateString(),
+        'type' => 'move',
+        'sender_id' => $source->id,
+        'receiver_id' => $destination->id,
+        'items' => [[
+            'item_id' => $item->id,
+            'quantity' => 4,
+            'price' => 10_000,
+            'discount' => 0,
+        ]],
+    ])->assertRedirect();
+
+    $this->assertDatabaseHas('transactions', [
+        'type' => Transaction::TYPE_MOVE,
+        'total' => 0,
+        'real_total' => 0,
+        'total_items' => 4,
+        'ppn' => 0,
+    ]);
+});
