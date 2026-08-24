@@ -48,7 +48,7 @@ class DemoDataSeeder extends Seeder
         // firstOrCreate, not updateOrCreate: never overwrite a contact that already exists,
         // in case these demo names collide with real data.
         foreach ($entries as $i => [$name, $type]) {
-            $book[$name] = Addrbook::firstOrCreate(
+            $addrbook = Addrbook::firstOrCreate(
                 ['name' => $name],
                 [
                     'type'    => $type,
@@ -57,7 +57,15 @@ class DemoDataSeeder extends Seeder
                     'phone'   => '08'.str_pad((string) (1000000 + $i), 10, '0', STR_PAD_LEFT),
                     'address' => 'Jl. Contoh No. '.($i + 1).', Jakarta',
                 ]
-            )->id;
+            );
+            $book[$name] = $addrbook->id;
+        }
+
+        $locationId = DB::table('locations')->orderBy('id')->value('id');
+        if ($locationId) {
+            foreach (array_values($book) as $addrbookId) {
+                Addrbook::find($addrbookId)?->locations()->syncWithoutDetaching([$locationId]);
+            }
         }
 
         // ---- Items ----------------------------------------------------------------

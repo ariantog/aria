@@ -98,3 +98,16 @@ test('any authenticated user can access transaction defaults without special per
         ->assertSee('Default supplier', false)
         ->assertSee('Save defaults', false);
 });
+
+test('transaction defaults lookup returns contacts linked to the user location', function () {
+    $location = \App\Models\Location::factory()->create();
+    $supplier = Addrbook::factory()->supplier()->create(['name' => 'Loc Supplier']);
+    $supplier->locations()->attach($location->id);
+
+    $user = User::factory()->create(['location_id' => $location->id]);
+
+    $this->actingAs($user)
+        ->getJson(route('transaction-defaults.lookup', ['type' => 'supplier', 'search' => 'Loc']))
+        ->assertOk()
+        ->assertJsonFragment(['name' => 'Loc Supplier']);
+});
