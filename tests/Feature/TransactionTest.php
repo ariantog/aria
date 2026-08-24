@@ -150,6 +150,7 @@ class TransactionTest extends TestCase
             'type' => Transaction::TYPE_RETURN_SUPPLIER,
             'sender_id' => $warehouse->id,
             'receiver_id' => $reseller->id,
+            'total' => 25000,
             'real_total' => -25000, // Negative for return supplier
         ]);
 
