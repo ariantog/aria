@@ -108,12 +108,13 @@
 @endif
 
 {{-- ── Stuff (Items, etc.) ───────────────────────────────────────────── --}}
-@if($hasPerm('items-list') || $hasPerm('restock-list') || $hasPerm('report-item-sales') || $hasPerm('report-warehouse-item') || $hasPerm('report-warehouse-arrangement') || $hasPerm('report-product-performance') || $hasPerm('report-inventory-health') || $hasPerm('stock-notification-list') || $isSuperAdmin)
+@if($hasPerm('items-list') || $hasPerm('restock-list') || $hasPerm('report-item-sales') || $hasPerm('report-warehouse-item') || $hasPerm('report-warehouse-arrangement') || $hasPerm('report-compare') || $hasPerm('report-product-performance') || $hasPerm('report-inventory-health') || $hasPerm('stock-notification-list') || $isSuperAdmin)
 @php
     $stuffActive = $isActive('/items') || $isActive('/assetlancar') || $isActive('/tags') || $isActive('/restock')
         || $isActive('/stock-notifications')
         || $isActive('/reports/item-sales') || $isActive('/reports/warehouse-item')
-        || $isActive('/reports/warehouse-arrangement') || $isActive('/reports/product-performance')
+        || $isActive('/reports/warehouse-arrangement') || $isActive('/reports/compare')
+        || $isActive('/reports/product-performance')
         || $isActive('/reports/inventory-health');
 @endphp
 <div x-data="{ open: {{ $stuffActive ? 'true' : 'false' }} }" class="mb-1">
@@ -150,6 +151,9 @@
         @if($hasPerm('report-warehouse-item') || $isSuperAdmin)
         <a href="{{ route('reports.warehouse-item') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/warehouse-item') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Item Gudang</a>
         @endif
+        @if($hasPerm('report-compare') || $isSuperAdmin)
+        <a href="{{ route('reports.compare') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/compare') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Compare</a>
+        @endif
         @if($hasPerm('report-warehouse-arrangement') || $isSuperAdmin)
         <a href="{{ route('reports.warehouse-arrangement') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/warehouse-arrangement') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Warehouse Arrangement</a>
         @endif
@@ -167,10 +171,10 @@
 @endif
 
 {{-- ── Reports ───────────────────────────────────────────────────────── --}}
-@if($hasPerm('report-nett-cash') || $hasPerm('report-cash-flow') || $hasPerm('report-compare') || $hasPerm('report-expense') || $isSuperAdmin)
+@if($hasPerm('report-nett-cash') || $hasPerm('report-cash-flow') || $hasPerm('report-expense') || $isSuperAdmin)
 @php
     $repActive = $isActive('/reports/nett-cash-sby') || $isActive('/reports/cash-flow')
-        || $isActive('/reports/compare') || $isActive('/reports/expense')
+        || $isActive('/reports/expense')
         || $isActive('/reports/entities');
 @endphp
 <div x-data="{ open: {{ $repActive ? 'true' : 'false' }} }" class="mb-1">
@@ -187,9 +191,6 @@
         @endif
         @if($hasPerm('report-cash-flow') || $isSuperAdmin)
         <a href="{{ route('reports.cash-flow') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/cash-flow') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Cash Flow</a>
-        @endif
-        @if($hasPerm('report-compare') || $isSuperAdmin)
-        <a href="{{ route('reports.compare') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/compare') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Compare</a>
         @endif
         @if($hasPerm('report-expense') || $isSuperAdmin)
         <a href="{{ route('reports.expense') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/expense') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Laporan Biaya</a>
