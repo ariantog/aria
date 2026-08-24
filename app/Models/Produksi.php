@@ -14,15 +14,65 @@ class Produksi extends Model
 
     protected $table = 'prod_produksi';
 
-    const STATUS_PRODUKSI = 1;
+    /** @see old/ProduksiModel.php — legacy prod_produksi.status values */
+    const STATUS_PRODUKSI = 0;
 
-    const STATUS_SETOR = 2;
+    const STATUS_SETOR = 1;
 
     const STATUS_BAYAR = 3;
 
     const STATUS_GUDANG = 5;
 
     const STATUS_BOTH = 15;
+
+    /** @return list<int> */
+    public static function setoranStatuses(): array
+    {
+        return [
+            self::STATUS_SETOR,
+            self::STATUS_BAYAR,
+            self::STATUS_GUDANG,
+            self::STATUS_BOTH,
+        ];
+    }
+
+    public static function statusLabel(int $status): string
+    {
+        return match ($status) {
+            self::STATUS_PRODUKSI => 'Produksi',
+            self::STATUS_SETOR => '-Bayar-Turun',
+            self::STATUS_BAYAR => '+Bayar-Turun',
+            self::STATUS_GUDANG => '-Bayar+Turun',
+            self::STATUS_BOTH => '+Bayar+Turun',
+            default => (string) $status,
+        };
+    }
+
+    /** @return list<array{id: int, name: string}> */
+    public static function statusFilterOptions(): array
+    {
+        return [
+            ['id' => self::STATUS_SETOR, 'name' => '-Bayar-Turun'],
+            ['id' => self::STATUS_BAYAR, 'name' => '+Bayar-Turun'],
+            ['id' => self::STATUS_GUDANG, 'name' => '-Bayar+Turun'],
+            ['id' => self::STATUS_BOTH, 'name' => '+Bayar+Turun'],
+        ];
+    }
+
+    public function setoranRowClass(): string
+    {
+        return match ((int) $this->status) {
+            self::STATUS_BAYAR => 'bg-red-100 hover:bg-red-200',
+            self::STATUS_GUDANG => 'bg-orange-100 hover:bg-orange-200',
+            self::STATUS_BOTH => 'bg-green-100 hover:bg-green-200',
+            default => 'hover:bg-gray-50/50',
+        };
+    }
+
+    public function isInWarehouse(): bool
+    {
+        return in_array((int) $this->status, [self::STATUS_GUDANG, self::STATUS_BOTH], true);
+    }
 
     protected $guarded = ['id'];
 
