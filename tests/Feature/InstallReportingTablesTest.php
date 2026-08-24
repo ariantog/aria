@@ -27,7 +27,8 @@ it('installs reporting summary tables via dedicated migration path', function ()
     ]);
 
     expect(Schema::hasTable('reporting_entity_monthly_summaries'))->toBeTrue()
-        ->and(Schema::hasTable('reporting_operation_monthly_summaries'))->toBeTrue();
+        ->and(Schema::hasTable('reporting_operation_monthly_summaries'))->toBeTrue()
+        ->and(Schema::hasTable('monthly_tax_summaries'))->toBeTrue();
 });
 
 it('uses integer columns for customer references in reporting tables', function () {

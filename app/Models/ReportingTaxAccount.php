@@ -18,4 +18,11 @@ class ReportingTaxAccount extends Model
     {
         return $this->belongsTo(ReportingEntity::class, 'reporting_entity_id');
     }
+
+    public static function findForLedger(int $ledgerId): ?self
+    {
+        $canonicalId = LedgerMergeMap::resolveCanonicalCustomerId($ledgerId);
+
+        return static::query()->where('legacy_ledger_id', $canonicalId)->first();
+    }
 }
