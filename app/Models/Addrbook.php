@@ -227,7 +227,25 @@ class Addrbook extends Model
 
     public function operation()
     {
-        return $this->belongsTo(Operation::class, 'operation_id');
+        return $this->belongsTo(Operation::class, 'parent_id');
+    }
+
+    /** Legacy accounts store operation category on customers.parent_id. */
+    public function getOperationIdAttribute(): ?int
+    {
+        $parentId = (int) ($this->attributes['parent_id'] ?? 0);
+        if ($parentId > 0) {
+            return $parentId;
+        }
+
+        $operationId = (int) ($this->attributes['operation_id'] ?? 0);
+
+        return $operationId > 0 ? $operationId : null;
+    }
+
+    public function setOperationIdAttribute(mixed $value): void
+    {
+        $this->attributes['parent_id'] = $value ? (int) $value : 0;
     }
 
     public function defaultBank()

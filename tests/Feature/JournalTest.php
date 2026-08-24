@@ -39,7 +39,7 @@ test('can create account list linked to operation', function () {
     $this->assertDatabaseHas('customers', [
         'name' => 'Bank BCA',
         'type' => Addrbook::TYPE_ACCOUNT,
-        'operation_id' => $operation->id,
+        'parent_id' => $operation->id,
     ]);
 
     $account = Addrbook::where('name', 'Bank BCA')->first();
@@ -53,7 +53,7 @@ it('can view operation ledger page', function () {
     $operation = Operation::factory()->create();
     $account = Addrbook::factory()->create([
         'type' => Addrbook::TYPE_ACCOUNT,
-        'operation_id' => $operation->id,
+        'parent_id' => $operation->id,
     ]);
 
     $response = $this->actingAs($this->user)->get("/journals/account-list/{$account->id}/ledger");
@@ -74,9 +74,26 @@ test('can view ledger for account', function () {
     $account = Addrbook::create([
         'name' => 'Sales Info',
         'type' => Addrbook::TYPE_ACCOUNT,
-        'operation_id' => $operation->id,
+        'parent_id' => $operation->id,
     ]);
 
     $response = $this->actingAs($this->user)->get("/journals/account-list/{$account->id}/ledger");
     $response->assertStatus(200);
+});
+
+test('account list shows operation from legacy parent_id', function () {
+    $operation = Operation::create(['name' => 'Operational Expenses']);
+
+    Addrbook::create([
+        'name' => 'Office Rent',
+        'type' => Addrbook::TYPE_ACCOUNT,
+        'parent_id' => $operation->id,
+    ]);
+
+    $response = $this->actingAs($this->user)->get('/journals/account-list');
+
+    $response->assertOk()
+        ->assertSee('Office Rent')
+        ->assertSee('Operational Expenses')
+        ->assertDontSee('Uncategorized');
 });

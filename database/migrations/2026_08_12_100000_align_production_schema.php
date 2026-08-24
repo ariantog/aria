@@ -48,6 +48,9 @@ return new class extends Migration
 
         ProductionMysqlCompat::alterTable($table, function () use ($table) {
             Schema::table($table, function (Blueprint $blueprint) use ($table) {
+                if ($table === 'customers' && ! Schema::hasColumn($table, 'parent_id')) {
+                    $blueprint->unsignedInteger('parent_id')->default(0);
+                }
                 if ($table === 'customers' && ! Schema::hasColumn($table, 'operation_id')) {
                     $blueprint->integer('operation_id')->nullable()->after('ppn');
                 }

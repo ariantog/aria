@@ -95,7 +95,8 @@ it('stores ledger hint on account create', function () {
 
     $account = Addrbook::where('name', 'Biaya Test')->first();
     expect($account->ledger_hint)->toBe('Use for test expenses only.')
-        ->and($account->operation_id)->toBe($operation->id);
+        ->and($account->operation_id)->toBe($operation->id)
+        ->and($account->parent_id)->toBe($operation->id);
 });
 
 it('returns ledger_hint in transaction lookup', function () {
