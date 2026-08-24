@@ -47,8 +47,9 @@ it('forbids reporting entities for non-superadmin', function () {
 it('seeds reporting entities', function () {
     $this->seed(ReportingBootstrapSeeder::class);
 
-    expect(ReportingEntity::count())->toBeGreaterThanOrEqual(8);
-    expect(ReportingEntity::where('slug', 'cv-crystal')->exists())->toBeTrue();
+    expect(ReportingEntity::where('is_active', true)->count())->toBe(7);
+    expect(ReportingEntity::where('slug', 'pt-core')->first())
+        ->is_active->toBeFalse();
 });
 
 it('stores reporting fields on customer create', function () {

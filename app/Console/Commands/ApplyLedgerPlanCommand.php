@@ -4,6 +4,8 @@ namespace App\Console\Commands;
 
 use App\Models\Addrbook;
 use App\Models\LedgerMergeMap;
+use App\Models\ReportingEntity;
+use App\Models\ReportingTaxAccount;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
@@ -33,7 +35,10 @@ class ApplyLedgerPlanCommand extends Command
             2854 => 2842, // FX Cost → Citos Toko
         ];
 
-        $softDelete = [817, 1644, 2731]; // Gaji Harian, Plotter, Pendapatan FitBox
+        $softDelete = [
+            817, 1644, 2731, // Gaji Harian, Plotter, Pendapatan FitBox
+            2805, 2806, 2808, 2809, // PT Core tax ledgers (entity retired)
+        ];
 
         if ($dry) {
             $this->info('Dry run — no changes applied.');
@@ -75,10 +80,34 @@ class ApplyLedgerPlanCommand extends Command
                     $a->delete();
                 }
             }
+
+            $this->retirePtCoreEntity($dry);
         });
 
         $this->info($dry ? 'Dry run complete.' : 'Ledger plan applied.');
 
         return self::SUCCESS;
+    }
+
+    private function retirePtCoreEntity(bool $dry): void
+    {
+        $entity = ReportingEntity::query()->where('slug', 'pt-core')->first();
+        if (! $entity) {
+            return;
+        }
+
+        $bankCount = $entity->banks()->count();
+        $this->line("Retire reporting entity: {$entity->name} (detach {$bankCount} bank(s), mark inactive)");
+
+        if ($dry) {
+            return;
+        }
+
+        $entity->banks()->detach();
+        ReportingTaxAccount::query()->where('reporting_entity_id', $entity->id)->delete();
+        $entity->update([
+            'is_active' => false,
+            'notes' => trim(($entity->notes ? $entity->notes."\n" : '').'Retired Aug 2026 — legal entity no longer operating.'),
+        ]);
     }
 }
