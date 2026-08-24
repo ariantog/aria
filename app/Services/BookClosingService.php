@@ -2,35 +2,17 @@
 
 namespace App\Services;
 
-use App\Models\Setting;
 use Carbon\Carbon;
 use Illuminate\Validation\ValidationException;
 
 class BookClosingService
 {
     /**
-     * Get the configured closing day of the month.
-     */
-    public function getTutupBukuDay(): int
-    {
-        return (int) Setting::getValue('tutup_buku', 28);
-    }
-
-    /**
-     * Check if a given date belongs to a month that is already closed.
+     * Check if a given date is outside the allowed entry window (current + previous month only).
      */
     public function isDateClosed(Carbon $date): bool
     {
-        $tutupBukuDay = $this->getTutupBukuDay();
-        $today = Carbon::now();
-
-        // The closing date for the month of the target transaction date.
-        // We use min() to handle months with fewer days than the closing day setting.
-        $closingDateOfTargetMonth = $date->copy()->day(min($tutupBukuDay, $date->daysInMonth))->startOfDay();
-
-        // If today has passed the closing date of that month, it's considered closed.
-        // We compare against the end of the closing day to be precise.
-        return $today->startOfDay()->greaterThan($closingDateOfTargetMonth);
+        return $date->copy()->startOfDay()->lessThan($this->getMinAllowedDate());
     }
 
     /**
@@ -43,32 +25,48 @@ class BookClosingService
         $carbonDate = Carbon::parse($date);
 
         if ($this->isDateClosed($carbonDate)) {
-            $tutupBukuDay = $this->getTutupBukuDay();
+            $minDate = $this->getMinAllowedDate();
+
             throw ValidationException::withMessages([
-                $field => ["Tanggal sudah melewati batas tutup buku bulan ini (Tanggal {$tutupBukuDay}). Silahkan gunakan tanggal di bulan berikutnya."],
+                $field => [
+                    'Tanggal transaksi hanya boleh di bulan ini atau bulan lalu '
+                    .'(mulai '.$minDate->translatedFormat('d M Y').').',
+                ],
             ]);
         }
     }
 
     /**
-     * Get the minimum allowed date for new transactions.
+     * Summary for dashboard / UI reminders about the current closing window.
+     *
+     * @return array{
+     *     closing_day: int,
+     *     current_month_closed: bool,
+     *     closing_date: Carbon,
+     *     days_until_closing: int,
+     *     min_allowed_date: Carbon
+     * }
+     */
+    public function getClosingReminder(): array
+    {
+        $today = Carbon::now()->startOfDay();
+        $closingDate = $today->copy()->endOfMonth()->startOfDay();
+        $daysUntilClosing = max(0, (int) $today->diffInDays($closingDate, false));
+
+        return [
+            'closing_day' => $closingDate->day,
+            'current_month_closed' => false,
+            'closing_date' => $closingDate,
+            'days_until_closing' => $daysUntilClosing,
+            'min_allowed_date' => $this->getMinAllowedDate(),
+        ];
+    }
+
+    /**
+     * Earliest date allowed for new transactions (first day of previous month).
      */
     public function getMinAllowedDate(): Carbon
     {
-        $tutupBukuDay = $this->getTutupBukuDay();
-        $today = Carbon::now();
-
-        // Check if current month is already closed
-        $closingDateThisMonth = $today->copy()->day(min($tutupBukuDay, $today->daysInMonth))->startOfDay();
-
-        if ($today->startOfDay()->greaterThan($closingDateThisMonth)) {
-            // Must be next month
-            return $today->copy()->addMonthNoOverflow()->startOfMonth();
-        }
-
-        // Can be this month (from the 1st)
-        // Note: Historical months are still closed by isDateClosed,
-        // but for a "minimum" hint, this month's start is usually what's expected.
-        return $today->copy()->startOfMonth();
+        return Carbon::now()->copy()->subMonthNoOverflow()->startOfMonth()->startOfDay();
     }
 }

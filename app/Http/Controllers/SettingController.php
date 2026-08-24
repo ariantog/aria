@@ -237,7 +237,7 @@ class SettingController extends Controller
             'addrbook_supplier' => $this->normalizeAddrbookId($request->input('value'), AddrbookType::Supplier),
             'addrbook_warehouse' => $this->normalizeAddrbookId($request->input('value'), AddrbookType::Warehouse),
             'account' => $this->normalizeAddrbookId($request->input('value'), AddrbookType::Account),
-            'number', 'tutup_buku' => $request->input('value'),
+            'number' => $request->input('value'),
             default => $request->input('value'),
         };
     }
