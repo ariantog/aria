@@ -29,7 +29,7 @@ it('parses MDS output tax invoice faktur pajak PDF', function () {
 
 it('rejects non-faktur PDF text', function () {
     app(FakturPajakPdfParser::class)->parseText('Random invoice document');
-})->throws(InvalidArgumentException::class);
+})->throws(\InvalidArgumentException::class);
 
 it('parses faktur fields from extracted text without PDF binary', function () {
     $text = <<<'TEXT'
