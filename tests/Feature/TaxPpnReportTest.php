@@ -176,14 +176,14 @@ it('aggregates consolidated entity summaries', function () {
         ->assertSee('CV Test B', false);
 });
 
-it('lists keluaran drill-down including cash-in without matching sell', function () {
+it('lists keluaran drill-down from sell not customer cash in', function () {
     $data = seedPpnReportScenario();
 
     $service = app(TaxReportService::class);
     $rows = $service->keluaranRows(2025, 6, $data['entityA']->id);
 
-    expect($rows->pluck('type')->all())->toContain('sell', 'cash_in')
-        ->and($rows->where('type', 'cash_in')->first()['invoice'])->toBe('MP-ONLY')
+    expect($rows->pluck('type')->all())->toContain('sell')
+        ->and($rows->pluck('type')->all())->not->toContain('cash_in')
         ->and($rows->where('type', 'sell')->first()['invoice'])->toBe('SELL-PPN-1');
 
     $this->actingAs($this->user)
@@ -194,7 +194,6 @@ it('lists keluaran drill-down including cash-in without matching sell', function
         ]))
         ->assertOk()
         ->assertSee('SELL-PPN-1', false)
-        ->assertSee('MP-ONLY', false)
         ->assertSee('Customer PPN', false);
 });
 
