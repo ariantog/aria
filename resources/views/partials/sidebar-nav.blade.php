@@ -29,8 +29,21 @@
 </div>
 
 {{-- ── Transactions ──────────────────────────────────────────────────── --}}
-        @if($hasPerm('transactions-list') || $hasPerm('transactions-create') || $hasPerm('report-purchase') || $hasPerm('report-export-sell') || $hasPerm('invoice-maker-list') || $isSuperAdmin)
-@php $txActive = $isActive('/transactions') || $isActive('/reports/purchase') || $isActive('/invoice-maker') || $isActive('/transactions/export-sell'); @endphp
+@if(
+    $hasPerm('transactions-list')
+    || $hasPerm('transactions-create')
+    || $hasPerm('transactions-type-buy')
+    || $hasPerm('transactions-type-sell')
+    || $hasPerm('transactions-type-move')
+    || $hasPerm('transactions-type-cash-in')
+    || $hasPerm('transactions-type-cash-out')
+    || $hasPerm('transactions-type-transfer')
+    || $hasPerm('transactions-type-adjust')
+    || $hasPerm('transactions-type-return')
+    || $hasPerm('transactions-type-return-supplier')
+    || $isSuperAdmin
+)
+@php $txActive = $isActive('/transactions') && ! $isActive('/transactions/export-sell'); @endphp
 <div x-data="{ open: {{ $txActive ? 'true' : 'false' }} }" class="mb-1">
     <button @click="open = !open"
             class="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors
@@ -70,16 +83,19 @@
         @if($hasPerm('transactions-type-return-supplier') || $isSuperAdmin)
         <a href="{{ route('transactions.create', 'return-supplier') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ str_starts_with($currentUrl,'transactions/return-supplier/') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Return Supplier</a>
         @endif
-        @if($hasPerm('report-purchase') || $isSuperAdmin)
-        <a href="{{ route('reports.purchase') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/purchase') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Pembelian</a>
-        @endif
-        @if($hasPerm('report-export-sell') || $isSuperAdmin)
-        <a href="{{ route('transactions.export-sell') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/transactions/export-sell') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Export Sell</a>
-        @endif
-        @if($hasPerm('invoice-maker-list') || $isSuperAdmin)
-        <a href="{{ route('invoice-maker.index') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/invoice-maker') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Invoice Maker</a>
-        @endif
     </div>
+</div>
+@endif
+
+{{-- ── Invoice Maker ─────────────────────────────────────────────────── --}}
+@if($hasPerm('invoice-maker-list') || $isSuperAdmin)
+<div class="mb-1">
+    <a href="{{ route('invoice-maker.index') }}"
+       class="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors
+              {{ $isActive('/invoice-maker') ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100' }}">
+        <svg class="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+        <span x-show="sidebarOpen" x-cloak>Invoice Maker</span>
+    </a>
 </div>
 @endif
 
@@ -108,14 +124,10 @@
 @endif
 
 {{-- ── Stuff (Items, etc.) ───────────────────────────────────────────── --}}
-@if($hasPerm('items-list') || $hasPerm('restock-list') || $hasPerm('report-item-sales') || $hasPerm('report-warehouse-item') || $hasPerm('report-warehouse-arrangement') || $hasPerm('report-compare') || $hasPerm('report-product-performance') || $hasPerm('report-inventory-health') || $hasPerm('stock-notification-list') || $isSuperAdmin)
+@if($hasPerm('items-list') || $hasPerm('assetLancar-list') || $hasPerm('stuff-group-list') || $hasPerm('stuff-tag-list') || $hasPerm('restock-list') || $hasPerm('items-convert-legacy') || $hasPerm('stock-notification-list') || $isSuperAdmin)
 @php
     $stuffActive = $isActive('/items') || $isActive('/assetlancar') || $isActive('/tags') || $isActive('/restock')
-        || $isActive('/stock-notifications')
-        || $isActive('/reports/item-sales') || $isActive('/reports/warehouse-item')
-        || $isActive('/reports/warehouse-arrangement') || $isActive('/reports/compare')
-        || $isActive('/reports/product-performance')
-        || $isActive('/reports/inventory-health');
+        || $isActive('/stock-notifications');
 @endphp
 <div x-data="{ open: {{ $stuffActive ? 'true' : 'false' }} }" class="mb-1">
     <button @click="open = !open"
@@ -145,6 +157,73 @@
         <a href="{{ route('items.legacy-converter') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/items/legacy-converter') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Legacy Converter</a>
         <a href="{{ route('items.special-converter') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/items/special-converter') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Special Converter</a>
         @endif
+        @if($hasPerm('stock-notification-list') || $isSuperAdmin)
+        <a href="{{ route('stock-notifications.index') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/stock-notifications') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Stock Alerts</a>
+        @endif
+    </div>
+</div>
+@endif
+
+{{-- ── Reports ───────────────────────────────────────────────────────── --}}
+@if(
+    $hasPerm('report-purchase')
+    || $hasPerm('report-export-sell')
+    || $hasPerm('report-item-sales')
+    || $hasPerm('report-warehouse-item')
+    || $hasPerm('report-warehouse-arrangement')
+    || $hasPerm('report-compare')
+    || $hasPerm('report-product-performance')
+    || $hasPerm('report-inventory-health')
+    || $hasPerm('report-nett-cash')
+    || $hasPerm('report-cash-flow')
+    || $hasPerm('report-expense')
+    || $hasPerm('report-tax-ppn')
+    || $hasPerm('report-tax-faktur')
+    || $hasPerm('report-tax-faktur-import')
+    || $hasPerm('report-produksi-potong')
+    || $hasPerm('report-produksi-qc')
+    || $isSuperAdmin
+)
+@php
+    $repActive = $isActive('/reports/purchase')
+        || $isActive('/transactions/export-sell')
+        || $isActive('/reports/item-sales')
+        || $isActive('/reports/warehouse-item')
+        || $isActive('/reports/warehouse-arrangement')
+        || $isActive('/reports/compare')
+        || $isActive('/reports/product-performance')
+        || $isActive('/reports/inventory-health')
+        || $isActive('/reports/nett-cash-sby')
+        || $isActive('/reports/cash-flow')
+        || $isActive('/reports/expense')
+        || $isActive('/reports/tax/ppn')
+        || $isActive('/reports/tax/faktur')
+        || $isActive('/reports/produksi-potong')
+        || $isActive('/reports/produksi-qc')
+        || $isActive('/reports/entities');
+@endphp
+<div x-data="{ open: {{ $repActive ? 'true' : 'false' }} }" class="mb-1">
+    <button @click="open = !open"
+            class="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors
+                   {{ $repActive ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100' }}">
+        <svg class="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z"/></svg>
+        <span x-show="sidebarOpen" x-cloak class="flex-1 text-left">Reports</span>
+        <svg x-show="sidebarOpen" x-cloak :class="open ? 'rotate-90' : ''" class="h-3.5 w-3.5 flex-shrink-0 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+    </button>
+    <div x-show="open && sidebarOpen" x-cloak class="ml-6 mt-1 space-y-0.5">
+        @if($hasPerm('report-purchase') || $hasPerm('report-export-sell') || $isSuperAdmin)
+        <p class="px-2.5 pt-2 pb-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-400">Transactions</p>
+        @endif
+        @if($hasPerm('report-purchase') || $isSuperAdmin)
+        <a href="{{ route('reports.purchase') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/purchase') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Pembelian</a>
+        @endif
+        @if($hasPerm('report-export-sell') || $isSuperAdmin)
+        <a href="{{ route('transactions.export-sell') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/transactions/export-sell') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Export Sell</a>
+        @endif
+
+        @if($hasPerm('report-item-sales') || $hasPerm('report-warehouse-item') || $hasPerm('report-compare') || $hasPerm('report-warehouse-arrangement') || $hasPerm('report-product-performance') || $hasPerm('report-inventory-health') || $isSuperAdmin)
+        <p class="px-2.5 pt-2 pb-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-400">Inventory</p>
+        @endif
         @if($hasPerm('report-item-sales') || $isSuperAdmin)
         <a href="{{ route('reports.item-sales') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/item-sales') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Item Sale</a>
         @endif
@@ -157,37 +236,16 @@
         @if($hasPerm('report-warehouse-arrangement') || $isSuperAdmin)
         <a href="{{ route('reports.warehouse-arrangement') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/warehouse-arrangement') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Warehouse Arrangement</a>
         @endif
-        @if($hasPerm('stock-notification-list') || $isSuperAdmin)
-        <a href="{{ route('stock-notifications.index') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/stock-notifications') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Stock Alerts</a>
-        @endif
         @if($hasPerm('report-product-performance') || $isSuperAdmin)
         <a href="{{ route('reports.product-performance') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/product-performance') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Product Performance</a>
         @endif
         @if($hasPerm('report-inventory-health') || $isSuperAdmin)
         <a href="{{ route('reports.inventory-health') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/inventory-health') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Inventory Health</a>
         @endif
-    </div>
-</div>
-@endif
 
-{{-- ── Reports ───────────────────────────────────────────────────────── --}}
-@if($hasPerm('report-nett-cash') || $hasPerm('report-cash-flow') || $hasPerm('report-expense') || $hasPerm('report-tax-ppn') || $hasPerm('report-tax-faktur') || $hasPerm('report-tax-faktur-import') || $isSuperAdmin)
-@php
-    $repActive = $isActive('/reports/nett-cash-sby') || $isActive('/reports/cash-flow')
-        || $isActive('/reports/expense')
-        || $isActive('/reports/tax/ppn')
-        || $isActive('/reports/tax/faktur')
-        || $isActive('/reports/entities');
-@endphp
-<div x-data="{ open: {{ $repActive ? 'true' : 'false' }} }" class="mb-1">
-    <button @click="open = !open"
-            class="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors
-                   {{ $repActive ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100' }}">
-        <svg class="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z"/></svg>
-        <span x-show="sidebarOpen" x-cloak class="flex-1 text-left">Reports</span>
-        <svg x-show="sidebarOpen" x-cloak :class="open ? 'rotate-90' : ''" class="h-3.5 w-3.5 flex-shrink-0 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-    </button>
-    <div x-show="open && sidebarOpen" x-cloak class="ml-6 mt-1 space-y-0.5">
+        @if($hasPerm('report-nett-cash') || $hasPerm('report-cash-flow') || $hasPerm('report-expense') || $isSuperAdmin)
+        <p class="px-2.5 pt-2 pb-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-400">Finance</p>
+        @endif
         @if($hasPerm('report-nett-cash') || $isSuperAdmin)
         <a href="{{ route('reports.nett-cash-sby') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/nett-cash-sby') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Nett Cash</a>
         @endif
@@ -197,13 +255,29 @@
         @if($hasPerm('report-expense') || $isSuperAdmin)
         <a href="{{ route('reports.expense') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/expense') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Laporan Biaya</a>
         @endif
+
+        @if($hasPerm('report-tax-ppn') || $hasPerm('report-tax-faktur') || $hasPerm('report-tax-faktur-import') || $isSuperAdmin)
+        <p class="px-2.5 pt-2 pb-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-400">Tax</p>
+        @endif
         @if($hasPerm('report-tax-ppn') || $isSuperAdmin)
         <a href="{{ route('reports.tax.ppn') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/tax/ppn') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Laporan PPN</a>
         @endif
         @if($hasPerm('report-tax-faktur') || $hasPerm('report-tax-faktur-import') || $isSuperAdmin)
         <a href="{{ route('reports.tax.faktur.index') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/tax/faktur') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Faktur Pajak</a>
         @endif
+
+        @if($hasPerm('report-produksi-potong') || $hasPerm('report-produksi-qc') || $isSuperAdmin)
+        <p class="px-2.5 pt-2 pb-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-400">Production</p>
+        @endif
+        @if($hasPerm('report-produksi-potong') || $isSuperAdmin)
+        <a href="{{ route('reports.produksi-potong') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/produksi-potong') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Statistik Potong</a>
+        @endif
+        @if($hasPerm('report-produksi-qc') || $isSuperAdmin)
+        <a href="{{ route('reports.produksi-qc') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/produksi-qc') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Statistik QC</a>
+        @endif
+
         @if($isSuperAdmin)
+        <p class="px-2.5 pt-2 pb-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-400">Admin</p>
         <a href="{{ route('reports.entities.index') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/entities') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Reporting Entities</a>
         @endif
     </div>
@@ -236,10 +310,19 @@
         @if($hasPerm('jubelio-stock-check') || $isSuperAdmin)
         <a href="{{ route('jubelio-stock-checks.index') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/jubelio-stock-checks') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Stock Check</a>
         @endif
-        @if($hasPerm('shopee-ads-view') || $isSuperAdmin)
-        <a href="{{ route('shopee-ads.index') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/shopee-ads') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Shopee Ads</a>
-        @endif
     </div>
+</div>
+@endif
+
+{{-- ── Shopee Ads ────────────────────────────────────────────────────── --}}
+@if($hasPerm('shopee-ads-view') || $isSuperAdmin)
+<div class="mb-1">
+    <a href="{{ route('shopee-ads.index') }}"
+       class="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors
+              {{ $isActive('/shopee-ads') ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100' }}">
+        <svg class="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+        <span x-show="sidebarOpen" x-cloak>Shopee Ads</span>
+    </a>
 </div>
 @endif
 
@@ -266,9 +349,9 @@
 @endif
 
 {{-- ── Produksi ──────────────────────────────────────────────────────── --}}
-@if($hasPerm('production-list') || $hasPerm('production-worker-list') || $hasPerm('report-produksi-potong') || $hasPerm('report-produksi-qc') || $isSuperAdmin)
+@if($hasPerm('production-list') || $hasPerm('production-setoran-list') || $hasPerm('production-worker-list') || $isSuperAdmin)
 @php
-    $prdActive = $isActive('/produksi') || $isActive('/reports/produksi-potong') || $isActive('/reports/produksi-qc');
+    $prdActive = $isActive('/produksi');
 @endphp
 <div x-data="{ open: {{ $prdActive ? 'true' : 'false' }} }" class="mb-1">
     <button @click="open = !open"
@@ -290,12 +373,6 @@
         <a href="{{ route('produksi.jahit.index') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/produksi/jahit') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Jahit Workers</a>
         <a href="{{ route('produksi.qc.index') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/produksi/qc') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">QC Workers</a>
         <a href="{{ route('produksi.pritil.index') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/produksi/pritil') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Pritil Workers</a>
-        @endif
-        @if($hasPerm('report-produksi-potong') || $isSuperAdmin)
-        <a href="{{ route('reports.produksi-potong') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/produksi-potong') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Statistik Potong</a>
-        @endif
-        @if($hasPerm('report-produksi-qc') || $isSuperAdmin)
-        <a href="{{ route('reports.produksi-qc') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/produksi-qc') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Statistik QC</a>
         @endif
     </div>
 </div>
