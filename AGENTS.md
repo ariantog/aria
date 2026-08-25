@@ -61,6 +61,9 @@ migration file must be production-safe on its own**:
 - **NOT NULL columns need defaults.** Legacy tables are full of NOT NULL columns without
   DEFAULTs; partial inserts throw MySQL 1364. Give new NOT NULL columns a `->default(...)`, and
   model-level fallbacks live in `App\Support\ProductionColumnDefaults`.
+- **MySQL index / FK names max 64 characters** (errno 1059). Laravel's auto-generated names for
+  long table + column lists exceed this — always pass a short explicit name on composite
+  `->index(...)`, `->unique(...)`, and `->foreign(...)` (e.g. `'tax_faktur_period_entity_idx'`).
 - A one-off greenfield `create_*` migration that later changes shape must be turned into a
   no-op and replaced by a guarded `install_*` migration (see the standalone-invoice pair
   `2026_08_19_040000` / `2026_08_19_070000`) — prod may have run the old version already.
