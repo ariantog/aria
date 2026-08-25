@@ -140,11 +140,23 @@ $breadcrumbs = [
     </div>
 
     @if($canEdit)
-    <div class="rounded-xl border border-gray-200 bg-white shadow-sm">
-        <div class="border-b border-gray-100 px-6 py-4">
+    <div class="rounded-xl border border-gray-200 bg-white shadow-sm" x-data="{ settingsOpen: false, specialRulesOpen: false }">
+        <div class="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 px-6 py-4">
             <h2 class="text-sm font-semibold text-gray-900">Pengaturan (GMV + Item)</h2>
+            <button
+                type="button"
+                @click="settingsOpen = !settingsOpen"
+                class="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-sm font-medium text-gray-600 hover:bg-gray-50"
+                data-testid="toggle-shopee-ads-settings"
+                :aria-expanded="settingsOpen"
+            >
+                <span x-text="settingsOpen ? 'Sembunyikan' : 'Tampilkan'"></span>
+                <svg class="h-4 w-4 transition-transform" :class="settingsOpen ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                </svg>
+            </button>
         </div>
-        <form method="POST" action="{{ route('shopee-ads.settings.update') }}" class="space-y-4 px-6 py-4">
+        <form method="POST" action="{{ route('shopee-ads.settings.update') }}" x-show="settingsOpen" x-cloak class="space-y-4 px-6 py-4">
             @csrf
             @method('PATCH')
             <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -212,59 +224,74 @@ $breadcrumbs = [
             </div>
 
             <div class="rounded-lg border border-gray-200 bg-gray-50 p-4">
-                <h3 class="text-sm font-semibold text-gray-900">Aturan spesial</h3>
-                <p class="mt-1 text-xs text-gray-500">Multiplier diterapkan otomatis pada daily reset, replenish, dan jadwal increment (WIB).</p>
-                <div class="mt-4 grid gap-4 sm:grid-cols-2">
-                    <div class="space-y-3 rounded-lg border border-gray-200 bg-white p-4">
-                        <label class="flex items-center gap-2 text-sm font-medium text-gray-800">
-                            <input type="checkbox" name="double_date_enabled" value="1" {{ $settings->double_date_enabled ? 'checked' : '' }}>
-                            Double date (tanggal kembar, mis. 8/8)
-                        </label>
-                        <div class="grid gap-2 sm:grid-cols-3 text-sm">
-                            <label>
-                                <span class="text-gray-600">GMV ×</span>
-                                <input type="number" step="0.1" name="double_date_gmv_multiplier" value="{{ $settings->double_date_gmv_multiplier }}" class="mt-1 w-full rounded-lg border-gray-300" required>
+                <button
+                    type="button"
+                    @click="specialRulesOpen = !specialRulesOpen"
+                    class="flex w-full items-center justify-between gap-2 text-left"
+                    data-testid="toggle-shopee-ads-special-rules"
+                    :aria-expanded="specialRulesOpen"
+                >
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-900">Aturan spesial</h3>
+                        <p class="mt-1 text-xs text-gray-500">Multiplier diterapkan otomatis pada daily reset, replenish, dan jadwal increment (WIB).</p>
+                    </div>
+                    <svg class="h-4 w-4 shrink-0 text-gray-500 transition-transform" :class="specialRulesOpen ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                    </svg>
+                </button>
+                <div x-show="specialRulesOpen" x-cloak class="mt-4 space-y-4">
+                    <div class="grid gap-4 sm:grid-cols-2">
+                        <div class="space-y-3 rounded-lg border border-gray-200 bg-white p-4">
+                            <label class="flex items-center gap-2 text-sm font-medium text-gray-800">
+                                <input type="checkbox" name="double_date_enabled" value="1" {{ $settings->double_date_enabled ? 'checked' : '' }}>
+                                Double date (tanggal kembar, mis. 8/8)
                             </label>
-                            <label>
-                                <span class="text-gray-600">Item ads ×</span>
-                                <input type="number" step="0.1" name="double_date_item_ads_multiplier" value="{{ $settings->double_date_item_ads_multiplier }}" class="mt-1 w-full rounded-lg border-gray-300" required>
+                            <div class="grid gap-2 sm:grid-cols-3 text-sm">
+                                <label>
+                                    <span class="text-gray-600">GMV ×</span>
+                                    <input type="number" step="0.1" name="double_date_gmv_multiplier" value="{{ $settings->double_date_gmv_multiplier }}" class="mt-1 w-full rounded-lg border-gray-300" required>
+                                </label>
+                                <label>
+                                    <span class="text-gray-600">Item ads ×</span>
+                                    <input type="number" step="0.1" name="double_date_item_ads_multiplier" value="{{ $settings->double_date_item_ads_multiplier }}" class="mt-1 w-full rounded-lg border-gray-300" required>
+                                </label>
+                                <label>
+                                    <span class="text-gray-600">Item budget ×</span>
+                                    <input type="number" step="0.1" name="double_date_item_budget_multiplier" value="{{ $settings->double_date_item_budget_multiplier }}" class="mt-1 w-full rounded-lg border-gray-300" required>
+                                </label>
+                            </div>
+                        </div>
+                        <div class="space-y-3 rounded-lg border border-gray-200 bg-white p-4">
+                            <label class="flex items-center gap-2 text-sm font-medium text-gray-800">
+                                <input type="checkbox" name="payday_enabled" value="1" {{ $settings->payday_enabled ? 'checked' : '' }}>
+                                Payday (tanggal gajian)
                             </label>
-                            <label>
-                                <span class="text-gray-600">Item budget ×</span>
-                                <input type="number" step="0.1" name="double_date_item_budget_multiplier" value="{{ $settings->double_date_item_budget_multiplier }}" class="mt-1 w-full rounded-lg border-gray-300" required>
-                            </label>
+                            <div class="grid gap-2 sm:grid-cols-3 text-sm">
+                                <label>
+                                    <span class="text-gray-600">Tanggal</span>
+                                    <input type="number" name="payday_day" min="1" max="28" value="{{ $settings->payday_day }}" class="mt-1 w-full rounded-lg border-gray-300" required>
+                                </label>
+                                <label>
+                                    <span class="text-gray-600">GMV ×</span>
+                                    <input type="number" step="0.1" name="payday_gmv_multiplier" value="{{ $settings->payday_gmv_multiplier }}" class="mt-1 w-full rounded-lg border-gray-300" required>
+                                </label>
+                                <label>
+                                    <span class="text-gray-600">Item ×</span>
+                                    <input type="number" step="0.1" name="payday_item_multiplier" value="{{ $settings->payday_item_multiplier }}" class="mt-1 w-full rounded-lg border-gray-300" required>
+                                </label>
+                            </div>
                         </div>
                     </div>
-                    <div class="space-y-3 rounded-lg border border-gray-200 bg-white p-4">
-                        <label class="flex items-center gap-2 text-sm font-medium text-gray-800">
-                            <input type="checkbox" name="payday_enabled" value="1" {{ $settings->payday_enabled ? 'checked' : '' }}>
-                            Payday (tanggal gajian)
+                    <div class="rounded-lg border border-purple-200 bg-purple-50 p-4 text-sm">
+                        <label class="block font-medium text-purple-900">
+                            Manual boost (tombol Boost — permission <code class="text-xs">shopee-ads-boost</code>)
                         </label>
-                        <div class="grid gap-2 sm:grid-cols-3 text-sm">
-                            <label>
-                                <span class="text-gray-600">Tanggal</span>
-                                <input type="number" name="payday_day" min="1" max="28" value="{{ $settings->payday_day }}" class="mt-1 w-full rounded-lg border-gray-300" required>
-                            </label>
-                            <label>
-                                <span class="text-gray-600">GMV ×</span>
-                                <input type="number" step="0.1" name="payday_gmv_multiplier" value="{{ $settings->payday_gmv_multiplier }}" class="mt-1 w-full rounded-lg border-gray-300" required>
-                            </label>
-                            <label>
-                                <span class="text-gray-600">Item ×</span>
-                                <input type="number" step="0.1" name="payday_item_multiplier" value="{{ $settings->payday_item_multiplier }}" class="mt-1 w-full rounded-lg border-gray-300" required>
-                            </label>
-                        </div>
+                        <label class="mt-2 block">
+                            <span class="text-gray-600">Multiplier ×</span>
+                            <input type="number" step="0.1" name="manual_boost_multiplier" value="{{ $settings->manual_boost_multiplier }}" class="mt-1 w-full max-w-xs rounded-lg border-gray-300" required>
+                        </label>
+                        <p class="mt-2 text-xs text-purple-800">Mengalikan budget GMV Max + semua item ads yang aktif sekarang (live dari Shopee).</p>
                     </div>
-                </div>
-                <div class="mt-4 rounded-lg border border-purple-200 bg-purple-50 p-4 text-sm">
-                    <label class="block font-medium text-purple-900">
-                        Manual boost (tombol Boost — permission <code class="text-xs">shopee-ads-boost</code>)
-                    </label>
-                    <label class="mt-2 block">
-                        <span class="text-gray-600">Multiplier ×</span>
-                        <input type="number" step="0.1" name="manual_boost_multiplier" value="{{ $settings->manual_boost_multiplier }}" class="mt-1 w-full max-w-xs rounded-lg border-gray-300" required>
-                    </label>
-                    <p class="mt-2 text-xs text-purple-800">Mengalikan budget GMV Max + semua item ads yang aktif sekarang (live dari Shopee).</p>
                 </div>
             </div>
             <button type="submit" class="rounded-lg bg-blue-700 px-4 py-2 text-sm font-medium text-white hover:bg-blue-800">Simpan</button>
