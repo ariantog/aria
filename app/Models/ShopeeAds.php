@@ -12,6 +12,7 @@ class ShopeeAds
         return [
             'view' => 'shopee-ads-view',
             'edit' => 'shopee-ads-edit',
+            'boost' => 'shopee-ads-boost',
         ];
     }
 }

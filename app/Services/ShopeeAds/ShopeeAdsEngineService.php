@@ -17,6 +17,7 @@ class ShopeeAdsEngineService
 {
     public function __construct(
         private readonly ShopeeAdsApiService $api,
+        private readonly ShopeeAdsSpecialRulesService $specialRules,
     ) {}
 
     public function jakartaNow(): Carbon
@@ -54,9 +55,13 @@ class ShopeeAdsEngineService
             }
 
             if ($schedule->ad_type === ShopeeAdsType::GmvMax->value) {
-                $this->applyGmvMaxIncrement($settings, $schedule->increment_idr);
+                $multipliers = $this->specialRules->resolveForToday($settings, $now);
+                $increment = $multipliers->scaledGmvAmount($schedule->increment_idr);
+                $this->applyGmvMaxIncrement($settings, $increment);
             } elseif ($schedule->ad_type === ShopeeAdsType::ProdukManual->value) {
-                $this->applyItemAdsIncrement($settings, $schedule->increment_idr);
+                $multipliers = $this->specialRules->resolveForToday($settings, $now);
+                $pool = $multipliers->scaledItemBudgetAmount($schedule->increment_idr);
+                $this->applyItemAdsIncrement($settings, $pool);
             }
 
             $schedule->update(['last_run_at' => $now]);
@@ -285,14 +290,16 @@ class ShopeeAdsEngineService
             ->whereNotIn('status', ['ended', 'closed', 'berakhir'])
             ->count();
 
-        $cap = (int) $settings->max_item_ads;
-        $need = min($cap - $active, (int) $settings->item_replenish_max_per_run);
+        $multipliers = $this->specialRules->resolveForToday($settings);
+        $cap = $multipliers->scaledMaxItemAds((int) $settings->max_item_ads);
+        $need = min($cap - $active, $multipliers->scaledReplenishPerRun((int) $settings->item_replenish_max_per_run));
 
         if ($need <= 0) {
             return ['created' => 0, 'message' => 'Active item ads already at cap'];
         }
 
         $starting = max((int) $settings->item_ad_starting_budget, ShopeeAdsApiService::ITEM_AD_MIN_BUDGET);
+        $starting = $multipliers->scaledItemBudgetAmount($starting);
         $headroom = $this->combinedHeadroom($settings);
         $affordable = $starting > 0 ? (int) floor($headroom / $starting) : 0;
         $need = min($need, $affordable);
@@ -335,10 +342,107 @@ class ShopeeAdsEngineService
         return ['created' => $created, 'message' => "Replenish: {$created} item ad(s) created"];
     }
 
+    /**
+     * @return array{gmv: bool, items: int, message: string}
+     */
+    public function applyManualBudgetBoost(ShopeeAdsSetting $settings): array
+    {
+        $multiplier = max(1.0, (float) $settings->manual_boost_multiplier);
+        $gmvApplied = false;
+        $itemsApplied = 0;
+
+        $campaignId = $this->discoverGmsCampaignId($settings);
+        if ($campaignId) {
+            $before = (int) $settings->gms_current_budget;
+            $target = (int) round($before * $multiplier);
+            $maxGmv = max((int) $settings->daily_max_budget - $this->activeItemAdsBudgetTotal(), 0);
+            $after = min($target, $maxGmv);
+
+            if ($after > $before && $this->api->setGmsBudget($campaignId, $after)) {
+                $settings->update(['gms_current_budget' => $after, 'gms_campaign_id' => $campaignId]);
+                $this->recordHistory(
+                    ShopeeAdsType::GmvMax->value,
+                    $campaignId,
+                    'manual_boost',
+                    $before,
+                    $after,
+                    $after - $before,
+                    'Manual budget boost ×'.$multiplier,
+                );
+                $gmvApplied = true;
+            }
+        }
+
+        $this->syncItemAds();
+        $ads = ShopeeAdsItemAd::query()
+            ->where('turned_off', false)
+            ->whereNotIn('status', ['ended', 'closed', 'berakhir'])
+            ->get();
+
+        $liveByCampaign = collect($this->api->listManualProductAds(true))
+            ->keyBy('campaign_id');
+
+        $runningHeadroom = $this->combinedHeadroom($settings);
+
+        foreach ($ads as $ad) {
+            $live = $liveByCampaign->get($ad->campaign_id);
+            $current = $live && (float) $live['budget'] > 0
+                ? (int) round((float) $live['budget'])
+                : (int) $ad->budget;
+            $target = (int) round($current * $multiplier);
+            $perAdCap = $current + $runningHeadroom;
+            $after = min($target, $perAdCap);
+
+            if ($after <= $current) {
+                continue;
+            }
+
+            if (! $this->api->setItemAdBudget($ad->campaign_id, $after)) {
+                continue;
+            }
+
+            $applied = $after - $current;
+            $runningHeadroom = max(0, $runningHeadroom - $applied);
+            $ad->update(['budget' => $after]);
+            $itemsApplied++;
+            $this->recordHistory(
+                ShopeeAdsType::ProdukManual->value,
+                $ad->campaign_id,
+                'manual_boost',
+                $current,
+                $after,
+                $applied,
+                'Manual budget boost ×'.$multiplier,
+            );
+        }
+
+        return [
+            'gmv' => $gmvApplied,
+            'items' => $itemsApplied,
+            'message' => sprintf(
+                'Manual boost ×%s: GMV %s, %d item ad(s) updated',
+                $multiplier,
+                $gmvApplied ? 'updated' : 'skipped',
+                $itemsApplied,
+            ),
+        ];
+    }
+
+    private function activeItemAdsBudgetTotal(): int
+    {
+        return (int) ShopeeAdsItemAd::query()
+            ->where('turned_off', false)
+            ->whereNotIn('status', ['ended', 'closed', 'berakhir'])
+            ->sum('budget');
+    }
+
     public function dailyReset(ShopeeAdsSetting $settings): void
     {
+        $multipliers = $this->specialRules->resolveForToday($settings);
         $gmvStart = (int) ($settings->starting_budget_gmv_max ?: $settings->starting_budget);
+        $gmvStart = $multipliers->scaledGmvAmount($gmvStart);
         $itemStart = max((int) $settings->item_ad_starting_budget, ShopeeAdsApiService::ITEM_AD_MIN_BUDGET);
+        $itemStart = $multipliers->scaledItemBudgetAmount($itemStart);
 
         $campaignId = $this->discoverGmsCampaignId($settings);
         if ($campaignId) {
