@@ -112,7 +112,8 @@ it('renders the transaction show page', function () {
 
     $this->actingAs($this->user)
         ->get(route('transactions.show', $transaction))
-        ->assertOk();
+        ->assertOk()
+        ->assertSee('sortItems(', false);
 });
 
 it('renders the addrbook item sales page', function () {
