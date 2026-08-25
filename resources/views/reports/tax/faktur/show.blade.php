@@ -91,9 +91,25 @@ $gross = $import->fakturGross();
                             @if($import->varianceExpenseAccount)
                                 <span class="text-xs text-gray-500">→ {{ $import->varianceExpenseAccount->name }}</span>
                             @endif
+                            @if($import->varianceTransaction)
+                                <a href="{{ route('transactions.show', $import->varianceTransaction) }}" class="ml-1 text-xs text-blue-600 hover:underline">Tx #{{ $import->varianceTransaction->id }}</a>
+                            @endif
                         </dd>
                     </div>
                 @endif
+                <div>
+                    <dt class="text-gray-500">Cash In terkait</dt>
+                    <dd>
+                        @if($import->cashInTransaction)
+                            <a href="{{ route('transactions.show', $import->cashInTransaction) }}" class="text-blue-600 hover:underline">
+                                #{{ $import->cashInTransaction->id }}
+                            </a>
+                            <span class="text-gray-500"> · {{ $import->cashInTransaction->date?->format('Y-m-d') }} · {{ $fmt(abs((float) $import->cashInTransaction->total)) }}</span>
+                        @else
+                            <span class="text-gray-400">Belum di-link</span>
+                        @endif
+                    </dd>
+                </div>
                 <div>
                     <dt class="text-gray-500">Diimport</dt>
                     <dd>
@@ -107,6 +123,76 @@ $gross = $import->fakturGross();
             </dl>
         </div>
     </div>
+
+    @if($canImport)
+        <div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm text-sm" x-data="{
+            paymentAmount: '{{ old('payment_received_amount', $import->payment_received_amount ?? '') }}',
+            paymentDate: '{{ old('payment_received_date', $import->payment_received_date?->format('Y-m-d') ?? '') }}',
+            cashInId: '{{ old('cash_in_transaction_id', $import->cash_in_transaction_id ?? '') }}',
+            suggestions: [],
+            suggestionsUrl: @js(route('reports.tax.faktur.cash-in-suggestions')),
+            async refreshSuggestions() {
+                const params = new URLSearchParams({
+                    counterparty_id: @js($import->counterparty_id),
+                    reporting_entity_id: @js($import->reporting_entity_id),
+                    faktur_number: @js($import->faktur_number),
+                    exclude_import_id: @js($import->id),
+                });
+                if (this.paymentAmount) params.set('payment_received_amount', this.paymentAmount);
+                if (this.paymentDate) params.set('payment_received_date', this.paymentDate);
+                const response = await fetch(this.suggestionsUrl + '?' + params.toString(), {
+                    headers: { 'Accept': 'application/json' },
+                });
+                if (!response.ok) return;
+                const data = await response.json();
+                this.suggestions = data.suggestions || [];
+            }
+        }" x-init="refreshSuggestions()">
+            <h3 class="mb-3 font-semibold text-gray-900">Update pembayaran</h3>
+            @if(session('error'))
+                <div class="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-800">{{ session('error') }}</div>
+            @endif
+            <form method="POST" action="{{ route('reports.tax.faktur.payment.update', $import) }}" class="space-y-3">
+                @csrf
+                @method('PATCH')
+                <div class="grid gap-3 sm:grid-cols-2">
+                    <div>
+                        <label class="mb-1 block text-xs text-gray-500" for="show_payment_received_amount">Jumlah diterima (Rp)</label>
+                        <input type="number" step="0.01" id="show_payment_received_amount" name="payment_received_amount"
+                               x-model="paymentAmount" @input="refreshSuggestions()"
+                               class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm tabular-nums">
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-xs text-gray-500" for="show_payment_received_date">Tanggal bayar</label>
+                        <input type="date" id="show_payment_received_date" name="payment_received_date"
+                               x-model="paymentDate" @change="refreshSuggestions()"
+                               class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                    </div>
+                </div>
+                <div x-show="suggestions.length > 0" x-cloak>
+                    <label class="mb-1 block text-xs text-gray-500" for="show_cash_in_transaction_id">Link Cash In</label>
+                    <select id="show_cash_in_transaction_id" name="cash_in_transaction_id" x-model="cashInId" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                        <option value="">— Tidak di-link —</option>
+                        <template x-for="item in suggestions" :key="item.id">
+                            <option :value="item.id" x-text="`#${item.id} · ${item.date} · ${item.bank_name} · Rp ${item.total.toLocaleString('id-ID')}${item.invoice ? ' · ' + item.invoice : ''}`"></option>
+                        </template>
+                    </select>
+                </div>
+                <div>
+                    <label class="mb-1 block text-xs text-gray-500" for="show_variance_expense_addrbook_id">Akun biaya selisih</label>
+                    <select id="show_variance_expense_addrbook_id" name="variance_expense_addrbook_id" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                        <option value="">— Tidak ada —</option>
+                        @foreach($expenseAccounts as $account)
+                            <option value="{{ $account->id }}" @selected((int) old('variance_expense_addrbook_id', $import->variance_expense_addrbook_id) === $account->id)>{{ $account->name }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <button type="submit" class="rounded-lg bg-blue-700 px-4 py-2 text-sm font-medium text-white hover:bg-blue-800" data-testid="faktur-payment-update">
+                    Simpan pembayaran
+                </button>
+            </form>
+        </div>
+    @endif
 
     @if(count($lineItems) > 0)
         <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
