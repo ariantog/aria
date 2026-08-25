@@ -73,10 +73,10 @@ class RecalculateAggregation extends Command
             foreach ($transactions as $trx) {
                 $senderId = $trx->sender_id;
                 $receiverId = $trx->receiver_id;
-                $amount = (float) $trx->real_total;
+                $amount = $this->balanceAmountFromRow($trx);
 
-                // Update Balances In-Memory
-                $this->calculateBalances($trx->type, $senderId, $receiverId, $amount);
+                // Update Balances In-Memory (mirrors TransactionService::updateBalances)
+                $this->applyBalanceDelta((int) $trx->type, $senderId, $receiverId, $amount);
 
                 // Update Snapshots in Transaction table
                 DB::table('transactions')->where('id', $trx->id)->update([
@@ -121,18 +121,53 @@ class RecalculateAggregation extends Command
         DB::table('items')->update(['qty' => 0]);
     }
 
-    protected function calculateBalances($type, $senderId, $receiverId, $amount)
+    protected function balanceAmountFromRow(object $trx): float
     {
-        if ($type == Transaction::TYPE_BUY || $type == Transaction::TYPE_RETURN) {
+        $stored = (float) $trx->total;
+        if ($stored === 0.0 && (float) $trx->real_total !== 0.0) {
+            $stored = (float) $trx->real_total;
+        }
+
+        return $stored;
+    }
+
+    /**
+     * Mirrors TransactionService::updateBalances party deltas.
+     */
+    protected function applyBalanceDelta(int $type, ?int $senderId, ?int $receiverId, float $amount): void
+    {
+        if ($type === Transaction::TYPE_BUY && $senderId) {
             $this->balances[$senderId] = (float) ($this->balances[$senderId] ?? 0) + $amount;
-        } elseif ($type == Transaction::TYPE_SELL || $type == Transaction::TYPE_RETURN_SUPPLIER) {
+        } elseif ($type === Transaction::TYPE_SELL && $receiverId) {
             $this->balances[$receiverId] = (float) ($this->balances[$receiverId] ?? 0) + $amount;
-        } elseif ($type == Transaction::TYPE_CASH_IN || $type == Transaction::TYPE_CASH_OUT) {
-            $this->balances[$senderId] = (float) ($this->balances[$senderId] ?? 0) + $amount;
-            $this->balances[$receiverId] = (float) ($this->balances[$receiverId] ?? 0) + $amount;
-        } elseif ($type == Transaction::TYPE_TRANSFER || $type == Transaction::TYPE_ADJUST) {
-            $this->balances[$senderId] = (float) ($this->balances[$senderId] ?? 0) - $amount;
-            $this->balances[$receiverId] = (float) ($this->balances[$receiverId] ?? 0) + $amount;
+        } elseif ($type === Transaction::TYPE_RETURN) {
+            if ($senderId) {
+                $this->balances[$senderId] = (float) ($this->balances[$senderId] ?? 0) + $amount;
+            }
+            if ($receiverId) {
+                $this->balances[$receiverId] = (float) ($this->balances[$receiverId] ?? 0) + $amount;
+            }
+        } elseif ($type === Transaction::TYPE_CASH_IN || $type === Transaction::TYPE_CASH_OUT) {
+            if ($senderId) {
+                $this->balances[$senderId] = (float) ($this->balances[$senderId] ?? 0) + $amount;
+            }
+            if ($receiverId) {
+                $this->balances[$receiverId] = (float) ($this->balances[$receiverId] ?? 0) + $amount;
+            }
+        } elseif ($type === Transaction::TYPE_TRANSFER) {
+            if ($senderId) {
+                $this->balances[$senderId] = (float) ($this->balances[$senderId] ?? 0) + $amount;
+            }
+            if ($receiverId) {
+                $this->balances[$receiverId] = (float) ($this->balances[$receiverId] ?? 0) - $amount;
+            }
+        } elseif ($type === Transaction::TYPE_ADJUST) {
+            if ($senderId) {
+                $this->balances[$senderId] = (float) ($this->balances[$senderId] ?? 0) - $amount;
+            }
+            if ($receiverId) {
+                $this->balances[$receiverId] = (float) ($this->balances[$receiverId] ?? 0) + $amount;
+            }
         }
     }
 
@@ -173,13 +208,36 @@ class RecalculateAggregation extends Command
         if (! $column) {
             return;
         }
-        $dateStr = substr($date, 0, 10);
 
-        if ($senderId) {
-            $this->addDaily($senderId, $dateStr, $column, (int) $type == Transaction::TYPE_TRANSFER ? -$amount : $amount);
+        $dateStr = substr($date, 0, 10);
+        $type = (int) $type;
+
+        $trackSender = in_array($type, [
+            Transaction::TYPE_BUY,
+            Transaction::TYPE_RETURN,
+            Transaction::TYPE_CASH_IN,
+            Transaction::TYPE_CASH_OUT,
+            Transaction::TYPE_TRANSFER,
+            Transaction::TYPE_ADJUST,
+        ], true);
+
+        $trackReceiver = in_array($type, [
+            Transaction::TYPE_SELL,
+            Transaction::TYPE_RETURN,
+            Transaction::TYPE_CASH_IN,
+            Transaction::TYPE_CASH_OUT,
+            Transaction::TYPE_TRANSFER,
+            Transaction::TYPE_ADJUST,
+        ], true);
+
+        if ($senderId && $trackSender) {
+            $senderAmt = $type === Transaction::TYPE_ADJUST ? -$amount : $amount;
+            $this->addDaily($senderId, $dateStr, $column, $senderAmt);
         }
-        if ($receiverId) {
-            $this->addDaily($receiverId, $dateStr, $column, $amount);
+
+        if ($receiverId && $trackReceiver) {
+            $receiverAmt = $type === Transaction::TYPE_TRANSFER ? -$amount : $amount;
+            $this->addDaily($receiverId, $dateStr, $column, $receiverAmt);
         }
     }
 
