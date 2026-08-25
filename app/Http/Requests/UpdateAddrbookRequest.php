@@ -42,6 +42,8 @@ class UpdateAddrbookRequest extends FormRequest
             'reporting_role' => ['nullable', 'string', 'max:30'],
             'is_internal_lending' => ['boolean'],
             'is_active_in_reports' => ['boolean'],
+            'payment_due_day' => ['nullable', 'integer', 'min:1', 'max:31'],
+            'payment_grace_days' => ['nullable', 'integer', 'min:0', 'max:60'],
         ];
     }
 }

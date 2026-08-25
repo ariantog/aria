@@ -324,6 +324,11 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
         Route::get('/produksi-potong', \App\Http\Controllers\Reports\ProduksiPotongReportController::class)->name('produksi-potong');
         Route::get('/produksi-qc', \App\Http\Controllers\Reports\ProduksiQcReportController::class)->name('produksi-qc');
         Route::get('/tax/ppn', \App\Http\Controllers\Reports\TaxPpnReportController::class)->name('tax.ppn');
+        Route::get('/tax/faktur', [\App\Http\Controllers\Reports\TaxFakturImportController::class, 'index'])->name('tax.faktur.index');
+        Route::get('/tax/faktur/create', [\App\Http\Controllers\Reports\TaxFakturImportController::class, 'create'])->name('tax.faktur.create');
+        Route::post('/tax/faktur/parse', [\App\Http\Controllers\Reports\TaxFakturImportController::class, 'parse'])->name('tax.faktur.parse');
+        Route::get('/tax/faktur/review', [\App\Http\Controllers\Reports\TaxFakturImportController::class, 'review'])->name('tax.faktur.review');
+        Route::post('/tax/faktur', [\App\Http\Controllers\Reports\TaxFakturImportController::class, 'store'])->name('tax.faktur.store');
         Route::get('/entities', [\App\Http\Controllers\Reports\ReportingEntityController::class, 'index'])->name('entities.index');
         Route::post('/entities', [\App\Http\Controllers\Reports\ReportingEntityController::class, 'store'])->name('entities.store');
         Route::get('/entities/{entity}/edit', [\App\Http\Controllers\Reports\ReportingEntityController::class, 'edit'])->name('entities.edit');

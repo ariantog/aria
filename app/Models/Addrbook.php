@@ -44,6 +44,8 @@ class Addrbook extends Model
             'arrangement_enabled' => 'boolean',
             'is_internal_lending' => 'boolean',
             'is_active_in_reports' => 'boolean',
+            'payment_due_day' => 'integer',
+            'payment_grace_days' => 'integer',
         ];
     }
 
