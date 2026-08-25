@@ -7,6 +7,7 @@ use App\Models\Addrbook;
 use App\Models\Report;
 use App\Models\ReportingEntity;
 use App\Models\TaxFakturImport;
+use App\Services\Reporting\TaxReportService;
 use App\Services\Tax\ExpectedPaymentDateCalculator;
 use App\Services\Tax\FakturPajakDirectionResolver;
 use App\Services\Tax\FakturPajakPdfParser;
@@ -15,6 +16,7 @@ use App\Services\Tax\TaxFakturImportService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use InvalidArgumentException;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class TaxFakturImportController extends Controller
 {
@@ -22,26 +24,74 @@ class TaxFakturImportController extends Controller
 
     public function index(Request $request)
     {
-        Gate::authorize(Report::getPermissions()['view-tax-ppn']);
+        Gate::authorize(Report::getPermissions()['view-tax-faktur']);
+
+        $filters = [
+            'year' => $request->query('year'),
+            'month' => $request->query('month'),
+            'entity' => $request->query('entity'),
+            'direction' => $request->query('direction'),
+            'overdue' => $request->query('overdue') === '1',
+        ];
 
         $imports = TaxFakturImport::query()
             ->select('tax_faktur_imports.*')
-            ->with(['reportingEntity', 'counterparty', 'varianceExpenseAccount'])
-            ->when($request->query('overdue') === '1', fn ($query) => $query->paymentOverdue())
+            ->with(['reportingEntity', 'counterparty', 'varianceExpenseAccount', 'user'])
+            ->when($filters['overdue'], fn ($query) => $query->paymentOverdue())
+            ->when($filters['year'], fn ($query, $year) => $query->where('report_year', (int) $year))
+            ->when($filters['month'], fn ($query, $month) => $query->where('report_month', (int) $month))
+            ->when($filters['entity'], fn ($query, $entity) => $query->where('reporting_entity_id', (int) $entity))
+            ->when($filters['direction'], fn ($query, $direction) => $query->where('direction', $direction))
             ->orderByDesc('faktur_date')
             ->orderByDesc('id')
             ->paginate(25)
             ->withQueryString();
 
+        $entities = ReportingEntity::query()
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
         return view('reports.tax.faktur.index', [
             'imports' => $imports,
-            'filterOverdue' => $request->query('overdue') === '1',
+            'filters' => $filters,
+            'entities' => $entities,
+            'years' => range((int) date('Y'), TaxReportService::MIN_YEAR),
+            'canImport' => $request->user()?->can(Report::getPermissions()['import-tax-faktur']) ?? false,
         ]);
+    }
+
+    public function show(TaxFakturImport $import)
+    {
+        Gate::authorize(Report::getPermissions()['view-tax-faktur']);
+
+        $import->load(['reportingEntity', 'counterparty', 'varianceExpenseAccount', 'user']);
+
+        return view('reports.tax.faktur.show', [
+            'import' => $import,
+            'hasPdf' => $this->resolvePdfPath($import) !== null,
+            'canImport' => request()->user()?->can(Report::getPermissions()['import-tax-faktur']) ?? false,
+        ]);
+    }
+
+    public function downloadPdf(TaxFakturImport $import): BinaryFileResponse
+    {
+        Gate::authorize(Report::getPermissions()['view-tax-faktur']);
+
+        $absolutePath = $this->resolvePdfPath($import);
+        if ($absolutePath === null) {
+            abort(404);
+        }
+
+        return response()->download(
+            $absolutePath,
+            'faktur-'.$import->faktur_number.'.pdf',
+        );
     }
 
     public function create()
     {
-        Gate::authorize(Report::getPermissions()['view-tax-ppn']);
+        Gate::authorize(Report::getPermissions()['import-tax-faktur']);
 
         return view('reports.tax.faktur.create');
     }
@@ -52,7 +102,7 @@ class TaxFakturImportController extends Controller
         FakturPajakDirectionResolver $directionResolver,
         ExpectedPaymentDateCalculator $paymentDates,
     ) {
-        Gate::authorize(Report::getPermissions()['view-tax-ppn']);
+        Gate::authorize(Report::getPermissions()['import-tax-faktur']);
 
         $request->validate([
             'pdf' => ['required', 'file', 'mimes:pdf', 'max:10240'],
@@ -101,7 +151,7 @@ class TaxFakturImportController extends Controller
 
     public function review()
     {
-        Gate::authorize(Report::getPermissions()['view-tax-ppn']);
+        Gate::authorize(Report::getPermissions()['import-tax-faktur']);
 
         $preview = session(self::SESSION_KEY);
         if (! $preview) {
@@ -135,7 +185,7 @@ class TaxFakturImportController extends Controller
 
     public function store(Request $request, TaxFakturImportService $importService)
     {
-        Gate::authorize(Report::getPermissions()['view-tax-ppn']);
+        Gate::authorize(Report::getPermissions()['import-tax-faktur']);
 
         $preview = session(self::SESSION_KEY);
         if (! $preview) {
@@ -168,8 +218,27 @@ class TaxFakturImportController extends Controller
         session()->forget(self::SESSION_KEY);
 
         return redirect()
-            ->route('reports.tax.faktur.index')
+            ->route('reports.tax.faktur.show', $import)
             ->with('success', "Faktur {$import->faktur_number} imported for PPN reporting.");
+    }
+
+    private function resolvePdfPath(TaxFakturImport $import): ?string
+    {
+        if (! $import->pdf_path) {
+            return null;
+        }
+
+        $privatePath = storage_path('app/private/'.$import->pdf_path);
+        if (is_file($privatePath)) {
+            return $privatePath;
+        }
+
+        $defaultPath = storage_path('app/'.$import->pdf_path);
+        if (is_file($defaultPath)) {
+            return $defaultPath;
+        }
+
+        return null;
     }
 
     /**

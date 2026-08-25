@@ -30,12 +30,14 @@ $exportQuery = http_build_query([
             </p>
         </div>
         <div class="flex flex-wrap gap-2">
+            @can('report-tax-faktur')
             <a
                 href="{{ route('reports.tax.faktur.index') }}"
                 class="inline-flex items-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
             >
                 Faktur Pajak
             </a>
+            @endcan
             <a
                 href="{{ route('reports.tax.ppn') }}?{{ $exportQuery }}"
                 class="inline-flex items-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"

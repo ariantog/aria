@@ -329,6 +329,8 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
         Route::post('/tax/faktur/parse', [\App\Http\Controllers\Reports\TaxFakturImportController::class, 'parse'])->name('tax.faktur.parse');
         Route::get('/tax/faktur/review', [\App\Http\Controllers\Reports\TaxFakturImportController::class, 'review'])->name('tax.faktur.review');
         Route::post('/tax/faktur', [\App\Http\Controllers\Reports\TaxFakturImportController::class, 'store'])->name('tax.faktur.store');
+        Route::get('/tax/faktur/{import}', [\App\Http\Controllers\Reports\TaxFakturImportController::class, 'show'])->name('tax.faktur.show');
+        Route::get('/tax/faktur/{import}/pdf', [\App\Http\Controllers\Reports\TaxFakturImportController::class, 'downloadPdf'])->name('tax.faktur.pdf');
         Route::get('/entities', [\App\Http\Controllers\Reports\ReportingEntityController::class, 'index'])->name('entities.index');
         Route::post('/entities', [\App\Http\Controllers\Reports\ReportingEntityController::class, 'store'])->name('entities.store');
         Route::get('/entities/{entity}/edit', [\App\Http\Controllers\Reports\ReportingEntityController::class, 'edit'])->name('entities.edit');
