@@ -442,6 +442,8 @@ class AddrbookController extends Controller
     {
         $a = $addrbook;
         Gate::authorize(Addrbook::getPermissions($this->addrbookTypeSlug($a))['delete']);
+
+        // Soft delete only — Addrbook uses SoftDeletes on customers.deleted_at.
         $a->delete();
 
         return redirect()->to(Addrbook::typeIndexRoute((int) $a->type))->with('success', 'Deleted.');

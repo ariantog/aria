@@ -124,7 +124,7 @@ $breadcrumbs = [
 <script>
 const _CSRF = '{{ csrf_token() }}';
 async function deleteAddrbook(id) {
-    if (!confirm('Apakah Anda yakin ingin menghapus data ini?')) return;
+    if (!confirm('Hapus kontak ini? Data akan di-soft delete dan masih bisa dilihat lewat filter "Only Deleted".')) return;
     const res = await fetch(`/addrbook/${id}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRF-TOKEN': _CSRF, 'X-Requested-With': 'XMLHttpRequest' },
