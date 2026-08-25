@@ -21,4 +21,14 @@ return [
     */
     'pph_final_rate' => 0.005,
 
+    /*
+    |--------------------------------------------------------------------------
+    | PKP CashIn keluaran inference
+    |--------------------------------------------------------------------------
+    |
+    | Customer/reseller CashIn to an entity bank does not infer PPN keluaran;
+    | keluaran is tracked on Sell (ppn column). Other payer types may still infer.
+    |
+    */
+
 ];

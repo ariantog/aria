@@ -166,12 +166,12 @@ class TaxReportService
             ->get();
 
         foreach ($cashIns as $transaction) {
-            $entity = ReportingEntity::findActiveForBank((int) $transaction->receiver_id);
-            if (! $entity || ! $entity->is_pkp || ! $this->entityMatches($entity->id, $entityIds)) {
+            if (! $this->recorder->cashInShouldInferKeluaranTax($transaction)) {
                 continue;
             }
 
-            if ($this->recorder->hasMatchingSellTax($transaction)) {
+            $entity = ReportingEntity::findActiveForBank((int) $transaction->receiver_id);
+            if (! $entity || ! $this->entityMatches($entity->id, $entityIds)) {
                 continue;
             }
 
@@ -185,7 +185,7 @@ class TaxReportService
                 'date' => $transaction->date->toDateString(),
                 'invoice' => $transaction->invoice,
                 'type' => 'cash_in',
-                'type_label' => 'Penerimaan (CashIn)',
+                'type_label' => 'Penerimaan (non-pelanggan)',
                 'party' => $this->partyName($transaction->sender_id),
                 'entity_name' => $entity->name,
                 'dpp' => $dpp,

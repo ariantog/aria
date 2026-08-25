@@ -90,14 +90,15 @@ it('rebuilds entity and operation summaries from 2025 onward', function () {
         ->and((float) ReportingOperationMonthlySummary::first()->cash_out)->toBe(-750.0);
 });
 
-it('records pkp cash-in tax and non-pkp pph final on rebuild', function () {
+it('records pkp keluaran from sell not customer cash in on rebuild', function () {
     $pkpEntity = ReportingEntity::create(['name' => 'CV Crystal', 'slug' => 'cv-crystal', 'is_pkp' => true]);
     $nonPkpEntity = ReportingEntity::create(['name' => 'Pribadi', 'slug' => 'pribadi', 'is_pkp' => false]);
     $pkpBank = Addrbook::create(['name' => 'BCA Crystal', 'type' => Addrbook::TYPE_BANK]);
     $nonPkpBank = Addrbook::create(['name' => 'BCA Pribadi', 'type' => Addrbook::TYPE_BANK]);
     $pkpEntity->banks()->attach($pkpBank->id, ['is_active' => true]);
     $nonPkpEntity->banks()->attach($nonPkpBank->id, ['is_active' => true]);
-    $customer = Addrbook::factory()->create(['type' => Addrbook::TYPE_CUSTOMER]);
+    $customer = Addrbook::factory()->customer()->create(['ppn' => true]);
+    $warehouse = Addrbook::factory()->warehouse()->create();
 
     createReportingTransaction([
         'date' => '2025-02-10',
@@ -113,6 +114,29 @@ it('records pkp cash-in tax and non-pkp pph final on rebuild', function () {
         'total' => 200_000,
         'real_total' => 200_000,
     ]);
+    createReportingTransaction([
+        'date' => '2025-02-11',
+        'type' => Transaction::TYPE_SELL,
+        'sender_type' => Addrbook::TYPE_WAREHOUSE,
+        'sender_id' => $warehouse->id,
+        'receiver_type' => Addrbook::TYPE_CUSTOMER,
+        'receiver_id' => $customer->id,
+        'invoice' => 'SELL-OTHER-INV',
+        'total' => -20_000,
+        'real_total' => -22_200,
+        'ppn' => 2_200,
+    ]);
+    createReportingTransaction([
+        'date' => '2025-02-12',
+        'type' => Transaction::TYPE_CASH_IN,
+        'sender_type' => Addrbook::TYPE_CUSTOMER,
+        'sender_id' => $customer->id,
+        'receiver_type' => Addrbook::TYPE_BANK,
+        'receiver_id' => $pkpBank->id,
+        'invoice' => 'PAY-DIFF-INV',
+        'total' => 22_200,
+        'real_total' => 22_200,
+    ]);
 
     Artisan::call('reporting:rebuild-summaries');
 
@@ -120,8 +144,8 @@ it('records pkp cash-in tax and non-pkp pph final on rebuild', function () {
     $nonPkpSummary = ReportingMonthlyTaxSummary::where('reporting_entity_id', $nonPkpEntity->id)->first();
 
     expect($pkpSummary)->not->toBeNull()
-        ->and((float) $pkpSummary->ppn_keluaran_dpp)->toBe(100_000.0)
-        ->and((float) $pkpSummary->ppn_keluaran_tax)->toBe(11_000.0)
+        ->and((float) $pkpSummary->ppn_keluaran_dpp)->toBe(20_000.0)
+        ->and((float) $pkpSummary->ppn_keluaran_tax)->toBe(2_200.0)
         ->and((float) $pkpSummary->pph_final)->toBe(0.0)
         ->and($nonPkpSummary)->not->toBeNull()
         ->and((float) $nonPkpSummary->pph_final)->toBe(1000.0)
@@ -264,7 +288,7 @@ it('resolves legacy tax cash out through ledger merge map', function () {
         ->and((float) $summary->tax_paid)->toBe(-250_000.0);
 });
 
-it('records pkp cash-in tax when no matching sell invoice exists', function () {
+it('does not infer pkp keluaran from customer cash in without sell', function () {
     $entity = ReportingEntity::create(['name' => 'CV Crystal', 'slug' => 'cv-crystal', 'is_pkp' => true]);
     $bank = Addrbook::create(['name' => 'BCA Crystal', 'type' => Addrbook::TYPE_BANK]);
     $entity->banks()->attach($bank->id, ['is_active' => true]);
@@ -284,8 +308,8 @@ it('records pkp cash-in tax when no matching sell invoice exists', function () {
     $summary = ReportingMonthlyTaxSummary::where('reporting_entity_id', $entity->id)->first();
 
     expect($summary)->not->toBeNull()
-        ->and((float) $summary->ppn_keluaran_dpp)->toBe(100_000.0)
-        ->and((float) $summary->ppn_keluaran_tax)->toBe(11_000.0);
+        ->and((float) $summary->ppn_keluaran_dpp)->toBe(0.0)
+        ->and((float) $summary->ppn_keluaran_tax)->toBe(0.0);
 });
 
 it('installs monthly tax summaries via dedicated migration path', function () {

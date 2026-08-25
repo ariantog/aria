@@ -120,15 +120,13 @@ class ReportingSummaryRecorder
         $gross = abs((float) $transaction->total);
 
         if ($entity->is_pkp) {
-            if ($this->hasMatchingSellTax($transaction)) {
-                return;
+            if ($this->cashInShouldInferKeluaranTax($transaction)) {
+                $rate = $this->getPpnRate();
+                $dpp = round($gross / (1 + $rate), 2);
+                $tax = round($gross - $dpp, 2);
+                $summary->increment('ppn_keluaran_dpp', $dpp);
+                $summary->increment('ppn_keluaran_tax', $tax);
             }
-
-            $rate = $this->getPpnRate();
-            $dpp = round($gross / (1 + $rate), 2);
-            $tax = round($gross - $dpp, 2);
-            $summary->increment('ppn_keluaran_dpp', $dpp);
-            $summary->increment('ppn_keluaran_tax', $tax);
 
             return;
         }
@@ -232,15 +230,22 @@ class ReportingSummaryRecorder
 
     public function resolveEntityForSellTax(Transaction $transaction): ?ReportingEntity
     {
-        $payment = Transaction::query()
+        $baseQuery = Transaction::query()
             ->where('type', Transaction::TYPE_CASH_IN)
             ->where('status', Transaction::STATUS_COMPLETED)
             ->where('sender_id', $transaction->receiver_id)
-            ->where('receiver_type', Addrbook::TYPE_BANK)
-            ->when(
-                filled($transaction->invoice),
-                fn ($query) => $query->where('invoice', $transaction->invoice),
-            )
+            ->where('receiver_type', Addrbook::TYPE_BANK);
+
+        $payment = null;
+        if (filled($transaction->invoice)) {
+            $payment = (clone $baseQuery)
+                ->where('invoice', $transaction->invoice)
+                ->orderBy('date')
+                ->orderBy('id')
+                ->first();
+        }
+
+        $payment ??= (clone $baseQuery)
             ->orderBy('date')
             ->orderBy('id')
             ->first();
@@ -275,6 +280,36 @@ class ReportingSummaryRecorder
     private function getPpnRate(): float
     {
         return (float) Setting::getValue('ppn_rate', 11) / 100;
+    }
+
+    /**
+     * PKP keluaran from CashIn gross is only for non-trade payers (not customer/reseller).
+     * Customer and reseller payments to an entity bank are collections; PPN keluaran
+     * is tracked on Sell (ppn column) for that entity regardless of invoice #.
+     */
+    public function cashInShouldInferKeluaranTax(Transaction $transaction): bool
+    {
+        if ((int) $transaction->type !== Transaction::TYPE_CASH_IN) {
+            return false;
+        }
+
+        if ((int) $transaction->receiver_type !== Addrbook::TYPE_BANK) {
+            return false;
+        }
+
+        if ((int) $transaction->sender_type === Addrbook::TYPE_ACCOUNT) {
+            return false;
+        }
+
+        $entity = ReportingEntity::findActiveForBank((int) $transaction->receiver_id);
+        if (! $entity || ! $entity->is_pkp) {
+            return false;
+        }
+
+        return ! in_array((int) $transaction->sender_type, [
+            Addrbook::TYPE_CUSTOMER,
+            Addrbook::TYPE_RESELLER,
+        ], true);
     }
 
     public function hasMatchingSellTax(Transaction $transaction): bool
