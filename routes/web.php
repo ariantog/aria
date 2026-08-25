@@ -329,8 +329,10 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
         Route::get('/tax/faktur/create', [\App\Http\Controllers\Reports\TaxFakturImportController::class, 'create'])->name('tax.faktur.create');
         Route::post('/tax/faktur/parse', [\App\Http\Controllers\Reports\TaxFakturImportController::class, 'parse'])->name('tax.faktur.parse');
         Route::get('/tax/faktur/review', [\App\Http\Controllers\Reports\TaxFakturImportController::class, 'review'])->name('tax.faktur.review');
+        Route::get('/tax/faktur/cash-in-suggestions', [\App\Http\Controllers\Reports\TaxFakturImportController::class, 'cashInSuggestions'])->name('tax.faktur.cash-in-suggestions');
         Route::post('/tax/faktur', [\App\Http\Controllers\Reports\TaxFakturImportController::class, 'store'])->name('tax.faktur.store');
         Route::get('/tax/faktur/{import}', [\App\Http\Controllers\Reports\TaxFakturImportController::class, 'show'])->name('tax.faktur.show');
+        Route::patch('/tax/faktur/{import}/payment', [\App\Http\Controllers\Reports\TaxFakturImportController::class, 'updatePayment'])->name('tax.faktur.payment.update');
         Route::get('/tax/faktur/{import}/pdf', [\App\Http\Controllers\Reports\TaxFakturImportController::class, 'downloadPdf'])->name('tax.faktur.pdf');
         Route::get('/entities', [\App\Http\Controllers\Reports\ReportingEntityController::class, 'index'])->name('entities.index');
         Route::post('/entities', [\App\Http\Controllers\Reports\ReportingEntityController::class, 'store'])->name('entities.store');

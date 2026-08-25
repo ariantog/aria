@@ -3,6 +3,7 @@
 use App\Models\Addrbook;
 use App\Models\ReportingEntity;
 use App\Models\TaxFakturImport;
+use App\Models\Transaction;
 use App\Models\User;
 use App\Services\PermissionGenerator;
 use App\Services\Reporting\TaxReportService;
@@ -27,6 +28,10 @@ beforeEach(function () {
     ]);
     Artisan::call('migrate', [
         '--path' => 'database/migrations/2026_08_25_100100_add_payment_schedule_to_customers_table.php',
+        '--force' => true,
+    ]);
+    Artisan::call('migrate', [
+        '--path' => 'database/migrations/2026_08_25_100200_add_variance_transaction_id_to_tax_faktur_imports_table.php',
         '--force' => true,
     ]);
 });
@@ -294,4 +299,153 @@ it('allows view-only user to list and show but not upload', function () {
     $this->actingAs($viewer)
         ->get(route('reports.tax.faktur.create'))
         ->assertForbidden();
+});
+
+it('forbids faktur import without report-tax-faktur-import permission', function () {
+    $viewer = User::factory()->create();
+    $viewer->givePermissionTo('report-tax-faktur');
+
+    $this->actingAs($viewer)
+        ->post(route('reports.tax.faktur.parse'), [])
+        ->assertForbidden();
+});
+
+it('suggests cash in by customer and entity bank', function () {
+    $entity = ReportingEntity::create([
+        'name' => 'PT Indosport',
+        'slug' => 'pt-indosport-cashin',
+        'is_pkp' => true,
+    ]);
+    $bank = Addrbook::create(['name' => 'BCA Entity', 'type' => Addrbook::TYPE_BANK]);
+    $otherBank = Addrbook::create(['name' => 'Other Bank', 'type' => Addrbook::TYPE_BANK]);
+    $entity->banks()->attach($bank->id, ['is_active' => true]);
+
+    $customer = Addrbook::factory()->customer()->create(['name' => 'MDS RETAILING TBK']);
+    $otherCustomer = Addrbook::factory()->customer()->create();
+
+    $preferred = Transaction::withoutEvents(fn () => Transaction::create([
+        'date' => '2026-08-15',
+        'type' => Transaction::TYPE_CASH_IN,
+        'sender_type' => Addrbook::TYPE_CUSTOMER,
+        'sender_id' => $customer->id,
+        'receiver_type' => Addrbook::TYPE_BANK,
+        'receiver_id' => $bank->id,
+        'invoice' => '04002600298450234',
+        'total' => 20_000_000,
+        'real_total' => 20_000_000,
+        'status' => Transaction::STATUS_COMPLETED,
+        'user_id' => $this->user->id,
+        'submit_type' => Transaction::SUBMIT_TYPE_MANUAL,
+    ]));
+
+    Transaction::withoutEvents(fn () => Transaction::create([
+        'date' => '2026-08-15',
+        'type' => Transaction::TYPE_CASH_IN,
+        'sender_type' => Addrbook::TYPE_CUSTOMER,
+        'sender_id' => $customer->id,
+        'receiver_type' => Addrbook::TYPE_BANK,
+        'receiver_id' => $otherBank->id,
+        'total' => 20_000_000,
+        'real_total' => 20_000_000,
+        'status' => Transaction::STATUS_COMPLETED,
+        'user_id' => $this->user->id,
+        'submit_type' => Transaction::SUBMIT_TYPE_MANUAL,
+    ]));
+
+    Transaction::withoutEvents(fn () => Transaction::create([
+        'date' => '2026-08-15',
+        'type' => Transaction::TYPE_CASH_IN,
+        'sender_type' => Addrbook::TYPE_CUSTOMER,
+        'sender_id' => $otherCustomer->id,
+        'receiver_type' => Addrbook::TYPE_BANK,
+        'receiver_id' => $bank->id,
+        'total' => 20_000_000,
+        'real_total' => 20_000_000,
+        'status' => Transaction::STATUS_COMPLETED,
+        'user_id' => $this->user->id,
+        'submit_type' => Transaction::SUBMIT_TYPE_MANUAL,
+    ]));
+
+    $wrongCustomerCashIn = Transaction::withoutEvents(fn () => Transaction::query()->latest('id')->first());
+
+    $response = $this->actingAs($this->user)
+        ->getJson(route('reports.tax.faktur.cash-in-suggestions', [
+            'counterparty_id' => $customer->id,
+            'reporting_entity_id' => $entity->id,
+            'payment_received_amount' => 20_000_000,
+            'payment_received_date' => '2026-08-15',
+            'faktur_number' => '04002600298450234',
+        ]));
+
+    $response->assertOk();
+    $ids = collect($response->json('suggestions'))->pluck('id')->all();
+
+    expect($ids[0] ?? null)->toBe($preferred->id)
+        ->and($ids)->not->toContain($wrongCustomerCashIn->id);
+});
+
+it('posts payment variance as cash out to expense ledger', function () {
+    $entity = ReportingEntity::create([
+        'name' => 'PT Indosport',
+        'slug' => 'pt-indosport-variance',
+        'is_pkp' => true,
+    ]);
+    $bank = Addrbook::create(['name' => 'BCA Variance', 'type' => Addrbook::TYPE_BANK]);
+    $entity->banks()->attach($bank->id, ['is_active' => true]);
+    $customer = Addrbook::factory()->customer()->create();
+    $expense = Addrbook::create(['name' => 'Biaya MDS', 'type' => Addrbook::TYPE_ACCOUNT]);
+
+    $cashIn = Transaction::withoutEvents(fn () => Transaction::create([
+        'date' => '2026-08-15',
+        'type' => Transaction::TYPE_CASH_IN,
+        'sender_type' => Addrbook::TYPE_CUSTOMER,
+        'sender_id' => $customer->id,
+        'receiver_type' => Addrbook::TYPE_BANK,
+        'receiver_id' => $bank->id,
+        'total' => 20_000_000,
+        'real_total' => 20_000_000,
+        'status' => Transaction::STATUS_COMPLETED,
+        'user_id' => $this->user->id,
+        'submit_type' => Transaction::SUBMIT_TYPE_MANUAL,
+    ]));
+
+    $parsed = new ParsedFakturPajak(
+        fakturNumber: '04002600999999999',
+        fakturDate: Carbon::parse('2026-07-31'),
+        fakturDatePlace: 'Jakarta',
+        sellerName: 'INDOSPORT',
+        sellerNpwp: '0504330085044000',
+        buyerName: 'MDS',
+        buyerNpwp: '0013179569054000',
+        grossTotal: 21_787_055.0,
+        discountTotal: 0,
+        dpp: 19_452_728.0,
+        ppn: 2_334_327.0,
+        ppnbm: 0,
+        signatoryName: 'TEST',
+        sourceFormat: 'mds_output_tax_invoice',
+    );
+
+    $this->actingAs($this->user);
+
+    $import = app(TaxFakturImportService::class)->storeFromParsed($parsed, [
+        'direction' => TaxFakturImport::DIRECTION_KELUARAN,
+        'reporting_entity_id' => $entity->id,
+        'counterparty_id' => $customer->id,
+        'payment_received_amount' => 20_000_000,
+        'payment_received_date' => '2026-08-15',
+        'cash_in_transaction_id' => $cashIn->id,
+        'variance_expense_addrbook_id' => $expense->id,
+    ]);
+
+    expect($import->cash_in_transaction_id)->toBe($cashIn->id)
+        ->and($import->variance_transaction_id)->not->toBeNull();
+
+    $varianceTx = Transaction::query()->find($import->variance_transaction_id);
+
+    expect($varianceTx)->not->toBeNull()
+        ->and((int) $varianceTx->type)->toBe(Transaction::TYPE_CASH_OUT)
+        ->and((int) $varianceTx->sender_id)->toBe($bank->id)
+        ->and((int) $varianceTx->receiver_id)->toBe($expense->id)
+        ->and(abs((float) $varianceTx->total))->toBe(1_787_055.0);
 });

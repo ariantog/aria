@@ -3,14 +3,21 @@
 use App\Models\Addrbook;
 use App\Models\ReportingEntity;
 use App\Models\ReportingMonthlyTaxSummary;
+use App\Models\TaxFakturImport;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Services\PermissionGenerator;
 use App\Services\Reporting\TaxReportService;
+use Illuminate\Support\Facades\Artisan;
 
 beforeEach(function () {
     $this->user = User::factory()->create();
     app(PermissionGenerator::class)->generateForModule('Report');
+    $this->user->givePermissionTo('report-tax-ppn');
+    Artisan::call('migrate', [
+        '--path' => 'database/migrations/2026_08_25_100000_install_tax_faktur_imports_table.php',
+        '--force' => true,
+    ]);
 });
 
 function seedPpnReportScenario(): array
@@ -269,4 +276,46 @@ it('forbids users without report-tax-ppn permission', function () {
     $this->actingAs($restricted)
         ->get(route('reports.tax.ppn'))
         ->assertForbidden();
+});
+
+it('includes imported faktur rows in keluaran drill-down', function () {
+    $entity = ReportingEntity::create(['name' => 'PT Faktur', 'slug' => 'pt-faktur', 'is_pkp' => true]);
+    $customer = Addrbook::factory()->customer()->create(['name' => 'MDS RETAILING TBK']);
+
+    TaxFakturImport::create([
+        'faktur_number' => '01000123456789012',
+        'faktur_date' => '2025-06-20',
+        'direction' => TaxFakturImport::DIRECTION_KELUARAN,
+        'reporting_entity_id' => $entity->id,
+        'counterparty_id' => $customer->id,
+        'seller_name' => 'Seller',
+        'seller_npwp' => '0504330085044000',
+        'buyer_name' => 'MDS',
+        'buyer_npwp' => '0013179569054000',
+        'dpp' => 1_000_000,
+        'ppn' => 110_000,
+        'report_year' => 2025,
+        'report_month' => 6,
+        'source_format' => 'mds_output_tax_invoice',
+        'user_id' => $this->user->id,
+    ]);
+
+    $service = app(TaxReportService::class);
+    $rows = $service->keluaranRows(2025, 6, $entity->id);
+
+    expect($rows->pluck('type')->all())->toContain('faktur_import')
+        ->and($rows->firstWhere('type', 'faktur_import')['invoice'])->toBe('01000123456789012')
+        ->and($rows->firstWhere('type', 'faktur_import')['source_label'])->toBe('MDS faktur')
+        ->and($rows->firstWhere('type', 'faktur_import')['link_type'])->toBe('faktur');
+
+    $this->actingAs($this->user)
+        ->get(route('reports.tax.ppn', [
+            'year' => 2025,
+            'month' => 6,
+            'entity' => $entity->id,
+        ]))
+        ->assertOk()
+        ->assertSee('01000123456789012', false)
+        ->assertSee('MDS faktur', false)
+        ->assertSee('MDS RETAILING TBK', false);
 });

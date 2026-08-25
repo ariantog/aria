@@ -96,12 +96,31 @@
         </div>
 
         {{-- Supplier --}}
-        <div x-show="selectedType === '{{ $typeSupplier }}'">
-            <label for="reporting_role" class="mb-1 block text-sm font-medium text-gray-700">Material supplier</label>
-            <select id="reporting_role" name="reporting_role" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
-                <option value="" @selected($reportingRole === '')>General supplier</option>
-                <option value="material" @selected($reportingRole === 'material')>Material / fabric supplier</option>
-            </select>
+        <div x-show="selectedType === '{{ $typeSupplier }}'" class="space-y-4">
+            <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div>
+                    <label for="supplier_payment_due_day" class="mb-1 block text-sm font-medium text-gray-700">Payment due day</label>
+                    <input type="number" id="supplier_payment_due_day" name="payment_due_day" min="1" max="31"
+                           value="{{ old('payment_due_day', $addrbook?->payment_due_day ?? '') }}"
+                           placeholder="e.g. 25"
+                           class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                    <p class="mt-1 text-xs text-gray-500">Day of month supplier payment is usually due (month after faktur).</p>
+                </div>
+                <div>
+                    <label for="supplier_payment_grace_days" class="mb-1 block text-sm font-medium text-gray-700">Payment grace days</label>
+                    <input type="number" id="supplier_payment_grace_days" name="payment_grace_days" min="0" max="60"
+                           value="{{ old('payment_grace_days', $addrbook?->payment_grace_days ?? 7) }}"
+                           class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                    <p class="mt-1 text-xs text-gray-500">Overdue flag after expected date + grace (default 7).</p>
+                </div>
+            </div>
+            <div>
+                <label for="reporting_role" class="mb-1 block text-sm font-medium text-gray-700">Material supplier</label>
+                <select id="reporting_role" name="reporting_role" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                    <option value="" @selected($reportingRole === '')>General supplier</option>
+                    <option value="material" @selected($reportingRole === 'material')>Material / fabric supplier</option>
+                </select>
+            </div>
         </div>
     </div>
 </div>
