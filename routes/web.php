@@ -121,6 +121,7 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::get('shopee-ads/authorize', [App\Http\Controllers\ShopeeAdsController::class, 'authorizeShop'])->name('shopee-ads.authorize');
     Route::post('shopee-ads/replenish', [App\Http\Controllers\ShopeeAdsController::class, 'replenish'])->name('shopee-ads.replenish');
     Route::post('shopee-ads/daily-reset', [App\Http\Controllers\ShopeeAdsController::class, 'dailyReset'])->name('shopee-ads.daily-reset');
+    Route::post('shopee-ads/boost-budget', [App\Http\Controllers\ShopeeAdsController::class, 'boostBudget'])->name('shopee-ads.boost');
 
     // Dynamic Addrbook Type Routes (e.g., /customer, /supplier)
     $addrbookTypes = implode('|', array_column(\App\Models\Addrbook::getTypes(), 'slug'));

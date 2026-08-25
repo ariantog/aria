@@ -38,6 +38,14 @@ $breadcrumbs = [
                     Daily Reset Now
                 </button>
             </form>
+            @if($canBoost)
+            <form method="POST" action="{{ route('shopee-ads.boost') }}" onsubmit="return confirm('Boost semua budget iklan ×{{ $settings->manual_boost_multiplier }}?')">
+                @csrf
+                <button type="submit" class="rounded-lg border border-purple-300 bg-purple-50 px-4 py-2 text-sm font-medium text-purple-900 hover:bg-purple-100">
+                    Boost ×{{ $settings->manual_boost_multiplier }}
+                </button>
+            </form>
+            @endif
             <a href="{{ route('shopee-ads.authorize') }}" class="rounded-lg bg-orange-600 px-4 py-2 text-sm font-medium text-white hover:bg-orange-700">
                 Authorize Shopee
             </a>
@@ -79,8 +87,21 @@ $breadcrumbs = [
     </div>
 
     <div class="rounded-xl border border-gray-200 bg-white shadow-sm">
-        <div class="border-b border-gray-100 px-6 py-4">
+        <div class="border-b border-gray-100 px-6 py-4 flex flex-wrap items-center justify-between gap-2">
             <h2 class="text-sm font-semibold text-gray-900">Rencana end-of-day</h2>
+            @if($ruleStatus['labels'] !== [])
+            <div class="flex flex-wrap gap-2 text-xs">
+                @if($ruleStatus['double_date'])
+                <span class="rounded-full bg-pink-100 px-2 py-1 font-medium text-pink-800">Double date aktif</span>
+                @endif
+                @if($ruleStatus['payday'])
+                <span class="rounded-full bg-blue-100 px-2 py-1 font-medium text-blue-800">Payday aktif</span>
+                @endif
+                @foreach($ruleStatus['labels'] as $label)
+                <span class="rounded-full bg-gray-100 px-2 py-1 text-gray-700">{{ $label }}</span>
+                @endforeach
+            </div>
+            @endif
         </div>
         <div class="overflow-x-auto">
             <table class="min-w-full text-sm">
@@ -102,7 +123,10 @@ $breadcrumbs = [
                             (cap Rp {{ number_format($row['cap'], 0, ',', '.') }})
                             @else
                             Start Rp {{ number_format($row['start'], 0, ',', '.') }}
-                            ({{ $row['active_ads'] }} ads × Rp {{ number_format($row['start_per_ad'], 0, ',', '.') }})
+                            ({{ $row['active_ads'] }} ads × Rp {{ number_format($row['start_per_ad'], 0, ',', '.') }}
+                            @if(isset($row['effective_max_ads']) && $row['effective_max_ads'] > $settings->max_item_ads)
+                            · max {{ $row['effective_max_ads'] }}
+                            @endif)
                             + increments Rp {{ number_format($row['increments'], 0, ',', '.') }}
                             → planned Rp {{ number_format($row['planned'], 0, ',', '.') }}
                             · {{ $row['note'] }}
@@ -185,6 +209,63 @@ $breadcrumbs = [
                 <label class="flex items-center gap-2">
                     <input type="checkbox" name="item_replenish_enabled" value="1" {{ $settings->item_replenish_enabled ? 'checked' : '' }}> Auto item replenish
                 </label>
+            </div>
+
+            <div class="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                <h3 class="text-sm font-semibold text-gray-900">Aturan spesial</h3>
+                <p class="mt-1 text-xs text-gray-500">Multiplier diterapkan otomatis pada daily reset, replenish, dan jadwal increment (WIB).</p>
+                <div class="mt-4 grid gap-4 sm:grid-cols-2">
+                    <div class="space-y-3 rounded-lg border border-gray-200 bg-white p-4">
+                        <label class="flex items-center gap-2 text-sm font-medium text-gray-800">
+                            <input type="checkbox" name="double_date_enabled" value="1" {{ $settings->double_date_enabled ? 'checked' : '' }}>
+                            Double date (tanggal kembar, mis. 8/8)
+                        </label>
+                        <div class="grid gap-2 sm:grid-cols-3 text-sm">
+                            <label>
+                                <span class="text-gray-600">GMV ×</span>
+                                <input type="number" step="0.1" name="double_date_gmv_multiplier" value="{{ $settings->double_date_gmv_multiplier }}" class="mt-1 w-full rounded-lg border-gray-300" required>
+                            </label>
+                            <label>
+                                <span class="text-gray-600">Item ads ×</span>
+                                <input type="number" step="0.1" name="double_date_item_ads_multiplier" value="{{ $settings->double_date_item_ads_multiplier }}" class="mt-1 w-full rounded-lg border-gray-300" required>
+                            </label>
+                            <label>
+                                <span class="text-gray-600">Item budget ×</span>
+                                <input type="number" step="0.1" name="double_date_item_budget_multiplier" value="{{ $settings->double_date_item_budget_multiplier }}" class="mt-1 w-full rounded-lg border-gray-300" required>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="space-y-3 rounded-lg border border-gray-200 bg-white p-4">
+                        <label class="flex items-center gap-2 text-sm font-medium text-gray-800">
+                            <input type="checkbox" name="payday_enabled" value="1" {{ $settings->payday_enabled ? 'checked' : '' }}>
+                            Payday (tanggal gajian)
+                        </label>
+                        <div class="grid gap-2 sm:grid-cols-3 text-sm">
+                            <label>
+                                <span class="text-gray-600">Tanggal</span>
+                                <input type="number" name="payday_day" min="1" max="28" value="{{ $settings->payday_day }}" class="mt-1 w-full rounded-lg border-gray-300" required>
+                            </label>
+                            <label>
+                                <span class="text-gray-600">GMV ×</span>
+                                <input type="number" step="0.1" name="payday_gmv_multiplier" value="{{ $settings->payday_gmv_multiplier }}" class="mt-1 w-full rounded-lg border-gray-300" required>
+                            </label>
+                            <label>
+                                <span class="text-gray-600">Item ×</span>
+                                <input type="number" step="0.1" name="payday_item_multiplier" value="{{ $settings->payday_item_multiplier }}" class="mt-1 w-full rounded-lg border-gray-300" required>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-4 rounded-lg border border-purple-200 bg-purple-50 p-4 text-sm">
+                    <label class="block font-medium text-purple-900">
+                        Manual boost (tombol Boost — permission <code class="text-xs">shopee-ads-boost</code>)
+                    </label>
+                    <label class="mt-2 block">
+                        <span class="text-gray-600">Multiplier ×</span>
+                        <input type="number" step="0.1" name="manual_boost_multiplier" value="{{ $settings->manual_boost_multiplier }}" class="mt-1 w-full max-w-xs rounded-lg border-gray-300" required>
+                    </label>
+                    <p class="mt-2 text-xs text-purple-800">Mengalikan budget GMV Max + semua item ads yang aktif sekarang (live dari Shopee).</p>
+                </div>
             </div>
             <button type="submit" class="rounded-lg bg-blue-700 px-4 py-2 text-sm font-medium text-white hover:bg-blue-800">Simpan</button>
         </form>
