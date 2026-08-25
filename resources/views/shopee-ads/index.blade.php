@@ -101,8 +101,11 @@ $breadcrumbs = [
                             → planned Rp {{ number_format($row['planned'], 0, ',', '.') }}
                             (cap Rp {{ number_format($row['cap'], 0, ',', '.') }})
                             @else
-                            Pool/run Rp {{ number_format($row['pool_per_run'], 0, ',', '.') }}
-                            · {{ $row['active_ads'] }} active ads · {{ $row['note'] }}
+                            Start Rp {{ number_format($row['start'], 0, ',', '.') }}
+                            ({{ $row['active_ads'] }} ads × Rp {{ number_format($row['start_per_ad'], 0, ',', '.') }})
+                            + increments Rp {{ number_format($row['increments'], 0, ',', '.') }}
+                            → planned Rp {{ number_format($row['planned'], 0, ',', '.') }}
+                            · {{ $row['note'] }}
                             @endif
                         </td>
                     </tr>

@@ -179,7 +179,13 @@ class ShopeeAdsController extends Controller
             ->where('enabled', true)
             ->sum('increment_idr');
 
-        $itemPool = (int) $schedules
+        $itemStartPerAd = max((int) $settings->item_ad_starting_budget, ShopeeAdsApiService::ITEM_AD_MIN_BUDGET);
+        $activeItemAds = ShopeeAdsItemAd::query()
+            ->where('turned_off', false)
+            ->whereNotIn('status', ['ended', 'closed', 'berakhir'])
+            ->count();
+        $itemStart = $itemStartPerAd * $activeItemAds;
+        $itemInc = (int) $schedules
             ->where('ad_type', ShopeeAdsType::ProdukManual->value)
             ->where('enabled', true)
             ->sum('increment_idr');
@@ -193,10 +199,13 @@ class ShopeeAdsController extends Controller
                 'cap' => (int) $settings->daily_max_budget,
             ],
             ShopeeAdsType::ProdukManual->value => [
-                'pool_per_run' => $itemPool,
-                'active_ads' => ShopeeAdsItemAd::query()->where('turned_off', false)->count(),
+                'start_per_ad' => $itemStartPerAd,
+                'start' => $itemStart,
+                'increments' => $itemInc,
+                'planned' => $itemStart + $itemInc,
+                'active_ads' => $activeItemAds,
                 'cap' => (int) $settings->daily_max_budget,
-                'note' => 'Pool dibagi per item ad by ROAS tier',
+                'note' => 'Pool per run dibagi per item ad by ROAS tier',
             ],
         ];
     }
