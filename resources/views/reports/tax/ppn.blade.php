@@ -29,13 +29,21 @@ $exportQuery = http_build_query([
                 (data agregat {{ \App\Services\Reporting\TaxReportService::MIN_YEAR }}+)
             </p>
         </div>
-        <a
-            href="{{ route('reports.tax.ppn') }}?{{ $exportQuery }}"
-            class="inline-flex items-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-            data-testid="ppn-export-csv"
-        >
-            Export CSV
-        </a>
+        <div class="flex flex-wrap gap-2">
+            <a
+                href="{{ route('reports.tax.faktur.index') }}"
+                class="inline-flex items-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            >
+                Faktur Pajak
+            </a>
+            <a
+                href="{{ route('reports.tax.ppn') }}?{{ $exportQuery }}"
+                class="inline-flex items-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                data-testid="ppn-export-csv"
+            >
+                Export CSV
+            </a>
+        </div>
     </div>
 
     <div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">

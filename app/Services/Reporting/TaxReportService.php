@@ -5,6 +5,7 @@ namespace App\Services\Reporting;
 use App\Models\Addrbook;
 use App\Models\ReportingEntity;
 use App\Models\ReportingMonthlyTaxSummary;
+use App\Models\TaxFakturImport;
 use App\Models\Setting;
 use App\Models\Transaction;
 use Illuminate\Support\Carbon;
@@ -82,6 +83,14 @@ class TaxReportService
         $keluaranTax = $rawKeluaranTax - $returKeluaranTax;
         $masukanDpp = $rawMasukanDpp - $returMasukanDpp;
         $masukanTax = $rawMasukanTax - $returMasukanTax;
+
+        $fakturKeluaran = $this->fakturTotals($entityIds, $year, $month, TaxFakturImport::DIRECTION_KELUARAN);
+        $fakturMasukan = $this->fakturTotals($entityIds, $year, $month, TaxFakturImport::DIRECTION_MASUKAN);
+
+        $keluaranDpp += $fakturKeluaran['dpp'];
+        $keluaranTax += $fakturKeluaran['ppn'];
+        $masukanDpp += $fakturMasukan['dpp'];
+        $masukanTax += $fakturMasukan['ppn'];
 
         return [
             'keluaran_dpp' => $keluaranDpp,
@@ -489,6 +498,25 @@ class TaxReportService
      *     retur_masukan_tax: float,
      * }
      */
+    /**
+     * @return array{dpp: float, ppn: float}
+     */
+    private function fakturTotals(array $entityIds, int $year, int $month, string $direction): array
+    {
+        $row = TaxFakturImport::query()
+            ->where('report_year', $year)
+            ->where('report_month', $month)
+            ->where('direction', $direction)
+            ->whereIn('reporting_entity_id', $entityIds)
+            ->selectRaw('COALESCE(SUM(dpp), 0) as dpp, COALESCE(SUM(ppn), 0) as ppn')
+            ->first();
+
+        return [
+            'dpp' => (float) $row->dpp,
+            'ppn' => (float) $row->ppn,
+        ];
+    }
+
     private function emptyRingkasan(): array
     {
         return [

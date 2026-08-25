@@ -66,6 +66,23 @@
 
         {{-- Customer / Reseller --}}
         <div x-show="selectedType === '{{ $typeCustomer }}' || selectedType === '{{ $typeReseller }}'" class="space-y-4">
+            <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div>
+                    <label for="payment_due_day" class="mb-1 block text-sm font-medium text-gray-700">Payment due day</label>
+                    <input type="number" id="payment_due_day" name="payment_due_day" min="1" max="31"
+                           value="{{ old('payment_due_day', $addrbook?->payment_due_day ?? '') }}"
+                           placeholder="e.g. 15 for MDS, 6 for Central"
+                           class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                    <p class="mt-1 text-xs text-gray-500">Day of month counterparty usually pays (month after faktur).</p>
+                </div>
+                <div>
+                    <label for="payment_grace_days" class="mb-1 block text-sm font-medium text-gray-700">Payment grace days</label>
+                    <input type="number" id="payment_grace_days" name="payment_grace_days" min="0" max="60"
+                           value="{{ old('payment_grace_days', $addrbook?->payment_grace_days ?? 7) }}"
+                           class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                    <p class="mt-1 text-xs text-gray-500">Overdue flag after expected date + grace (default 7).</p>
+                </div>
+            </div>
             <div x-data="{ on: {{ $isInternalLending ? 'true' : 'false' }} }" class="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 p-4">
                 <div>
                     <p class="text-sm font-medium text-gray-900">Internal lending</p>
