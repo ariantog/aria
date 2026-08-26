@@ -36,6 +36,7 @@ class ShopeeAdsController extends Controller
             'adTypeLabels' => ShopeeAdsType::labels(),
             'supportedTypes' => ShopeeAdsType::supportedScheduleTypes(),
             'connection' => $api->getConnectionStatus(),
+            'oauthRedirectUrl' => $api->getOAuthRedirectUrl(),
             'planned' => $this->plannedEndOfDay($settings, $schedules, $specialRules),
             'ruleStatus' => $ruleStatus,
             'canEdit' => request()->user()?->can(ShopeeAds::getPermissions()['edit']) ?? false,
@@ -153,7 +154,13 @@ class ShopeeAdsController extends Controller
         $result = $api->exchangeAuthCode($code, $shopId);
 
         if (! $result) {
-            return redirect()->route('shopee-ads.index')->with('error', 'Gagal menukar kode OAuth Shopee.');
+            $detail = $api->getLastOAuthError();
+            $message = 'Gagal menukar kode OAuth Shopee.';
+            if ($detail) {
+                $message .= ' '.$detail;
+            }
+
+            return redirect()->route('shopee-ads.index')->with('error', $message);
         }
 
         return redirect()->route('shopee-ads.index')->with('success', 'Shopee shop berhasil diotorisasi.');
