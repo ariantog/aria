@@ -4,13 +4,16 @@ namespace App\Console\Commands;
 
 use App\Models\WarehouseStatBackfill;
 use App\Services\WarehouseStatBackfillService;
+use Carbon\CarbonImmutable;
 use Illuminate\Console\Command;
 
 class BackfillWarehouseItemStats extends Command
 {
     protected $signature = 'app:backfill-warehouse-item-stats
                             {--months= : Months to rebuild in this batch}
+                            {--max-seconds= : Stop after this many seconds (for cron time limits)}
                             {--restart : Start a fresh backfill from the newest month}
+                            {--since= : When restarting, only backfill from this month (Y-m-d)}
                             {--status : Only print the current progress}';
 
     protected $description = 'Rebuild historical warehouse stats one batch of months at a time';
@@ -24,7 +27,10 @@ class BackfillWarehouseItemStats extends Command
         }
 
         if ($this->option('restart')) {
-            $backfill->start();
+            $since = $this->option('since')
+                ? CarbonImmutable::parse($this->option('since'))->startOfMonth()
+                : null;
+            $backfill->start($since);
             $this->info('Backfill restarted from the newest month.');
         }
 
@@ -49,7 +55,8 @@ class BackfillWarehouseItemStats extends Command
         }
 
         $months = $this->option('months') !== null ? (int) $this->option('months') : null;
-        $result = $backfill->runBatch($months);
+        $maxSeconds = $this->option('max-seconds') !== null ? (int) $this->option('max-seconds') : null;
+        $result = $backfill->runBatch($months, $maxSeconds);
 
         if ($result['months'] === 0) {
             $this->info(sprintf('No months processed (status: %s).', $result['status']));
@@ -86,6 +93,10 @@ class BackfillWarehouseItemStats extends Command
 
         if ($state->last_error) {
             $this->error('Last error: '.$state->last_error);
+        }
+
+        if ($state->last_run_at) {
+            $this->line('Last batch: '.$state->last_run_at->toDateTimeString());
         }
     }
 }

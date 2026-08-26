@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\WarehouseStatBackfill;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Throwable;
 
@@ -17,6 +18,9 @@ use Throwable;
 class WarehouseStatBackfillService
 {
     public const DEFAULT_BATCH_MONTHS = 3;
+
+    /** Stop a cron-driven batch before shared-hosting PHP timeouts (seconds). */
+    public const CRON_MAX_SECONDS = 50;
 
     public function __construct(private readonly WarehouseItemStatsRebuilder $rebuilder) {}
 
@@ -33,8 +37,10 @@ class WarehouseStatBackfillService
 
     /**
      * (Re)start the backfill from the newest month with data back to the oldest.
+     *
+     * @param  CarbonImmutable|null  $since  Optional floor (e.g. 2026-01-01); does not walk earlier months.
      */
-    public function start(): WarehouseStatBackfill
+    public function start(?CarbonImmutable $since = null): WarehouseStatBackfill
     {
         $state = $this->state();
         $bounds = $this->rebuilder->periodBounds();
@@ -54,6 +60,28 @@ class WarehouseStatBackfillService
         }
 
         [$oldest, $newest] = $bounds;
+
+        if ($since !== null) {
+            $since = $since->startOfMonth();
+            if ($since->greaterThan($oldest)) {
+                $oldest = $since;
+            }
+        }
+
+        if ($oldest->greaterThan($newest)) {
+            $state->update([
+                'status' => WarehouseStatBackfill::STATUS_COMPLETED,
+                'months_total' => 0,
+                'months_done' => 0,
+                'rows_written' => 0,
+                'last_error' => null,
+                'started_at' => now(),
+                'finished_at' => now(),
+            ]);
+
+            return $state->refresh();
+        }
+
         $oldestKey = WarehouseItemStatsRebuilder::periodKey($oldest);
         $newestKey = WarehouseItemStatsRebuilder::periodKey($newest);
 
@@ -101,11 +129,12 @@ class WarehouseStatBackfillService
      *
      * @return array{months: int, rows: int, from: ?string, to: ?string, status: string}
      */
-    public function runBatch(?int $months = null): array
+    public function runBatch(?int $months = null, ?int $maxSeconds = null): array
     {
         DB::connection()->disableQueryLog();
 
         $months = max(1, $months ?? self::DEFAULT_BATCH_MONTHS);
+        $deadline = $maxSeconds !== null ? microtime(true) + max(1, $maxSeconds) : null;
         $state = $this->state();
 
         if (! $state->isRunning()) {
@@ -131,6 +160,10 @@ class WarehouseStatBackfillService
         $lastPeriod = null;
 
         for ($i = 0; $i < $months && $cursor >= $oldest; $i++) {
+            if ($deadline !== null && microtime(true) >= $deadline) {
+                break;
+            }
+
             $period = WarehouseItemStatsRebuilder::periodFromKey($cursor);
 
             try {
