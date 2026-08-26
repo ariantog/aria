@@ -26,6 +26,50 @@ class ShopeeAdsEngineService
         return Carbon::now($this->automationTimezone());
     }
 
+    /**
+     * Total daily starting pool for all item ad slots (scaled on special days).
+     */
+    public function itemAdsStartingPoolTotal(
+        ShopeeAdsSetting $settings,
+        ?ShopeeAdsBudgetMultipliers $multipliers = null,
+        ?Carbon $now = null,
+    ): int {
+        $multipliers ??= $this->specialRules->resolveForToday($settings, $now);
+
+        return max(0, $multipliers->scaledItemBudgetAmount((int) $settings->item_ad_starting_budget));
+    }
+
+    /**
+     * Configured item ad slot count (max_item_ads, scaled on special days).
+     */
+    public function itemAdsSlotCount(
+        ShopeeAdsSetting $settings,
+        ?ShopeeAdsBudgetMultipliers $multipliers = null,
+        ?Carbon $now = null,
+    ): int {
+        $multipliers ??= $this->specialRules->resolveForToday($settings, $now);
+
+        return max(1, $multipliers->scaledMaxItemAds((int) $settings->max_item_ads));
+    }
+
+    /**
+     * Per-slot item ad budget: item_ad_starting_budget ÷ max_item_ads (after scaling).
+     */
+    public function itemAdBudgetPerSlot(
+        ShopeeAdsSetting $settings,
+        ?ShopeeAdsBudgetMultipliers $multipliers = null,
+        ?Carbon $now = null,
+    ): int {
+        $pool = $this->itemAdsStartingPoolTotal($settings, $multipliers, $now);
+        $slots = $this->itemAdsSlotCount($settings, $multipliers, $now);
+
+        if ($pool <= 0) {
+            return ShopeeAdsApiService::ITEM_AD_MIN_BUDGET;
+        }
+
+        return max((int) floor($pool / $slots), ShopeeAdsApiService::ITEM_AD_MIN_BUDGET);
+    }
+
     private function automationTimezone(): string
     {
         return (string) config('services.shopee_ads.timezone', 'Asia/Jakarta');
@@ -280,9 +324,9 @@ class ShopeeAdsEngineService
         }
 
         $tracked = (int) $settings->gms_current_budget;
-        $combinedCap = (int) $settings->daily_max_budget;
+        $maxGmvBudget = $tracked + $this->combinedHeadroom($settings);
 
-        $result = $this->api->addGmsBudget($campaignId, $tracked, $incrementIdr, $combinedCap);
+        $result = $this->api->addGmsBudget($campaignId, $tracked, $incrementIdr, $maxGmvBudget);
 
         if ($result === null) {
             return false;
@@ -361,7 +405,7 @@ class ShopeeAdsEngineService
             (int) $settings->item_split_high,
             (int) $settings->item_split_mid,
             (int) $settings->item_split_low,
-            (int) $settings->daily_max_budget,
+            $this->combinedDailyCap($settings),
             $currentBudgets,
         );
 
@@ -491,8 +535,7 @@ class ShopeeAdsEngineService
     public function replenishItemAds(ShopeeAdsSetting $settings): array
     {
         $multipliers = $this->specialRules->resolveForToday($settings);
-        $starting = max((int) $settings->item_ad_starting_budget, ShopeeAdsApiService::ITEM_AD_MIN_BUDGET);
-        $starting = $multipliers->scaledItemBudgetAmount($starting);
+        $starting = $this->itemAdBudgetPerSlot($settings, $multipliers);
 
         if (! $settings->item_ads_enabled || ! $settings->item_replenish_enabled) {
             $message = 'Item ads or auto-replenish disabled';
@@ -579,7 +622,7 @@ class ShopeeAdsEngineService
         if ($campaignId) {
             $before = (int) $settings->gms_current_budget;
             $target = (int) round($before * $multiplier);
-            $maxGmv = max((int) $settings->daily_max_budget - $this->activeItemAdsBudgetTotal(), 0);
+            $maxGmv = max($this->combinedDailyCap($settings) - $this->activeItemAdsBudgetTotal(), 0);
             $after = min($target, $maxGmv);
 
             if ($after > $before && $this->api->setGmsBudget($campaignId, $after)) {
@@ -673,8 +716,7 @@ class ShopeeAdsEngineService
         $multipliers = $this->specialRules->resolveForToday($settings);
         $gmvStart = (int) ($settings->starting_budget_gmv_max ?: $settings->starting_budget);
         $gmvStart = $multipliers->scaledGmvAmount($gmvStart);
-        $itemStart = max((int) $settings->item_ad_starting_budget, ShopeeAdsApiService::ITEM_AD_MIN_BUDGET);
-        $itemStart = $multipliers->scaledItemBudgetAmount($itemStart);
+        $itemStart = $this->itemAdBudgetPerSlot($settings, $multipliers);
 
         $gmvReset = false;
         $itemResetCount = 0;
@@ -735,7 +777,14 @@ class ShopeeAdsEngineService
         return $camp['campaign_id'];
     }
 
-    private function combinedHeadroom(ShopeeAdsSetting $settings): int
+    public function combinedDailyCap(ShopeeAdsSetting $settings): int
+    {
+        $multipliers = $this->specialRules->resolveForToday($settings);
+
+        return $multipliers->scaledCombinedDailyCap((int) $settings->daily_max_budget);
+    }
+
+    public function combinedHeadroom(ShopeeAdsSetting $settings): int
     {
         $total = (int) $settings->gms_current_budget;
 
@@ -746,7 +795,7 @@ class ShopeeAdsEngineService
 
         $total += (int) $itemTotal;
 
-        return max((int) $settings->daily_max_budget - $total, 0);
+        return max($this->combinedDailyCap($settings) - $total, 0);
     }
 
     private function scheduleAlreadyRanToday(ShopeeAdsSchedule $schedule, Carbon $now): bool
