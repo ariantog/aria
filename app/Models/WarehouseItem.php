@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Enums\AddrbookType;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -22,6 +24,36 @@ class WarehouseItem extends Model
     protected $casts = [
         'quantity' => 'decimal:2',
     ];
+
+    /** @return list<int> */
+    public static function warehouseAddrbookTypes(): array
+    {
+        return [
+            AddrbookType::Warehouse->value,
+            AddrbookType::VirtualWarehouse->value,
+        ];
+    }
+
+    public function scopeForWarehouseAddrbooks(Builder $query, bool $withTrashed = false): Builder
+    {
+        $addrbooks = $withTrashed ? Addrbook::withTrashed() : Addrbook::query();
+
+        return $query->whereIn('warehouse_id', $addrbooks
+            ->whereIn('type', self::warehouseAddrbookTypes())
+            ->select('id'));
+    }
+
+    public function scopeForActiveWarehouseAddrbooks(Builder $query): Builder
+    {
+        return $query->forWarehouseAddrbooks(withTrashed: false);
+    }
+
+    public function scopeForDeletedWarehouseAddrbooks(Builder $query): Builder
+    {
+        return $query->whereIn('warehouse_id', Addrbook::onlyTrashed()
+            ->whereIn('type', self::warehouseAddrbookTypes())
+            ->select('id'));
+    }
 
     public function item(): BelongsTo
     {
