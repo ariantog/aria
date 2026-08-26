@@ -358,9 +358,10 @@ class JubelioController extends Controller
             $q->where(fn ($q) => $q->where(fn ($q) => $q->whereIn('type', [Transaction::TYPE_SELL, Transaction::TYPE_RETURN_SUPPLIER])->whereNull('a_submit_by')->whereIn('sender_id', fn ($s) => $s->select('warehouse_id')->from('jubeliosyncs')))->orWhere(fn ($q) => $q->whereIn('type', [Transaction::TYPE_BUY, Transaction::TYPE_RETURN])->whereNull('b_submit_by')->whereIn('receiver_id', fn ($s) => $s->select('warehouse_id')->from('jubeliosyncs')))->orWhere(fn ($q) => $q->where('type', Transaction::TYPE_MOVE)->where(fn ($q) => $q->where(fn ($w) => $w->whereIn('sender_id', fn ($s) => $s->select('warehouse_id')->from('jubeliosyncs'))->whereNull('a_submit_by'))->orWhere(fn ($w) => $w->whereIn('receiver_id', fn ($s) => $s->select('warehouse_id')->from('jubeliosyncs'))->whereNull('b_submit_by')))));
         }
         $t = $q->orderBy('date', 'desc')->orderBy('id', 'desc')->paginate(200)->withQueryString();
-        $sw = Jubeliosync::pluck('warehouse_id')->toArray();
-        $t->getCollection()->transform(function ($i) use ($sw) {
-            $i->sync_cek = $this->syncCek($i, $sw);
+        $syncedWarehouseIds = app(JubelioTransactionSyncPresenter::class)->syncedWarehouseIds();
+        $t->getCollection()->transform(function ($i) use ($syncedWarehouseIds) {
+            $i->sync_cek = app(JubelioTransactionSyncPresenter::class)
+                ->present($i, $syncedWarehouseIds)['sync_cek'];
             $i->type_name = $i->getTypeLabel();
             $i->description = $i->description ?? $i->notes ?? '';
 
@@ -370,15 +371,15 @@ class JubelioController extends Controller
         return view('jubelio.transaction-sync', ['transactions' => $t, 'types' => $types, 'filters' => $request->only(['date', 'invoice', 'type', 'display']), 'flash' => ['success' => session('success'), 'error' => session('error')]]);
     }
 
-    public function detailJubelioSync(Transaction $t, JubelioTransactionSyncPresenter $presenter): View
+    public function detailJubelioSync(Transaction $transaction, JubelioTransactionSyncPresenter $presenter): View
     {
         Transaction::authorizeJubelioTransactionSync();
-        $t->load(['receiver', 'sender', 'user', 'submitByA', 'submitByB', 'details.item.group']);
-        $sync = $presenter->present($t);
-        $t->setAttribute('item_with_jubelio_count', $sync['mapping_missing']);
+        $transaction->load(['receiver', 'sender', 'user', 'submitByA', 'submitByB', 'details.item.group']);
+        $sync = $presenter->present($transaction);
+        $transaction->setAttribute('item_with_jubelio_count', $sync['mapping_missing']);
 
         return view('jubelio.detail-sync', [
-            'data' => $t,
+            'data' => $transaction,
             'can_sync' => $sync['can_sync'],
             'JubelioA' => $sync['jubelio_a'],
             'JubelioB' => $sync['jubelio_b'],
@@ -394,10 +395,10 @@ class JubelioController extends Controller
         ]);
     }
 
-    public function transactionSyncDisplay(Transaction $t): RedirectResponse
+    public function transactionSyncDisplay(Transaction $transaction): RedirectResponse
     {
         Gate::authorize(Jubelio::getPermissions()['sync']);
-        $t->update(['sync_hide' => $t->sync_hide == 'N' ? 'Y' : 'N']);
+        $transaction->update(['sync_hide' => $transaction->sync_hide == 'N' ? 'Y' : 'N']);
 
         return back()->with('success', 'Updated.');
     }
@@ -415,23 +416,4 @@ class JubelioController extends Controller
         }
     }
 
-    private function syncCek(Transaction $i, array $sw): ?string
-    {
-        if (in_array((int) $i->type, [Transaction::TYPE_SELL, Transaction::TYPE_RETURN_SUPPLIER])) {
-            return 'S';
-        }
-        if (in_array((int) $i->type, [Transaction::TYPE_BUY, Transaction::TYPE_RETURN])) {
-            return 'R';
-        }
-        if ((int) $i->type === Transaction::TYPE_MOVE) {
-            $s = in_array($i->sender_id, $sw);
-            $r = in_array($i->receiver_id, $sw);
-
-            return match (true) {
-                $s && $r => 'B',$s => 'S',$r => 'R',default => null
-            };
-        }
-
-        return null;
-    }
 }
