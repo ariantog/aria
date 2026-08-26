@@ -130,3 +130,45 @@ test('deleting a transaction with legacy invalid due date still archives to dele
     expect($deleted)->not->toBeNull();
     expect($deleted->due?->format('Y-m-d'))->toBe('1970-01-01');
 });
+
+test('deleted transaction show page renders clickable item and party links', function () {
+    $user = User::factory()->create();
+    $this->actingAs($user);
+
+    $supplier = Addrbook::create([
+        'name' => 'Link Supplier',
+        'type' => Addrbook::TYPE_SUPPLIER,
+    ]);
+
+    $warehouse = Addrbook::create([
+        'name' => 'Link Warehouse',
+        'type' => Addrbook::TYPE_WAREHOUSE,
+    ]);
+
+    $item = Item::factory()->create(['name' => 'Deleted Show Item']);
+
+    $this->post(route('transactions.store'), [
+        'date' => now()->format('Y-m-d'),
+        'type' => 'buy',
+        'sender_id' => $supplier->id,
+        'receiver_id' => $warehouse->id,
+        'items' => [
+            [
+                'item_id' => $item->id,
+                'quantity' => 1,
+                'price' => 1000,
+            ],
+        ],
+    ])->assertRedirect();
+
+    $transaction = Transaction::latest('id')->first();
+
+    $this->delete(route('transactions.destroy', $transaction))
+        ->assertRedirect(route('transactions.index'));
+
+    $this->get(route('transactions.deleted.show', $transaction->id))
+        ->assertOk()
+        ->assertSee(route('items.show', $item->id), false)
+        ->assertSee(route('addrbook.type.show', ['type' => $supplier->type_slug, 'addrbook' => $supplier->id]), false)
+        ->assertSee(route('addrbook.type.show', ['type' => $warehouse->type_slug, 'addrbook' => $warehouse->id]), false);
+});
