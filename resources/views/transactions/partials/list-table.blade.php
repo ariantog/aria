@@ -4,7 +4,7 @@
 
     Params:
       $rows        - paginator of Transaction (with sender, receiver loaded)
-      $can         - permissions array (bank_hidden_balance, delete_transaction) — optional
+      $can         - permissions array (bank_hidden_balance, delete_transaction, edit_transaction) — optional
       $sortLink    - closure(column) => url for sortable headers — optional (plain headers if null)
       $sort        - current sort column — optional
       $direction   - current sort direction (asc/desc) — optional
@@ -17,6 +17,7 @@
     $direction = $direction ?? null;
     $highlightId = $highlightId ?? null;
     $hideBank = $can['bank_hidden_balance'] ?? false;
+    $canEditNote = $can['edit_transaction'] ?? false;
     $typeMap = [
         1  => ['Buy',           'text-emerald-700 bg-emerald-50', 'bg-emerald-500'],
         2  => ['Sell',          'text-blue-700 bg-blue-50',       'bg-blue-500'],
@@ -33,9 +34,52 @@
     ];
 @endphp
 
-<div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+<div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm"
+     x-data="{
+        noteModalOpen: false,
+        noteTxId: null,
+        noteText: '',
+        noteSaving: false,
+        noteError: '',
+        openNoteEdit(id, text) {
+            this.noteTxId = id;
+            this.noteText = (text && text !== '-') ? text : '';
+            this.noteError = '';
+            this.noteModalOpen = true;
+            this.$nextTick(() => this.$refs.noteTextarea?.focus());
+        },
+        async saveNote() {
+            if (!this.noteTxId || this.noteSaving) return;
+            this.noteSaving = true;
+            this.noteError = '';
+            try {
+                const res = await fetch(`/transactions/${this.noteTxId}/note`, {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]')?.content ?? '',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    body: JSON.stringify({ note: this.noteText }),
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) {
+                    this.noteError = data.message || (data.errors?.note?.[0] ?? 'Failed to save note.');
+                    return;
+                }
+                const cell = document.querySelector(`[data-tx-note='${this.noteTxId}']`);
+                if (cell) cell.textContent = data.display ?? '-';
+                this.noteModalOpen = false;
+            } catch (e) {
+                this.noteError = 'Failed to save note.';
+            } finally {
+                this.noteSaving = false;
+            }
+        }
+     }">
     <div class="overflow-x-auto">
-        <table class="w-full min-w-[880px] text-sm">
+        <table class="w-full min-w-[980px] text-sm">
             <thead class="border-b border-gray-200 bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
                 <tr>
                     <th class="px-3 py-2.5 text-left font-medium">
@@ -47,6 +91,7 @@
                     <th class="px-3 py-2.5 text-left font-medium">
                         @if($sortLink)<a href="{{ $sortLink('invoice') }}" class="inline-flex items-center gap-1 hover:text-gray-900">Invoice @if($sort==='invoice')<span class="text-blue-600">{{ $direction==='asc'?'↑':'↓' }}</span>@endif</a>@else Invoice @endif
                     </th>
+                    <th class="hidden px-3 py-2.5 text-left font-medium md:table-cell">Description</th>
                     <th class="px-3 py-2.5 text-right font-medium">
                         @if($sortLink)<a href="{{ $sortLink('total') }}" class="inline-flex items-center gap-1 hover:text-gray-900">Total @if($sort==='total')<span class="text-blue-600">{{ $direction==='asc'?'↑':'↓' }}</span>@endif</a>@else Total @endif
                     </th>
@@ -63,6 +108,7 @@
                     @php
                         $typeValue = (int) $tx->type;
                         [$label, $badgeCls, $dotCls] = $typeMap[$typeValue] ?? ['Unknown', 'text-gray-700 bg-gray-50', 'bg-gray-400'];
+                        $noteText = $tx->description ?: ($tx->notes ?: '-');
                     @endphp
                     <tr class="hover:bg-gray-50">
                         <td class="whitespace-nowrap px-3 py-2.5 text-gray-600">
@@ -76,6 +122,20 @@
                         <td class="px-3 py-2.5">
                             <a href="{{ route('transactions.show', $tx->id) }}" class="font-mono text-xs text-blue-600 hover:underline">{{ $tx->invoice ?: '—' }}</a>
                             <div class="mt-0.5 text-xs text-gray-400 lg:hidden">{{ $tx->sender->name ?? '—' }} → {{ $tx->receiver->name ?? '—' }}</div>
+                        </td>
+                        <td class="hidden max-w-[200px] px-3 py-2.5 md:table-cell">
+                            <div class="flex items-start gap-1">
+                                <span data-tx-note="{{ $tx->id }}" class="min-w-0 flex-1 truncate text-xs leading-tight text-gray-500" title="{{ $noteText !== '-' ? $noteText : '' }}">{{ $noteText }}</span>
+                                @if($canEditNote)
+                                    <button type="button"
+                                            data-testid="edit-tx-note-{{ $tx->id }}"
+                                            @click="openNoteEdit({{ $tx->id }}, @js($noteText !== '-' ? $noteText : ''))"
+                                            class="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded text-gray-400 hover:bg-gray-100 hover:text-blue-600"
+                                            title="Edit description">
+                                        <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                                    </button>
+                                @endif
+                            </div>
                         </td>
                         <td class="whitespace-nowrap px-3 py-2.5 text-right font-semibold tabular-nums text-gray-900">
                             {{ format_amount($tx->total) }}
@@ -113,6 +173,14 @@
                                         <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
                                         View
                                     </a>
+                                    @if($canEditNote)
+                                        <button type="button"
+                                                @click="open = false; openNoteEdit({{ $tx->id }}, @js($noteText !== '-' ? $noteText : ''))"
+                                                class="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                                            Edit Note
+                                        </button>
+                                    @endif
                                     @if($can['delete_transaction'] ?? false)
                                         <div class="my-1 border-t border-gray-100"></div>
                                         <form method="POST" action="{{ route('transactions.destroy', $tx->id) }}" onsubmit="return confirm('Delete this transaction? Stock and balance impact will be reversed.')">
@@ -125,11 +193,12 @@
                                         </form>
                                     @endif
                                 </div>
-                            </td>
-                        </tr>
+                            </div>
+                        </td>
+                    </tr>
                 @empty
                     <tr>
-                        <td colspan="8" class="px-3 py-16 text-center">
+                        <td colspan="9" class="px-3 py-16 text-center">
                             <svg class="mx-auto h-10 w-10 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
                             <p class="mt-2 text-sm text-gray-400">No transactions found.</p>
                         </td>
@@ -139,4 +208,31 @@
         </table>
     </div>
     @include('partials.pagination', ['paginator' => $rows, 'label' => 'transactions'])
+
+    @if($canEditNote)
+    <div x-show="noteModalOpen" x-cloak
+         class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+         @keydown.window.escape="noteModalOpen = false">
+        <div @click.away="noteModalOpen = false" class="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
+            <h3 class="text-lg font-semibold text-gray-900">Edit Description</h3>
+            <p class="mt-1 text-sm text-gray-500">Update the transaction note shown in the list.</p>
+            <div class="mt-4">
+                <label for="tx-note-textarea" class="mb-1 block text-sm font-medium text-gray-700">Description</label>
+                <textarea id="tx-note-textarea" x-ref="noteTextarea" x-model="noteText" rows="4"
+                          class="w-full resize-y rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                          placeholder="Add a note…"></textarea>
+                <p x-show="noteError" x-text="noteError" class="mt-2 text-sm text-rose-600"></p>
+            </div>
+            <div class="mt-6 flex justify-end gap-2">
+                <button type="button" @click="noteModalOpen = false"
+                        class="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Cancel</button>
+                <button type="button" @click="saveNote()" :disabled="noteSaving"
+                        class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
+                    <span x-show="!noteSaving">Save</span>
+                    <span x-show="noteSaving">Saving…</span>
+                </button>
+            </div>
+        </div>
+    </div>
+    @endif
 </div>

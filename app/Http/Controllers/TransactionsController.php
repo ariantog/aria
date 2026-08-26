@@ -431,6 +431,34 @@ class TransactionsController extends Controller
         return response()->json(['data' => $dataList, 'totalQty' => collect($dataList)->sum('quantity'), 'totalPrice' => collect($dataList)->sum('subtotal')]);
     }
 
+    public function updateNote(Request $request, Transaction $transaction)
+    {
+        Gate::authorize(Transaction::getPermissions()['edit']);
+        abort_unless(
+            app(\App\Services\LocationAccessService::class)->canAccessTransaction(Auth::user(), $transaction),
+            403
+        );
+
+        $validated = $request->validate([
+            'note' => ['nullable', 'string', 'max:5000'],
+        ]);
+
+        $note = trim($validated['note'] ?? '');
+        $transaction->update([
+            'notes' => $note !== '' ? $note : null,
+            'description' => $note,
+        ]);
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'note' => $note !== '' ? $note : null,
+                'display' => $note !== '' ? $note : '-',
+            ]);
+        }
+
+        return back()->with('success', 'Transaction note updated.');
+    }
+
     public function destroy(Transaction $transaction, TransactionService $service, BookClosingService $bookClosingService)
     {
         Gate::authorize(Transaction::getPermissions()['delete']);
@@ -565,7 +593,9 @@ class TransactionsController extends Controller
         $perms = Transaction::getPermissions();
 
         return [
-            'create_transaction' => $user->can($perms['create']), 'delete_transaction' => $user->can($perms['delete']),
+            'create_transaction' => $user->can($perms['create']),
+            'edit_transaction' => $user->can($perms['edit']),
+            'delete_transaction' => $user->can($perms['delete']),
             'bank_hidden_balance' => ! $user->is_superadmin && $user->can('addrbook-bank-account-hidden-balance'),
             'type_buy' => $user->can($perms['type-buy']), 'type_sell' => $user->can($perms['type-sell']),
             'type_move' => $user->can($perms['type-move']), 'cash_in' => $user->can($perms['type-cash-in']),
