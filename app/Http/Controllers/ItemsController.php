@@ -16,6 +16,7 @@ use App\Services\ItemService;
 use App\Services\Items\ItemGroupHierarchyService;
 use App\Services\Items\ItemGroupParentExportService;
 use App\Services\Items\ItemIdentityBuilder;
+use App\Services\Items\LegacyItemConverterService;
 use App\Services\ProductPerformanceService;
 use App\Services\JubelioService;
 use Illuminate\Http\Request;
@@ -28,6 +29,7 @@ class ItemsController extends Controller
         protected ProductPerformanceService $performance,
         protected ItemGroupHierarchyService $groupHierarchy,
         protected ItemIdentityBuilder $identityBuilder,
+        protected LegacyItemConverterService $legacyConverter,
     ) {}
 
     public function index(Request $request, ?ItemType $type = null)
@@ -189,7 +191,21 @@ class ItemsController extends Controller
                     $this->identityBuilder->itemParentKey($item)
                 ))
                 : null,
+            'identityConvert' => $this->detailIdentityConvertContext($item),
         ]);
+    }
+
+    protected function detailIdentityConvertContext(Item $item): ?array
+    {
+        $user = auth()->user();
+
+        if (! $user?->is_superadmin && ! Gate::check(Item::getPermissions()['convert-legacy'])) {
+            return null;
+        }
+
+        $context = $this->legacyConverter->detailConvertContext($item);
+
+        return $context['visible'] ? $context : null;
     }
 
     public function edit(Item $item)
