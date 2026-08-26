@@ -43,13 +43,28 @@ class ScheduledTaskSeeder extends Seeder
             ]
         );
 
+        // The unbounded weekly rebuild walked the whole history in one run and
+        // exhausted memory on production. Recent months are reconciled daily and the
+        // archive is rebuilt in batches instead.
+        \App\Models\ScheduledTask::where('command', 'app:recalculate-warehouse-item-stats')->delete();
+
         \App\Models\ScheduledTask::updateOrCreate(
-            ['command' => 'app:recalculate-warehouse-item-stats'],
+            ['command' => 'app:recalculate-warehouse-item-stats --months=2'],
             [
-                'name' => 'Recalculate Warehouse Item Stats',
-                'frequency' => 'weekly',
+                'name' => 'Reconcile Recent Warehouse Item Stats',
+                'frequency' => 'daily',
                 'active' => true,
-                'description' => 'Rebuilds monthly per-warehouse SKU sell/return statistics for arrangement reports.',
+                'description' => 'Recomputes the current and previous month from transaction details, correcting any drift left by the live per-transaction updates.',
+            ]
+        );
+
+        \App\Models\ScheduledTask::updateOrCreate(
+            ['command' => 'app:backfill-warehouse-item-stats --months=3'],
+            [
+                'name' => 'Backfill Historical Warehouse Item Stats',
+                'frequency' => 'hourly',
+                'active' => true,
+                'description' => 'Rebuilds older months a batch at a time. Idle until a backfill is started from the Warehouse Stats Backfill page.',
             ]
         );
 

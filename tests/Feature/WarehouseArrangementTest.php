@@ -666,6 +666,101 @@ it('recalculates warehouse item monthly stats from transaction details', functio
     expect((float) $stat->sold_qty)->toBe(3.0);
 });
 
+it('buckets recalculated stats into the month each transaction detail falls in', function () {
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    $customer = Addrbook::factory()->customer()->create();
+    $group = ItemGroup::factory()->create(['master' => 'CX90040', 'variant' => '02']);
+    $item = Item::factory()->create(['group_id' => $group->id, 'type' => ItemType::ITEM]);
+
+    $recentDate = now()->startOfMonth();
+    $oldDate = now()->startOfMonth()->subMonths(3);
+
+    $sell = function (\Carbon\CarbonInterface $date, float $qty) use ($warehouse, $customer, $item) {
+        \App\Models\Transaction::factory()->create([
+            'type' => \App\Models\Transaction::TYPE_SELL,
+            'sender_type' => (string) Addrbook::TYPE_WAREHOUSE,
+            'sender_id' => $warehouse->id,
+            'receiver_type' => (string) Addrbook::TYPE_CUSTOMER,
+            'receiver_id' => $customer->id,
+            'date' => $date->toDateString(),
+            'user_id' => $this->user->id,
+        ])->details()->create([
+            'item_id' => $item->id,
+            'quantity' => $qty,
+            'price' => 1000,
+            'total' => $qty * 1000,
+            'date' => $date->toDateString(),
+            'transaction_type' => \App\Models\Transaction::TYPE_SELL,
+            'sender_id' => $warehouse->id,
+            'receiver_id' => $customer->id,
+        ]);
+    };
+
+    $sell($oldDate, 4);
+    $sell($recentDate, 7);
+
+    $this->artisan('app:recalculate-warehouse-item-stats')->assertSuccessful();
+
+    $statFor = fn (\Carbon\CarbonInterface $date) => WarehouseItemMonthlyStat::query()
+        ->where('item_id', $item->id)
+        ->where('year', $date->year)
+        ->where('month', $date->month)
+        ->first();
+
+    expect((float) $statFor($oldDate)->sold_qty)->toBe(4.0);
+    expect((float) $statFor($recentDate)->sold_qty)->toBe(7.0);
+    expect(WarehouseItemMonthlyStat::query()->where('item_id', $item->id)->count())->toBe(2);
+});
+
+it('leaves months outside the window untouched during a partial recalculate', function () {
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    $customer = Addrbook::factory()->customer()->create();
+    $group = ItemGroup::factory()->create(['master' => 'CX90041', 'variant' => '02']);
+    $item = Item::factory()->create(['group_id' => $group->id, 'type' => ItemType::ITEM]);
+
+    $oldDate = now()->startOfMonth()->subMonths(5);
+    $currentDate = now()->startOfMonth();
+
+    $sell = function (\Carbon\CarbonInterface $date, float $qty) use ($warehouse, $customer, $item) {
+        \App\Models\Transaction::factory()->create([
+            'type' => \App\Models\Transaction::TYPE_SELL,
+            'sender_type' => (string) Addrbook::TYPE_WAREHOUSE,
+            'sender_id' => $warehouse->id,
+            'receiver_type' => (string) Addrbook::TYPE_CUSTOMER,
+            'receiver_id' => $customer->id,
+            'date' => $date->toDateString(),
+            'user_id' => $this->user->id,
+        ])->details()->create([
+            'item_id' => $item->id,
+            'quantity' => $qty,
+            'price' => 1000,
+            'total' => $qty * 1000,
+            'date' => $date->toDateString(),
+            'transaction_type' => \App\Models\Transaction::TYPE_SELL,
+            'sender_id' => $warehouse->id,
+            'receiver_id' => $customer->id,
+        ]);
+    };
+
+    $sell($oldDate, 6);
+    $sell($currentDate, 2);
+
+    $this->artisan('app:recalculate-warehouse-item-stats')->assertSuccessful();
+
+    // Add more current-month volume, then rebuild only the current month.
+    $sell($currentDate, 5);
+    $this->artisan('app:recalculate-warehouse-item-stats', ['--months' => 1])->assertSuccessful();
+
+    $statFor = fn (\Carbon\CarbonInterface $date) => WarehouseItemMonthlyStat::query()
+        ->where('item_id', $item->id)
+        ->where('year', $date->year)
+        ->where('month', $date->month)
+        ->first();
+
+    expect((float) $statFor($currentDate)->sold_qty)->toBe(7.0);
+    expect((float) $statFor($oldDate)->sold_qty)->toBe(6.0);
+});
+
 it('recalculates stats for items with legacy item type values', function () {
     $warehouse = Addrbook::factory()->warehouse()->create();
     $customer = Addrbook::factory()->customer()->create();

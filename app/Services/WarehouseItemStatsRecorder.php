@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Models\Item;
 use App\Models\Transaction;
 use App\Models\WarehouseItemMonthlyStat;
 use App\Services\Items\ItemDimensionResolver;
@@ -33,7 +32,9 @@ class WarehouseItemStatsRecorder
         $netValue = $lineTotal * (100 - $headerDiscount) / 100;
         $qty = abs((float) ($detail->quantity ?? 0));
 
-        $item = Item::with(['tags', 'group'])->find($detail->item_id);
+        // Loaded through the resolver so legacy rows whose items.type is no longer a
+        // valid ItemType (e.g. 4) do not blow up the queued summary job.
+        $item = $this->dimensions->findItem((int) $detail->item_id);
         if (! $item) {
             return;
         }

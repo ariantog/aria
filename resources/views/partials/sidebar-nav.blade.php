@@ -397,8 +397,8 @@
 @endif
 
 {{-- ── System Settings ───────────────────────────────────────────────── --}}
-@if($hasPerm('setting-general-view') || $hasPerm('setting-cron-manager-view') || $isSuperAdmin)
-@php $sysActive = $isActive('/system-settings') || $isActive('/cron-manager'); @endphp
+@if($hasPerm('setting-general-view') || $hasPerm('setting-cron-manager-view') || $hasPerm('report-warehouse-arrangement') || $isSuperAdmin)
+@php $sysActive = $isActive('/system-settings') || $isActive('/cron-manager') || $isActive('/warehouse-stat-backfill'); @endphp
 <div x-data="{ open: {{ $sysActive ? 'true' : 'false' }} }" class="mb-1">
     <button @click="open = !open"
             class="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors
@@ -413,6 +413,9 @@
         @endif
         @if($hasPerm('setting-cron-manager-view') || $isSuperAdmin)
         <a href="{{ route('scheduled-tasks.index') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/cron-manager') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Cron Manager</a>
+        @endif
+        @if($hasPerm('report-warehouse-arrangement') || $isSuperAdmin)
+        <a href="{{ route('warehouse-stat-backfill.index') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/warehouse-stat-backfill') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Warehouse Stats Backfill</a>
         @endif
     </div>
 </div>

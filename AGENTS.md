@@ -118,6 +118,50 @@ migration file must be production-safe on its own**:
   6 v_account, 7 reseller, 8 account, 99 other.
 - Connects to **Jubelio** (Indonesian omnichannel) for online stock; dormant while `JUBELIO_ACTIVE=false`.
 
+## Warehouse item monthly stats (three-layer updates)
+
+`warehouse_item_monthly_stats` powers the warehouse arrangement report, product performance, and
+item stats. Rows are keyed by `(warehouse_id, item_id, year, month)` with sell/return qty/value
+plus item dimensions (group, brand, tags, size, etc.).
+
+**Do not rebuild the full history in one run on production** — the old unbounded cron OOM'd at
+512 MB. All batch rebuild paths go through `WarehouseItemStatsRebuilder`, which aggregates **one
+month at a time directly from `transaction_details`** (sell/return types, filtered by date) rather
+than walking the `items` table.
+
+Three layers keep stats current:
+
+1. **Live incremental (every transaction).** `UpdateTransactionSummaries` (queued job) calls
+   `WarehouseItemStatsRecorder::recordDetail()` for each sell/return line on completed
+   transactions. This is the "last minute" path — stats update as soon as the queue drains.
+2. **Daily reconcile (recent months).** Cron: `app:recalculate-warehouse-item-stats --months=2`
+   rebuilds the current and previous month from scratch, correcting any drift from the live path.
+3. **Historical backfill (archive, resumable).** Cron: `app:backfill-warehouse-item-stats --months=3`
+   processes older months in batches (newest first). It is **idle until started** from **System
+   Settings → Warehouse Stats Backfill** (`/warehouse-stat-backfill`). Progress is stored in
+   `warehouse_stat_backfills`; pause/resume is supported. The hourly cron is just a worker — the
+   page (or `php artisan app:backfill-warehouse-item-stats --restart`) kicks it off.
+
+Manual / on-demand tools:
+
+- **Warehouse Arrangement** report has a "Rebuild stats & refresh" button (runs recalculate +
+  `app:sync-warehouse-arrangement` for the selected destination).
+- **CLI:** `app:recalculate-warehouse-item-stats --months=N` or `--since=Y-m-d` for bounded
+  rebuilds; `app:backfill-warehouse-item-stats --status` to inspect backfill state.
+- **Arrangement cache:** `app:sync-warehouse-arrangement` (daily cron) reads the stats table and
+  pre-computes arrangement candidates — run after stats are populated.
+
+Legacy-data gotchas (already handled — don't regress):
+
+- Load items through `ItemDimensionResolver::findItem()` (not `Item::find()`) when resolving
+  dimensions for stats — legacy `items.type` values (e.g. `4`) are not valid `ItemType` enum cases.
+- Ignore `transaction_details.date = '0000-00-00'` and `warehouse_id = 0` when aggregating.
+
+Key files: `app/Services/{WarehouseItemStatsRebuilder,WarehouseItemStatsRecorder,
+WarehouseStatBackfillService,WarehouseArrangementSyncService}.php`,
+`app/Jobs/UpdateTransactionSummaries.php`, `app/Console/Commands/{RecalculateWarehouseItemStats,
+BackfillWarehouseItemStats}.php`, `database/seeders/ScheduledTaskSeeder.php`.
+
 ## Testing / known caveats
 
 - `pest`: `tests/Feature/BladePagesRenderTest.php` is the fast Blade smoke test — run it after touching
