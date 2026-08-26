@@ -112,6 +112,34 @@ class ProductionColumnDefaults
         ],
     ];
 
+    /** @var array<string, array<string, array{type: string, nullable: bool}>> */
+    private const LEGACY_DATE_COLUMNS = [
+        'deleted' => [
+            'date' => ['type' => 'date', 'nullable' => true],
+            'due' => ['type' => 'date', 'nullable' => false],
+        ],
+        'deleted_details' => [
+            'date' => ['type' => 'date', 'nullable' => false],
+        ],
+    ];
+
+    public static function sanitizeLegacyDates(Model $model): void
+    {
+        $columns = self::LEGACY_DATE_COLUMNS[$model->getTable()] ?? [];
+
+        foreach ($columns as $column => $config) {
+            if (! Schema::hasColumn($model->getTable(), $column)) {
+                continue;
+            }
+
+            $model->{$column} = ProductionMysqlCompat::sanitizeLegacyDateValue(
+                $model->{$column},
+                $config['type'],
+                $config['nullable'],
+            );
+        }
+    }
+
     public static function apply(Model $model): void
     {
         if (Schema::getConnection()->getDriverName() !== 'mysql') {

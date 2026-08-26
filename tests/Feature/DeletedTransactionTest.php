@@ -9,6 +9,7 @@ use App\Models\Item;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Models\WarehouseItem;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 
 beforeEach(function () {
@@ -90,4 +91,42 @@ test('deleting a buy transaction reverts stock and balances then moves it to del
     expect((float) $item->fresh()->qty)->toBe(5.0);
     expect((float) $laterTransaction->fresh()->sender_balance)->toBe(10000.0);
     expect((float) AddrbookStat::where('customer_id', $supplier->id)->first()->balance)->toBe(10000.0);
+});
+
+test('deleting a transaction with legacy invalid due date still archives to deleted', function () {
+    $user = User::factory()->create();
+    $this->actingAs($user);
+
+    $bankSource = Addrbook::create([
+        'name' => 'Legacy Due Source',
+        'type' => Addrbook::TYPE_BANK,
+    ]);
+
+    $bankDest = Addrbook::create([
+        'name' => 'Legacy Due Dest',
+        'type' => Addrbook::TYPE_BANK,
+    ]);
+
+    $this->post(route('transactions.transfer.store'), [
+        'date' => now()->format('Y-m-d'),
+        'sender' => $bankSource->id,
+        'receiver' => $bankDest->id,
+        'total' => 15000000,
+        'invoice' => (string) random_int(100000, 999999),
+        'description' => '',
+    ])->assertRedirect();
+
+    $transaction = Transaction::latest('id')->first();
+
+    DB::table('transactions')->where('id', $transaction->id)->update(['due' => '0000-00-00']);
+
+    $response = $this->delete(route('transactions.destroy', $transaction));
+    $response->assertRedirect(route('transactions.index'));
+    $response->assertSessionHas('success');
+
+    expect(Transaction::find($transaction->id))->toBeNull();
+
+    $deleted = DeletedTransaction::find($transaction->id);
+    expect($deleted)->not->toBeNull();
+    expect($deleted->due?->format('Y-m-d'))->toBe('1970-01-01');
 });
