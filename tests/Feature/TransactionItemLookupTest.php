@@ -118,6 +118,75 @@ it('finds an item by numeric id through the items id json endpoint', function ()
         ->and($match['code'])->toBe('WH-TEE-01');
 });
 
+it('resolves an item by canonical code for transaction rows', function () {
+    $this->user->givePermissionTo('transactions-type-sell');
+
+    $item = Item::factory()->create([
+        'name' => 'Canonical SKU',
+        'code' => 'AJD-CX90324-05-S',
+        'price' => 88_000,
+    ]);
+
+    $this->actingAs($this->user)
+        ->getJson(route('transactions.item-by-code', ['type' => 'sell', 'code' => 'AJD-CX90324-05-S']))
+        ->assertSuccessful()
+        ->assertJsonPath('item.id', $item->id)
+        ->assertJsonPath('item.code', 'AJD-CX90324-05-S')
+        ->assertJsonPath('item.name', 'Canonical SKU');
+});
+
+it('resolves an item by legacy_code for transaction rows', function () {
+    $this->user->givePermissionTo('transactions-type-sell');
+
+    $item = Item::factory()->create([
+        'name' => 'Legacy SKU Product',
+        'code' => 'NEW-SKU-01',
+        'legacy_code' => 'LEGACY-SKU-01',
+        'price' => 99_000,
+    ]);
+
+    $this->actingAs($this->user)
+        ->getJson(route('transactions.item-by-code', ['type' => 'sell', 'code' => 'LEGACY-SKU-01']))
+        ->assertSuccessful()
+        ->assertJsonPath('item.id', $item->id)
+        ->assertJsonPath('item.code', 'NEW-SKU-01')
+        ->assertJsonPath('item.name', 'Legacy SKU Product');
+});
+
+it('returns null when sku does not match code or legacy_code', function () {
+    $this->user->givePermissionTo('transactions-type-sell');
+
+    Item::factory()->create([
+        'code' => 'NEW-SKU-01',
+        'legacy_code' => 'LEGACY-SKU-01',
+    ]);
+
+    $this->actingAs($this->user)
+        ->getJson(route('transactions.item-by-code', ['type' => 'sell', 'code' => 'UNKNOWN-SKU']))
+        ->assertSuccessful()
+        ->assertJsonPath('item', null);
+});
+
+it('prefers numeric barcode id lookup before legacy sku when both could match', function () {
+    $this->user->givePermissionTo('transactions-type-sell');
+
+    $byId = Item::factory()->create([
+        'name' => 'Barcode Item',
+        'code' => 'SKU-BY-ID',
+    ]);
+    Item::factory()->create([
+        'name' => 'Legacy Numeric',
+        'code' => 'OTHER',
+        'legacy_code' => (string) $byId->id,
+    ]);
+
+    $this->actingAs($this->user)
+        ->getJson(route('transactions.item-by-id', ['type' => 'sell', 'id' => $byId->id]))
+        ->assertSuccessful()
+        ->assertJsonPath('item.id', $byId->id)
+        ->assertJsonPath('item.name', 'Barcode Item');
+});
+
 it('finds items when spaces separate name tokens', function () {
     $this->user->givePermissionTo('items-list');
 
