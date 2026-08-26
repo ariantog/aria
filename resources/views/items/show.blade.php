@@ -9,14 +9,16 @@ $breadcrumbs = [
     ['title' => $isAsset ? 'Assets' : 'Items', 'href' => $base],
     ['title' => 'Detail', 'href' => '#'],
 ];
-$warehouseItems = $item->warehouseItems ?? collect();
-$totalStock = $warehouseItems->sum('quantity');
+$warehouseItems = $activeWarehouseItems ?? collect();
+$deletedWarehouseItems = $deletedWarehouseItems ?? collect();
+$activeStock = (float) ($activeStock ?? $warehouseItems->sum('quantity'));
+$deletedStock = (float) ($deletedStock ?? $deletedWarehouseItems->sum('quantity'));
 $groupProductName = optional($item->group)->name ?? '-';
 $desc = optional($item->group)->description ?? ($item->description ?? '-');
 $nb = optional($item->group)->description2 ?? ($item->description2 ?? '-');
 @endphp
 
-<div class="p-4 sm:p-6" x-data="{ showZero: false }">
+<div class="p-4 sm:p-6" x-data="{ showZero: false, showDeletedWarehouses: false }">
     {{-- Header --}}
     <div class="mb-6 flex flex-col justify-between gap-4 md:flex-row md:items-end">
         <div>
@@ -95,8 +97,8 @@ $nb = optional($item->group)->description2 ?? ($item->description2 ?? '-');
                     <div class="grid grid-cols-1 gap-6 border-t border-gray-100 pt-4 md:grid-cols-2">
                         <div>
                             <p class="mb-2 text-[10px] font-bold uppercase tracking-widest text-gray-500">Pricing</p>
-                            <p class="text-2xl font-black tracking-tight text-gray-900">Rp {{ number_format($item->price, 0, ',', '.') }}</p>
-                            <p class="mt-1 text-[10px] text-gray-500">Base Cost: <span class="text-gray-700">Rp {{ number_format($item->cost, 0, ',', '.') }}</span></p>
+                            <p class="text-2xl font-black tracking-tight text-gray-900">Rp {{ format_amount($item->price, 0) }}</p>
+                            <p class="mt-1 text-[10px] text-gray-500">Base Cost: <span class="text-gray-700">Rp {{ format_amount($item->cost, 0) }}</span></p>
                         </div>
                         <div>
                             <p class="mb-2 text-[10px] font-bold uppercase tracking-widest text-gray-500">Group &amp; Tags</p>
@@ -128,28 +130,39 @@ $nb = optional($item->group)->description2 ?? ($item->description2 ?? '-');
                     <label class="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-gray-500">
                         <input type="checkbox" x-model="showZero" class="rounded border-gray-300"> Show empty warehouses
                     </label>
-                    <div class="text-xs font-medium text-gray-500">Total Stock: <span class="text-gray-900">{{ number_format($totalStock, 0, ',', '.') }} Units</span></div>
+                    <div class="text-xs font-medium text-gray-500">
+                        Active Stock:
+                        <span class="text-gray-900">{{ format_amount($activeStock, 0) }} Units</span>
+                        @if($deletedStock > 0)
+                            <span class="text-gray-400">·</span>
+                            <span class="text-rose-700">{{ format_amount($deletedStock, 0) }} in deleted warehouses</span>
+                        @endif
+                    </div>
                 </div>
             </div>
             <div class="p-6">
-                @if($warehouseItems->isEmpty())
-                    <div class="py-8 text-center text-sm italic text-gray-500">No warehouse data available.</div>
-                @else
-                    <div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                        @foreach($warehouseItems as $wh)
-                        <div class="flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50 p-4 {{ $wh->quantity < 1 ? 'opacity-60' : '' }}"
-                             @if($wh->quantity < 1) x-show="showZero" @endif>
-                            <div>
-                                <p class="font-medium text-gray-900">{{ $wh->warehouse?->name ?? 'Warehouse #'.$wh->warehouse_id }}</p>
-                                <p class="text-[10px] uppercase text-gray-500">ID: {{ $wh->warehouse_id }}</p>
-                            </div>
-                            <div class="text-right">
-                                <p class="text-lg font-bold {{ $wh->quantity > 0 ? 'text-blue-600' : 'text-gray-400' }}">{{ number_format($wh->quantity, 0, ',', '.') }}</p>
-                                <p class="text-[10px] font-bold uppercase text-gray-400">{{ $wh->quantity > 0 ? 'Units' : 'Out of Stock' }}</p>
-                            </div>
-                        </div>
-                        @endforeach
+                @include('items.partials.warehouse-stock-grid', [
+                    'warehouseItems' => $warehouseItems,
+                    'showZero' => 'showZero',
+                    'deleted' => false,
+                ])
+
+                @if($deletedWarehouseItems->isNotEmpty())
+                <div class="mt-6 border-t border-gray-100 pt-4">
+                    <button type="button"
+                            @click="showDeletedWarehouses = !showDeletedWarehouses"
+                            class="flex w-full items-center justify-between rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-left text-sm font-semibold text-rose-800 hover:bg-rose-100">
+                        <span>Deleted Warehouses ({{ format_amount($deletedStock, 0) }} units)</span>
+                        <svg class="h-4 w-4 transition-transform" :class="showDeletedWarehouses ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    </button>
+                    <div x-show="showDeletedWarehouses" x-cloak class="mt-4">
+                        @include('items.partials.warehouse-stock-grid', [
+                            'warehouseItems' => $deletedWarehouseItems,
+                            'showZero' => 'showZero',
+                            'deleted' => true,
+                        ])
                     </div>
+                </div>
                 @endif
             </div>
         </div>

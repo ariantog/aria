@@ -8,7 +8,7 @@ $breadcrumbs = [
     ['title' => 'Borongan', 'href' => route('borongan.index')],
     ['title' => 'Detail #' . $borongan->id, 'href' => route('borongan.show', $borongan->id)],
 ];
-$fmt = fn($v) => 'Rp ' . number_format((float)($v ?? 0), 0, ',', '.');
+$fmt = fn($v) => format_currency($v ?? 0, 'Rp ', 0);
 $subTotalItem = $details->sum(fn($d) => (float)$d->total);
 $totalQty = $details->sum(fn($d) => (int)$d->quantity);
 @endphp

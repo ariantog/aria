@@ -4,7 +4,7 @@
 
 @section('content')
 @php
-$fmt = fn ($v) => number_format((float) $v, 2, ',', '.');
+$fmt = fn ($v) => format_amount($v);
 $monthNames = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
 $queryWithoutOverdue = collect($filters)->except('overdue')->filter()->all();
 @endphp

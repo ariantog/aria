@@ -5,7 +5,7 @@
 @section('content')
 @php
 $breadcrumbs = [['title' => 'Borongan', 'href' => route('borongan.index')]];
-$fmt = fn($v) => number_format((float)($v ?? 0), 0, ',', '.');
+$fmt = fn($v) => format_amount($v ?? 0, 0);
 $f = $filters;
 @endphp
 

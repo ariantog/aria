@@ -81,7 +81,7 @@
                                 <template x-for="(item, idx) in items" :key="item.id">
                                     <div @click="selectItem(item)" @mouseenter="activeIndex=idx" class="combobox-option" :class="{'active':activeIndex===idx}">
                                         <span x-text="item.name"></span>
-                                        <span class="ml-auto text-xs opacity-60" x-text="item.balance !== undefined ? 'Rp '+Number(item.balance).toLocaleString('id-ID') : ''"></span>
+                                        <span class="ml-auto text-xs opacity-60" x-text="item.balance !== undefined ? 'Rp '+formatAmountId(item.balance || 0) : ''"></span>
                                     </div>
                                 </template>
                             </div>
@@ -89,7 +89,7 @@
                         <div x-show="receiverBalance !== null"
                              class="flex items-center gap-2 rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-1.5">
                             <span class="text-xs font-bold uppercase tracking-wider text-emerald-600">Current Balance</span>
-                            <span class="font-mono text-sm font-bold text-emerald-700" x-text="'Rp ' + Number(receiverBalance||0).toLocaleString('id-ID')"></span>
+                            <span class="font-mono text-sm font-bold text-emerald-700" x-text="'Rp ' + formatAmountId(receiverBalance||0)"></span>
                         </div>
                         @error('receiver')<p class="text-xs text-red-500">{{ $message }}</p>@enderror
                     </div>
@@ -122,7 +122,7 @@
                                 <template x-for="(item, idx) in items" :key="item.id">
                                     <div @click="selectItem(item)" @mouseenter="activeIndex=idx" class="combobox-option" :class="{'active':activeIndex===idx}">
                                         <span x-text="item.name"></span>
-                                        <span class="ml-auto text-xs opacity-60" x-text="item.balance !== undefined ? 'Rp '+Number(item.balance).toLocaleString('id-ID') : ''"></span>
+                                        <span class="ml-auto text-xs opacity-60" x-text="item.balance !== undefined ? 'Rp '+formatAmountId(item.balance || 0) : ''"></span>
                                     </div>
                                 </template>
                             </div>
@@ -130,7 +130,7 @@
                         <div x-show="senderBalance !== null"
                              class="flex items-center gap-2 rounded-lg border border-rose-100 bg-rose-50 px-3 py-1.5">
                             <span class="text-xs font-bold uppercase tracking-wider text-rose-600">Current Balance</span>
-                            <span class="font-mono text-sm font-bold text-rose-700" x-text="'Rp ' + Number(senderBalance||0).toLocaleString('id-ID')"></span>
+                            <span class="font-mono text-sm font-bold text-rose-700" x-text="'Rp ' + formatAmountId(senderBalance||0)"></span>
                         </div>
                         @error('sender')<p class="text-xs text-red-500">{{ $message }}</p>@enderror
                     </div>

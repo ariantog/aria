@@ -81,13 +81,13 @@ $currentYear = $now->year;
                             </td>
                             <td class="px-6 py-4 text-right">
                                 <div class="font-medium text-zinc-900">
-                                    @if($item->gajiSingle) Rp {{ number_format($item->gajiSingle->total_gaji, 0, ',', '.') }}
+                                    @if($item->gajiSingle) Rp {{ format_amount($item->gajiSingle->total_gaji, 0) }}
                                     @else <span class="text-xs italic text-zinc-400">Belum dibuat</span> @endif
                                 </div>
                             </td>
                             <td class="px-6 py-4 text-right">
                                 <div class="font-medium text-zinc-900">
-                                    @if($item->gajiSingle) Rp {{ number_format($gpu, 0, ',', '.') }}
+                                    @if($item->gajiSingle) Rp {{ format_amount($gpu, 0) }}
                                     @else <span class="text-xs italic text-zinc-400">Belum dibuat</span> @endif
                                 </div>
                             </td>

@@ -9,7 +9,7 @@ $breadcrumbs = [
     ['title' => 'Reports', 'href' => '#'],
     ['title' => 'Laporan Biaya', 'href' => route('reports.expense')],
 ];
-$fmt = fn($v) => 'Rp' . number_format((float) $v, 0, ',', '.');
+$fmt = fn($v) => 'Rp' . format_amount($v, 0);
 
 $totalAccountIn = array_sum($accountReport['cashIn']);
 $totalAccountOut = array_sum($accountReport['cashOut']);

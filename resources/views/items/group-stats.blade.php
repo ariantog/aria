@@ -71,10 +71,10 @@ foreach ($data as $row) {
                 @forelse($order as $d)
                 <tr class="hover:bg-gray-50/50">
                     <td class="px-6 py-3 font-medium text-gray-900">{{ $d }}</td>
-                    <td class="px-6 py-3 text-right font-mono text-gray-700">{{ $pivot[$d]['sell'] ? number_format($pivot[$d]['sell'],0,',','.') : '-' }}</td>
-                    <td class="px-6 py-3 text-right font-mono text-rose-500">{{ $pivot[$d]['return'] ? number_format($pivot[$d]['return'],0,',','.') : '-' }}</td>
-                    <td class="px-6 py-3 text-right font-mono text-amber-500">{{ $pivot[$d]['move'] ? number_format($pivot[$d]['move'],0,',','.') : '-' }}</td>
-                    <td class="px-6 py-3 text-right font-mono text-indigo-500">{{ $pivot[$d]['production'] ? number_format($pivot[$d]['production'],0,',','.') : '-' }}</td>
+                    <td class="px-6 py-3 text-right font-mono text-gray-700">{{ $pivot[$d]['sell'] ? format_amount($pivot[$d]['sell'], 0) : '-' }}</td>
+                    <td class="px-6 py-3 text-right font-mono text-rose-500">{{ $pivot[$d]['return'] ? format_amount($pivot[$d]['return'], 0) : '-' }}</td>
+                    <td class="px-6 py-3 text-right font-mono text-amber-500">{{ $pivot[$d]['move'] ? format_amount($pivot[$d]['move'], 0) : '-' }}</td>
+                    <td class="px-6 py-3 text-right font-mono text-indigo-500">{{ $pivot[$d]['production'] ? format_amount($pivot[$d]['production'], 0) : '-' }}</td>
                 </tr>
                 @empty
                 <tr><td colspan="5" class="h-48 px-6 text-center text-gray-500">No statistical data found for this period.</td></tr>
@@ -82,10 +82,10 @@ foreach ($data as $row) {
                 @if(count($order) > 0)
                 <tr class="border-t-2 border-gray-200 bg-gray-50 font-bold">
                     <td class="px-6 py-3 uppercase tracking-wider text-gray-900">Total</td>
-                    <td class="px-6 py-3 text-right font-mono text-green-600">{{ number_format($totals['sell'],0,',','.') }}</td>
-                    <td class="px-6 py-3 text-right font-mono text-rose-600">{{ number_format($totals['return'],0,',','.') }}</td>
-                    <td class="px-6 py-3 text-right font-mono text-amber-600">{{ number_format($totals['move'],0,',','.') }}</td>
-                    <td class="px-6 py-3 text-right font-mono text-indigo-600">{{ number_format($totals['production'],0,',','.') }}</td>
+                    <td class="px-6 py-3 text-right font-mono text-green-600">{{ format_amount($totals['sell'], 0) }}</td>
+                    <td class="px-6 py-3 text-right font-mono text-rose-600">{{ format_amount($totals['return'], 0) }}</td>
+                    <td class="px-6 py-3 text-right font-mono text-amber-600">{{ format_amount($totals['move'], 0) }}</td>
+                    <td class="px-6 py-3 text-right font-mono text-indigo-600">{{ format_amount($totals['production'], 0) }}</td>
                 </tr>
                 @endif
             </tbody>

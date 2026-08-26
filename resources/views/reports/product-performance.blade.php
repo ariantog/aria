@@ -125,9 +125,9 @@ $metricLabel = $tab === ProductPerformanceService::TAB_DEMAND ? 'Qty' : 'Value';
                     <tr class="hover:bg-gray-50">
                         <td class="px-4 py-3 text-gray-500">{{ $row->rank }}</td>
                         <td class="px-4 py-3 font-medium text-gray-900">{{ $row->label }}</td>
-                        <td class="px-4 py-3 text-right tabular-nums">{{ number_format((float) $row->net_qty, 0, ',', '.') }}</td>
-                        <td class="px-4 py-3 text-right tabular-nums">{{ number_format((float) $row->net_value, 0, ',', '.') }}</td>
-                        <td class="px-4 py-3 text-right tabular-nums text-gray-600">{{ number_format((float) $row->pct_of_total, 1, ',', '.') }}%</td>
+                        <td class="px-4 py-3 text-right tabular-nums">{{ format_amount((float) $row->net_qty, 0) }}</td>
+                        <td class="px-4 py-3 text-right tabular-nums">{{ format_amount((float) $row->net_value, 0) }}</td>
+                        <td class="px-4 py-3 text-right tabular-nums text-gray-600">{{ format_amount((float) $row->pct_of_total, 1) }}%</td>
                     </tr>
                     @empty
                     <tr>
