@@ -26,8 +26,15 @@ class ShopeeAdsController extends Controller
 
         $settings = ShopeeAdsSetting::current();
         $itemAdsSyncStats = null;
+        $itemAdsSyncError = null;
+
         if ($api->hasShopAuthorization()) {
-            $itemAdsSyncStats = $engine->syncItemAds();
+            try {
+                $itemAdsSyncStats = $engine->syncItemAds();
+            } catch (\Throwable $e) {
+                report($e);
+                $itemAdsSyncError = 'Sync item ads gagal: '.$e->getMessage();
+            }
         }
 
         $schedules = ShopeeAdsSchedule::query()->orderBy('ad_type')->orderBy('run_time')->get();
@@ -59,6 +66,7 @@ class ShopeeAdsController extends Controller
             'canEdit' => request()->user()?->can(ShopeeAds::getPermissions()['edit']) ?? false,
             'canBoost' => request()->user()?->can(ShopeeAds::getPermissions()['boost']) ?? false,
             'itemAdsSyncStats' => $itemAdsSyncStats,
+            'itemAdsSyncError' => $itemAdsSyncError,
         ]);
     }
 

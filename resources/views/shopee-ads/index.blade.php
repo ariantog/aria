@@ -438,6 +438,9 @@ $saInnerCardWhite = 'space-y-3 rounded-lg border border-gray-200 bg-white p-4 da
                     @if($itemAdsSyncStats['closed'] > 0)({{ $itemAdsSyncStats['closed'] }} ditutup)@endif
                 </span>
                 @endif
+                @if($itemAdsSyncError)
+                <span class="mt-1 block text-amber-700 dark:text-amber-300">{{ $itemAdsSyncError }}</span>
+                @endif
             </p>
         </div>
         <div class="overflow-x-auto">
