@@ -93,6 +93,7 @@ it('scales daily reset budgets on double date', function () {
     ]);
 
     $api = Mockery::mock(\App\Services\ShopeeAds\ShopeeAdsApiService::class);
+    $api->shouldReceive('hasShopAuthorization')->andReturn(false);
     $api->shouldReceive('setGmsBudget')->once()->with('gmv-dd', 200000)->andReturn(true);
     $api->shouldReceive('setItemAdBudget')->once()->with('item-dd', 60000)->andReturn(true);
 

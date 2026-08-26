@@ -73,7 +73,7 @@ it('treats legacy Python status Running as active for schedules', function () {
         Mockery::mock(\App\Services\ShopeeAds\ShopeeAdsTelegramNotifier::class)->shouldIgnoreMissing(),
     );
 
-    expect($settings->isAutomationActive())->toBeTrue()
+    expect($settings->automationStatus()->isActive())->toBeTrue()
         ->and($engine->runDueSchedules())->toBe(1);
 
     Carbon::setTestNow();
@@ -129,7 +129,7 @@ it('does not run legacy Python Paused status', function () {
         Mockery::mock(\App\Services\ShopeeAds\ShopeeAdsTelegramNotifier::class)->shouldIgnoreMissing(),
     );
 
-    expect(ShopeeAdsSetting::current()->isAutomationActive())->toBeFalse()
+    expect(ShopeeAdsSetting::current()->automationStatus()->isActive())->toBeFalse()
         ->and($engine->runDueSchedules())->toBe(0);
 
     Carbon::setTestNow();
