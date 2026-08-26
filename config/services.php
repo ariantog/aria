@@ -37,8 +37,10 @@ return [
 
     'telegram' => [
         'bot_token' => env('TELEGRAM_BOT_TOKEN'),
-        // Comma-separated chat/user ids (same as Python ALLOWED_TELEGRAM_USER_ID).
-        'chat_ids' => env('TELEGRAM_CHAT_IDS', env('ALLOWED_TELEGRAM_USER_ID')),
+        // Comma-separated ids for sendMessage chat_id (private chat = same as user id).
+        'chat_ids' => env('TELEGRAM_CHAT_IDS'),
+        // Python bot compat — merged when TELEGRAM_CHAT_IDS is empty.
+        'allowed_user_ids' => env('ALLOWED_TELEGRAM_USER_ID'),
     ],
 
     'shopee_ads' => [
