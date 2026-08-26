@@ -117,17 +117,41 @@ test('cash in rejects more than seven rows', function () {
         ->assertJsonValidationErrors(['items']);
 });
 
-test('cash in rejects supplier as source party', function () {
+test('cash in accepts supplier as source party', function () {
     $user = User::factory()->create();
     $bank = Addrbook::factory()->create(['type' => Addrbook::TYPE_BANK]);
     $supplier = Addrbook::factory()->supplier()->create();
+
+    $this->actingAs($user)->post(route('transactions.cash-in.store'), [
+        'date' => now()->format('Y-m-d'),
+        'account_id' => $bank->id,
+        'items' => [
+            [
+                'customer_id' => $supplier->id,
+                'total' => 100,
+            ],
+        ],
+    ])->assertRedirect();
+
+    $this->assertDatabaseHas('transactions', [
+        'type' => Transaction::TYPE_CASH_IN,
+        'sender_id' => $supplier->id,
+        'receiver_id' => $bank->id,
+        'total' => 100,
+    ]);
+});
+
+test('cash in rejects warehouse as source party', function () {
+    $user = User::factory()->create();
+    $bank = Addrbook::factory()->create(['type' => Addrbook::TYPE_BANK]);
+    $warehouse = Addrbook::factory()->warehouse()->create();
 
     $this->actingAs($user)->postJson(route('transactions.cash-in.store'), [
         'date' => now()->format('Y-m-d'),
         'account_id' => $bank->id,
         'items' => [
             [
-                'customer_id' => $supplier->id,
+                'customer_id' => $warehouse->id,
                 'total' => 100,
             ],
         ],
