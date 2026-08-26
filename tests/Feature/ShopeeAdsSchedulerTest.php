@@ -71,3 +71,29 @@ it('skips inactive cron manager tasks', function () {
 
     expect(ScheduledTask::query()->where('command', 'shopee-ads:process')->value('last_run_at'))->toBeNull();
 });
+
+it('does not run scheduler-only commands inside the dispatcher', function () {
+    Log::spy();
+
+    ScheduledTask::query()->updateOrCreate(
+        ['command' => 'app:process-queue'],
+        [
+            'name' => 'Process Queue Jobs',
+            'frequency' => 'everyMinute',
+            'active' => true,
+            'description' => 'test',
+        ],
+    );
+
+    $this->artisan('app:dispatch-scheduled-tasks')
+        ->assertSuccessful();
+
+    Log::shouldNotHaveReceived('info', ['Scheduled task starting', ['command' => 'app:process-queue']]);
+
+    expect(ScheduledTask::query()->where('command', 'app:process-queue')->value('last_run_at'))->toBeNull();
+});
+
+it('reports scheduler status', function () {
+    $this->artisan('app:scheduler-status')
+        ->assertSuccessful();
+});

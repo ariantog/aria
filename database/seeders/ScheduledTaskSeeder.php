@@ -19,7 +19,27 @@ class ScheduledTaskSeeder extends Seeder
                 'name' => 'Process Queue Jobs',
                 'frequency' => 'everyMinute',
                 'active' => true,
-                'description' => 'Drains the jobs table (transaction report aggregates, Jubelio import jobs, etc.).',
+                'description' => 'Drains the jobs table. Runs via Laravel scheduler directly (not the dispatcher).',
+            ]
+        );
+
+        \App\Models\ScheduledTask::updateOrCreate(
+            ['command' => 'app:dispatch-scheduled-tasks'],
+            [
+                'name' => 'Laravel Scheduler Dispatcher',
+                'frequency' => 'everyMinute',
+                'active' => false,
+                'description' => 'System heartbeat — updated by schedule:run when app:dispatch-scheduled-tasks succeeds. Do not enable here.',
+            ]
+        );
+
+        \App\Models\ScheduledTask::updateOrCreate(
+            ['command' => 'app:process-warehouse-arrangement-refresh'],
+            [
+                'name' => 'Process Warehouse Arrangement Refresh',
+                'frequency' => 'everyMinute',
+                'active' => false,
+                'description' => 'Handled by Process Queue Jobs each minute. Kept for manual runs only.',
             ]
         );
 
@@ -33,15 +53,11 @@ class ScheduledTaskSeeder extends Seeder
             ]
         );
 
-        \App\Models\ScheduledTask::updateOrCreate(
-            ['command' => 'app:process-warehouse-arrangement-refresh'],
-            [
-                'name' => 'Process Warehouse Arrangement Refresh',
-                'frequency' => 'everyMinute',
-                'active' => true,
-                'description' => 'Processes queued warehouse arrangement rebuild jobs (~300 SKUs per minute per warehouse).',
-            ]
-        );
+        // Legacy row — deactivate if still present from older seeds.
+        \App\Models\ScheduledTask::query()
+            ->where('command', 'app:process-warehouse-arrangement-refresh')
+            ->where('active', true)
+            ->update(['active' => false]);
 
         \App\Models\ScheduledTask::updateOrCreate(
             ['command' => 'app:sync-warehouse-arrangement'],
