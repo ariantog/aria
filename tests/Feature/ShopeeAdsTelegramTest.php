@@ -7,6 +7,7 @@ it('posts sendMessage to telegram for each configured chat id', function () {
     config([
         'services.telegram.bot_token' => 'test-token',
         'services.telegram.chat_ids' => '123,456',
+        'services.telegram.allowed_user_ids' => null,
     ]);
 
     Http::fake([
