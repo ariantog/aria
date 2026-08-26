@@ -10,56 +10,46 @@ class JubelioTransactionSyncPresenter
     /**
      * @return array<string, mixed>
      */
-    public function present(Transaction $transaction): array
+    public function present(Transaction $transaction, ?array $syncedWarehouseIds = null): array
     {
         $transaction->loadMissing(['sender', 'receiver', 'submitByA', 'submitByB', 'details.item']);
 
-        $isManual = $transaction->submit_type === Transaction::SUBMIT_TYPE_MANUAL;
+        $canSync = $transaction->isManual();
         $type = (int) $transaction->type;
+        $senderId = (int) $transaction->sender_id;
+        $receiverId = (int) $transaction->receiver_id;
 
         $syncRelevantA = in_array($type, [Transaction::TYPE_SELL, Transaction::TYPE_RETURN_SUPPLIER, Transaction::TYPE_MOVE], true);
         $syncRelevantB = in_array($type, [Transaction::TYPE_BUY, Transaction::TYPE_RETURN, Transaction::TYPE_MOVE], true);
-        $syncedWarehouseIds = Jubeliosync::pluck('warehouse_id')->toArray();
+        $syncedWarehouseIds = array_map(
+            'intval',
+            $syncedWarehouseIds ?? $this->syncedWarehouseIds()
+        );
 
-        $jubSyncA = Jubeliosync::where('warehouse_id', $transaction->sender_id)->first();
-        $jubSyncB = Jubeliosync::where('warehouse_id', $transaction->receiver_id)->first();
+        $jubSyncA = $this->findSyncForWarehouse($senderId);
+        $jubSyncB = $this->findSyncForWarehouse($receiverId);
+        $senderSynced = $syncRelevantA && $this->isSyncedWarehouse($senderId, $syncedWarehouseIds);
+        $receiverSynced = $syncRelevantB && $this->isSyncedWarehouse($receiverId, $syncedWarehouseIds);
 
-        $jubelioA = ($isManual && $jubSyncA && $syncRelevantA) ? $jubSyncA->jubelio_location_name : null;
-        $jubelioB = ($isManual && $jubSyncB && $syncRelevantB) ? $jubSyncB->jubelio_location_name : null;
+        $jubelioA = ($canSync && $senderSynced && $jubSyncA) ? $jubSyncA->jubelio_location_name : null;
+        $jubelioB = ($canSync && $receiverSynced && $jubSyncB) ? $jubSyncB->jubelio_location_name : null;
+        $syncCek = $canSync ? $this->resolveSyncCek($type, $senderSynced, $receiverSynced) : null;
 
-        $syncCek = null;
-        if ($isManual) {
-            if (in_array($type, [Transaction::TYPE_SELL, Transaction::TYPE_RETURN_SUPPLIER], true)) {
-                $syncCek = in_array($transaction->sender_id, $syncedWarehouseIds, true) ? 'S' : null;
-            } elseif (in_array($type, [Transaction::TYPE_BUY, Transaction::TYPE_RETURN], true)) {
-                $syncCek = in_array($transaction->receiver_id, $syncedWarehouseIds, true) ? 'R' : null;
-            } elseif ($type === Transaction::TYPE_MOVE) {
-                $senderSynced = in_array($transaction->sender_id, $syncedWarehouseIds, true);
-                $receiverSynced = in_array($transaction->receiver_id, $syncedWarehouseIds, true);
-                $syncCek = match (true) {
-                    $senderSynced && $receiverSynced => 'B',
-                    $senderSynced => 'S',
-                    $receiverSynced => 'R',
-                    default => null,
-                };
-            }
-        }
-
-        $adjustTypeA = ($jubSyncA && $syncRelevantA) ? 2 : 0;
-        $adjustTypeB = ($jubSyncB && $syncRelevantB) ? 1 : 0;
+        $adjustTypeA = ($senderSynced && $jubSyncA) ? 2 : 0;
+        $adjustTypeB = ($receiverSynced && $jubSyncB) ? 1 : 0;
 
         $mappingMissing = $transaction->details->filter(
             fn ($detail) => ! $detail->item || ! $detail->item->jubelio_item_id || $detail->item->jubelio_item_id < 1
         )->count();
 
         return [
-            'can_sync' => $isManual,
+            'can_sync' => $canSync,
             'sync_cek' => $syncCek,
             'jubelio_a' => $jubelioA,
             'jubelio_b' => $jubelioB,
-            'a_synced' => $isManual && (bool) $transaction->a_submit_by,
-            'b_synced' => $isManual && (bool) $transaction->b_submit_by,
-            'is_from_jubelio' => $transaction->submit_type === Transaction::SUBMIT_TYPE_JUBELIO,
+            'a_synced' => $canSync && (bool) $transaction->a_submit_by,
+            'b_synced' => $canSync && (bool) $transaction->b_submit_by,
+            'is_from_jubelio' => $transaction->isFromJubelio(),
             'mapping_missing' => $mappingMissing,
             'adjust_type_a' => $adjustTypeA,
             'adjust_type_b' => $adjustTypeB,
@@ -82,5 +72,55 @@ class JubelioTransactionSyncPresenter
         $transaction->is_from_jubelio = $presented['is_from_jubelio'];
 
         return $presented;
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function syncedWarehouseIds(): array
+    {
+        return Jubeliosync::query()
+            ->pluck('warehouse_id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+    }
+
+    private function findSyncForWarehouse(int $warehouseId): ?Jubeliosync
+    {
+        if ($warehouseId < 1) {
+            return null;
+        }
+
+        return Jubeliosync::where('warehouse_id', $warehouseId)->first();
+    }
+
+    /**
+     * @param  list<int>  $syncedWarehouseIds
+     */
+    private function isSyncedWarehouse(int $warehouseId, array $syncedWarehouseIds): bool
+    {
+        return $warehouseId > 0 && in_array($warehouseId, $syncedWarehouseIds, true);
+    }
+
+    private function resolveSyncCek(int $type, bool $senderSynced, bool $receiverSynced): ?string
+    {
+        if (in_array($type, [Transaction::TYPE_SELL, Transaction::TYPE_RETURN_SUPPLIER], true)) {
+            return $senderSynced ? 'S' : null;
+        }
+
+        if (in_array($type, [Transaction::TYPE_BUY, Transaction::TYPE_RETURN], true)) {
+            return $receiverSynced ? 'R' : null;
+        }
+
+        if ($type === Transaction::TYPE_MOVE) {
+            return match (true) {
+                $senderSynced && $receiverSynced => 'B',
+                $senderSynced => 'S',
+                $receiverSynced => 'R',
+                default => null,
+            };
+        }
+
+        return null;
     }
 }
