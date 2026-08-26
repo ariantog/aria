@@ -58,7 +58,7 @@ class ShopeeAdsApiService
         $path = '/api/v2/shop/auth_partner';
         $timestamp = time();
         $sign = $this->signPublic($path, $timestamp);
-        $redirect = $config['redirect_url'] ?: url('/shopeebot.php');
+        $redirect = $config['redirect_url'];
 
         return rtrim($config['base_url'], '/').$path.'?'.http_build_query([
             'partner_id' => (int) $config['partner_id'],
@@ -70,9 +70,7 @@ class ShopeeAdsApiService
 
     public function getOAuthRedirectUrl(): string
     {
-        $configured = config('services.shopee_ads.redirect_url');
-
-        return $configured ?: url('/shopeebot.php');
+        return (string) config('services.shopee_ads.redirect_url');
     }
 
     public function getLastOAuthError(): ?string

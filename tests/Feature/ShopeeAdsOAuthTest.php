@@ -13,10 +13,12 @@ beforeEach(function () {
     ]);
 });
 
-it('defaults oauth redirect to shopeebot relay', function () {
+it('uses cdn shopeebot relay as default oauth redirect', function () {
+    config(['services.shopee_ads.redirect_url' => 'https://cdn.corenationactive.com/shopeebot.php']);
+
     $api = app(ShopeeAdsApiService::class);
 
-    expect($api->getOAuthRedirectUrl())->toBe(url('/shopeebot.php'));
+    expect($api->getOAuthRedirectUrl())->toBe('https://cdn.corenationactive.com/shopeebot.php');
 });
 
 it('surfaces shopee api error on token exchange', function () {

@@ -40,7 +40,7 @@ return [
         'partner_id' => env('SHOPEE_PARTNER_ID'),
         'partner_key' => env('SHOPEE_PARTNER_KEY'),
         'base_url' => env('SHOPEE_BASE_URL', 'https://partner.shopeemobile.com'),
-        'redirect_url' => env('SHOPEE_REDIRECT_URL'),
+        'redirect_url' => env('SHOPEE_REDIRECT_URL', 'https://cdn.corenationactive.com/shopeebot.php'),
     ],
 
     'jubelio' => [
