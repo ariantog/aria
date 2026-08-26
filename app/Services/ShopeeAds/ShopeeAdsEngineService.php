@@ -8,6 +8,7 @@ use App\Models\ShopeeAdsItemAd;
 use App\Models\ShopeeAdsSchedule;
 use App\Models\ShopeeAdsSetting;
 use Carbon\Carbon;
+use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -254,17 +255,18 @@ class ShopeeAdsEngineService
     /**
      * @return list<string>
      */
-    private function timedJobNotes(Carbon $now, int $hour, int $minute, ?Carbon $lastRun, string $label): array
+    private function timedJobNotes(Carbon $now, int $hour, int $minute, CarbonInterface|null $lastRun, string $label): array
     {
         $slot = sprintf('%02d:%02d', $hour, $minute);
         $notes = [];
-
-        if ($now->hour !== $hour || $now->minute !== $minute) {
-            $notes[] = "{$label} hanya di {$slot} WIB (sekarang {$now->format('H:i')}).";
-        }
+        $scheduledAt = $now->copy()->startOfDay()->setTime($hour, $minute, 0);
 
         if ($lastRun && $lastRun->timezone($this->automationTimezone())->isSameDay($now)) {
             $notes[] = "{$label} sudah jalan hari ini ({$lastRun->timezone($this->automationTimezone())->format('H:i')} WIB).";
+        } elseif ($now->lt($scheduledAt)) {
+            $notes[] = "{$label} di {$slot} WIB (sekarang {$now->format('H:i')}, belum waktunya).";
+        } elseif ($now->gt($scheduledAt)) {
+            $notes[] = "{$label} due (jadwal {$slot} WIB, catch-up sampai reset tercatat hari ini).";
         }
 
         return $notes;
@@ -275,7 +277,7 @@ class ShopeeAdsEngineService
         $settings = ShopeeAdsSetting::current();
         $now = $this->jakartaNow();
 
-        if (! $this->isDueAt($settings, $now, $settings->daily_reset_hour, $settings->daily_reset_minute, $settings->last_daily_reset_at)) {
+        if (! $this->isTimedJobDue($now, (int) $settings->daily_reset_hour, (int) $settings->daily_reset_minute, $settings->last_daily_reset_at)) {
             return false;
         }
 
@@ -283,8 +285,15 @@ class ShopeeAdsEngineService
             return false;
         }
 
+        Log::info('Shopee Ads daily reset starting', [
+            'wib' => $now->format('Y-m-d H:i:s'),
+            'last_daily_reset_at' => $settings->last_daily_reset_at?->toIso8601String(),
+        ]);
+
         $this->dailyReset($settings);
         $settings->update(['last_daily_reset_at' => $now]);
+
+        Log::info('Shopee Ads daily reset finished');
 
         return true;
     }
@@ -299,7 +308,7 @@ class ShopeeAdsEngineService
 
         $now = $this->jakartaNow();
 
-        if (! $this->isDueAt($settings, $now, $settings->item_replenish_hour, $settings->item_replenish_minute, $settings->last_item_replenish_at)) {
+        if (! $this->isTimedJobDue($now, (int) $settings->item_replenish_hour, (int) $settings->item_replenish_minute, $settings->last_item_replenish_at)) {
             return false;
         }
 
@@ -848,17 +857,18 @@ class ShopeeAdsEngineService
         return $now->copy()->startOfDay()->setTime($hour, $minute, 0);
     }
 
-    private function isDueAt(ShopeeAdsSetting $settings, Carbon $now, int $hour, int $minute, ?Carbon $lastRun): bool
+    /**
+     * Daily reset / replenish: run once per WIB day, any time after HH:MM (catch-up if cron missed the slot).
+     */
+    private function isTimedJobDue(Carbon $now, int $hour, int $minute, CarbonInterface|null $lastRun): bool
     {
-        if ($now->hour !== $hour || $now->minute !== $minute) {
+        if ($lastRun && $lastRun->timezone($this->automationTimezone())->isSameDay($now)) {
             return false;
         }
 
-        if (! $lastRun) {
-            return true;
-        }
+        $scheduledAt = $now->copy()->startOfDay()->setTime($hour, $minute, 0);
 
-        return ! $lastRun->timezone($this->automationTimezone())->isSameDay($now);
+        return $now->greaterThanOrEqualTo($scheduledAt);
     }
 
     private function recordHistory(
