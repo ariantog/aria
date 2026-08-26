@@ -46,6 +46,50 @@ class TransactionService
         });
     }
 
+    /**
+     * Revert the transaction's current posted effects, apply caller changes, then repost.
+     * Caller must mutate the same model instance (header and/or details) inside $applyChanges.
+     */
+    public function editTransaction(Transaction $transaction, callable $applyChanges): Transaction
+    {
+        return DB::transaction(function () use ($transaction, $applyChanges) {
+            $snapshot = $this->snapshotForRevert($transaction);
+
+            $this->revertTransaction($snapshot);
+
+            $applyChanges($transaction);
+
+            $transaction->refresh()->load('details');
+            $this->handleTransaction($transaction);
+
+            return $transaction->fresh(['details']);
+        });
+    }
+
+    /**
+     * In-memory copy of a transaction + details for revert before edits mutate the row.
+     */
+    protected function snapshotForRevert(Transaction $transaction): Transaction
+    {
+        $transaction->loadMissing('details');
+
+        $snapshot = new Transaction($transaction->getAttributes());
+        $snapshot->exists = true;
+        $snapshot->id = $transaction->id;
+
+        $snapshot->setRelation(
+            'details',
+            $transaction->details->map(function ($detail) {
+                $copy = new \App\Models\TransactionDetail($detail->getAttributes());
+                $copy->exists = true;
+
+                return $copy;
+            })
+        );
+
+        return $snapshot;
+    }
+
     protected function updateStock(Transaction $transaction, bool $revert = false)
     {
         foreach ($transaction->details as $detail) {

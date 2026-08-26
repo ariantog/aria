@@ -55,6 +55,11 @@ class TaxFakturImport extends Model
         return $this->belongsTo(Transaction::class, 'cash_in_transaction_id');
     }
 
+    public function varianceTransaction(): BelongsTo
+    {
+        return $this->belongsTo(Transaction::class, 'variance_transaction_id');
+    }
+
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);

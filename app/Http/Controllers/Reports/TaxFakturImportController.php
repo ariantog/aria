@@ -9,6 +9,7 @@ use App\Models\ReportingEntity;
 use App\Models\TaxFakturImport;
 use App\Services\Reporting\TaxReportService;
 use App\Services\Tax\ExpectedPaymentDateCalculator;
+use App\Services\Tax\FakturCashInMatcher;
 use App\Services\Tax\FakturPajakDirectionResolver;
 use App\Services\Tax\FakturPajakPdfParser;
 use App\Services\Tax\ParsedFakturPajak;
@@ -65,12 +66,16 @@ class TaxFakturImportController extends Controller
     {
         Gate::authorize(Report::getPermissions()['view-tax-faktur']);
 
-        $import->load(['reportingEntity', 'counterparty', 'varianceExpenseAccount', 'user']);
+        $import->load(['reportingEntity', 'counterparty', 'varianceExpenseAccount', 'user', 'cashInTransaction', 'varianceTransaction']);
 
         return view('reports.tax.faktur.show', [
             'import' => $import,
             'hasPdf' => $this->resolvePdfPath($import) !== null,
             'canImport' => request()->user()?->can(Report::getPermissions()['import-tax-faktur']) ?? false,
+            'expenseAccounts' => Addrbook::query()
+                ->where('type', Addrbook::TYPE_ACCOUNT)
+                ->orderBy('name')
+                ->get(['id', 'name']),
         ]);
     }
 
@@ -149,7 +154,7 @@ class TaxFakturImportController extends Controller
         return redirect()->route('reports.tax.faktur.review');
     }
 
-    public function review()
+    public function review(FakturCashInMatcher $cashInMatcher)
     {
         Gate::authorize(Report::getPermissions()['import-tax-faktur']);
 
@@ -160,6 +165,17 @@ class TaxFakturImportController extends Controller
         }
 
         $parsed = $this->hydrateParsed($preview['parsed']);
+        $counterpartyGuessId = (int) old('counterparty_id', $preview['counterparty_guess_id'] ?? 0);
+        $entityId = (int) old('reporting_entity_id', $preview['suggestion']['reporting_entity_id'] ?? 0);
+        $cashInSuggestions = $counterpartyGuessId > 0
+            ? $cashInMatcher->suggest(
+                $counterpartyGuessId,
+                $entityId > 0 ? $entityId : null,
+                null,
+                null,
+                $parsed->fakturNumber,
+            )->all()
+            : [];
 
         return view('reports.tax.faktur.review', [
             'parsed' => $parsed,
@@ -180,6 +196,32 @@ class TaxFakturImportController extends Controller
                 ->get(['id', 'name']),
             'counterpartyGuessId' => $preview['counterparty_guess_id'],
             'expectedPaymentDate' => $preview['expected_payment_date'],
+            'cashInSuggestions' => $cashInSuggestions,
+        ]);
+    }
+
+    public function cashInSuggestions(Request $request, FakturCashInMatcher $cashInMatcher)
+    {
+        Gate::authorize(Report::getPermissions()['import-tax-faktur']);
+
+        $data = $request->validate([
+            'counterparty_id' => ['required', 'integer', 'exists:customers,id'],
+            'reporting_entity_id' => ['nullable', 'integer', 'exists:reporting_entities,id'],
+            'payment_received_amount' => ['nullable', 'numeric'],
+            'payment_received_date' => ['nullable', 'date'],
+            'faktur_number' => ['nullable', 'string', 'max:20'],
+            'exclude_import_id' => ['nullable', 'integer', 'exists:tax_faktur_imports,id'],
+        ]);
+
+        return response()->json([
+            'suggestions' => $cashInMatcher->suggest(
+                (int) $data['counterparty_id'],
+                isset($data['reporting_entity_id']) ? (int) $data['reporting_entity_id'] : null,
+                isset($data['payment_received_amount']) ? (float) $data['payment_received_amount'] : null,
+                $data['payment_received_date'] ?? null,
+                $data['faktur_number'] ?? null,
+                isset($data['exclude_import_id']) ? (int) $data['exclude_import_id'] : null,
+            )->values(),
         ]);
     }
 
@@ -199,6 +241,7 @@ class TaxFakturImportController extends Controller
             'counterparty_id' => ['required', 'integer', 'exists:customers,id'],
             'payment_received_amount' => ['nullable', 'numeric'],
             'payment_received_date' => ['nullable', 'date'],
+            'cash_in_transaction_id' => ['nullable', 'integer', 'exists:transactions,id'],
             'variance_expense_addrbook_id' => ['nullable', 'integer', 'exists:customers,id'],
             'notes' => ['nullable', 'string', 'max:2000'],
         ]);
@@ -220,6 +263,51 @@ class TaxFakturImportController extends Controller
         return redirect()
             ->route('reports.tax.faktur.show', $import)
             ->with('success', "Faktur {$import->faktur_number} imported for PPN reporting.");
+    }
+
+    public function updatePayment(Request $request, TaxFakturImport $import, TaxFakturImportService $importService)
+    {
+        Gate::authorize(Report::getPermissions()['import-tax-faktur']);
+
+        $data = $request->validate([
+            'payment_received_amount' => ['nullable', 'numeric'],
+            'payment_received_date' => ['nullable', 'date'],
+            'cash_in_transaction_id' => ['nullable', 'integer', 'exists:transactions,id'],
+            'variance_expense_addrbook_id' => ['nullable', 'integer', 'exists:customers,id'],
+        ]);
+
+        try {
+            if (array_key_exists('cash_in_transaction_id', $data)) {
+                $import = $importService->linkCashIn(
+                    $import,
+                    $data['cash_in_transaction_id'] ? (int) $data['cash_in_transaction_id'] : null,
+                );
+            }
+
+            if (isset($data['payment_received_amount']) && $data['payment_received_amount'] !== null && $data['payment_received_amount'] !== '') {
+                $import = $importService->recordPayment(
+                    $import->fresh(),
+                    (float) $data['payment_received_amount'],
+                    $data['payment_received_date'] ?? null,
+                    isset($data['cash_in_transaction_id']) && $data['cash_in_transaction_id']
+                        ? (int) $data['cash_in_transaction_id']
+                        : $import->cash_in_transaction_id,
+                    isset($data['variance_expense_addrbook_id']) && $data['variance_expense_addrbook_id']
+                        ? (int) $data['variance_expense_addrbook_id']
+                        : $import->variance_expense_addrbook_id,
+                );
+            } elseif (isset($data['variance_expense_addrbook_id'])) {
+                $import->variance_expense_addrbook_id = $data['variance_expense_addrbook_id'] ?: null;
+                $import->save();
+                app(\App\Services\Tax\PostFakturPaymentVariance::class)->execute($import->fresh());
+            }
+        } catch (InvalidArgumentException $e) {
+            return back()->withInput()->with('error', $e->getMessage());
+        }
+
+        return redirect()
+            ->route('reports.tax.faktur.show', $import)
+            ->with('success', 'Pembayaran faktur diperbarui.');
     }
 
     private function resolvePdfPath(TaxFakturImport $import): ?string

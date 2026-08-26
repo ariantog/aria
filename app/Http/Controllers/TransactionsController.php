@@ -250,7 +250,8 @@ class TransactionsController extends Controller
             return 'Contact';
         };
         $jubelioSync = $jubelioSyncPresenter->applyToTransaction($transaction);
-        $jubelioSync['show_ui'] = $jubelioSync['can_sync']
+        $jubelioSync['show_ui'] = config('services.jubelio.active')
+            && $jubelioSync['can_sync']
             && $jubelioSync['sync_cek']
             && Transaction::userCanJubelioTransactionSync(Auth::user());
         $invoiceService = app(TransactionInvoiceService::class);
@@ -430,7 +431,7 @@ class TransactionsController extends Controller
         return response()->json(['data' => $dataList, 'totalQty' => collect($dataList)->sum('quantity'), 'totalPrice' => collect($dataList)->sum('subtotal')]);
     }
 
-    public function destroy(Transaction $transaction, TransactionService $service)
+    public function destroy(Transaction $transaction, TransactionService $service, BookClosingService $bookClosingService)
     {
         Gate::authorize(Transaction::getPermissions()['delete']);
         if ($transaction->isFromJubelio()) {
@@ -440,6 +441,7 @@ class TransactionsController extends Controller
         $transaction->load(['details', 'sender', 'receiver']);
         $sender = $transaction->sender;
         $receiver = $transaction->receiver;
+        $bookClosingService->validateDate($transaction->date->format('Y-m-d'));
 
         DB::transaction(function () use ($transaction, $service, $sender, $receiver) {
             $deletedColumns = array_flip(Schema::getColumnListing((new DeletedTransaction)->getTable()));

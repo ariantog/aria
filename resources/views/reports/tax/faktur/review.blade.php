@@ -11,11 +11,39 @@ $gross = $parsed->grossIncludingTax();
 <div class="flex flex-col gap-4 p-4" x-data="{
     direction: '{{ old('direction', $suggestion['direction']) }}',
     counterpartyId: '{{ old('counterparty_id', $counterpartyGuessId ?? '') }}',
+    entityId: '{{ old('reporting_entity_id', $suggestion['reporting_entity_id'] ?? '') }}',
     paymentAmount: '{{ old('payment_received_amount', '') }}',
+    paymentDate: '{{ old('payment_received_date', '') }}',
+    cashInId: '{{ old('cash_in_transaction_id', '') }}',
+    suggestions: @js($cashInSuggestions),
     variance: 0,
+    suggestionsUrl: @js(route('reports.tax.faktur.cash-in-suggestions')),
+    fakturNumber: @js($parsed->fakturNumber),
     recalcVariance() {
         const paid = parseFloat(this.paymentAmount) || 0;
         this.variance = paid ? (paid - {{ $gross }}) : 0;
+    },
+    async refreshSuggestions() {
+        if (!this.counterpartyId) {
+            this.suggestions = [];
+            return;
+        }
+        const params = new URLSearchParams({
+            counterparty_id: this.counterpartyId,
+            faktur_number: this.fakturNumber,
+        });
+        if (this.entityId) params.set('reporting_entity_id', this.entityId);
+        if (this.paymentAmount) params.set('payment_received_amount', this.paymentAmount);
+        if (this.paymentDate) params.set('payment_received_date', this.paymentDate);
+        const response = await fetch(this.suggestionsUrl + '?' + params.toString(), {
+            headers: { 'Accept': 'application/json' },
+        });
+        if (!response.ok) return;
+        const data = await response.json();
+        this.suggestions = data.suggestions || [];
+        if (!this.cashInId && this.suggestions.length > 0) {
+            this.cashInId = String(this.suggestions[0].id);
+        }
     }
 }" x-init="recalcVariance()">
     <div>
@@ -59,7 +87,7 @@ $gross = $parsed->grossIncludingTax();
 
             <div>
                 <label class="mb-1 block text-sm font-medium text-gray-700" for="reporting_entity_id">Reporting entity (PKP)</label>
-                <select id="reporting_entity_id" name="reporting_entity_id" required class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                <select id="reporting_entity_id" name="reporting_entity_id" required class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" x-model="entityId" @change="refreshSuggestions()">
                     @foreach($entities as $entity)
                         <option value="{{ $entity->id }}" @selected((int) old('reporting_entity_id', $suggestion['reporting_entity_id']) === $entity->id)>
                             {{ $entity->name }}{{ $entity->is_pkp ? '' : ' (non-PKP)' }}
@@ -70,7 +98,7 @@ $gross = $parsed->grossIncludingTax();
 
             <div x-show="direction === 'keluaran'">
                 <label class="mb-1 block text-sm font-medium text-gray-700" for="counterparty_id_keluaran">Customer / pembeli</label>
-                <select id="counterparty_id_keluaran" name="counterparty_id" x-bind:disabled="direction !== 'keluaran'" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" data-testid="counterparty-select">
+                <select id="counterparty_id_keluaran" name="counterparty_id" x-bind:disabled="direction !== 'keluaran'" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" data-testid="counterparty-select" x-model="counterpartyId" @change="refreshSuggestions()">
                     <option value="">— Pilih —</option>
                     @foreach($customers as $c)
                         <option value="{{ $c->id }}" @selected((int) old('counterparty_id', $counterpartyGuessId) === $c->id)>
@@ -97,18 +125,29 @@ $gross = $parsed->grossIncludingTax();
                     <div>
                         <label class="mb-1 block text-xs text-gray-500" for="payment_received_amount">Jumlah diterima (Rp)</label>
                         <input type="number" step="0.01" id="payment_received_amount" name="payment_received_amount"
-                               x-model="paymentAmount" @input="recalcVariance()"
+                               x-model="paymentAmount" @input="recalcVariance(); refreshSuggestions()"
                                class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm tabular-nums">
                     </div>
                     <div>
                         <label class="mb-1 block text-xs text-gray-500" for="payment_received_date">Tanggal bayar</label>
                         <input type="date" id="payment_received_date" name="payment_received_date" value="{{ old('payment_received_date') }}"
+                               x-model="paymentDate" @change="refreshSuggestions()"
                                class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
                     </div>
                 </div>
                 <p class="mt-2 text-xs text-gray-600" x-show="paymentAmount">
                     Selisih vs faktur: <span class="font-medium tabular-nums" x-text="variance.toLocaleString('id-ID', {minimumFractionDigits: 2})"></span>
                 </p>
+                <div class="mt-3" x-show="suggestions.length > 0" x-cloak>
+                    <label class="mb-1 block text-xs text-gray-500" for="cash_in_transaction_id">Link Cash In (opsional)</label>
+                    <select id="cash_in_transaction_id" name="cash_in_transaction_id" x-model="cashInId" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" data-testid="cash-in-select">
+                        <option value="">— Tidak di-link —</option>
+                        <template x-for="item in suggestions" :key="item.id">
+                            <option :value="item.id" x-text="`#${item.id} · ${item.date} · ${item.bank_name} · Rp ${item.total.toLocaleString('id-ID')}${item.invoice ? ' · ' + item.invoice : ''}`"></option>
+                        </template>
+                    </select>
+                    <p class="mt-1 text-xs text-gray-500">Prioritas: customer + bank entitas, lalu jumlah & tanggal.</p>
+                </div>
                 <div class="mt-3">
                     <label class="mb-1 block text-xs text-gray-500" for="variance_expense_addrbook_id">Akun biaya selisih (e.g. Biaya MDS)</label>
                     <select id="variance_expense_addrbook_id" name="variance_expense_addrbook_id" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">

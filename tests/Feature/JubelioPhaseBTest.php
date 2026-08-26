@@ -193,6 +193,8 @@ it('rejects duplicate jubelio cancel webhook payloads', function () {
 });
 
 it('shows jubelio sync push buttons on transaction detail page', function () {
+    config(['services.jubelio.active' => true]);
+
     User::factory()->create();
     $user = User::factory()->create();
     Permission::firstOrCreate(['name' => 'transactions-show']);
@@ -239,6 +241,8 @@ it('shows jubelio sync push buttons on transaction detail page', function () {
 });
 
 it('shows jubelio sync for transactions-show without jubelio-sync permission', function () {
+    config(['services.jubelio.active' => true]);
+
     User::factory()->create();
     $user = User::factory()->create();
     Permission::firstOrCreate(['name' => 'transactions-show']);
