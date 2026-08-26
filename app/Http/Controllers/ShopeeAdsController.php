@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Enums\ShopeeAdsType;
 use App\Models\ShopeeAds;
+use App\Models\ScheduledTask;
 use App\Models\ShopeeAdsBudgetHistory;
 use App\Models\ShopeeAdsItemAd;
 use App\Models\ShopeeAdsSchedule;
@@ -27,6 +28,9 @@ class ShopeeAdsController extends Controller
         $history = ShopeeAdsBudgetHistory::query()->orderByDesc('created_at')->limit(50)->get();
         $itemAds = ShopeeAdsItemAd::query()->orderByDesc('updated_at')->limit(30)->get();
         $ruleStatus = $specialRules->todayStatus($settings);
+        $connection = $api->getConnectionStatus();
+        $cronTask = ScheduledTask::query()->where('command', 'shopee-ads:process')->first();
+        $automationBlockers = $this->automationBlockers($settings, $api, $connection, $cronTask);
 
         return view('shopee-ads.index', [
             'settings' => $settings,
@@ -35,7 +39,9 @@ class ShopeeAdsController extends Controller
             'itemAds' => $itemAds,
             'adTypeLabels' => ShopeeAdsType::labels(),
             'supportedTypes' => ShopeeAdsType::supportedScheduleTypes(),
-            'connection' => $api->getConnectionStatus(),
+            'connection' => $connection,
+            'cronTask' => $cronTask,
+            'automationBlockers' => $automationBlockers,
             'oauthRedirectUrl' => $api->getOAuthRedirectUrl(),
             'oauthErrorHint' => $api->formatOAuthErrorForUser($api->getLastOAuthError()),
             'planned' => $this->plannedEndOfDay($settings, $schedules, $specialRules),
@@ -196,6 +202,39 @@ class ShopeeAdsController extends Controller
         $result = $engine->applyManualBudgetBoost($settings);
 
         return back()->with('success', $result['message']);
+    }
+
+    /**
+     * @param  array<string, mixed>  $connection
+     * @return list<string>
+     */
+    private function automationBlockers(
+        ShopeeAdsSetting $settings,
+        ShopeeAdsApiService $api,
+        array $connection,
+        ?ScheduledTask $cronTask,
+    ): array {
+        $blockers = [];
+
+        if (! $cronTask?->active) {
+            $blockers[] = 'Cron «Shopee Ads Process» nonaktif — aktifkan di Cron Manager (/cron-manager).';
+        }
+
+        if ($settings->isPaused()) {
+            $blockers[] = 'Automasi di-pause — klik Resume di halaman ini.';
+        }
+
+        if (! $api->isConfigured()) {
+            $blockers[] = 'SHOPEE_PARTNER_ID / SHOPEE_PARTNER_KEY belum dikonfigurasi di .env.';
+        }
+
+        if (! ($connection['has_token'] ?? false)) {
+            $blockers[] = 'Shopee belum diotorisasi — klik Authorize Shopee.';
+        } elseif (($connection['is_expired'] ?? true)) {
+            $blockers[] = 'Token Shopee expired — otorisasi ulang.';
+        }
+
+        return $blockers;
     }
 
     /**

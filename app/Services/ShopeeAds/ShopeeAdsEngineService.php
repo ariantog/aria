@@ -30,7 +30,15 @@ class ShopeeAdsEngineService
     {
         $settings = ShopeeAdsSetting::current();
 
-        if ($settings->isPaused() || ! $this->api->hasShopAuthorization()) {
+        if ($settings->isPaused()) {
+            Log::info('Shopee Ads schedules skipped: automation paused');
+
+            return 0;
+        }
+
+        if (! $this->api->hasShopAuthorization()) {
+            Log::info('Shopee Ads schedules skipped: shop not authorized');
+
             return 0;
         }
 
