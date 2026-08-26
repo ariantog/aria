@@ -225,7 +225,7 @@ class ShopeeAdsController extends Controller
         }
 
         if ($settings->isPaused()) {
-            $blockers[] = 'Automasi di-pause — klik Resume di halaman ini.';
+            $blockers[] = 'Automasi PAUSED — jadwal increment tidak jalan (Resume). Manual Daily Reset tetap bisa.';
         }
 
         if (! $api->isConfigured()) {

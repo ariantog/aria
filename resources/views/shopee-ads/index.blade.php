@@ -359,6 +359,7 @@ $breadcrumbs = [
     <div class="rounded-xl border border-gray-200 bg-white shadow-sm">
         <div class="border-b border-gray-100 px-6 py-4">
             <h2 class="text-sm font-semibold text-gray-900">Jadwal</h2>
+            <p class="mt-1 text-xs text-gray-500">Increment jalan otomatis pada HH:MM WIB (grace 15 menit jika cron telat). Butuh status <strong>Active</strong> — Pause mematikan jadwal; manual reset tetap jalan.</p>
         </div>
         <div class="overflow-x-auto">
             <table class="min-w-full text-sm">
