@@ -672,8 +672,8 @@ function createTransaction() {
             }
         },
 
-        // Barcode scans use the numeric item id; typed SKUs resolve through item-by-code
-        // (canonical code or legacy_code, exact match, single result).
+        // Barcode scans use the numeric item id; typed values resolve through item-by-code
+        // (canonical code, legacy_code, then name — exact match, single result).
         async resolveItemByCode(code) {
             const trimmed = String(code || '').trim();
             if (!trimmed) return null;
