@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\ShopeeAdsAutomationStatus;
 use Illuminate\Database\Eloquent\Model;
 
 class ShopeeAdsSetting extends Model
@@ -97,19 +98,11 @@ class ShopeeAdsSetting extends Model
 
     public function isPaused(): bool
     {
-        return ! $this->isAutomationActive();
+        return ! $this->automationStatus()->isActive();
     }
 
-    /** Laravel `active` or Python bot legacy `Running`. */
-    public function isAutomationActive(): bool
+    public function automationStatus(): ShopeeAdsAutomationStatus
     {
-        $status = strtolower(trim((string) $this->status));
-
-        return in_array($status, ['active', 'running'], true);
-    }
-
-    public function normalizedStatus(): string
-    {
-        return $this->isAutomationActive() ? 'active' : 'paused';
+        return ShopeeAdsAutomationStatus::fromStored($this->status);
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\ShopeeAdsAutomationStatus;
 use App\Enums\ShopeeAdsType;
 use App\Models\ShopeeAds;
 use App\Models\ScheduledTask;
@@ -19,11 +20,16 @@ use Illuminate\View\View;
 
 class ShopeeAdsController extends Controller
 {
-    public function index(ShopeeAdsApiService $api, ShopeeAdsSpecialRulesService $specialRules): View
+    public function index(ShopeeAdsApiService $api, ShopeeAdsSpecialRulesService $specialRules, ShopeeAdsEngineService $engine): View
     {
         Gate::authorize(ShopeeAds::getPermissions()['view']);
 
         $settings = ShopeeAdsSetting::current();
+        $itemAdsSyncStats = null;
+        if ($api->hasShopAuthorization()) {
+            $itemAdsSyncStats = $engine->syncItemAds();
+        }
+
         $schedules = ShopeeAdsSchedule::query()->orderBy('ad_type')->orderBy('run_time')->get();
         $history = ShopeeAdsBudgetHistory::query()->orderByDesc('created_at')->limit(50)->get();
         $itemAds = ShopeeAdsItemAd::query()->orderByDesc('updated_at')->limit(30)->get();
@@ -52,7 +58,21 @@ class ShopeeAdsController extends Controller
             'ruleStatus' => $ruleStatus,
             'canEdit' => request()->user()?->can(ShopeeAds::getPermissions()['edit']) ?? false,
             'canBoost' => request()->user()?->can(ShopeeAds::getPermissions()['boost']) ?? false,
+            'itemAdsSyncStats' => $itemAdsSyncStats,
         ]);
+    }
+
+    public function syncItemAds(ShopeeAdsApiService $api, ShopeeAdsEngineService $engine): RedirectResponse
+    {
+        Gate::authorize(ShopeeAds::getPermissions()['edit']);
+
+        if (! $api->hasShopAuthorization()) {
+            return back()->with('error', 'Shopee belum diotorisasi.');
+        }
+
+        $stats = $engine->syncItemAds();
+
+        return back()->with('success', $this->formatItemAdsSyncMessage($stats));
     }
 
     public function updateSettings(Request $request): RedirectResponse
@@ -135,8 +155,8 @@ class ShopeeAdsController extends Controller
         Gate::authorize(ShopeeAds::getPermissions()['edit']);
 
         $settings = ShopeeAdsSetting::current();
-        $wasActive = $settings->isAutomationActive();
-        $settings->update(['status' => $wasActive ? 'paused' : 'active']);
+        $wasActive = $settings->automationStatus()->isActive();
+        $settings->update(['status' => $wasActive ? ShopeeAdsAutomationStatus::Paused->value : ShopeeAdsAutomationStatus::Active->value]);
 
         return back()->with('success', $wasActive ? 'Automasi di-pause.' : 'Automasi diaktifkan.');
     }
@@ -181,7 +201,7 @@ class ShopeeAdsController extends Controller
         Gate::authorize(ShopeeAds::getPermissions()['edit']);
 
         $settings = ShopeeAdsSetting::current();
-        if (! $settings->isAutomationActive()) {
+        if ($settings->isPaused()) {
             return back()->with('error', 'Automasi paused — Resume dulu sebelum menjalankan jadwal.');
         }
 
@@ -210,7 +230,13 @@ class ShopeeAdsController extends Controller
         $engine->dailyReset($settings);
         $settings->update(['last_daily_reset_at' => $engine->jakartaNow()]);
 
-        return back()->with('success', 'Daily reset dijalankan.');
+        $message = 'Daily reset dijalankan.';
+        if ($settings->item_ads_enabled && $settings->item_replenish_enabled) {
+            $replenish = $engine->replenishItemAds($settings->fresh());
+            $message .= ' '.$replenish['message'];
+        }
+
+        return back()->with('success', $message);
     }
 
     public function boostBudget(ShopeeAdsEngineService $engine): RedirectResponse
@@ -257,6 +283,20 @@ class ShopeeAdsController extends Controller
         }
 
         return $blockers;
+    }
+
+    /**
+     * @param  array{imported: int, updated: int, closed: int, active: int}  $stats
+     */
+    private function formatItemAdsSyncMessage(array $stats): string
+    {
+        return sprintf(
+            'Sync item ads: %d aktif di Shopee (%d baru, %d diperbarui, %d ditutup di DB).',
+            $stats['active'],
+            $stats['imported'],
+            $stats['updated'],
+            $stats['closed'],
+        );
     }
 
     /**

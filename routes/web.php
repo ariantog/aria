@@ -120,6 +120,7 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::delete('shopee-ads/schedules/{shopeeAdsSchedule}', [App\Http\Controllers\ShopeeAdsController::class, 'destroySchedule'])->name('shopee-ads.schedules.destroy');
     Route::post('shopee-ads/toggle-pause', [App\Http\Controllers\ShopeeAdsController::class, 'togglePause'])->name('shopee-ads.toggle-pause');
     Route::get('shopee-ads/authorize', [App\Http\Controllers\ShopeeAdsController::class, 'authorizeShop'])->name('shopee-ads.authorize');
+    Route::post('shopee-ads/sync-item-ads', [App\Http\Controllers\ShopeeAdsController::class, 'syncItemAds'])->name('shopee-ads.sync-item-ads');
     Route::post('shopee-ads/run-schedules', [App\Http\Controllers\ShopeeAdsController::class, 'runSchedules'])->name('shopee-ads.run-schedules');
     Route::post('shopee-ads/replenish', [App\Http\Controllers\ShopeeAdsController::class, 'replenish'])->name('shopee-ads.replenish');
     Route::post('shopee-ads/daily-reset', [App\Http\Controllers\ShopeeAdsController::class, 'dailyReset'])->name('shopee-ads.daily-reset');
