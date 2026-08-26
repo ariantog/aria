@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Models\ScheduledTask;
+use App\Support\CronManager;
 use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
@@ -15,6 +16,22 @@ class DispatchScheduledTasks extends Command
 
     public function handle(): int
     {
+        try {
+            return $this->dispatchDueTasks();
+        } catch (\Throwable $e) {
+            Log::error('Scheduled task dispatcher crashed', [
+                'message' => $e->getMessage(),
+                'exception' => $e,
+            ]);
+
+            return self::FAILURE;
+        }
+    }
+
+    private function dispatchDueTasks(): int
+    {
+        Log::info('Scheduled task dispatcher starting');
+
         $tasks = ScheduledTask::query()
             ->where('active', true)
             ->orderBy('id')
@@ -27,6 +44,10 @@ class DispatchScheduledTasks extends Command
         }
 
         foreach ($tasks as $task) {
+            if (CronManager::isSchedulerOnly($task->command)) {
+                continue;
+            }
+
             if (! $this->shouldRun($task)) {
                 continue;
             }
@@ -34,26 +55,63 @@ class DispatchScheduledTasks extends Command
             Log::info('Scheduled task starting', ['command' => $task->command]);
 
             try {
-                $exitCode = $this->call($task->command);
-                $task->update(['last_run_at' => now()]);
+                $exitCode = $this->runManagedCommand($task->command);
 
-                if ($exitCode !== self::SUCCESS) {
+                if ($exitCode === self::SUCCESS) {
+                    $task->update(['last_run_at' => now()]);
+                    Log::info('Scheduled task finished', ['command' => $task->command]);
+                } else {
                     Log::error('Scheduled task returned non-zero exit code', [
                         'command' => $task->command,
                         'exit_code' => $exitCode,
                     ]);
-                } else {
-                    Log::info('Scheduled task finished', ['command' => $task->command]);
                 }
             } catch (\Throwable $e) {
                 Log::error('Scheduled task failed', [
                     'command' => $task->command,
                     'message' => $e->getMessage(),
+                    'exception' => $e,
                 ]);
             }
         }
 
+        Log::info('Scheduled task dispatcher finished');
+
         return self::SUCCESS;
+    }
+
+  /**
+   * Run a Cron Manager command string (name only, no shell flags).
+   */
+    private function runManagedCommand(string $command): int
+    {
+        $command = trim($command);
+
+        if ($command === '') {
+            return self::FAILURE;
+        }
+
+        if (! str_contains($command, ' ')) {
+            return $this->call($command);
+        }
+
+        $parts = preg_split('/\s+/', $command) ?: [];
+        $name = $parts[0];
+        $parameters = [];
+
+        foreach (array_slice($parts, 1) as $part) {
+            if (str_starts_with($part, '--')) {
+                $key = ltrim($part, '-');
+                if (str_contains($key, '=')) {
+                    [$key, $value] = explode('=', $key, 2);
+                    $parameters[$key] = $value;
+                } else {
+                    $parameters[$key] = true;
+                }
+            }
+        }
+
+        return $this->call($name, $parameters);
     }
 
     private function shouldRun(ScheduledTask $task): bool

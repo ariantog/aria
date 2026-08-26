@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Models\ScheduledTask;
 use Illuminate\Console\Command;
 
 class ProcessQueue extends Command
@@ -18,6 +19,10 @@ class ProcessQueue extends Command
         ]);
 
         $this->call('app:process-warehouse-arrangement-refresh');
+
+        ScheduledTask::query()
+            ->where('command', 'app:process-queue')
+            ->update(['last_run_at' => now()]);
 
         return $exit;
     }
