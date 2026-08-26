@@ -136,11 +136,11 @@ Three layers keep stats current:
    transactions. This is the "last minute" path — stats update as soon as the queue drains.
 2. **Daily reconcile (recent months).** Cron: `app:recalculate-warehouse-item-stats --months=2`
    rebuilds the current and previous month from scratch, correcting any drift from the live path.
-3. **Historical backfill (archive, resumable).** Cron: `app:backfill-warehouse-item-stats --months=3`
-   processes older months in batches (newest first). It is **idle until started** from **System
-   Settings → Warehouse Stats Backfill** (`/warehouse-stat-backfill`). Progress is stored in
-   `warehouse_stat_backfills`; pause/resume is supported. The hourly cron is just a worker — the
-   page (or `php artisan app:backfill-warehouse-item-stats --restart`) kicks it off.
+3. **Historical backfill (archive, resumable).** Cron: `app:backfill-warehouse-item-stats --months=1 --max-seconds=50`
+   every five minutes processes one month (50s time budget). It is **idle until started** from **System
+   Settings → Warehouse Stats Backfill** (`/warehouse-stat-backfill`). Start with **Oldest month**
+   (default `2026-01-01`) to avoid walking the full 2013+ history. Progress is stored in
+   `warehouse_stat_backfills`; pause/resume is supported.
 
 Manual / on-demand tools:
 

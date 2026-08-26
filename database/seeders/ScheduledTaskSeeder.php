@@ -59,14 +59,16 @@ class ScheduledTaskSeeder extends Seeder
         );
 
         \App\Models\ScheduledTask::updateOrCreate(
-            ['command' => 'app:backfill-warehouse-item-stats --months=3'],
+            ['command' => 'app:backfill-warehouse-item-stats --months=1 --max-seconds=50'],
             [
                 'name' => 'Backfill Historical Warehouse Item Stats',
-                'frequency' => 'hourly',
+                'frequency' => 'everyFiveMinutes',
                 'active' => true,
-                'description' => 'Rebuilds older months a batch at a time. Idle until a backfill is started from the Warehouse Stats Backfill page.',
+                'description' => 'Rebuilds one month at a time (50s budget). Idle until a backfill is started from the Warehouse Stats Backfill page.',
             ]
         );
+
+        \App\Models\ScheduledTask::where('command', 'app:backfill-warehouse-item-stats --months=3')->delete();
 
         // Legacy row — deactivate if still present from older seeds.
         \App\Models\ScheduledTask::query()
