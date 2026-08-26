@@ -355,7 +355,6 @@ class TransactionsController extends Controller
             'warehouse_id' => 'nullable|integer',
             'type' => 'nullable|string',
         ]);
-        $priceSource = config('transaction_rules.'.($validated['type'] ?? '').'.price_source', 'price');
         $file = $request->file('csv_file');
         $filePath = $file->getRealPath();
         $array = [];
@@ -407,11 +406,7 @@ class TransactionsController extends Controller
                 $itemPrice = (float) $item->price;
                 $itemCost = (float) $item->cost;
                 $type = $validated['type'] ?? '';
-                $unitPrice = match (true) {
-                    $priceSource === 'cost' => $itemCost,
-                    $type === 'move' => $itemPrice,
-                    default => $csvPrice,
-                };
+                $unitPrice = $type === 'move' ? $itemPrice : $csvPrice;
                 $dataList[] = [
                     'id' => (string) $item->id,
                     'item_id' => (string) $item->id,
