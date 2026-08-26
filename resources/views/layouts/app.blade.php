@@ -357,6 +357,22 @@ function focusNextInFilterForm(form, current) {
     return true;
 }
 
+function submitFilterForm(form) {
+    const submit = form.querySelector('button[type="submit"]:not([disabled])');
+    if (!submit) {
+        return false;
+    }
+
+    if (typeof form.requestSubmit === 'function') {
+        form.requestSubmit(submit);
+    } else {
+        submit.click();
+    }
+
+    suppressFieldNavigation(400);
+    return true;
+}
+
 let _filterEnterHandled = false;
 
 function processFilterEnterNav(e) {
@@ -388,6 +404,10 @@ function processFilterEnterNav(e) {
     // Async combobox inputs handle Enter when their dropdown is open.
     if (el.closest('[x-data*="asyncCombobox"]') && el.matches('input')) {
         return false;
+    }
+
+    if (el.matches('[data-filter-enter-submit]') && el.matches('input, select')) {
+        return submitFilterForm(form);
     }
 
     if (el.matches('input, select')) {
