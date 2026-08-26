@@ -438,11 +438,12 @@ class TransactionsController extends Controller
             return back()->with('error', 'Jubelio-synced transactions cannot be deleted.');
         }
 
+        $transaction->load(['details', 'sender', 'receiver']);
+        $sender = $transaction->sender;
+        $receiver = $transaction->receiver;
         $bookClosingService->validateDate($transaction->date->format('Y-m-d'));
 
-        $transaction->load('details');
-
-        DB::transaction(function () use ($transaction, $service) {
+        DB::transaction(function () use ($transaction, $service, $sender, $receiver) {
             $deletedColumns = array_flip(Schema::getColumnListing((new DeletedTransaction)->getTable()));
             $transactionData = array_intersect_key($transaction->getAttributes(), $deletedColumns);
             $transactionData['deleted_at'] = now();
@@ -464,6 +465,13 @@ class TransactionsController extends Controller
 
             $transaction->details()->delete();
             $transaction->delete();
+
+            if ($sender instanceof \App\Models\Addrbook) {
+                $service->syncStatFromLatestTransaction($sender);
+            }
+            if ($receiver instanceof \App\Models\Addrbook) {
+                $service->syncStatFromLatestTransaction($receiver);
+            }
         });
 
         return redirect()->route('transactions.index')->with('success', 'Transaction moved to deleted.');
