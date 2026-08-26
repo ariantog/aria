@@ -25,11 +25,8 @@ class ShopeeAdsController extends Controller
         Gate::authorize(ShopeeAds::getPermissions()['view']);
 
         $settings = ShopeeAdsSetting::current();
-        $itemAdsSyncStats = null;
-        $itemAdsSyncError = session('item_ads_sync_stats');
-        if (session()->has('item_ads_sync_error')) {
-            $itemAdsSyncError = session('item_ads_sync_error');
-        }
+        $itemAdsSyncStats = session('item_ads_sync_stats');
+        $itemAdsSyncError = session('item_ads_sync_error');
 
         $schedules = ShopeeAdsSchedule::query()->orderBy('ad_type')->orderBy('run_time')->get();
         $history = ShopeeAdsBudgetHistory::query()->orderByDesc('created_at')->limit(50)->get();

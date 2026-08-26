@@ -52,3 +52,21 @@ it('includes item ad starting budget in the end-of-day plan', function () {
         ->assertSee('+ increments Rp 80,000', false)
         ->assertSee('→ planned Rp 130,000', false);
 });
+
+it('renders item ads sync stats from session without htmlspecialchars error', function () {
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->withSession([
+            'item_ads_sync_stats' => [
+                'imported' => 1,
+                'updated' => 0,
+                'closed' => 0,
+                'active' => 2,
+            ],
+        ])
+        ->get(route('shopee-ads.index'))
+        ->assertOk()
+        ->assertSee('Sync terakhir: 2 aktif', false)
+        ->assertSee('(1 baru)', false);
+});
