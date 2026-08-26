@@ -26,15 +26,9 @@ class ShopeeAdsController extends Controller
 
         $settings = ShopeeAdsSetting::current();
         $itemAdsSyncStats = null;
-        $itemAdsSyncError = null;
-
-        if ($api->hasShopAuthorization()) {
-            try {
-                $itemAdsSyncStats = $engine->syncItemAds();
-            } catch (\Throwable $e) {
-                report($e);
-                $itemAdsSyncError = 'Sync item ads gagal: '.$e->getMessage();
-            }
+        $itemAdsSyncError = session('item_ads_sync_stats');
+        if (session()->has('item_ads_sync_error')) {
+            $itemAdsSyncError = session('item_ads_sync_error');
         }
 
         $schedules = ShopeeAdsSchedule::query()->orderBy('ad_type')->orderBy('run_time')->get();
@@ -45,7 +39,7 @@ class ShopeeAdsController extends Controller
         $cronTask = ScheduledTask::query()->where('command', 'shopee-ads:process')->first();
         $automationBlockers = $this->automationBlockers($settings, $api, $connection, $cronTask);
         $automationTimezone = (string) config('services.shopee_ads.timezone', 'Asia/Jakarta');
-        $nowWib = app(ShopeeAdsEngineService::class)->jakartaNow();
+        $nowWib = $engine->jakartaNow();
 
         return view('shopee-ads.index', [
             'settings' => $settings,
@@ -78,9 +72,19 @@ class ShopeeAdsController extends Controller
             return back()->with('error', 'Shopee belum diotorisasi.');
         }
 
-        $stats = $engine->syncItemAds();
+        try {
+            $stats = $engine->syncItemAds();
 
-        return back()->with('success', $this->formatItemAdsSyncMessage($stats));
+            return back()
+                ->with('success', $this->formatItemAdsSyncMessage($stats))
+                ->with('item_ads_sync_stats', $stats);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return back()
+                ->with('error', 'Sync item ads gagal: '.$e->getMessage())
+                ->with('item_ads_sync_error', $e->getMessage());
+        }
     }
 
     public function updateSettings(Request $request): RedirectResponse

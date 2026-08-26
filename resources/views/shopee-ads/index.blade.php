@@ -429,7 +429,7 @@ $saInnerCardWhite = 'space-y-3 rounded-lg border border-gray-200 bg-white p-4';
         <div class="{{ $saCardHeader }}">
             <h2 class="text-sm font-semibold text-gray-900">Item ads (tracked)</h2>
             <p class="mt-1 text-xs {{ $saTextMuted }}">
-                Tabel ini menampilkan iklan produk manual yang aktif di Shopee (sync otomatis saat buka halaman).
+                Tabel dari DB lokal — klik <strong>Sync Item Ads</strong> untuk tarik data live dari Shopee (bisa beberapa detik).
                 <strong class="text-gray-700">Daily reset</strong> mengatur ulang budget iklan yang sudah ada;
                 <strong class="text-gray-700">Replenish</strong> membuat iklan baru (max {{ $settings->item_replenish_max_per_run }} per run).
                 @if($itemAdsSyncStats !== null)
