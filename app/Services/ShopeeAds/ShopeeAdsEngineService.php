@@ -80,6 +80,123 @@ class ShopeeAdsEngineService
         return $ran;
     }
 
+    /**
+     * Human-readable reasons when shopee-ads:process does nothing (for CLI / ops).
+     *
+     * @return array{
+     *     now_wib: string,
+     *     current_slot: string,
+     *     paused: bool,
+     *     authorized: bool,
+     *     schedules: list<string>,
+     *     daily_reset: list<string>,
+     *     replenish: list<string>,
+     * }
+     */
+    public function getRunDiagnostics(): array
+    {
+        $settings = ShopeeAdsSetting::current();
+        $now = $this->jakartaNow();
+        $currentSlot = $now->format('H:i');
+
+        $scheduleNotes = [];
+        if ($settings->isPaused()) {
+            $scheduleNotes[] = 'Automasi paused — klik Resume di /shopee-ads.';
+        }
+
+        if (! $this->api->hasShopAuthorization()) {
+            $scheduleNotes[] = 'Shop tidak terotorisasi — Authorize Shopee di /shopee-ads.';
+        }
+
+        $enabledSchedules = ShopeeAdsSchedule::query()
+            ->where('enabled', true)
+            ->orderBy('run_time')
+            ->get();
+
+        $matching = $enabledSchedules->where('run_time', $currentSlot);
+
+        if ($matching->isEmpty() && $scheduleNotes === []) {
+            if ($enabledSchedules->isEmpty()) {
+                $scheduleNotes[] = 'Tidak ada jadwal increment — tambahkan di /shopee-ads.';
+            } else {
+                $slots = $enabledSchedules->map(fn ($s) => $s->run_time.' ('.$s->ad_type.')')->unique()->values()->all();
+                $scheduleNotes[] = "Tidak ada jadwal untuk slot {$currentSlot} WIB sekarang.";
+                $scheduleNotes[] = 'Jadwal aktif: '.implode(', ', $slots);
+            }
+        }
+
+        foreach ($matching as $schedule) {
+            if ($this->scheduleAlreadyRanToday($schedule, $now)) {
+                $scheduleNotes[] = "{$schedule->ad_type} @ {$schedule->run_time} sudah jalan hari ini.";
+            }
+        }
+
+        $dailyResetNotes = $this->timedJobNotes(
+            $now,
+            (int) $settings->daily_reset_hour,
+            (int) $settings->daily_reset_minute,
+            $settings->last_daily_reset_at,
+            'daily reset',
+        );
+
+        if (! $this->api->hasShopAuthorization()) {
+            $dailyResetNotes[] = 'Shop tidak terotorisasi.';
+        }
+
+        $replenishNotes = [];
+        if (! $settings->item_replenish_enabled) {
+            $replenishNotes[] = 'Item replenish disabled di pengaturan.';
+        } else {
+            $replenishNotes = array_merge(
+                $replenishNotes,
+                $this->timedJobNotes(
+                    $now,
+                    (int) $settings->item_replenish_hour,
+                    (int) $settings->item_replenish_minute,
+                    $settings->last_item_replenish_at,
+                    'item replenish',
+                ),
+            );
+        }
+
+        if (! $settings->item_ads_enabled) {
+            $replenishNotes[] = 'Item ads subsystem disabled.';
+        }
+
+        if (! $this->api->hasShopAuthorization()) {
+            $replenishNotes[] = 'Shop tidak terotorisasi.';
+        }
+
+        return [
+            'now_wib' => $now->format('Y-m-d H:i:s'),
+            'current_slot' => $currentSlot,
+            'paused' => $settings->isPaused(),
+            'authorized' => $this->api->hasShopAuthorization(),
+            'schedules' => $scheduleNotes,
+            'daily_reset' => $dailyResetNotes,
+            'replenish' => $replenishNotes,
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function timedJobNotes(Carbon $now, int $hour, int $minute, ?Carbon $lastRun, string $label): array
+    {
+        $slot = sprintf('%02d:%02d', $hour, $minute);
+        $notes = [];
+
+        if ($now->hour !== $hour || $now->minute !== $minute) {
+            $notes[] = "{$label} hanya di {$slot} WIB (sekarang {$now->format('H:i')}).";
+        }
+
+        if ($lastRun && $lastRun->timezone('Asia/Jakarta')->isSameDay($now)) {
+            $notes[] = "{$label} sudah jalan hari ini ({$lastRun->timezone('Asia/Jakarta')->format('H:i')} WIB).";
+        }
+
+        return $notes;
+    }
+
     public function runDailyResetIfDue(): bool
     {
         $settings = ShopeeAdsSetting::current();
