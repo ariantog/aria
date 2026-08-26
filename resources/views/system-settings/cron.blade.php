@@ -30,8 +30,27 @@ $frequencyOptions = [
     <div>
         <h2 class="text-2xl font-bold tracking-tight text-gray-900">Cron Manager</h2>
             <p class="mt-0.5 text-sm text-gray-500">Manage scheduled tasks and their execution cycles.</p>
-            <p class="mt-2 text-xs text-gray-500">OS cron must call <code class="text-xs">php artisan schedule:run</code> every minute. Laravel runs <code class="text-xs">app:dispatch-scheduled-tasks</code>, which executes enabled tasks below by frequency.</p>
+            <p class="mt-2 text-xs text-gray-500">OS cron must call <code class="text-xs">php artisan schedule:run</code> every minute. Laravel runs <code class="text-xs">app:process-queue</code> (queue drain) and <code class="text-xs">app:dispatch-scheduled-tasks</code> (Cron Manager tasks below).</p>
     </div>
+
+    @php $health = $schedulerHealth ?? null; @endphp
+    @if($health)
+    <div class="rounded-2xl border p-4 {{ $health['healthy'] ? 'border-green-200 bg-green-50' : 'border-amber-200 bg-amber-50' }}">
+        <div class="flex flex-wrap items-start justify-between gap-3">
+            <div>
+                <h3 class="text-sm font-bold {{ $health['healthy'] ? 'text-green-900' : 'text-amber-900' }}">Scheduler heartbeat</h3>
+                <p class="mt-1 text-sm {{ $health['healthy'] ? 'text-green-800' : 'text-amber-800' }}">{{ $health['message'] }}</p>
+                <dl class="mt-2 grid gap-1 text-xs {{ $health['healthy'] ? 'text-green-700' : 'text-amber-700' }} sm:grid-cols-2">
+                    <div><dt class="font-semibold inline">Dispatcher</dt> <dd class="inline">{{ $health['dispatcher_last_run_at']?->timezone('Asia/Jakarta')->format('d/m/Y H:i') ?? 'Never' }} WIB</dd></div>
+                    <div><dt class="font-semibold inline">Process queue</dt> <dd class="inline">{{ $health['process_queue_last_run_at']?->timezone('Asia/Jakarta')->format('d/m/Y H:i') ?? 'Never' }} WIB</dd></div>
+                </dl>
+            </div>
+            @if(!$health['healthy'])
+            <p class="text-xs text-amber-800 max-w-md">Prod fix: <code class="text-xs">php artisan app:scheduler-status</code> then <code class="text-xs">php artisan app:scheduler-status --clear-locks</code> if mutex stuck. Ensure crontab uses the same PHP binary as CLI (e.g. <code class="text-xs">/opt/alt/php84/usr/bin/php</code>).</p>
+            @endif
+        </div>
+    </div>
+    @endif
 
     <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
         <div class="border-b border-gray-100 bg-gray-50 p-5">

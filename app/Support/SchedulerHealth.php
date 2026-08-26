@@ -13,6 +13,7 @@ class SchedulerHealth
    *     healthy: bool,
    *     stale: bool,
    *     latest_active_run_at: ?Carbon,
+   *     dispatcher_last_run_at: ?Carbon,
    *     process_queue_last_run_at: ?Carbon,
    *     shopee_ads_last_run_at: ?Carbon,
    *     active_task_count: int,
@@ -25,6 +26,14 @@ class SchedulerHealth
         $latestRun = $activeTasks->max('last_run_at');
         $latestActiveRunAt = $latestRun ? Carbon::parse($latestRun) : null;
 
+        $dispatcherLastRunAt = ScheduledTask::query()
+            ->where('command', 'app:dispatch-scheduled-tasks')
+            ->value('last_run_at');
+
+        $dispatcherLastRunAt = $dispatcherLastRunAt
+            ? Carbon::parse($dispatcherLastRunAt)
+            : null;
+
         $processQueueLastRunAt = $activeTasks
             ->firstWhere('command', 'app:process-queue')
             ?->last_run_at;
@@ -32,22 +41,24 @@ class SchedulerHealth
         $shopeeAdsLastRunAt = $shopeeAdsTask?->last_run_at
             ?? $activeTasks->firstWhere('command', 'shopee-ads:process')?->last_run_at;
 
-        $stale = $latestActiveRunAt === null
-            || $latestActiveRunAt->lt(now()->subMinutes(5));
+        // Heartbeat = dispatcher subprocess (updated every minute by routes/console.php onSuccess).
+        $heartbeat = $dispatcherLastRunAt ?? $latestActiveRunAt;
+        $stale = $heartbeat === null || $heartbeat->lt(now()->subMinutes(5));
 
         $healthy = ! $stale;
 
         $message = match (true) {
             $activeTasks->isEmpty() => 'Tidak ada cron task aktif di Cron Manager.',
-            $latestActiveRunAt === null => 'Laravel scheduler belum pernah jalan. Pastikan OS cron memanggil php artisan schedule:run tiap menit.',
-            $stale => 'Laravel scheduler terakhir jalan '.$latestActiveRunAt->timezone('Asia/Jakarta')->format('d M Y H:i').' WIB — lebih dari 5 menit lalu.',
-            default => 'Laravel scheduler aktif (last run '.$latestActiveRunAt->timezone('Asia/Jakarta')->format('d M Y H:i').' WIB).',
+            $dispatcherLastRunAt === null && $latestActiveRunAt === null => 'Laravel scheduler belum pernah jalan. Pastikan OS cron memanggil php artisan schedule:run tiap menit (gunakan path PHP yang sama seperti di crontab).',
+            $stale => 'Laravel scheduler terakhir jalan '.($heartbeat?->timezone('Asia/Jakarta')->format('d M Y H:i') ?? '?').' WIB — lebih dari 5 menit lalu. Cek laravel.log, jalankan php artisan app:scheduler-status, atau php artisan app:scheduler-status --clear-locks jika mutex tertahan.',
+            default => 'Laravel scheduler aktif (last heartbeat '.$heartbeat?->timezone('Asia/Jakarta')->format('d M Y H:i').' WIB).',
         };
 
         return [
             'healthy' => $healthy,
             'stale' => $stale,
             'latest_active_run_at' => $latestActiveRunAt,
+            'dispatcher_last_run_at' => $dispatcherLastRunAt,
             'process_queue_last_run_at' => $processQueueLastRunAt,
             'shopee_ads_last_run_at' => $shopeeAdsLastRunAt,
             'active_task_count' => $activeTasks->count(),

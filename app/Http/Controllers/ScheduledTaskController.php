@@ -18,6 +18,7 @@ class ScheduledTaskController extends Controller
 
         return view('system-settings.cron', [
             'tasks' => ScheduledTask::all(),
+            'schedulerHealth' => SchedulerHealth::snapshot(),
             'can' => [
                 'edit' => request()->user()?->can(ScheduledTask::getPermissions()['edit']) ?? false,
                 'general_settings' => request()->user()?->can(\App\Models\Setting::getPermissions()['view']) ?? false,
