@@ -101,6 +101,13 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::get('system-settings/lookup/{type}', [App\Http\Controllers\SettingController::class, 'lookup'])->name('system-settings.lookup');
     Route::resource('system-settings', App\Http\Controllers\SettingController::class)->except(['show']);
 
+    // Warehouse stats backfill
+    Route::get('warehouse-stat-backfill', [App\Http\Controllers\WarehouseStatBackfillController::class, 'index'])->name('warehouse-stat-backfill.index');
+    Route::post('warehouse-stat-backfill/start', [App\Http\Controllers\WarehouseStatBackfillController::class, 'start'])->name('warehouse-stat-backfill.start');
+    Route::post('warehouse-stat-backfill/pause', [App\Http\Controllers\WarehouseStatBackfillController::class, 'pause'])->name('warehouse-stat-backfill.pause');
+    Route::post('warehouse-stat-backfill/resume', [App\Http\Controllers\WarehouseStatBackfillController::class, 'resume'])->name('warehouse-stat-backfill.resume');
+    Route::post('warehouse-stat-backfill/run-batch', [App\Http\Controllers\WarehouseStatBackfillController::class, 'runBatch'])->name('warehouse-stat-backfill.run-batch');
+
     // Cron Manager
     Route::get('cron-manager', [App\Http\Controllers\ScheduledTaskController::class, 'index'])->name('scheduled-tasks.index');
     Route::patch('cron-manager/{scheduledTask}', [App\Http\Controllers\ScheduledTaskController::class, 'update'])->name('scheduled-tasks.update');
