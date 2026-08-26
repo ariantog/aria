@@ -2,8 +2,10 @@
 
 namespace App\Console\Commands;
 
+use App\Models\ScheduledTask;
 use App\Services\ShopeeAds\ShopeeAdsEngineService;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Log;
 
 class ShopeeAdsProcessCommand extends Command
 {
@@ -15,9 +17,21 @@ class ShopeeAdsProcessCommand extends Command
     {
         // Automation on/off is controlled by Cron Manager (scheduled_tasks), not a separate .env flag.
 
+        Log::info('Shopee Ads process tick starting');
+
         $schedulesRan = $engine->runDueSchedules();
         $reset = $engine->runDailyResetIfDue();
         $replenish = $engine->runItemReplenishIfDue();
+
+        ScheduledTask::query()
+            ->where('command', 'shopee-ads:process')
+            ->update(['last_run_at' => now()]);
+
+        Log::info('Shopee Ads process tick finished', [
+            'schedules_ran' => $schedulesRan,
+            'daily_reset' => $reset,
+            'replenish' => $replenish,
+        ]);
 
         $this->info("Schedules ran: {$schedulesRan}; daily reset: ".($reset ? 'yes' : 'no').'; replenish: '.($replenish ? 'yes' : 'no'));
 

@@ -29,7 +29,8 @@ $frequencyOptions = [
 <div class="flex flex-col gap-4 p-3 sm:p-4" x-data="cronManager()">
     <div>
         <h2 class="text-2xl font-bold tracking-tight text-gray-900">Cron Manager</h2>
-        <p class="mt-0.5 text-sm text-gray-500">Manage scheduled tasks and their execution cycles.</p>
+            <p class="mt-0.5 text-sm text-gray-500">Manage scheduled tasks and their execution cycles.</p>
+            <p class="mt-2 text-xs text-gray-500">OS cron must call <code class="text-xs">php artisan schedule:run</code> every minute. Laravel runs <code class="text-xs">app:dispatch-scheduled-tasks</code>, which executes enabled tasks below by frequency.</p>
     </div>
 
     <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">

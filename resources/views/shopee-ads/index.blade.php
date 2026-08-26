@@ -120,7 +120,13 @@ $saInnerCardWhite = 'space-y-3 rounded-lg border border-gray-200 bg-white p-4';
             @if($cronTask?->last_run_at)
             <p class="mt-1 text-xs {{ $saTextMuted }}">Last run {{ $cronTask->last_run_at->timezone($automationTimezone)->format('d M Y H:i') }} WIB</p>
             @else
-            <p class="mt-1 text-xs {{ $saTextMuted }}">Belum ada run tercatat — pastikan system cron memanggil <code class="text-xs">schedule:run</code> tiap menit.</p>
+            <p class="mt-1 text-xs text-amber-700">Belum ada run tercatat untuk shopee-ads:process.</p>
+            @endif
+            <p class="mt-1 text-xs {{ $schedulerHealth['healthy'] ? $saTextMuted : 'text-amber-700' }}" data-testid="shopee-ads-scheduler-health">
+                Scheduler: {{ $schedulerHealth['message'] }}
+            </p>
+            @if(! $schedulerHealth['healthy'])
+            <p class="mt-1 text-xs text-gray-400">Contoh crontab: <code class="text-xs">* * * * * cd /path/to/aria && php artisan schedule:run >> /dev/null 2>&1</code></p>
             @endif
             <p class="mt-1 text-xs text-gray-400">Sekarang {{ $nowWib->format('d M Y H:i') }} WIB (GMT+7) · tz {{ $automationTimezone }}</p>
         </div>
