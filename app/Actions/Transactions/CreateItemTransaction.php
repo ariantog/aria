@@ -109,8 +109,8 @@ class CreateItemTransaction
         $totalItems = (float) $transaction->details()->sum('quantity');
         if ($type === Transaction::TYPE_MOVE) {
             $transaction->update([
-                'total' => 0,
-                'real_total' => 0,
+                'total' => $itemsTotal,
+                'real_total' => $itemsTotal,
                 'discount' => 0,
                 'adjustment' => 0,
                 'ppn' => 0,
