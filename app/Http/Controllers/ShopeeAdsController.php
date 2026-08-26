@@ -55,7 +55,7 @@ class ShopeeAdsController extends Controller
             'nowWib' => $nowWib,
             'oauthRedirectUrl' => $api->getOAuthRedirectUrl(),
             'oauthErrorHint' => $api->formatOAuthErrorForUser($api->getLastOAuthError()),
-            'planned' => $this->plannedEndOfDay($settings, $schedules, $specialRules),
+            'planned' => $this->plannedEndOfDay($settings, $schedules, $specialRules, $engine),
             'ruleStatus' => $ruleStatus,
             'canEdit' => request()->user()?->can(ShopeeAds::getPermissions()['edit']) ?? false,
             'canBoost' => request()->user()?->can(ShopeeAds::getPermissions()['boost']) ?? false,
@@ -94,7 +94,18 @@ class ShopeeAdsController extends Controller
         $validated = $request->validate([
             'starting_budget_gmv_max' => ['required', 'integer', 'min:0'],
             'daily_max_budget' => ['required', 'integer', 'min:1'],
-            'item_ad_starting_budget' => ['required', 'integer', 'min:25000'],
+            'item_ad_starting_budget' => [
+                'required',
+                'integer',
+                'min:'.ShopeeAdsApiService::ITEM_AD_MIN_BUDGET,
+                function (string $attribute, mixed $value, \Closure $fail): void {
+                    $slots = max(1, (int) request()->input('max_item_ads', 1));
+                    $minTotal = $slots * ShopeeAdsApiService::ITEM_AD_MIN_BUDGET;
+                    if ((int) $value < $minTotal) {
+                        $fail("Item ads starting pool must be at least Rp {$minTotal} ({$slots} slots × min budget).");
+                    }
+                },
+            ],
             'max_item_ads' => ['required', 'integer', 'min:1'],
             'item_split_high' => ['required', 'integer', 'min:0', 'max:100'],
             'item_split_mid' => ['required', 'integer', 'min:0', 'max:100'],
@@ -315,7 +326,12 @@ class ShopeeAdsController extends Controller
      * @param  \Illuminate\Support\Collection<int, ShopeeAdsSchedule>  $schedules
      * @return array<string, array<string, mixed>>
      */
-    private function plannedEndOfDay(ShopeeAdsSetting $settings, $schedules, ShopeeAdsSpecialRulesService $specialRules): array
+    private function plannedEndOfDay(
+        ShopeeAdsSetting $settings,
+        $schedules,
+        ShopeeAdsSpecialRulesService $specialRules,
+        ShopeeAdsEngineService $engine,
+    ): array
     {
         $multipliers = $specialRules->resolveForToday($settings);
 
@@ -327,13 +343,14 @@ class ShopeeAdsController extends Controller
             ->sum('increment_idr');
         $gmvInc = $multipliers->scaledGmvAmount($gmvInc);
 
-        $itemStartPerAd = max((int) $settings->item_ad_starting_budget, ShopeeAdsApiService::ITEM_AD_MIN_BUDGET);
-        $itemStartPerAd = $multipliers->scaledItemBudgetAmount($itemStartPerAd);
+        $itemStartPool = $engine->itemAdsStartingPoolTotal($settings, $multipliers);
+        $itemStartPerAd = $engine->itemAdBudgetPerSlot($settings, $multipliers);
+        $slotCount = $engine->itemAdsSlotCount($settings, $multipliers);
         $activeItemAds = ShopeeAdsItemAd::query()
             ->where('turned_off', false)
             ->whereNotIn('status', ['ended', 'closed', 'berakhir'])
             ->count();
-        $effectiveMaxAds = $multipliers->scaledMaxItemAds((int) $settings->max_item_ads);
+        $effectiveMaxAds = $slotCount;
         $itemStart = $itemStartPerAd * $activeItemAds;
         $itemInc = (int) $schedules
             ->where('ad_type', ShopeeAdsType::ProdukManual->value)
@@ -341,23 +358,37 @@ class ShopeeAdsController extends Controller
             ->sum('increment_idr');
         $itemInc = $multipliers->scaledItemBudgetAmount($itemInc);
 
+        $gmvPlanned = $gmvStart + $gmvInc;
+        $itemPlanned = $itemStart + $itemInc;
+        $plannedTotal = $gmvPlanned + $itemPlanned;
+        $baseCap = (int) $settings->daily_max_budget;
+        $effectiveCap = $multipliers->scaledCombinedDailyCap($baseCap);
+        $cappedTotal = min($plannedTotal, $effectiveCap);
+
         return [
+            'combined' => [
+                'base_cap' => $baseCap,
+                'effective_cap' => $effectiveCap,
+                'planned_total' => $plannedTotal,
+                'capped_total' => $cappedTotal,
+                'over_cap' => $plannedTotal > $effectiveCap,
+            ],
             ShopeeAdsType::GmvMax->value => [
                 'start' => $gmvStart,
                 'tracked' => (int) $settings->gms_current_budget,
                 'increments' => $gmvInc,
-                'planned' => min($gmvStart + $gmvInc, $settings->daily_max_budget),
-                'cap' => (int) $settings->daily_max_budget,
+                'planned' => $gmvPlanned,
             ],
             ShopeeAdsType::ProdukManual->value => [
+                'start_pool' => $itemStartPool,
                 'start_per_ad' => $itemStartPerAd,
+                'slot_count' => $slotCount,
                 'start' => $itemStart,
                 'increments' => $itemInc,
-                'planned' => $itemStart + $itemInc,
+                'planned' => $itemPlanned,
                 'active_ads' => $activeItemAds,
                 'effective_max_ads' => $effectiveMaxAds,
-                'cap' => (int) $settings->daily_max_budget,
-                'note' => 'Pool per run dibagi per item ad by ROAS tier',
+                'note' => 'Starting pool ÷ max item ads per slot; increment schedules = total pool per run (split by ROAS)',
             ],
         ];
     }

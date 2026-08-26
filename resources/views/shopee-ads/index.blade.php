@@ -110,8 +110,14 @@ $saInnerCardWhite = 'space-y-3 rounded-lg border border-gray-200 bg-white p-4';
             @endif
         </div>
         <div class="{{ $saCard }} p-5">
-            <p class="text-xs font-medium uppercase {{ $saTextMuted }}">Combined daily cap</p>
+            <p class="text-xs font-medium uppercase {{ $saTextMuted }}">Combined daily cap (GMV + item ads)</p>
+            @php($combinedPlan = $planned['combined'] ?? null)
+            @if($combinedPlan && $combinedPlan['effective_cap'] > $combinedPlan['base_cap'])
+            <p class="mt-2 text-lg font-semibold text-gray-900">Rp {{ number_format($combinedPlan['effective_cap'], 0, ',', '.') }}</p>
+            <p class="mt-1 text-xs {{ $saTextMuted }}">Base Rp {{ number_format($combinedPlan['base_cap'], 0, ',', '.') }} (boosted today)</p>
+            @else
             <p class="mt-2 text-lg font-semibold text-gray-900">Rp {{ number_format($settings->daily_max_budget, 0, ',', '.') }}</p>
+            @endif
         </div>
         <div class="{{ $saCard }} p-5" data-testid="shopee-ads-cron-status">
             <p class="text-xs font-medium uppercase {{ $saTextMuted }}">Cron (shopee-ads:process)</p>
@@ -168,6 +174,9 @@ $saInnerCardWhite = 'space-y-3 rounded-lg border border-gray-200 bg-white p-4';
                 </thead>
                 <tbody class="{{ $saDivide }}">
                     @foreach($planned as $type => $row)
+                    @if($type === 'combined')
+                    @continue
+                    @endif
                     <tr>
                         <td class="{{ $saTd }} font-medium text-gray-900">{{ $adTypeLabels[$type] ?? $type }}</td>
                         <td class="{{ $saTd }} {{ $saTextBody }}">
@@ -175,13 +184,14 @@ $saInnerCardWhite = 'space-y-3 rounded-lg border border-gray-200 bg-white p-4';
                             Start Rp {{ format_amount($row['start'], 0) }}
                             + increments Rp {{ format_amount($row['increments'], 0) }}
                             → planned Rp {{ format_amount($row['planned'], 0) }}
-                            (cap Rp {{ format_amount($row['cap'], 0) }})
                             @else
-                            Start Rp {{ format_amount($row['start'], 0) }}
-                            ({{ $row['active_ads'] }} ads × Rp {{ format_amount($row['start_per_ad'], 0) }}
+                            Pool Rp {{ format_amount($row['start_pool'] ?? $row['start'], 0) }}
+                            ÷ {{ $row['slot_count'] ?? $settings->max_item_ads }} slots
+                            = Rp {{ format_amount($row['start_per_ad'], 0) }}/ad
+                            ({{ $row['active_ads'] }} aktif → Rp {{ format_amount($row['start'], 0) }})
                             @if(isset($row['effective_max_ads']) && $row['effective_max_ads'] > $settings->max_item_ads)
-                            · max {{ $row['effective_max_ads'] }}
-                            @endif)
+                            · max {{ $row['effective_max_ads'] }} slots
+                            @endif
                             + increments Rp {{ format_amount($row['increments'], 0) }}
                             → planned Rp {{ format_amount($row['planned'], 0) }}
                             · {{ $row['note'] }}
@@ -189,6 +199,20 @@ $saInnerCardWhite = 'space-y-3 rounded-lg border border-gray-200 bg-white p-4';
                         </td>
                     </tr>
                     @endforeach
+                    @if(isset($planned['combined']))
+                    <tr class="bg-gray-50">
+                        <td class="{{ $saTd }} font-medium text-gray-900">Combined</td>
+                        <td class="{{ $saTd }} {{ $saTextBody }}">
+                            Planned total Rp {{ format_amount($planned['combined']['planned_total'], 0) }}
+                            @if($planned['combined']['over_cap'])
+                            → capped Rp {{ format_amount($planned['combined']['capped_total'], 0) }}
+                            (cap Rp {{ format_amount($planned['combined']['effective_cap'], 0) }})
+                            @else
+                            (cap Rp {{ format_amount($planned['combined']['effective_cap'], 0) }})
+                            @endif
+                        </td>
+                    </tr>
+                    @endif
                 </tbody>
             </table>
         </div>
@@ -224,8 +248,8 @@ $saInnerCardWhite = 'space-y-3 rounded-lg border border-gray-200 bg-white p-4';
                     <input type="number" name="daily_max_budget" value="{{ $settings->daily_max_budget }}" class="{{ $saInput }}" required>
                 </label>
                 <label class="block">
-                    <span class="{{ $saLabel }}">Item ad starting budget</span>
-                    <input type="number" name="item_ad_starting_budget" min="25000" value="{{ $settings->item_ad_starting_budget }}" class="{{ $saInput }}" required>
+                    <span class="{{ $saLabel }}">Item ads starting pool (÷ max item ads per slot)</span>
+                    <input type="number" name="item_ad_starting_budget" min="{{ $settings->max_item_ads * 25000 }}" value="{{ $settings->item_ad_starting_budget }}" class="{{ $saInput }}" required>
                 </label>
                 <label class="block">
                     <span class="{{ $saLabel }}">Max item ads</span>
