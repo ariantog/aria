@@ -9,7 +9,11 @@ it('runs the engine even when SHOPEE_ADS_ACTIVE env is unset', function () {
     $engine->shouldReceive('runItemReplenishIfDue')->once()->andReturn(false);
     $engine->shouldReceive('getRunDiagnostics')->once()->andReturn([
         'now_wib' => '2026-08-26 11:00:00',
+        'now_utc' => '2026-08-26 04:00:00',
         'current_slot' => '11:00',
+        'automation_timezone' => 'Asia/Jakarta',
+        'app_timezone' => 'Asia/Jakarta',
+        'php_timezone' => 'UTC',
         'paused' => false,
         'authorized' => true,
         'schedules' => ['Tidak ada jadwal untuk slot 11:00 WIB sekarang.'],
@@ -36,6 +40,20 @@ it('explains schedule timing in diagnostics', function () {
     $diag = app(ShopeeAdsEngineService::class)->getRunDiagnostics();
 
     expect($diag['schedules'])->not->toBeEmpty();
+});
+
+it('uses WIB for schedule slots when PHP default timezone is UTC', function () {
+    date_default_timezone_set('UTC');
+    \Carbon\Carbon::setTestNow(\Carbon\Carbon::parse('2026-08-26 02:15:00', 'UTC'));
+
+    $diag = app(ShopeeAdsEngineService::class)->getRunDiagnostics();
+
+    expect($diag['current_slot'])->toBe('09:15')
+        ->and($diag['automation_timezone'])->toBe('Asia/Jakarta')
+        ->and($diag['now_utc'])->toBe('2026-08-26 02:15:00');
+
+    \Carbon\Carbon::setTestNow();
+    date_default_timezone_set(config('app.timezone'));
 });
 
 it('shows automation blockers when cron task is disabled', function () {

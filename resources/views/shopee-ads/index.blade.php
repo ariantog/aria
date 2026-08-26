@@ -95,10 +95,11 @@ $breadcrumbs = [
                 {{ ($cronTask?->active ?? false) ? 'Enabled' : 'Disabled' }}
             </p>
             @if($cronTask?->last_run_at)
-            <p class="mt-1 text-xs text-gray-500">Last run {{ $cronTask->last_run_at->timezone('Asia/Jakarta')->format('d M Y H:i') }} WIB</p>
+            <p class="mt-1 text-xs text-gray-500">Last run {{ $cronTask->last_run_at->timezone($automationTimezone)->format('d M Y H:i') }} WIB</p>
             @else
             <p class="mt-1 text-xs text-gray-500">Belum ada run tercatat — pastikan system cron memanggil <code class="text-xs">schedule:run</code> tiap menit.</p>
             @endif
+            <p class="mt-1 text-xs text-gray-400">Sekarang {{ $nowWib->format('d M Y H:i') }} WIB (GMT+7) · tz {{ $automationTimezone }}</p>
         </div>
         <div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
             <p class="text-xs font-medium uppercase text-gray-400">OAuth</p>

@@ -31,6 +31,8 @@ class ShopeeAdsController extends Controller
         $connection = $api->getConnectionStatus();
         $cronTask = ScheduledTask::query()->where('command', 'shopee-ads:process')->first();
         $automationBlockers = $this->automationBlockers($settings, $api, $connection, $cronTask);
+        $automationTimezone = (string) config('services.shopee_ads.timezone', 'Asia/Jakarta');
+        $nowWib = app(ShopeeAdsEngineService::class)->jakartaNow();
 
         return view('shopee-ads.index', [
             'settings' => $settings,
@@ -42,6 +44,8 @@ class ShopeeAdsController extends Controller
             'connection' => $connection,
             'cronTask' => $cronTask,
             'automationBlockers' => $automationBlockers,
+            'automationTimezone' => $automationTimezone,
+            'nowWib' => $nowWib,
             'oauthRedirectUrl' => $api->getOAuthRedirectUrl(),
             'oauthErrorHint' => $api->formatOAuthErrorForUser($api->getLastOAuthError()),
             'planned' => $this->plannedEndOfDay($settings, $schedules, $specialRules),

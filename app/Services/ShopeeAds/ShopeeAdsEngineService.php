@@ -23,7 +23,12 @@ class ShopeeAdsEngineService
 
     public function jakartaNow(): Carbon
     {
-        return Carbon::now('Asia/Jakarta');
+        return Carbon::now($this->automationTimezone());
+    }
+
+    private function automationTimezone(): string
+    {
+        return (string) config('services.shopee_ads.timezone', 'Asia/Jakarta');
     }
 
     public function runDueSchedules(): int
@@ -85,7 +90,11 @@ class ShopeeAdsEngineService
      *
      * @return array{
      *     now_wib: string,
+     *     now_utc: string,
      *     current_slot: string,
+     *     automation_timezone: string,
+     *     app_timezone: string,
+     *     php_timezone: string,
      *     paused: bool,
      *     authorized: bool,
      *     schedules: list<string>,
@@ -169,7 +178,11 @@ class ShopeeAdsEngineService
 
         return [
             'now_wib' => $now->format('Y-m-d H:i:s'),
+            'now_utc' => Carbon::now('UTC')->format('Y-m-d H:i:s'),
             'current_slot' => $currentSlot,
+            'automation_timezone' => $this->automationTimezone(),
+            'app_timezone' => (string) config('app.timezone'),
+            'php_timezone' => date_default_timezone_get(),
             'paused' => $settings->isPaused(),
             'authorized' => $this->api->hasShopAuthorization(),
             'schedules' => $scheduleNotes,
@@ -190,8 +203,8 @@ class ShopeeAdsEngineService
             $notes[] = "{$label} hanya di {$slot} WIB (sekarang {$now->format('H:i')}).";
         }
 
-        if ($lastRun && $lastRun->timezone('Asia/Jakarta')->isSameDay($now)) {
-            $notes[] = "{$label} sudah jalan hari ini ({$lastRun->timezone('Asia/Jakarta')->format('H:i')} WIB).";
+        if ($lastRun && $lastRun->timezone($this->automationTimezone())->isSameDay($now)) {
+            $notes[] = "{$label} sudah jalan hari ini ({$lastRun->timezone($this->automationTimezone())->format('H:i')} WIB).";
         }
 
         return $notes;
@@ -685,7 +698,7 @@ class ShopeeAdsEngineService
             return false;
         }
 
-        return $schedule->last_run_at->timezone('Asia/Jakarta')->isSameDay($now);
+        return $schedule->last_run_at->timezone($this->automationTimezone())->isSameDay($now);
     }
 
     private function isDueAt(ShopeeAdsSetting $settings, Carbon $now, int $hour, int $minute, ?Carbon $lastRun): bool
@@ -698,7 +711,7 @@ class ShopeeAdsEngineService
             return true;
         }
 
-        return ! $lastRun->timezone('Asia/Jakarta')->isSameDay($now);
+        return ! $lastRun->timezone($this->automationTimezone())->isSameDay($now);
     }
 
     private function recordHistory(

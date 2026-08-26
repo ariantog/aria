@@ -33,7 +33,11 @@ class ShopeeAdsProcessCommand extends Command
     /**
      * @param  array{
      *     now_wib: string,
+     *     now_utc: string,
      *     current_slot: string,
+     *     automation_timezone: string,
+     *     app_timezone: string,
+     *     php_timezone: string,
      *     paused: bool,
      *     authorized: bool,
      *     schedules: list<string>,
@@ -44,7 +48,9 @@ class ShopeeAdsProcessCommand extends Command
     private function printDiagnostics(array $diag): void
     {
         $this->newLine();
-        $this->comment('Diagnostics (WIB '.$diag['now_wib'].', slot '.$diag['current_slot'].')');
+        $this->comment('Diagnostics');
+        $this->line('  WIB (GMT+7): '.$diag['now_wib'].' — slot '.$diag['current_slot']);
+        $this->line('  UTC: '.$diag['now_utc'].' | PHP tz: '.$diag['php_timezone'].' | app: '.$diag['app_timezone'].' | automation: '.$diag['automation_timezone']);
         $this->line('  Status: '.($diag['paused'] ? 'PAUSED' : 'active').'; OAuth: '.($diag['authorized'] ? 'ok' : 'missing'));
 
         $this->line('  Schedules:');
