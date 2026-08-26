@@ -88,7 +88,7 @@ class WarehouseStatBackfillController extends Controller
         try {
             $result = $backfill->runBatch($validated['months'] ?? null);
         } catch (Throwable $e) {
-            return back()->with('error', 'Batch failed: '.$e->getMessage());
+            return back()->with('error', $this->batchErrorMessage($e));
         }
 
         if ($result['months'] === 0) {
@@ -102,6 +102,18 @@ class WarehouseStatBackfillController extends Controller
             $result['from'],
             $result['rows'],
         ));
+    }
+
+    private function batchErrorMessage(Throwable $e): string
+    {
+        $message = trim($e->getMessage());
+        $maxLength = 500;
+
+        if (strlen($message) > $maxLength) {
+            $message = substr($message, 0, $maxLength - 1).'…';
+        }
+
+        return 'Batch failed: '.$message;
     }
 
     private function nextPeriodLabel(WarehouseStatBackfill $state): ?string

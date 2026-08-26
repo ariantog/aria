@@ -124,6 +124,19 @@ it('normalizes legacy group_id zero when resolving item dimensions', function ()
     expect($dims['group_id'])->toBeNull();
 });
 
+it('nulls orphaned group_id values when the item_group row is missing', function () {
+    $item = Item::factory()->make([
+        'type' => ItemType::ITEM,
+        'group_id' => 999_999,
+        'pcode' => 'ORPHAN-01',
+    ]);
+    $item->setRelation('group', null);
+
+    $dims = app(\App\Services\Items\ItemDimensionResolver::class)->resolve($item);
+
+    expect($dims['group_id'])->toBeNull();
+});
+
 it('renders item stats from cached warehouse monthly stats with period presets', function () {
     $warehouse = Addrbook::factory()->warehouse()->create();
     $item = Item::factory()->create(['name' => 'Stats SKU', 'code' => 'STAT-01']);

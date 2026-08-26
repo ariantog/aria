@@ -58,7 +58,7 @@ class ItemDimensionResolver
 
             return [
                 'item_type' => $typeValue,
-                'group_id' => $this->normalizeGroupId($item->group_id),
+                'group_id' => $this->existingGroupId($item->group_id, $item->group),
                 'pcode' => $this->identityBuilder->assetLancarParentPcode($item),
                 'type_code' => $typeTag ? strtoupper($typeTag->code) : '-',
                 'warna_code' => $warnaTag ? strtoupper($warnaTag->code) : $this->identityBuilder->assetLancarColorLabel($item),
@@ -73,7 +73,7 @@ class ItemDimensionResolver
 
         return [
             'item_type' => $typeValue,
-            'group_id' => $this->normalizeGroupId($item->group_id),
+            'group_id' => $this->existingGroupId($item->group_id, $item->group),
             'pcode' => strtoupper(trim($item->pcode ?: ($item->group?->master ?? ''))) ?: '-',
             'type_code' => $genreTag ? strtoupper($genreTag->code) : '-',
             'warna_code' => '-',
@@ -82,11 +82,19 @@ class ItemDimensionResolver
         ];
     }
 
-    private function normalizeGroupId(mixed $groupId): ?int
+    /**
+     * Legacy items can keep a positive group_id after the item_group row was deleted.
+     * Null those out so warehouse stats inserts satisfy the FK to item_group.
+     */
+    private function existingGroupId(mixed $groupId, mixed $group): ?int
     {
         $id = (int) $groupId;
 
-        return $id > 0 ? $id : null;
+        if ($id <= 0) {
+            return null;
+        }
+
+        return $group !== null ? $id : null;
     }
 
     /**
