@@ -4,8 +4,8 @@ use App\Services\ShopeeAds\ShopeeAdsEngineService;
 
 it('runs the engine even when SHOPEE_ADS_ACTIVE env is unset', function () {
     $engine = Mockery::mock(ShopeeAdsEngineService::class);
-    $engine->shouldReceive('runDueSchedules')->once()->andReturn(0);
     $engine->shouldReceive('runDailyResetIfDue')->once()->andReturn(false);
+    $engine->shouldReceive('runDueSchedules')->once()->andReturn(0);
     $engine->shouldReceive('runItemReplenishIfDue')->once()->andReturn(false);
     $engine->shouldReceive('getRunDiagnostics')->once()->andReturn([
         'now_wib' => '2026-08-26 11:00:00',
@@ -19,7 +19,7 @@ it('runs the engine even when SHOPEE_ADS_ACTIVE env is unset', function () {
         'automation_active' => true,
         'settings_status' => 'active',
         'schedules' => ['Belum ada jadwal due di 11:00 WIB'],
-        'daily_reset' => ['daily reset hanya di 00:00 WIB (sekarang 11:00).'],
+        'daily_reset' => ['daily reset due (jadwal 00:01 WIB, catch-up sampai reset tercatat hari ini).'],
         'replenish' => ['item replenish hanya di 02:30 WIB (sekarang 11:00).'],
     ]);
 

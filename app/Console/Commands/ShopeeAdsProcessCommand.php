@@ -19,8 +19,9 @@ class ShopeeAdsProcessCommand extends Command
 
         Log::info('Shopee Ads process tick starting');
 
-        $schedulesRan = $engine->runDueSchedules();
+        // Reset before increments so a tick at 00:01 WIB does not add to yesterday's budget first.
         $reset = $engine->runDailyResetIfDue();
+        $schedulesRan = $engine->runDueSchedules();
         $replenish = $engine->runItemReplenishIfDue();
 
         ScheduledTask::query()
@@ -94,6 +95,6 @@ class ShopeeAdsProcessCommand extends Command
         }
 
         $this->newLine();
-        $this->comment('Increment jalan hanya di menit jadwal (HH:MM). Uji manual: Daily Reset / Replenish / Boost di /shopee-ads.');
+        $this->comment('Increment catch-up setelah HH:MM WIB; daily reset catch-up setelah jadwal reset. Uji manual: Daily Reset / Replenish / Boost di /shopee-ads.');
     }
 }
