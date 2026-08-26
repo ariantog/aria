@@ -13,6 +13,7 @@ use App\Models\ShopeeAdsSetting;
 use App\Services\ShopeeAds\ShopeeAdsApiService;
 use App\Services\ShopeeAds\ShopeeAdsEngineService;
 use App\Services\ShopeeAds\ShopeeAdsSpecialRulesService;
+use App\Support\SchedulerHealth;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -34,6 +35,7 @@ class ShopeeAdsController extends Controller
         $ruleStatus = $specialRules->todayStatus($settings);
         $connection = $api->getConnectionStatus();
         $cronTask = ScheduledTask::query()->where('command', 'shopee-ads:process')->first();
+        $schedulerHealth = SchedulerHealth::snapshot($cronTask);
         $automationBlockers = $this->automationBlockers($settings, $api, $connection, $cronTask);
         $automationTimezone = (string) config('services.shopee_ads.timezone', 'Asia/Jakarta');
         $nowWib = $engine->jakartaNow();
@@ -47,6 +49,7 @@ class ShopeeAdsController extends Controller
             'supportedTypes' => ShopeeAdsType::supportedScheduleTypes(),
             'connection' => $connection,
             'cronTask' => $cronTask,
+            'schedulerHealth' => $schedulerHealth,
             'automationBlockers' => $automationBlockers,
             'automationTimezone' => $automationTimezone,
             'nowWib' => $nowWib,
@@ -283,6 +286,15 @@ class ShopeeAdsController extends Controller
 
         if (! $cronTask?->active) {
             $blockers[] = 'Cron «Shopee Ads Process» nonaktif — aktifkan di Cron Manager (/cron-manager).';
+        } elseif ($cronTask->last_run_at === null) {
+            $queueTask = ScheduledTask::query()->where('command', 'app:process-queue')->first();
+            if ($queueTask?->active && $queueTask->last_run_at?->gt(now()->subMinutes(10))) {
+                $blockers[] = 'Scheduler jalan (Process Queue OK) tetapi shopee-ads:process belum tercatat — toggle off/on di Cron Manager atau jalankan: php artisan schedule:list | grep shopee';
+            } else {
+                $blockers[] = 'Laravel scheduler belum jalan — OS cron harus memanggil php artisan schedule:run tiap menit (lihat Cron Manager Last Run).';
+            }
+        } elseif ($cronTask->last_run_at->lt(now()->subMinutes(10))) {
+            $blockers[] = 'shopee-ads:process terakhir jalan '.$cronTask->last_run_at->timezone('Asia/Jakarta')->format('d M Y H:i').' WIB — cek laravel.log untuk «Scheduled task» / «Shopee Ads process tick».';
         }
 
         if ($settings->isPaused()) {

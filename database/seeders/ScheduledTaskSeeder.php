@@ -118,8 +118,8 @@ class ScheduledTaskSeeder extends Seeder
             [
                 'name' => 'Shopee Ads Process',
                 'frequency' => 'everyMinute',
-                'active' => false,
-                'description' => 'Runs Shopee Ads budget schedules, daily reset (WIB), and group replenishment.',
+                'active' => true,
+                'description' => 'Runs Shopee Ads budget schedules, daily reset (WIB), and item ad replenishment.',
             ]
         );
     }
