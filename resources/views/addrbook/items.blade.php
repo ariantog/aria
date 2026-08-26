@@ -13,7 +13,7 @@ $breadcrumbs = [
     ['title' => $addrbook->name, 'href' => '/' . $addrbook->type_slug . '/' . $addrbook->id],
     ['title' => 'Items', 'href' => $baseUrl],
 ];
-$idr = fn ($v) => 'IDR ' . number_format((float) $v, 0, ',', '.');
+$idr = fn ($v) => 'IDR ' . format_amount($v, 0);
 @endphp
 
 <div class="flex flex-col gap-4 p-3 sm:p-4" x-data="{ showImage: false, onlineName: false }">
@@ -153,7 +153,7 @@ $idr = fn ($v) => 'IDR ' . number_format((float) $v, 0, ',', '.');
                         </td>
                         <td class="min-w-[8rem] max-w-[14rem] break-words px-2 py-2 text-gray-500 whitespace-pre-line">{{ $desc }}</td>
                         <td class="whitespace-nowrap px-2 py-2 text-right font-semibold text-gray-700">{{ $idr($item->price) }}</td>
-                        <td class="whitespace-nowrap px-2 py-2 text-right font-mono font-bold {{ $qty > 0 ? 'text-emerald-600' : 'text-gray-400' }}">{{ number_format($qty, 0, ',', '.') }}</td>
+                        <td class="whitespace-nowrap px-2 py-2 text-right font-mono font-bold {{ $qty > 0 ? 'text-emerald-600' : 'text-gray-400' }}">{{ format_amount($qty, 0) }}</td>
                         @if($jubelioSync ?? null)
                             <td class="whitespace-nowrap px-2 py-2 text-right">
                                 @if(! $jubelio || ! ($jubelio['linked'] ?? false))
@@ -162,7 +162,7 @@ $idr = fn ($v) => 'IDR ' . number_format((float) $v, 0, ',', '.');
                                     </span>
                                 @elseif($jubelio['on_hand'] !== null)
                                     <span class="font-mono font-bold {{ ($jubelio['mismatch'] ?? false) ? 'text-red-600' : 'text-blue-600' }}" title="Jubelio on-hand at {{ $jubelioSync->jubelio_location_name }}">
-                                        {{ number_format($jubelio['on_hand'], 0, ',', '.') }}
+                                        {{ format_amount($jubelio['on_hand'], 0) }}
                                     </span>
                                 @else
                                     <span class="text-gray-400">—</span>

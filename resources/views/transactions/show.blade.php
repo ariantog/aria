@@ -299,7 +299,7 @@
                         <td class="whitespace-nowrap px-3 py-2.5 text-right align-middle font-medium tabular-nums" data-copy-col="price" data-sort-value="{{ $detail->price }}">{{ $fmt($detail->price) }}</td>
                         <td class="whitespace-nowrap px-3 py-2.5 text-right align-middle tabular-nums" data-copy-col="disc" data-sort-value="{{ (float) $detail->discount }}">
                             @if($detail->discount > 0)
-                                <span class="inline-flex h-5 items-center rounded-md border border-dashed border-red-300 bg-red-50 px-1.5 text-[10px] font-bold text-red-600">-{{ number_format((float) $detail->discount, 2, ',', '.') }}%</span>
+                                <span class="inline-flex h-5 items-center rounded-md border border-dashed border-red-300 bg-red-50 px-1.5 text-[10px] font-bold text-red-600">-{{ format_amount((float) $detail->discount) }}%</span>
                             @else
                                 <span class="text-gray-400">-</span>
                             @endif

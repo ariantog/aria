@@ -4,7 +4,7 @@
 
 @section('content')
 @php
-$fmt = fn ($v) => number_format((float) $v, 2, ',', '.');
+$fmt = fn ($v) => format_amount($v);
 $monthNames = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
 $lineItems = $import->line_items ?? [];
 $gross = $import->fakturGross();
@@ -174,7 +174,7 @@ $gross = $import->fakturGross();
                     <select id="show_cash_in_transaction_id" name="cash_in_transaction_id" x-model="cashInId" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
                         <option value="">— Tidak di-link —</option>
                         <template x-for="item in suggestions" :key="item.id">
-                            <option :value="item.id" x-text="`#${item.id} · ${item.date} · ${item.bank_name} · Rp ${item.total.toLocaleString('id-ID')}${item.invoice ? ' · ' + item.invoice : ''}`"></option>
+                            <option :value="item.id" x-text="`#${item.id} · ${item.date} · ${item.bank_name} · Rp ${formatAmountId(item.total)}${item.invoice ? ' · ' + item.invoice : ''}`"></option>
                         </template>
                     </select>
                 </div>

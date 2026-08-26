@@ -10,7 +10,7 @@ $breadcrumbs = [
 ];
 $user = auth()->user();
 $isSuper = $user && $user->hasRole('superadmin');
-$fmt = fn($v) => number_format((float)($v ?? 0), 0, ',', '.');
+$fmt = fn($v) => format_amount($v ?? 0, 0);
 $tipeCuti = [1 => ['Tahunan','text-blue-600'], 2 => ['Sakit','text-orange-600'], 3 => ['Mendadak/Izin','text-red-600']];
 @endphp
 

@@ -304,7 +304,7 @@
                                 <span class="text-xs font-medium text-gray-500 sm:hidden">Whs. Stock</span>
                                 <span class="text-xs tabular-nums"
                                       :class="isOverStock(item) ? 'font-semibold text-red-500' : 'text-gray-400'"
-                                      x-text="item.item_id ? (Number(item.warehouse_stock || 0)).toLocaleString('id-ID') : '—'"></span>
+                                      x-text="item.item_id ? formatNumberId(item.warehouse_stock || 0) : '—'"></span>
                             </div>
                             {{-- Discount % --}}
                             @unless($isMove)

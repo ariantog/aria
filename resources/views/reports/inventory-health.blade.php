@@ -30,7 +30,7 @@ $getStatus = function ($item) {
     }
     return ['label' => 'Inactive', 'color' => 'bg-zinc-300', 'rec' => 'N/A'];
 };
-$fmtNum = fn($v) => number_format((float) $v, 0, ',', '.');
+$fmtNum = fn($v) => format_amount($v, 0);
 @endphp
 
 <div class="flex h-full flex-1 flex-col gap-4 overflow-x-auto rounded-xl p-4">

@@ -9,7 +9,7 @@ $breadcrumbs = [
     ['title' => 'Reports', 'href' => '#'],
     ['title' => 'Cash Flow', 'href' => route('reports.cash-flow')],
 ];
-$fmt = fn($v) => 'Rp' . number_format((float) $v, 0, ',', '.');
+$fmt = fn($v) => 'Rp' . format_amount($v, 0);
 @endphp
 
 <div class="flex h-full flex-1 flex-col gap-4 overflow-x-auto rounded-xl p-4">
