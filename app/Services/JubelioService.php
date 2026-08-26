@@ -15,6 +15,8 @@ class JubelioService
 {
     public const TOKEN_SETTING_SLUG = 'jubelio_token';
 
+    public const MAX_ALL_STOCKS_IDS = 200;
+
     /**
      * Authenticate with Jubelio API.
      *
@@ -483,10 +485,31 @@ class JubelioService
      */
     public function fetchItemsAllStocks(array $jubelioItemIds): ?array
     {
-        if ($jubelioItemIds === []) {
+        $ids = array_values($jubelioItemIds);
+        if ($ids === []) {
             return ['data' => []];
         }
 
+        $merged = [];
+
+        foreach (array_chunk($ids, self::MAX_ALL_STOCKS_IDS) as $chunk) {
+            $response = $this->fetchItemsAllStocksBatch($chunk);
+            if ($response === null) {
+                return null;
+            }
+
+            $merged = array_merge($merged, $response['data'] ?? []);
+        }
+
+        return ['data' => $merged];
+    }
+
+    /**
+     * @param  list<int|string>  $jubelioItemIds
+     * @return array<string, mixed>|null
+     */
+    protected function fetchItemsAllStocksBatch(array $jubelioItemIds): ?array
+    {
         try {
             $response = $this->post('https://api2.jubelio.com/inventory/items/all-stocks/', [
                 'ids' => array_values($jubelioItemIds),
@@ -508,7 +531,9 @@ class JubelioService
                 'count' => count($jubelioItemIds),
             ]);
         } catch (\Exception $e) {
-            Log::error('Jubelio fetch items all-stocks error: '.$e->getMessage());
+            Log::error('Jubelio fetch items all-stocks error: '.$e->getMessage(), [
+                'count' => count($jubelioItemIds),
+            ]);
         }
 
         return null;
