@@ -96,7 +96,11 @@ it('scales daily reset budgets on double date', function () {
     $api->shouldReceive('setGmsBudget')->once()->with('gmv-dd', 200000)->andReturn(true);
     $api->shouldReceive('setItemAdBudget')->once()->with('item-dd', 60000)->andReturn(true);
 
-    $engine = new \App\Services\ShopeeAds\ShopeeAdsEngineService($api, app(ShopeeAdsSpecialRulesService::class));
+    $engine = new \App\Services\ShopeeAds\ShopeeAdsEngineService(
+        $api,
+        app(ShopeeAdsSpecialRulesService::class),
+        Mockery::mock(\App\Services\ShopeeAds\ShopeeAdsTelegramNotifier::class)->shouldIgnoreMissing(),
+    );
     $engine->dailyReset($settings);
 
     expect($settings->fresh()->gms_current_budget)->toBe(200000)
@@ -128,7 +132,11 @@ it('applies manual budget boost with configured multiplier', function () {
     ]);
     $api->shouldReceive('setItemAdBudget')->once()->with('item-boost', 60000)->andReturn(true);
 
-    $engine = new \App\Services\ShopeeAds\ShopeeAdsEngineService($api, app(ShopeeAdsSpecialRulesService::class));
+    $engine = new \App\Services\ShopeeAds\ShopeeAdsEngineService(
+        $api,
+        app(ShopeeAdsSpecialRulesService::class),
+        Mockery::mock(\App\Services\ShopeeAds\ShopeeAdsTelegramNotifier::class)->shouldIgnoreMissing(),
+    );
     $result = $engine->applyManualBudgetBoost($settings);
 
     expect($result['gmv'])->toBeTrue()

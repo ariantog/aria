@@ -18,6 +18,7 @@ class ShopeeAdsEngineService
     public function __construct(
         private readonly ShopeeAdsApiService $api,
         private readonly ShopeeAdsSpecialRulesService $specialRules,
+        private readonly ShopeeAdsTelegramNotifier $telegram,
     ) {}
 
     public function jakartaNow(): Carbon
@@ -57,11 +58,11 @@ class ShopeeAdsEngineService
             if ($schedule->ad_type === ShopeeAdsType::GmvMax->value) {
                 $multipliers = $this->specialRules->resolveForToday($settings, $now);
                 $increment = $multipliers->scaledGmvAmount($schedule->increment_idr);
-                $this->applyGmvMaxIncrement($settings, $increment);
+                $this->applyGmvMaxIncrement($settings, $increment, $schedule->run_time);
             } elseif ($schedule->ad_type === ShopeeAdsType::ProdukManual->value) {
                 $multipliers = $this->specialRules->resolveForToday($settings, $now);
                 $pool = $multipliers->scaledItemBudgetAmount($schedule->increment_idr);
-                $this->applyItemAdsIncrement($settings, $pool);
+                $this->applyItemAdsIncrement($settings, $pool, $schedule->run_time);
             }
 
             $schedule->update(['last_run_at' => $now]);
@@ -114,7 +115,7 @@ class ShopeeAdsEngineService
         return true;
     }
 
-    public function applyGmvMaxIncrement(ShopeeAdsSetting $settings, int $incrementIdr): bool
+    public function applyGmvMaxIncrement(ShopeeAdsSetting $settings, int $incrementIdr, ?string $runTime = null): bool
     {
         $campaignId = $this->discoverGmsCampaignId($settings);
 
@@ -150,10 +151,14 @@ class ShopeeAdsEngineService
             'GMV-Max schedule increment (live budget + increment)',
         );
 
+        if ($runTime !== null && $result['applied_increment'] > 0) {
+            $this->telegram->notifyGmvIncrement($runTime, $result['before'], $result['after']);
+        }
+
         return true;
     }
 
-    public function applyItemAdsIncrement(ShopeeAdsSetting $settings, int $poolIdr): void
+    public function applyItemAdsIncrement(ShopeeAdsSetting $settings, int $poolIdr, ?string $runTime = null): void
     {
         if (! $settings->item_ads_enabled) {
             return;
@@ -207,6 +212,7 @@ class ShopeeAdsEngineService
         );
 
         $runningHeadroom = $headroom;
+        $notifyLines = [];
 
         foreach ($ads as $ad) {
             $cid = $ad->campaign_id;
@@ -254,6 +260,20 @@ class ShopeeAdsEngineService
                 $result['applied_increment'],
                 'Item pool increment',
             );
+
+            if ($runTime !== null && $result['applied_increment'] > 0) {
+                $notifyLines[] = sprintf(
+                    '• item %d: Rp %s → Rp %s (ROAS %.2f)',
+                    $ad->item_id,
+                    number_format($result['before'], 0, ',', '.'),
+                    number_format($result['after'], 0, ',', '.'),
+                    $roas,
+                );
+            }
+        }
+
+        if ($runTime !== null && $notifyLines !== []) {
+            $this->telegram->notifyItemIncrement($runTime, $notifyLines);
         }
     }
 
@@ -279,8 +299,15 @@ class ShopeeAdsEngineService
      */
     public function replenishItemAds(ShopeeAdsSetting $settings): array
     {
+        $multipliers = $this->specialRules->resolveForToday($settings);
+        $starting = max((int) $settings->item_ad_starting_budget, ShopeeAdsApiService::ITEM_AD_MIN_BUDGET);
+        $starting = $multipliers->scaledItemBudgetAmount($starting);
+
         if (! $settings->item_ads_enabled || ! $settings->item_replenish_enabled) {
-            return ['created' => 0, 'message' => 'Item ads or auto-replenish disabled'];
+            $message = 'Item ads or auto-replenish disabled';
+            $this->telegram->notifyReplenish(0, $starting, $message);
+
+            return ['created' => 0, 'message' => $message];
         }
 
         $this->syncItemAds();
@@ -290,22 +317,25 @@ class ShopeeAdsEngineService
             ->whereNotIn('status', ['ended', 'closed', 'berakhir'])
             ->count();
 
-        $multipliers = $this->specialRules->resolveForToday($settings);
         $cap = $multipliers->scaledMaxItemAds((int) $settings->max_item_ads);
         $need = min($cap - $active, $multipliers->scaledReplenishPerRun((int) $settings->item_replenish_max_per_run));
 
         if ($need <= 0) {
-            return ['created' => 0, 'message' => 'Active item ads already at cap'];
+            $message = 'Active item ads already at cap';
+            $this->telegram->notifyReplenish(0, $starting, $message);
+
+            return ['created' => 0, 'message' => $message];
         }
 
-        $starting = max((int) $settings->item_ad_starting_budget, ShopeeAdsApiService::ITEM_AD_MIN_BUDGET);
-        $starting = $multipliers->scaledItemBudgetAmount($starting);
         $headroom = $this->combinedHeadroom($settings);
         $affordable = $starting > 0 ? (int) floor($headroom / $starting) : 0;
         $need = min($need, $affordable);
 
         if ($need <= 0) {
-            return ['created' => 0, 'message' => 'No combined budget headroom for new item ads'];
+            $message = 'No combined budget headroom for new item ads';
+            $this->telegram->notifyReplenish(0, $starting, $message);
+
+            return ['created' => 0, 'message' => $message];
         }
 
         $exclude = ShopeeAdsItemAd::query()->pluck('item_id')->all();
@@ -339,7 +369,10 @@ class ShopeeAdsEngineService
             $this->recordHistory(ShopeeAdsType::ProdukManual->value, $cid, 'replenish_create', null, $starting, null, 'Created item ad for '.$candidate['item_id']);
         }
 
-        return ['created' => $created, 'message' => "Replenish: {$created} item ad(s) created"];
+        $message = "Replenish: {$created} item ad(s) created";
+        $this->telegram->notifyReplenish($created, $starting, $message);
+
+        return ['created' => $created, 'message' => $message];
     }
 
     /**
@@ -416,15 +449,19 @@ class ShopeeAdsEngineService
             );
         }
 
+        $message = sprintf(
+            'Manual boost ×%s: GMV %s, %d item ad(s) updated',
+            $multiplier,
+            $gmvApplied ? 'updated' : 'skipped',
+            $itemsApplied,
+        );
+
+        $this->telegram->notifyManualBoost($multiplier, $gmvApplied, $itemsApplied);
+
         return [
             'gmv' => $gmvApplied,
             'items' => $itemsApplied,
-            'message' => sprintf(
-                'Manual boost ×%s: GMV %s, %d item ad(s) updated',
-                $multiplier,
-                $gmvApplied ? 'updated' : 'skipped',
-                $itemsApplied,
-            ),
+            'message' => $message,
         ];
     }
 
@@ -444,12 +481,16 @@ class ShopeeAdsEngineService
         $itemStart = max((int) $settings->item_ad_starting_budget, ShopeeAdsApiService::ITEM_AD_MIN_BUDGET);
         $itemStart = $multipliers->scaledItemBudgetAmount($itemStart);
 
+        $gmvReset = false;
+        $itemResetCount = 0;
+
         $campaignId = $this->discoverGmsCampaignId($settings);
         if ($campaignId) {
             $before = (int) $settings->gms_current_budget;
             if ($this->api->setGmsBudget($campaignId, $gmvStart)) {
                 $settings->update(['gms_current_budget' => $gmvStart, 'gms_campaign_id' => $campaignId]);
                 $this->recordHistory(ShopeeAdsType::GmvMax->value, $campaignId, 'daily_reset', $before, $gmvStart, null, 'Daily reset GMV-Max');
+                $gmvReset = true;
             }
         }
 
@@ -471,8 +512,15 @@ class ShopeeAdsEngineService
                     'turned_off' => false,
                 ]);
                 $this->recordHistory(ShopeeAdsType::ProdukManual->value, $ad->campaign_id, 'daily_reset', $before, $itemStart, null, 'Daily reset item ad');
+                $itemResetCount++;
             }
         }
+
+        $this->telegram->notifyDailyReset(
+            $gmvReset ? $gmvStart : 0,
+            $itemResetCount,
+            $itemStart,
+        );
     }
 
     private function discoverGmsCampaignId(ShopeeAdsSetting $settings): ?string
