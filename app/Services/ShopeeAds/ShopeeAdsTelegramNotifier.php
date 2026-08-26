@@ -83,11 +83,11 @@ class ShopeeAdsTelegramNotifier
     private function hintForTelegramError(string $description): ?string
     {
         if (str_contains($description, 'bot was blocked by the user')) {
-            return 'User blocked this bot — unblock in Telegram, open the bot, send /start, then retry.';
+            return 'Bot blocked — in Telegram unblock the bot, open it, send /start. (Private chat: chat_id equals your user id; blocking is not a wrong-id issue.)';
         }
 
         if (str_contains($description, 'chat not found')) {
-            return 'Wrong chat_id or user never started the bot — message the bot /start first; use message.chat.id from getUpdates (not from.id in a group).';
+            return 'User never started the bot (/start), or wrong id. Private 1:1 chat: chat_id is your numeric user id (same as ALLOWED_TELEGRAM_USER_ID).';
         }
 
         if (str_contains($description, "can't initiate conversation")) {

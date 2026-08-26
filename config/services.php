@@ -37,9 +37,9 @@ return [
 
     'telegram' => [
         'bot_token' => env('TELEGRAM_BOT_TOKEN'),
-        // Comma-separated ids for sendMessage chat_id (private chat = same as user id).
+        // sendMessage chat_id. Private 1:1 chat: same numeric id as ALLOWED_TELEGRAM_USER_ID.
         'chat_ids' => env('TELEGRAM_CHAT_IDS'),
-        // Python bot compat — merged when TELEGRAM_CHAT_IDS is empty.
+        // Python bots/bot.py compat — merged with chat_ids (deduped).
         'allowed_user_ids' => env('ALLOWED_TELEGRAM_USER_ID'),
     ],
 
