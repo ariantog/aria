@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\DisplaysTransactionTotals;
 use App\Support\ProductionColumnDefaults;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -11,6 +12,7 @@ use Illuminate\Support\Facades\Schema;
 
 class Transaction extends Model
 {
+    use DisplaysTransactionTotals;
     use HasFactory;
 
     protected $guarded = ['id'];
@@ -182,55 +184,6 @@ class Transaction extends Model
     public function isManual(): bool
     {
         return (int) $this->submit_type === self::SUBMIT_TYPE_MANUAL;
-    }
-
-    public function isFromJubelio(): bool
-    {
-        return (int) $this->submit_type === self::SUBMIT_TYPE_JUBELIO;
-    }
-
-    /** Positive sum of line-item amounts (absolute). */
-    public function itemsSubtotalAmount(): float
-    {
-        $details = $this->relationLoaded('details')
-            ? $this->details
-            : $this->details()->get();
-
-        if ($details->isEmpty()) {
-            return abs((float) $this->total);
-        }
-
-        return (float) $details->sum(fn ($detail) => abs((float) $detail->total));
-    }
-
-    /** Signed line subtotal for summary rows. */
-    public function displaySummarySubtotal(): float
-    {
-        return self::signedAmount((int) $this->type, $this->itemsSubtotalAmount());
-    }
-
-    /**
-     * Positive net payable for detail pages, print, and PDF.
-     *
-     * Legacy Jubelio cron rows sometimes stored seller income on `total` while
-     * `real_total` still added `adjustment` again (|total| + |adjustment| ≈ |real_total|).
-     */
-    public function displayGrandTotal(): float
-    {
-        $real = abs((float) $this->real_total);
-        $total = abs((float) $this->total);
-        $adjustment = abs((float) $this->adjustment);
-
-        if (
-            $this->isFromJubelio()
-            && (int) $this->type === self::TYPE_SELL
-            && $adjustment > 0.00001
-            && abs(($total + $adjustment) - $real) < 0.01
-        ) {
-            return $total;
-        }
-
-        return $real;
     }
 
     public function sender()

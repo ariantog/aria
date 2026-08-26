@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Addrbook;
+use App\Models\DeletedTransaction;
 use App\Models\Item;
 use App\Models\Transaction;
 use App\Models\TransactionDetail;
@@ -106,4 +107,29 @@ it('uses line-item sum for summary subtotal when header total is net receivable'
 
     expect($transaction->displaySummarySubtotal())->toBe(-169000.0)
         ->and($transaction->displayGrandTotal())->toBe(82350.0);
+});
+
+it('exposes display helpers on deleted transactions and renders deleted show', function () {
+    $deleted = DeletedTransaction::create([
+        'id' => 615223,
+        'date' => now()->toDateString(),
+        'type' => Transaction::TYPE_SELL,
+        'submit_type' => Transaction::SUBMIT_TYPE_JUBELIO,
+        'invoice' => 'SP-DELETED-GRAND',
+        'total' => -82350,
+        'adjustment' => -86650,
+        'real_total' => -169000,
+        'discount' => 0,
+        'ppn' => 0,
+        'total_items' => 1,
+        'status' => Transaction::STATUS_COMPLETED,
+        'deleted_at' => now(),
+    ]);
+
+    expect($deleted->displayGrandTotal())->toBe(82350.0);
+
+    $this->actingAs($this->user)
+        ->get(route('transactions.deleted.show', $deleted->id))
+        ->assertOk()
+        ->assertSee('82,350', false);
 });
