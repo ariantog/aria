@@ -93,7 +93,7 @@ it('caps addrbook lookup results at eight rows', function () {
     expect($this->getJson($url)->assertOk()->json())->toHaveCount(8);
 });
 
-it('limits cash in lookup to ledger customer and reseller parties', function () {
+it('limits cash in lookup to ledger customer supplier and reseller parties', function () {
     Addrbook::create(['name' => 'Cash Ledger', 'type' => Addrbook::TYPE_ACCOUNT]);
     Addrbook::create(['name' => 'Cash Customer', 'type' => Addrbook::TYPE_CUSTOMER]);
     Addrbook::create(['name' => 'Cash Reseller', 'type' => Addrbook::TYPE_RESELLER]);
@@ -111,14 +111,15 @@ it('limits cash in lookup to ledger customer and reseller parties', function () 
     expect($names)->toContain('Cash Ledger')
         ->toContain('Cash Customer')
         ->toContain('Cash Reseller')
-        ->not->toContain('Cash Supplier')
+        ->toContain('Cash Supplier')
         ->not->toContain('Cash Warehouse');
 });
 
-it('limits cash out lookup to ledger customer and reseller parties', function () {
+it('limits cash out lookup to ledger customer supplier and reseller parties', function () {
     Addrbook::create(['name' => 'Pay Ledger', 'type' => Addrbook::TYPE_ACCOUNT]);
     Addrbook::create(['name' => 'Pay Customer', 'type' => Addrbook::TYPE_CUSTOMER]);
     Addrbook::create(['name' => 'Pay Supplier', 'type' => Addrbook::TYPE_SUPPLIER]);
+    Addrbook::create(['name' => 'Pay Warehouse', 'type' => Addrbook::TYPE_WAREHOUSE]);
 
     $url = route('transactions.lookup', [
         'type' => 'cash-out',
@@ -130,5 +131,6 @@ it('limits cash out lookup to ledger customer and reseller parties', function ()
 
     expect($names)->toContain('Pay Ledger')
         ->toContain('Pay Customer')
-        ->not->toContain('Pay Supplier');
+        ->toContain('Pay Supplier')
+        ->not->toContain('Pay Warehouse');
 });
