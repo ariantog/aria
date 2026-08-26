@@ -7,37 +7,37 @@
 $breadcrumbs = [
     ['title' => 'Shopee Ads', 'href' => route('shopee-ads.index')],
 ];
-$saCard = 'rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800/50';
-$saCardHeader = 'border-b border-gray-100 px-5 py-4 dark:border-gray-700';
-$saLabel = 'block text-sm font-medium text-gray-700 dark:text-gray-300';
-$saInput = 'mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100';
-$saInputSm = 'w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100';
-$saTableHead = 'bg-gray-50 text-left text-xs uppercase text-gray-500 dark:bg-gray-900/40 dark:text-gray-400';
+$saCard = 'rounded-xl border border-gray-200 bg-white shadow-sm';
+$saCardHeader = 'border-b border-gray-100 px-5 py-4';
+$saLabel = 'block text-sm font-medium text-gray-700';
+$saInput = 'mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500';
+$saInputSm = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500';
+$saTableHead = 'bg-gray-50 text-left text-xs uppercase text-gray-500';
 $saTh = 'px-5 py-3';
 $saTd = 'px-5 py-3';
-$saDivide = 'divide-y divide-gray-100 dark:divide-gray-700';
-$saTextMuted = 'text-gray-500 dark:text-gray-400';
-$saTextBody = 'text-gray-600 dark:text-gray-300';
-$saBtnSecondary = 'rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700';
+$saDivide = 'divide-y divide-gray-100';
+$saTextMuted = 'text-gray-500';
+$saTextBody = 'text-gray-600';
+$saBtnSecondary = 'rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50';
 $saBtnPrimary = 'rounded-lg bg-blue-700 px-4 py-2 text-sm font-medium text-white hover:bg-blue-800';
-$saBtnAmber = 'rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-900 hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-200 dark:hover:bg-amber-900/50';
-$saBtnBlueOutline = 'rounded-lg border border-blue-300 bg-blue-50 px-4 py-2 text-sm font-medium text-blue-900 hover:bg-blue-100 dark:border-blue-700 dark:bg-blue-900/30 dark:text-blue-200 dark:hover:bg-blue-900/50';
-$saBtnPurple = 'rounded-lg border border-purple-300 bg-purple-50 px-4 py-2 text-sm font-medium text-purple-900 hover:bg-purple-100 dark:border-purple-700 dark:bg-purple-900/30 dark:text-purple-200 dark:hover:bg-purple-900/50';
+$saBtnAmber = 'rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-900 hover:bg-amber-100';
+$saBtnBlueOutline = 'rounded-lg border border-blue-300 bg-blue-50 px-4 py-2 text-sm font-medium text-blue-900 hover:bg-blue-100';
+$saBtnPurple = 'rounded-lg border border-purple-300 bg-purple-50 px-4 py-2 text-sm font-medium text-purple-900 hover:bg-purple-100';
 $saBtnOrange = 'rounded-lg bg-orange-600 px-4 py-2 text-sm font-medium text-white hover:bg-orange-700';
-$saAlertSuccess = 'rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800 dark:border-green-800 dark:bg-green-900/20 dark:text-green-300';
-$saAlertError = 'rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-800 dark:bg-red-900/20 dark:text-red-300';
-$saAlertWarn = 'rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200';
-$saInnerCard = 'rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-600 dark:bg-gray-900/40';
-$saInnerCardWhite = 'space-y-3 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-600 dark:bg-gray-800/60';
+$saAlertSuccess = 'rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800';
+$saAlertError = 'rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800';
+$saAlertWarn = 'rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900';
+$saInnerCard = 'rounded-lg border border-gray-200 bg-gray-50 p-4';
+$saInnerCardWhite = 'space-y-3 rounded-lg border border-gray-200 bg-white p-4';
 @endphp
 
-<div class="flex flex-col gap-6 p-4">
+<div class="flex flex-col gap-4 p-4">
     <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
-            <h1 class="text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-100">Shopee Ads</h1>
+            <h2 class="text-2xl font-bold tracking-tight text-gray-900">Shopee Ads</h2>
             <p class="mt-1 text-sm {{ $saTextMuted }}">
-                Automasi budget untuk <strong class="text-gray-700 dark:text-gray-200">GMV Max</strong> dan
-                <strong class="text-gray-700 dark:text-gray-200">Iklan Produk Individual</strong> (API Shopee yang aktif).
+                Automasi budget untuk <strong class="text-gray-700">GMV Max</strong> dan
+                <strong class="text-gray-700">Iklan Produk Individual</strong> (API Shopee yang aktif).
                 Legacy tipe (Toko Auto/Manual, Produk Otomatis, Group) tidak didukung API.
             </p>
         </div>
@@ -97,25 +97,25 @@ $saInnerCardWhite = 'space-y-3 rounded-lg border border-gray-200 bg-white p-4 da
     <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
         <div class="{{ $saCard }} p-5">
             <p class="text-xs font-medium uppercase {{ $saTextMuted }}">Status</p>
-            <p class="mt-2 text-lg font-semibold {{ $settings->automationStatus()->isActive() ? 'text-green-700 dark:text-green-400' : 'text-amber-700 dark:text-amber-400' }}">
+            <p class="mt-2 text-lg font-semibold {{ $settings->automationStatus()->isActive() ? 'text-green-700' : 'text-amber-700' }}">
                 {{ $settings->automationStatus()->isActive() ? 'Active' : 'Paused' }}
             </p>
             <p class="mt-1 text-xs {{ $saTextMuted }}">DB: <code class="text-xs">{{ $settings->status }}</code></p>
         </div>
         <div class="{{ $saCard }} p-5">
             <p class="text-xs font-medium uppercase {{ $saTextMuted }}">GMV Max (tracked)</p>
-            <p class="mt-2 text-lg font-semibold text-gray-900 dark:text-gray-100">Rp {{ number_format($settings->gms_current_budget, 0, ',', '.') }}</p>
+            <p class="mt-2 text-lg font-semibold text-gray-900">Rp {{ number_format($settings->gms_current_budget, 0, ',', '.') }}</p>
             @if($settings->gms_campaign_id)
             <p class="mt-1 text-xs {{ $saTextMuted }}">Campaign {{ $settings->gms_campaign_id }}</p>
             @endif
         </div>
         <div class="{{ $saCard }} p-5">
             <p class="text-xs font-medium uppercase {{ $saTextMuted }}">Combined daily cap</p>
-            <p class="mt-2 text-lg font-semibold text-gray-900 dark:text-gray-100">Rp {{ number_format($settings->daily_max_budget, 0, ',', '.') }}</p>
+            <p class="mt-2 text-lg font-semibold text-gray-900">Rp {{ number_format($settings->daily_max_budget, 0, ',', '.') }}</p>
         </div>
         <div class="{{ $saCard }} p-5" data-testid="shopee-ads-cron-status">
             <p class="text-xs font-medium uppercase {{ $saTextMuted }}">Cron (shopee-ads:process)</p>
-            <p class="mt-2 text-lg font-semibold {{ ($cronTask?->active ?? false) ? 'text-green-700 dark:text-green-400' : 'text-amber-700 dark:text-amber-400' }}">
+            <p class="mt-2 text-lg font-semibold {{ ($cronTask?->active ?? false) ? 'text-green-700' : 'text-amber-700' }}">
                 {{ ($cronTask?->active ?? false) ? 'Enabled' : 'Disabled' }}
             </p>
             @if($cronTask?->last_run_at)
@@ -123,37 +123,37 @@ $saInnerCardWhite = 'space-y-3 rounded-lg border border-gray-200 bg-white p-4 da
             @else
             <p class="mt-1 text-xs {{ $saTextMuted }}">Belum ada run tercatat — pastikan system cron memanggil <code class="text-xs">schedule:run</code> tiap menit.</p>
             @endif
-            <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">Sekarang {{ $nowWib->format('d M Y H:i') }} WIB (GMT+7) · tz {{ $automationTimezone }}</p>
+            <p class="mt-1 text-xs text-gray-400">Sekarang {{ $nowWib->format('d M Y H:i') }} WIB (GMT+7) · tz {{ $automationTimezone }}</p>
         </div>
         <div class="{{ $saCard }} p-5">
             <p class="text-xs font-medium uppercase {{ $saTextMuted }}">OAuth</p>
-            <p class="mt-2 text-lg font-semibold {{ $connection['has_token'] && ! $connection['is_expired'] ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400' }}">
+            <p class="mt-2 text-lg font-semibold {{ $connection['has_token'] && ! $connection['is_expired'] ? 'text-green-700' : 'text-red-700' }}">
                 {{ $connection['has_token'] && ! $connection['is_expired'] ? 'Connected' : 'Not connected' }}
             </p>
             @if($connection['shop_id'])
             <p class="mt-1 text-xs {{ $saTextMuted }}">Shop {{ $connection['shop_id'] }}</p>
             @endif
             @if($connection['last_error'])
-            <p class="mt-2 text-xs text-red-600 dark:text-red-400">{{ $oauthErrorHint ?? $connection['last_error'] }}</p>
+            <p class="mt-2 text-xs text-red-600">{{ $oauthErrorHint ?? $connection['last_error'] }}</p>
             @endif
-            <p class="mt-2 text-xs text-gray-400 dark:text-gray-500">Redirect: {{ $oauthRedirectUrl }}</p>
-            <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">API calls: whitelist server outbound IP di Shopee Open Platform → App list → IP Address Whitelist.</p>
+            <p class="mt-2 text-xs text-gray-400">Redirect: {{ $oauthRedirectUrl }}</p>
+            <p class="mt-1 text-xs text-gray-400">API calls: whitelist server outbound IP di Shopee Open Platform → App list → IP Address Whitelist.</p>
         </div>
     </div>
 
     <div class="{{ $saCard }}">
         <div class="{{ $saCardHeader }} flex flex-wrap items-center justify-between gap-2">
-            <h2 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Rencana end-of-day</h2>
+            <h2 class="text-sm font-semibold text-gray-900">Rencana end-of-day</h2>
             @if($ruleStatus['labels'] !== [])
             <div class="flex flex-wrap gap-2 text-xs">
                 @if($ruleStatus['double_date'])
-                <span class="rounded-full bg-pink-100 px-2 py-1 font-medium text-pink-800 dark:bg-pink-900/40 dark:text-pink-200">Double date aktif</span>
+                <span class="rounded-full bg-pink-100 px-2 py-1 font-medium text-pink-800">Double date aktif</span>
                 @endif
                 @if($ruleStatus['payday'])
-                <span class="rounded-full bg-blue-100 px-2 py-1 font-medium text-blue-800 dark:bg-blue-900/40 dark:text-blue-200">Payday aktif</span>
+                <span class="rounded-full bg-blue-100 px-2 py-1 font-medium text-blue-800">Payday aktif</span>
                 @endif
                 @foreach($ruleStatus['labels'] as $label)
-                <span class="rounded-full bg-gray-100 px-2 py-1 text-gray-700 dark:bg-gray-700 dark:text-gray-200">{{ $label }}</span>
+                <span class="rounded-full bg-gray-100 px-2 py-1 text-gray-700">{{ $label }}</span>
                 @endforeach
             </div>
             @endif
@@ -169,7 +169,7 @@ $saInnerCardWhite = 'space-y-3 rounded-lg border border-gray-200 bg-white p-4 da
                 <tbody class="{{ $saDivide }}">
                     @foreach($planned as $type => $row)
                     <tr>
-                        <td class="{{ $saTd }} font-medium text-gray-900 dark:text-gray-100">{{ $adTypeLabels[$type] ?? $type }}</td>
+                        <td class="{{ $saTd }} font-medium text-gray-900">{{ $adTypeLabels[$type] ?? $type }}</td>
                         <td class="{{ $saTd }} {{ $saTextBody }}">
                             @if($type === 'gmv_max')
                             Start Rp {{ format_amount($row['start'], 0) }}
@@ -197,11 +197,11 @@ $saInnerCardWhite = 'space-y-3 rounded-lg border border-gray-200 bg-white p-4 da
     @if($canEdit)
     <div class="{{ $saCard }}" x-data="{ settingsOpen: false, specialRulesOpen: false }">
         <div class="{{ $saCardHeader }} flex flex-wrap items-center justify-between gap-2">
-            <h2 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Pengaturan (GMV + Item)</h2>
+            <h2 class="text-sm font-semibold text-gray-900">Pengaturan (GMV + Item)</h2>
             <button
                 type="button"
                 @click="settingsOpen = !settingsOpen"
-                class="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-sm font-medium text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700/50"
+                class="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-sm font-medium text-gray-600 hover:bg-gray-50"
                 data-testid="toggle-shopee-ads-settings"
                 :aria-expanded="settingsOpen"
             >
@@ -269,7 +269,7 @@ $saInnerCardWhite = 'space-y-3 rounded-lg border border-gray-200 bg-white p-4 da
                     <input type="number" name="item_replenish_max_per_run" value="{{ $settings->item_replenish_max_per_run }}" class="{{ $saInput }}" required>
                 </label>
             </div>
-            <div class="flex flex-wrap gap-4 text-sm text-gray-700 dark:text-gray-300">
+            <div class="flex flex-wrap gap-4 text-sm text-gray-700">
                 <label class="flex items-center gap-2">
                     <input type="checkbox" name="item_ads_enabled" value="1" {{ $settings->item_ads_enabled ? 'checked' : '' }}> Item ads enabled
                 </label>
@@ -287,17 +287,17 @@ $saInnerCardWhite = 'space-y-3 rounded-lg border border-gray-200 bg-white p-4 da
                     :aria-expanded="specialRulesOpen"
                 >
                     <div>
-                        <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Aturan spesial</h3>
+                        <h3 class="text-sm font-semibold text-gray-900">Aturan spesial</h3>
                         <p class="mt-1 text-xs {{ $saTextMuted }}">Multiplier diterapkan otomatis pada daily reset, replenish, dan jadwal increment (WIB).</p>
                     </div>
-                    <svg class="h-4 w-4 shrink-0 text-gray-500 transition-transform dark:text-gray-400" :class="specialRulesOpen ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <svg class="h-4 w-4 shrink-0 text-gray-500 transition-transform" :class="specialRulesOpen ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
                     </svg>
                 </button>
                 <div x-show="specialRulesOpen" x-cloak class="mt-4 space-y-4">
                     <div class="grid gap-4 sm:grid-cols-2">
                         <div class="{{ $saInnerCardWhite }}">
-                            <label class="flex items-center gap-2 text-sm font-medium text-gray-800 dark:text-gray-200">
+                            <label class="flex items-center gap-2 text-sm font-medium text-gray-800">
                                 <input type="checkbox" name="double_date_enabled" value="1" {{ $settings->double_date_enabled ? 'checked' : '' }}>
                                 Double date (tanggal kembar, mis. 8/8)
                             </label>
@@ -317,7 +317,7 @@ $saInnerCardWhite = 'space-y-3 rounded-lg border border-gray-200 bg-white p-4 da
                             </div>
                         </div>
                         <div class="{{ $saInnerCardWhite }}">
-                            <label class="flex items-center gap-2 text-sm font-medium text-gray-800 dark:text-gray-200">
+                            <label class="flex items-center gap-2 text-sm font-medium text-gray-800">
                                 <input type="checkbox" name="payday_enabled" value="1" {{ $settings->payday_enabled ? 'checked' : '' }}>
                                 Payday (tanggal gajian)
                             </label>
@@ -337,15 +337,15 @@ $saInnerCardWhite = 'space-y-3 rounded-lg border border-gray-200 bg-white p-4 da
                             </div>
                         </div>
                     </div>
-                    <div class="rounded-lg border border-purple-200 bg-purple-50 p-4 text-sm dark:border-purple-800 dark:bg-purple-900/20">
-                        <label class="block font-medium text-purple-900 dark:text-purple-200">
+                    <div class="rounded-lg border border-purple-200 bg-purple-50 p-4 text-sm">
+                        <label class="block font-medium text-purple-900">
                             Manual boost (tombol Boost — permission <code class="text-xs">shopee-ads-boost</code>)
                         </label>
                         <label class="mt-2 block">
                             <span class="{{ $saLabel }}">Multiplier ×</span>
                             <input type="number" step="0.1" name="manual_boost_multiplier" value="{{ $settings->manual_boost_multiplier }}" class="{{ $saInput }} max-w-xs" required>
                         </label>
-                        <p class="mt-2 text-xs text-purple-800 dark:text-purple-300">Mengalikan budget GMV Max + semua item ads yang aktif sekarang (live dari Shopee).</p>
+                        <p class="mt-2 text-xs text-purple-800">Mengalikan budget GMV Max + semua item ads yang aktif sekarang (live dari Shopee).</p>
                     </div>
                 </div>
             </div>
@@ -355,7 +355,7 @@ $saInnerCardWhite = 'space-y-3 rounded-lg border border-gray-200 bg-white p-4 da
 
     <div class="{{ $saCard }}">
         <div class="{{ $saCardHeader }}">
-            <h2 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Tambah jadwal</h2>
+            <h2 class="text-sm font-semibold text-gray-900">Tambah jadwal</h2>
         </div>
         <form method="POST" action="{{ route('shopee-ads.schedules.store') }}" class="space-y-4 p-5">
             @csrf
@@ -382,7 +382,7 @@ $saInnerCardWhite = 'space-y-3 rounded-lg border border-gray-200 bg-white p-4 da
 
     <div class="{{ $saCard }}">
         <div class="{{ $saCardHeader }}">
-            <h2 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Jadwal</h2>
+            <h2 class="text-sm font-semibold text-gray-900">Jadwal</h2>
             <p class="mt-1 text-xs {{ $saTextMuted }}">Increment jalan setelah HH:MM WIB (catch-up sampai midnight). Automasi harus <strong>Active</strong> (bukan Paused).</p>
         </div>
         <div class="overflow-x-auto">
@@ -399,10 +399,10 @@ $saInnerCardWhite = 'space-y-3 rounded-lg border border-gray-200 bg-white p-4 da
                 <tbody class="{{ $saDivide }}">
                     @forelse($schedules as $schedule)
                     <tr>
-                        <td class="{{ $saTd }} text-gray-900 dark:text-gray-100">
+                        <td class="{{ $saTd }} text-gray-900">
                             {{ $adTypeLabels[$schedule->ad_type] ?? $schedule->ad_type }}
                             @if(! in_array($schedule->ad_type, $supportedTypes, true))
-                            <span class="text-xs text-amber-600 dark:text-amber-400">(legacy)</span>
+                            <span class="text-xs text-amber-600">(legacy)</span>
                             @endif
                         </td>
                         <td class="{{ $saTd }} font-mono">{{ $schedule->run_time }}</td>
@@ -412,7 +412,7 @@ $saInnerCardWhite = 'space-y-3 rounded-lg border border-gray-200 bg-white p-4 da
                         <td class="{{ $saTd }}">
                             <form method="POST" action="{{ route('shopee-ads.schedules.destroy', $schedule) }}" onsubmit="return confirm('Hapus?')">
                                 @csrf @method('DELETE')
-                                <button type="submit" class="text-red-600 hover:underline dark:text-red-400">Hapus</button>
+                                <button type="submit" class="text-red-600 hover:underline">Hapus</button>
                             </form>
                         </td>
                         @endif
@@ -427,11 +427,11 @@ $saInnerCardWhite = 'space-y-3 rounded-lg border border-gray-200 bg-white p-4 da
 
     <div class="{{ $saCard }}" data-testid="shopee-ads-item-ads-table">
         <div class="{{ $saCardHeader }}">
-            <h2 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Item ads (tracked)</h2>
+            <h2 class="text-sm font-semibold text-gray-900">Item ads (tracked)</h2>
             <p class="mt-1 text-xs {{ $saTextMuted }}">
-                Tabel ini menampilkan iklan produk manual yang aktif di Shopee (sync otomatis saat buka halaman).
-                <strong class="text-gray-700 dark:text-gray-200">Daily reset</strong> mengatur ulang budget iklan yang sudah ada;
-                <strong class="text-gray-700 dark:text-gray-200">Replenish</strong> membuat iklan baru (max {{ $settings->item_replenish_max_per_run }} per run).
+                Tabel dari DB lokal — klik <strong>Sync Item Ads</strong> untuk tarik data live dari Shopee (bisa beberapa detik).
+                <strong class="text-gray-700">Daily reset</strong> mengatur ulang budget iklan yang sudah ada;
+                <strong class="text-gray-700">Replenish</strong> membuat iklan baru (max {{ $settings->item_replenish_max_per_run }} per run).
                 @if($itemAdsSyncStats !== null)
                 <span class="mt-1 block">Sync terakhir: {{ $itemAdsSyncStats['active'] }} aktif di Shopee
                     @if($itemAdsSyncStats['imported'] > 0)({{ $itemAdsSyncStats['imported'] }} baru)@endif
@@ -439,7 +439,7 @@ $saInnerCardWhite = 'space-y-3 rounded-lg border border-gray-200 bg-white p-4 da
                 </span>
                 @endif
                 @if($itemAdsSyncError)
-                <span class="mt-1 block text-amber-700 dark:text-amber-300">{{ $itemAdsSyncError }}</span>
+                <span class="mt-1 block text-amber-700">{{ $itemAdsSyncError }}</span>
                 @endif
             </p>
         </div>
@@ -457,8 +457,8 @@ $saInnerCardWhite = 'space-y-3 rounded-lg border border-gray-200 bg-white p-4 da
                 <tbody class="{{ $saDivide }}">
                     @forelse($itemAds as $ad)
                     <tr>
-                        <td class="{{ $saTd }} font-mono text-xs text-gray-900 dark:text-gray-100">{{ $ad->campaign_id }}</td>
-                        <td class="{{ $saTd }} text-gray-900 dark:text-gray-100">{{ $ad->item_id }}</td>
+                        <td class="{{ $saTd }} font-mono text-xs text-gray-900">{{ $ad->campaign_id }}</td>
+                        <td class="{{ $saTd }} text-gray-900">{{ $ad->item_id }}</td>
                         <td class="{{ $saTd }}">Rp {{ number_format($ad->budget, 0, ',', '.') }}</td>
                         <td class="{{ $saTd }}">{{ $ad->last_roas ?? '—' }}</td>
                         <td class="{{ $saTd }}">{{ $ad->turned_off ? 'ended' : $ad->status }}</td>
@@ -483,7 +483,7 @@ $saInnerCardWhite = 'space-y-3 rounded-lg border border-gray-200 bg-white p-4 da
 
     <div class="{{ $saCard }}">
         <div class="{{ $saCardHeader }}">
-            <h2 class="text-sm font-semibold text-gray-900 dark:text-gray-100">History</h2>
+            <h2 class="text-sm font-semibold text-gray-900">History</h2>
         </div>
         <div class="overflow-x-auto">
             <table class="min-w-full text-sm">
@@ -500,7 +500,7 @@ $saInnerCardWhite = 'space-y-3 rounded-lg border border-gray-200 bg-white p-4 da
                     @forelse($history as $row)
                     <tr>
                         <td class="{{ $saTd }} {{ $saTextMuted }}">{{ $row->created_at?->timezone('Asia/Jakarta')->format('d M H:i') }}</td>
-                        <td class="{{ $saTd }} text-gray-900 dark:text-gray-100">{{ $row->action }}</td>
+                        <td class="{{ $saTd }} text-gray-900">{{ $row->action }}</td>
                         <td class="{{ $saTd }}">{{ $adTypeLabels[$row->ad_type] ?? $row->ad_type ?? '—' }}</td>
                         <td class="{{ $saTd }} font-mono text-xs">
                             @if($row->before_budget !== null || $row->after_budget !== null)
@@ -517,7 +517,7 @@ $saInnerCardWhite = 'space-y-3 rounded-lg border border-gray-200 bg-white p-4 da
         </div>
     </div>
 
-    <p class="text-xs text-gray-400 dark:text-gray-500">
+    <p class="text-xs text-gray-400">
         Increment membaca <strong>budget live</strong> dari Shopee (bukan starting budget / DB stale).
     </p>
 </div>
