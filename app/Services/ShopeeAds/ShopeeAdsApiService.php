@@ -80,6 +80,23 @@ class ShopeeAdsApiService
         return isset($oauth['last_error']) ? (string) $oauth['last_error'] : null;
     }
 
+    public function formatOAuthErrorForUser(?string $detail): ?string
+    {
+        if ($detail === null || $detail === '') {
+            return null;
+        }
+
+        if (str_contains($detail, 'source_ip_undeclared')) {
+            if (preg_match('/Request Source IP \(([^)]+)\)/', $detail, $matches)) {
+                return 'IP server ('.$matches[1].') belum di-whitelist. Buka Shopee Open Platform → App list → IP Address Whitelist, tambahkan IP itu, lalu klik Authorize Shopee lagi.';
+            }
+
+            return 'IP server belum di-whitelist. Shopee Open Platform → App list → IP Address Whitelist → tambahkan outbound IP server Aria, lalu authorize ulang.';
+        }
+
+        return $detail;
+    }
+
     /**
      * @return array<string, mixed>|null
      */

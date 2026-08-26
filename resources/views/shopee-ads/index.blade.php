@@ -60,7 +60,18 @@ $breadcrumbs = [
     <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ session('error') }}</div>
     @endif
 
-    <div class="grid gap-4 md:grid-cols-4">
+    @if($automationBlockers !== [])
+    <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900" data-testid="shopee-ads-automation-blockers">
+        <p class="font-medium">Automasi tidak berjalan:</p>
+        <ul class="mt-2 list-disc space-y-1 pl-5">
+            @foreach($automationBlockers as $reason)
+            <li>{{ $reason }}</li>
+            @endforeach
+        </ul>
+    </div>
+    @endif
+
+    <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
         <div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
             <p class="text-xs font-medium uppercase text-gray-400">Status</p>
             <p class="mt-2 text-lg font-semibold {{ $settings->isPaused() ? 'text-amber-700' : 'text-green-700' }}">
@@ -78,6 +89,17 @@ $breadcrumbs = [
             <p class="text-xs font-medium uppercase text-gray-400">Combined daily cap</p>
             <p class="mt-2 text-lg font-semibold text-gray-900">Rp {{ format_amount($settings->daily_max_budget, 0) }}</p>
         </div>
+        <div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm" data-testid="shopee-ads-cron-status">
+            <p class="text-xs font-medium uppercase text-gray-400">Cron (shopee-ads:process)</p>
+            <p class="mt-2 text-lg font-semibold {{ ($cronTask?->active ?? false) ? 'text-green-700' : 'text-amber-700' }}">
+                {{ ($cronTask?->active ?? false) ? 'Enabled' : 'Disabled' }}
+            </p>
+            @if($cronTask?->last_run_at)
+            <p class="mt-1 text-xs text-gray-500">Last run {{ $cronTask->last_run_at->timezone('Asia/Jakarta')->format('d M Y H:i') }} WIB</p>
+            @else
+            <p class="mt-1 text-xs text-gray-500">Belum ada run tercatat — pastikan system cron memanggil <code class="text-xs">schedule:run</code> tiap menit.</p>
+            @endif
+        </div>
         <div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
             <p class="text-xs font-medium uppercase text-gray-400">OAuth</p>
             <p class="mt-2 text-lg font-semibold {{ $connection['has_token'] && ! $connection['is_expired'] ? 'text-green-700' : 'text-red-700' }}">
@@ -87,9 +109,10 @@ $breadcrumbs = [
             <p class="mt-1 text-xs text-gray-500">Shop {{ $connection['shop_id'] }}</p>
             @endif
             @if($connection['last_error'])
-            <p class="mt-2 text-xs text-red-600">{{ $connection['last_error'] }}</p>
+            <p class="mt-2 text-xs text-red-600">{{ $oauthErrorHint ?? $connection['last_error'] }}</p>
             @endif
             <p class="mt-2 text-xs text-gray-400">Redirect: {{ $oauthRedirectUrl }}</p>
+            <p class="mt-1 text-xs text-gray-400">API calls: whitelist server outbound IP di Shopee Open Platform → App list → IP Address Whitelist.</p>
         </div>
     </div>
 

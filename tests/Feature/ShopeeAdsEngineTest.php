@@ -24,7 +24,11 @@ it('uses live budget when incrementing GMV Max', function () {
             'applied_increment' => 100,
         ]);
 
-    $engine = new ShopeeAdsEngineService($api, app(\App\Services\ShopeeAds\ShopeeAdsSpecialRulesService::class));
+    $engine = new ShopeeAdsEngineService(
+        $api,
+        app(\App\Services\ShopeeAds\ShopeeAdsSpecialRulesService::class),
+        Mockery::mock(\App\Services\ShopeeAds\ShopeeAdsTelegramNotifier::class)->shouldIgnoreMissing(),
+    );
 
     expect($engine->applyGmvMaxIncrement($settings, 100))->toBeTrue();
     expect($settings->fresh()->gms_current_budget)->toBe(350);
@@ -64,7 +68,11 @@ it('uses live budget when incrementing item ads pool', function () {
             'applied_increment' => 100,
         ]);
 
-    $engine = new ShopeeAdsEngineService($api, app(\App\Services\ShopeeAds\ShopeeAdsSpecialRulesService::class));
+    $engine = new ShopeeAdsEngineService(
+        $api,
+        app(\App\Services\ShopeeAds\ShopeeAdsSpecialRulesService::class),
+        Mockery::mock(\App\Services\ShopeeAds\ShopeeAdsTelegramNotifier::class)->shouldIgnoreMissing(),
+    );
     $engine->applyItemAdsIncrement($settings, 100);
 
     expect(\App\Models\ShopeeAdsItemAd::find('item-1')->budget)->toBe(350);

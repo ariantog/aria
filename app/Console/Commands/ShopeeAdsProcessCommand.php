@@ -13,11 +13,7 @@ class ShopeeAdsProcessCommand extends Command
 
     public function handle(ShopeeAdsEngineService $engine): int
     {
-        if (! config('services.shopee_ads.active')) {
-            $this->comment('Shopee Ads integration inactive (SHOPEE_ADS_ACTIVE=false).');
-
-            return self::SUCCESS;
-        }
+        // Automation on/off is controlled by Cron Manager (scheduled_tasks), not a separate .env flag.
 
         $schedulesRan = $engine->runDueSchedules();
         $reset = $engine->runDailyResetIfDue();
