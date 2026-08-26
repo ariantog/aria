@@ -114,6 +114,12 @@ class Addrbook extends Model
         return [self::TYPE_BANK, self::TYPE_V_ACCOUNT];
     }
 
+    /** @return list<int> Allowed Name/Source or Name/Recipient types on Cash In/Out. */
+    public static function cashPartyTypes(): array
+    {
+        return [self::TYPE_ACCOUNT, self::TYPE_CUSTOMER, self::TYPE_RESELLER];
+    }
+
     /** @return list<int> */
     public static function navigableTypeIds(): array
     {

@@ -2,7 +2,9 @@
 
 namespace App\Http\Requests;
 
+use App\Models\Addrbook;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class StoreCashTransactionRequest extends FormRequest
 {
@@ -12,7 +14,11 @@ class StoreCashTransactionRequest extends FormRequest
             'date' => ['required', 'date'],
             'account_id' => ['required', 'integer', 'exists:customers,id'],
             'items' => ['required', 'array', 'min:1', 'max:7'],
-            'items.*.customer_id' => ['required', 'integer', 'exists:customers,id'],
+            'items.*.customer_id' => [
+                'required',
+                'integer',
+                Rule::exists('customers', 'id')->where(fn ($query) => $query->whereIn('type', Addrbook::cashPartyTypes())),
+            ],
             'items.*.invoice' => ['nullable', 'string', 'max:255'],
             'items.*.note' => ['nullable', 'string', 'max:5000'],
             'items.*.total' => ['required', 'numeric', 'min:0.01'],
