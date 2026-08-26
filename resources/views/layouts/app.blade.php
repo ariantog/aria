@@ -253,7 +253,11 @@
 
 <script>
 function formatAmountId(value) {
-    return Number(value || 0).toLocaleString('id-ID', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+    return Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+}
+
+function formatNumberId(value) {
+    return Number(value || 0).toLocaleString('en-US', { maximumFractionDigits: 0 });
 }
 
 function appShell() {
