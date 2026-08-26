@@ -58,6 +58,7 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::get('items/{item}/jubelio', [App\Http\Controllers\ItemsController::class, 'jubelio'])->name('items.jubelio');
     Route::get('items/{item}/jubelio-search', [App\Http\Controllers\ItemsController::class, 'getJubelioItems'])->name('items.jubelio-search');
     Route::post('items/{item}/jubelio-link', [App\Http\Controllers\ItemsController::class, 'updateJubelioId'])->name('items.jubelio-link');
+    Route::post('items/{item}/convert-identity', [App\Http\Controllers\ItemIdentityConvertController::class, 'store'])->name('items.convert-identity');
     Route::resource('items', App\Http\Controllers\ItemsController::class);
     Route::get('jubelio/order/cek', [App\Http\Controllers\JubelioController::class, 'cekOrder'])->name('jubelio.order.cek');
     Route::post('jubelio/order/cek/queue', [App\Http\Controllers\JubelioController::class, 'queueCekOrder'])->name('jubelio.order.cek.queue');
@@ -174,6 +175,7 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::delete('assetlancar/{item}', [App\Http\Controllers\ItemsController::class, 'destroy'])->name('assetlancar.destroy');
     Route::get('assetlancar/{item}/transactions', [App\Http\Controllers\ItemsController::class, 'itemTransactions'])->name('assetlancar.transactions');
     Route::get('assetlancar/{item}/stats', [App\Http\Controllers\ItemsController::class, 'itemStats'])->name('assetlancar.stats');
+    Route::post('assetlancar/{item}/convert-identity', [App\Http\Controllers\ItemIdentityConvertController::class, 'store'])->name('assetlancar.convert-identity');
 
     // Item Group Routes
     Route::get('items-group', [App\Http\Controllers\ItemsController::class, 'group'])->name('items.group');

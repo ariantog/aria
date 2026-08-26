@@ -39,6 +39,15 @@ $nb = optional($item->group)->description2 ?? ($item->description2 ?? '-');
 
     @include('items.partials.item-tabs', ['active' => 'Detail'])
 
+    @if(session('success'))
+        <div class="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">{{ session('success') }}</div>
+    @endif
+    @if(session('error'))
+        <div class="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ session('error') }}</div>
+    @endif
+
+    @include('items.partials.identity-convert', ['identityConvert' => $identityConvert ?? null])
+
     <div class="grid grid-cols-1 gap-6 xl:grid-cols-12">
         {{-- Image --}}
         <div class="xl:col-span-5">
