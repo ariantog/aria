@@ -116,3 +116,45 @@ test('cash in rejects more than seven rows', function () {
     $response->assertUnprocessable()
         ->assertJsonValidationErrors(['items']);
 });
+
+test('cash in rejects supplier as source party', function () {
+    $user = User::factory()->create();
+    $bank = Addrbook::factory()->create(['type' => Addrbook::TYPE_BANK]);
+    $supplier = Addrbook::factory()->supplier()->create();
+
+    $this->actingAs($user)->postJson(route('transactions.cash-in.store'), [
+        'date' => now()->format('Y-m-d'),
+        'account_id' => $bank->id,
+        'items' => [
+            [
+                'customer_id' => $supplier->id,
+                'total' => 100,
+            ],
+        ],
+    ])->assertUnprocessable()
+        ->assertJsonValidationErrors(['items.0.customer_id']);
+});
+
+test('cash in accepts ledger account as source party', function () {
+    $user = User::factory()->create();
+    $bank = Addrbook::factory()->create(['type' => Addrbook::TYPE_BANK]);
+    $ledger = Addrbook::factory()->create(['type' => Addrbook::TYPE_ACCOUNT, 'name' => 'Biaya Admin']);
+
+    $this->actingAs($user)->post(route('transactions.cash-in.store'), [
+        'date' => now()->format('Y-m-d'),
+        'account_id' => $bank->id,
+        'items' => [
+            [
+                'customer_id' => $ledger->id,
+                'total' => 250,
+            ],
+        ],
+    ])->assertRedirect();
+
+    $this->assertDatabaseHas('transactions', [
+        'type' => Transaction::TYPE_CASH_IN,
+        'sender_id' => $ledger->id,
+        'receiver_id' => $bank->id,
+        'total' => 250,
+    ]);
+});

@@ -4,14 +4,21 @@
 
 @section('content')
 @php
+use App\Models\Addrbook;
 $isCashIn = $type === 'in';
+$cashPartyTypes = Addrbook::cashPartyTypes();
+$cashLookupType = $isCashIn ? 'cash-in' : 'cash-out';
+$cashLookupRole = $isCashIn ? 'sender' : 'receiver';
 $config = [
     'title'           => $isCashIn ? 'New Cash In' : 'New Cash Out',
-    'description'     => $isCashIn ? 'Record cash received from customers or sources.' : 'Record cash payments to suppliers or recipients.',
+    'description'     => $isCashIn ? 'Record cash received from customers, resellers, or ledgers.' : 'Record cash payments to customers, resellers, or ledgers.',
     'saveLabel'       => $isCashIn ? 'Save Cash In' : 'Save Cash Out',
     'endpoint'        => $isCashIn ? route('transactions.cash-in.store') : route('transactions.cash-out.store'),
-    'lookupType'      => $isCashIn ? 'buy' : 'cash-out',
-    'lookupRole'      => $isCashIn ? 'sender' : 'receiver',
+    'lookupEndpoint'  => route('transactions.lookup', [
+        'type' => $cashLookupType,
+        'role' => $cashLookupRole,
+        'addrbook_type' => $cashPartyTypes,
+    ]),
     'sourceLabel'     => $isCashIn ? 'Name / Source' : 'Name / Recipient',
     'sourcePlaceholder' => $isCashIn ? 'Select source…' : 'Select recipient…',
 ];
@@ -106,7 +113,7 @@ $config = [
                             {{-- Source / recipient autocomplete --}}
                             <div class="relative sm:col-span-4"
                                  x-data="asyncCombobox({
-                                     endpoint: '{{ route('transactions.lookup', ['type' => $config['lookupType'], 'role' => $config['lookupRole']]) }}',
+                                     endpoint: @js($config['lookupEndpoint']),
                                      placeholder: '{{ $config['sourcePlaceholder'] }}',
                                      onSelect: (item) => onRowSourceSelect(idx, row, item)
                                  })">
