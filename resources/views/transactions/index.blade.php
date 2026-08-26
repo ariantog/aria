@@ -28,6 +28,9 @@
 @php
     $perPage = $perPage ?? (int) request()->query('per_page', 100);
     $exportQuery = array_merge(request()->query(), ['per_page' => $perPage, 'page' => $rows->currentPage()]);
+    $hasActiveFilters = collect($filters)
+        ->filter(fn ($value) => $value !== null && $value !== '')
+        ->isNotEmpty();
 @endphp
 
 @section('content')
@@ -58,58 +61,14 @@
         </div>
     </div>
 
-    {{-- Filters --}}
-    <form method="GET" action="{{ route('transactions.index') }}"
-          class="flex flex-wrap items-end gap-2 rounded-xl border border-gray-200 bg-white p-3">
-        <div class="flex flex-col gap-1">
-            <label class="text-xs font-medium uppercase text-gray-500">From</label>
-            <input type="date" name="from" value="{{ $filters['from'] ?? '' }}"
-                   class="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
-        </div>
-        <div class="flex flex-col gap-1">
-            <label class="text-xs font-medium uppercase text-gray-500">To</label>
-            <input type="date" name="to" value="{{ $filters['to'] ?? '' }}"
-                   class="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
-        </div>
-        <div class="flex flex-col gap-1">
-            <label class="text-xs font-medium uppercase text-gray-500">Type</label>
-            <select name="type" class="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
-                <option value="">All Types</option>
-                @foreach($typeMap as $id => $meta)
-                    <option value="{{ $id }}" @selected(($filters['type'] ?? '') == $id)>{{ $meta[0] }}</option>
-                @endforeach
-            </select>
-        </div>
-        <div class="flex flex-col gap-1">
-            <label class="text-xs font-medium uppercase text-gray-500">Invoice</label>
-            <input type="text" name="invoice" value="{{ $filters['invoice'] ?? '' }}" placeholder="Search invoice…"
-                   class="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
-        </div>
-        <div class="flex flex-col gap-1">
-            <label class="text-xs font-medium uppercase text-gray-500">Min Total</label>
-            <input type="number" name="min_total" value="{{ $filters['min_total'] ?? '' }}" placeholder="0"
-                   class="w-28 rounded-md border border-gray-300 px-2.5 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
-        </div>
-        <div class="flex flex-col gap-1">
-            <label class="text-xs font-medium uppercase text-gray-500">Max Total</label>
-            <input type="number" name="max_total" value="{{ $filters['max_total'] ?? '' }}" placeholder="∞"
-                   class="w-28 rounded-md border border-gray-300 px-2.5 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
-        </div>
-        <input type="hidden" name="sort" value="{{ $sort }}">
-        <input type="hidden" name="direction" value="{{ $direction }}">
-        <div class="flex flex-col gap-1">
-            <label class="text-xs font-medium uppercase text-gray-500">Rows / page</label>
-            <select name="per_page" class="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
-                @foreach([100, 200, 300] as $size)
-                    <option value="{{ $size }}" @selected($perPage == $size)>{{ $size }}</option>
-                @endforeach
-            </select>
-        </div>
-        <div class="flex gap-2">
-            <button type="submit" class="rounded-lg bg-blue-700 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-800">Filter</button>
-            <a href="{{ route('transactions.index') }}" class="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-50">Reset</a>
-        </div>
-    </form>
+    @include('transactions.partials.list-filters', [
+        'filters' => $filters,
+        'typeMap' => $typeMap,
+        'sort' => $sort,
+        'direction' => $direction,
+        'perPage' => $perPage,
+        'defaultOpen' => $hasActiveFilters,
+    ])
 
     <div class="flex items-center justify-end">
         <a href="{{ route('transactions.export', $exportQuery) }}"

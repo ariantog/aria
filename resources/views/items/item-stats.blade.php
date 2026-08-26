@@ -10,7 +10,7 @@ $breadcrumbs = [
     ['title' => $item->name, 'href' => $base.'/'.$item->id],
     ['title' => 'Stats', 'href' => '#'],
 ];
-$fmt = fn ($n) => number_format((float) $n, 0, ',', '.');
+$fmt = fn ($n) => format_amount($n, 0);
 @endphp
 
 <div class="p-4 sm:p-6">

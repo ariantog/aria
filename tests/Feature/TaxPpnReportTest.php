@@ -3,14 +3,21 @@
 use App\Models\Addrbook;
 use App\Models\ReportingEntity;
 use App\Models\ReportingMonthlyTaxSummary;
+use App\Models\TaxFakturImport;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Services\PermissionGenerator;
 use App\Services\Reporting\TaxReportService;
+use Illuminate\Support\Facades\Artisan;
 
 beforeEach(function () {
     $this->user = User::factory()->create();
     app(PermissionGenerator::class)->generateForModule('Report');
+    $this->user->givePermissionTo('report-tax-ppn');
+    Artisan::call('migrate', [
+        '--path' => 'database/migrations/2026_08_25_100000_install_tax_faktur_imports_table.php',
+        '--force' => true,
+    ]);
 });
 
 function seedPpnReportScenario(): array
@@ -134,6 +141,14 @@ function seedPpnReportScenario(): array
 it('renders the ppn tax report with ringkasan from monthly summaries', function () {
     $data = seedPpnReportScenario();
 
+    $ringkasan = app(TaxReportService::class)->ringkasan(2025, 6, $data['entityA']->id);
+    expect($ringkasan['keluaran_dpp'])->toBe(90_000.0)
+        ->and($ringkasan['keluaran_tax'])->toBe(9_900.0)
+        ->and($ringkasan['masukan_dpp'])->toBe(50_000.0)
+        ->and($ringkasan['masukan_tax'])->toBe(5_500.0)
+        ->and($ringkasan['net_ppn'])->toBe(4_400.0)
+        ->and($ringkasan['retur_keluaran_tax'])->toBe(1_100.0);
+
     $this->actingAs($this->user)
         ->get(route('reports.tax.ppn', [
             'year' => 2025,
@@ -145,11 +160,11 @@ it('renders the ppn tax report with ringkasan from monthly summaries', function 
         ->assertSee('Ringkasan', false)
         ->assertSee('Keluaran', false)
         ->assertSee('Masukan', false)
-        ->assertSee('90.000,00', false)
-        ->assertSee('9.900,00', false)
-        ->assertSee('50.000,00', false)
-        ->assertSee('5.500,00', false)
-        ->assertSee('4.400,00', false);
+        ->assertSee('90,000', false)
+        ->assertSee('9,900', false)
+        ->assertSee('50,000', false)
+        ->assertSee('5,500', false)
+        ->assertSee('4,400', false);
 });
 
 it('aggregates consolidated entity summaries', function () {
@@ -176,14 +191,14 @@ it('aggregates consolidated entity summaries', function () {
         ->assertSee('CV Test B', false);
 });
 
-it('lists keluaran drill-down including cash-in without matching sell', function () {
+it('lists keluaran drill-down from sell not customer cash in', function () {
     $data = seedPpnReportScenario();
 
     $service = app(TaxReportService::class);
     $rows = $service->keluaranRows(2025, 6, $data['entityA']->id);
 
-    expect($rows->pluck('type')->all())->toContain('sell', 'cash_in')
-        ->and($rows->where('type', 'cash_in')->first()['invoice'])->toBe('MP-ONLY')
+    expect($rows->pluck('type')->all())->toContain('sell')
+        ->and($rows->pluck('type')->all())->not->toContain('cash_in')
         ->and($rows->where('type', 'sell')->first()['invoice'])->toBe('SELL-PPN-1');
 
     $this->actingAs($this->user)
@@ -194,7 +209,6 @@ it('lists keluaran drill-down including cash-in without matching sell', function
         ]))
         ->assertOk()
         ->assertSee('SELL-PPN-1', false)
-        ->assertSee('MP-ONLY', false)
         ->assertSee('Customer PPN', false);
 });
 
@@ -238,7 +252,7 @@ it('omits pre-2025 data from summaries and drill-down', function () {
     $this->actingAs($this->user)
         ->get(route('reports.tax.ppn', ['year' => 2024, 'month' => 12, 'entity' => $entity->id]))
         ->assertOk()
-        ->assertDontSee('99.999,00', false);
+        ->assertDontSee('99,999', false);
 });
 
 it('exports ppn report as csv', function () {
@@ -270,4 +284,46 @@ it('forbids users without report-tax-ppn permission', function () {
     $this->actingAs($restricted)
         ->get(route('reports.tax.ppn'))
         ->assertForbidden();
+});
+
+it('includes imported faktur rows in keluaran drill-down', function () {
+    $entity = ReportingEntity::create(['name' => 'PT Faktur', 'slug' => 'pt-faktur', 'is_pkp' => true]);
+    $customer = Addrbook::factory()->customer()->create(['name' => 'MDS RETAILING TBK']);
+
+    TaxFakturImport::create([
+        'faktur_number' => '01000123456789012',
+        'faktur_date' => '2025-06-20',
+        'direction' => TaxFakturImport::DIRECTION_KELUARAN,
+        'reporting_entity_id' => $entity->id,
+        'counterparty_id' => $customer->id,
+        'seller_name' => 'Seller',
+        'seller_npwp' => '0504330085044000',
+        'buyer_name' => 'MDS',
+        'buyer_npwp' => '0013179569054000',
+        'dpp' => 1_000_000,
+        'ppn' => 110_000,
+        'report_year' => 2025,
+        'report_month' => 6,
+        'source_format' => 'mds_output_tax_invoice',
+        'user_id' => $this->user->id,
+    ]);
+
+    $service = app(TaxReportService::class);
+    $rows = $service->keluaranRows(2025, 6, $entity->id);
+
+    expect($rows->pluck('type')->all())->toContain('faktur_import')
+        ->and($rows->firstWhere('type', 'faktur_import')['invoice'])->toBe('01000123456789012')
+        ->and($rows->firstWhere('type', 'faktur_import')['source_label'])->toBe('MDS faktur')
+        ->and($rows->firstWhere('type', 'faktur_import')['link_type'])->toBe('faktur');
+
+    $this->actingAs($this->user)
+        ->get(route('reports.tax.ppn', [
+            'year' => 2025,
+            'month' => 6,
+            'entity' => $entity->id,
+        ]))
+        ->assertOk()
+        ->assertSee('01000123456789012', false)
+        ->assertSee('MDS faktur', false)
+        ->assertSee('MDS RETAILING TBK', false);
 });

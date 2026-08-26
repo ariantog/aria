@@ -72,7 +72,7 @@ class ItemStockNotification extends Model
         $itemCode = $this->item?->code ?? 'SKU';
         $soldOut = $this->soldOutWarehouse?->name ?? 'shop';
         $source = $this->sourceWarehouse?->name ?? 'warehouse';
-        $qty = number_format((float) $this->source_stock, 0, ',', '.');
+        $qty = format_amount((float) $this->source_stock, 0);
         $status = $this->source_status?->label() ?? 'stock';
 
         return "{$itemCode} sold out at {$soldOut}, {$status} at {$source} ({$qty} pcs)";

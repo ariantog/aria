@@ -44,6 +44,8 @@ class Addrbook extends Model
             'arrangement_enabled' => 'boolean',
             'is_internal_lending' => 'boolean',
             'is_active_in_reports' => 'boolean',
+            'payment_due_day' => 'integer',
+            'payment_grace_days' => 'integer',
         ];
     }
 
@@ -110,6 +112,17 @@ class Addrbook extends Model
     public static function transferAccountTypes(): array
     {
         return [self::TYPE_BANK, self::TYPE_V_ACCOUNT];
+    }
+
+    /** @return list<int> Allowed Name/Source or Name/Recipient types on Cash In/Out. */
+    public static function cashPartyTypes(): array
+    {
+        return [
+            self::TYPE_ACCOUNT,
+            self::TYPE_CUSTOMER,
+            self::TYPE_SUPPLIER,
+            self::TYPE_RESELLER,
+        ];
     }
 
     /** @return list<int> */

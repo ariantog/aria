@@ -172,18 +172,18 @@ $saInnerCardWhite = 'space-y-3 rounded-lg border border-gray-200 bg-white p-4 da
                         <td class="{{ $saTd }} font-medium text-gray-900 dark:text-gray-100">{{ $adTypeLabels[$type] ?? $type }}</td>
                         <td class="{{ $saTd }} {{ $saTextBody }}">
                             @if($type === 'gmv_max')
-                            Start Rp {{ number_format($row['start'], 0, ',', '.') }}
-                            + increments Rp {{ number_format($row['increments'], 0, ',', '.') }}
-                            → planned Rp {{ number_format($row['planned'], 0, ',', '.') }}
-                            (cap Rp {{ number_format($row['cap'], 0, ',', '.') }})
+                            Start Rp {{ format_amount($row['start'], 0) }}
+                            + increments Rp {{ format_amount($row['increments'], 0) }}
+                            → planned Rp {{ format_amount($row['planned'], 0) }}
+                            (cap Rp {{ format_amount($row['cap'], 0) }})
                             @else
-                            Start Rp {{ number_format($row['start'], 0, ',', '.') }}
-                            ({{ $row['active_ads'] }} ads × Rp {{ number_format($row['start_per_ad'], 0, ',', '.') }}
+                            Start Rp {{ format_amount($row['start'], 0) }}
+                            ({{ $row['active_ads'] }} ads × Rp {{ format_amount($row['start_per_ad'], 0) }}
                             @if(isset($row['effective_max_ads']) && $row['effective_max_ads'] > $settings->max_item_ads)
                             · max {{ $row['effective_max_ads'] }}
                             @endif)
-                            + increments Rp {{ number_format($row['increments'], 0, ',', '.') }}
-                            → planned Rp {{ number_format($row['planned'], 0, ',', '.') }}
+                            + increments Rp {{ format_amount($row['increments'], 0) }}
+                            → planned Rp {{ format_amount($row['planned'], 0) }}
                             · {{ $row['note'] }}
                             @endif
                         </td>
@@ -501,7 +501,7 @@ $saInnerCardWhite = 'space-y-3 rounded-lg border border-gray-200 bg-white p-4 da
                         <td class="{{ $saTd }}">{{ $adTypeLabels[$row->ad_type] ?? $row->ad_type ?? '—' }}</td>
                         <td class="{{ $saTd }} font-mono text-xs">
                             @if($row->before_budget !== null || $row->after_budget !== null)
-                            {{ number_format($row->before_budget ?? 0, 0, ',', '.') }} → {{ number_format($row->after_budget ?? 0, 0, ',', '.') }}
+                            {{ format_amount($row->before_budget ?? 0, 0) }} → {{ format_amount($row->after_budget ?? 0, 0) }}
                             @else — @endif
                         </td>
                         <td class="{{ $saTd }} {{ $saTextBody }}">{{ $row->message }}</td>

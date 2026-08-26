@@ -150,7 +150,7 @@
                         <span class="font-medium underline decoration-blue-500/30">{{ $transaction->user->name }}</span>
                     </div>
                     @endif
-                    @if($transaction->sync_cek && ($can['jubelio_transaction_sync'] ?? false))
+                    @if(config('services.jubelio.active') && $transaction->sync_cek && ($can['jubelio_transaction_sync'] ?? false))
                     <div class="flex justify-between pt-2 text-sm">
                         <span class="flex items-center gap-1.5 font-bold text-blue-600">
                             <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg> Sinkron Jubelio
@@ -247,13 +247,26 @@
                 <thead class="border-y bg-gray-50 text-[10px] font-bold tracking-wider text-gray-500 uppercase">
                     <tr>
                         <th class="px-3 py-2.5 text-center font-black" data-copy-col="image" x-show="showImage">Img</th>
-                        <th class="px-3 py-2.5 text-left font-black" data-copy-col="barcode" x-show="showBarcode">Barcode</th>
-                        <th class="px-3 py-2.5 text-left font-black" data-copy-col="sku" x-show="showSku">SKU</th>
-                        <th class="min-w-[12rem] px-3 py-2.5 text-left font-black" data-copy-col="name" x-show="showName">Item Name</th>
-                        <th class="px-3 py-2.5 text-center font-black" data-copy-col="qty">Qty</th>
-                        <th class="px-3 py-2.5 text-right font-black" data-copy-col="price">Price</th>
-                        <th class="px-3 py-2.5 text-right font-black" data-copy-col="disc">Disc(%)</th>
-                        <th class="px-3 py-2.5 text-right font-black" data-copy-col="subtotal">Subtotal</th>
+                        @foreach([
+                            ['col' => 'barcode', 'label' => 'Barcode', 'align' => 'text-left'],
+                            ['col' => 'sku', 'label' => 'SKU', 'align' => 'text-left'],
+                            ['col' => 'name', 'label' => 'Item Name', 'align' => 'text-left min-w-[12rem]'],
+                            ['col' => 'qty', 'label' => 'Qty', 'align' => 'text-center'],
+                            ['col' => 'price', 'label' => 'Price', 'align' => 'text-right'],
+                            ['col' => 'disc', 'label' => 'Disc(%)', 'align' => 'text-right'],
+                            ['col' => 'subtotal', 'label' => 'Subtotal', 'align' => 'text-right'],
+                        ] as $sortCol)
+                        <th class="px-3 py-2.5 font-black {{ $sortCol['align'] }}"
+                            data-copy-col="{{ $sortCol['col'] }}"
+                            @if(in_array($sortCol['col'], ['barcode', 'sku', 'name'], true)) x-show="{{ $sortCol['col'] === 'barcode' ? 'showBarcode' : ($sortCol['col'] === 'sku' ? 'showSku' : 'showName') }}" @endif>
+                            <button type="button"
+                                    @click="sortItems('{{ $sortCol['col'] }}')"
+                                    class="inline-flex w-full items-center gap-1 hover:text-gray-900 {{ str_contains($sortCol['align'], 'text-right') ? 'justify-end' : (str_contains($sortCol['align'], 'text-center') ? 'justify-center' : 'justify-start') }}">
+                                {{ $sortCol['label'] }}
+                                <span x-show="sortCol === '{{ $sortCol['col'] }}'" class="text-blue-600" x-text="sortDir === 'asc' ? '↑' : '↓'"></span>
+                            </button>
+                        </th>
+                        @endforeach
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100">
@@ -269,11 +282,11 @@
                                 @endif
                             </div>
                         </td>
-                        <td class="whitespace-nowrap px-3 py-2.5 align-middle font-mono text-xs" data-copy-col="barcode" x-show="showBarcode">
+                        <td class="whitespace-nowrap px-3 py-2.5 align-middle font-mono text-xs" data-copy-col="barcode" data-sort-value="{{ $item?->id ?? 0 }}" x-show="showBarcode">
                             <a href="{{ $item ? route('items.show', $item->id) : '#' }}" class="text-blue-600 hover:underline">{{ $item?->id }}</a>
                         </td>
-                        <td class="whitespace-nowrap px-3 py-2.5 align-middle font-mono text-xs italic text-gray-500" data-copy-col="sku" x-show="showSku">{{ $item?->code ?: '-' }}</td>
-                        <td class="px-3 py-2.5 align-middle" data-copy-col="name" x-show="showName">
+                        <td class="whitespace-nowrap px-3 py-2.5 align-middle font-mono text-xs italic text-gray-500" data-copy-col="sku" data-sort-value="{{ $item?->code ?: '' }}" x-show="showSku">{{ $item?->code ?: '-' }}</td>
+                        <td class="px-3 py-2.5 align-middle" data-copy-col="name" data-sort-value="{{ $item?->name ?: '' }}" x-show="showName">
                             <div class="font-bold text-gray-900">{{ $item?->name }}</div>
                             @if($item?->code)
                             <div class="mt-0.5 font-mono text-[10px] leading-tight text-gray-500">{{ $item?->code }}</div>
@@ -282,16 +295,16 @@
                             <div class="mt-1 text-xs italic text-gray-500">📝 {{ $detail->notes }}</div>
                             @endif
                         </td>
-                        <td class="whitespace-nowrap px-3 py-2.5 text-center align-middle font-black tabular-nums" data-copy-col="qty">{{ $detail->quantity }}</td>
-                        <td class="whitespace-nowrap px-3 py-2.5 text-right align-middle font-medium tabular-nums" data-copy-col="price">{{ $fmt($detail->price) }}</td>
-                        <td class="whitespace-nowrap px-3 py-2.5 text-right align-middle tabular-nums" data-copy-col="disc">
+                        <td class="whitespace-nowrap px-3 py-2.5 text-center align-middle font-black tabular-nums" data-copy-col="qty" data-sort-value="{{ $detail->quantity }}">{{ $detail->quantity }}</td>
+                        <td class="whitespace-nowrap px-3 py-2.5 text-right align-middle font-medium tabular-nums" data-copy-col="price" data-sort-value="{{ $detail->price }}">{{ $fmt($detail->price) }}</td>
+                        <td class="whitespace-nowrap px-3 py-2.5 text-right align-middle tabular-nums" data-copy-col="disc" data-sort-value="{{ (float) $detail->discount }}">
                             @if($detail->discount > 0)
-                                <span class="inline-flex h-5 items-center rounded-md border border-dashed border-red-300 bg-red-50 px-1.5 text-[10px] font-bold text-red-600">-{{ number_format((float) $detail->discount, 2, ',', '.') }}%</span>
+                                <span class="inline-flex h-5 items-center rounded-md border border-dashed border-red-300 bg-red-50 px-1.5 text-[10px] font-bold text-red-600">-{{ format_amount((float) $detail->discount) }}%</span>
                             @else
                                 <span class="text-gray-400">-</span>
                             @endif
                         </td>
-                        <td class="whitespace-nowrap px-3 py-2.5 text-right align-middle font-black text-blue-700 tabular-nums" data-copy-col="subtotal">{{ $fmt($detail->total) }}</td>
+                        <td class="whitespace-nowrap px-3 py-2.5 text-right align-middle font-black text-blue-700 tabular-nums" data-copy-col="subtotal" data-sort-value="{{ $detail->total }}">{{ $fmt($detail->total) }}</td>
                     </tr>
                     @endforeach
                 </tbody>
@@ -407,6 +420,8 @@ function transactionShowPage() {
         showName: typeof saved.showName === 'boolean' ? saved.showName : defaults.showName,
         copyFeedback: false,
         copyFeedbackTimer: null,
+        sortCol: null,
+        sortDir: 'asc',
         waOpen: false,
         deleteConfirmOpen: false,
         init() {
@@ -437,6 +452,54 @@ function transactionShowPage() {
             if (col === 'name') return this.showName;
 
             return true;
+        },
+        sortValueForRow(row, col) {
+            const cell = row.querySelector('[data-copy-col="' + col + '"]');
+            if (!cell) {
+                return '';
+            }
+
+            return cell.dataset.sortValue ?? '';
+        },
+        compareSortValues(a, b) {
+            const aNum = Number(a);
+            const bNum = Number(b);
+            const aIsNum = a !== '' && Number.isFinite(aNum);
+            const bIsNum = b !== '' && Number.isFinite(bNum);
+
+            if (aIsNum && bIsNum) {
+                return aNum - bNum;
+            }
+
+            return String(a).localeCompare(String(b), undefined, { sensitivity: 'base', numeric: true });
+        },
+        sortItems(col) {
+            const table = this.$refs.itemsTable;
+            if (!table) {
+                return;
+            }
+
+            const tbody = table.querySelector('tbody');
+            if (!tbody) {
+                return;
+            }
+
+            if (this.sortCol === col) {
+                this.sortDir = this.sortDir === 'asc' ? 'desc' : 'asc';
+            } else {
+                this.sortCol = col;
+                this.sortDir = 'asc';
+            }
+
+            const dir = this.sortDir === 'asc' ? 1 : -1;
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+
+            rows.sort((rowA, rowB) => this.compareSortValues(
+                this.sortValueForRow(rowA, col),
+                this.sortValueForRow(rowB, col),
+            ) * dir);
+
+            rows.forEach((row) => tbody.appendChild(row));
         },
         cellCopyValue(cell) {
             const img = cell.querySelector('img');

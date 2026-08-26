@@ -9,7 +9,7 @@ $breadcrumbs = [
     ['title' => 'Groups', 'href' => route('items.group')],
     ['title' => $detail['label'], 'href' => '#'],
 ];
-$fmt = fn ($v) => number_format((float) $v, 0, ',', '.');
+$fmt = fn ($v) => format_amount($v, 0);
 @endphp
 
 <div class="p-4 sm:p-6" x-data="groupWarehousePicker(@js($detail['warehouse_names']), @js($detail['parent_slug']))">

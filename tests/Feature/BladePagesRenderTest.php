@@ -112,7 +112,8 @@ it('renders the transaction show page', function () {
 
     $this->actingAs($this->user)
         ->get(route('transactions.show', $transaction))
-        ->assertOk();
+        ->assertOk()
+        ->assertSee('sortItems(', false);
 });
 
 it('renders the addrbook item sales page', function () {
@@ -164,6 +165,7 @@ it('renders migrated GET pages with a 200', function (string $route) {
     'report produksi potong' => 'reports/produksi-potong',
     'report produksi qc' => 'reports/produksi-qc',
     'report tax ppn' => 'reports/tax/ppn',
+    'report tax faktur' => 'reports/tax/faktur',
     'reporting entities' => 'reports/entities',
 
     // Admin / misc index pages

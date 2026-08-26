@@ -9,7 +9,7 @@ $breadcrumbs = [
     ['title' => 'Reports', 'href' => '#'],
     ['title' => 'Nett Cash', 'href' => route('reports.nett-cash-sby')],
 ];
-$fmt = fn($v) => 'Rp' . number_format((float) $v, 2, ',', '.');
+$fmt = fn($v) => 'Rp' . format_amount($v);
 $sum = fn($arr) => array_sum((array) $arr);
 
 $totalCashIn = $sum($customerReport->cashIn) + $sum($resellerReport->cashIn);

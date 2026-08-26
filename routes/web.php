@@ -58,6 +58,7 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::get('items/{item}/jubelio', [App\Http\Controllers\ItemsController::class, 'jubelio'])->name('items.jubelio');
     Route::get('items/{item}/jubelio-search', [App\Http\Controllers\ItemsController::class, 'getJubelioItems'])->name('items.jubelio-search');
     Route::post('items/{item}/jubelio-link', [App\Http\Controllers\ItemsController::class, 'updateJubelioId'])->name('items.jubelio-link');
+    Route::post('items/{item}/convert-identity', [App\Http\Controllers\ItemIdentityConvertController::class, 'store'])->name('items.convert-identity');
     Route::resource('items', App\Http\Controllers\ItemsController::class);
     Route::get('jubelio/order/cek', [App\Http\Controllers\JubelioController::class, 'cekOrder'])->name('jubelio.order.cek');
     Route::post('jubelio/order/cek/queue', [App\Http\Controllers\JubelioController::class, 'queueCekOrder'])->name('jubelio.order.cek.queue');
@@ -176,6 +177,7 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::delete('assetlancar/{item}', [App\Http\Controllers\ItemsController::class, 'destroy'])->name('assetlancar.destroy');
     Route::get('assetlancar/{item}/transactions', [App\Http\Controllers\ItemsController::class, 'itemTransactions'])->name('assetlancar.transactions');
     Route::get('assetlancar/{item}/stats', [App\Http\Controllers\ItemsController::class, 'itemStats'])->name('assetlancar.stats');
+    Route::post('assetlancar/{item}/convert-identity', [App\Http\Controllers\ItemIdentityConvertController::class, 'store'])->name('assetlancar.convert-identity');
 
     // Item Group Routes
     Route::get('items-group', [App\Http\Controllers\ItemsController::class, 'group'])->name('items.group');
@@ -236,6 +238,7 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
 
     Route::get('transactions/{type}/create', [App\Http\Controllers\TransactionsController::class, 'create'])->name('transactions.create');
     Route::get('transactions/{type}/item-by-id', [App\Http\Controllers\TransactionsController::class, 'itemById'])->name('transactions.item-by-id');
+    Route::get('transactions/{type}/item-by-code', [App\Http\Controllers\TransactionsController::class, 'itemByCode'])->name('transactions.item-by-code');
     Route::get('transactions/{type}/lookup/{role}', [App\Http\Controllers\TransactionLookupController::class, 'search'])->name('transactions.lookup');
     Route::get('tags/lookup', [App\Http\Controllers\TagLookupController::class, 'search'])->name('tags.lookup');
     Route::resource('tags', \App\Http\Controllers\Stuff\TagController::class);
@@ -327,6 +330,15 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
         Route::get('/produksi-potong', \App\Http\Controllers\Reports\ProduksiPotongReportController::class)->name('produksi-potong');
         Route::get('/produksi-qc', \App\Http\Controllers\Reports\ProduksiQcReportController::class)->name('produksi-qc');
         Route::get('/tax/ppn', \App\Http\Controllers\Reports\TaxPpnReportController::class)->name('tax.ppn');
+        Route::get('/tax/faktur', [\App\Http\Controllers\Reports\TaxFakturImportController::class, 'index'])->name('tax.faktur.index');
+        Route::get('/tax/faktur/create', [\App\Http\Controllers\Reports\TaxFakturImportController::class, 'create'])->name('tax.faktur.create');
+        Route::post('/tax/faktur/parse', [\App\Http\Controllers\Reports\TaxFakturImportController::class, 'parse'])->name('tax.faktur.parse');
+        Route::get('/tax/faktur/review', [\App\Http\Controllers\Reports\TaxFakturImportController::class, 'review'])->name('tax.faktur.review');
+        Route::get('/tax/faktur/cash-in-suggestions', [\App\Http\Controllers\Reports\TaxFakturImportController::class, 'cashInSuggestions'])->name('tax.faktur.cash-in-suggestions');
+        Route::post('/tax/faktur', [\App\Http\Controllers\Reports\TaxFakturImportController::class, 'store'])->name('tax.faktur.store');
+        Route::get('/tax/faktur/{import}', [\App\Http\Controllers\Reports\TaxFakturImportController::class, 'show'])->name('tax.faktur.show');
+        Route::patch('/tax/faktur/{import}/payment', [\App\Http\Controllers\Reports\TaxFakturImportController::class, 'updatePayment'])->name('tax.faktur.payment.update');
+        Route::get('/tax/faktur/{import}/pdf', [\App\Http\Controllers\Reports\TaxFakturImportController::class, 'downloadPdf'])->name('tax.faktur.pdf');
         Route::get('/entities', [\App\Http\Controllers\Reports\ReportingEntityController::class, 'index'])->name('entities.index');
         Route::post('/entities', [\App\Http\Controllers\Reports\ReportingEntityController::class, 'store'])->name('entities.store');
         Route::get('/entities/{entity}/edit', [\App\Http\Controllers\Reports\ReportingEntityController::class, 'edit'])->name('entities.edit');

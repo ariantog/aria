@@ -141,14 +141,14 @@ $breadcrumbs = [
                     @forelse($visible as $wh)
                     <div class="flex justify-between py-3" @if($wh->quantity < 1) x-show="showZero" @endif>
                         <span class="font-medium text-gray-700">{{ $wh->warehouse?->name ?? 'Warehouse #'.$wh->warehouse_id }}</span>
-                        <span class="font-mono font-bold {{ $wh->quantity > 0 ? 'text-green-600' : 'text-gray-400' }}">{{ number_format($wh->quantity, 0, ',', '.') }}</span>
+                        <span class="font-mono font-bold {{ $wh->quantity > 0 ? 'text-green-600' : 'text-gray-400' }}">{{ format_amount($wh->quantity, 0) }}</span>
                     </div>
                     @empty
                     <div class="py-4 italic text-gray-400">No stock found in warehouses.</div>
                     @endforelse
                     <div class="mt-2 flex justify-between border-t border-gray-200 py-4 text-lg font-bold">
                         <span class="text-gray-900">Total Quantity</span>
-                        <span class="font-mono text-green-600">{{ number_format($totalQty, 0, ',', '.') }}</span>
+                        <span class="font-mono text-green-600">{{ format_amount($totalQty, 0) }}</span>
                     </div>
                 </div>
             </div>

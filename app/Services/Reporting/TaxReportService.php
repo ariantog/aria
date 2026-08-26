@@ -5,6 +5,7 @@ namespace App\Services\Reporting;
 use App\Models\Addrbook;
 use App\Models\ReportingEntity;
 use App\Models\ReportingMonthlyTaxSummary;
+use App\Models\TaxFakturImport;
 use App\Models\Setting;
 use App\Models\Transaction;
 use Illuminate\Support\Carbon;
@@ -83,6 +84,14 @@ class TaxReportService
         $masukanDpp = $rawMasukanDpp - $returMasukanDpp;
         $masukanTax = $rawMasukanTax - $returMasukanTax;
 
+        $fakturKeluaran = $this->fakturTotals($entityIds, $year, $month, TaxFakturImport::DIRECTION_KELUARAN);
+        $fakturMasukan = $this->fakturTotals($entityIds, $year, $month, TaxFakturImport::DIRECTION_MASUKAN);
+
+        $keluaranDpp += $fakturKeluaran['dpp'];
+        $keluaranTax += $fakturKeluaran['ppn'];
+        $masukanDpp += $fakturMasukan['dpp'];
+        $masukanTax += $fakturMasukan['ppn'];
+
         return [
             'keluaran_dpp' => $keluaranDpp,
             'keluaran_tax' => $keluaranTax,
@@ -109,10 +118,13 @@ class TaxReportService
      *     invoice: string|null,
      *     type: string,
      *     type_label: string,
+     *     source_label: string|null,
      *     party: string,
      *     entity_name: string|null,
      *     dpp: float,
      *     ppn: float,
+     *     link_type: string,
+     *     link_id: int,
      * }>
      */
     public function keluaranRows(int $year, int $month, ?int $entityId): Collection
@@ -166,12 +178,12 @@ class TaxReportService
             ->get();
 
         foreach ($cashIns as $transaction) {
-            $entity = ReportingEntity::findActiveForBank((int) $transaction->receiver_id);
-            if (! $entity || ! $entity->is_pkp || ! $this->entityMatches($entity->id, $entityIds)) {
+            if (! $this->recorder->cashInShouldInferKeluaranTax($transaction)) {
                 continue;
             }
 
-            if ($this->recorder->hasMatchingSellTax($transaction)) {
+            $entity = ReportingEntity::findActiveForBank((int) $transaction->receiver_id);
+            if (! $entity || ! $this->entityMatches($entity->id, $entityIds)) {
                 continue;
             }
 
@@ -185,11 +197,14 @@ class TaxReportService
                 'date' => $transaction->date->toDateString(),
                 'invoice' => $transaction->invoice,
                 'type' => 'cash_in',
-                'type_label' => 'Penerimaan (CashIn)',
+                'type_label' => 'Penerimaan (non-pelanggan)',
+                'source_label' => null,
                 'party' => $this->partyName($transaction->sender_id),
                 'entity_name' => $entity->name,
                 'dpp' => $dpp,
                 'ppn' => $tax,
+                'link_type' => 'transaction',
+                'link_id' => $transaction->id,
             ]);
         }
 
@@ -219,9 +234,11 @@ class TaxReportService
             ));
         }
 
+        $rows = $rows->merge($this->fakturImportRows($entityIds, $year, $month, TaxFakturImport::DIRECTION_KELUARAN));
+
         return $rows->sortBy([
             ['date', 'asc'],
-            ['id', 'asc'],
+            ['link_id', 'asc'],
         ])->values();
     }
 
@@ -232,10 +249,13 @@ class TaxReportService
      *     invoice: string|null,
      *     type: string,
      *     type_label: string,
+     *     source_label: string|null,
      *     party: string,
      *     entity_name: string|null,
      *     dpp: float,
      *     ppn: float,
+     *     link_type: string,
+     *     link_id: int,
      * }>
      */
     public function masukanRows(int $year, int $month, ?int $entityId): Collection
@@ -304,9 +324,11 @@ class TaxReportService
             ));
         }
 
+        $rows = $rows->merge($this->fakturImportRows($entityIds, $year, $month, TaxFakturImport::DIRECTION_MASUKAN));
+
         return $rows->sortBy([
             ['date', 'asc'],
-            ['id', 'asc'],
+            ['link_id', 'asc'],
         ])->values();
     }
 
@@ -341,32 +363,38 @@ class TaxReportService
             fputcsv($out, ['Tax Paid', $ringkasan['tax_paid']]);
             fputcsv($out, []);
             fputcsv($out, ['Keluaran']);
-            fputcsv($out, ['Tanggal', 'Invoice', 'Tipe', 'Pihak', 'Entitas', 'DPP', 'PPN', 'ID Transaksi']);
+            fputcsv($out, ['Tanggal', 'Invoice', 'Tipe', 'Sumber', 'Pihak', 'Entitas', 'DPP', 'PPN', 'Ref']);
             foreach ($keluaran as $row) {
                 fputcsv($out, [
                     $row['date'],
                     $row['invoice'],
                     $row['type_label'],
+                    $row['source_label'] ?? '',
                     $row['party'],
                     $row['entity_name'],
                     $row['dpp'],
                     $row['ppn'],
-                    $row['id'],
+                    ($row['link_type'] ?? 'transaction') === 'faktur'
+                        ? 'faktur:'.$row['link_id']
+                        : 'tx:'.$row['link_id'],
                 ]);
             }
             fputcsv($out, []);
             fputcsv($out, ['Masukan']);
-            fputcsv($out, ['Tanggal', 'Invoice', 'Tipe', 'Pihak', 'Entitas', 'DPP', 'PPN', 'ID Transaksi']);
+            fputcsv($out, ['Tanggal', 'Invoice', 'Tipe', 'Sumber', 'Pihak', 'Entitas', 'DPP', 'PPN', 'Ref']);
             foreach ($masukan as $row) {
                 fputcsv($out, [
                     $row['date'],
                     $row['invoice'],
                     $row['type_label'],
+                    $row['source_label'] ?? '',
                     $row['party'],
                     $row['entity_name'],
                     $row['dpp'],
                     $row['ppn'],
-                    $row['id'],
+                    ($row['link_type'] ?? 'transaction') === 'faktur'
+                        ? 'faktur:'.$row['link_id']
+                        : 'tx:'.$row['link_id'],
                 ]);
             }
             fclose($out);
@@ -442,10 +470,13 @@ class TaxReportService
      *     invoice: string|null,
      *     type: string,
      *     type_label: string,
+     *     source_label: string|null,
      *     party: string,
      *     entity_name: string|null,
      *     dpp: float,
      *     ppn: float,
+     *     link_type: string,
+     *     link_id: int,
      * }
      */
     private function formatRow(
@@ -463,11 +494,86 @@ class TaxReportService
             'invoice' => $transaction->invoice,
             'type' => $type,
             'type_label' => $typeLabel,
+            'source_label' => null,
             'party' => $party,
             'entity_name' => $entityName,
             'dpp' => $dpp,
             'ppn' => $ppn,
+            'link_type' => 'transaction',
+            'link_id' => $transaction->id,
         ];
+    }
+
+    /**
+     * @return Collection<int, array{
+     *     id: int,
+     *     date: string,
+     *     invoice: string|null,
+     *     type: string,
+     *     type_label: string,
+     *     source_label: string|null,
+     *     party: string,
+     *     entity_name: string|null,
+     *     dpp: float,
+     *     ppn: float,
+     *     link_type: string,
+     *     link_id: int,
+     * }>
+     */
+    private function fakturImportRows(array $entityIds, int $year, int $month, string $direction): Collection
+    {
+        return TaxFakturImport::query()
+            ->with(['counterparty', 'reportingEntity'])
+            ->where('report_year', $year)
+            ->where('report_month', $month)
+            ->where('direction', $direction)
+            ->whereIn('reporting_entity_id', $entityIds)
+            ->orderBy('faktur_date')
+            ->orderBy('id')
+            ->get()
+            ->map(fn (TaxFakturImport $import) => $this->formatFakturRow($import));
+    }
+
+    /**
+     * @return array{
+     *     id: int,
+     *     date: string,
+     *     invoice: string|null,
+     *     type: string,
+     *     type_label: string,
+     *     source_label: string|null,
+     *     party: string,
+     *     entity_name: string|null,
+     *     dpp: float,
+     *     ppn: float,
+     *     link_type: string,
+     *     link_id: int,
+     * }
+     */
+    private function formatFakturRow(TaxFakturImport $import): array
+    {
+        return [
+            'id' => $import->id,
+            'date' => $import->faktur_date?->toDateString() ?? '',
+            'invoice' => $import->faktur_number,
+            'type' => 'faktur_import',
+            'type_label' => 'Import faktur',
+            'source_label' => $this->fakturSourceLabel($import->source_format),
+            'party' => $import->counterparty?->name ?? '—',
+            'entity_name' => $import->reportingEntity?->name,
+            'dpp' => (float) $import->dpp,
+            'ppn' => (float) $import->ppn,
+            'link_type' => 'faktur',
+            'link_id' => $import->id,
+        ];
+    }
+
+    private function fakturSourceLabel(?string $sourceFormat): string
+    {
+        return match ($sourceFormat) {
+            'mds_output_tax_invoice' => 'MDS faktur',
+            default => 'Import PDF',
+        };
     }
 
     /**
@@ -489,6 +595,25 @@ class TaxReportService
      *     retur_masukan_tax: float,
      * }
      */
+    /**
+     * @return array{dpp: float, ppn: float}
+     */
+    private function fakturTotals(array $entityIds, int $year, int $month, string $direction): array
+    {
+        $row = TaxFakturImport::query()
+            ->where('report_year', $year)
+            ->where('report_month', $month)
+            ->where('direction', $direction)
+            ->whereIn('reporting_entity_id', $entityIds)
+            ->selectRaw('COALESCE(SUM(dpp), 0) as dpp, COALESCE(SUM(ppn), 0) as ppn')
+            ->first();
+
+        return [
+            'dpp' => (float) $row->dpp,
+            'ppn' => (float) $row->ppn,
+        ];
+    }
+
     private function emptyRingkasan(): array
     {
         return [

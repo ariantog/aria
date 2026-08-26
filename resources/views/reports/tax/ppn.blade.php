@@ -4,7 +4,7 @@
 
 @section('content')
 @php
-$fmt = fn ($v) => number_format((float) $v, 2, ',', '.');
+$fmt = fn ($v) => format_amount($v);
 $monthNames = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
 $exportQuery = http_build_query([
     'year' => $filters['year'],
@@ -29,13 +29,23 @@ $exportQuery = http_build_query([
                 (data agregat {{ \App\Services\Reporting\TaxReportService::MIN_YEAR }}+)
             </p>
         </div>
-        <a
-            href="{{ route('reports.tax.ppn') }}?{{ $exportQuery }}"
-            class="inline-flex items-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-            data-testid="ppn-export-csv"
-        >
-            Export CSV
-        </a>
+        <div class="flex flex-wrap gap-2">
+            @can('report-tax-faktur')
+            <a
+                href="{{ route('reports.tax.faktur.index') }}"
+                class="inline-flex items-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            >
+                Faktur Pajak
+            </a>
+            @endcan
+            <a
+                href="{{ route('reports.tax.ppn') }}?{{ $exportQuery }}"
+                class="inline-flex items-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                data-testid="ppn-export-csv"
+            >
+                Export CSV
+            </a>
+        </div>
     </div>
 
     <div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
@@ -128,6 +138,7 @@ $exportQuery = http_build_query([
                             <th class="px-3 py-2 font-medium">Tanggal</th>
                             <th class="px-3 py-2 font-medium">Invoice</th>
                             <th class="px-3 py-2 font-medium">Tipe</th>
+                            <th class="px-3 py-2 font-medium">Sumber</th>
                             <th class="px-3 py-2 font-medium">Pihak</th>
                             @if($showEntityColumn)
                                 <th class="px-3 py-2 font-medium">Entitas</th>
@@ -143,6 +154,7 @@ $exportQuery = http_build_query([
                                 <td class="px-3 py-2 tabular-nums">{{ $row['date'] }}</td>
                                 <td class="px-3 py-2">{{ $row['invoice'] ?? '—' }}</td>
                                 <td class="px-3 py-2">{{ $row['type_label'] }}</td>
+                                <td class="px-3 py-2 text-xs text-gray-500">{{ $row['source_label'] ?? '—' }}</td>
                                 <td class="px-3 py-2">{{ $row['party'] }}</td>
                                 @if($showEntityColumn)
                                     <td class="px-3 py-2">{{ $row['entity_name'] }}</td>
@@ -150,12 +162,16 @@ $exportQuery = http_build_query([
                                 <td class="px-3 py-2 text-right tabular-nums">{{ $fmt($row['dpp']) }}</td>
                                 <td class="px-3 py-2 text-right tabular-nums">{{ $fmt($row['ppn']) }}</td>
                                 <td class="px-3 py-2">
-                                    <a href="{{ route('transactions.show', $row['id']) }}" class="text-blue-600 hover:underline">#{{ $row['id'] }}</a>
+                                    @if(($row['link_type'] ?? 'transaction') === 'faktur')
+                                        <a href="{{ route('reports.tax.faktur.show', $row['link_id']) }}" class="text-blue-600 hover:underline">Faktur</a>
+                                    @else
+                                        <a href="{{ route('transactions.show', $row['link_id']) }}" class="text-blue-600 hover:underline">#{{ $row['link_id'] }}</a>
+                                    @endif
                                 </td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="{{ $showEntityColumn ? 8 : 7 }}" class="px-3 py-6 text-center text-gray-500">Tidak ada baris keluaran untuk periode ini.</td>
+                                <td colspan="{{ $showEntityColumn ? 9 : 8 }}" class="px-3 py-6 text-center text-gray-500">Tidak ada baris keluaran untuk periode ini.</td>
                             </tr>
                         @endforelse
                     </tbody>
@@ -184,6 +200,7 @@ $exportQuery = http_build_query([
                             <th class="px-3 py-2 font-medium">Tanggal</th>
                             <th class="px-3 py-2 font-medium">Invoice</th>
                             <th class="px-3 py-2 font-medium">Tipe</th>
+                            <th class="px-3 py-2 font-medium">Sumber</th>
                             <th class="px-3 py-2 font-medium">Pihak</th>
                             @if($showEntityColumn)
                                 <th class="px-3 py-2 font-medium">Entitas</th>
@@ -199,6 +216,7 @@ $exportQuery = http_build_query([
                                 <td class="px-3 py-2 tabular-nums">{{ $row['date'] }}</td>
                                 <td class="px-3 py-2">{{ $row['invoice'] ?? '—' }}</td>
                                 <td class="px-3 py-2">{{ $row['type_label'] }}</td>
+                                <td class="px-3 py-2 text-xs text-gray-500">{{ $row['source_label'] ?? '—' }}</td>
                                 <td class="px-3 py-2">{{ $row['party'] }}</td>
                                 @if($showEntityColumn)
                                     <td class="px-3 py-2">{{ $row['entity_name'] }}</td>
@@ -206,12 +224,16 @@ $exportQuery = http_build_query([
                                 <td class="px-3 py-2 text-right tabular-nums">{{ $fmt($row['dpp']) }}</td>
                                 <td class="px-3 py-2 text-right tabular-nums">{{ $fmt($row['ppn']) }}</td>
                                 <td class="px-3 py-2">
-                                    <a href="{{ route('transactions.show', $row['id']) }}" class="text-blue-600 hover:underline">#{{ $row['id'] }}</a>
+                                    @if(($row['link_type'] ?? 'transaction') === 'faktur')
+                                        <a href="{{ route('reports.tax.faktur.show', $row['link_id']) }}" class="text-blue-600 hover:underline">Faktur</a>
+                                    @else
+                                        <a href="{{ route('transactions.show', $row['link_id']) }}" class="text-blue-600 hover:underline">#{{ $row['link_id'] }}</a>
+                                    @endif
                                 </td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="{{ $showEntityColumn ? 8 : 7 }}" class="px-3 py-6 text-center text-gray-500">Tidak ada baris masukan untuk periode ini.</td>
+                                <td colspan="{{ $showEntityColumn ? 9 : 8 }}" class="px-3 py-6 text-center text-gray-500">Tidak ada baris masukan untuk periode ini.</td>
                             </tr>
                         @endforelse
                     </tbody>

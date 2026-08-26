@@ -50,12 +50,11 @@ return [
     'cash-in' => [
         'id' => \App\Models\Transaction::TYPE_CASH_IN,
         'receiver_type' => [\App\Models\Addrbook::TYPE_BANK],
-        // sender is dynamic per row in legacy flow, but we can set a broad type if needed or keep it flexible
-        'sender_type' => [\App\Models\Addrbook::TYPE_CUSTOMER, \App\Models\Addrbook::TYPE_SUPPLIER, \App\Models\Addrbook::TYPE_RESELLER, \App\Models\Addrbook::TYPE_ACCOUNT],
+        'sender_type' => \App\Models\Addrbook::cashPartyTypes(),
     ],
     'cash-out' => [
         'id' => \App\Models\Transaction::TYPE_CASH_OUT,
         'sender_type' => [\App\Models\Addrbook::TYPE_BANK],
-        'receiver_type' => [\App\Models\Addrbook::TYPE_CUSTOMER, \App\Models\Addrbook::TYPE_SUPPLIER, \App\Models\Addrbook::TYPE_RESELLER, \App\Models\Addrbook::TYPE_ACCOUNT],
+        'receiver_type' => \App\Models\Addrbook::cashPartyTypes(),
     ],
 ];

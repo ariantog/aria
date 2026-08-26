@@ -122,19 +122,48 @@ class TransactionsController extends Controller
         }
 
         return response()->json([
-            'item' => [
-                'id' => $item->id,
-                'code' => $item->getItemCode(),
-                'name' => $item->name ?: $item->getItemName(),
-                'type' => $item->type->value,
-                'price' => (float) $item->price,
-                'cost' => (float) $item->cost,
-                'warehouse_item' => $item->warehouseItems->map(fn ($wi) => [
-                    'warehouse_id' => (string) $wi->warehouse_id,
-                    'quantity' => (float) $wi->quantity,
-                ])->values()->all(),
-            ],
+            'item' => $this->itemLookupPayload($item),
         ]);
+    }
+
+    /**
+     * Resolve a typed SKU for line-item rows (canonical code or legacy_code).
+     */
+    public function itemByCode(string $type, Request $request)
+    {
+        Transaction::authorizeTypeAccess($type);
+
+        $validated = $request->validate([
+            'code' => ['required', 'string', 'max:255'],
+        ]);
+
+        $item = \App\Models\Item::findBySku($validated['code']);
+        if ($item) {
+            $item->loadMissing('warehouseItems');
+        }
+
+        return response()->json([
+            'item' => $item ? $this->itemLookupPayload($item) : null,
+        ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function itemLookupPayload(\App\Models\Item $item): array
+    {
+        return [
+            'id' => $item->id,
+            'code' => $item->getItemCode(),
+            'name' => $item->name ?: $item->getItemName(),
+            'type' => $item->type->value,
+            'price' => (float) $item->price,
+            'cost' => (float) $item->cost,
+            'warehouse_item' => $item->warehouseItems->map(fn ($wi) => [
+                'warehouse_id' => (string) $wi->warehouse_id,
+                'quantity' => (float) $wi->quantity,
+            ])->values()->all(),
+        ];
     }
 
     public function store(StoreItemTransactionRequest $request, CreateItemTransaction $action, BookClosingService $bookClosingService)
@@ -250,7 +279,8 @@ class TransactionsController extends Controller
             return 'Contact';
         };
         $jubelioSync = $jubelioSyncPresenter->applyToTransaction($transaction);
-        $jubelioSync['show_ui'] = $jubelioSync['can_sync']
+        $jubelioSync['show_ui'] = config('services.jubelio.active')
+            && $jubelioSync['can_sync']
             && $jubelioSync['sync_cek']
             && Transaction::userCanJubelioTransactionSync(Auth::user());
         $invoiceService = app(TransactionInvoiceService::class);
@@ -430,16 +460,19 @@ class TransactionsController extends Controller
         return response()->json(['data' => $dataList, 'totalQty' => collect($dataList)->sum('quantity'), 'totalPrice' => collect($dataList)->sum('subtotal')]);
     }
 
-    public function destroy(Transaction $transaction, TransactionService $service)
+    public function destroy(Transaction $transaction, TransactionService $service, BookClosingService $bookClosingService)
     {
         Gate::authorize(Transaction::getPermissions()['delete']);
         if ($transaction->isFromJubelio()) {
             return back()->with('error', 'Jubelio-synced transactions cannot be deleted.');
         }
 
-        $transaction->load('details');
+        $transaction->load(['details', 'sender', 'receiver']);
+        $sender = $transaction->sender;
+        $receiver = $transaction->receiver;
+        $bookClosingService->validateDate($transaction->date->format('Y-m-d'));
 
-        DB::transaction(function () use ($transaction, $service) {
+        DB::transaction(function () use ($transaction, $service, $sender, $receiver) {
             $deletedColumns = array_flip(Schema::getColumnListing((new DeletedTransaction)->getTable()));
             $transactionData = array_intersect_key($transaction->getAttributes(), $deletedColumns);
             $transactionData['deleted_at'] = now();
@@ -461,6 +494,13 @@ class TransactionsController extends Controller
 
             $transaction->details()->delete();
             $transaction->delete();
+
+            if ($sender instanceof \App\Models\Addrbook) {
+                $service->syncStatFromLatestTransaction($sender);
+            }
+            if ($receiver instanceof \App\Models\Addrbook) {
+                $service->syncStatFromLatestTransaction($receiver);
+            }
         });
 
         return redirect()->route('transactions.index')->with('success', 'Transaction moved to deleted.');

@@ -60,6 +60,26 @@ class SpecialSkuConverterRules
     }
 
     /**
+     * @return array{id: string, label: string, pcode_prefix: string, sizes: array<int, string>, legacy_example: string, canonical_example: string}|null
+     */
+    public function matchingFamilyPrefix(string $code): ?array
+    {
+        $code = strtoupper(trim($code));
+
+        if ($code === '') {
+            return null;
+        }
+
+        foreach (self::families() as $family) {
+            if (str_starts_with($code, strtoupper($family['pcode_prefix']))) {
+                return $family;
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * @return array{
      *     family_id: string,
      *     pcode: string,
