@@ -35,6 +35,12 @@ return [
         ],
     ],
 
+    'telegram' => [
+        'bot_token' => env('TELEGRAM_BOT_TOKEN'),
+        // Comma-separated chat/user ids (same as Python ALLOWED_TELEGRAM_USER_ID).
+        'chat_ids' => env('TELEGRAM_CHAT_IDS', env('ALLOWED_TELEGRAM_USER_ID')),
+    ],
+
     'shopee_ads' => [
         'active' => env('SHOPEE_ADS_ACTIVE', false),
         'partner_id' => env('SHOPEE_PARTNER_ID'),
