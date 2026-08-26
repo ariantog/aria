@@ -118,3 +118,29 @@ it('syncs item ads from Shopee and marks missing campaigns closed', function () 
         ->and(\App\Models\ShopeeAdsItemAd::find('live-1')->item_id)->toBe(12345)
         ->and(\App\Models\ShopeeAdsItemAd::find('stale-1')->status)->toBe('closed');
 });
+
+it('stores large Shopee platform item ids', function () {
+    $api = Mockery::mock(ShopeeAdsApiService::class);
+    $api->shouldReceive('listManualProductAds')
+        ->once()
+        ->with(true)
+        ->andReturn([
+            [
+                'campaign_id' => 'live-big',
+                'campaign_name' => 'Big ID',
+                'budget' => 100000.0,
+                'status' => 'ongoing',
+                'item_id' => 44233481234,
+            ],
+        ]);
+
+    $engine = new ShopeeAdsEngineService(
+        $api,
+        app(\App\Services\ShopeeAds\ShopeeAdsSpecialRulesService::class),
+        Mockery::mock(\App\Services\ShopeeAds\ShopeeAdsTelegramNotifier::class)->shouldIgnoreMissing(),
+    );
+
+    $engine->syncItemAds();
+
+    expect(\App\Models\ShopeeAdsItemAd::find('live-big')->item_id)->toBe(44233481234);
+});
