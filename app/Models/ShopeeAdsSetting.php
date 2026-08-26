@@ -97,6 +97,19 @@ class ShopeeAdsSetting extends Model
 
     public function isPaused(): bool
     {
-        return $this->status !== 'active';
+        return ! $this->isAutomationActive();
+    }
+
+    /** Laravel `active` or Python bot legacy `Running`. */
+    public function isAutomationActive(): bool
+    {
+        $status = strtolower(trim((string) $this->status));
+
+        return in_array($status, ['active', 'running'], true);
+    }
+
+    public function normalizedStatus(): string
+    {
+        return $this->isAutomationActive() ? 'active' : 'paused';
     }
 }

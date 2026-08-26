@@ -37,11 +37,15 @@ return [
 
     'telegram' => [
         'bot_token' => env('TELEGRAM_BOT_TOKEN'),
-        // Comma-separated chat/user ids (same as Python ALLOWED_TELEGRAM_USER_ID).
-        'chat_ids' => env('TELEGRAM_CHAT_IDS', env('ALLOWED_TELEGRAM_USER_ID')),
+        // Comma-separated ids for sendMessage chat_id (private chat = same as user id).
+        'chat_ids' => env('TELEGRAM_CHAT_IDS'),
+        // Python bot compat — merged when TELEGRAM_CHAT_IDS is empty.
+        'allowed_user_ids' => env('ALLOWED_TELEGRAM_USER_ID'),
     ],
 
     'shopee_ads' => [
+        // All schedule / daily-reset / replenish times are WIB (GMT+7, same as Asia/Jakarta).
+        'timezone' => env('SHOPEE_ADS_TIMEZONE', env('APP_TIMEZONE', 'Asia/Jakarta')),
         'partner_id' => env('SHOPEE_PARTNER_ID'),
         'partner_key' => env('SHOPEE_PARTNER_KEY'),
         'base_url' => env('SHOPEE_BASE_URL', 'https://partner.shopeemobile.com'),

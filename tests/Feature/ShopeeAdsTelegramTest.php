@@ -28,6 +28,7 @@ it('does not call telegram when token or chat ids are missing', function () {
     config([
         'services.telegram.bot_token' => null,
         'services.telegram.chat_ids' => null,
+        'services.telegram.allowed_user_ids' => null,
     ]);
 
     Http::fake();
@@ -35,6 +36,20 @@ it('does not call telegram when token or chat ids are missing', function () {
     app(ShopeeAdsTelegramNotifier::class)->send('hello');
 
     Http::assertNothingSent();
+});
+
+it('falls back to ALLOWED_TELEGRAM_USER_ID when TELEGRAM_CHAT_IDS is empty', function () {
+    config([
+        'services.telegram.bot_token' => 'test-token',
+        'services.telegram.chat_ids' => '',
+        'services.telegram.allowed_user_ids' => '999',
+    ]);
+
+    Http::fake(['api.telegram.org/*' => Http::response(['ok' => true])]);
+
+    app(ShopeeAdsTelegramNotifier::class)->send('ping');
+
+    Http::assertSent(fn ($request) => $request['chat_id'] === '999');
 });
 
 it('notifies admins when GMV increment runs from schedule', function () {

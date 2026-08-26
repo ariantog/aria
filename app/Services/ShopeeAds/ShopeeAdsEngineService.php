@@ -23,7 +23,12 @@ class ShopeeAdsEngineService
 
     public function jakartaNow(): Carbon
     {
-        return Carbon::now('Asia/Jakarta');
+        return Carbon::now($this->automationTimezone());
+    }
+
+    private function automationTimezone(): string
+    {
+        return (string) config('services.shopee_ads.timezone', 'Asia/Jakarta');
     }
 
     public function runDueSchedules(): int
@@ -31,7 +36,9 @@ class ShopeeAdsEngineService
         $settings = ShopeeAdsSetting::current();
 
         if ($settings->isPaused()) {
-            Log::info('Shopee Ads schedules skipped: automation paused');
+            Log::info('Shopee Ads schedules skipped: automation not active', [
+                'status' => $settings->status,
+            ]);
 
             return 0;
         }
@@ -43,19 +50,15 @@ class ShopeeAdsEngineService
         }
 
         $now = $this->jakartaNow();
-        $currentSlot = $now->format('H:i');
         $ran = 0;
 
         $schedules = ShopeeAdsSchedule::query()
             ->where('enabled', true)
-            ->where('run_time', $currentSlot)
-            ->get();
+            ->orderBy('run_time')
+            ->get()
+            ->filter(fn (ShopeeAdsSchedule $schedule) => $this->isScheduleDue($schedule, $now));
 
         foreach ($schedules as $schedule) {
-            if ($this->scheduleAlreadyRanToday($schedule, $now)) {
-                continue;
-            }
-
             if (! in_array($schedule->ad_type, ShopeeAdsType::supportedScheduleTypes(), true)) {
                 Log::warning('Shopee Ads schedule skipped (legacy / unsupported API)', ['ad_type' => $schedule->ad_type]);
                 $schedule->update(['last_run_at' => $now]);
@@ -75,9 +78,152 @@ class ShopeeAdsEngineService
 
             $schedule->update(['last_run_at' => $now]);
             $ran++;
+
+            Log::info('Shopee Ads schedule ran', [
+                'ad_type' => $schedule->ad_type,
+                'run_time' => $schedule->run_time,
+                'wib' => $now->format('Y-m-d H:i:s'),
+            ]);
         }
 
         return $ran;
+    }
+
+    /**
+     * Human-readable reasons when shopee-ads:process does nothing (for CLI / ops).
+     *
+     * @return array{
+     *     now_wib: string,
+     *     now_utc: string,
+     *     current_slot: string,
+     *     automation_timezone: string,
+     *     app_timezone: string,
+     *     php_timezone: string,
+     *     paused: bool,
+     *     authorized: bool,
+     *     automation_active: bool,
+     *     settings_status: string,
+     *     schedules: list<string>,
+     *     daily_reset: list<string>,
+     *     replenish: list<string>,
+     * }
+     */
+    public function getRunDiagnostics(): array
+    {
+        $settings = ShopeeAdsSetting::current();
+        $now = $this->jakartaNow();
+        $currentSlot = $now->format('H:i');
+
+        $scheduleNotes = [];
+        if ($settings->isPaused()) {
+            $scheduleNotes[] = sprintf(
+                'Automasi tidak aktif (status DB: «%s»). Resume di /shopee-ads — legacy Python memakai Running, Laravel active.',
+                $settings->status,
+            );
+        }
+
+        if (! $this->api->hasShopAuthorization()) {
+            $scheduleNotes[] = 'Shop tidak terotorisasi — Authorize Shopee di /shopee-ads.';
+        }
+
+        $enabledSchedules = ShopeeAdsSchedule::query()
+            ->where('enabled', true)
+            ->orderBy('run_time')
+            ->get();
+
+        $dueNow = $enabledSchedules->filter(fn (ShopeeAdsSchedule $schedule) => $this->isScheduleDue($schedule, $now));
+
+        if ($dueNow->isNotEmpty() && $scheduleNotes === []) {
+            foreach ($dueNow as $schedule) {
+                $scheduleNotes[] = "Due now: {$schedule->ad_type} @ {$schedule->run_time} (akan jalan pada tick cron ini).";
+            }
+        }
+
+        if ($dueNow->isEmpty() && $scheduleNotes === []) {
+            if ($enabledSchedules->isEmpty()) {
+                $scheduleNotes[] = 'Tidak ada jadwal increment — tambahkan di /shopee-ads.';
+            } else {
+                $slots = $enabledSchedules->map(fn ($s) => $s->run_time.' ('.$s->ad_type.')')->unique()->values()->all();
+                $scheduleNotes[] = "Belum ada jadwal due di {$currentSlot} WIB (increment jalan setelah HH:MM, catch-up sampai midnight).";
+                $scheduleNotes[] = 'Jadwal aktif: '.implode(', ', $slots);
+            }
+        }
+
+        $disabledSchedules = ShopeeAdsSchedule::query()->where('enabled', false)->count();
+        if ($disabledSchedules > 0) {
+            $scheduleNotes[] = "{$disabledSchedules} jadwal disabled (enabled=0) — tidak akan jalan.";
+        }
+
+        $dailyResetNotes = $this->timedJobNotes(
+            $now,
+            (int) $settings->daily_reset_hour,
+            (int) $settings->daily_reset_minute,
+            $settings->last_daily_reset_at,
+            'daily reset',
+        );
+
+        if (! $this->api->hasShopAuthorization()) {
+            $dailyResetNotes[] = 'Shop tidak terotorisasi.';
+        }
+
+        $replenishNotes = [];
+        if (! $settings->item_replenish_enabled) {
+            $replenishNotes[] = 'Item replenish disabled di pengaturan.';
+        } else {
+            $replenishNotes = array_merge(
+                $replenishNotes,
+                $this->timedJobNotes(
+                    $now,
+                    (int) $settings->item_replenish_hour,
+                    (int) $settings->item_replenish_minute,
+                    $settings->last_item_replenish_at,
+                    'item replenish',
+                ),
+            );
+        }
+
+        if (! $settings->item_ads_enabled) {
+            $replenishNotes[] = 'Item ads subsystem disabled.';
+        }
+
+        if (! $this->api->hasShopAuthorization()) {
+            $replenishNotes[] = 'Shop tidak terotorisasi.';
+        }
+
+        return [
+            'now_wib' => $now->format('Y-m-d H:i:s'),
+            'now_utc' => Carbon::now('UTC')->format('Y-m-d H:i:s'),
+            'current_slot' => $currentSlot,
+            'automation_timezone' => $this->automationTimezone(),
+            'app_timezone' => (string) config('app.timezone'),
+            'php_timezone' => date_default_timezone_get(),
+            'paused' => $settings->isPaused(),
+            'authorized' => $this->api->hasShopAuthorization(),
+            'automation_active' => $settings->isAutomationActive(),
+            'settings_status' => (string) $settings->status,
+            'schedules' => $scheduleNotes,
+            'daily_reset' => $dailyResetNotes,
+            'replenish' => $replenishNotes,
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function timedJobNotes(Carbon $now, int $hour, int $minute, ?Carbon $lastRun, string $label): array
+    {
+        $slot = sprintf('%02d:%02d', $hour, $minute);
+        $notes = [];
+
+        if ($now->hour !== $hour || $now->minute !== $minute) {
+            $notes[] = "{$label} hanya di {$slot} WIB (sekarang {$now->format('H:i')}).";
+        }
+
+        if ($lastRun && $lastRun->timezone($this->automationTimezone())->isSameDay($now)) {
+            $notes[] = "{$label} sudah jalan hari ini ({$lastRun->timezone($this->automationTimezone())->format('H:i')} WIB).";
+        }
+
+        return $notes;
     }
 
     public function runDailyResetIfDue(): bool
@@ -568,7 +714,48 @@ class ShopeeAdsEngineService
             return false;
         }
 
-        return $schedule->last_run_at->timezone('Asia/Jakarta')->isSameDay($now);
+        return $schedule->last_run_at->timezone($this->automationTimezone())->isSameDay($now);
+    }
+
+    private function isScheduleDue(ShopeeAdsSchedule $schedule, Carbon $now): bool
+    {
+        if ($this->scheduleAlreadyRanToday($schedule, $now)) {
+            return false;
+        }
+
+        $runTime = $this->normalizeRunTime($schedule->run_time);
+        if ($runTime === null) {
+            return false;
+        }
+
+        $scheduledAt = $this->scheduledAtToday($runTime, $now);
+
+        // Catch up any time after HH:MM WIB same day (cron runs every minute).
+        return $now->greaterThanOrEqualTo($scheduledAt);
+    }
+
+    private function normalizeRunTime(string $runTime): ?string
+    {
+        $raw = trim($runTime);
+        if (preg_match('/^(\d{1,2}):(\d{2})$/', $raw, $matches) !== 1) {
+            return null;
+        }
+
+        $hour = (int) $matches[1];
+        $minute = (int) $matches[2];
+
+        if ($hour > 23 || $minute > 59) {
+            return null;
+        }
+
+        return sprintf('%02d:%02d', $hour, $minute);
+    }
+
+    private function scheduledAtToday(string $runTime, Carbon $now): Carbon
+    {
+        [$hour, $minute] = array_map('intval', explode(':', $runTime));
+
+        return $now->copy()->startOfDay()->setTime($hour, $minute, 0);
     }
 
     private function isDueAt(ShopeeAdsSetting $settings, Carbon $now, int $hour, int $minute, ?Carbon $lastRun): bool
@@ -581,7 +768,7 @@ class ShopeeAdsEngineService
             return true;
         }
 
-        return ! $lastRun->timezone('Asia/Jakarta')->isSameDay($now);
+        return ! $lastRun->timezone($this->automationTimezone())->isSameDay($now);
     }
 
     private function recordHistory(

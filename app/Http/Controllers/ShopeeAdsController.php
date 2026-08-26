@@ -31,6 +31,8 @@ class ShopeeAdsController extends Controller
         $connection = $api->getConnectionStatus();
         $cronTask = ScheduledTask::query()->where('command', 'shopee-ads:process')->first();
         $automationBlockers = $this->automationBlockers($settings, $api, $connection, $cronTask);
+        $automationTimezone = (string) config('services.shopee_ads.timezone', 'Asia/Jakarta');
+        $nowWib = app(ShopeeAdsEngineService::class)->jakartaNow();
 
         return view('shopee-ads.index', [
             'settings' => $settings,
@@ -42,6 +44,8 @@ class ShopeeAdsController extends Controller
             'connection' => $connection,
             'cronTask' => $cronTask,
             'automationBlockers' => $automationBlockers,
+            'automationTimezone' => $automationTimezone,
+            'nowWib' => $nowWib,
             'oauthRedirectUrl' => $api->getOAuthRedirectUrl(),
             'oauthErrorHint' => $api->formatOAuthErrorForUser($api->getLastOAuthError()),
             'planned' => $this->plannedEndOfDay($settings, $schedules, $specialRules),
@@ -131,11 +135,10 @@ class ShopeeAdsController extends Controller
         Gate::authorize(ShopeeAds::getPermissions()['edit']);
 
         $settings = ShopeeAdsSetting::current();
-        $settings->update([
-            'status' => $settings->isPaused() ? 'active' : 'paused',
-        ]);
+        $wasActive = $settings->isAutomationActive();
+        $settings->update(['status' => $wasActive ? 'paused' : 'active']);
 
-        return back()->with('success', $settings->isPaused() ? 'Automasi di-pause.' : 'Automasi diaktifkan.');
+        return back()->with('success', $wasActive ? 'Automasi di-pause.' : 'Automasi diaktifkan.');
     }
 
     public function authorizeShop(ShopeeAdsApiService $api): RedirectResponse
@@ -171,6 +174,22 @@ class ShopeeAdsController extends Controller
         }
 
         return redirect()->route('shopee-ads.index')->with('success', 'Shopee shop berhasil diotorisasi.');
+    }
+
+    public function runSchedules(ShopeeAdsEngineService $engine): RedirectResponse
+    {
+        Gate::authorize(ShopeeAds::getPermissions()['edit']);
+
+        $settings = ShopeeAdsSetting::current();
+        if (! $settings->isAutomationActive()) {
+            return back()->with('error', 'Automasi paused — Resume dulu sebelum menjalankan jadwal.');
+        }
+
+        $ran = $engine->runDueSchedules();
+
+        return back()->with('success', $ran > 0
+            ? "{$ran} jadwal increment dijalankan."
+            : 'Tidak ada jadwal yang due (belum lewat HH:MM WIB atau sudah jalan hari ini).');
     }
 
     public function replenish(ShopeeAdsEngineService $engine): RedirectResponse
@@ -221,7 +240,10 @@ class ShopeeAdsController extends Controller
         }
 
         if ($settings->isPaused()) {
-            $blockers[] = 'Automasi di-pause — klik Resume di halaman ini.';
+            $blockers[] = sprintf(
+                'Automasi tidak aktif (status DB: «%s»). Klik Resume.',
+                $settings->status,
+            );
         }
 
         if (! $api->isConfigured()) {

@@ -21,13 +21,25 @@ class ShopeeAdsTelegramNotifier
      */
     private function chatIds(): array
     {
-        $raw = (string) config('services.telegram.chat_ids', '');
+        $ids = [];
 
-        if ($raw === '') {
-            return [];
+        foreach ([
+            (string) config('services.telegram.chat_ids', ''),
+            (string) config('services.telegram.allowed_user_ids', ''),
+        ] as $raw) {
+            if ($raw === '') {
+                continue;
+            }
+
+            foreach (explode(',', $raw) as $part) {
+                $part = trim($part);
+                if ($part !== '') {
+                    $ids[] = $part;
+                }
+            }
         }
 
-        return array_values(array_filter(array_map('trim', explode(',', $raw))));
+        return array_values(array_unique($ids));
     }
 
     public function send(string $text): void
@@ -48,9 +60,14 @@ class ShopeeAdsTelegramNotifier
                 ]);
 
                 if (! $response->successful()) {
+                    $payload = $response->json();
+                    $description = is_array($payload) ? (string) ($payload['description'] ?? '') : '';
+
                     Log::warning('Shopee Ads Telegram notify failed', [
                         'chat_id' => $chatId,
                         'status' => $response->status(),
+                        'telegram_error' => $description,
+                        'hint' => $this->hintForTelegramError($description),
                         'body' => $response->body(),
                     ]);
                 }
@@ -61,6 +78,23 @@ class ShopeeAdsTelegramNotifier
                 ]);
             }
         }
+    }
+
+    private function hintForTelegramError(string $description): ?string
+    {
+        if (str_contains($description, 'bot was blocked by the user')) {
+            return 'User blocked this bot — unblock in Telegram, open the bot, send /start, then retry.';
+        }
+
+        if (str_contains($description, 'chat not found')) {
+            return 'Wrong chat_id or user never started the bot — message the bot /start first; use message.chat.id from getUpdates (not from.id in a group).';
+        }
+
+        if (str_contains($description, "can't initiate conversation")) {
+            return 'User must message the bot first (/start) before the bot can send alerts.';
+        }
+
+        return null;
     }
 
     public function notifyGmvIncrement(string $runTime, int $before, int $after): void
