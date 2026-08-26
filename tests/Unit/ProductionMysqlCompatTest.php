@@ -27,6 +27,22 @@ it('uses sentinel values for other not-null zero-date columns', function () {
     expect(ProductionMysqlCompat::zeroDateReplacement('year', 'NO'))->toBe("'1970-01-01'");
 });
 
+it('detects invalid legacy dates including mysql zero dates and negative years', function () {
+    expect(ProductionMysqlCompat::isInvalidLegacyDate(null))->toBeTrue();
+    expect(ProductionMysqlCompat::isInvalidLegacyDate('0000-00-00'))->toBeTrue();
+    expect(ProductionMysqlCompat::isInvalidLegacyDate('-0001-11-30 00:00:00'))->toBeTrue();
+    expect(ProductionMysqlCompat::isInvalidLegacyDate('2026-08-26'))->toBeFalse();
+});
+
+it('sanitizes invalid legacy dates for inserts', function () {
+    expect(ProductionMysqlCompat::sanitizeLegacyDateValue('-0001-11-30 00:00:00', 'date', false))
+        ->toBe('1970-01-01');
+    expect(ProductionMysqlCompat::sanitizeLegacyDateValue('0000-00-00', 'date', true))
+        ->toBeNull();
+    expect(ProductionMysqlCompat::sanitizeLegacyDateValue('2026-08-26 00:00:00', 'date', false))
+        ->toBe('2026-08-26');
+});
+
 it('builds relaxed temporal definitions without invalid timestamp defaults', function () {
     expect(ProductionMysqlCompat::relaxedTemporalDefinition('timestamp'))
         ->toBe('TIMESTAMP NULL DEFAULT NULL');
