@@ -37,9 +37,11 @@ it('parses a csv and returns warehouse stock for the selected warehouse', functi
     $response->assertSuccessful()
         ->assertJsonPath('data.0.code', 'ACCHJ0002206L')
         ->assertJsonPath('data.0.quantity', 2)
-        ->assertJsonPath('data.0.price', 0)
+        ->assertJsonPath('data.0.price', 50_000)
+        ->assertJsonPath('data.0.csv_price', 0)
         ->assertJsonPath('data.0.warehouse_stock', 12)
-        ->assertJsonPath('data.0.warehouse_item.0.warehouse_id', (string) $warehouse->id);
+        ->assertJsonPath('data.0.warehouse_item.0.warehouse_id', (string) $warehouse->id)
+        ->assertJsonPath('data.0.subtotal', 100_000);
 
     expect((float) $response->json('data.0.warehouse_item.0.quantity'))->toBe(12.0);
 });

@@ -406,7 +406,12 @@ class TransactionsController extends Controller
                 $csvPrice = (float) $row['price'];
                 $itemPrice = (float) $item->price;
                 $itemCost = (float) $item->cost;
-                $unitPrice = $priceSource === 'cost' ? $itemCost : $csvPrice;
+                $type = $validated['type'] ?? '';
+                $unitPrice = match (true) {
+                    $priceSource === 'cost' => $itemCost,
+                    $type === 'move' => $itemPrice,
+                    default => $csvPrice,
+                };
                 $dataList[] = [
                     'id' => (string) $item->id,
                     'item_id' => (string) $item->id,
