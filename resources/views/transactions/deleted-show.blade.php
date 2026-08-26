@@ -18,7 +18,7 @@
     $status = $statuses[$transaction->status] ?? ['label' => 'Unknown', 'color' => 'bg-gray-100 text-gray-800'];
 
     $fmt = fn ($n) => format_amount($n);
-    $grandTotalFormatted = $fmt(abs($transaction->real_total));
+    $grandTotalFormatted = $fmt($transaction->displayGrandTotal());
     $grandTotalHeroClass = \App\Support\AmountFormatter::displayTextClass($grandTotalFormatted, 'hero');
     $grandTotalCompactClass = \App\Support\AmountFormatter::displayTextClass($grandTotalFormatted, 'compact');
     $fmtDate = fn ($d) => $d ? \Illuminate\Support\Carbon::parse($d)->format('d/m/Y') : '-';
@@ -312,7 +312,7 @@
             <div class="space-y-3 p-6 tabular-nums">
                 <div class="flex items-center justify-between text-sm">
                     <span class="text-gray-500">Subtotal</span>
-                    <span class="font-bold">{{ $fmt($transaction->total) }}</span>
+                    <span class="font-bold">{{ $fmt($transaction->displaySummarySubtotal()) }}</span>
                 </div>
                 <div class="flex items-center justify-between text-sm">
                     <span class="text-gray-500">Invoice Discount ({{ $transaction->discount ?? 0 }}%)</span>
