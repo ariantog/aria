@@ -76,13 +76,6 @@ $saInnerCardWhite = 'space-y-3 rounded-lg border border-gray-200 bg-white p-4';
         @endif
     </div>
 
-    @if(session('success'))
-    <div class="{{ $saAlertSuccess }}">{{ session('success') }}</div>
-    @endif
-    @if(session('error'))
-    <div class="{{ $saAlertError }}">{{ session('error') }}</div>
-    @endif
-
     @if($automationBlockers !== [])
     <div class="{{ $saAlertWarn }}" data-testid="shopee-ads-automation-blockers">
         <p class="font-medium">Automasi tidak berjalan:</p>
