@@ -87,9 +87,10 @@ $breadcrumbs = [
             <p class="mt-1 text-xs text-gray-500">Shop {{ $connection['shop_id'] }}</p>
             @endif
             @if($connection['last_error'])
-            <p class="mt-2 text-xs text-red-600">{{ $connection['last_error'] }}</p>
+            <p class="mt-2 text-xs text-red-600">{{ $oauthErrorHint ?? $connection['last_error'] }}</p>
             @endif
             <p class="mt-2 text-xs text-gray-400">Redirect: {{ $oauthRedirectUrl }}</p>
+            <p class="mt-1 text-xs text-gray-400">API calls: whitelist server outbound IP di Shopee Open Platform → App list → IP Address Whitelist.</p>
         </div>
     </div>
 

@@ -37,6 +37,7 @@ class ShopeeAdsController extends Controller
             'supportedTypes' => ShopeeAdsType::supportedScheduleTypes(),
             'connection' => $api->getConnectionStatus(),
             'oauthRedirectUrl' => $api->getOAuthRedirectUrl(),
+            'oauthErrorHint' => $api->formatOAuthErrorForUser($api->getLastOAuthError()),
             'planned' => $this->plannedEndOfDay($settings, $schedules, $specialRules),
             'ruleStatus' => $ruleStatus,
             'canEdit' => request()->user()?->can(ShopeeAds::getPermissions()['edit']) ?? false,
@@ -154,7 +155,7 @@ class ShopeeAdsController extends Controller
         $result = $api->exchangeAuthCode($code, $shopId);
 
         if (! $result) {
-            $detail = $api->getLastOAuthError();
+            $detail = $api->formatOAuthErrorForUser($api->getLastOAuthError());
             $message = 'Gagal menukar kode OAuth Shopee.';
             if ($detail) {
                 $message .= ' '.$detail;

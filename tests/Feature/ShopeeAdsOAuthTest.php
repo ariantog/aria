@@ -38,6 +38,14 @@ it('surfaces shopee api error on token exchange', function () {
         ->and($api->getLastOAuthError())->toContain('Invalid code');
 });
 
+it('formats source ip undeclared error for users', function () {
+    $api = app(ShopeeAdsApiService::class);
+    $detail = 'Token exchange failed (HTTP 403): {"error":"source_ip_undeclared","message":"Request Source IP (153.92.8.208) is undeclared."}';
+
+    expect($api->formatOAuthErrorForUser($detail))->toContain('153.92.8.208')
+        ->and($api->formatOAuthErrorForUser($detail))->toContain('IP Address Whitelist');
+});
+
 it('stores tokens when shopee returns success payload', function () {
     Http::fake([
         'partner.shopeemobile.com/*' => Http::response([
