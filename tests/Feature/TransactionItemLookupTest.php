@@ -167,6 +167,68 @@ it('returns null when sku does not match code or legacy_code', function () {
         ->assertJsonPath('item', null);
 });
 
+it('resolves an item by exact name when code and legacy_code do not match', function () {
+    $this->user->givePermissionTo('transactions-type-sell');
+
+    $item = Item::factory()->create([
+        'name' => 'AJD CX00084/01 L',
+        'code' => 'AJD-CX00084-01-L',
+        'price' => 150_000,
+    ]);
+
+    $this->actingAs($this->user)
+        ->getJson(route('transactions.item-by-code', ['type' => 'sell', 'code' => 'AJD CX00084/01 L']))
+        ->assertSuccessful()
+        ->assertJsonPath('item.id', $item->id)
+        ->assertJsonPath('item.code', 'AJD-CX00084-01-L')
+        ->assertJsonPath('item.name', 'AJD CX00084/01 L');
+});
+
+it('resolves an item by name case-insensitively', function () {
+    $this->user->givePermissionTo('transactions-type-sell');
+
+    $item = Item::factory()->create([
+        'name' => 'Essential Shirt - Red - L',
+        'code' => 'AJD-CX00084-01-L',
+    ]);
+
+    $this->actingAs($this->user)
+        ->getJson(route('transactions.item-by-code', ['type' => 'sell', 'code' => 'essential shirt - red - l']))
+        ->assertSuccessful()
+        ->assertJsonPath('item.id', $item->id);
+});
+
+it('returns null when multiple items share the same name', function () {
+    $this->user->givePermissionTo('transactions-type-sell');
+
+    Item::factory()->create(['name' => 'Duplicate Name', 'code' => 'DUP-01']);
+    Item::factory()->create(['name' => 'Duplicate Name', 'code' => 'DUP-02']);
+
+    $this->actingAs($this->user)
+        ->getJson(route('transactions.item-by-code', ['type' => 'sell', 'code' => 'Duplicate Name']))
+        ->assertSuccessful()
+        ->assertJsonPath('item', null);
+});
+
+it('prefers code match over name when both could match', function () {
+    $this->user->givePermissionTo('transactions-type-sell');
+
+    $byCode = Item::factory()->create([
+        'name' => 'Other Product',
+        'code' => 'TARGET-CODE',
+    ]);
+    Item::factory()->create([
+        'name' => 'TARGET-CODE',
+        'code' => 'OTHER-CODE',
+    ]);
+
+    $this->actingAs($this->user)
+        ->getJson(route('transactions.item-by-code', ['type' => 'sell', 'code' => 'TARGET-CODE']))
+        ->assertSuccessful()
+        ->assertJsonPath('item.id', $byCode->id)
+        ->assertJsonPath('item.name', 'Other Product');
+});
+
 it('prefers numeric barcode id lookup before legacy sku when both could match', function () {
     $this->user->givePermissionTo('transactions-type-sell');
 
