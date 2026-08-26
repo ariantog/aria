@@ -45,6 +45,7 @@ it('renders the transactions index with its rows', function () {
         ->get('/transactions')
         ->assertOk()
         ->assertSee('Total', false)
+        ->assertSee('Description', false)
         ->assertSee('INV-SMOKE-1', false)
         ->assertSee('Test Supplier', false);
 });
