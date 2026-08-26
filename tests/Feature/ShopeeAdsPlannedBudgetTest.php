@@ -42,8 +42,8 @@ it('includes item ad starting budget in the end-of-day plan', function () {
     $this->actingAs($user)
         ->get(route('shopee-ads.index'))
         ->assertOk()
-        ->assertSee('2 ads × Rp 30.000', false)
-        ->assertSee('Start Rp 60.000', false)
-        ->assertSee('+ increments Rp 80.000', false)
-        ->assertSee('→ planned Rp 140.000', false);
+        ->assertSee('2 ads × Rp 30,000', false)
+        ->assertSee('Start Rp 60,000', false)
+        ->assertSee('+ increments Rp 80,000', false)
+        ->assertSee('→ planned Rp 140,000', false);
 });
