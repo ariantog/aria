@@ -15,9 +15,6 @@ use Illuminate\Support\Facades\Log;
  */
 class ShopeeAdsEngineService
 {
-    /** Minutes after HH:MM WIB to still run a missed schedule (cron runs every minute). */
-    private const SCHEDULE_GRACE_MINUTES = 15;
-
     public function __construct(
         private readonly ShopeeAdsApiService $api,
         private readonly ShopeeAdsSpecialRulesService $specialRules,
@@ -39,7 +36,9 @@ class ShopeeAdsEngineService
         $settings = ShopeeAdsSetting::current();
 
         if ($settings->isPaused()) {
-            Log::info('Shopee Ads schedules skipped: automation paused');
+            Log::info('Shopee Ads schedules skipped: automation not active', [
+                'status' => $settings->status,
+            ]);
 
             return 0;
         }
@@ -102,6 +101,8 @@ class ShopeeAdsEngineService
      *     php_timezone: string,
      *     paused: bool,
      *     authorized: bool,
+     *     automation_active: bool,
+     *     settings_status: string,
      *     schedules: list<string>,
      *     daily_reset: list<string>,
      *     replenish: list<string>,
@@ -115,7 +116,10 @@ class ShopeeAdsEngineService
 
         $scheduleNotes = [];
         if ($settings->isPaused()) {
-            $scheduleNotes[] = 'Automasi PAUSED — jadwal increment tidak jalan (Resume di /shopee-ads). Manual Daily Reset tetap bisa.';
+            $scheduleNotes[] = sprintf(
+                'Automasi tidak aktif (status DB: «%s»). Resume di /shopee-ads — legacy Python memakai Running, Laravel active.',
+                $settings->status,
+            );
         }
 
         if (! $this->api->hasShopAuthorization()) {
@@ -140,32 +144,14 @@ class ShopeeAdsEngineService
                 $scheduleNotes[] = 'Tidak ada jadwal increment — tambahkan di /shopee-ads.';
             } else {
                 $slots = $enabledSchedules->map(fn ($s) => $s->run_time.' ('.$s->ad_type.')')->unique()->values()->all();
-                $scheduleNotes[] = "Tidak ada jadwal due di slot {$currentSlot} WIB (grace ".self::SCHEDULE_GRACE_MINUTES.' menit setelah HH:MM).';
+                $scheduleNotes[] = "Belum ada jadwal due di {$currentSlot} WIB (increment jalan setelah HH:MM, catch-up sampai midnight).";
                 $scheduleNotes[] = 'Jadwal aktif: '.implode(', ', $slots);
             }
         }
 
-        foreach ($enabledSchedules as $schedule) {
-            if ($this->scheduleAlreadyRanToday($schedule, $now)) {
-                continue;
-            }
-
-            $runTime = $this->normalizeRunTime($schedule->run_time);
-            if ($runTime === null) {
-                $scheduleNotes[] = "Jadwal {$schedule->ad_type} punya run_time invalid: {$schedule->run_time}";
-
-                continue;
-            }
-
-            $scheduledAt = $this->scheduledAtToday($runTime, $now);
-            if ($now->lt($scheduledAt)) {
-                continue;
-            }
-
-            $graceEnd = $scheduledAt->copy()->addMinutes(self::SCHEDULE_GRACE_MINUTES);
-            if ($now->gt($graceEnd)) {
-                $scheduleNotes[] = "{$schedule->ad_type} @ {$runTime} terlewat hari ini (grace habis {$graceEnd->format('H:i')} WIB).";
-            }
+        $disabledSchedules = ShopeeAdsSchedule::query()->where('enabled', false)->count();
+        if ($disabledSchedules > 0) {
+            $scheduleNotes[] = "{$disabledSchedules} jadwal disabled (enabled=0) — tidak akan jalan.";
         }
 
         $dailyResetNotes = $this->timedJobNotes(
@@ -213,6 +199,8 @@ class ShopeeAdsEngineService
             'php_timezone' => date_default_timezone_get(),
             'paused' => $settings->isPaused(),
             'authorized' => $this->api->hasShopAuthorization(),
+            'automation_active' => $settings->isAutomationActive(),
+            'settings_status' => (string) $settings->status,
             'schedules' => $scheduleNotes,
             'daily_reset' => $dailyResetNotes,
             'replenish' => $replenishNotes,
@@ -742,11 +730,8 @@ class ShopeeAdsEngineService
 
         $scheduledAt = $this->scheduledAtToday($runTime, $now);
 
-        if ($now->lt($scheduledAt)) {
-            return false;
-        }
-
-        return $now->lte($scheduledAt->copy()->addMinutes(self::SCHEDULE_GRACE_MINUTES));
+        // Catch up any time after HH:MM WIB same day (cron runs every minute).
+        return $now->greaterThanOrEqualTo($scheduledAt);
     }
 
     private function normalizeRunTime(string $runTime): ?string

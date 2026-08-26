@@ -26,6 +26,12 @@ $breadcrumbs = [
                     {{ $settings->isPaused() ? 'Resume' : 'Pause' }}
                 </button>
             </form>
+            <form method="POST" action="{{ route('shopee-ads.run-schedules') }}">
+                @csrf
+                <button type="submit" class="rounded-lg border border-blue-300 bg-blue-50 px-4 py-2 text-sm font-medium text-blue-900 hover:bg-blue-100">
+                    Run Jadwal Now
+                </button>
+            </form>
             <form method="POST" action="{{ route('shopee-ads.replenish') }}">
                 @csrf
                 <button type="submit" class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
@@ -74,9 +80,12 @@ $breadcrumbs = [
     <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
         <div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
             <p class="text-xs font-medium uppercase text-gray-400">Status</p>
-            <p class="mt-2 text-lg font-semibold {{ $settings->isPaused() ? 'text-amber-700' : 'text-green-700' }}">
-                {{ $settings->isPaused() ? 'Paused' : 'Active' }}
+            <p class="mt-2 text-lg font-semibold {{ $settings->isAutomationActive() ? 'text-green-700' : 'text-amber-700' }}">
+                {{ $settings->isAutomationActive() ? 'Active' : 'Paused' }}
             </p>
+            @if(strtolower(trim($settings->status)) !== 'active' && strtolower(trim($settings->status)) !== 'paused')
+            <p class="mt-1 text-xs text-gray-500">DB status: <code class="text-xs">{{ $settings->status }}</code></p>
+            @endif
         </div>
         <div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
             <p class="text-xs font-medium uppercase text-gray-400">GMV Max (tracked)</p>
@@ -359,7 +368,7 @@ $breadcrumbs = [
     <div class="rounded-xl border border-gray-200 bg-white shadow-sm">
         <div class="border-b border-gray-100 px-6 py-4">
             <h2 class="text-sm font-semibold text-gray-900">Jadwal</h2>
-            <p class="mt-1 text-xs text-gray-500">Increment jalan otomatis pada HH:MM WIB (grace 15 menit jika cron telat). Butuh status <strong>Active</strong> — Pause mematikan jadwal; manual reset tetap jalan.</p>
+            <p class="mt-1 text-xs text-gray-500">Increment jalan setelah HH:MM WIB (catch-up sampai midnight). Status <strong>Active</strong> atau legacy <code class="text-xs">Running</code> — bukan Paused.</p>
         </div>
         <div class="overflow-x-auto">
             <table class="min-w-full text-sm">

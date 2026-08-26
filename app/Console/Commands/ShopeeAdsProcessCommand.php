@@ -40,6 +40,8 @@ class ShopeeAdsProcessCommand extends Command
      *     php_timezone: string,
      *     paused: bool,
      *     authorized: bool,
+     *     automation_active: bool,
+     *     settings_status: string,
      *     schedules: list<string>,
      *     daily_reset: list<string>,
      *     replenish: list<string>,
@@ -51,7 +53,7 @@ class ShopeeAdsProcessCommand extends Command
         $this->comment('Diagnostics');
         $this->line('  WIB (GMT+7): '.$diag['now_wib'].' — slot '.$diag['current_slot']);
         $this->line('  UTC: '.$diag['now_utc'].' | PHP tz: '.$diag['php_timezone'].' | app: '.$diag['app_timezone'].' | automation: '.$diag['automation_timezone']);
-        $this->line('  Status: '.($diag['paused'] ? 'PAUSED' : 'active').'; OAuth: '.($diag['authorized'] ? 'ok' : 'missing'));
+        $this->line('  Status: '.($diag['paused'] ? 'not active' : 'active').' (DB: '.$diag['settings_status'].')'.'; OAuth: '.($diag['authorized'] ? 'ok' : 'missing'));
 
         $this->line('  Schedules:');
         foreach ($diag['schedules'] as $note) {

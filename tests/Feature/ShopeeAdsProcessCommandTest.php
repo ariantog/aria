@@ -16,7 +16,9 @@ it('runs the engine even when SHOPEE_ADS_ACTIVE env is unset', function () {
         'php_timezone' => 'UTC',
         'paused' => false,
         'authorized' => true,
-        'schedules' => ['Tidak ada jadwal untuk slot 11:00 WIB sekarang.'],
+        'automation_active' => true,
+        'settings_status' => 'active',
+        'schedules' => ['Belum ada jadwal due di 11:00 WIB'],
         'daily_reset' => ['daily reset hanya di 00:00 WIB (sekarang 11:00).'],
         'replenish' => ['item replenish hanya di 02:30 WIB (sekarang 11:00).'],
     ]);
