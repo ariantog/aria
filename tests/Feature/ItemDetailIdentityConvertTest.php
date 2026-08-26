@@ -92,6 +92,18 @@ it('rejects generic convert for special sku posts', function () {
     expect($item->fresh()->group_id)->toBeNull();
 });
 
+it('detail convert context treats legacy group_id zero as ungrouped', function () {
+    $service = app(LegacyItemConverterService::class);
+    $item = makeLegacyAssetItem('KNEESUPPORT-21-WHITE-S');
+    $item->group_id = 0;
+
+    $context = $service->detailConvertContext($item);
+
+    expect($service->hasProductGroup($item))->toBeFalse()
+        ->and($context['visible'])->toBeTrue()
+        ->and($context['convertible'])->toBeTrue();
+});
+
 it('detail convert context requires no group and pending legacy column', function () {
     $service = app(LegacyItemConverterService::class);
     $item = makeLegacyAssetItem('GLOVE-01-BLACK-S');

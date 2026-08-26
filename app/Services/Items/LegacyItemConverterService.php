@@ -99,6 +99,14 @@ class LegacyItemConverterService
         return ! $this->hasPreservedLegacyCode($item);
     }
 
+    /**
+     * Legacy rows use group_id 0 for "no group"; only positive IDs are real groups.
+     */
+    public function hasProductGroup(Item $item): bool
+    {
+        return (int) $item->group_id > 0;
+    }
+
     protected function applyPendingConversionScope(Builder $query): void
     {
         $query->where(function (Builder $pending) {
@@ -647,7 +655,7 @@ class LegacyItemConverterService
 
     protected function isAlreadyCanonical(Item $item, LegacyParseResult $parse): bool
     {
-        if ($item->group_id === null) {
+        if (! $this->hasProductGroup($item)) {
             return false;
         }
 
@@ -736,7 +744,7 @@ class LegacyItemConverterService
             return array_merge($hidden, ['message' => 'Unsupported item type for identity conversion.']);
         }
 
-        if ($item->group_id !== null) {
+        if ($this->hasProductGroup($item)) {
             return array_merge($hidden, ['message' => 'Item already belongs to a product group.']);
         }
 
