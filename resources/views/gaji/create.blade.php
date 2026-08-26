@@ -9,7 +9,7 @@ $breadcrumbs = [
     ['title' => $karyawan->nama, 'href' => route('karyawan.show', $karyawan->id)],
     ['title' => 'Bikin Gaji', 'href' => '#'],
 ];
-$fmt = fn($v) => number_format((float)($v ?? 0), 0, ',', '.');
+$fmt = fn($v) => format_amount($v ?? 0, 0);
 $monthNames = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
 $rupiahHarian = $karyawan->harian * 26;
 @endphp
@@ -65,7 +65,7 @@ $rupiahHarian = $karyawan->harian * 26;
                 const pot = Number(this.potongBulanan) + Number(this.potongPremi) + Number(this.sanksi);
                 return hk - pot;
             },
-            fmt(v) { return Number(v || 0).toLocaleString('id-ID'); }
+            fmt(v) { return formatAmountId(v); },
          }">
         {{-- Kalkulasi Sistem --}}
         <div class="rounded-xl border border-blue-200 bg-blue-50/50 shadow-sm md:col-span-1">

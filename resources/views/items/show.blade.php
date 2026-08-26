@@ -97,8 +97,8 @@ $nb = optional($item->group)->description2 ?? ($item->description2 ?? '-');
                     <div class="grid grid-cols-1 gap-6 border-t border-gray-100 pt-4 md:grid-cols-2">
                         <div>
                             <p class="mb-2 text-[10px] font-bold uppercase tracking-widest text-gray-500">Pricing</p>
-                            <p class="text-2xl font-black tracking-tight text-gray-900">Rp {{ number_format($item->price, 0, ',', '.') }}</p>
-                            <p class="mt-1 text-[10px] text-gray-500">Base Cost: <span class="text-gray-700">Rp {{ number_format($item->cost, 0, ',', '.') }}</span></p>
+                            <p class="text-2xl font-black tracking-tight text-gray-900">Rp {{ format_amount($item->price, 0) }}</p>
+                            <p class="mt-1 text-[10px] text-gray-500">Base Cost: <span class="text-gray-700">Rp {{ format_amount($item->cost, 0) }}</span></p>
                         </div>
                         <div>
                             <p class="mb-2 text-[10px] font-bold uppercase tracking-widest text-gray-500">Group &amp; Tags</p>
@@ -132,10 +132,10 @@ $nb = optional($item->group)->description2 ?? ($item->description2 ?? '-');
                     </label>
                     <div class="text-xs font-medium text-gray-500">
                         Active Stock:
-                        <span class="text-gray-900">{{ number_format($activeStock, 0, ',', '.') }} Units</span>
+                        <span class="text-gray-900">{{ format_amount($activeStock, 0) }} Units</span>
                         @if($deletedStock > 0)
                             <span class="text-gray-400">·</span>
-                            <span class="text-rose-700">{{ number_format($deletedStock, 0, ',', '.') }} in deleted warehouses</span>
+                            <span class="text-rose-700">{{ format_amount($deletedStock, 0) }} in deleted warehouses</span>
                         @endif
                     </div>
                 </div>
@@ -152,7 +152,7 @@ $nb = optional($item->group)->description2 ?? ($item->description2 ?? '-');
                     <button type="button"
                             @click="showDeletedWarehouses = !showDeletedWarehouses"
                             class="flex w-full items-center justify-between rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-left text-sm font-semibold text-rose-800 hover:bg-rose-100">
-                        <span>Deleted Warehouses ({{ number_format($deletedStock, 0, ',', '.') }} units)</span>
+                        <span>Deleted Warehouses ({{ format_amount($deletedStock, 0) }} units)</span>
                         <svg class="h-4 w-4 transition-transform" :class="showDeletedWarehouses ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                     </button>
                     <div x-show="showDeletedWarehouses" x-cloak class="mt-4">

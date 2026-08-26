@@ -33,7 +33,7 @@
                     'text-blue-600' => ! $deleted && $wh->quantity > 0,
                     'text-rose-700' => $deleted && $wh->quantity > 0,
                     'text-gray-400' => $wh->quantity < 1,
-                ])>{{ number_format($wh->quantity, 0, ',', '.') }}</p>
+                ])>{{ format_amount($wh->quantity, 0) }}</p>
                 <p class="text-[10px] font-bold uppercase text-gray-400">{{ $wh->quantity > 0 ? 'Units' : 'Out of Stock' }}</p>
             </div>
         </div>

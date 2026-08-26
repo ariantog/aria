@@ -366,7 +366,7 @@ $queryParams = fn (array $extra = []) => array_filter(array_merge([
                         <span class="text-gray-500">· {{ $section['warna'] }}</span>
                         @endif
                         <span class="rounded bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
-                            demand {{ number_format($section['family_demand_score'], 0, ',', '.') }} <span class="font-normal text-emerald-600">(365d)</span>
+                            demand {{ format_amount($section['family_demand_score'], 0) }} <span class="font-normal text-emerald-600">(365d)</span>
                         </span>
                         <span class="rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">
                             {{ $section['present_count'] }}/{{ $section['total_count'] }} sizes ({{ $section['completeness_pct'] }}%)
@@ -417,7 +417,7 @@ $queryParams = fn (array $extra = []) => array_filter(array_merge([
                             @php $cell = $section['cells'][$size] ?? null; @endphp
                             <td class="arrangement-size-cell arrangement-col-dest text-emerald-700">
                                 @if($cell && ($cell['demand'] ?? 0) > 0)
-                                {{ number_format($cell['demand'], 0, ',', '.') }}
+                                {{ format_amount($cell['demand'], 0) }}
                                 @else
                                 —
                                 @endif
@@ -572,7 +572,7 @@ function refreshProgress(config) {
         progressLine() {
             let line = `Started by ${this.initiatedBy} · Phase: ${this.phaseLabel()}`;
             if (this.phase === 'stats' && this.totalItems > 0) {
-                line += ` · ${Number(this.itemCursor).toLocaleString('id-ID')}/${Number(this.totalItems).toLocaleString('id-ID')} SKU(s) · ${this.progressPercent}%`;
+                line += ` · ${formatNumberId(this.itemCursor)}/${formatNumberId(this.totalItems)} SKU(s) · ${this.progressPercent}%`;
             }
             return line;
         },

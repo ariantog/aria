@@ -69,14 +69,14 @@ $breadcrumbs = [
         </div>
         <div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
             <p class="text-xs font-medium uppercase text-gray-400">GMV Max (tracked)</p>
-            <p class="mt-2 text-lg font-semibold text-gray-900">Rp {{ number_format($settings->gms_current_budget, 0, ',', '.') }}</p>
+            <p class="mt-2 text-lg font-semibold text-gray-900">Rp {{ format_amount($settings->gms_current_budget, 0) }}</p>
             @if($settings->gms_campaign_id)
             <p class="mt-1 text-xs text-gray-500">Campaign {{ $settings->gms_campaign_id }}</p>
             @endif
         </div>
         <div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
             <p class="text-xs font-medium uppercase text-gray-400">Combined daily cap</p>
-            <p class="mt-2 text-lg font-semibold text-gray-900">Rp {{ number_format($settings->daily_max_budget, 0, ',', '.') }}</p>
+            <p class="mt-2 text-lg font-semibold text-gray-900">Rp {{ format_amount($settings->daily_max_budget, 0) }}</p>
         </div>
         <div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
             <p class="text-xs font-medium uppercase text-gray-400">OAuth</p>
@@ -117,18 +117,18 @@ $breadcrumbs = [
                         <td class="px-6 py-3 font-medium">{{ $adTypeLabels[$type] ?? $type }}</td>
                         <td class="px-6 py-3 text-gray-600">
                             @if($type === 'gmv_max')
-                            Start Rp {{ number_format($row['start'], 0, ',', '.') }}
-                            + increments Rp {{ number_format($row['increments'], 0, ',', '.') }}
-                            → planned Rp {{ number_format($row['planned'], 0, ',', '.') }}
-                            (cap Rp {{ number_format($row['cap'], 0, ',', '.') }})
+                            Start Rp {{ format_amount($row['start'], 0) }}
+                            + increments Rp {{ format_amount($row['increments'], 0) }}
+                            → planned Rp {{ format_amount($row['planned'], 0) }}
+                            (cap Rp {{ format_amount($row['cap'], 0) }})
                             @else
-                            Start Rp {{ number_format($row['start'], 0, ',', '.') }}
-                            ({{ $row['active_ads'] }} ads × Rp {{ number_format($row['start_per_ad'], 0, ',', '.') }}
+                            Start Rp {{ format_amount($row['start'], 0) }}
+                            ({{ $row['active_ads'] }} ads × Rp {{ format_amount($row['start_per_ad'], 0) }}
                             @if(isset($row['effective_max_ads']) && $row['effective_max_ads'] > $settings->max_item_ads)
                             · max {{ $row['effective_max_ads'] }}
                             @endif)
-                            + increments Rp {{ number_format($row['increments'], 0, ',', '.') }}
-                            → planned Rp {{ number_format($row['planned'], 0, ',', '.') }}
+                            + increments Rp {{ format_amount($row['increments'], 0) }}
+                            → planned Rp {{ format_amount($row['planned'], 0) }}
                             · {{ $row['note'] }}
                             @endif
                         </td>
@@ -350,7 +350,7 @@ $breadcrumbs = [
                             @endif
                         </td>
                         <td class="px-6 py-3 font-mono">{{ $schedule->run_time }}</td>
-                        <td class="px-6 py-3">Rp {{ number_format($schedule->increment_idr, 0, ',', '.') }}</td>
+                        <td class="px-6 py-3">Rp {{ format_amount($schedule->increment_idr, 0) }}</td>
                         <td class="px-6 py-3 text-gray-500">{{ $schedule->last_run_at?->timezone('Asia/Jakarta')->format('d M H:i') ?? '—' }}</td>
                         @if($canEdit)
                         <td class="px-6 py-3">
@@ -389,7 +389,7 @@ $breadcrumbs = [
                     <tr>
                         <td class="px-6 py-3 font-mono text-xs">{{ $ad->campaign_id }}</td>
                         <td class="px-6 py-3">{{ $ad->item_id }}</td>
-                        <td class="px-6 py-3">Rp {{ number_format($ad->budget, 0, ',', '.') }}</td>
+                        <td class="px-6 py-3">Rp {{ format_amount($ad->budget, 0) }}</td>
                         <td class="px-6 py-3">{{ $ad->last_roas ?? '—' }}</td>
                         <td class="px-6 py-3">{{ $ad->turned_off ? 'ended' : $ad->status }}</td>
                     </tr>
@@ -424,7 +424,7 @@ $breadcrumbs = [
                         <td class="px-6 py-3">{{ $adTypeLabels[$row->ad_type] ?? $row->ad_type ?? '—' }}</td>
                         <td class="px-6 py-3 font-mono text-xs">
                             @if($row->before_budget !== null || $row->after_budget !== null)
-                            {{ number_format($row->before_budget ?? 0, 0, ',', '.') }} → {{ number_format($row->after_budget ?? 0, 0, ',', '.') }}
+                            {{ format_amount($row->before_budget ?? 0, 0) }} → {{ format_amount($row->after_budget ?? 0, 0) }}
                             @else — @endif
                         </td>
                         <td class="px-6 py-3 text-gray-600">{{ $row->message }}</td>

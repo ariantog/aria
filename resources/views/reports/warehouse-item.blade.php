@@ -9,8 +9,8 @@ $breadcrumbs = [
     ['title' => 'Reports', 'href' => '#'],
     ['title' => 'Item Gudang', 'href' => route('reports.warehouse-item')],
 ];
-$fmtNum = fn($v) => number_format((float) $v, 0, ',', '.');
-$fmtCur = fn($v) => 'Rp' . number_format((float) $v, 0, ',', '.');
+$fmtNum = fn($v) => format_amount($v, 0);
+$fmtCur = fn($v) => 'Rp' . format_amount($v, 0);
 $grandTotalItem = collect($data)->sum(fn($r) => (float) $r->total_item);
 $grandTotalQty = collect($data)->sum(fn($r) => (float) $r->total_qty);
 $grandTotalCost = collect($data)->sum(fn($r) => (float) $r->total_cost);

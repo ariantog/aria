@@ -149,7 +149,7 @@ function boronganCreate(cfg) {
         groups: [],
         loading: false,
         searched: false,
-        fmt(v) { return 'Rp ' + Number(v || 0).toLocaleString('id-ID'); },
+        fmt(v) { return 'Rp ' + formatAmountId(v); },
         groupGrandTotal(group) {
             const fees = (Number(group.permak) || 0) + (Number(group.tres) || 0) + (Number(group.lain2) || 0);
             return (Number(group.subtotal) || 0) + fees;

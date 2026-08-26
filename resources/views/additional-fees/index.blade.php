@@ -54,7 +54,7 @@ $breadcrumbs = [
                             <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase {{ $fee->type === 'percent' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700' }}">{{ $fee->type }}</span>
                         </td>
                         <td class="whitespace-nowrap px-6 py-4 text-right tabular-nums text-gray-700">
-                            {{ $fee->type === 'percent' ? rtrim(rtrim(number_format($fee->value, 2, '.', ''), '0'), '.') . '%' : number_format($fee->value, 0, ',', '.') }}
+                            {{ $fee->type === 'percent' ? rtrim(rtrim(number_format($fee->value, 2, '.', ''), '0'), '.') . '%' : format_amount($fee->value, 0) }}
                         </td>
                         <td class="whitespace-nowrap px-6 py-4 text-right">
                             <div class="flex justify-end gap-1">

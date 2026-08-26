@@ -84,7 +84,7 @@ $mappingMissing = $data->item_with_jubelio_count > 0;
                     </div>
                     <div class="text-right">
                         <p class="mb-1 text-xs font-bold uppercase text-gray-400">Total</p>
-                        <p class="text-lg font-bold text-blue-600">Rp {{ number_format($data->total, 0, ',', '.') }}</p>
+                        <p class="text-lg font-bold text-blue-600">Rp {{ format_amount($data->total, 0) }}</p>
                     </div>
                 </div>
 
