@@ -25,10 +25,11 @@
         if (! $d) return '-';
         return \Illuminate\Support\Carbon::parse($d)->format('d/m/Y');
     };
+    $noteText = $transaction->description ?: ($transaction->notes ?: '');
 @endphp
 
 <div class="flex h-full flex-1 flex-col gap-4 overflow-x-auto rounded-xl p-4"
-     x-data="transactionShowPage()">
+     x-data="transactionShowPage({{ $transaction->id }}, @js($noteText), @js((bool) ($can['edit_transaction'] ?? false)))">
 
     {{-- Top Action Bar --}}
     <div class="flex flex-col justify-between gap-4 md:flex-row md:items-center print:hidden">
@@ -97,6 +98,33 @@
             </form>
         </div>
     </div>
+
+    @if($can['edit_transaction'] ?? false)
+    {{-- Edit description dialog --}}
+    <div x-show="noteModalOpen" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 print:hidden"
+         @keydown.window.escape="noteModalOpen = false">
+        <div @click.away="noteModalOpen = false" class="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
+            <h3 class="text-lg font-semibold text-gray-900">Edit Description</h3>
+            <p class="mt-1 text-sm text-gray-500">Update the transaction note shown on this page and in the list.</p>
+            <div class="mt-4">
+                <label for="tx-show-note-textarea" class="mb-1 block text-sm font-medium text-gray-700">Description</label>
+                <textarea id="tx-show-note-textarea" x-ref="noteTextarea" x-model="noteDraft" rows="4"
+                          class="w-full resize-y rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                          placeholder="Add a note…"></textarea>
+                <p x-show="noteError" x-text="noteError" class="mt-2 text-sm text-rose-600"></p>
+            </div>
+            <div class="mt-6 flex justify-end gap-2">
+                <button type="button" @click="noteModalOpen = false"
+                        class="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Cancel</button>
+                <button type="button" @click="saveNote()" :disabled="noteSaving"
+                        class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
+                    <span x-show="!noteSaving">Save</span>
+                    <span x-show="noteSaving">Saving…</span>
+                </button>
+            </div>
+        </div>
+    </div>
+    @endif
 
     {{-- Primary Info Cards --}}
     <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
@@ -316,21 +344,27 @@
     <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
         {{-- Notes Card --}}
         <div class="flex h-full flex-col rounded-xl bg-white shadow-sm">
-            <div class="border-b bg-gray-50/50 p-6 py-4">
+            <div class="flex items-center justify-between border-b bg-gray-50/50 p-6 py-4">
                 <div class="flex items-center gap-2 text-sm font-bold">
                     <svg class="h-4 w-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-                    Internal Notes
+                    Description
                 </div>
+                @if($can['edit_transaction'] ?? false)
+                    <button type="button"
+                            data-testid="edit-tx-show-note"
+                            @click="openNoteEdit()"
+                            class="inline-flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 print:hidden">
+                        <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                        Edit
+                    </button>
+                @endif
             </div>
             <div class="flex-1 p-6 pt-4">
-                @if($transaction->notes)
-                    <p class="border-l-2 border-blue-200 py-1 pl-4 text-sm leading-relaxed whitespace-pre-line italic text-gray-500">"{{ $transaction->notes }}"</p>
-                @else
-                    <div class="flex h-full flex-col items-center justify-center py-4 text-gray-400 opacity-30">
+                <p x-show="noteText" class="border-l-2 border-blue-200 py-1 pl-4 text-sm leading-relaxed whitespace-pre-line italic text-gray-500" x-text="noteText"></p>
+                <div x-show="!noteText" class="flex h-full flex-col items-center justify-center py-4 text-gray-400 opacity-30">
                         <svg class="mb-1 h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                        <p class="text-xs italic">No notes added</p>
+                        <p class="text-xs italic">No description added</p>
                     </div>
-                @endif
             </div>
         </div>
 
@@ -402,7 +436,7 @@
 
 @push('scripts')
 <script>
-function transactionShowPage() {
+function transactionShowPage(transactionId, initialNote, canEditNote) {
     const storageKey = 'aria-transaction-show-view';
     const defaults = { showImage: true, showBarcode: true, showSku: false, showName: true };
     let saved = {};
@@ -424,6 +458,51 @@ function transactionShowPage() {
         sortDir: 'asc',
         waOpen: false,
         deleteConfirmOpen: false,
+        noteText: initialNote || '',
+        noteDraft: initialNote || '',
+        noteModalOpen: false,
+        noteSaving: false,
+        noteError: '',
+        canEditNote: !!canEditNote,
+        openNoteEdit() {
+            if (!this.canEditNote) {
+                return;
+            }
+            this.noteDraft = this.noteText;
+            this.noteError = '';
+            this.noteModalOpen = true;
+            this.$nextTick(() => this.$refs.noteTextarea?.focus());
+        },
+        async saveNote() {
+            if (!this.canEditNote || this.noteSaving) {
+                return;
+            }
+            this.noteSaving = true;
+            this.noteError = '';
+            try {
+                const res = await fetch(`/transactions/${transactionId}/note`, {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]')?.content ?? '',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    body: JSON.stringify({ note: this.noteDraft }),
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) {
+                    this.noteError = data.message || (data.errors?.note?.[0] ?? 'Failed to save note.');
+                    return;
+                }
+                this.noteText = data.note || '';
+                this.noteModalOpen = false;
+            } catch (e) {
+                this.noteError = 'Failed to save note.';
+            } finally {
+                this.noteSaving = false;
+            }
+        },
         init() {
             this.$watch('showImage', () => this.persistViewPrefs());
             this.$watch('showBarcode', () => this.persistViewPrefs());

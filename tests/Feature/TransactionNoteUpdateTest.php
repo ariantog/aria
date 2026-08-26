@@ -8,10 +8,11 @@ use Spatie\Permission\Models\Permission;
 beforeEach(function () {
     Permission::firstOrCreate(['name' => 'transactions-edit']);
     Permission::firstOrCreate(['name' => 'transactions-list']);
+    Permission::firstOrCreate(['name' => 'transactions-show']);
 
     User::factory()->create(); // id 1 — superadmin; keep note-permission tests on a normal user
     $this->user = User::factory()->create();
-    $this->user->givePermissionTo(['transactions-edit', 'transactions-list']);
+    $this->user->givePermissionTo(['transactions-edit', 'transactions-list', 'transactions-show']);
 
     $this->supplier = Addrbook::factory()->supplier()->create();
     $this->warehouse = Addrbook::factory()->warehouse()->create();
@@ -91,4 +92,21 @@ it('hides edit note controls without edit permission', function () {
         ->assertOk()
         ->assertSee('Description', false)
         ->assertDontSee('data-testid="edit-tx-note-'.$this->transaction->id.'"', false);
+});
+
+it('shows edit description control on the transaction show page for editors', function () {
+    $this->actingAs($this->user)
+        ->get(route('transactions.show', $this->transaction))
+        ->assertOk()
+        ->assertSee('data-testid="edit-tx-show-note"', false)
+        ->assertSee('Old note', false);
+});
+
+it('hides edit description control on the transaction show page without edit permission', function () {
+    $this->user->syncPermissions(['transactions-list', 'transactions-show']);
+
+    $this->actingAs($this->user)
+        ->get(route('transactions.show', $this->transaction))
+        ->assertOk()
+        ->assertDontSee('data-testid="edit-tx-show-note"', false);
 });
