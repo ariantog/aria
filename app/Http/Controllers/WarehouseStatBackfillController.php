@@ -7,6 +7,7 @@ use App\Models\WarehouseItemMonthlyStat;
 use App\Models\WarehouseStatBackfill;
 use App\Services\WarehouseItemStatsRebuilder;
 use App\Services\WarehouseStatBackfillService;
+use Carbon\CarbonImmutable;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -33,22 +34,32 @@ class WarehouseStatBackfillController extends Controller
             'historyEnd' => $bounds[1]?->format('Y-m'),
             'defaultBatch' => WarehouseStatBackfillService::DEFAULT_BATCH_MONTHS,
             'maxManualBatch' => self::MAX_MANUAL_BATCH,
+            'defaultSince' => '2026-01-01',
+            'batchStale' => $this->batchLooksStale($state),
             'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
     }
 
-    public function start(WarehouseStatBackfillService $backfill): RedirectResponse
+    public function start(Request $request, WarehouseStatBackfillService $backfill): RedirectResponse
     {
         Gate::authorize(Report::getPermissions()['view-warehouse-arrangement']);
 
-        $state = $backfill->start();
+        $validated = $request->validate([
+            'since' => ['nullable', 'date'],
+        ]);
+
+        $since = isset($validated['since'])
+            ? CarbonImmutable::parse($validated['since'])->startOfMonth()
+            : null;
+
+        $state = $backfill->start($since);
 
         if ($state->months_total === 0) {
             return back()->with('error', 'No sell or return transaction details found, so there is nothing to backfill.');
         }
 
         return back()->with('success', sprintf(
-            'Backfill started: %d month(s) queued, newest first. The hourly cron will work through them.',
+            'Backfill started: %d month(s) queued, newest first. The cron runs one month every five minutes.',
             $state->months_total,
         ));
     }
@@ -127,6 +138,19 @@ class WarehouseStatBackfillController extends Controller
         }
 
         return WarehouseItemStatsRebuilder::periodFromKey($state->cursor_period)->format('Y-m');
+    }
+
+    private function batchLooksStale(WarehouseStatBackfill $state): bool
+    {
+        if (! $state->isRunning() || $state->months_done <= 0) {
+            return false;
+        }
+
+        if (! $state->last_run_at) {
+            return true;
+        }
+
+        return $state->last_run_at->lt(now()->subMinutes(15));
     }
 
     /**

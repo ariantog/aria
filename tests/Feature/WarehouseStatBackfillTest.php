@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Models\WarehouseItemMonthlyStat;
 use App\Models\WarehouseStatBackfill;
 use App\Services\WarehouseStatBackfillService;
+use Carbon\CarbonImmutable;
 
 beforeEach(function () {
     $this->user = User::factory()->create();
@@ -177,6 +178,17 @@ it('records live stats for items whose type is no longer a valid enum value', fu
     expect($stat)->not->toBeNull();
     expect((float) $stat->sold_qty)->toBe(9.0);
     expect($stat->item_type)->toBe(ItemType::ITEM->value);
+});
+
+it('limits queued months when started with a since date', function () {
+    for ($i = 0; $i <= 4; $i++) {
+        backfillSell(now()->startOfMonth()->subMonths($i), 2);
+    }
+
+    $since = CarbonImmutable::parse(now()->startOfMonth()->subMonths(2));
+    $state = app(WarehouseStatBackfillService::class)->start($since);
+
+    expect($state->months_total)->toBe(3);
 });
 
 it('stays idle until the backfill is started', function () {
