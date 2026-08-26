@@ -122,19 +122,48 @@ class TransactionsController extends Controller
         }
 
         return response()->json([
-            'item' => [
-                'id' => $item->id,
-                'code' => $item->getItemCode(),
-                'name' => $item->name ?: $item->getItemName(),
-                'type' => $item->type->value,
-                'price' => (float) $item->price,
-                'cost' => (float) $item->cost,
-                'warehouse_item' => $item->warehouseItems->map(fn ($wi) => [
-                    'warehouse_id' => (string) $wi->warehouse_id,
-                    'quantity' => (float) $wi->quantity,
-                ])->values()->all(),
-            ],
+            'item' => $this->itemLookupPayload($item),
         ]);
+    }
+
+    /**
+     * Resolve a typed SKU for line-item rows (canonical code or legacy_code).
+     */
+    public function itemByCode(string $type, Request $request)
+    {
+        Transaction::authorizeTypeAccess($type);
+
+        $validated = $request->validate([
+            'code' => ['required', 'string', 'max:255'],
+        ]);
+
+        $item = \App\Models\Item::findBySku($validated['code']);
+        if ($item) {
+            $item->loadMissing('warehouseItems');
+        }
+
+        return response()->json([
+            'item' => $item ? $this->itemLookupPayload($item) : null,
+        ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function itemLookupPayload(\App\Models\Item $item): array
+    {
+        return [
+            'id' => $item->id,
+            'code' => $item->getItemCode(),
+            'name' => $item->name ?: $item->getItemName(),
+            'type' => $item->type->value,
+            'price' => (float) $item->price,
+            'cost' => (float) $item->cost,
+            'warehouse_item' => $item->warehouseItems->map(fn ($wi) => [
+                'warehouse_id' => (string) $wi->warehouse_id,
+                'quantity' => (float) $wi->quantity,
+            ])->values()->all(),
+        ];
     }
 
     public function store(StoreItemTransactionRequest $request, CreateItemTransaction $action, BookClosingService $bookClosingService)
