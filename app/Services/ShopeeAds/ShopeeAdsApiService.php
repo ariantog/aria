@@ -209,6 +209,11 @@ class ShopeeAdsApiService
             );
 
             if (! $response->successful()) {
+                Log::warning('Shopee Ads campaign id list failed', [
+                    'ad_type' => $adTypeFilter,
+                    'status' => $response->status(),
+                    'body' => Str::limit($response->body(), 500),
+                ]);
                 break;
             }
 
@@ -355,11 +360,10 @@ class ShopeeAdsApiService
     {
         $ids = $this->campaignIdList('manual');
         $infos = $this->campaignSettingInfo($ids);
-        $activeStatuses = ['', 'ongoing', 'running', 'active', 'scheduled'];
 
         return collect($infos)
-            ->filter(function ($c) use ($onlyActive, $activeStatuses) {
-                return ! $onlyActive || in_array($c['status'], $activeStatuses, true);
+            ->filter(function ($c) use ($onlyActive) {
+                return ! $onlyActive || $this->isLiveCampaignStatus($c['status']);
             })
             ->map(fn ($c) => [
                 'campaign_id' => $c['campaign_id'],
@@ -370,6 +374,25 @@ class ShopeeAdsApiService
             ])
             ->values()
             ->all();
+    }
+
+    private function isLiveCampaignStatus(string $status): bool
+    {
+        $normalized = strtolower(trim($status));
+
+        if ($normalized === '') {
+            return true;
+        }
+
+        return in_array($normalized, [
+            'ongoing',
+            'running',
+            'active',
+            'scheduled',
+            'live',
+            'open',
+            'enabled',
+        ], true);
     }
 
     /**

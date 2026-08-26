@@ -199,7 +199,7 @@ class ShopeeAdsEngineService
             'php_timezone' => date_default_timezone_get(),
             'paused' => $settings->isPaused(),
             'authorized' => $this->api->hasShopAuthorization(),
-            'automation_active' => $settings->isAutomationActive(),
+            'automation_active' => $settings->automationStatus()->isActive(),
             'settings_status' => (string) $settings->status,
             'schedules' => $scheduleNotes,
             'daily_reset' => $dailyResetNotes,
@@ -431,21 +431,58 @@ class ShopeeAdsEngineService
         }
     }
 
-    public function syncItemAds(): void
+    /**
+     * Reconcile tracked item ads with Shopee live manual product campaigns (bots/engine.py sync_item_ads).
+     *
+     * @return array{imported: int, updated: int, closed: int, active: int}
+     */
+    public function syncItemAds(): array
     {
-        $live = $this->api->listManualProductAds(false);
+        $stats = ['imported' => 0, 'updated' => 0, 'closed' => 0, 'active' => 0];
 
-        foreach ($live as $row) {
-            ShopeeAdsItemAd::query()->updateOrCreate(
-                ['campaign_id' => $row['campaign_id']],
-                [
+        $live = $this->api->listManualProductAds(true);
+        $liveByCampaign = collect($live)->keyBy('campaign_id');
+        $tracked = ShopeeAdsItemAd::query()->get()->keyBy('campaign_id');
+
+        if ($live === [] && $tracked->isEmpty()) {
+            Log::info('Shopee Ads item sync: no active manual product campaigns returned from API');
+        }
+
+        foreach ($liveByCampaign as $campaignId => $row) {
+            $existing = $tracked->get($campaignId);
+
+            if ($existing === null) {
+                ShopeeAdsItemAd::query()->create([
+                    'campaign_id' => $campaignId,
                     'item_id' => (int) $row['item_id'],
                     'origin' => 'manual',
                     'budget' => (int) round((float) $row['budget']),
                     'status' => $row['status'] ?: 'ongoing',
-                ],
-            );
+                    'turned_off' => false,
+                ]);
+                $stats['imported']++;
+            } else {
+                $existing->update([
+                    'item_id' => (int) $row['item_id'],
+                    'budget' => (int) round((float) $row['budget']),
+                    'status' => $row['status'] ?: 'ongoing',
+                ]);
+                $stats['updated']++;
+            }
+
+            $stats['active']++;
         }
+
+        foreach ($tracked as $campaignId => $ad) {
+            if (! $liveByCampaign->has($campaignId) && strtolower((string) $ad->status) !== 'closed') {
+                $ad->update(['status' => 'closed']);
+                $stats['closed']++;
+            }
+        }
+
+        Log::info('Shopee Ads item sync done', $stats);
+
+        return $stats;
     }
 
     /**
@@ -629,6 +666,10 @@ class ShopeeAdsEngineService
 
     public function dailyReset(ShopeeAdsSetting $settings): void
     {
+        if ($this->api->hasShopAuthorization()) {
+            $this->syncItemAds();
+        }
+
         $multipliers = $this->specialRules->resolveForToday($settings);
         $gmvStart = (int) ($settings->starting_budget_gmv_max ?: $settings->starting_budget);
         $gmvStart = $multipliers->scaledGmvAmount($gmvStart);
