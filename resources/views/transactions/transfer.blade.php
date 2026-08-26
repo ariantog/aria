@@ -31,7 +31,7 @@
                     Transfer Details
                 </h3>
             </div>
-            <div class="grid grid-cols-1 gap-5 p-5 md:grid-cols-2 xl:grid-cols-4">
+            <div class="space-y-5 p-5">
                 <div>
                     <label for="date" class="mb-1 flex items-center gap-2 text-sm font-medium text-gray-700">
                         <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
@@ -84,7 +84,7 @@
             <div class="border-b border-gray-100 px-5 py-4">
                 <h3 class="text-sm font-semibold text-gray-900">Amount &amp; Note</h3>
             </div>
-            <div class="grid grid-cols-1 gap-5 p-5 lg:grid-cols-2">
+            <div class="space-y-5 p-5">
                 <div>
                     <label for="total" class="mb-1 block text-sm font-medium text-gray-700">Total Amount <span class="text-red-500">*</span></label>
                     <div class="relative">
