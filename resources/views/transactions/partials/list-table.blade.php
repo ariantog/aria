@@ -138,7 +138,7 @@
                             </div>
                         </td>
                         <td class="whitespace-nowrap px-3 py-2.5 text-right font-semibold tabular-nums text-gray-900">
-                            {{ format_amount($tx->displayListTotal()) }}
+                            {{ format_amount($tx->total) }}
                         </td>
                         <td class="whitespace-nowrap px-3 py-2.5 text-right tabular-nums text-gray-500">
                             {{ format_amount($tx->total_items) }}
