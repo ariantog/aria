@@ -5,6 +5,7 @@ namespace App\View\Composers;
 use App\Models\Addrbook;
 use App\Models\ItemStockNotification;
 use App\Models\User;
+use App\Services\SidebarFavoriteService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\View\View;
@@ -38,6 +39,7 @@ class AppComposer
 
                 return $type;
             })->toArray(),
+            'favorites' => app(SidebarFavoriteService::class)->resolvedFavorites($user),
             'flash' => [
                 'success' => session('success'),
                 'error' => session('error'),

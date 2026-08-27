@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Settings\AppearanceController;
+use App\Http\Controllers\Settings\FavoritesController;
 use App\Http\Controllers\Settings\PasswordController;
 use App\Http\Controllers\Settings\ProfileController;
 use App\Http\Controllers\Settings\TransactionDefaultsController;
@@ -16,6 +17,9 @@ Route::middleware(['auth'])->group(function () {
     Route::get('settings/transaction-defaults', [TransactionDefaultsController::class, 'edit'])->name('transaction-defaults.edit');
     Route::put('settings/transaction-defaults', [TransactionDefaultsController::class, 'update'])->name('transaction-defaults.update');
     Route::get('settings/transaction-defaults/lookup/{type}', [TransactionDefaultsController::class, 'lookup'])->name('transaction-defaults.lookup');
+
+    Route::get('settings/favorites', [FavoritesController::class, 'edit'])->name('favorites.edit');
+    Route::put('settings/favorites', [FavoritesController::class, 'update'])->name('favorites.update');
 
     Route::get('settings/appearance', [AppearanceController::class, 'edit'])->name('appearance.edit');
     Route::patch('settings/appearance', [AppearanceController::class, 'update'])->name('appearance.update');

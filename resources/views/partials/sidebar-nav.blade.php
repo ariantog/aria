@@ -190,6 +190,12 @@
     if ($hasPerm('users-locations-list') || $isSuperAdmin) {
         $userNavLabels[] = 'Locations';
     }
+
+    $sidebarFavorites = $_sidebar['favorites'] ?? [];
+    $favoriteNavLabels = ['Favorites', ...collect($sidebarFavorites)->pluck('label')->all()];
+    $favoritesActive = collect($sidebarFavorites)->contains(
+        fn ($favorite) => $isActive($favorite['active_prefix'])
+    );
 @endphp
 
 {{-- ── Dashboard ─────────────────────────────────────────────────────── --}}
@@ -201,6 +207,31 @@
         <span x-show="sidebarOpen" x-cloak>Dashboard</span>
     </a>
 </div>
+
+{{-- ── Favorites ─────────────────────────────────────────────────────── --}}
+@if(count($sidebarFavorites) > 0)
+<div x-data="{ open: {{ $favoritesActive ? 'true' : 'false' }} }"
+     class="mb-1"
+     x-show="navGroupVisible(@js($favoriteNavLabels))"
+     x-effect="syncNavGroupOpen($data, {{ $favoritesActive ? 'true' : 'false' }}, @js($favoriteNavLabels))">
+    <button @click="open = !open"
+            class="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors
+                   {{ $favoritesActive ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100' }}">
+        <svg class="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/></svg>
+        <span x-show="sidebarOpen" x-cloak class="flex-1 text-left">Favorites</span>
+        <svg x-show="sidebarOpen" x-cloak :class="open ? 'rotate-90' : ''" class="h-3.5 w-3.5 flex-shrink-0 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+    </button>
+    <div x-show="open && sidebarOpen" x-cloak class="ml-6 mt-1 space-y-0.5">
+        @foreach($sidebarFavorites as $favorite)
+            <a href="{{ $favorite['url'] }}"
+               x-show="navLinkVisible(@js($favorite['label']), 'Favorites')"
+               class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive($favorite['active_prefix']) ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">
+                {{ $favorite['label'] }}
+            </a>
+        @endforeach
+    </div>
+</div>
+@endif
 
 {{-- ── Transactions ──────────────────────────────────────────────────── --}}
 @if(

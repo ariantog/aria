@@ -9,6 +9,10 @@ class UserPreferenceRegistry
 {
     public const APPEARANCE_SLUG = 'ui.appearance';
 
+    public const FAVORITES_SLUG = 'sidebar.favorites';
+
+    public const FAVORITES_MAX = 5;
+
     /**
      * @return list<string>
      */
