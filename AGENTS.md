@@ -9,10 +9,8 @@ removed). Indonesian domain terms throughout.
 The migration from the React/Inertia SPA to Blade+Alpine and a batch of UI/bug fixes are
 **complete and merged**. A new chat should build on this, not revisit it:
 
-- **React / Inertia / Vite / TypeScript stack is fully removed.** There is no `package.json`,
-  `vite.config.ts`, `resources/js`, or Node build; the frontend is pure Blade + Alpine + Tailwind
-  (CDN). CI (`.github/workflows/*`) no longer builds/lints JS. **Do not reintroduce a SPA or a JS
-  build step.**
+- **React / Inertia / Vite / TypeScript stack is fully removed** — see **AI agent restrictions** (do not
+  reintroduce a SPA or JS build step). Frontend is Blade + Alpine + Tailwind (CDN).
 - **Blank list pages are fixed.** `items`, `assetlancar`, and `addrbook` index/transactions/items
   pages used a never-loaded Tabulator.js and rendered empty — they are now plain server-rendered HTML
   tables with Laravel pagination. Tabulator is reserved for the (not-yet-built) restock page only.
@@ -37,6 +35,9 @@ Already-fixed gotchas — don't reintroduce them:
 - PHP **8.5 is not supported** by `phpoffice/phpspreadsheet`; the CI matrix is `8.3`/`8.4`.
 
 ## Production database safety (MUST follow in every PR)
+
+See also **AI agent restrictions** — agents may only add columns or change default values on legacy
+tables unless the user explicitly requests another schema change.
 
 The app runs against the **live L10 production MySQL database** (schema snapshot:
 `database/old.sql`; the legacy L10 app runs on it in parallel). Migrations are deployed to
@@ -70,11 +71,77 @@ migration file must be production-safe on its own**:
 - Fresh prod bootstrap = `2026_08_13_100000_production_database_bootstrap` (+ seeder). Add new
   L12 tables to the bootstrap's `up()` list as well as shipping the standalone migration.
 
+## AI agent restrictions (MUST follow)
+
+These override generic Laravel / accounting assumptions. **Do not "fix" or refactor these unless the
+user explicitly asks.**
+
+### No demo videos or GUI walkthroughs
+
+- **Do NOT record demo videos, screen recordings, or walkthrough artifacts** (including
+  `RecordScreen`, `computerUse` demos, and browser-based "prove it works" recordings).
+- The maintainer tests manually. Implement, run `./vendor/bin/pest` / `curl` / tinker as needed, **commit**,
+  and open a PR. Avoid burning tokens on GUI demos.
+
+### Do NOT change signed transaction totals
+
+`transactions.total` and `transactions.real_total` are **signed integers/decimals by design** — not
+unsigned amounts with sign inferred elsewhere.
+
+- **Sign convention (do not flip):** positive = sender owes receiver; negative = receiver owes sender.
+  **Buy / Return / CashIn → positive.** **Sell / ReturnSupplier / CashOut / Transfer → negative.**
+  Authoritative helper: `Transaction::signedAmount($type, $amount)` in `app/Models/Transaction.php`.
+- **When writing new transactions**, store totals through `Transaction::signedAmount()` (see
+  `CreateItemTransaction`, `CreateCashTransaction`, `CreateTransferTransaction`). Do **not** store
+  `abs($grandTotal)` and apply sign later.
+- **When reading totals for balances**, use `TransactionService::balanceAmount()` — it already
+  normalizes legacy rows via `signedAmount(abs($stored))`. Do **not** replace this with bare
+  `abs()`, `*-1` flips, debit/credit logic, or "always store positive" refactors.
+- **Display-only** formatting may use `abs()` for human-readable currency; **do not** change what is
+  persisted based on display needs.
+- **Do not edit** `Transaction::signedAmount()`, `Transaction::typeIsNegative()`, or tests such as
+  `tests/Unit/TransactionSignedAmountTest.php` and `tests/Feature/TransactionBalanceIntegrityTest.php`
+  unless the task **explicitly** requests a signed-total convention change.
+- **Balance bugs:** fix running-balance recalculation, observer/job ordering, or back-dated row
+  updates — **not** the sign convention. If a row looks "wrong", check whether you are comparing
+  against legacy unsigned data before rewriting the signing rules.
+
+### Do NOT reintroduce React / Vite / a JS build
+
+- The React/Inertia SPA is **gone**. Frontend is **Blade + Alpine.js + Tailwind (CDN)** only.
+- **Do NOT add** `package.json`, `vite.config.ts`, `resources/js`, Inertia, React, Vue, Livewire as a
+  SPA replacement, or CI steps that build/lint frontend bundles.
+- **Do NOT** convert server-rendered pages back to client-side routing or a component framework.
+
+### Do NOT drop or alter production tables (narrow exceptions)
+
+Production shares the live L10 MySQL schema (`database/old.sql`). Unless the user **explicitly**
+asks for a specific schema change:
+
+- **NEVER** `Schema::drop`, `Schema::dropIfExists`, `DROP TABLE`, drop-and-recreate, or
+  `migrate:fresh` / `migrate:refresh` on anything but local SQLite.
+- **On legacy/production tables**, the only allowed ALTERs are **adding new columns** (guarded with
+  `Schema::hasColumn()`) and **changing a column's default value**. Do **not** rename columns, change
+  column types, drop columns, or reshape tables.
+- **New L12 tables** are fine — guard with `Schema::hasTable()`. Full production-migration rules
+  (integer FKs, no FK to partitioned `transactions`, index name length, etc.) live in **Production
+  database safety** below.
+
+### Do NOT change Alpine.js patterns
+
+Alpine in this codebase has known gotchas. **Match existing conventions** in the file you edit — do
+not "modernize" or refactor Alpine style:
+
+- Use **methods** (e.g. `canSubmit()`) for `:disabled` / `:class` bindings — **not getters** (they
+  have been unreliable here).
+- Inside nested `x-data` (e.g. `asyncCombobox`), reference the parent with **bare, scope-inherited
+  names** — never `$root.*`.
+- Inside a double-quoted `x-data="..."` attribute, build endpoints with **`@js(...)`** — never
+  `@json(...)`.
+
 ## Testing & workflow preferences (IMPORTANT)
 
-- **Do NOT record demo videos or screen recordings, and do NOT run computerUse "demo" walkthroughs.**
-  The maintainer tests manually. Just implement and **commit** the code for review. Avoid burning
-  tokens on GUI demos.
+- See **AI agent restrictions** above — no demo videos or GUI walkthroughs.
 - Lightweight functional checks are still fine and encouraged before committing: run `./vendor/bin/pest`,
   and use `curl`/`php artisan tinker` to sanity‑check routes, queries, and JSON endpoints.
 - Commit each logical change separately with a clear message; push to the working branch.
@@ -86,10 +153,8 @@ migration file must be production-safe on its own**:
   **"Log Out" `<button type="submit">`**, which is the *first* submit button on every page — a bare
   `querySelector('button[type=submit]')` will match it, not a form's Save button.
 - Prefer adding stable `id` / `data-testid` hooks to key controls when editing a form.
-- Alpine: use **methods** (e.g. `canSubmit()`) rather than getters for `:disabled`/`:class` bindings —
-  getters have been unreliable here. Inside a nested `x-data` (e.g. the `asyncCombobox`), reference the
-  parent component with **bare, scope‑inherited names**, never `$root.*`. Inside a double‑quoted
-  `x-data="..."` attribute, build endpoints with **`@js(...)`**, never `@json(...)`.
+- Alpine conventions are **AI agent restrictions** — see that section; do not refactor to getters,
+  `$root`, or `@json(...)` in `x-data`.
 
 ## Environment / running
 
@@ -111,6 +176,7 @@ migration file must be production-safe on its own**:
 - Balances use **signed values**, not debit/credit. Parties are sender/receiver; a positive value/balance
   means the sender owes the receiver, negative means the receiver owes the sender. buy/return → total
   positive; sell/return-supplier → total negative. The double-entry is handled in the background.
+  **Agents: do not change this convention** — see **AI agent restrictions** above.
 - Transaction types (`App\Enums\TransactionType`): Buy=1, Sell=2, Move=3, Transfer=6, CashOut=7, Use=8,
   CashIn=9, Adjust=12, Return=15, Production=16, ReturnSupplier=17, Depreciation=18. Legal sender/receiver
   types per transaction live in `config/transaction_rules.php`.
@@ -183,7 +249,8 @@ own branch, with its own PR.
   already-merged branch (it causes messy rebases). If task B truly depends on unmerged task A, say so
   explicitly and I'll branch B off A.
 - **One PR per branch.** I'll commit each logical change separately, run `./vendor/bin/pest` (and the
-  `BladePagesRenderTest` smoke test after touching Blade), and open a draft PR. No demo videos.
+  `BladePagesRenderTest` smoke test after touching Blade), and open a draft PR. No demo videos (see
+  **AI agent restrictions**).
 - **Kickoff prompt template** to paste into the new chat:
   ```
   Goal: <what to build / fix>
