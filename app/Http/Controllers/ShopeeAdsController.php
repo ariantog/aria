@@ -53,7 +53,6 @@ class ShopeeAdsController extends Controller
             'automationBlockers' => $automationBlockers,
             'automationTimezone' => $automationTimezone,
             'nowWib' => $nowWib,
-            'oauthRedirectUrl' => $api->getOAuthRedirectUrl(),
             'oauthErrorHint' => $api->formatOAuthErrorForUser($api->getLastOAuthError()),
             'planned' => $this->plannedEndOfDay($settings, $schedules, $specialRules, $engine),
             'ruleStatus' => $ruleStatus,

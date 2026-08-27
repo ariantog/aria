@@ -115,18 +115,6 @@ $saInnerCardWhite = 'space-y-3 rounded-lg border border-gray-200 bg-white p-4';
             <p class="mt-2 text-lg font-semibold {{ ($cronTask?->active ?? false) ? 'text-green-700' : 'text-amber-700' }}">
                 {{ ($cronTask?->active ?? false) ? 'Enabled' : 'Disabled' }}
             </p>
-            @if($cronTask?->last_run_at)
-            <p class="mt-1 text-xs {{ $saTextMuted }}">Last run {{ $cronTask->last_run_at->timezone($automationTimezone)->format('d M Y H:i') }} WIB</p>
-            @else
-            <p class="mt-1 text-xs text-amber-700">Belum ada run tercatat untuk shopee-ads:process.</p>
-            @endif
-            <p class="mt-1 text-xs {{ $schedulerHealth['healthy'] ? $saTextMuted : 'text-amber-700' }}" data-testid="shopee-ads-scheduler-health">
-                Scheduler: {{ $schedulerHealth['message'] }}
-            </p>
-            @if(! $schedulerHealth['healthy'])
-            <p class="mt-1 text-xs text-gray-400">Contoh crontab: <code class="text-xs">* * * * * cd /path/to/aria && php artisan schedule:run >> /dev/null 2>&1</code></p>
-            @endif
-            <p class="mt-1 text-xs text-gray-400">Sekarang {{ $nowWib->format('d M Y H:i') }} WIB (GMT+7) · tz {{ $automationTimezone }}</p>
         </div>
         <div class="{{ $saCard }} p-5">
             <p class="text-xs font-medium uppercase {{ $saTextMuted }}">OAuth</p>
@@ -139,9 +127,24 @@ $saInnerCardWhite = 'space-y-3 rounded-lg border border-gray-200 bg-white p-4';
             @if($connection['last_error'])
             <p class="mt-2 text-xs text-red-600">{{ $oauthErrorHint ?? $connection['last_error'] }}</p>
             @endif
-            <p class="mt-2 text-xs text-gray-400">Redirect: {{ $oauthRedirectUrl }}</p>
-            <p class="mt-1 text-xs text-gray-400">API calls: whitelist server outbound IP di Shopee Open Platform → App list → IP Address Whitelist.</p>
         </div>
+    </div>
+
+    <div class="{{ $saCard }} px-5 py-3" data-testid="shopee-ads-cron-details">
+        <div class="flex flex-wrap items-center gap-x-6 gap-y-1 text-xs {{ $saTextMuted }}">
+            @if($cronTask?->last_run_at)
+            <span>Last run {{ $cronTask->last_run_at->timezone($automationTimezone)->format('d M Y H:i') }} WIB</span>
+            @else
+            <span class="text-amber-700">Belum ada run tercatat untuk shopee-ads:process.</span>
+            @endif
+            <span class="{{ $schedulerHealth['healthy'] ? $saTextMuted : 'text-amber-700' }}" data-testid="shopee-ads-scheduler-health">
+                Scheduler: {{ $schedulerHealth['message'] }}
+            </span>
+            <span class="text-gray-400">Sekarang {{ $nowWib->format('d M Y H:i') }} WIB (GMT+7) · tz {{ $automationTimezone }}</span>
+        </div>
+        @if(! $schedulerHealth['healthy'])
+        <p class="mt-2 text-xs text-gray-400">Contoh crontab: <code class="text-xs">* * * * * cd /path/to/aria && php artisan schedule:run >> /dev/null 2>&1</code></p>
+        @endif
     </div>
 
     <div class="{{ $saCard }}">
