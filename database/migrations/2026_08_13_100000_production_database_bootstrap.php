@@ -45,6 +45,7 @@ return new class extends Migration
         (require __DIR__.'/2026_08_25_100000_install_tax_faktur_imports_table.php')->up();
         (require __DIR__.'/2026_08_25_100100_add_payment_schedule_to_customers_table.php')->up();
         (require __DIR__.'/2026_08_25_100200_add_variance_transaction_id_to_tax_faktur_imports_table.php')->up();
+        (require __DIR__.'/2026_08_27_100000_add_sell_transaction_id_to_tax_faktur_imports_table.php')->up();
         (require __DIR__.'/2026_08_25_100000_bootstrap_shopee_ads_tables.php')->up();
         (require __DIR__.'/2026_08_26_120000_widen_shopee_ads_item_id_column.php')->up();
         (require __DIR__.'/2026_08_13_120000_add_production_not_null_column_defaults.php')->up();
