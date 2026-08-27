@@ -334,3 +334,53 @@ it('shows no sync cards on jubelio detail sync when move warehouses are unmapped
         ->assertDontSee('Receiver (Side B)', false)
         ->assertDontSee('Push to Jubelio</button>', false);
 });
+
+it('shows move sync for superadmin when sender warehouse is mapped', function () {
+    $superadmin = User::factory()->create(['id' => 1]);
+    $sender = Addrbook::factory()->warehouse()->create(['name' => 'WH Super Move']);
+    $receiver = Addrbook::factory()->warehouse()->create(['name' => 'WH Plain']);
+    $item = Item::factory()->create(['jubelio_item_id' => 301]);
+    seedJubelioSyncForWarehouse($sender);
+
+    $transaction = Transaction::factory()->create([
+        'type' => Transaction::TYPE_MOVE,
+        'submit_type' => Transaction::SUBMIT_TYPE_MANUAL,
+        'sender_id' => $sender->id,
+        'receiver_id' => $receiver->id,
+    ]);
+    seedItemTransactionDetail($transaction, $item);
+
+    expect($superadmin->is_superadmin)->toBeTrue();
+
+    $this->actingAs($superadmin)
+        ->get(route('transactions.show', $transaction))
+        ->assertSuccessful()
+        ->assertSee('Sinkron Jubelio', false)
+        ->assertSee('Push to Jubelio — WH Super Move', false);
+});
+
+it('shows move sync when submit_type is legacy zero but ui reads aria submit', function () {
+    $user = seedTransactionShowUser();
+    $sender = Addrbook::factory()->warehouse()->create(['name' => 'WH Legacy Submit']);
+    $receiver = Addrbook::factory()->warehouse()->create();
+    $item = Item::factory()->create(['jubelio_item_id' => 302]);
+    seedJubelioSyncForWarehouse($sender);
+
+    $transaction = Transaction::factory()->create([
+        'type' => Transaction::TYPE_MOVE,
+        'submit_type' => 0,
+        'sender_id' => $sender->id,
+        'receiver_id' => $receiver->id,
+    ]);
+    seedItemTransactionDetail($transaction, $item);
+
+    expect($transaction->isManual())->toBeFalse()
+        ->and($transaction->isAriaSubmit())->toBeTrue();
+
+    $this->actingAs($user)
+        ->get(route('transactions.show', $transaction))
+        ->assertSuccessful()
+        ->assertSee('aria submit', false)
+        ->assertSee('Sinkron Jubelio', false)
+        ->assertSee('Push to Jubelio — WH Legacy Submit', false);
+});

@@ -186,6 +186,12 @@ class Transaction extends Model
         return (int) $this->submit_type === self::SUBMIT_TYPE_MANUAL;
     }
 
+    /** Any non-Jubelio-cron row (matches the "aria submit" badge on transaction show). */
+    public function isAriaSubmit(): bool
+    {
+        return ! $this->isFromJubelio();
+    }
+
     public function sender()
     {
         return $this->belongsTo(Addrbook::class, 'sender_id');
