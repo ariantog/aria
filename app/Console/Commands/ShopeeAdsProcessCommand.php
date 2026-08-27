@@ -21,8 +21,8 @@ class ShopeeAdsProcessCommand extends Command
 
         // Reset before increments so a tick at 00:01 WIB does not add to yesterday's budget first.
         $reset = $engine->runDailyResetIfDue();
-        $schedulesRan = $engine->runDueSchedules();
         $engine->syncGmsCurrentSpend();
+        $schedulesRan = $engine->runDueSchedules();
 
         ScheduledTask::query()
             ->where('command', 'shopee-ads:process')
