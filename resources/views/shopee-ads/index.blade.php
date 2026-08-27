@@ -45,13 +45,11 @@ $saInnerCardWhite = 'space-y-3 rounded-lg border border-gray-200 bg-white p-4';
         <div class="flex flex-wrap gap-2">
             <form method="POST" action="{{ route('shopee-ads.toggle-pause') }}">
                 @csrf
-                <button type="submit" class="{{ $saBtnSecondary }}">
-                    {{ $settings->isPaused() ? 'Resume' : 'Pause' }}
-                </button>
-            </form>
-            <form method="POST" action="{{ route('shopee-ads.run-schedules') }}">
-                @csrf
-                <button type="submit" class="{{ $saBtnBlueOutline }}">Run Jadwal Now</button>
+                @if($settings->isPaused())
+                <button type="submit" class="{{ $saBtnPrimary }}">Continue</button>
+                @else
+                <button type="submit" class="{{ $saBtnSecondary }}">Pause</button>
+                @endif
             </form>
             <form method="POST" action="{{ route('shopee-ads.sync-item-ads') }}">
                 @csrf
