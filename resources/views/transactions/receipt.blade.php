@@ -32,6 +32,7 @@
     @foreach($transaction->details as $detail)
         @php
             $itemName = $detail->item?->getItemName() ?? '-';
+            $itemCode = $detail->item?->getItemCode() ?? '';
             $item = str_pad(substr($itemName, 0, 18), 18);
             $qty = str_pad((string) (int) $detail->quantity, 3, ' ', STR_PAD_LEFT);
             $amt = str_pad($fmt($detail->total), 9, ' ', STR_PAD_LEFT);
@@ -39,6 +40,9 @@
             $subq += (int) $detail->quantity;
         @endphp
         <div class="receipt-line">{{ $item }}{{ $qty }}{{ $amt }}</div>
+        @if($itemCode !== '')
+            <div class="receipt-line">{{ str_pad(substr($itemCode, 0, 18), 18) }}</div>
+        @endif
     @endforeach
 
     <hr>
