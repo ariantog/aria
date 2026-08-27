@@ -255,7 +255,7 @@ class ShopeeAdsController extends Controller
 
         $message = 'Daily reset dijalankan.';
         if ($settings->item_ads_enabled && $settings->item_replenish_enabled) {
-            $replenish = $engine->replenishItemAds($settings->fresh());
+            $replenish = $engine->replenishItemAds($settings->fresh(), fillToCap: true);
             $message .= ' '.$replenish['message'];
         }
 

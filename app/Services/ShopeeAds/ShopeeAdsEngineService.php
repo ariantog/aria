@@ -119,6 +119,10 @@ class ShopeeAdsEngineService
                 $multipliers = $this->specialRules->resolveForToday($settings, $now);
                 $pool = $multipliers->scaledItemBudgetAmount($schedule->increment_idr);
                 $this->applyItemAdsIncrement($settings, $pool, $schedule->run_time);
+
+                if ($settings->item_replenish_enabled) {
+                    $this->replenishItemAds($settings->fresh(), fillToCap: false);
+                }
             }
 
             $schedule->update(['last_run_at' => $now]);
@@ -214,21 +218,10 @@ class ShopeeAdsEngineService
         $replenishNotes = [];
         if (! $settings->item_replenish_enabled) {
             $replenishNotes[] = 'Item replenish disabled di pengaturan.';
-        } else {
-            $replenishNotes = array_merge(
-                $replenishNotes,
-                $this->timedJobNotes(
-                    $now,
-                    (int) $settings->item_replenish_hour,
-                    (int) $settings->item_replenish_minute,
-                    $settings->last_item_replenish_at,
-                    'item replenish',
-                ),
-            );
-        }
-
-        if (! $settings->item_ads_enabled) {
+        } elseif (! $settings->item_ads_enabled) {
             $replenishNotes[] = 'Item ads subsystem disabled.';
+        } else {
+            $replenishNotes[] = 'Create: saat daily reset (isi penuh sampai max '.$settings->max_item_ads.') + setelah jadwal increment produk_manual jika active < max (max '.$settings->item_replenish_max_per_run.' per jadwal).';
         }
 
         if (! $this->api->hasShopAuthorization()) {
@@ -293,6 +286,10 @@ class ShopeeAdsEngineService
         $this->dailyReset($settings);
         $settings->update(['last_daily_reset_at' => $now]);
 
+        if ($settings->item_ads_enabled && $settings->item_replenish_enabled) {
+            $this->replenishItemAds($settings->fresh(), fillToCap: true);
+        }
+
         Log::info('Shopee Ads daily reset finished');
 
         return true;
@@ -300,26 +297,8 @@ class ShopeeAdsEngineService
 
     public function runItemReplenishIfDue(): bool
     {
-        $settings = ShopeeAdsSetting::current();
-
-        if (! $settings->item_replenish_enabled) {
-            return false;
-        }
-
-        $now = $this->jakartaNow();
-
-        if (! $this->isTimedJobDue($now, (int) $settings->item_replenish_hour, (int) $settings->item_replenish_minute, $settings->last_item_replenish_at)) {
-            return false;
-        }
-
-        if (! $this->api->hasShopAuthorization()) {
-            return false;
-        }
-
-        $this->replenishItemAds($settings);
-        $settings->update(['last_item_replenish_at' => $now]);
-
-        return true;
+        // Legacy standalone item-replenish clock — superseded by reset-time fill + post-increment top-up.
+        return false;
     }
 
     public function applyGmvMaxIncrement(ShopeeAdsSetting $settings, int $incrementIdr, ?string $runTime = null): bool
@@ -539,9 +518,10 @@ class ShopeeAdsEngineService
     }
 
     /**
+     * @param  bool  $fillToCap  When true (daily reset), create up to max_item_ads ignoring max_per_run.
      * @return array{created: int, message: string}
      */
-    public function replenishItemAds(ShopeeAdsSetting $settings): array
+    public function replenishItemAds(ShopeeAdsSetting $settings, bool $fillToCap = false): array
     {
         $multipliers = $this->specialRules->resolveForToday($settings);
         $starting = $this->itemAdBudgetPerSlot($settings, $multipliers);
@@ -553,6 +533,10 @@ class ShopeeAdsEngineService
             return ['created' => 0, 'message' => $message];
         }
 
+        if (! $this->api->hasShopAuthorization()) {
+            return ['created' => 0, 'message' => 'Shop not authorized'];
+        }
+
         $this->syncItemAds();
 
         $active = ShopeeAdsItemAd::query()
@@ -561,7 +545,11 @@ class ShopeeAdsEngineService
             ->count();
 
         $cap = $multipliers->scaledMaxItemAds((int) $settings->max_item_ads);
-        $need = min($cap - $active, $multipliers->scaledReplenishPerRun((int) $settings->item_replenish_max_per_run));
+        $need = $cap - $active;
+
+        if (! $fillToCap) {
+            $need = min($need, $multipliers->scaledReplenishPerRun((int) $settings->item_replenish_max_per_run));
+        }
 
         if ($need <= 0) {
             $message = 'Active item ads already at cap';
@@ -609,11 +597,27 @@ class ShopeeAdsEngineService
             ]);
 
             $created++;
-            $this->recordHistory(ShopeeAdsType::ProdukManual->value, $cid, 'replenish_create', null, $starting, null, 'Created item ad for '.$candidate['item_id']);
+            $label = $fillToCap ? 'Daily reset fill' : 'Increment schedule top-up';
+            $this->recordHistory(
+                ShopeeAdsType::ProdukManual->value,
+                $cid,
+                'replenish_create',
+                null,
+                $starting,
+                null,
+                $label.' — created item ad for '.$candidate['item_id'],
+            );
         }
 
         $message = "Replenish: {$created} item ad(s) created";
         $this->telegram->notifyReplenish($created, $starting, $message);
+
+        Log::info('Shopee Ads item replenish finished', [
+            'created' => $created,
+            'fill_to_cap' => $fillToCap,
+            'active_before' => $active,
+            'cap' => $cap,
+        ]);
 
         return ['created' => $created, 'message' => $message];
     }
