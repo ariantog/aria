@@ -331,6 +331,13 @@ it('prefers manufactured type tags over asset lancar tags with the same code', f
 });
 
 it('does not re-queue items already marked skipped as canonical', function () {
+    $gloveType = Tag::factory()->create([
+        'type' => Tag::TYPE_TYPE,
+        'item_type' => ItemType::ASSET_LANCAR->value,
+        'code' => 'GLOVE',
+        'name' => 'Glove',
+    ]);
+
     $group = \App\Models\ItemGroup::factory()->create([
         'master' => 'GLOVE-01',
         'variant' => 'BLACK',
@@ -343,8 +350,10 @@ it('does not re-queue items already marked skipped as canonical', function () {
         'code' => 'GLOVE-01-BLACK-S',
         'pcode' => 'GLOVE-01',
         'name' => 'BOXING GLOVE - BLACK - S',
+        'genre' => $gloveType->id,
     ]);
     $item->tags()->sync([
+        $gloveType->id,
         Tag::where('code', 'BLACK')->first()->id,
         Tag::where('code', 'S')->first()->id,
     ]);

@@ -43,6 +43,13 @@ it('shows convert panel on asset lancar detail for ungrouped legacy sku', functi
 });
 
 it('hides convert panel when item is already fully canonical', function () {
+    $gloveType = Tag::factory()->create([
+        'type' => Tag::TYPE_TYPE,
+        'item_type' => ItemType::ASSET_LANCAR->value,
+        'code' => 'GLOVE',
+        'name' => 'Glove',
+    ]);
+
     $group = \App\Models\ItemGroup::factory()->create([
         'master' => 'GLOVE-01',
         'variant' => 'BLACK',
@@ -55,6 +62,34 @@ it('hides convert panel when item is already fully canonical', function () {
         'code' => 'GLOVE-01-BLACK-S',
         'pcode' => 'GLOVE-01',
         'name' => 'BOXING GLOVE - BLACK - S',
+        'genre' => $gloveType->id,
+    ]);
+    $item->tags()->sync([
+        $gloveType->id,
+        Tag::where('code', 'BLACK')->first()->id,
+        Tag::where('code', 'S')->first()->id,
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('assetlancar.show', $item))
+        ->assertOk()
+        ->assertDontSee('Legacy SKU Conversion', false);
+});
+
+it('shows convert panel when group link exists but asset type tag is missing', function () {
+    $group = \App\Models\ItemGroup::factory()->create([
+        'master' => 'GLOVE-07',
+        'variant' => 'BLACK',
+        'name' => 'MICROFIBER STRAP GYM GLOVE - BLACK',
+    ]);
+
+    $item = Item::factory()->create([
+        'type' => ItemType::ASSET_LANCAR,
+        'group_id' => $group->id,
+        'code' => 'GLOVE-07-BLACK-S',
+        'pcode' => 'GLOVE-07',
+        'name' => 'MICROFIBER STRAP GYM GLOVE - BLACK - S',
+        'genre' => 0,
     ]);
     $item->tags()->sync([
         Tag::where('code', 'BLACK')->first()->id,
@@ -64,7 +99,50 @@ it('hides convert panel when item is already fully canonical', function () {
     $this->actingAs($this->user)
         ->get(route('assetlancar.show', $item))
         ->assertOk()
-        ->assertDontSee('Legacy SKU Conversion', false);
+        ->assertSee('Legacy SKU Conversion', false)
+        ->assertSee('Convert to new SKU', false)
+        ->assertSee('missing the asset TYPE tag', false);
+});
+
+it('shows convert panel without convert permission but blocks the button', function () {
+    Permission::firstOrCreate(['name' => 'assetLancar-list', 'guard_name' => 'web']);
+    $viewer = User::factory()->create();
+    $viewer->givePermissionTo('assetLancar-list');
+
+    $item = makeLegacyAssetItem('GLOVE-07-BLACK-S', 'MICROFIBER STRAP GYM GLOVE - BLACK - S');
+
+    $this->actingAs($viewer)
+        ->get(route('assetlancar.show', $item))
+        ->assertOk()
+        ->assertSee('Legacy SKU Conversion', false)
+        ->assertSee('Legacy Converter permission is required', false)
+        ->assertDontSee('Convert to new SKU', false);
+});
+
+it('shows convert panel when item is linked to a legacy group without master', function () {
+    $legacyGroup = \App\Models\ItemGroup::factory()->create([
+        'master' => null,
+        'variant' => 'BLACK',
+        'name' => 'OLD GROUP - BLACK',
+    ]);
+
+    $item = Item::factory()->create([
+        'type' => ItemType::ASSET_LANCAR,
+        'group_id' => $legacyGroup->id,
+        'code' => 'GLOVE-07-BLACK-S',
+        'pcode' => 'GLOVE-07',
+        'name' => 'MICROFIBER STRAP GYM GLOVE - BLACK - S',
+    ]);
+    $item->tags()->sync([
+        Tag::where('code', 'BLACK')->first()->id,
+        Tag::where('code', 'S')->first()->id,
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('assetlancar.show', $item))
+        ->assertOk()
+        ->assertSee('Legacy SKU Conversion', false)
+        ->assertSee('Convert to new SKU', false);
 });
 
 it('shows convert panel when item has the wrong product group', function () {
@@ -239,8 +317,15 @@ it('detail convert context hides only fully canonical items', function () {
         'variant' => 'BLACK',
         'name' => 'BOXING GLOVE - BLACK',
     ]);
-    $item->update(['group_id' => $canonicalGroup->id]);
+    $gloveType = Tag::factory()->create([
+        'type' => Tag::TYPE_TYPE,
+        'item_type' => ItemType::ASSET_LANCAR->value,
+        'code' => 'GLOVE',
+        'name' => 'Glove',
+    ]);
+    $item->update(['group_id' => $canonicalGroup->id, 'genre' => $gloveType->id]);
     $item->tags()->sync([
+        $gloveType->id,
         Tag::where('code', 'BLACK')->first()->id,
         Tag::where('code', 'S')->first()->id,
     ]);
