@@ -39,6 +39,15 @@ $nb = optional($item->group)->description2 ?? ($item->description2 ?? '-');
 
     @include('items.partials.item-tabs', ['active' => 'Detail'])
 
+    @if(session('success'))
+        <div class="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">{{ session('success') }}</div>
+    @endif
+    @if(session('error'))
+        <div class="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ session('error') }}</div>
+    @endif
+
+    @include('items.partials.identity-convert', ['identityConvert' => $identityConvert ?? null])
+
     <div class="grid grid-cols-1 gap-6 xl:grid-cols-12">
         {{-- Image --}}
         <div class="xl:col-span-5">
@@ -92,6 +101,18 @@ $nb = optional($item->group)->description2 ?? ($item->description2 ?? '-');
                             <p class="mb-1 text-[10px] font-bold uppercase tracking-tight text-gray-500">NB</p>
                             <p class="text-xs leading-relaxed text-gray-600">{{ $nb }}</p>
                         </div>
+                        @if($item->group?->url)
+                        <div>
+                            <p class="mb-1 text-[10px] font-bold uppercase tracking-tight text-gray-500">Product URL</p>
+                            <a href="{{ $item->group->url }}" target="_blank" rel="noopener noreferrer" class="text-xs text-blue-600 hover:underline">{{ $item->group->url }}</a>
+                        </div>
+                        @endif
+                        @if($item->restock_urgent_threshold)
+                        <div>
+                            <p class="mb-1 text-[10px] font-bold uppercase tracking-tight text-gray-500">Restock urgent threshold</p>
+                            <p class="text-xs text-gray-600">{{ number_format($item->restock_urgent_threshold, 0, ',', '.') }} units</p>
+                        </div>
+                        @endif
                     </div>
 
                     <div class="grid grid-cols-1 gap-6 border-t border-gray-100 pt-4 md:grid-cols-2">

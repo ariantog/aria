@@ -44,4 +44,22 @@ class ReportingEntity extends Model
             ->whereHas('banks', fn ($query) => $query->where('customers.id', $bankId))
             ->first();
     }
+
+    /**
+     * @return list<int>
+     */
+    public static function activePkpBankIds(): array
+    {
+        return static::query()
+            ->where('is_active', true)
+            ->where('is_pkp', true)
+            ->whereHas('banks')
+            ->with(['banks' => fn ($query) => $query->select('customers.id')])
+            ->get()
+            ->flatMap(fn (self $entity) => $entity->banks->pluck('id'))
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+    }
 }

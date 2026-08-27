@@ -72,7 +72,7 @@
         input:focus, select:focus, textarea:focus { outline: 2px solid #3b82f6; outline-offset: 1px; }
     </style>
 </head>
-<body class="h-full bg-gray-50 text-gray-900 antialiased"
+<body class="min-h-full bg-gray-50 text-gray-900 antialiased"
       x-data="appShell()"
       x-init="init()"
       @keydown.window.escape="closeSidebar()">
@@ -113,11 +113,12 @@
 </div>
 @endif
 
-<div class="flex h-full">
+<div class="flex min-h-screen">
     {{-- Sidebar overlay for mobile --}}
     <div x-show="sidebarOpen && isMobile"
+         x-transition.opacity
          @click="sidebarOpen = false"
-         class="fixed inset-0 z-20 bg-black/30"
+         class="fixed inset-0 z-20 bg-black/30 lg:hidden"
          x-cloak></div>
 
     {{-- SIDEBAR --}}
@@ -215,7 +216,7 @@
     <div id="main-content"
          x-init="$nextTick(() => $el.classList.add('anim-ready'))"
          :class="sidebarOpen ? (isMobile ? 'ml-0' : 'ml-64') : (isMobile ? 'ml-0' : 'ml-14')"
-         class="flex flex-1 flex-col min-h-full min-w-0">
+         class="flex flex-1 flex-col min-w-0 h-screen overflow-hidden">
 
         {{-- Top header --}}
         <header class="sticky top-0 z-10 flex h-14 items-center gap-3 border-b border-gray-200 bg-white px-4">
@@ -263,15 +264,15 @@
             </div>
         </header>
 
-        {{-- Page content --}}
-        <main class="flex-1">
+        {{-- Page content (scrollable; header stays pinned above) --}}
+        <main id="app-main-scroll" class="flex-1 overflow-y-auto overflow-x-hidden">
             @yield('content')
         </main>
     </div>
 </div>
 
 {{-- Alpine.js CDN --}}
-<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.9/dist/cdn.min.js"></script>
 
 <script>
 function formatAmountId(value) {
@@ -324,6 +325,10 @@ function appShell() {
                 if (this.isMobile) this.sidebarOpen = false;
             });
             this.$watch('sidebarOpen', val => localStorage.setItem('sidebarOpen', val));
+            this.$nextTick(() => {
+                const main = document.getElementById('app-main-scroll');
+                if (main) main.scrollTop = 0;
+            });
         },
         closeSidebar() { if (this.isMobile) this.sidebarOpen = false; }
     };

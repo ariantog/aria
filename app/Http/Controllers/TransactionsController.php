@@ -13,8 +13,10 @@ use App\Http\Requests\StoreTransferRequest;
 use App\Models\DeletedTransaction;
 use App\Models\DeletedTransactionDetail;
 use App\Models\Transaction;
+use App\Support\PpnAmounts;
 use App\Services\BookClosingService;
 use App\Services\Jubelio\JubelioTransactionSyncPresenter;
+use App\Services\Reporting\ReportingSummaryRecorder;
 use App\Services\TransactionInvoiceService;
 use App\Services\TransactionListExportService;
 use App\Services\TransactionReturnDraftService;
@@ -122,19 +124,48 @@ class TransactionsController extends Controller
         }
 
         return response()->json([
-            'item' => [
-                'id' => $item->id,
-                'code' => $item->getItemCode(),
-                'name' => $item->name ?: $item->getItemName(),
-                'type' => $item->type->value,
-                'price' => (float) $item->price,
-                'cost' => (float) $item->cost,
-                'warehouse_item' => $item->warehouseItems->map(fn ($wi) => [
-                    'warehouse_id' => (string) $wi->warehouse_id,
-                    'quantity' => (float) $wi->quantity,
-                ])->values()->all(),
-            ],
+            'item' => $this->itemLookupPayload($item),
         ]);
+    }
+
+    /**
+     * Resolve a typed SKU for line-item rows (canonical code, legacy_code, then name).
+     */
+    public function itemByCode(string $type, Request $request)
+    {
+        Transaction::authorizeTypeAccess($type);
+
+        $validated = $request->validate([
+            'code' => ['required', 'string', 'max:255'],
+        ]);
+
+        $item = \App\Models\Item::findBySkuOrName($validated['code']);
+        if ($item) {
+            $item->loadMissing('warehouseItems');
+        }
+
+        return response()->json([
+            'item' => $item ? $this->itemLookupPayload($item) : null,
+        ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function itemLookupPayload(\App\Models\Item $item): array
+    {
+        return [
+            'id' => $item->id,
+            'code' => $item->getItemCode(),
+            'name' => $item->name ?: $item->getItemName(),
+            'type' => $item->type->value,
+            'price' => (float) $item->price,
+            'cost' => (float) $item->cost,
+            'warehouse_item' => $item->warehouseItems->map(fn ($wi) => [
+                'warehouse_id' => (string) $wi->warehouse_id,
+                'quantity' => (float) $wi->quantity,
+            ])->values()->all(),
+        ];
     }
 
     public function store(StoreItemTransactionRequest $request, CreateItemTransaction $action, BookClosingService $bookClosingService)
@@ -153,6 +184,8 @@ class TransactionsController extends Controller
         return view('transactions.cash', [
             'bankList' => \App\Models\Addrbook::where('type', \App\Models\Addrbook::TYPE_BANK)->orderBy('name')->get(),
             'ppn_rate' => (float) \App\Models\Setting::getValue('ppn_rate', 11),
+            'pph_rate' => (float) config('reporting.pph_withholding_rate', 10),
+            'pkpBankIds' => \App\Models\ReportingEntity::activePkpBankIds(),
             'min_date' => $bookClosingService->getMinAllowedDate()->toDateString(),
             'type' => 'in',
             'defaultAccount' => $userPreferences->defaultCashAccount(Auth::user(), true),
@@ -175,6 +208,8 @@ class TransactionsController extends Controller
         return view('transactions.cash', [
             'bankList' => \App\Models\Addrbook::where('type', \App\Models\Addrbook::TYPE_BANK)->orderBy('name')->get(),
             'ppn_rate' => (float) \App\Models\Setting::getValue('ppn_rate', 11),
+            'pph_rate' => (float) config('reporting.pph_withholding_rate', 10),
+            'pkpBankIds' => \App\Models\ReportingEntity::activePkpBankIds(),
             'min_date' => $bookClosingService->getMinAllowedDate()->toDateString(),
             'type' => 'out',
             'defaultAccount' => $userPreferences->defaultCashAccount(Auth::user(), false),
@@ -252,10 +287,18 @@ class TransactionsController extends Controller
         $jubelioSync = $jubelioSyncPresenter->applyToTransaction($transaction);
         $jubelioSync['show_ui'] = config('services.jubelio.active')
             && $jubelioSync['can_sync']
-            && $jubelioSync['sync_cek']
+            && (bool) $jubelioSync['sync_cek']
             && Transaction::userCanJubelioTransactionSync(Auth::user());
         $invoiceService = app(TransactionInvoiceService::class);
         $canDraftReturn = $this->canDraftReturn($transaction);
+        $cashBankId = match ((int) $transaction->type) {
+            Transaction::TYPE_CASH_IN => (int) $transaction->receiver_id,
+            Transaction::TYPE_CASH_OUT => (int) $transaction->sender_id,
+            default => 0,
+        };
+        $cashReportingEntity = $cashBankId > 0
+            ? \App\Models\ReportingEntity::findActiveForBank($cashBankId)
+            : null;
 
         return view('transactions.show', [
             'transaction' => $transaction,
@@ -271,6 +314,11 @@ class TransactionsController extends Controller
             'flash' => ['success' => session('success'), 'error' => session('error')],
             'hasInvoicePdf' => $invoiceService->invoicePdfExists($transaction),
             'invoicePdfUrl' => $invoiceService->invoicePdfUrl($transaction),
+            'canEditPpn' => Auth::user()->can(Transaction::getPermissions()['edit'])
+                && in_array((int) $transaction->type, [Transaction::TYPE_CASH_IN, Transaction::TYPE_CASH_OUT], true)
+                && ($cashReportingEntity?->is_pkp ?? false),
+            'ppn_rate' => (float) \App\Models\Setting::getValue('ppn_rate', 11),
+            'pph_rate' => (float) config('reporting.pph_withholding_rate', 10),
         ]);
     }
 
@@ -356,7 +404,6 @@ class TransactionsController extends Controller
             'warehouse_id' => 'nullable|integer',
             'type' => 'nullable|string',
         ]);
-        $priceSource = config('transaction_rules.'.($validated['type'] ?? '').'.price_source', 'price');
         $file = $request->file('csv_file');
         $filePath = $file->getRealPath();
         $array = [];
@@ -407,7 +454,8 @@ class TransactionsController extends Controller
                 $csvPrice = (float) $row['price'];
                 $itemPrice = (float) $item->price;
                 $itemCost = (float) $item->cost;
-                $unitPrice = $priceSource === 'cost' ? $itemCost : $csvPrice;
+                $type = $validated['type'] ?? '';
+                $unitPrice = $type === 'move' ? $itemPrice : $csvPrice;
                 $dataList[] = [
                     'id' => (string) $item->id,
                     'item_id' => (string) $item->id,
@@ -457,6 +505,88 @@ class TransactionsController extends Controller
         }
 
         return back()->with('success', 'Transaction note updated.');
+    }
+
+    public function updatePpn(Request $request, Transaction $transaction, ReportingSummaryRecorder $recorder)
+    {
+        Gate::authorize(Transaction::getPermissions()['edit']);
+        abort_unless(
+            app(\App\Services\LocationAccessService::class)->canAccessTransaction(Auth::user(), $transaction),
+            403
+        );
+        abort_unless(
+            in_array((int) $transaction->type, [Transaction::TYPE_CASH_IN, Transaction::TYPE_CASH_OUT], true),
+            422,
+            'PPN can only be edited on cash in/out transactions.',
+        );
+
+        $bankId = (int) $transaction->type === Transaction::TYPE_CASH_IN
+            ? (int) $transaction->receiver_id
+            : (int) $transaction->sender_id;
+        $entity = \App\Models\ReportingEntity::findActiveForBank($bankId);
+        abort_unless($entity?->is_pkp, 422, 'This bank is not linked to a PKP reporting entity.');
+
+        $validated = $request->validate([
+            'record_ppn' => ['required', 'boolean'],
+            'record_pph' => ['sometimes', 'boolean'],
+            'ppn_dpp' => ['nullable', 'numeric', 'min:0'],
+            'ppn' => ['nullable', 'numeric', 'min:0'],
+            'pph' => ['nullable', 'numeric', 'min:0'],
+        ]);
+
+        $recordPpn = filter_var($validated['record_ppn'], FILTER_VALIDATE_BOOLEAN);
+        $recordPph = filter_var($validated['record_pph'] ?? false, FILTER_VALIDATE_BOOLEAN);
+
+        $ppn = 0.0;
+        $ppnDpp = null;
+        $pph = null;
+        if ($recordPpn) {
+            $submittedPpn = (float) ($validated['ppn'] ?? 0);
+            $submittedDpp = isset($validated['ppn_dpp']) ? (float) $validated['ppn_dpp'] : null;
+            $submittedPph = (float) ($validated['pph'] ?? 0);
+
+            $hasManual = $submittedPpn >= 0.01 && $submittedDpp !== null && $submittedDpp >= 0.01;
+            if ($recordPph) {
+                $hasManual = $hasManual && $submittedPph >= 0.01;
+            }
+
+            if ($hasManual) {
+                $ppn = $submittedPpn;
+                $ppnDpp = $submittedDpp;
+                $pph = $recordPph ? $submittedPph : null;
+            } else {
+                $amounts = PpnAmounts::fromPayment((float) $transaction->total, $recordPph);
+                $ppn = $amounts['ppn'];
+                $ppnDpp = $amounts['dpp'];
+                $pph = $amounts['pph'] > 0 ? $amounts['pph'] : null;
+            }
+        }
+
+        $previousPpn = (float) $transaction->ppn;
+        $previousPpnDpp = $transaction->ppn_dpp !== null ? (float) $transaction->ppn_dpp : null;
+
+        $transaction->update([
+            'ppn' => $ppn,
+            'ppn_dpp' => $ppnDpp,
+            'pph' => $pph,
+        ]);
+
+        $recorder->adjustCashTransactionTax($transaction->fresh(), $previousPpn, $previousPpnDpp);
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'ppn' => (float) $transaction->ppn,
+                'ppn_dpp' => $transaction->ppn_dpp !== null ? (float) $transaction->ppn_dpp : null,
+                'pph' => $transaction->pph !== null ? (float) $transaction->pph : null,
+                'record_ppn' => (float) $transaction->ppn > 0,
+                'record_pph' => (float) ($transaction->pph ?? 0) > 0,
+                'display_ppn' => format_amount($transaction->ppn),
+                'display_dpp' => $transaction->ppn_dpp !== null ? format_amount($transaction->ppn_dpp) : '-',
+                'display_pph' => $transaction->pph !== null ? format_amount($transaction->pph) : '-',
+            ]);
+        }
+
+        return back()->with('success', 'Transaction PPN updated.');
     }
 
     public function destroy(Transaction $transaction, TransactionService $service, BookClosingService $bookClosingService)

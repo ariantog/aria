@@ -89,6 +89,22 @@ class BoronganController extends Controller
             'batches.*.lain2' => 'nullable|numeric|min:0',
         ]);
 
+        $missingJahitPrices = [];
+        foreach ($request->input('batches', []) as $batch) {
+            foreach ($this->findBorongan($request->from, $request->to, (int) $batch['jahit_id']) as $item) {
+                if ($item['missing_jahit_price']) {
+                    $missingJahitPrices[] = $item['code'];
+                }
+            }
+        }
+
+        if ($missingJahitPrices !== []) {
+            return back()->withInput()->with(
+                'error',
+                'Harga jahit kosong untuk item: '.implode(', ', array_unique($missingJahitPrices))
+            );
+        }
+
         try {
             DB::beginTransaction();
 
@@ -286,7 +302,8 @@ class BoronganController extends Controller
                 ];
             }
 
-            $ongkos = $this->ongkos($val->item);
+            $jahitOngkos = $this->resolveJahitOngkos($val->item);
+            $ongkos = $jahitOngkos['ongkos'];
             $total = (float) bcmul((string) $val->quantity, (string) $ongkos, 2);
             $code = $val->item ? $val->item->getItemCode() : $val->temp_name;
 
@@ -297,6 +314,7 @@ class BoronganController extends Controller
                 'quantity' => $val->quantity,
                 'serial' => $val->serial,
                 'ongkos' => $ongkos,
+                'missing_jahit_price' => $jahitOngkos['missing_jahit_price'],
                 'total' => $total,
                 'code' => $code,
                 'edit_link' => route('produksi.setoran.edit', ['produksi' => $val->id]),
@@ -334,7 +352,8 @@ class BoronganController extends Controller
         $boronganArray = [];
 
         foreach ($data as $val) {
-            $ongkos = $this->ongkos($val->item);
+            $jahitOngkos = $this->resolveJahitOngkos($val->item);
+            $ongkos = $jahitOngkos['ongkos'];
             $total = (float) bcmul((string) $val->quantity, (string) $ongkos, 2);
             $code = $val->item ? $val->item->getItemCode() : $val->temp_name;
 
@@ -345,6 +364,7 @@ class BoronganController extends Controller
                 'quantity' => $val->quantity,
                 'serial' => $val->serial,
                 'ongkos' => $ongkos,
+                'missing_jahit_price' => $jahitOngkos['missing_jahit_price'],
                 'total' => $total,
                 'code' => $code,
                 'edit_link' => route('produksi.setoran.edit', ['produksi' => $val->id]),
@@ -356,19 +376,31 @@ class BoronganController extends Controller
 
     /**
      * Helper to get ongkos jahit from item's tags
+     *
+     * @return array{ongkos: float, missing_jahit_price: bool}
      */
-    protected function ongkos($item)
+    protected function resolveJahitOngkos($item): array
     {
         if (! $item) {
-            return 0;
+            return ['ongkos' => 0, 'missing_jahit_price' => true];
         }
 
         $ongkosTag = $item->tags()->where('tags.type', Tag::TYPE_JAHIT)->first();
-        if (! $ongkosTag) {
-            return 0;
+        if (! $ongkosTag || $ongkosTag->price === null || $ongkosTag->price === '') {
+            return ['ongkos' => 0, 'missing_jahit_price' => true];
         }
 
-        return $ongkosTag->price ?? 0;
+        $price = (float) $ongkosTag->price;
+
+        return [
+            'ongkos' => $price,
+            'missing_jahit_price' => $price <= 0,
+        ];
+    }
+
+    protected function ongkos($item): float
+    {
+        return $this->resolveJahitOngkos($item)['ongkos'];
     }
 
     protected function findExistingBorongan(string $from, string $to, int $jahitId): ?Borongan

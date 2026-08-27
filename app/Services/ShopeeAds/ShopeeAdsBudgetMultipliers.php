@@ -40,6 +40,20 @@ readonly class ShopeeAdsBudgetMultipliers
     }
 
     /**
+     * Combined daily cap for GMV Max + item ads. Scales with the larger of the
+     * GMV and item-budget multipliers so a 2× special day doubles the shared cap.
+     */
+    public function scaledCombinedDailyCap(int $baseCap): int
+    {
+        return $this->scaleAmount($baseCap, $this->combinedCapMultiplier());
+    }
+
+    public function combinedCapMultiplier(): float
+    {
+        return max($this->gmv, $this->itemBudget);
+    }
+
+    /**
      * @return list<string>
      */
     public function activeRuleLabels(): array
@@ -58,11 +72,19 @@ readonly class ShopeeAdsBudgetMultipliers
             $labels[] = 'Item ads count ×'.$this->itemAdsCount;
         }
 
+        $capMultiplier = $this->combinedCapMultiplier();
+        if ($capMultiplier !== 1.0) {
+            $labels[] = 'Combined cap ×'.$capMultiplier;
+        }
+
         return $labels;
     }
 
     public function hasActiveRules(): bool
     {
-        return $this->gmv !== 1.0 || $this->itemBudget !== 1.0 || $this->itemAdsCount !== 1.0;
+        return $this->gmv !== 1.0
+            || $this->itemBudget !== 1.0
+            || $this->itemAdsCount !== 1.0
+            || $this->combinedCapMultiplier() !== 1.0;
     }
 }

@@ -19,17 +19,17 @@ class ScheduledTaskSeeder extends Seeder
                 'name' => 'Process Queue Jobs',
                 'frequency' => 'everyMinute',
                 'active' => true,
-                'description' => 'Drains the jobs table (transaction report aggregates, Jubelio import jobs, etc.).',
+                'description' => 'Drains the jobs table. Runs via Laravel scheduler directly (not the dispatcher).',
             ]
         );
 
         \App\Models\ScheduledTask::updateOrCreate(
-            ['command' => 'app:recalculate-warehouse-item-stats'],
+            ['command' => 'app:dispatch-scheduled-tasks'],
             [
-                'name' => 'Recalculate Warehouse Item Stats',
-                'frequency' => 'weekly',
-                'active' => true,
-                'description' => 'Rebuilds monthly per-warehouse SKU sell/return statistics for arrangement reports.',
+                'name' => 'Laravel Scheduler Dispatcher',
+                'frequency' => 'everyMinute',
+                'active' => false,
+                'description' => 'System heartbeat — updated by schedule:run when app:dispatch-scheduled-tasks succeeds. Do not enable here.',
             ]
         );
 
@@ -38,10 +38,41 @@ class ScheduledTaskSeeder extends Seeder
             [
                 'name' => 'Process Warehouse Arrangement Refresh',
                 'frequency' => 'everyMinute',
-                'active' => true,
-                'description' => 'Processes queued warehouse arrangement rebuild jobs (~300 SKUs per minute per warehouse).',
+                'active' => false,
+                'description' => 'Handled by Process Queue Jobs each minute. Kept for manual runs only.',
             ]
         );
+
+        // The unbounded weekly rebuild walked the whole history in one run and
+        // exhausted memory on production. Recent months are reconciled daily and the
+        // archive is rebuilt in batches instead.
+        \App\Models\ScheduledTask::where('command', 'app:recalculate-warehouse-item-stats')->delete();
+
+        \App\Models\ScheduledTask::updateOrCreate(
+            ['command' => 'app:recalculate-warehouse-item-stats --months=2'],
+            [
+                'name' => 'Reconcile Recent Warehouse Item Stats',
+                'frequency' => 'daily',
+                'active' => true,
+                'description' => 'Recomputes the current and previous month from transaction details, correcting any drift left by the live per-transaction updates.',
+            ]
+        );
+
+        \App\Models\ScheduledTask::updateOrCreate(
+            ['command' => 'app:backfill-warehouse-item-stats --months=3'],
+            [
+                'name' => 'Backfill Historical Warehouse Item Stats',
+                'frequency' => 'hourly',
+                'active' => true,
+                'description' => 'Rebuilds older months a batch at a time. Idle until a backfill is started from the Warehouse Stats Backfill page.',
+            ]
+        );
+
+        // Legacy row — deactivate if still present from older seeds.
+        \App\Models\ScheduledTask::query()
+            ->where('command', 'app:process-warehouse-arrangement-refresh')
+            ->where('active', true)
+            ->update(['active' => false]);
 
         \App\Models\ScheduledTask::updateOrCreate(
             ['command' => 'app:sync-warehouse-arrangement'],
@@ -109,7 +140,7 @@ class ScheduledTaskSeeder extends Seeder
                 'name' => 'Jubelio Stock Check',
                 'frequency' => 'everyMinute',
                 'active' => true,
-                'description' => 'Compares Aria vs Jubelio available per synced warehouse. Auto-creates a daily job and scans extra rounds until the target discrepancy count is reached.',
+                'description' => 'Compares Aria vs Jubelio available per synced warehouse. One warehouse per cron tick; auto-creates a daily job and scans extra rounds until the target discrepancy count is reached.',
             ]
         );
 
@@ -118,8 +149,8 @@ class ScheduledTaskSeeder extends Seeder
             [
                 'name' => 'Shopee Ads Process',
                 'frequency' => 'everyMinute',
-                'active' => false,
-                'description' => 'Runs Shopee Ads budget schedules, daily reset (WIB), and group replenishment.',
+                'active' => true,
+                'description' => 'Runs Shopee Ads budget schedules, daily reset (WIB), and item ad replenishment.',
             ]
         );
     }

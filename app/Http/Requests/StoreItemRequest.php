@@ -18,6 +18,8 @@ class StoreItemRequest extends FormRequest
             'price' => ['nullable', 'numeric'],
             'description' => ['nullable', 'string'],
             'description2' => ['nullable', 'string'],
+            'url' => ['nullable', 'string', 'max:255'],
+            'restock_urgent_threshold' => ['nullable', 'integer', 'min:1'],
             'image' => ['nullable', 'image', 'max:2048'],
             'tags.types' => $isAsset ? ['required', 'array', 'min:1'] : ['required'],
             'tags.sizes' => ['required', 'array', 'min:1'],

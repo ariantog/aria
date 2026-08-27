@@ -16,6 +16,7 @@ use App\Services\ItemService;
 use App\Services\Items\ItemGroupHierarchyService;
 use App\Services\Items\ItemGroupParentExportService;
 use App\Services\Items\ItemIdentityBuilder;
+use App\Services\Items\LegacyItemConverterService;
 use App\Services\ProductPerformanceService;
 use App\Services\JubelioService;
 use Illuminate\Http\Request;
@@ -28,6 +29,7 @@ class ItemsController extends Controller
         protected ProductPerformanceService $performance,
         protected ItemGroupHierarchyService $groupHierarchy,
         protected ItemIdentityBuilder $identityBuilder,
+        protected LegacyItemConverterService $legacyConverter,
     ) {}
 
     public function index(Request $request, ?ItemType $type = null)
@@ -197,12 +199,26 @@ class ItemsController extends Controller
             'activeStock' => (float) $activeWarehouseItems->sum('quantity'),
             'deletedStock' => (float) $deletedWarehouseItems->sum('quantity'),
             'isAsset' => $item->type === ItemType::ASSET_LANCAR,
-            'groupUrl' => $item->group_id
+            'groupUrl' => $this->legacyConverter->hasProductGroup($item)
                 ? route('items.group-parent-detail', $this->identityBuilder->parentKeyToSlug(
                     $this->identityBuilder->itemParentKey($item)
                 ))
                 : null,
+            'identityConvert' => $this->detailIdentityConvertContext($item),
         ]);
+    }
+
+    protected function detailIdentityConvertContext(Item $item): ?array
+    {
+        $user = auth()->user();
+
+        if (! $user?->is_superadmin && ! Gate::check(Item::getPermissions()['convert-legacy'])) {
+            return null;
+        }
+
+        $context = $this->legacyConverter->detailConvertContext($item);
+
+        return $context['visible'] ? $context : null;
     }
 
     public function edit(Item $item)
@@ -228,6 +244,10 @@ class ItemsController extends Controller
             'product_name' => ['nullable', 'string', 'max:255'],
             'price' => ['nullable', 'numeric'],
             'cost' => $isAsset ? ['required', 'numeric'] : ['nullable'],
+            'description' => ['nullable', 'string'],
+            'description2' => ['nullable', 'string'],
+            'url' => ['nullable', 'string', 'max:255'],
+            'restock_urgent_threshold' => ['nullable', 'integer', 'min:1'],
             'tags.types' => $isAsset ? ['nullable'] : ['required'],
             'tags.sizes' => ['required'],
             'tags.warna' => ['required'],

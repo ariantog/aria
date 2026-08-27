@@ -5,6 +5,7 @@ namespace App\Actions\Transactions;
 use App\Http\Requests\StoreCashTransactionRequest;
 use App\Models\Addrbook;
 use App\Models\Transaction;
+use App\Support\PpnAmounts;
 use App\Services\TransactionService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -27,6 +28,8 @@ class CreateCashTransaction
                 $receiver = $isCashIn ? $account : $contact;
                 $total = (float) $item['total'];
                 $grandTotal = Transaction::signedAmount($type, $total);
+                $recordPpn = filter_var($item['record_ppn'] ?? false, FILTER_VALIDATE_BOOLEAN);
+                [$ppn, $ppnDpp, $pph] = $this->resolveCashTaxAmounts($recordPpn, $total, $item);
                 $trx = Transaction::create([
                     'date' => $data['date'], 'type' => $type,
                     'sender_type' => (int) $sender->type,
@@ -39,7 +42,10 @@ class CreateCashTransaction
                     'total' => $grandTotal,
                     'real_total' => $grandTotal,
                     'total_items' => 0,
-                    'adjustment' => 0, 'discount' => 0, 'ppn' => 0,
+                    'adjustment' => 0, 'discount' => 0,
+                    'ppn' => $ppn,
+                    'ppn_dpp' => $ppnDpp,
+                    'pph' => $pph > 0 ? $pph : null,
                     'submit_type' => Transaction::SUBMIT_TYPE_MANUAL,
                 ]);
                 if (empty($trx->invoice)) {
@@ -51,5 +57,33 @@ class CreateCashTransaction
         });
 
         return $createdIds;
+    }
+
+    /**
+     * @return array{0: float, 1: float|null, 2: float}
+     */
+    private function resolveCashTaxAmounts(bool $recordPpn, float $total, array $item): array
+    {
+        if (! $recordPpn) {
+            return [0, null, 0];
+        }
+
+        $recordPph = filter_var($item['record_pph'] ?? false, FILTER_VALIDATE_BOOLEAN);
+        $ppn = (float) ($item['ppn'] ?? 0);
+        $ppnDpp = isset($item['ppn_dpp']) ? (float) $item['ppn_dpp'] : null;
+        $pph = (float) ($item['pph'] ?? 0);
+
+        $hasManual = $ppn >= 0.01 && $ppnDpp !== null && $ppnDpp >= 0.01;
+        if ($recordPph) {
+            $hasManual = $hasManual && $pph >= 0.01;
+        }
+
+        if ($hasManual) {
+            return [$ppn, $ppnDpp, $recordPph ? $pph : 0];
+        }
+
+        $amounts = PpnAmounts::fromPayment($total, $recordPph);
+
+        return [$amounts['ppn'], $amounts['dpp'], $amounts['pph']];
     }
 }

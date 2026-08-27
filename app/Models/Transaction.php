@@ -47,9 +47,9 @@ class Transaction extends Model
 
     const STATUS_CANCELLED = 2;
 
-    const SUBMIT_TYPE_MANUAL = 1;
+    const SUBMIT_TYPE_MANUAL = 1; // L10: aria submit
 
-    const SUBMIT_TYPE_JUBELIO = 2;
+    const SUBMIT_TYPE_JUBELIO = 2; // L10: cron jubelio
 
     /** L10 Jubelio cron used -100 when no human submitter (production user_id is NOT NULL). */
     const JUBELIO_CRON_USER_ID = -100;
@@ -70,7 +70,7 @@ class Transaction extends Model
         return [
             'date' => 'date', 'due' => 'date',
             'total' => 'decimal:2', 'discount' => 'decimal:2',
-            'adjustment' => 'decimal:2', 'ppn' => 'decimal:2',
+            'adjustment' => 'decimal:2', 'ppn' => 'decimal:2', 'ppn_dpp' => 'decimal:2', 'pph' => 'decimal:2',
             'real_total' => 'decimal:2', 'total_items' => 'decimal:2',
             'type' => 'integer',
             'status' => 'integer',
@@ -335,6 +335,10 @@ class Transaction extends Model
 
             if (Schema::hasColumn($table, 'location_id') && $transaction->location_id === null) {
                 $transaction->location_id = auth()->user()?->location_id ?? 0;
+            }
+
+            if (Schema::hasColumn($table, 'submit_type') && $transaction->submit_type === null) {
+                $transaction->submit_type = self::SUBMIT_TYPE_MANUAL;
             }
         });
     }

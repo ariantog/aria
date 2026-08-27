@@ -37,6 +37,8 @@ class JubelioStockCheckService
 
     public function ensureDailyJob(): ?JubelioStockCheck
     {
+        $this->recoverStaleJobs();
+
         $activeJob = JubelioStockCheck::query()
             ->whereIn('status', ['created', 'processing'])
             ->orderByDesc('created_at')
@@ -62,6 +64,17 @@ class JubelioStockCheckService
             'scan_round' => 0,
             'status' => 'created',
         ]);
+    }
+
+    /**
+     * Unstick jobs left in processing after a crash, timeout, or API failure.
+     */
+    public function recoverStaleJobs(int $staleHours = 3): int
+    {
+        return JubelioStockCheck::query()
+            ->where('status', 'processing')
+            ->where('updated_at', '<', now()->subHours($staleHours))
+            ->update(['status' => 'completed']);
     }
 
     /**

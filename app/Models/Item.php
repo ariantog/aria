@@ -44,7 +44,6 @@ class Item extends Model
         'tag_ids',
         'description',
         'description2',
-        'url',
         'jubelio_item_id',
         'restock_urgent_threshold',
     ];
@@ -214,6 +213,30 @@ class Item extends Model
                     ->orWhereRaw('UPPER(legacy_code) = ?', [$normalized]);
             })
             ->first();
+    }
+
+    /**
+     * Resolve an item by SKU (code / legacy_code), then exact name when SKU misses.
+     * Name match requires a single row — ambiguous duplicates return null.
+     */
+    public static function findBySkuOrName(string $value): ?self
+    {
+        $item = static::findBySku($value);
+        if ($item) {
+            return $item;
+        }
+
+        $normalized = strtoupper(trim($value));
+        if ($normalized === '') {
+            return null;
+        }
+
+        $matches = static::query()
+            ->whereRaw('UPPER(name) = ?', [$normalized])
+            ->limit(2)
+            ->get();
+
+        return $matches->count() === 1 ? $matches->first() : null;
     }
 
     /**

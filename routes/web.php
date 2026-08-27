@@ -58,6 +58,7 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::get('items/{item}/jubelio', [App\Http\Controllers\ItemsController::class, 'jubelio'])->name('items.jubelio');
     Route::get('items/{item}/jubelio-search', [App\Http\Controllers\ItemsController::class, 'getJubelioItems'])->name('items.jubelio-search');
     Route::post('items/{item}/jubelio-link', [App\Http\Controllers\ItemsController::class, 'updateJubelioId'])->name('items.jubelio-link');
+    Route::post('items/{item}/convert-identity', [App\Http\Controllers\ItemIdentityConvertController::class, 'store'])->name('items.convert-identity');
     Route::resource('items', App\Http\Controllers\ItemsController::class);
     Route::get('jubelio/order/cek', [App\Http\Controllers\JubelioController::class, 'cekOrder'])->name('jubelio.order.cek');
     Route::post('jubelio/order/cek/queue', [App\Http\Controllers\JubelioController::class, 'queueCekOrder'])->name('jubelio.order.cek.queue');
@@ -108,6 +109,13 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::get('system-settings/lookup/{type}', [App\Http\Controllers\SettingController::class, 'lookup'])->name('system-settings.lookup');
     Route::resource('system-settings', App\Http\Controllers\SettingController::class)->except(['show']);
 
+    // Warehouse stats backfill
+    Route::get('warehouse-stat-backfill', [App\Http\Controllers\WarehouseStatBackfillController::class, 'index'])->name('warehouse-stat-backfill.index');
+    Route::post('warehouse-stat-backfill/start', [App\Http\Controllers\WarehouseStatBackfillController::class, 'start'])->name('warehouse-stat-backfill.start');
+    Route::post('warehouse-stat-backfill/pause', [App\Http\Controllers\WarehouseStatBackfillController::class, 'pause'])->name('warehouse-stat-backfill.pause');
+    Route::post('warehouse-stat-backfill/resume', [App\Http\Controllers\WarehouseStatBackfillController::class, 'resume'])->name('warehouse-stat-backfill.resume');
+    Route::post('warehouse-stat-backfill/run-batch', [App\Http\Controllers\WarehouseStatBackfillController::class, 'runBatch'])->name('warehouse-stat-backfill.run-batch');
+
     // Cron Manager
     Route::get('cron-manager', [App\Http\Controllers\ScheduledTaskController::class, 'index'])->name('scheduled-tasks.index');
     Route::patch('cron-manager/{scheduledTask}', [App\Http\Controllers\ScheduledTaskController::class, 'update'])->name('scheduled-tasks.update');
@@ -119,6 +127,8 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::delete('shopee-ads/schedules/{shopeeAdsSchedule}', [App\Http\Controllers\ShopeeAdsController::class, 'destroySchedule'])->name('shopee-ads.schedules.destroy');
     Route::post('shopee-ads/toggle-pause', [App\Http\Controllers\ShopeeAdsController::class, 'togglePause'])->name('shopee-ads.toggle-pause');
     Route::get('shopee-ads/authorize', [App\Http\Controllers\ShopeeAdsController::class, 'authorizeShop'])->name('shopee-ads.authorize');
+    Route::post('shopee-ads/sync-item-ads', [App\Http\Controllers\ShopeeAdsController::class, 'syncItemAds'])->name('shopee-ads.sync-item-ads');
+    Route::post('shopee-ads/run-schedules', [App\Http\Controllers\ShopeeAdsController::class, 'runSchedules'])->name('shopee-ads.run-schedules');
     Route::post('shopee-ads/replenish', [App\Http\Controllers\ShopeeAdsController::class, 'replenish'])->name('shopee-ads.replenish');
     Route::post('shopee-ads/daily-reset', [App\Http\Controllers\ShopeeAdsController::class, 'dailyReset'])->name('shopee-ads.daily-reset');
     Route::post('shopee-ads/boost-budget', [App\Http\Controllers\ShopeeAdsController::class, 'boostBudget'])->name('shopee-ads.boost');
@@ -174,6 +184,7 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::delete('assetlancar/{item}', [App\Http\Controllers\ItemsController::class, 'destroy'])->name('assetlancar.destroy');
     Route::get('assetlancar/{item}/transactions', [App\Http\Controllers\ItemsController::class, 'itemTransactions'])->name('assetlancar.transactions');
     Route::get('assetlancar/{item}/stats', [App\Http\Controllers\ItemsController::class, 'itemStats'])->name('assetlancar.stats');
+    Route::post('assetlancar/{item}/convert-identity', [App\Http\Controllers\ItemIdentityConvertController::class, 'store'])->name('assetlancar.convert-identity');
 
     // Item Group Routes
     Route::get('items-group', [App\Http\Controllers\ItemsController::class, 'group'])->name('items.group');
@@ -230,11 +241,13 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
         ->parameters(['invoice-maker' => 'invoice']);
 
     Route::patch('transactions/{transaction}/note', [App\Http\Controllers\TransactionsController::class, 'updateNote'])->name('transactions.update-note');
+    Route::patch('transactions/{transaction}/ppn', [App\Http\Controllers\TransactionsController::class, 'updatePpn'])->name('transactions.update-ppn');
     Route::get('transactions/{transaction}', [App\Http\Controllers\TransactionsController::class, 'show'])->name('transactions.show');
     Route::delete('transactions/{transaction}', [App\Http\Controllers\TransactionsController::class, 'destroy'])->name('transactions.destroy');
 
     Route::get('transactions/{type}/create', [App\Http\Controllers\TransactionsController::class, 'create'])->name('transactions.create');
     Route::get('transactions/{type}/item-by-id', [App\Http\Controllers\TransactionsController::class, 'itemById'])->name('transactions.item-by-id');
+    Route::get('transactions/{type}/item-by-code', [App\Http\Controllers\TransactionsController::class, 'itemByCode'])->name('transactions.item-by-code');
     Route::get('transactions/{type}/lookup/{role}', [App\Http\Controllers\TransactionLookupController::class, 'search'])->name('transactions.lookup');
     Route::get('tags/lookup', [App\Http\Controllers\TagLookupController::class, 'search'])->name('tags.lookup');
     Route::resource('tags', \App\Http\Controllers\Stuff\TagController::class);
@@ -334,6 +347,8 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
         Route::post('/tax/faktur', [\App\Http\Controllers\Reports\TaxFakturImportController::class, 'store'])->name('tax.faktur.store');
         Route::get('/tax/faktur/{import}', [\App\Http\Controllers\Reports\TaxFakturImportController::class, 'show'])->name('tax.faktur.show');
         Route::patch('/tax/faktur/{import}/payment', [\App\Http\Controllers\Reports\TaxFakturImportController::class, 'updatePayment'])->name('tax.faktur.payment.update');
+        Route::post('/tax/faktur/{import}/post-sell', [\App\Http\Controllers\Reports\TaxFakturImportController::class, 'postSell'])->name('tax.faktur.post-sell');
+        Route::get('/tax/faktur/{import}/line-item-matches', [\App\Http\Controllers\Reports\TaxFakturImportController::class, 'lineItemMatches'])->name('tax.faktur.line-item-matches');
         Route::get('/tax/faktur/{import}/pdf', [\App\Http\Controllers\Reports\TaxFakturImportController::class, 'downloadPdf'])->name('tax.faktur.pdf');
         Route::get('/entities', [\App\Http\Controllers\Reports\ReportingEntityController::class, 'index'])->name('entities.index');
         Route::post('/entities', [\App\Http\Controllers\Reports\ReportingEntityController::class, 'store'])->name('entities.store');

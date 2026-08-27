@@ -456,6 +456,7 @@ const _MinDate = '{{ $min_date ?? '' }}';
 const _PriceSource = @json($config['price_source'] ?? 'price');
 const _Prefill = @json($prefill ?? null);
 const _ItemLookupUrl = @json(route('transactions.item-by-id', ['type' => $type]));
+const _ItemLookupByCodeUrl = @json(route('transactions.item-by-code', ['type' => $type]));
 const _AfterQtyField = @js($isMove ? 'price' : 'disc');
 const _BarcodeScannerLibUrl = 'https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.5/umd/zxing-browser.min.js';
 
@@ -671,39 +672,19 @@ function createTransaction() {
             }
         },
 
-        // A barcode is the item id, but codes/SKUs are accepted too. Every source below
-        // covers regular items and asset lancar; the exact-id endpoint is tried first
-        // because it is authoritative and unaffected by the search result limit.
+        // Barcode scans use the numeric item id; typed values resolve through item-by-code
+        // (canonical code, legacy_code, then name — exact match, single result).
         async resolveItemByCode(code) {
-            const isNumeric = /^\d+$/.test(code);
+            const trimmed = String(code || '').trim();
+            if (!trimmed) return null;
 
-            if (isNumeric) {
-                const exact = await this.fetchJson(`${_ItemLookupUrl}?id=${encodeURIComponent(code)}`);
-                if (exact?.item) return exact.item;
-
-                const byId = await this.fetchJson(`/items?id=${encodeURIComponent(code)}&json=1`);
-                const byIdList = Array.isArray(byId) ? byId : (byId?.data || []);
-                const byIdMatch = byIdList.find(i => String(i.id) === code) ?? byIdList[0];
-                if (byIdMatch) return byIdMatch;
+            if (/^\d+$/.test(trimmed)) {
+                const byId = await this.fetchJson(`${_ItemLookupUrl}?id=${encodeURIComponent(trimmed)}`);
+                if (byId?.item) return byId.item;
             }
 
-            const byCode = await this.fetchJson(`/items?code=${encodeURIComponent(code)}&json=1`);
-            const byCodeList = Array.isArray(byCode) ? byCode : (byCode?.data || []);
-            const upper = code.toUpperCase();
-            const codeMatch = byCodeList.find(i => String(i.code || '').toUpperCase() === upper)
-                ?? byCodeList.find(i => String(i.legacy_code || '').toUpperCase() === upper)
-                ?? (byCodeList.length === 1 ? byCodeList[0] : null);
-            if (codeMatch) return codeMatch;
-
-            if (code.length < COMBOBOX_MIN_CHARS) return null;
-
-            const searched = await this.fetchJson(`/items?search=${encodeURIComponent(code)}&json=1`);
-            const list = Array.isArray(searched) ? searched : (searched?.data || []);
-
-            return list.find(i => String(i.id) === code)
-                ?? list.find(i => String(i.code || '').toUpperCase() === upper)
-                ?? list.find(i => String(i.legacy_code || '').toUpperCase() === upper)
-                ?? (list.length === 1 ? list[0] : null);
+            const byCode = await this.fetchJson(`${_ItemLookupByCodeUrl}?code=${encodeURIComponent(trimmed)}`);
+            return byCode?.item ?? null;
         },
 
         warnBarcodeNotFound(code, input) {

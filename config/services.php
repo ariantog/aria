@@ -35,12 +35,21 @@ return [
         ],
     ],
 
+    'telegram' => [
+        'bot_token' => env('TELEGRAM_BOT_TOKEN'),
+        // sendMessage chat_id. Private 1:1 chat: same numeric id as ALLOWED_TELEGRAM_USER_ID.
+        'chat_ids' => env('TELEGRAM_CHAT_IDS'),
+        // Python bots/bot.py compat — merged with chat_ids (deduped).
+        'allowed_user_ids' => env('ALLOWED_TELEGRAM_USER_ID'),
+    ],
+
     'shopee_ads' => [
-        'active' => env('SHOPEE_ADS_ACTIVE', false),
+        // All schedule / daily-reset / replenish times are WIB (GMT+7, same as Asia/Jakarta).
+        'timezone' => env('SHOPEE_ADS_TIMEZONE', env('APP_TIMEZONE', 'Asia/Jakarta')),
         'partner_id' => env('SHOPEE_PARTNER_ID'),
         'partner_key' => env('SHOPEE_PARTNER_KEY'),
         'base_url' => env('SHOPEE_BASE_URL', 'https://partner.shopeemobile.com'),
-        'redirect_url' => env('SHOPEE_REDIRECT_URL'),
+        'redirect_url' => env('SHOPEE_REDIRECT_URL', 'https://cdn.corenationactive.com/shopeebot.php'),
     ],
 
     'jubelio' => [

@@ -21,6 +21,7 @@ class ItemGroup extends Model
         'name',
         'description',
         'description2',
+        'url',
         'master',
         'variant',
     ];

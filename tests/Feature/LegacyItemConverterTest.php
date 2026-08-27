@@ -331,9 +331,15 @@ it('prefers manufactured type tags over asset lancar tags with the same code', f
 });
 
 it('does not re-queue items already marked skipped as canonical', function () {
+    $group = \App\Models\ItemGroup::factory()->create([
+        'master' => 'GLOVE-01',
+        'variant' => 'BLACK',
+        'name' => 'BOXING GLOVE - BLACK',
+    ]);
+
     $item = Item::factory()->create([
         'type' => ItemType::ASSET_LANCAR,
-        'group_id' => \App\Models\ItemGroup::factory()->create()->id,
+        'group_id' => $group->id,
         'code' => 'GLOVE-01-BLACK-S',
         'pcode' => 'GLOVE-01',
         'name' => 'BOXING GLOVE - BLACK - S',

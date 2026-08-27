@@ -30,6 +30,7 @@ return new class extends Migration
         $this->createWarehouseItemMonthlyStatsTable();
         $this->createProductPerformanceRollupsTable();
         $this->createWarehouseArrangementTables();
+        $this->createWarehouseStatBackfillsTable();
         $this->createItemIdentityConversionTables();
         $this->createRestockTables();
     }
@@ -41,6 +42,7 @@ return new class extends Migration
         Schema::dropIfExists('restock_sheets');
         Schema::dropIfExists('item_identity_conversion_results');
         Schema::dropIfExists('item_identity_conversion_runs');
+        Schema::dropIfExists('warehouse_stat_backfills');
         Schema::dropIfExists('warehouse_arrangement_candidate_sources');
         Schema::dropIfExists('warehouse_arrangement_candidates');
         Schema::dropIfExists('warehouse_arrangement_pcode_snapshots');
@@ -399,6 +401,30 @@ return new class extends Migration
                     ->references('id')->on('customers')->cascadeOnDelete();
             });
         }
+    }
+
+    private function createWarehouseStatBackfillsTable(): void
+    {
+        if (Schema::hasTable('warehouse_stat_backfills')) {
+            return;
+        }
+
+        Schema::create('warehouse_stat_backfills', function (Blueprint $table) {
+            $table->id();
+            $table->string('status', 20)->default('idle');
+            // Periods are stored as year * 12 + month so batches can walk them as integers.
+            $table->integer('cursor_period')->default(0);
+            $table->integer('oldest_period')->default(0);
+            $table->integer('newest_period')->default(0);
+            $table->unsignedInteger('months_total')->default(0);
+            $table->unsignedInteger('months_done')->default(0);
+            $table->unsignedBigInteger('rows_written')->default(0);
+            $table->text('last_error')->nullable();
+            $table->timestamp('started_at')->nullable();
+            $table->timestamp('finished_at')->nullable();
+            $table->timestamp('last_run_at')->nullable();
+            $table->timestamps();
+        });
     }
 
     private function createItemIdentityConversionTables(): void

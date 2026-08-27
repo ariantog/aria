@@ -99,6 +99,14 @@ class LegacyItemConverterService
         return ! $this->hasPreservedLegacyCode($item);
     }
 
+    /**
+     * Legacy rows use group_id 0 for "no group"; only positive IDs are real groups.
+     */
+    public function hasProductGroup(Item $item): bool
+    {
+        return (int) $item->group_id > 0;
+    }
+
     protected function applyPendingConversionScope(Builder $query): void
     {
         $query->where(function (Builder $pending) {
@@ -520,6 +528,7 @@ class LegacyItemConverterService
             : null;
 
         $typeTag = null;
+        $assetTypeTag = null;
 
         if ($itemType === ItemType::ITEM) {
             $typeTag = Tag::findManufacturedTypeTag((string) $parse->typeCode);
@@ -534,7 +543,11 @@ class LegacyItemConverterService
             if (! $jahitTag) {
                 throw new \RuntimeException('JAHIT tag is required for manufactured items.');
             }
+        } elseif ($itemType === ItemType::ASSET_LANCAR) {
+            $assetTypeTag = $this->resolveAssetLancarTypeTag($item);
         }
+
+        $effectiveTypeTag = $typeTag ?? $assetTypeTag;
 
         $group = $this->resolveGroup($itemType, (string) $parse->pcode, (string) $parse->groupName, $warnaTag);
         $canonicalCode = (string) $parse->canonicalCode;
@@ -550,10 +563,10 @@ class LegacyItemConverterService
         $item->code = $canonicalCode;
         $item->name = $this->identityBuilder->buildName((string) $parse->groupName, $warnaTag, $sizeTag);
         $item->size = $sizeTag?->id ?? 0;
-        $item->genre = $typeTag?->id ?? 0;
+        $item->genre = $effectiveTypeTag?->id ?? 0;
         $item->save();
 
-        $tagIds = $this->collectTagIds($item, $typeTag, $warnaTag, $sizeTag);
+        $tagIds = $this->collectTagIds($item, $effectiveTypeTag, $warnaTag, $sizeTag);
         $item->tag_ids = implode(',', $tagIds);
         $item->save();
         $item->tags()->sync($tagIds);
@@ -576,12 +589,51 @@ class LegacyItemConverterService
             ],
         );
 
-        if (strtoupper(trim((string) $group->name)) === '' || $group->name === null) {
+        if (strtoupper(trim((string) $group->name)) !== strtoupper($storedName)) {
             $group->name = $storedName;
+        }
+
+        if (strtoupper(trim((string) ($group->master ?? ''))) !== strtoupper($parsed['master'])) {
+            $group->master = $parsed['master'];
+        }
+
+        if (strtoupper(trim((string) ($group->variant ?? ''))) !== strtoupper($variant)) {
+            $group->variant = $variant;
+        }
+
+        if ($group->isDirty()) {
             $group->save();
         }
 
         return $group;
+    }
+
+    protected function resolveAssetLancarTypeTag(Item $item): ?Tag
+    {
+        $fromTags = $item->tags->first(
+            fn (Tag $tag) => (int) $tag->type === Tag::TYPE_TYPE
+                && (int) $tag->item_type === ItemType::ASSET_LANCAR->value,
+        );
+
+        if ($fromTags) {
+            return $fromTags;
+        }
+
+        $genreId = (int) $item->genre;
+
+        if ($genreId <= 0) {
+            return null;
+        }
+
+        $fromGenre = Tag::query()->find($genreId);
+
+        if ($fromGenre
+            && (int) $fromGenre->type === Tag::TYPE_TYPE
+            && (int) $fromGenre->item_type === ItemType::ASSET_LANCAR->value) {
+            return $fromGenre;
+        }
+
+        return null;
     }
 
     protected function ensureUniqueStoredGroupName(string $storedName, string $master, string $variant): string
@@ -647,7 +699,7 @@ class LegacyItemConverterService
 
     protected function isAlreadyCanonical(Item $item, LegacyParseResult $parse): bool
     {
-        if ($item->group_id === null) {
+        if (! $this->hasProductGroup($item)) {
             return false;
         }
 
@@ -663,12 +715,35 @@ class LegacyItemConverterService
             return false;
         }
 
-        if ($this->makeParser()->resolveItemType($item) === ItemType::ITEM) {
+        $itemType = $this->makeParser()->resolveItemType($item);
+
+        if ($itemType === ItemType::ITEM) {
             return $item->tags->contains(fn (Tag $tag) => $tag->type === Tag::TYPE_TYPE)
-                && $item->tags->contains(fn (Tag $tag) => $tag->type === Tag::TYPE_JAHIT);
+                && $item->tags->contains(fn (Tag $tag) => $tag->type === Tag::TYPE_JAHIT)
+                && $this->itemLinkedToExpectedGroup($item, $parse, $itemType);
+        }
+
+        if ($itemType === ItemType::ASSET_LANCAR) {
+            return $this->itemLinkedToExpectedGroup($item, $parse, $itemType);
         }
 
         return true;
+    }
+
+    protected function itemLinkedToExpectedGroup(Item $item, LegacyParseResult $parse, ItemType $itemType): bool
+    {
+        $group = $item->group;
+
+        if (! $group) {
+            return false;
+        }
+
+        $parsed = $this->identityBuilder->parsePcode($itemType, (string) $parse->pcode);
+        $warnaTag = Tag::findWarnaTag((string) $parse->warnaCode);
+        $expectedVariant = $this->identityBuilder->groupVariant($itemType, (string) $parse->pcode, $warnaTag);
+
+        return strtoupper(trim((string) $group->master)) === strtoupper(trim((string) $parsed['master']))
+            && strtoupper(trim((string) $group->variant)) === strtoupper(trim($expectedVariant));
     }
 
     protected function recordResult(
@@ -703,6 +778,107 @@ class LegacyItemConverterService
             ItemIdentityConversionResult::STATUS_SKIPPED => $run->increment('skipped_count'),
             default => null,
         };
+
+        return $result;
+    }
+
+    /**
+     * Detail-page convert panel: ungrouped items still on a legacy SKU (no preserved legacy_code).
+     *
+     * @return array{
+     *     visible: bool,
+     *     convertible: bool,
+     *     special_family: ?array,
+     *     parse: ?LegacyParseResult,
+     *     message: ?string,
+     *     item_type: ?ItemType
+     * }
+     */
+    public function detailConvertContext(Item $item): array
+    {
+        $parser = $this->makeParser();
+        $itemType = $parser->resolveItemType($item);
+        $hidden = [
+            'visible' => false,
+            'convertible' => false,
+            'special_family' => null,
+            'parse' => null,
+            'message' => null,
+            'item_type' => $itemType,
+        ];
+
+        if (! in_array($itemType, [ItemType::ITEM, ItemType::ASSET_LANCAR], true)) {
+            return array_merge($hidden, ['message' => 'Unsupported item type for identity conversion.']);
+        }
+
+        if ($this->hasProductGroup($item)) {
+            return array_merge($hidden, ['message' => 'Item already belongs to a product group.']);
+        }
+
+        if (! $this->isPendingConversion($item)) {
+            return array_merge($hidden, ['message' => 'Item already has a preserved legacy SKU.']);
+        }
+
+        $specialRules = new SpecialSkuConverterRules;
+        $specialFamily = $specialRules->matchingFamilyPrefix((string) $item->code);
+
+        $item->loadMissing(['tags', 'group']);
+        $parse = $parser->parse($item);
+
+        if ($specialFamily !== null) {
+            return [
+                'visible' => true,
+                'convertible' => false,
+                'special_family' => $specialFamily,
+                'parse' => $parse,
+                'message' => "This SKU uses the {$specialFamily['label']} special-code family. "
+                    .'Use the Special SKU Converter — the generic legacy converter will produce wrong results.',
+                'item_type' => $itemType,
+            ];
+        }
+
+        if (! $parse->success) {
+            return [
+                'visible' => true,
+                'convertible' => false,
+                'special_family' => null,
+                'parse' => $parse,
+                'message' => $parse->detail ?? 'SKU cannot be parsed for conversion.',
+                'item_type' => $itemType,
+            ];
+        }
+
+        return [
+            'visible' => true,
+            'convertible' => true,
+            'special_family' => null,
+            'parse' => $parse,
+            'message' => null,
+            'item_type' => $itemType,
+        ];
+    }
+
+    public function convertSingleFromDetail(Item $item, User $user): ItemIdentityConversionResult
+    {
+        $context = $this->detailConvertContext($item);
+
+        if (! $context['visible'] || ! $context['convertible'] || ! $context['parse']?->success) {
+            throw new \RuntimeException($context['message'] ?? 'Item is not eligible for conversion.');
+        }
+
+        $itemType = $context['item_type'] ?? ItemType::ITEM;
+        $parser = $this->makeParser();
+
+        $run = ItemIdentityConversionRun::query()->create([
+            'item_type' => $itemType,
+            'dry_run' => false,
+            'batch_size' => 1,
+            'user_id' => $user->id,
+            'started_at' => now(),
+        ]);
+
+        $result = $this->convertItem($item->fresh(['tags', 'group']), $run, $parser, false);
+        $run->update(['finished_at' => now()]);
 
         return $result;
     }

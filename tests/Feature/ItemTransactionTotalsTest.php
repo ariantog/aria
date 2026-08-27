@@ -187,7 +187,7 @@ it('keeps total as line subtotal while real_total reflects header discount on se
     ]);
 });
 
-it('stores move transactions without monetary total or real_total', function () {
+it('stores move transactions with informational line totals on the header', function () {
     $user = User::factory()->create();
     $source = Addrbook::factory()->warehouse()->create();
     $destination = Addrbook::factory()->warehouse()->create();
@@ -209,9 +209,15 @@ it('stores move transactions without monetary total or real_total', function () 
 
     $this->assertDatabaseHas('transactions', [
         'type' => Transaction::TYPE_MOVE,
-        'total' => 0,
-        'real_total' => 0,
+        'total' => 40_000,
+        'real_total' => 40_000,
         'total_items' => 4,
         'ppn' => 0,
+    ]);
+
+    $this->assertDatabaseHas('transaction_details', [
+        'item_id' => $item->id,
+        'price' => 10_000,
+        'total' => 40_000,
     ]);
 });

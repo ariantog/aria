@@ -4,12 +4,15 @@ use App\Models\Addrbook;
 use App\Models\Item;
 use App\Models\JubelioStockCheck;
 use App\Models\Jubeliosync;
+use App\Models\ScheduledTask;
+use App\Models\Setting;
 use App\Models\Transaction;
 use App\Models\TransactionDetail;
 use App\Models\User;
 use App\Models\WarehouseItem;
 use App\Services\JubelioService;
 use App\Services\JubelioStockCheckService;
+use Illuminate\Support\Facades\Http;
 use Mockery\MockInterface;
 use Spatie\Permission\Models\Permission;
 
@@ -66,7 +69,7 @@ it('compares aria qty against jubelio available stock', function () {
             ]);
     });
 
-    $this->artisan('app:jubelio-stock-check', ['--single' => true])->assertSuccessful();
+    $this->artisan('app:jubelio-stock-check')->assertSuccessful();
 
     $discrepancy = $job->fresh()->discrepancies()->first();
     expect($discrepancy)->toBeNull();
@@ -113,7 +116,7 @@ it('flags a mismatch using available even when on-hand differs', function () {
             ]);
     });
 
-    $this->artisan('app:jubelio-stock-check', ['--single' => true])->assertSuccessful();
+    $this->artisan('app:jubelio-stock-check')->assertSuccessful();
 
     $discrepancy = $job->fresh()->discrepancies()->first();
     expect($discrepancy)->not->toBeNull();
@@ -165,7 +168,7 @@ it('flags webhook lag when aria is still 10 but jubelio available dropped to 9',
             ]);
     });
 
-    $this->artisan('app:jubelio-stock-check', ['--single' => true])->assertSuccessful();
+    $this->artisan('app:jubelio-stock-check')->assertSuccessful();
 
     $discrepancy = $job->fresh()->discrepancies()->first();
     expect($discrepancy)->not->toBeNull();
@@ -290,7 +293,7 @@ it('processes synced warehouses one per cron run', function () {
             ]);
     });
 
-    $this->artisan('app:jubelio-stock-check', ['--single' => true])->assertSuccessful();
+    $this->artisan('app:jubelio-stock-check')->assertSuccessful();
 
     $job->refresh();
     expect($job->sync_cursor)->toBe(1);
@@ -307,7 +310,7 @@ it('processes synced warehouses one per cron run', function () {
             ]);
     });
 
-    $this->artisan('app:jubelio-stock-check', ['--single' => true])->assertSuccessful();
+    $this->artisan('app:jubelio-stock-check')->assertSuccessful();
 
     expect($job->fresh()->sync_cursor)->toBe(2);
     expect($job->fresh()->status)->toBe('completed');
@@ -350,9 +353,97 @@ it('ignores warehouses not mapped in jubeliosyncs', function () {
             ]);
     });
 
-    $this->artisan('app:jubelio-stock-check', ['--single' => true])->assertSuccessful();
+    $this->artisan('app:jubelio-stock-check')->assertSuccessful();
 
     expect(JubelioStockCheck::latest()->first()->discrepancies()->count())->toBe(0);
+});
+
+it('batches jubelio all-stocks requests at 200 ids per call', function () {
+    Setting::create([
+        'group' => 'Jubelio',
+        'name' => 'Jubelio Token',
+        'slug' => JubelioService::TOKEN_SETTING_SLUG,
+        'value' => [
+            'token' => 'test-token',
+            'expires_at' => now()->addHour()->toDateTimeString(),
+        ],
+    ]);
+
+    Http::fake(function (\Illuminate\Http\Client\Request $request) {
+        if (! str_contains($request->url(), 'inventory/items/all-stocks')) {
+            return Http::response([], 404);
+        }
+
+        $payload = json_decode($request->body(), true);
+        $ids = $payload['ids'] ?? [];
+
+        expect(count($ids))->toBeLessThanOrEqual(JubelioService::MAX_ALL_STOCKS_IDS);
+
+        return Http::response([
+            'data' => collect($ids)->map(fn ($id) => [
+                'item_id' => $id,
+                'location_stocks' => [],
+            ])->all(),
+        ], 200);
+    });
+
+    $result = app(JubelioService::class)->fetchItemsAllStocks(range(1, 250));
+
+    expect($result['data'])->toHaveCount(250);
+
+    Http::assertSent(function (\Illuminate\Http\Client\Request $request) {
+        return $request->method() === 'POST'
+            && str_contains($request->url(), 'inventory/items/all-stocks');
+    }, 2);
+});
+
+it('records cron heartbeat even when no stock check job is due', function () {
+    ScheduledTask::create([
+        'name' => 'Jubelio Stock Check',
+        'command' => 'app:jubelio-stock-check',
+        'frequency' => 'everyMinute',
+        'active' => true,
+        'description' => 'test',
+    ]);
+
+    JubelioStockCheck::create([
+        'sync_cursor' => 1,
+        'per_type_limit' => 50,
+        'demand_days' => 90,
+        'target_discrepancies' => 50,
+        'scan_round' => 0,
+        'status' => 'completed',
+        'created_at' => now(),
+    ]);
+
+    $this->artisan('app:jubelio-stock-check')->assertSuccessful();
+
+    expect(ScheduledTask::query()->where('command', 'app:jubelio-stock-check')->value('last_run_at'))->not->toBeNull();
+});
+
+it('recovers stale processing jobs so a new daily check can start', function () {
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    seedStockCheckSync($warehouse);
+
+    $staleJob = JubelioStockCheck::create([
+        'sync_cursor' => 0,
+        'per_type_limit' => 50,
+        'demand_days' => 90,
+        'target_discrepancies' => 50,
+        'scan_round' => 0,
+        'status' => 'processing',
+    ]);
+    $staleJob->forceFill([
+        'created_at' => now()->subDays(2),
+        'updated_at' => now()->subHours(6),
+    ])->saveQuietly();
+
+    $service = app(JubelioStockCheckService::class);
+    $job = $service->ensureDailyJob();
+
+    expect($staleJob->fresh()->status)->toBe('completed');
+    expect($job)->not->toBeNull();
+    expect($job->id)->not->toBe($staleJob->id);
 });
 
 it('auto-creates a daily stock check job when none exists today', function () {

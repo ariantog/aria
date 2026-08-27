@@ -19,6 +19,10 @@ trait DisplaysTransactionTotals
             : $this->details()->get();
 
         if ($details->isEmpty()) {
+            if ($this->isFromJubelio()) {
+                return max(abs((float) $this->real_total), abs((float) $this->total));
+            }
+
             return abs((float) $this->total);
         }
 
@@ -32,24 +36,26 @@ trait DisplaysTransactionTotals
     }
 
     /**
-     * Positive net payable for detail pages, print, and PDF.
+     * Positive net payable for PDF export and print (unsigned).
      *
-     * Legacy Jubelio cron rows sometimes stored seller income on `total` while
-     * `real_total` still added `adjustment` again (|total| + |adjustment| ≈ |real_total|).
+     * Manual Aria rows store net on `real_total` and gross line sum on `total`.
+     * Jubelio rows may store subtotal/receivable on either column depending on era;
+     * net is the smaller absolute header amount when they differ.
      */
     public function displayGrandTotal(): float
     {
         $real = abs((float) $this->real_total);
         $total = abs((float) $this->total);
-        $adjustment = abs((float) $this->adjustment);
 
         if (
             $this->isFromJubelio()
-            && (int) $this->type === Transaction::TYPE_SELL
-            && $adjustment > 0.00001
-            && abs(($total + $adjustment) - $real) < 0.01
+            && in_array((int) $this->type, [Transaction::TYPE_SELL, Transaction::TYPE_RETURN], true)
         ) {
-            return $total;
+            if ($real < 0.00001 && $total < 0.00001) {
+                return 0.0;
+            }
+
+            return min($real, $total);
         }
 
         return $real;

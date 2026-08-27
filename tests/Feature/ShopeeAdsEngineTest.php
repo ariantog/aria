@@ -15,19 +15,61 @@ it('uses live budget when incrementing GMV Max', function () {
     ]);
 
     $api = Mockery::mock(ShopeeAdsApiService::class);
+    $api->shouldReceive('getGmsLiveBudget')
+        ->once()
+        ->with('gmv-1')
+        ->andReturn(1_000_000);
     $api->shouldReceive('addGmsBudget')
         ->once()
-        ->with('gmv-1', 100, 100, 500000)
+        ->with('gmv-1', 1_000_000, 100, Mockery::type('int'), 1_000_000)
         ->andReturn([
-            'before' => 250,
-            'after' => 350,
+            'before' => 1_000_000,
+            'after' => 1_100_000,
             'applied_increment' => 100,
         ]);
 
-    $engine = new ShopeeAdsEngineService($api, app(\App\Services\ShopeeAds\ShopeeAdsSpecialRulesService::class));
+    $engine = new ShopeeAdsEngineService(
+        $api,
+        app(\App\Services\ShopeeAds\ShopeeAdsSpecialRulesService::class),
+        Mockery::mock(\App\Services\ShopeeAds\ShopeeAdsTelegramNotifier::class)->shouldIgnoreMissing(),
+    );
 
     expect($engine->applyGmvMaxIncrement($settings, 100))->toBeTrue();
-    expect($settings->fresh()->gms_current_budget)->toBe(350);
+    expect($settings->fresh()->gms_current_budget)->toBe(1_100_000);
+});
+
+it('syncs live GMV budget to DB before increment when manual edit drifted', function () {
+    $settings = ShopeeAdsSetting::current();
+    $settings->update([
+        'starting_budget_gmv_max' => 100000,
+        'daily_max_budget' => 5_000_000,
+        'gms_campaign_id' => 'gmv-live',
+        'gms_current_budget' => 500000,
+        'status' => 'active',
+    ]);
+
+    $api = Mockery::mock(ShopeeAdsApiService::class);
+    $api->shouldReceive('getGmsLiveBudget')
+        ->once()
+        ->with('gmv-live')
+        ->andReturn(1_000_000);
+    $api->shouldReceive('addGmsBudget')
+        ->once()
+        ->with('gmv-live', 1_000_000, 100000, Mockery::type('int'), 1_000_000)
+        ->andReturn([
+            'before' => 1_000_000,
+            'after' => 1_100_000,
+            'applied_increment' => 100000,
+        ]);
+
+    $engine = new ShopeeAdsEngineService(
+        $api,
+        app(\App\Services\ShopeeAds\ShopeeAdsSpecialRulesService::class),
+        Mockery::mock(\App\Services\ShopeeAds\ShopeeAdsTelegramNotifier::class)->shouldIgnoreMissing(),
+    );
+
+    expect($engine->applyGmvMaxIncrement($settings, 100000))->toBeTrue();
+    expect($settings->fresh()->gms_current_budget)->toBe(1_100_000);
 });
 
 it('uses live budget when incrementing item ads pool', function () {
@@ -64,8 +106,79 @@ it('uses live budget when incrementing item ads pool', function () {
             'applied_increment' => 100,
         ]);
 
-    $engine = new ShopeeAdsEngineService($api, app(\App\Services\ShopeeAds\ShopeeAdsSpecialRulesService::class));
+    $engine = new ShopeeAdsEngineService(
+        $api,
+        app(\App\Services\ShopeeAds\ShopeeAdsSpecialRulesService::class),
+        Mockery::mock(\App\Services\ShopeeAds\ShopeeAdsTelegramNotifier::class)->shouldIgnoreMissing(),
+    );
     $engine->applyItemAdsIncrement($settings, 100);
 
     expect(\App\Models\ShopeeAdsItemAd::find('item-1')->budget)->toBe(350);
+});
+
+it('syncs item ads from Shopee and marks missing campaigns closed', function () {
+    \App\Models\ShopeeAdsItemAd::query()->create([
+        'campaign_id' => 'stale-1',
+        'item_id' => 99,
+        'budget' => 50000,
+        'status' => 'ongoing',
+        'origin' => 'bot',
+    ]);
+
+    $api = Mockery::mock(ShopeeAdsApiService::class);
+    $api->shouldReceive('listManualProductAds')
+        ->once()
+        ->with(true)
+        ->andReturn([
+            [
+                'campaign_id' => 'live-1',
+                'campaign_name' => 'New',
+                'budget' => 100000.0,
+                'status' => 'ongoing',
+                'item_id' => 12345,
+            ],
+        ]);
+
+    $engine = new ShopeeAdsEngineService(
+        $api,
+        app(\App\Services\ShopeeAds\ShopeeAdsSpecialRulesService::class),
+        Mockery::mock(\App\Services\ShopeeAds\ShopeeAdsTelegramNotifier::class)->shouldIgnoreMissing(),
+    );
+
+    $stats = $engine->syncItemAds();
+
+    expect($stats)->toBe([
+        'imported' => 1,
+        'updated' => 0,
+        'closed' => 1,
+        'active' => 1,
+    ])
+        ->and(\App\Models\ShopeeAdsItemAd::find('live-1')->item_id)->toBe(12345)
+        ->and(\App\Models\ShopeeAdsItemAd::find('stale-1')->status)->toBe('closed');
+});
+
+it('stores large Shopee platform item ids', function () {
+    $api = Mockery::mock(ShopeeAdsApiService::class);
+    $api->shouldReceive('listManualProductAds')
+        ->once()
+        ->with(true)
+        ->andReturn([
+            [
+                'campaign_id' => 'live-big',
+                'campaign_name' => 'Big ID',
+                'budget' => 100000.0,
+                'status' => 'ongoing',
+                'item_id' => 44233481234,
+            ],
+        ]);
+
+    $engine = new ShopeeAdsEngineService(
+        $api,
+        app(\App\Services\ShopeeAds\ShopeeAdsSpecialRulesService::class),
+        Mockery::mock(\App\Services\ShopeeAds\ShopeeAdsTelegramNotifier::class)->shouldIgnoreMissing(),
+    );
+
+    $engine->syncItemAds();
+
+    expect(\App\Models\ShopeeAdsItemAd::find('live-big')->item_id)->toBe(44233481234);
 });

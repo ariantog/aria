@@ -9,7 +9,7 @@ class ShopeeAdsSpecialRulesService
 {
     public function jakartaNow(): Carbon
     {
-        return Carbon::now('Asia/Jakarta');
+        return Carbon::now((string) config('services.shopee_ads.timezone', 'Asia/Jakarta'));
     }
 
     public function isDoubleDate(Carbon $now): bool

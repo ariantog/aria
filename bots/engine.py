@@ -419,9 +419,9 @@ class AutomationEngine:
         Add a fixed IDR to the single GMV-Max campaign's daily budget, clamped so
         the tracked GMV-Max budget never exceeds the combined ``daily_max_budget``.
 
-        The current budget is read from the DB (the bot owns it, since Shopee's
-        GMS API has no "get budget" endpoint), incremented, pushed via
-        ``edit_gms_product_campaign`` (change_budget), then persisted back.
+        The increment is applied on top of the **live** Shopee budget (including
+        manual edits in Seller Centre), via ``get_product_level_campaign_setting_info``,
+        then pushed with ``edit_gms_product_campaign`` (change_budget) and persisted.
         """
         results: List[IncrementResult] = []
         settings = await asyncio.to_thread(self.db.get_settings)
@@ -431,15 +431,35 @@ class AutomationEngine:
             logger.error("[gmv_max] no active GMV-Max campaign found; increment skipped.")
             return results
 
-        current = float(settings.get("gms_current_budget", 0.0) or 0.0)
-        # If the bot has never set a budget yet, seed from the starting budget.
-        if current <= 0:
-            current = self._starting_budget_map(settings)[AD_TYPE_GMV_MAX]
+        tracked = float(settings.get("gms_current_budget", 0.0) or 0.0)
+        if tracked <= 0:
+            tracked = self._starting_budget_map(settings)[AD_TYPE_GMV_MAX]
 
-        cap = float(settings.get("daily_max_budget", 1_000_000.0))
-        # Combined cap headroom (GMV-Max is the only cap-counted type today).
-        headroom = max(cap - current, 0.0)
-        calc = compute_new_budget(current, increment_idr, current + headroom)
+        live: Optional[float] = None
+        try:
+            live = await self.client.get_gms_live_budget(cid)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("[gmv_max] live-budget fetch failed, using DB value: %s", exc)
+
+        current = live if (live is not None and live > 0) else tracked
+        if live is None:
+            logger.warning(
+                "[gmv_max] falling back to tracked DB budget %.0f (live fetch failed)",
+                tracked,
+            )
+        elif abs(live - tracked) > 0.01:
+            logger.info(
+                "[gmv_max] live budget %.0f != DB %.0f (manual change?) "
+                "— incrementing on top of live value.",
+                live,
+                tracked,
+            )
+            await asyncio.to_thread(self.db.update_setting, gms_current_budget=live)
+            settings = await asyncio.to_thread(self.db.get_settings)
+
+        headroom = await self._combined_headroom(settings)
+        per_campaign_cap = current + headroom
+        calc = compute_new_budget(current, increment_idr, per_campaign_cap)
         new_budget = calc["new_budget"]
 
         # Pull a fresh ROAS reading for the log/report (best-effort).

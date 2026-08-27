@@ -37,9 +37,11 @@ it('parses a csv and returns warehouse stock for the selected warehouse', functi
     $response->assertSuccessful()
         ->assertJsonPath('data.0.code', 'ACCHJ0002206L')
         ->assertJsonPath('data.0.quantity', 2)
-        ->assertJsonPath('data.0.price', 0)
+        ->assertJsonPath('data.0.price', 50_000)
+        ->assertJsonPath('data.0.csv_price', 0)
         ->assertJsonPath('data.0.warehouse_stock', 12)
-        ->assertJsonPath('data.0.warehouse_item.0.warehouse_id', (string) $warehouse->id);
+        ->assertJsonPath('data.0.warehouse_item.0.warehouse_id', (string) $warehouse->id)
+        ->assertJsonPath('data.0.subtotal', 100_000);
 
     expect((float) $response->json('data.0.warehouse_item.0.quantity'))->toBe(12.0);
 });
@@ -77,7 +79,7 @@ it('uses csv price and sender warehouse stock for sell batch uploads', function 
         ->assertJsonPath('data.0.subtotal', 150_000);
 });
 
-it('loads item cost from the database for buy batch uploads', function () {
+it('uses csv price for buy batch uploads', function () {
     $warehouse = Addrbook::factory()->create(['type' => Addrbook::TYPE_WAREHOUSE]);
     $item = Item::factory()->create([
         'code' => 'BUY-SKU-01',
@@ -92,7 +94,7 @@ it('loads item cost from the database for buy batch uploads', function () {
         'quantity' => 3,
     ]);
 
-    $csv = UploadedFile::fake()->createWithContent('batch.csv', "BUY-SKU-01,4,0\n");
+    $csv = UploadedFile::fake()->createWithContent('batch.csv', "BUY-SKU-01,4,38000\n");
 
     $response = $this->actingAs($this->user)
         ->postJson(route('transactions.batch-parse'), [
@@ -103,11 +105,11 @@ it('loads item cost from the database for buy batch uploads', function () {
 
     $response->assertSuccessful()
         ->assertJsonPath('data.0.quantity', 4)
-        ->assertJsonPath('data.0.price', 42_500)
+        ->assertJsonPath('data.0.price', 38_000)
+        ->assertJsonPath('data.0.csv_price', 38_000)
         ->assertJsonPath('data.0.cost', 42_500)
-        ->assertJsonPath('data.0.csv_price', 0)
         ->assertJsonPath('data.0.warehouse_stock', 3)
-        ->assertJsonPath('data.0.subtotal', 170_000);
+        ->assertJsonPath('data.0.subtotal', 152_000);
 });
 
 it('resolves csv codes via legacy sku and skips a header row', function () {

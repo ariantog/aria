@@ -18,7 +18,7 @@
     $status = $statuses[$statusKey] ?? ['label' => 'Unknown', 'color' => 'bg-gray-100 text-gray-800'];
 
     $fmt = fn ($n) => format_amount($n);
-    $grandTotalFormatted = $fmt($transaction->displayGrandTotal());
+    $grandTotalFormatted = $fmt($transaction->total);
     $grandTotalHeroClass = \App\Support\AmountFormatter::displayTextClass($grandTotalFormatted, 'hero');
     $grandTotalCompactClass = \App\Support\AmountFormatter::displayTextClass($grandTotalFormatted, 'compact');
     $fmtDate = function ($d) {
@@ -26,10 +26,13 @@
         return \Illuminate\Support\Carbon::parse($d)->format('d/m/Y');
     };
     $noteText = $transaction->description ?: ($transaction->notes ?: '');
+    $hasRecordedPpn = (float) $transaction->ppn > 0;
+    $ppnDppDisplay = $transaction->ppn_dpp !== null ? $fmt($transaction->ppn_dpp) : '-';
+    $cashTotalAbs = abs((float) $transaction->total);
 @endphp
 
 <div class="flex h-full flex-1 flex-col gap-4 overflow-x-auto rounded-xl p-4"
-     x-data="transactionShowPage({{ $transaction->id }}, @js($noteText), @js((bool) ($can['edit_transaction'] ?? false)))">
+     x-data="transactionShowPage({{ $transaction->id }}, @js($noteText), @js((bool) ($can['edit_transaction'] ?? false)), @js((bool) ($canEditPpn ?? false)), @js((float) $transaction->ppn), @js($transaction->ppn_dpp !== null ? (float) $transaction->ppn_dpp : null), @js($transaction->pph !== null ? (float) $transaction->pph : null), @js((float) ($ppn_rate ?? 11)), @js((float) ($pph_rate ?? 10)), @js($cashTotalAbs))">
 
     {{-- Top Action Bar --}}
     <div class="flex flex-col justify-between gap-4 md:flex-row md:items-center print:hidden">
@@ -126,6 +129,58 @@
     </div>
     @endif
 
+    @if($canEditPpn ?? false)
+    {{-- Edit PPN dialog --}}
+    <div x-show="ppnModalOpen" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 print:hidden"
+         @keydown.window.escape="ppnModalOpen = false">
+        <div @click.away="ppnModalOpen = false" class="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
+            <h3 class="text-lg font-semibold text-gray-900">Edit PPN</h3>
+            <p class="mt-1 text-sm text-gray-500">DPP, PPN, and optional PPh are calculated from the transaction total. Edit any field if the invoice differs slightly.</p>
+            <div class="mt-4 space-y-3">
+                <label class="inline-flex items-center gap-2 text-sm font-medium text-gray-700">
+                    <input type="checkbox" x-model="ppnRecord" @change="onPpnRecordToggle()" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                    Record PPN for this transaction
+                </label>
+                <label x-show="ppnRecord" x-cloak class="inline-flex items-center gap-2 text-sm font-medium text-gray-700">
+                    <input type="checkbox" x-model="pphRecord" @change="onPphRecordToggle()" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                    Include PPh withholding (<span x-text="pphRate"></span>% of DPP)
+                </label>
+                <div x-show="ppnRecord" x-cloak class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                    <div>
+                        <label for="tx-show-ppn-dpp" class="mb-1 block text-sm font-medium text-gray-700">DPP (Rp)</label>
+                        <input id="tx-show-ppn-dpp" type="number" min="0" step="any" x-model.number="ppnDppDraft"
+                               x-ref="ppnDppInput"
+                               @input="ppnManual = true"
+                               class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label for="tx-show-ppn-tax" class="mb-1 block text-sm font-medium text-gray-700">PPN (Rp)</label>
+                        <input id="tx-show-ppn-tax" type="number" min="0" step="any" x-model.number="ppnTaxDraft"
+                               @input="ppnManual = true"
+                               class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                    </div>
+                    <div x-show="pphRecord" x-cloak>
+                        <label for="tx-show-pph-tax" class="mb-1 block text-sm font-medium text-gray-700">PPh (Rp)</label>
+                        <input id="tx-show-pph-tax" type="number" min="0" step="any" x-model.number="pphTaxDraft"
+                               @input="ppnManual = true"
+                               class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                    </div>
+                </div>
+                <p x-show="ppnError" x-text="ppnError" class="text-sm text-rose-600"></p>
+            </div>
+            <div class="mt-6 flex justify-end gap-2">
+                <button type="button" @click="ppnModalOpen = false"
+                        class="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Cancel</button>
+                <button type="button" @click="savePpn()" :disabled="ppnSaving"
+                        class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
+                    <span x-show="!ppnSaving">Save</span>
+                    <span x-show="ppnSaving">Saving…</span>
+                </button>
+            </div>
+        </div>
+    </div>
+    @endif
+
     {{-- Primary Info Cards --}}
     <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
         {{-- Summary Card --}}
@@ -160,14 +215,16 @@
                         <span class="flex items-center gap-1.5 text-gray-500">
                             <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5a1.99 1.99 0 011.414.586l7 7a2 2 0 010 2.828l-5 5a2 2 0 01-2.828 0l-7-7A1.99 1.99 0 013 8V3a2 2 0 012-2z" transform="translate(0)"/></svg> Submit Source
                         </span>
-                        @if((int) $transaction->submit_type === 2)
+                        @if((int) $transaction->submit_type === \App\Models\Transaction::SUBMIT_TYPE_JUBELIO)
                             <span class="inline-flex items-center gap-1 rounded-md border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-xs font-bold text-amber-500">
                                 <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg> cron jubelio
                             </span>
-                        @else
+                        @elseif((int) $transaction->submit_type === \App\Models\Transaction::SUBMIT_TYPE_MANUAL)
                             <span class="inline-flex items-center gap-1 rounded-md border border-blue-500/20 bg-blue-500/10 px-2 py-0.5 text-xs font-bold text-blue-500">
                                 <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122"/></svg> aria submit
                             </span>
+                        @else
+                            <span class="inline-flex items-center rounded-md bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">submit type {{ (int) $transaction->submit_type }}</span>
                         @endif
                     </div>
                     @if($transaction->user)
@@ -178,7 +235,7 @@
                         <span class="font-medium underline decoration-blue-500/30">{{ $transaction->user->name }}</span>
                     </div>
                     @endif
-                    @if(config('services.jubelio.active') && $transaction->sync_cek && ($can['jubelio_transaction_sync'] ?? false))
+                    @if($jubelioSync['show_ui'] ?? false)
                     <div class="flex justify-between pt-2 text-sm">
                         <span class="flex items-center gap-1.5 font-bold text-blue-600">
                             <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg> Sinkron Jubelio
@@ -386,7 +443,25 @@
                 </div>
                 <div class="flex items-center justify-between text-sm">
                     <span class="text-gray-500">PPN / Tax</span>
-                    <span class="font-bold">{{ $fmt($transaction->ppn) }}</span>
+                    <div class="flex items-center gap-2">
+                        <span class="font-bold" x-text="ppnDisplay"></span>
+                        @if($canEditPpn ?? false)
+                        <button type="button"
+                                data-testid="edit-tx-show-ppn"
+                                @click="openPpnEdit()"
+                                class="inline-flex items-center rounded-md border border-gray-300 bg-white px-2 py-1 text-[11px] font-medium text-gray-700 hover:bg-gray-50 print:hidden">
+                            Edit
+                        </button>
+                        @endif
+                    </div>
+                </div>
+                <div x-show="ppnRecord" x-cloak class="flex items-center justify-between text-xs text-gray-500">
+                    <span>Tax DPP</span>
+                    <span x-text="ppnDppDisplay"></span>
+                </div>
+                <div x-show="pphRecord" x-cloak class="flex items-center justify-between text-xs text-gray-500">
+                    <span>PPh withheld</span>
+                    <span x-text="pphDisplay"></span>
                 </div>
                 <div class="pt-2">
                     <div class="flex items-center justify-between gap-3 rounded-lg bg-blue-600 p-4 text-white shadow-lg shadow-blue-500/20">
@@ -436,7 +511,7 @@
 
 @push('scripts')
 <script>
-function transactionShowPage(transactionId, initialNote, canEditNote) {
+function transactionShowPage(transactionId, initialNote, canEditNote, canEditPpn, initialPpn, initialPpnDpp, initialPph, ppnRate, pphRate, transactionTotal) {
     const storageKey = 'aria-transaction-show-view';
     const defaults = { showImage: true, showBarcode: true, showSku: false, showName: true };
     let saved = {};
@@ -464,6 +539,25 @@ function transactionShowPage(transactionId, initialNote, canEditNote) {
         noteSaving: false,
         noteError: '',
         canEditNote: !!canEditNote,
+        canEditPpn: !!canEditPpn,
+        ppnRate: Number(ppnRate || 11),
+        pphRate: Number(pphRate || 10),
+        transactionTotal: Number(transactionTotal || 0),
+        ppnManual: Number(initialPpn || 0) > 0,
+        ppnAmount: Number(initialPpn || 0),
+        ppnDppAmount: initialPpnDpp !== null ? Number(initialPpnDpp) : null,
+        pphAmount: initialPph !== null ? Number(initialPph) : null,
+        ppnRecord: Number(initialPpn || 0) > 0,
+        pphRecord: Number(initialPph || 0) > 0,
+        ppnDisplay: formatAmountId(Number(initialPpn || 0)),
+        ppnDppDisplay: initialPpnDpp !== null ? formatAmountId(Number(initialPpnDpp)) : '-',
+        pphDisplay: initialPph !== null ? formatAmountId(Number(initialPph)) : '-',
+        ppnModalOpen: false,
+        ppnDppDraft: initialPpnDpp !== null ? Number(initialPpnDpp) : null,
+        ppnTaxDraft: Number(initialPpn || 0),
+        pphTaxDraft: initialPph !== null ? Number(initialPph) : null,
+        ppnSaving: false,
+        ppnError: '',
         openNoteEdit() {
             if (!this.canEditNote) {
                 return;
@@ -501,6 +595,109 @@ function transactionShowPage(transactionId, initialNote, canEditNote) {
                 this.noteError = 'Failed to save note.';
             } finally {
                 this.noteSaving = false;
+            }
+        },
+        openPpnEdit() {
+            if (!this.canEditPpn) {
+                return;
+            }
+            this.ppnRecord = this.ppnAmount > 0;
+            this.pphRecord = this.pphAmount !== null && this.pphAmount > 0;
+            this.ppnManual = this.ppnAmount > 0;
+            this.ppnDppDraft = this.ppnDppAmount;
+            this.ppnTaxDraft = this.ppnAmount;
+            this.pphTaxDraft = this.pphAmount;
+            this.ppnError = '';
+            this.ppnModalOpen = true;
+            if (this.ppnRecord && ! this.ppnManual) {
+                this.syncTaxDraftFromTotal();
+            }
+            this.$nextTick(() => this.$refs.ppnDppInput?.focus());
+        },
+        onPpnRecordToggle() {
+            if (!this.ppnRecord) {
+                this.ppnDppDraft = null;
+                this.ppnTaxDraft = null;
+                this.pphTaxDraft = null;
+                this.pphRecord = false;
+                this.ppnManual = false;
+                return;
+            }
+            this.ppnManual = false;
+            this.syncTaxDraftFromTotal();
+        },
+        onPphRecordToggle() {
+            if (!this.pphRecord) {
+                this.pphTaxDraft = null;
+            }
+            if (!this.ppnManual) {
+                this.syncTaxDraftFromTotal();
+            }
+        },
+        syncTaxDraftFromTotal() {
+            const payment = Number(this.transactionTotal || 0);
+            if (payment < 0.01) {
+                return;
+            }
+            const ppnRate = this.ppnRate / 100;
+            const pphRate = this.pphRecord ? (this.pphRate / 100) : 0;
+            const divisor = 1 + ppnRate - pphRate;
+            this.ppnDppDraft = Math.round(payment / divisor * 100) / 100;
+            this.ppnTaxDraft = Math.round(this.ppnDppDraft * ppnRate * 100) / 100;
+            this.pphTaxDraft = this.pphRecord ? Math.round(this.ppnDppDraft * pphRate * 100) / 100 : null;
+        },
+        async savePpn() {
+            if (!this.canEditPpn || this.ppnSaving) {
+                return;
+            }
+            if (this.ppnRecord && ! this.ppnManual) {
+                this.syncTaxDraftFromTotal();
+            }
+            if (this.ppnRecord && (!(Number(this.ppnDppDraft) >= 0.01) || !(Number(this.ppnTaxDraft) >= 0.01))) {
+                this.ppnError = 'DPP and PPN are required when recording PPN.';
+                return;
+            }
+            if (this.ppnRecord && this.pphRecord && !(Number(this.pphTaxDraft) >= 0.01)) {
+                this.ppnError = 'PPh is required when withholding is enabled.';
+                return;
+            }
+            this.ppnSaving = true;
+            this.ppnError = '';
+            try {
+                const res = await fetch(`/transactions/${transactionId}/ppn`, {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]')?.content ?? '',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    body: JSON.stringify({
+                        record_ppn: !!this.ppnRecord,
+                        record_pph: !!this.pphRecord,
+                        ppn_dpp: this.ppnRecord ? Number(this.ppnDppDraft || 0) : null,
+                        ppn: this.ppnRecord ? Number(this.ppnTaxDraft || 0) : null,
+                        pph: this.ppnRecord && this.pphRecord ? Number(this.pphTaxDraft || 0) : null,
+                    }),
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) {
+                    this.ppnError = data.message || (data.errors?.ppn?.[0] ?? 'Failed to save PPN.');
+                    return;
+                }
+                this.ppnAmount = Number(data.ppn || 0);
+                this.ppnDppAmount = data.ppn_dpp !== null ? Number(data.ppn_dpp) : null;
+                this.pphAmount = data.pph !== null ? Number(data.pph) : null;
+                this.ppnRecord = !!data.record_ppn;
+                this.pphRecord = !!data.record_pph;
+                this.ppnDisplay = data.display_ppn || formatAmountId(this.ppnAmount);
+                this.ppnDppDisplay = data.display_dpp || '-';
+                this.pphDisplay = data.display_pph || '-';
+                this.ppnModalOpen = false;
+            } catch (e) {
+                this.ppnError = 'Failed to save PPN.';
+            } finally {
+                this.ppnSaving = false;
             }
         },
         init() {

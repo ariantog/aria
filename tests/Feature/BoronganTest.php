@@ -3,10 +3,20 @@
 use App\Models\Borongan;
 use App\Models\Item;
 use App\Models\Produksi;
+use App\Models\Tag;
 use App\Models\User;
 use App\Models\Worker;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
+
+function attachJahitPrice(Item $item, float $price = 5000): void
+{
+    $jahitTag = Tag::factory()->create([
+        'type' => Tag::TYPE_JAHIT,
+        'price' => $price,
+    ]);
+    $item->tags()->attach($jahitTag->id);
+}
 
 beforeEach(function () {
     // Seed permissions if they don't exist
@@ -88,6 +98,7 @@ it('creates one borongan per jahit for gudang items in date range', function () 
     $jahitA = Worker::create(['name' => 'Jahit A', 'type' => Worker::TYPE_JAHIT]);
     $jahitB = Worker::create(['name' => 'Jahit B', 'type' => Worker::TYPE_JAHIT]);
     $item = Item::factory()->create();
+    attachJahitPrice($item);
 
     $from = now()->subDays(7)->toDateString();
     $to = now()->toDateString();
@@ -128,6 +139,7 @@ it('appends new gudang items to existing borongan for same jahit and date range'
 
     $jahit = Worker::create(['name' => 'Jahit Append', 'type' => Worker::TYPE_JAHIT]);
     $item = Item::factory()->create();
+    attachJahitPrice($item);
     $from = now()->subDays(7)->toDateString();
     $to = now()->toDateString();
 
@@ -223,4 +235,64 @@ it('ajax borongan returns items grouped by jahit', function () {
     $response->assertSuccessful();
     $response->assertJsonFragment(['jahit_name' => 'Jahit Ajax']);
     $response->assertJsonStructure([['jahit_id', 'jahit_name', 'items', 'subtotal', 'total_qty']]);
+});
+
+it('flags items with missing jahit price in ajax response', function () {
+    $this->user->givePermissionTo('borongan-create');
+
+    $jahit = Worker::create(['name' => 'Jahit Price', 'type' => Worker::TYPE_JAHIT]);
+    $itemWithoutPrice = Item::factory()->create();
+    $itemWithPrice = Item::factory()->create();
+    $jahitTag = Tag::factory()->create([
+        'type' => Tag::TYPE_JAHIT,
+        'price' => 5000,
+    ]);
+    $itemWithPrice->tags()->attach($jahitTag->id);
+
+    foreach ([$itemWithoutPrice, $itemWithPrice] as $item) {
+        Produksi::create([
+            'temp_name' => 'Item '.$item->id,
+            'quantity' => 2,
+            'jahit_id' => $jahit->id,
+            'item_id' => $item->id,
+            'status' => Produksi::STATUS_GUDANG,
+            'gudang_date' => now()->toDateString(),
+        ]);
+    }
+
+    $response = $this->actingAs($this->user)->get('/borongan/ajax?from='.now()->subDay()->toDateString().'&to='.now()->toDateString());
+
+    $response->assertSuccessful();
+    $response->assertJsonFragment(['missing_jahit_price' => true]);
+    $response->assertJsonFragment(['missing_jahit_price' => false, 'ongkos' => 5000]);
+});
+
+it('rejects store when jahit price is missing', function () {
+    $this->user->givePermissionTo('borongan-create');
+
+    $jahit = Worker::create(['name' => 'Jahit Missing', 'type' => Worker::TYPE_JAHIT]);
+    $item = Item::factory()->create();
+    $from = now()->subDays(7)->toDateString();
+    $to = now()->toDateString();
+
+    Produksi::create([
+        'temp_name' => 'No Price',
+        'quantity' => 4,
+        'jahit_id' => $jahit->id,
+        'item_id' => $item->id,
+        'status' => Produksi::STATUS_GUDANG,
+        'gudang_date' => now()->toDateString(),
+    ]);
+
+    $response = $this->actingAs($this->user)->from('/borongan/create')->post('/borongan', [
+        'from' => $from,
+        'to' => $to,
+        'batches' => [
+            ['jahit_id' => $jahit->id, 'permak' => 0, 'tres' => 0, 'lain2' => 0],
+        ],
+    ]);
+
+    $response->assertRedirect(route('borongan.create'));
+    $response->assertSessionHas('error');
+    expect(Borongan::count())->toBe(0);
 });

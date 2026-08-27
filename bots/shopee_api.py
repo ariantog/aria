@@ -626,6 +626,52 @@ class ShopeeAdsClient:
         out.sort(key=lambda x: x["roas"], reverse=True)
         return out
 
+    @staticmethod
+    def _extract_campaign_budget_from_setting_row(row: Dict[str, Any]) -> Optional[float]:
+        """Best-effort daily budget from get_product_level_campaign_setting_info row."""
+        common = row.get("common_info", {}) or {}
+        manual = row.get("manual_bidding_info", {}) or {}
+        auto = row.get("auto_bidding_info", {}) or {}
+        gms = row.get("gms_info", {}) or row.get("gms_campaign_info", {}) or {}
+
+        candidates = [
+            common.get("campaign_budget"),
+            common.get("daily_budget"),
+            gms.get("daily_budget"),
+            gms.get("campaign_budget"),
+            manual.get("campaign_budget"),
+            manual.get("daily_budget"),
+            auto.get("campaign_budget"),
+            auto.get("daily_budget"),
+            row.get("campaign_budget"),
+            row.get("daily_budget"),
+        ]
+        for value in candidates:
+            if value is not None and float(value) > 0:
+                return float(value)
+        return None
+
+    async def get_gms_live_budget(self, campaign_id: str) -> Optional[float]:
+        """
+        Live GMV-Max daily budget from Shopee (get_product_level_campaign_setting_info).
+        """
+        try:
+            infos = await self._campaign_setting_info([int(campaign_id)])
+        except ShopeeAPIError as exc:
+            logger.warning("get_gms_live_budget failed for %s: %s", campaign_id, exc)
+            return None
+        if not infos:
+            logger.warning("get_gms_live_budget: no settings for campaign %s", campaign_id)
+            return None
+        raw = infos[0].get("raw", {}) or {}
+        budget = self._extract_campaign_budget_from_setting_row(raw)
+        if budget is None:
+            logger.warning(
+                "get_gms_live_budget: budget missing in settings for campaign %s",
+                campaign_id,
+            )
+        return budget
+
     async def set_gms_budget(
         self, campaign_id: str, daily_budget: float
     ) -> Dict[str, Any]:

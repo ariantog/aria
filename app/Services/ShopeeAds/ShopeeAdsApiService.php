@@ -58,7 +58,7 @@ class ShopeeAdsApiService
         $path = '/api/v2/shop/auth_partner';
         $timestamp = time();
         $sign = $this->signPublic($path, $timestamp);
-        $redirect = $config['redirect_url'] ?? route('shopee-ads.oauth.callback');
+        $redirect = $config['redirect_url'];
 
         return rtrim($config['base_url'], '/').$path.'?'.http_build_query([
             'partner_id' => (int) $config['partner_id'],
@@ -66,6 +66,35 @@ class ShopeeAdsApiService
             'sign' => $sign,
             'redirect' => $redirect,
         ]);
+    }
+
+    public function getOAuthRedirectUrl(): string
+    {
+        return (string) config('services.shopee_ads.redirect_url');
+    }
+
+    public function getLastOAuthError(): ?string
+    {
+        $oauth = $this->getOAuthPayload();
+
+        return isset($oauth['last_error']) ? (string) $oauth['last_error'] : null;
+    }
+
+    public function formatOAuthErrorForUser(?string $detail): ?string
+    {
+        if ($detail === null || $detail === '') {
+            return null;
+        }
+
+        if (str_contains($detail, 'source_ip_undeclared')) {
+            if (preg_match('/Request Source IP \(([^)]+)\)/', $detail, $matches)) {
+                return 'IP server ('.$matches[1].') belum di-whitelist. Buka Shopee Open Platform → App list → IP Address Whitelist, tambahkan IP itu, lalu klik Authorize Shopee lagi.';
+            }
+
+            return 'IP server belum di-whitelist. Shopee Open Platform → App list → IP Address Whitelist → tambahkan outbound IP server Aria, lalu authorize ulang.';
+        }
+
+        return $detail;
     }
 
     /**
@@ -83,17 +112,15 @@ class ShopeeAdsApiService
 
         $response = $this->postPublic($path, $timestamp, $body);
 
-        if (! $response->successful()) {
-            $this->recordOAuthError('Token exchange failed: '.$response->body());
-
+        $data = $this->parseShopeeResponse($response, 'Token exchange');
+        if ($data === null) {
             return null;
         }
 
-        $data = $response->json();
         $payload = $data['response'] ?? $data;
 
         if (! isset($payload['access_token'])) {
-            $this->recordOAuthError('Token exchange missing access_token');
+            $this->recordOAuthError('Token exchange missing access_token: '.json_encode($data));
 
             return null;
         }
@@ -129,17 +156,15 @@ class ShopeeAdsApiService
 
         $response = $this->postPublic($path, $timestamp, $body);
 
-        if (! $response->successful()) {
-            $this->recordOAuthError('Refresh failed: '.$response->body());
-
+        $data = $this->parseShopeeResponse($response, 'Token refresh');
+        if ($data === null) {
             return null;
         }
 
-        $data = $response->json();
         $payload = $data['response'] ?? $data;
 
         if (! isset($payload['access_token'])) {
-            $this->recordOAuthError('Refresh missing access_token');
+            $this->recordOAuthError('Refresh missing access_token: '.json_encode($data));
 
             return null;
         }
@@ -184,6 +209,11 @@ class ShopeeAdsApiService
             );
 
             if (! $response->successful()) {
+                Log::warning('Shopee Ads campaign id list failed', [
+                    'ad_type' => $adTypeFilter,
+                    'status' => $response->status(),
+                    'body' => Str::limit($response->body(), 500),
+                ]);
                 break;
             }
 
@@ -248,12 +278,7 @@ class ShopeeAdsApiService
                 $out[] = [
                     'campaign_id' => (string) ($c['campaign_id'] ?? ''),
                     'campaign_name' => (string) ($common['ad_name'] ?? $c['ad_name'] ?? 'Campaign '.($c['campaign_id'] ?? '')),
-                    'budget' => (float) (
-                        $budgetInfo['campaign_budget']
-                        ?? $common['campaign_budget']
-                        ?? $c['campaign_budget']
-                        ?? 0
-                    ),
+                    'budget' => (float) ($this->extractCampaignBudgetFromSettingRow($c) ?? 0),
                     'status' => strtolower((string) ($common['campaign_status'] ?? $c['campaign_status'] ?? '')),
                     'item_id' => $itemId,
                     'raw' => $c,
@@ -264,17 +289,67 @@ class ShopeeAdsApiService
         return $out;
     }
 
-    public function getCampaignLiveBudget(string $campaignId): ?int
+    /**
+     * Live GMV-Max daily budget from Shopee (get_product_level_campaign_setting_info).
+     */
+    public function getGmsLiveBudget(string $campaignId): ?int
     {
         $infos = $this->campaignSettingInfo([(int) $campaignId]);
 
         if ($infos === []) {
+            Log::warning('GMV-Max live budget fetch returned no campaign settings', [
+                'campaign_id' => $campaignId,
+            ]);
+
             return null;
         }
 
-        $budget = (float) ($infos[0]['budget'] ?? 0);
+        $budget = $this->extractCampaignBudgetFromSettingRow($infos[0]['raw'] ?? []);
 
-        return $budget > 0 ? (int) round($budget) : null;
+        if ($budget === null) {
+            Log::warning('GMV-Max live budget missing in Shopee campaign settings', [
+                'campaign_id' => $campaignId,
+            ]);
+        }
+
+        return $budget;
+    }
+
+    public function getCampaignLiveBudget(string $campaignId): ?int
+    {
+        return $this->getGmsLiveBudget($campaignId);
+    }
+
+    /**
+     * @param  array<string, mixed>  $row
+     */
+    private function extractCampaignBudgetFromSettingRow(array $row): ?int
+    {
+        $common = $row['common_info'] ?? [];
+        $manual = $row['manual_bidding_info'] ?? [];
+        $auto = $row['auto_bidding_info'] ?? [];
+        $gms = $row['gms_info'] ?? $row['gms_campaign_info'] ?? [];
+
+        $candidates = [
+            $common['campaign_budget'] ?? null,
+            $common['daily_budget'] ?? null,
+            $gms['daily_budget'] ?? null,
+            $gms['campaign_budget'] ?? null,
+            $manual['campaign_budget'] ?? null,
+            $manual['daily_budget'] ?? null,
+            $auto['campaign_budget'] ?? null,
+            $auto['daily_budget'] ?? null,
+            $row['campaign_budget'] ?? null,
+            $row['daily_budget'] ?? null,
+        ];
+
+        foreach ($candidates as $value) {
+            if ($value !== null && (float) $value > 0) {
+                return (int) round((float) $value);
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -330,11 +405,10 @@ class ShopeeAdsApiService
     {
         $ids = $this->campaignIdList('manual');
         $infos = $this->campaignSettingInfo($ids);
-        $activeStatuses = ['', 'ongoing', 'running', 'active', 'scheduled'];
 
         return collect($infos)
-            ->filter(function ($c) use ($onlyActive, $activeStatuses) {
-                return ! $onlyActive || in_array($c['status'], $activeStatuses, true);
+            ->filter(function ($c) use ($onlyActive) {
+                return ! $onlyActive || $this->isLiveCampaignStatus($c['status']);
             })
             ->map(fn ($c) => [
                 'campaign_id' => $c['campaign_id'],
@@ -345,6 +419,25 @@ class ShopeeAdsApiService
             ])
             ->values()
             ->all();
+    }
+
+    private function isLiveCampaignStatus(string $status): bool
+    {
+        $normalized = strtolower(trim($status));
+
+        if ($normalized === '') {
+            return true;
+        }
+
+        return in_array($normalized, [
+            'ongoing',
+            'running',
+            'active',
+            'scheduled',
+            'live',
+            'open',
+            'enabled',
+        ], true);
     }
 
     /**
@@ -500,16 +593,29 @@ class ShopeeAdsApiService
     /**
      * @return array{before: int, after: int, applied_increment: int}|null
      */
-    public function addGmsBudget(string $campaignId, int $trackedBudget, int $incrementIdr, int $combinedCap): ?array
+    public function addGmsBudget(string $campaignId, int $fallbackBudget, int $incrementIdr, int $maxGmvBudget, ?int $knownLive = null): ?array
     {
-        $live = $this->getCampaignLiveBudget($campaignId);
-        $current = $live ?? $trackedBudget;
+        $live = $knownLive ?? $this->getGmsLiveBudget($campaignId);
+        $current = ($live !== null && $live > 0) ? $live : $fallbackBudget;
 
         if ($current <= 0) {
             return null;
         }
 
-        $perCampaignCap = $current + max(0, $combinedCap - $current);
+        if ($live === null) {
+            Log::warning('GMV-Max increment falling back to tracked DB budget (live fetch failed)', [
+                'campaign_id' => $campaignId,
+                'tracked' => $fallbackBudget,
+            ]);
+        } elseif ($live !== $fallbackBudget) {
+            Log::info('GMV-Max increment using live Shopee budget', [
+                'campaign_id' => $campaignId,
+                'live' => $live,
+                'tracked' => $fallbackBudget,
+            ]);
+        }
+
+        $perCampaignCap = $current + max(0, $maxGmvBudget - $current);
 
         return $this->applyIncrement($current, $incrementIdr, $perCampaignCap, function (int $after) use ($campaignId) {
             return $this->setGmsBudget($campaignId, $after);
@@ -664,5 +770,41 @@ class ShopeeAdsApiService
         $oauth['last_error'] = $message;
         $this->persistOAuth($oauth);
         Log::error('Shopee Ads OAuth error: '.$message);
+    }
+
+    /**
+     * Shopee often returns HTTP 200 with a non-empty `error` field on failure.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function parseShopeeResponse(Response $response, string $context): ?array
+    {
+        if (! $response->successful()) {
+            $this->recordOAuthError($context.' failed (HTTP '.$response->status().'): '.$response->body());
+
+            return null;
+        }
+
+        $data = $response->json();
+        if (! is_array($data)) {
+            $this->recordOAuthError($context.' returned invalid JSON: '.$response->body());
+
+            return null;
+        }
+
+        $error = trim((string) ($data['error'] ?? ''));
+        if ($error !== '') {
+            $message = trim((string) ($data['message'] ?? ''));
+            $detail = $message !== '' ? "{$error} — {$message}" : $error;
+            $requestId = trim((string) ($data['request_id'] ?? ''));
+            if ($requestId !== '') {
+                $detail .= " (request_id: {$requestId})";
+            }
+            $this->recordOAuthError($context.' Shopee API error: '.$detail);
+
+            return null;
+        }
+
+        return $data;
     }
 }

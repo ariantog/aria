@@ -598,6 +598,9 @@
         @if($hasPerm('setting-cron-manager-view') || $isSuperAdmin)
         <a href="{{ route('scheduled-tasks.index') }}" x-show="navLinkVisible('Cron Manager', 'System Settings')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/cron-manager') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Cron Manager</a>
         @endif
+        @if($hasPerm('report-warehouse-arrangement') || $isSuperAdmin)
+        <a href="{{ route('warehouse-stat-backfill.index') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/warehouse-stat-backfill') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Warehouse Stats Backfill</a>
+        @endif
     </div>
 </div>
 @endif
