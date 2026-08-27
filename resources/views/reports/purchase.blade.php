@@ -9,7 +9,7 @@ $breadcrumbs = [
     ['title' => 'Reports', 'href' => '#'],
     ['title' => 'Pembelian', 'href' => route('reports.purchase')],
 ];
-$fmt = fn($v) => 'Rp' . number_format((float) $v, 0, ',', '.');
+$fmt = fn($v) => 'Rp' . format_amount($v, 0);
 
 $totalBuy = array_sum($supplierReport['buy']);
 $totalReturn = array_sum($supplierReport['returnSupplier']);

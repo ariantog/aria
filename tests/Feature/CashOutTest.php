@@ -107,3 +107,45 @@ test('cash out accepts decimal totals', function () {
         'real_total' => -99.75,
     ]);
 });
+
+test('cash out accepts supplier as recipient party', function () {
+    $user = User::factory()->create();
+    $bank = Addrbook::factory()->create(['type' => Addrbook::TYPE_BANK]);
+    $supplier = Addrbook::factory()->supplier()->create();
+
+    $this->actingAs($user)->post(route('transactions.cash-out.store'), [
+        'date' => now()->format('Y-m-d'),
+        'account_id' => $bank->id,
+        'items' => [
+            [
+                'customer_id' => $supplier->id,
+                'total' => 100,
+            ],
+        ],
+    ])->assertRedirect();
+
+    $this->assertDatabaseHas('transactions', [
+        'type' => Transaction::TYPE_CASH_OUT,
+        'sender_id' => $bank->id,
+        'receiver_id' => $supplier->id,
+        'total' => -100,
+    ]);
+});
+
+test('cash out rejects warehouse as recipient party', function () {
+    $user = User::factory()->create();
+    $bank = Addrbook::factory()->create(['type' => Addrbook::TYPE_BANK]);
+    $warehouse = Addrbook::factory()->warehouse()->create();
+
+    $this->actingAs($user)->postJson(route('transactions.cash-out.store'), [
+        'date' => now()->format('Y-m-d'),
+        'account_id' => $bank->id,
+        'items' => [
+            [
+                'customer_id' => $warehouse->id,
+                'total' => 100,
+            ],
+        ],
+    ])->assertUnprocessable()
+        ->assertJsonValidationErrors(['items.0.customer_id']);
+});

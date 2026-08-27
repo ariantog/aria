@@ -141,6 +141,14 @@ function seedPpnReportScenario(): array
 it('renders the ppn tax report with ringkasan from monthly summaries', function () {
     $data = seedPpnReportScenario();
 
+    $ringkasan = app(TaxReportService::class)->ringkasan(2025, 6, $data['entityA']->id);
+    expect($ringkasan['keluaran_dpp'])->toBe(90_000.0)
+        ->and($ringkasan['keluaran_tax'])->toBe(9_900.0)
+        ->and($ringkasan['masukan_dpp'])->toBe(50_000.0)
+        ->and($ringkasan['masukan_tax'])->toBe(5_500.0)
+        ->and($ringkasan['net_ppn'])->toBe(4_400.0)
+        ->and($ringkasan['retur_keluaran_tax'])->toBe(1_100.0);
+
     $this->actingAs($this->user)
         ->get(route('reports.tax.ppn', [
             'year' => 2025,
@@ -152,11 +160,11 @@ it('renders the ppn tax report with ringkasan from monthly summaries', function 
         ->assertSee('Ringkasan', false)
         ->assertSee('Keluaran', false)
         ->assertSee('Masukan', false)
-        ->assertSee('90.000,00', false)
-        ->assertSee('9.900,00', false)
-        ->assertSee('50.000,00', false)
-        ->assertSee('5.500,00', false)
-        ->assertSee('4.400,00', false);
+        ->assertSee('90,000', false)
+        ->assertSee('9,900', false)
+        ->assertSee('50,000', false)
+        ->assertSee('5,500', false)
+        ->assertSee('4,400', false);
 });
 
 it('aggregates consolidated entity summaries', function () {
@@ -244,7 +252,7 @@ it('omits pre-2025 data from summaries and drill-down', function () {
     $this->actingAs($this->user)
         ->get(route('reports.tax.ppn', ['year' => 2024, 'month' => 12, 'entity' => $entity->id]))
         ->assertOk()
-        ->assertDontSee('99.999,00', false);
+        ->assertDontSee('99,999', false);
 });
 
 it('exports ppn report as csv', function () {

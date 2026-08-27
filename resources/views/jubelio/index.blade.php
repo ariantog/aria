@@ -50,7 +50,7 @@ $breadcrumbs = [
            class="flex items-center justify-between rounded-lg border-l-4 {{ $c['border'] }} {{ $c['bg'] }} p-4 shadow-sm transition-all hover:opacity-90 {{ $isActive ? $c['ring'] : '' }}">
             <div>
                 <p class="text-[10px] font-semibold tracking-wider uppercase opacity-70 md:text-xs">{{ $c['title'] }}</p>
-                <p class="text-xl font-bold md:text-2xl">{{ number_format($c['value'], 0, ',', '.') }}</p>
+                <p class="text-xl font-bold md:text-2xl">{{ format_amount($c['value'], 0) }}</p>
             </div>
         </a>
         @endforeach
@@ -133,7 +133,7 @@ $breadcrumbs = [
                             <span class="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-bold uppercase">{{ $order->type }}</span>
                         </td>
                         <td class="px-6 py-4 text-right font-mono text-xs text-gray-700">
-                            {{ $summary['item_count'] > 0 ? number_format($summary['item_count'], 0, ',', '.') : '—' }}
+                            {{ $summary['item_count'] > 0 ? format_amount($summary['item_count'], 0) : '—' }}
                         </td>
                         <td class="px-6 py-4 text-right font-mono text-xs text-gray-800">
                             @if($summary['real_total'] !== null)

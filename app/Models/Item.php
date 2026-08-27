@@ -217,6 +217,30 @@ class Item extends Model
     }
 
     /**
+     * Resolve an item by SKU (code / legacy_code), then exact name when SKU misses.
+     * Name match requires a single row — ambiguous duplicates return null.
+     */
+    public static function findBySkuOrName(string $value): ?self
+    {
+        $item = static::findBySku($value);
+        if ($item) {
+            return $item;
+        }
+
+        $normalized = strtoupper(trim($value));
+        if ($normalized === '') {
+            return null;
+        }
+
+        $matches = static::query()
+            ->whereRaw('UPPER(name) = ?', [$normalized])
+            ->limit(2)
+            ->get();
+
+        return $matches->count() === 1 ? $matches->first() : null;
+    }
+
+    /**
      * Batch-resolve items keyed by uppercase SKU (matches code or legacy_code).
      *
      * @param  array<int, string>  $skus

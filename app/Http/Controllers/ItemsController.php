@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Enums\AddrbookType;
 use App\Enums\ItemBrand;
 use App\Enums\ItemType;
 use App\Enums\TransactionType;
@@ -12,10 +11,12 @@ use App\Models\ItemGroup;
 use App\Models\Report;
 use App\Models\Tag;
 use App\Models\TransactionDetail;
+use App\Models\WarehouseItem;
 use App\Services\ItemService;
 use App\Services\Items\ItemGroupHierarchyService;
 use App\Services\Items\ItemGroupParentExportService;
 use App\Services\Items\ItemIdentityBuilder;
+use App\Services\Items\LegacyItemConverterService;
 use App\Services\ProductPerformanceService;
 use App\Services\JubelioService;
 use Illuminate\Http\Request;
@@ -28,6 +29,7 @@ class ItemsController extends Controller
         protected ProductPerformanceService $performance,
         protected ItemGroupHierarchyService $groupHierarchy,
         protected ItemIdentityBuilder $identityBuilder,
+        protected LegacyItemConverterService $legacyConverter,
     ) {}
 
     public function index(Request $request, ?ItemType $type = null)
@@ -111,7 +113,11 @@ class ItemsController extends Controller
             ]);
         }
 
-        $items = $q->with('group')->orderBy('id', 'desc')->paginate(50)->withQueryString();
+        $items = $q->with('group')
+            ->withSum(['warehouseItems as active_qty' => fn ($query) => $query->forActiveWarehouseAddrbooks()], 'quantity')
+            ->orderBy('id', 'desc')
+            ->paginate(50)
+            ->withQueryString();
 
         return view('items.index', [
             'items' => $items,
@@ -174,22 +180,45 @@ class ItemsController extends Controller
             'group',
             'tags',
             'warehouseItems' => fn ($q) => $q
-                ->whereIn('warehouse_id', fn ($s) => $s->select('id')->from('customers')->whereIn('type', [
-                    AddrbookType::Warehouse->value,
-                    AddrbookType::VirtualWarehouse->value,
-                ]))
-                ->with('warehouse'),
+                ->forWarehouseAddrbooks(withTrashed: true)
+                ->with('warehouse')
+                ->orderBy('warehouse_id'),
         ]);
+
+        $activeWarehouseItems = $item->warehouseItems
+            ->filter(fn (WarehouseItem $row) => $row->warehouse && ! $row->warehouse->trashed())
+            ->values();
+        $deletedWarehouseItems = $item->warehouseItems
+            ->filter(fn (WarehouseItem $row) => $row->warehouse && $row->warehouse->trashed())
+            ->values();
 
         return view('items.show', [
             'item' => $item,
+            'activeWarehouseItems' => $activeWarehouseItems,
+            'deletedWarehouseItems' => $deletedWarehouseItems,
+            'activeStock' => (float) $activeWarehouseItems->sum('quantity'),
+            'deletedStock' => (float) $deletedWarehouseItems->sum('quantity'),
             'isAsset' => $item->type === ItemType::ASSET_LANCAR,
             'groupUrl' => $item->group_id
                 ? route('items.group-parent-detail', $this->identityBuilder->parentKeyToSlug(
                     $this->identityBuilder->itemParentKey($item)
                 ))
                 : null,
+            'identityConvert' => $this->detailIdentityConvertContext($item),
         ]);
+    }
+
+    protected function detailIdentityConvertContext(Item $item): ?array
+    {
+        $user = auth()->user();
+
+        if (! $user?->is_superadmin && ! Gate::check(Item::getPermissions()['convert-legacy'])) {
+            return null;
+        }
+
+        $context = $this->legacyConverter->detailConvertContext($item);
+
+        return $context['visible'] ? $context : null;
     }
 
     public function edit(Item $item)

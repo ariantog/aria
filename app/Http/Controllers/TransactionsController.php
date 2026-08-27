@@ -122,19 +122,48 @@ class TransactionsController extends Controller
         }
 
         return response()->json([
-            'item' => [
-                'id' => $item->id,
-                'code' => $item->getItemCode(),
-                'name' => $item->name ?: $item->getItemName(),
-                'type' => $item->type->value,
-                'price' => (float) $item->price,
-                'cost' => (float) $item->cost,
-                'warehouse_item' => $item->warehouseItems->map(fn ($wi) => [
-                    'warehouse_id' => (string) $wi->warehouse_id,
-                    'quantity' => (float) $wi->quantity,
-                ])->values()->all(),
-            ],
+            'item' => $this->itemLookupPayload($item),
         ]);
+    }
+
+    /**
+     * Resolve a typed SKU for line-item rows (canonical code, legacy_code, then name).
+     */
+    public function itemByCode(string $type, Request $request)
+    {
+        Transaction::authorizeTypeAccess($type);
+
+        $validated = $request->validate([
+            'code' => ['required', 'string', 'max:255'],
+        ]);
+
+        $item = \App\Models\Item::findBySkuOrName($validated['code']);
+        if ($item) {
+            $item->loadMissing('warehouseItems');
+        }
+
+        return response()->json([
+            'item' => $item ? $this->itemLookupPayload($item) : null,
+        ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function itemLookupPayload(\App\Models\Item $item): array
+    {
+        return [
+            'id' => $item->id,
+            'code' => $item->getItemCode(),
+            'name' => $item->name ?: $item->getItemName(),
+            'type' => $item->type->value,
+            'price' => (float) $item->price,
+            'cost' => (float) $item->cost,
+            'warehouse_item' => $item->warehouseItems->map(fn ($wi) => [
+                'warehouse_id' => (string) $wi->warehouse_id,
+                'quantity' => (float) $wi->quantity,
+            ])->values()->all(),
+        ];
     }
 
     public function store(StoreItemTransactionRequest $request, CreateItemTransaction $action, BookClosingService $bookClosingService)
@@ -356,7 +385,6 @@ class TransactionsController extends Controller
             'warehouse_id' => 'nullable|integer',
             'type' => 'nullable|string',
         ]);
-        $priceSource = config('transaction_rules.'.($validated['type'] ?? '').'.price_source', 'price');
         $file = $request->file('csv_file');
         $filePath = $file->getRealPath();
         $array = [];
@@ -407,7 +435,8 @@ class TransactionsController extends Controller
                 $csvPrice = (float) $row['price'];
                 $itemPrice = (float) $item->price;
                 $itemCost = (float) $item->cost;
-                $unitPrice = $priceSource === 'cost' ? $itemCost : $csvPrice;
+                $type = $validated['type'] ?? '';
+                $unitPrice = $type === 'move' ? $itemPrice : $csvPrice;
                 $dataList[] = [
                     'id' => (string) $item->id,
                     'item_id' => (string) $item->id,
@@ -431,6 +460,34 @@ class TransactionsController extends Controller
         return response()->json(['data' => $dataList, 'totalQty' => collect($dataList)->sum('quantity'), 'totalPrice' => collect($dataList)->sum('subtotal')]);
     }
 
+    public function updateNote(Request $request, Transaction $transaction)
+    {
+        Gate::authorize(Transaction::getPermissions()['edit']);
+        abort_unless(
+            app(\App\Services\LocationAccessService::class)->canAccessTransaction(Auth::user(), $transaction),
+            403
+        );
+
+        $validated = $request->validate([
+            'note' => ['nullable', 'string', 'max:5000'],
+        ]);
+
+        $note = trim($validated['note'] ?? '');
+        $transaction->update([
+            'notes' => $note !== '' ? $note : null,
+            'description' => $note,
+        ]);
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'note' => $note !== '' ? $note : null,
+                'display' => $note !== '' ? $note : '-',
+            ]);
+        }
+
+        return back()->with('success', 'Transaction note updated.');
+    }
+
     public function destroy(Transaction $transaction, TransactionService $service, BookClosingService $bookClosingService)
     {
         Gate::authorize(Transaction::getPermissions()['delete']);
@@ -438,11 +495,12 @@ class TransactionsController extends Controller
             return back()->with('error', 'Jubelio-synced transactions cannot be deleted.');
         }
 
+        $transaction->load(['details', 'sender', 'receiver']);
+        $sender = $transaction->sender;
+        $receiver = $transaction->receiver;
         $bookClosingService->validateDate($transaction->date->format('Y-m-d'));
 
-        $transaction->load('details');
-
-        DB::transaction(function () use ($transaction, $service) {
+        DB::transaction(function () use ($transaction, $service, $sender, $receiver) {
             $deletedColumns = array_flip(Schema::getColumnListing((new DeletedTransaction)->getTable()));
             $transactionData = array_intersect_key($transaction->getAttributes(), $deletedColumns);
             $transactionData['deleted_at'] = now();
@@ -464,6 +522,13 @@ class TransactionsController extends Controller
 
             $transaction->details()->delete();
             $transaction->delete();
+
+            if ($sender instanceof \App\Models\Addrbook) {
+                $service->syncStatFromLatestTransaction($sender);
+            }
+            if ($receiver instanceof \App\Models\Addrbook) {
+                $service->syncStatFromLatestTransaction($receiver);
+            }
         });
 
         return redirect()->route('transactions.index')->with('success', 'Transaction moved to deleted.');
@@ -557,7 +622,9 @@ class TransactionsController extends Controller
         $perms = Transaction::getPermissions();
 
         return [
-            'create_transaction' => $user->can($perms['create']), 'delete_transaction' => $user->can($perms['delete']),
+            'create_transaction' => $user->can($perms['create']),
+            'edit_transaction' => $user->can($perms['edit']),
+            'delete_transaction' => $user->can($perms['delete']),
             'bank_hidden_balance' => ! $user->is_superadmin && $user->can('addrbook-bank-account-hidden-balance'),
             'type_buy' => $user->can($perms['type-buy']), 'type_sell' => $user->can($perms['type-sell']),
             'type_move' => $user->can($perms['type-move']), 'cash_in' => $user->can($perms['type-cash-in']),

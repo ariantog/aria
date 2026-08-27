@@ -110,7 +110,7 @@ $sortLink = function ($column) use ($sort, $direction, $filters) {
                         @foreach($selectedWarehouses as $sw)
                         @php $qty = (float) ($item['wh_'.$sw->warehouse_id] ?? 0); @endphp
                         <td class="px-3 py-2 text-right tabular-nums">
-                            <span class="{{ $qty > 0 ? 'font-bold text-zinc-900' : 'text-zinc-400' }}">{{ number_format($qty, 0, ',', '.') }}</span>
+                            <span class="{{ $qty > 0 ? 'font-bold text-zinc-900' : 'text-zinc-400' }}">{{ format_amount($qty, 0) }}</span>
                         </td>
                         @endforeach
                         @if($selectedWarehouses->count() === 0)<td></td>@endif

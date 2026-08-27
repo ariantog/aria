@@ -4,24 +4,33 @@ namespace App\Support;
 
 class AmountFormatter
 {
+    public const DECIMAL_SEPARATOR = '.';
+
+    public const THOUSANDS_SEPARATOR = ',';
+
     /**
-     * Format a numeric amount with Indonesian grouping and up to two decimal places.
-     * Trailing zeros after the decimal separator are removed (e.g. 2,00 → 2).
+     * Format a numeric amount with comma thousands grouping and up to two decimal places.
+     * Trailing zeros after the decimal separator are removed (e.g. 2.00 → 2).
      */
     public static function format(float|int|string|null $value, int $maxDecimals = 2): string
     {
-        $formatted = number_format((float) ($value ?? 0), $maxDecimals, ',', '.');
+        $formatted = number_format(
+            (float) ($value ?? 0),
+            $maxDecimals,
+            self::DECIMAL_SEPARATOR,
+            self::THOUSANDS_SEPARATOR,
+        );
 
-        if (! str_contains($formatted, ',')) {
+        if ($maxDecimals === 0 || ! str_contains($formatted, self::DECIMAL_SEPARATOR)) {
             return $formatted;
         }
 
-        return rtrim(rtrim($formatted, '0'), ',');
+        return rtrim(rtrim($formatted, '0'), self::DECIMAL_SEPARATOR);
     }
 
-    public static function currency(float|int|string|null $value, string $prefix = 'Rp '): string
+    public static function currency(float|int|string|null $value, string $prefix = 'Rp ', int $maxDecimals = 2): string
     {
-        return $prefix.self::format($value);
+        return $prefix.self::format($value, $maxDecimals);
     }
 
     /**

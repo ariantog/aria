@@ -3,31 +3,31 @@
 use App\Models\ScheduledTask;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schedule;
-use Illuminate\Support\Facades\Schema;
 
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
 
-try {
-    if (Schema::hasTable('scheduled_tasks')) {
-        $tasks = ScheduledTask::where('active', true)->get();
+// Long-running queue drain — own scheduler subprocess (never inside dispatch).
+Schedule::command('app:process-queue')
+    ->everyMinute()
+    ->withoutOverlapping(2)
+    ->runInBackground()
+    ->onFailure(function () {
+        Log::error('Scheduled task failed', ['command' => 'app:process-queue']);
+    });
 
-        foreach ($tasks as $task) {
-            $event = Schedule::command($task->command);
-
-            $method = $task->frequency;
-            if (method_exists($event, $method)) {
-                $event->$method();
-            } else {
-                // Fallback to cron if it's a raw expression or unknown
-                $event->cron($task->frequency);
-            }
-
-            $event->onSuccess(fn () => $task->update(['last_run_at' => now()]));
-        }
-    }
-} catch (\Exception $e) {
-    // Database may not be available during boot
-}
+// Lightweight Cron Manager tasks (shopee-ads:process, Jubelio, etc.).
+Schedule::command('app:dispatch-scheduled-tasks')
+    ->everyMinute()
+    ->withoutOverlapping(2)
+    ->onFailure(function () {
+        Log::error('Scheduled task failed', ['command' => 'app:dispatch-scheduled-tasks']);
+    })
+    ->onSuccess(function () {
+        ScheduledTask::query()
+            ->where('command', 'app:dispatch-scheduled-tasks')
+            ->update(['last_run_at' => now()]);
+    });

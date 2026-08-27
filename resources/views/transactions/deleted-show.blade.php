@@ -18,7 +18,7 @@
     $status = $statuses[$transaction->status] ?? ['label' => 'Unknown', 'color' => 'bg-gray-100 text-gray-800'];
 
     $fmt = fn ($n) => format_amount($n);
-    $grandTotalFormatted = $fmt(abs($transaction->real_total));
+    $grandTotalFormatted = $fmt($transaction->displayGrandTotal());
     $grandTotalHeroClass = \App\Support\AmountFormatter::displayTextClass($grandTotalFormatted, 'hero');
     $grandTotalCompactClass = \App\Support\AmountFormatter::displayTextClass($grandTotalFormatted, 'compact');
     $fmtDate = fn ($d) => $d ? \Illuminate\Support\Carbon::parse($d)->format('d/m/Y') : '-';
@@ -162,46 +162,95 @@
             {{-- Rows --}}
             <div class="divide-y print:block print:divide-y">
                 @foreach($transaction->details as $detail)
-                @php $item = $detail->item; @endphp
+                @php
+                    $item = $detail->item;
+                    $itemUrl = $item ? route('items.show', $item->id) : null;
+                @endphp
                 <div class="group flex flex-col gap-4 p-4 transition-colors hover:bg-gray-50 sm:grid sm:grid-cols-12 sm:items-center sm:gap-4 sm:p-3 sm:text-sm print:grid print:grid-cols-12 print:items-center print:gap-4 print:p-3">
                     {{-- Mobile --}}
                     <div class="flex items-start gap-3 sm:hidden">
-                        <div class="relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded border bg-white shadow-sm" x-show="showImage">
-                            @if($item?->image_url)
-                                <img src="{{ $item->image_url }}" alt="{{ $item?->name }}" class="h-full w-full object-cover">
-                            @else
-                                <svg class="h-7 w-7 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
-                            @endif
-                        </div>
+                        @if($itemUrl)
+                            <a href="{{ $itemUrl }}" class="relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded border bg-white shadow-sm transition-transform hover:scale-105" x-show="showImage">
+                                @if($item->image_url)
+                                    <img src="{{ $item->image_url }}" alt="{{ $item->name }}" class="h-full w-full object-cover">
+                                @else
+                                    <svg class="h-7 w-7 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+                                @endif
+                            </a>
+                        @else
+                            <div class="relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded border bg-white shadow-sm" x-show="showImage">
+                                @if($item?->image_url)
+                                    <img src="{{ $item->image_url }}" alt="{{ $item?->name }}" class="h-full w-full object-cover">
+                                @else
+                                    <svg class="h-7 w-7 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+                                @endif
+                            </div>
+                        @endif
                         <div class="flex flex-col">
-                            <div class="font-bold text-zinc-900">{{ $item?->name }}</div>
+                            @if($itemUrl)
+                                <a href="{{ $itemUrl }}" class="font-bold text-blue-600 hover:underline">{{ $item->name }}</a>
+                            @else
+                                <div class="font-bold text-zinc-900">{{ $item?->name }}</div>
+                            @endif
                             <div class="flex flex-wrap gap-2 pt-1">
-                                <span class="font-mono text-[10px] font-medium text-blue-600" x-show="showBarcode">#{{ $item?->id }}</span>
+                                @if($itemUrl)
+                                    <a href="{{ $itemUrl }}" class="font-mono text-[10px] font-medium text-blue-600 hover:underline" x-show="showBarcode">#{{ $item->id }}</a>
+                                @else
+                                    <span class="font-mono text-[10px] font-medium text-blue-600" x-show="showBarcode">#{{ $item?->id }}</span>
+                                @endif
                                 @if($item?->code)
-                                <span class="font-mono text-[10px] italic text-gray-500" x-show="showSku">SKU: {{ $item?->code }}</span>
+                                    @if($itemUrl)
+                                        <a href="{{ $itemUrl }}" class="font-mono text-[10px] italic text-gray-500 hover:text-blue-600 hover:underline" x-show="showSku">SKU: {{ $item->code }}</a>
+                                    @else
+                                        <span class="font-mono text-[10px] italic text-gray-500" x-show="showSku">SKU: {{ $item?->code }}</span>
+                                    @endif
                                 @endif
                             </div>
                         </div>
                     </div>
 
                     <div class="hidden col-span-1 text-center sm:block print:block" x-show="showImage">
-                        <div class="relative mx-auto flex h-12 w-12 items-center justify-center overflow-hidden rounded border bg-white shadow-sm transition-transform duration-200 group-hover:scale-105">
-                            @if($item?->image_url)
-                                <img src="{{ $item->image_url }}" alt="{{ $item?->name }}" class="h-full w-full object-cover">
-                            @else
-                                <svg class="h-6 w-6 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
-                            @endif
-                        </div>
+                        @if($itemUrl)
+                            <a href="{{ $itemUrl }}" class="relative mx-auto flex h-12 w-12 items-center justify-center overflow-hidden rounded border bg-white shadow-sm transition-transform duration-200 group-hover:scale-105">
+                                @if($item->image_url)
+                                    <img src="{{ $item->image_url }}" alt="{{ $item->name }}" class="h-full w-full object-cover">
+                                @else
+                                    <svg class="h-6 w-6 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+                                @endif
+                            </a>
+                        @else
+                            <div class="relative mx-auto flex h-12 w-12 items-center justify-center overflow-hidden rounded border bg-white shadow-sm transition-transform duration-200 group-hover:scale-105">
+                                @if($item?->image_url)
+                                    <img src="{{ $item->image_url }}" alt="{{ $item?->name }}" class="h-full w-full object-cover">
+                                @else
+                                    <svg class="h-6 w-6 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+                                @endif
+                            </div>
+                        @endif
                     </div>
 
                     <div class="hidden col-span-1 font-mono text-xs sm:block print:block" x-show="showBarcode">
-                        <a href="{{ $item ? route('items.show', $item->id) : '#' }}" class="text-blue-600 hover:underline">{{ $item?->id }}</a>
+                        @if($itemUrl)
+                            <a href="{{ $itemUrl }}" class="text-blue-600 hover:underline">{{ $item->id }}</a>
+                        @else
+                            <span>{{ $item?->id }}</span>
+                        @endif
                     </div>
 
-                    <div class="hidden col-span-1 font-mono text-xs italic text-gray-500 sm:block print:block" x-show="showSku">{{ $item?->code ?: '-' }}</div>
+                    <div class="hidden col-span-1 font-mono text-xs italic text-gray-500 sm:block print:block" x-show="showSku">
+                        @if($itemUrl && $item->code)
+                            <a href="{{ $itemUrl }}" class="hover:text-blue-600 hover:underline">{{ $item->code }}</a>
+                        @else
+                            {{ $item?->code ?: '-' }}
+                        @endif
+                    </div>
 
                     <div class="hidden sm:flex flex-col print:flex" :class="nameColSpan">
-                        <span class="font-bold text-zinc-900">{{ $item?->name }}</span>
+                        @if($itemUrl)
+                            <a href="{{ $itemUrl }}" class="font-bold text-blue-600 hover:underline">{{ $item->name }}</a>
+                        @else
+                            <span class="font-bold text-zinc-900">{{ $item?->name }}</span>
+                        @endif
                         <span class="mt-0.5 line-clamp-1 text-[10px] leading-tight italic text-gray-500">{{ $detail->notes ?: $item?->description }}</span>
                     </div>
 
@@ -218,7 +267,7 @@
                     <div class="flex items-center justify-between sm:col-span-1 sm:block sm:text-center print:block print:text-center">
                         <span class="text-[10px] font-bold text-gray-500 uppercase sm:hidden print:hidden">Disc</span>
                         @if($detail->discount > 0)
-                            <span class="inline-flex h-5 items-center rounded-md border border-dashed border-red-300 bg-red-50 px-1.5 text-[10px] font-bold text-red-600">-{{ number_format((float) $detail->discount, 2, ',', '.') }}%</span>
+                            <span class="inline-flex h-5 items-center rounded-md border border-dashed border-red-300 bg-red-50 px-1.5 text-[10px] font-bold text-red-600">-{{ format_amount((float) $detail->discount) }}%</span>
                         @else
                             <span class="text-gray-400">-</span>
                         @endif
@@ -263,7 +312,7 @@
             <div class="space-y-3 p-6 tabular-nums">
                 <div class="flex items-center justify-between text-sm">
                     <span class="text-gray-500">Subtotal</span>
-                    <span class="font-bold">{{ $fmt($transaction->total) }}</span>
+                    <span class="font-bold">{{ $fmt($transaction->displaySummarySubtotal()) }}</span>
                 </div>
                 <div class="flex items-center justify-between text-sm">
                     <span class="text-gray-500">Invoice Discount ({{ $transaction->discount ?? 0 }}%)</span>

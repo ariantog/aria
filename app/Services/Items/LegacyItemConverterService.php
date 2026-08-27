@@ -99,6 +99,14 @@ class LegacyItemConverterService
         return ! $this->hasPreservedLegacyCode($item);
     }
 
+    /**
+     * Legacy rows use group_id 0 for "no group"; only positive IDs are real groups.
+     */
+    public function hasProductGroup(Item $item): bool
+    {
+        return (int) $item->group_id > 0;
+    }
+
     protected function applyPendingConversionScope(Builder $query): void
     {
         $query->where(function (Builder $pending) {
@@ -647,7 +655,7 @@ class LegacyItemConverterService
 
     protected function isAlreadyCanonical(Item $item, LegacyParseResult $parse): bool
     {
-        if ($item->group_id === null) {
+        if (! $this->hasProductGroup($item)) {
             return false;
         }
 
@@ -703,6 +711,107 @@ class LegacyItemConverterService
             ItemIdentityConversionResult::STATUS_SKIPPED => $run->increment('skipped_count'),
             default => null,
         };
+
+        return $result;
+    }
+
+    /**
+     * Detail-page convert panel: ungrouped items still on a legacy SKU (no preserved legacy_code).
+     *
+     * @return array{
+     *     visible: bool,
+     *     convertible: bool,
+     *     special_family: ?array,
+     *     parse: ?LegacyParseResult,
+     *     message: ?string,
+     *     item_type: ?ItemType
+     * }
+     */
+    public function detailConvertContext(Item $item): array
+    {
+        $parser = $this->makeParser();
+        $itemType = $parser->resolveItemType($item);
+        $hidden = [
+            'visible' => false,
+            'convertible' => false,
+            'special_family' => null,
+            'parse' => null,
+            'message' => null,
+            'item_type' => $itemType,
+        ];
+
+        if (! in_array($itemType, [ItemType::ITEM, ItemType::ASSET_LANCAR], true)) {
+            return array_merge($hidden, ['message' => 'Unsupported item type for identity conversion.']);
+        }
+
+        if ($this->hasProductGroup($item)) {
+            return array_merge($hidden, ['message' => 'Item already belongs to a product group.']);
+        }
+
+        if (! $this->isPendingConversion($item)) {
+            return array_merge($hidden, ['message' => 'Item already has a preserved legacy SKU.']);
+        }
+
+        $specialRules = new SpecialSkuConverterRules;
+        $specialFamily = $specialRules->matchingFamilyPrefix((string) $item->code);
+
+        $item->loadMissing(['tags', 'group']);
+        $parse = $parser->parse($item);
+
+        if ($specialFamily !== null) {
+            return [
+                'visible' => true,
+                'convertible' => false,
+                'special_family' => $specialFamily,
+                'parse' => $parse,
+                'message' => "This SKU uses the {$specialFamily['label']} special-code family. "
+                    .'Use the Special SKU Converter — the generic legacy converter will produce wrong results.',
+                'item_type' => $itemType,
+            ];
+        }
+
+        if (! $parse->success) {
+            return [
+                'visible' => true,
+                'convertible' => false,
+                'special_family' => null,
+                'parse' => $parse,
+                'message' => $parse->detail ?? 'SKU cannot be parsed for conversion.',
+                'item_type' => $itemType,
+            ];
+        }
+
+        return [
+            'visible' => true,
+            'convertible' => true,
+            'special_family' => null,
+            'parse' => $parse,
+            'message' => null,
+            'item_type' => $itemType,
+        ];
+    }
+
+    public function convertSingleFromDetail(Item $item, User $user): ItemIdentityConversionResult
+    {
+        $context = $this->detailConvertContext($item);
+
+        if (! $context['visible'] || ! $context['convertible'] || ! $context['parse']?->success) {
+            throw new \RuntimeException($context['message'] ?? 'Item is not eligible for conversion.');
+        }
+
+        $itemType = $context['item_type'] ?? ItemType::ITEM;
+        $parser = $this->makeParser();
+
+        $run = ItemIdentityConversionRun::query()->create([
+            'item_type' => $itemType,
+            'dry_run' => false,
+            'batch_size' => 1,
+            'user_id' => $user->id,
+            'started_at' => now(),
+        ]);
+
+        $result = $this->convertItem($item->fresh(['tags', 'group']), $run, $parser, false);
+        $run->update(['finished_at' => now()]);
 
         return $result;
     }

@@ -4,7 +4,7 @@
 
 @section('content')
 @php
-$fmt = fn ($v) => number_format((float) $v, 2, ',', '.');
+$fmt = fn ($v) => format_amount($v);
 $gross = $parsed->grossIncludingTax();
 @endphp
 
@@ -136,14 +136,14 @@ $gross = $parsed->grossIncludingTax();
                     </div>
                 </div>
                 <p class="mt-2 text-xs text-gray-600" x-show="paymentAmount">
-                    Selisih vs faktur: <span class="font-medium tabular-nums" x-text="variance.toLocaleString('id-ID', {minimumFractionDigits: 2})"></span>
+                    Selisih vs faktur: <span class="font-medium tabular-nums" x-text="formatAmountId(variance)"></span>
                 </p>
                 <div class="mt-3" x-show="suggestions.length > 0" x-cloak>
                     <label class="mb-1 block text-xs text-gray-500" for="cash_in_transaction_id">Link Cash In (opsional)</label>
                     <select id="cash_in_transaction_id" name="cash_in_transaction_id" x-model="cashInId" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" data-testid="cash-in-select">
                         <option value="">— Tidak di-link —</option>
                         <template x-for="item in suggestions" :key="item.id">
-                            <option :value="item.id" x-text="`#${item.id} · ${item.date} · ${item.bank_name} · Rp ${item.total.toLocaleString('id-ID')}${item.invoice ? ' · ' + item.invoice : ''}`"></option>
+                            <option :value="item.id" x-text="`#${item.id} · ${item.date} · ${item.bank_name} · Rp ${formatAmountId(item.total)}${item.invoice ? ' · ' + item.invoice : ''}`"></option>
                         </template>
                     </select>
                     <p class="mt-1 text-xs text-gray-500">Prioritas: customer + bank entitas, lalu jumlah & tanggal.</p>

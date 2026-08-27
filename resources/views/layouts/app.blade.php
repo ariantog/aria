@@ -72,7 +72,7 @@
         input:focus, select:focus, textarea:focus { outline: 2px solid #3b82f6; outline-offset: 1px; }
     </style>
 </head>
-<body class="h-full bg-gray-50 text-gray-900 antialiased"
+<body class="min-h-full bg-gray-50 text-gray-900 antialiased"
       x-data="appShell()"
       x-init="init()"
       @keydown.window.escape="closeSidebar()">
@@ -113,11 +113,12 @@
 </div>
 @endif
 
-<div class="flex h-full">
+<div class="flex min-h-screen">
     {{-- Sidebar overlay for mobile --}}
     <div x-show="sidebarOpen && isMobile"
+         x-transition.opacity
          @click="sidebarOpen = false"
-         class="fixed inset-0 z-20 bg-black/30"
+         class="fixed inset-0 z-20 bg-black/30 lg:hidden"
          x-cloak></div>
 
     {{-- SIDEBAR --}}
@@ -193,7 +194,7 @@
     <div id="main-content"
          x-init="$nextTick(() => $el.classList.add('anim-ready'))"
          :class="sidebarOpen ? (isMobile ? 'ml-0' : 'ml-64') : (isMobile ? 'ml-0' : 'ml-14')"
-         class="flex flex-1 flex-col min-h-full min-w-0">
+         class="flex flex-1 flex-col min-w-0 h-screen overflow-hidden">
 
         {{-- Top header --}}
         <header class="sticky top-0 z-10 flex h-14 items-center gap-3 border-b border-gray-200 bg-white px-4">
@@ -241,19 +242,23 @@
             </div>
         </header>
 
-        {{-- Page content --}}
-        <main class="flex-1">
+        {{-- Page content (scrollable; header stays pinned above) --}}
+        <main id="app-main-scroll" class="flex-1 overflow-y-auto overflow-x-hidden">
             @yield('content')
         </main>
     </div>
 </div>
 
 {{-- Alpine.js CDN --}}
-<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.9/dist/cdn.min.js"></script>
 
 <script>
 function formatAmountId(value) {
-    return Number(value || 0).toLocaleString('id-ID', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+    return Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+}
+
+function formatNumberId(value) {
+    return Number(value || 0).toLocaleString('en-US', { maximumFractionDigits: 0 });
 }
 
 function appShell() {
@@ -268,6 +273,10 @@ function appShell() {
                 if (this.isMobile) this.sidebarOpen = false;
             });
             this.$watch('sidebarOpen', val => localStorage.setItem('sidebarOpen', val));
+            this.$nextTick(() => {
+                const main = document.getElementById('app-main-scroll');
+                if (main) main.scrollTop = 0;
+            });
         },
         closeSidebar() { if (this.isMobile) this.sidebarOpen = false; }
     };
@@ -316,6 +325,130 @@ function suppressFieldNavigation(ms = 400) {
 function isFieldNavigationSuppressed() {
     return Date.now() < (window._suppressFieldNavUntil || 0);
 }
+
+// ─── Filter form Enter → next field (selects included) ───────────────────────
+function filterFormFocusables(form) {
+    const nodes = form.querySelectorAll(
+        'input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]):not([disabled]),' +
+        'select:not([disabled]),' +
+        'textarea:not([disabled]),' +
+        'button[type="submit"]:not([disabled])'
+    );
+
+    return Array.from(nodes).filter((el) => {
+        if (!(el instanceof HTMLElement)) {
+            return false;
+        }
+        if (el.offsetParent === null) {
+            return false;
+        }
+        if (el.closest('[x-cloak]')) {
+            return false;
+        }
+        const style = window.getComputedStyle(el);
+        return style.visibility !== 'hidden' && style.display !== 'none';
+    });
+}
+
+function focusNextInFilterForm(form, current) {
+    const focusables = filterFormFocusables(form);
+    const idx = focusables.indexOf(current);
+    if (idx === -1 || idx >= focusables.length - 1) {
+        return false;
+    }
+
+    const next = focusables[idx + 1];
+    next.focus();
+    if (next instanceof HTMLInputElement && typeof next.select === 'function') {
+        next.select();
+    }
+    suppressFieldNavigation(400);
+    return true;
+}
+
+function submitFilterForm(form) {
+    const submit = form.querySelector('button[type="submit"]:not([disabled])');
+    if (!submit) {
+        return false;
+    }
+
+    if (typeof form.requestSubmit === 'function') {
+        form.requestSubmit(submit);
+    } else {
+        submit.click();
+    }
+
+    suppressFieldNavigation(400);
+    return true;
+}
+
+let _filterEnterHandled = false;
+
+function processFilterEnterNav(e) {
+    if (normalizeNavigationKey(e) !== 'Enter' || e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) {
+        return false;
+    }
+    if (isFieldNavigationSuppressed()) {
+        return false;
+    }
+
+    const el = e.target;
+    if (!(el instanceof HTMLElement)) {
+        return false;
+    }
+
+    const form = el.closest('form.filter-enter-nav');
+    if (!form) {
+        return false;
+    }
+
+    if (el.tagName === 'TEXTAREA' || el.tagName === 'BUTTON') {
+        return false;
+    }
+
+    if (el.matches('input[type="checkbox"], input[type="radio"]')) {
+        return false;
+    }
+
+    // Async combobox inputs handle Enter when their dropdown is open.
+    if (el.closest('[x-data*="asyncCombobox"]') && el.matches('input')) {
+        return false;
+    }
+
+    if (el.matches('[data-filter-enter-submit]') && el.matches('input, select')) {
+        return submitFilterForm(form);
+    }
+
+    if (el.matches('input, select')) {
+        return focusNextInFilterForm(form, el);
+    }
+
+    return false;
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+    document.querySelectorAll('form[method="GET"]:not([data-no-filter-nav])').forEach(function (form) {
+        form.classList.add('filter-enter-nav');
+    });
+});
+
+document.addEventListener('keydown', function (e) {
+    _filterEnterHandled = false;
+    if (processFilterEnterNav(e)) {
+        _filterEnterHandled = true;
+        e.preventDefault();
+    }
+}, true);
+
+document.addEventListener('keyup', function (e) {
+    if (_filterEnterHandled) {
+        _filterEnterHandled = false;
+        return;
+    }
+    if (processFilterEnterNav(e)) {
+        e.preventDefault();
+    }
+}, true);
 
 // ─── Autocomplete defaults (addrbook + item comboboxes) ─────────────────────
 const COMBOBOX_MIN_CHARS = 3;
@@ -636,6 +769,13 @@ function asyncCombobox(config) {
                 return true;
             }
             if (key === 'Enter') {
+                const filterForm = this.$el.closest('form.filter-enter-nav');
+                if (filterForm && !this.open) {
+                    const input = this.$el.querySelector('input[type="text"], input:not([type="hidden"])');
+                    if (input && focusNextInFilterForm(filterForm, input)) {
+                        return true;
+                    }
+                }
                 if (!this.open) {
                     this.open = true;
                     if (len === 0 && comboboxSearchable(this.query)) this.doSearch(this.query);

@@ -102,6 +102,31 @@ it('recalculates balances correctly for a retroactively inserted transaction', f
     expect($stat->balance)->toEqual(350);
 });
 
+it('normalizes legacy positive transfer totals when reverting balances', function () {
+    $service = new TransactionService;
+    $bankSource = Addrbook::factory()->create(['type' => Addrbook::TYPE_BANK]);
+    $bankDest = Addrbook::factory()->create(['type' => Addrbook::TYPE_BANK]);
+
+    $transfer = Transaction::factory()->create([
+        'type' => Transaction::TYPE_TRANSFER,
+        'date' => Carbon::now()->format('Y-m-d'),
+        'sender_id' => $bankSource->id,
+        'sender_type' => $bankSource->type,
+        'receiver_id' => $bankDest->id,
+        'receiver_type' => $bankDest->type,
+        'total' => 15000000,
+        'real_total' => 15000000,
+    ]);
+
+    $service->handleTransaction($transfer);
+    expect(AddrbookStat::where('customer_id', $bankSource->id)->value('balance'))->toEqual(-15000000);
+    expect(AddrbookStat::where('customer_id', $bankDest->id)->value('balance'))->toEqual(15000000);
+
+    $service->revertTransaction($transfer);
+    expect(AddrbookStat::where('customer_id', $bankSource->id)->value('balance'))->toEqual(0);
+    expect(AddrbookStat::where('customer_id', $bankDest->id)->value('balance'))->toEqual(0);
+});
+
 it('applies and reverts balance changes from signed total column', function () {
     $service = new TransactionService;
     $customer = Addrbook::factory()->create(['type' => Addrbook::TYPE_CUSTOMER]);

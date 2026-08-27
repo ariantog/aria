@@ -11,7 +11,7 @@ $breadcrumbs = [
 $user = auth()->user();
 $isSuper = $user && $user->hasRole('superadmin');
 $canDelete = $isSuper || $user->can('karyawan-gaji-delete');
-$fmt = fn($v) => number_format((float)($v ?? 0), 0, ',', '.');
+$fmt = fn($v) => format_amount($v ?? 0, 0);
 $monthNames = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
 $grandTotalBank = $gajiPerBank->sum('total_gaji');
 $search = $filters['karyawan'] ?? '';

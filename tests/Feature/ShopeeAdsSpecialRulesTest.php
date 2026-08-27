@@ -8,6 +8,24 @@ beforeEach(function () {
     $this->rules = app(ShopeeAdsSpecialRulesService::class);
 });
 
+it('scales combined daily cap multiplier labels', function () {
+    Carbon::setTestNow(Carbon::parse('2026-08-08 10:00:00', 'Asia/Jakarta'));
+
+    $settings = ShopeeAdsSetting::current();
+    $settings->update([
+        'double_date_enabled' => true,
+        'double_date_gmv_multiplier' => 2,
+        'double_date_item_budget_multiplier' => 2,
+    ]);
+
+    $multipliers = $this->rules->resolveForToday($settings);
+
+    expect($multipliers->scaledCombinedDailyCap(500000))->toBe(1000000)
+        ->and($multipliers->activeRuleLabels())->toContain('Combined cap ×2');
+
+    Carbon::setTestNow();
+});
+
 it('detects double dates when day equals month', function () {
     Carbon::setTestNow(Carbon::parse('2026-08-08 10:00:00', 'Asia/Jakarta'));
 
@@ -77,7 +95,8 @@ it('scales daily reset budgets on double date', function () {
     $settings = ShopeeAdsSetting::current();
     $settings->update([
         'starting_budget_gmv_max' => 100000,
-        'item_ad_starting_budget' => 30000,
+        'item_ad_starting_budget' => 60000,
+        'max_item_ads' => 1,
         'double_date_enabled' => true,
         'double_date_gmv_multiplier' => 2,
         'double_date_item_budget_multiplier' => 2,
@@ -93,14 +112,19 @@ it('scales daily reset budgets on double date', function () {
     ]);
 
     $api = Mockery::mock(\App\Services\ShopeeAds\ShopeeAdsApiService::class);
+    $api->shouldReceive('hasShopAuthorization')->andReturn(false);
     $api->shouldReceive('setGmsBudget')->once()->with('gmv-dd', 200000)->andReturn(true);
-    $api->shouldReceive('setItemAdBudget')->once()->with('item-dd', 60000)->andReturn(true);
+    $api->shouldReceive('setItemAdBudget')->once()->with('item-dd', 120000)->andReturn(true);
 
-    $engine = new \App\Services\ShopeeAds\ShopeeAdsEngineService($api, app(ShopeeAdsSpecialRulesService::class));
+    $engine = new \App\Services\ShopeeAds\ShopeeAdsEngineService(
+        $api,
+        app(ShopeeAdsSpecialRulesService::class),
+        Mockery::mock(\App\Services\ShopeeAds\ShopeeAdsTelegramNotifier::class)->shouldIgnoreMissing(),
+    );
     $engine->dailyReset($settings);
 
     expect($settings->fresh()->gms_current_budget)->toBe(200000)
-        ->and(\App\Models\ShopeeAdsItemAd::find('item-dd')->budget)->toBe(60000);
+        ->and(\App\Models\ShopeeAdsItemAd::find('item-dd')->budget)->toBe(120000);
 
     Carbon::setTestNow();
 });
@@ -128,7 +152,11 @@ it('applies manual budget boost with configured multiplier', function () {
     ]);
     $api->shouldReceive('setItemAdBudget')->once()->with('item-boost', 60000)->andReturn(true);
 
-    $engine = new \App\Services\ShopeeAds\ShopeeAdsEngineService($api, app(ShopeeAdsSpecialRulesService::class));
+    $engine = new \App\Services\ShopeeAds\ShopeeAdsEngineService(
+        $api,
+        app(ShopeeAdsSpecialRulesService::class),
+        Mockery::mock(\App\Services\ShopeeAds\ShopeeAdsTelegramNotifier::class)->shouldIgnoreMissing(),
+    );
     $result = $engine->applyManualBudgetBoost($settings);
 
     expect($result['gmv'])->toBeTrue()

@@ -4,12 +4,14 @@ use App\Models\Addrbook;
 use App\Models\Item;
 use App\Models\JubelioStockCheck;
 use App\Models\Jubeliosync;
+use App\Models\Setting;
 use App\Models\Transaction;
 use App\Models\TransactionDetail;
 use App\Models\User;
 use App\Models\WarehouseItem;
 use App\Services\JubelioService;
 use App\Services\JubelioStockCheckService;
+use Illuminate\Support\Facades\Http;
 use Mockery\MockInterface;
 use Spatie\Permission\Models\Permission;
 
@@ -353,6 +355,45 @@ it('ignores warehouses not mapped in jubeliosyncs', function () {
     $this->artisan('app:jubelio-stock-check', ['--single' => true])->assertSuccessful();
 
     expect(JubelioStockCheck::latest()->first()->discrepancies()->count())->toBe(0);
+});
+
+it('batches jubelio all-stocks requests at 200 ids per call', function () {
+    Setting::create([
+        'group' => 'Jubelio',
+        'name' => 'Jubelio Token',
+        'slug' => JubelioService::TOKEN_SETTING_SLUG,
+        'value' => [
+            'token' => 'test-token',
+            'expires_at' => now()->addHour()->toDateTimeString(),
+        ],
+    ]);
+
+    Http::fake(function (\Illuminate\Http\Client\Request $request) {
+        if (! str_contains($request->url(), 'inventory/items/all-stocks')) {
+            return Http::response([], 404);
+        }
+
+        $payload = json_decode($request->body(), true);
+        $ids = $payload['ids'] ?? [];
+
+        expect(count($ids))->toBeLessThanOrEqual(JubelioService::MAX_ALL_STOCKS_IDS);
+
+        return Http::response([
+            'data' => collect($ids)->map(fn ($id) => [
+                'item_id' => $id,
+                'location_stocks' => [],
+            ])->all(),
+        ], 200);
+    });
+
+    $result = app(JubelioService::class)->fetchItemsAllStocks(range(1, 250));
+
+    expect($result['data'])->toHaveCount(250);
+
+    Http::assertSent(function (\Illuminate\Http\Client\Request $request) {
+        return $request->method() === 'POST'
+            && str_contains($request->url(), 'inventory/items/all-stocks');
+    }, 2);
 });
 
 it('auto-creates a daily stock check job when none exists today', function () {

@@ -189,6 +189,7 @@ class TransactionService
     /**
      * Signed balance delta from the transaction header total (already signed per type).
      * Falls back to real_total only when total is unset (legacy adjust rows).
+     * Legacy rows may store the wrong sign — normalize via signedAmount(abs(...)).
      */
     protected function balanceAmount(Transaction $transaction, bool $revert = false): float
     {
@@ -197,7 +198,43 @@ class TransactionService
             $stored = (float) $transaction->real_total;
         }
 
-        return $revert ? -$stored : $stored;
+        $amount = Transaction::signedAmount((int) $transaction->type, abs($stored));
+
+        return $revert ? -$amount : $amount;
+    }
+
+    public function syncStatFromLatestTransaction(Addrbook $entity): void
+    {
+        $entityType = (int) $entity->type;
+
+        $lastTransaction = Transaction::query()
+            ->where(function ($q) use ($entity, $entityType) {
+                $q->where(function ($q2) use ($entity, $entityType) {
+                    $q2->where('sender_id', $entity->id)
+                        ->where('sender_type', $entityType);
+                })->orWhere(function ($q2) use ($entity, $entityType) {
+                    $q2->where('receiver_id', $entity->id)
+                        ->where('receiver_type', $entityType);
+                });
+            })
+            ->orderByDesc('date')
+            ->orderByDesc('id')
+            ->first();
+
+        $balance = 0.0;
+
+        if ($lastTransaction) {
+            if ((int) $lastTransaction->sender_id === $entity->id && (int) $lastTransaction->sender_type === $entityType) {
+                $balance = (float) $lastTransaction->sender_balance;
+            } elseif ((int) $lastTransaction->receiver_id === $entity->id && (int) $lastTransaction->receiver_type === $entityType) {
+                $balance = (float) $lastTransaction->receiver_balance;
+            }
+        }
+
+        AddrbookStat::updateOrCreate(
+            ['customer_id' => $entity->id],
+            ['balance' => $balance]
+        );
     }
 
     protected function updateDailyReports(Transaction $transaction, string $side, $amount)

@@ -9,8 +9,17 @@
     // Closures, not named functions: this partial can be compiled/included more
     // than once in a single PHP process (e.g. across requests in tests), and
     // named functions would trigger "Cannot redeclare" fatals.
-    $hasPerm = function (string $perm) use ($perms): bool {
-        return in_array($perm, $perms, true) || in_array('*', $perms, true);
+    $hasPerm = function (string $perm) use ($perms, $isSuperAdmin): bool {
+        if ($isSuperAdmin || in_array('*', $perms, true)) {
+            return true;
+        }
+
+        if (in_array($perm, $perms, true)) {
+            return true;
+        }
+
+        // Fall back to Spatie's resolver so role grants are always honored.
+        return auth()->user()?->can($perm) ?? false;
     };
 
     $isActive = function (string $prefix) use ($currentUrl): bool {
@@ -41,9 +50,11 @@
     || $hasPerm('transactions-type-adjust')
     || $hasPerm('transactions-type-return')
     || $hasPerm('transactions-type-return-supplier')
+    || $hasPerm('report-purchase')
+    || $hasPerm('report-export-sell')
     || $isSuperAdmin
 )
-@php $txActive = $isActive('/transactions') && ! $isActive('/transactions/export-sell'); @endphp
+@php $txActive = $isActive('/transactions') || $isActive('/reports/purchase'); @endphp
 <div x-data="{ open: {{ $txActive ? 'true' : 'false' }} }" class="mb-1">
     <button @click="open = !open"
             class="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors
@@ -82,6 +93,12 @@
         @endif
         @if($hasPerm('transactions-type-return-supplier') || $isSuperAdmin)
         <a href="{{ route('transactions.create', 'return-supplier') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ str_starts_with($currentUrl,'transactions/return-supplier/') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Return Supplier</a>
+        @endif
+        @if($hasPerm('report-purchase') || $isSuperAdmin)
+        <a href="{{ route('reports.purchase') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/purchase') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Pembelian</a>
+        @endif
+        @if($hasPerm('report-export-sell') || $isSuperAdmin)
+        <a href="{{ route('transactions.export-sell') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/transactions/export-sell') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Export Sell</a>
         @endif
     </div>
 </div>
@@ -186,7 +203,6 @@
 )
 @php
     $repActive = $isActive('/reports/purchase')
-        || $isActive('/transactions/export-sell')
         || $isActive('/reports/item-sales')
         || $isActive('/reports/warehouse-item')
         || $isActive('/reports/warehouse-arrangement')
@@ -211,16 +227,6 @@
         <svg x-show="sidebarOpen" x-cloak :class="open ? 'rotate-90' : ''" class="h-3.5 w-3.5 flex-shrink-0 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
     </button>
     <div x-show="open && sidebarOpen" x-cloak class="ml-6 mt-1 space-y-0.5">
-        @if($hasPerm('report-purchase') || $hasPerm('report-export-sell') || $isSuperAdmin)
-        <p class="px-2.5 pt-2 pb-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-400">Transactions</p>
-        @endif
-        @if($hasPerm('report-purchase') || $isSuperAdmin)
-        <a href="{{ route('reports.purchase') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/purchase') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Pembelian</a>
-        @endif
-        @if($hasPerm('report-export-sell') || $isSuperAdmin)
-        <a href="{{ route('transactions.export-sell') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/transactions/export-sell') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Export Sell</a>
-        @endif
-
         @if($hasPerm('report-item-sales') || $hasPerm('report-warehouse-item') || $hasPerm('report-compare') || $hasPerm('report-warehouse-arrangement') || $hasPerm('report-product-performance') || $hasPerm('report-inventory-health') || $isSuperAdmin)
         <p class="px-2.5 pt-2 pb-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-400">Inventory</p>
         @endif
@@ -391,8 +397,8 @@
 @endif
 
 {{-- ── System Settings ───────────────────────────────────────────────── --}}
-@if($hasPerm('setting-general-view') || $hasPerm('setting-cron-manager-view') || $isSuperAdmin)
-@php $sysActive = $isActive('/system-settings') || $isActive('/cron-manager'); @endphp
+@if($hasPerm('setting-general-view') || $hasPerm('setting-cron-manager-view') || $hasPerm('report-warehouse-arrangement') || $isSuperAdmin)
+@php $sysActive = $isActive('/system-settings') || $isActive('/cron-manager') || $isActive('/warehouse-stat-backfill'); @endphp
 <div x-data="{ open: {{ $sysActive ? 'true' : 'false' }} }" class="mb-1">
     <button @click="open = !open"
             class="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors
@@ -407,6 +413,9 @@
         @endif
         @if($hasPerm('setting-cron-manager-view') || $isSuperAdmin)
         <a href="{{ route('scheduled-tasks.index') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/cron-manager') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Cron Manager</a>
+        @endif
+        @if($hasPerm('report-warehouse-arrangement') || $isSuperAdmin)
+        <a href="{{ route('warehouse-stat-backfill.index') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/warehouse-stat-backfill') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Warehouse Stats Backfill</a>
         @endif
     </div>
 </div>

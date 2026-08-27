@@ -12,7 +12,7 @@ $typeTags = ($tags[\App\Models\Tag::TYPE_TYPE] ?? collect());
 $sizeTags = ($tags[\App\Models\Tag::TYPE_SIZE] ?? collect());
 $warnaTags = ($tags[\App\Models\Tag::TYPE_WARNA] ?? collect());
 $jahitTags = ($tags[\App\Models\Tag::TYPE_JAHIT] ?? collect());
-$idr = fn ($v) => 'Rp ' . number_format((float) $v, 0, ',', '.');
+$idr = fn ($v) => 'Rp ' . format_amount($v, 0);
 @endphp
 
 <div class="flex flex-col gap-3 p-3 sm:p-4" x-data="{ showImage: true }">
@@ -45,7 +45,7 @@ $idr = fn ($v) => 'Rp ' . number_format((float) $v, 0, ',', '.');
         </div>
         <div class="flex flex-col gap-1">
             <label class="text-xs font-medium text-gray-500 uppercase">Name</label>
-            <input type="text" name="name" value="{{ $filters['name'] ?? '' }}" placeholder="Name…" class="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm">
+            <input type="text" name="name" value="{{ $filters['name'] ?? '' }}" placeholder="Name…" data-filter-enter-submit class="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm">
         </div>
         <div class="flex flex-col gap-1">
             <label class="text-xs font-medium text-gray-500 uppercase">Product</label>
@@ -141,7 +141,7 @@ $idr = fn ($v) => 'Rp ' . number_format((float) $v, 0, ',', '.');
                         <td class="truncate px-2 py-2 text-gray-700" title="{{ $desc }}">{{ $desc ?: '-' }}</td>
                         <td class="whitespace-nowrap px-2 py-2 text-right font-bold tabular-nums text-gray-800">{{ $idr($item->price) }}</td>
                         <td class="truncate px-2 py-2 text-gray-500" title="{{ $nb }}">{{ $nb ?: '--' }}</td>
-                        <td class="whitespace-nowrap px-2 py-2 text-right font-bold tabular-nums text-emerald-600">{{ number_format((float) $item->qty, 0, ',', '.') }}</td>
+                        <td class="whitespace-nowrap px-2 py-2 text-right font-bold tabular-nums text-emerald-600">{{ format_amount((float) ($item->active_qty ?? 0), 0) }}</td>
                         <td class="px-2 py-2">
                             @if($item->jubelio_item_id)
                                 <span class="inline-flex rounded-full border border-blue-200 bg-blue-100 px-2 py-0.5 text-[10px] text-blue-700">{{ $item->jubelio_item_id }}</span>

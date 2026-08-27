@@ -58,7 +58,7 @@ class ShopeeAdsApiService
         $path = '/api/v2/shop/auth_partner';
         $timestamp = time();
         $sign = $this->signPublic($path, $timestamp);
-        $redirect = $config['redirect_url'] ?? route('shopee-ads.oauth.callback');
+        $redirect = $config['redirect_url'];
 
         return rtrim($config['base_url'], '/').$path.'?'.http_build_query([
             'partner_id' => (int) $config['partner_id'],
@@ -66,6 +66,35 @@ class ShopeeAdsApiService
             'sign' => $sign,
             'redirect' => $redirect,
         ]);
+    }
+
+    public function getOAuthRedirectUrl(): string
+    {
+        return (string) config('services.shopee_ads.redirect_url');
+    }
+
+    public function getLastOAuthError(): ?string
+    {
+        $oauth = $this->getOAuthPayload();
+
+        return isset($oauth['last_error']) ? (string) $oauth['last_error'] : null;
+    }
+
+    public function formatOAuthErrorForUser(?string $detail): ?string
+    {
+        if ($detail === null || $detail === '') {
+            return null;
+        }
+
+        if (str_contains($detail, 'source_ip_undeclared')) {
+            if (preg_match('/Request Source IP \(([^)]+)\)/', $detail, $matches)) {
+                return 'IP server ('.$matches[1].') belum di-whitelist. Buka Shopee Open Platform → App list → IP Address Whitelist, tambahkan IP itu, lalu klik Authorize Shopee lagi.';
+            }
+
+            return 'IP server belum di-whitelist. Shopee Open Platform → App list → IP Address Whitelist → tambahkan outbound IP server Aria, lalu authorize ulang.';
+        }
+
+        return $detail;
     }
 
     /**
@@ -83,17 +112,15 @@ class ShopeeAdsApiService
 
         $response = $this->postPublic($path, $timestamp, $body);
 
-        if (! $response->successful()) {
-            $this->recordOAuthError('Token exchange failed: '.$response->body());
-
+        $data = $this->parseShopeeResponse($response, 'Token exchange');
+        if ($data === null) {
             return null;
         }
 
-        $data = $response->json();
         $payload = $data['response'] ?? $data;
 
         if (! isset($payload['access_token'])) {
-            $this->recordOAuthError('Token exchange missing access_token');
+            $this->recordOAuthError('Token exchange missing access_token: '.json_encode($data));
 
             return null;
         }
@@ -129,17 +156,15 @@ class ShopeeAdsApiService
 
         $response = $this->postPublic($path, $timestamp, $body);
 
-        if (! $response->successful()) {
-            $this->recordOAuthError('Refresh failed: '.$response->body());
-
+        $data = $this->parseShopeeResponse($response, 'Token refresh');
+        if ($data === null) {
             return null;
         }
 
-        $data = $response->json();
         $payload = $data['response'] ?? $data;
 
         if (! isset($payload['access_token'])) {
-            $this->recordOAuthError('Refresh missing access_token');
+            $this->recordOAuthError('Refresh missing access_token: '.json_encode($data));
 
             return null;
         }
@@ -184,6 +209,11 @@ class ShopeeAdsApiService
             );
 
             if (! $response->successful()) {
+                Log::warning('Shopee Ads campaign id list failed', [
+                    'ad_type' => $adTypeFilter,
+                    'status' => $response->status(),
+                    'body' => Str::limit($response->body(), 500),
+                ]);
                 break;
             }
 
@@ -330,11 +360,10 @@ class ShopeeAdsApiService
     {
         $ids = $this->campaignIdList('manual');
         $infos = $this->campaignSettingInfo($ids);
-        $activeStatuses = ['', 'ongoing', 'running', 'active', 'scheduled'];
 
         return collect($infos)
-            ->filter(function ($c) use ($onlyActive, $activeStatuses) {
-                return ! $onlyActive || in_array($c['status'], $activeStatuses, true);
+            ->filter(function ($c) use ($onlyActive) {
+                return ! $onlyActive || $this->isLiveCampaignStatus($c['status']);
             })
             ->map(fn ($c) => [
                 'campaign_id' => $c['campaign_id'],
@@ -345,6 +374,25 @@ class ShopeeAdsApiService
             ])
             ->values()
             ->all();
+    }
+
+    private function isLiveCampaignStatus(string $status): bool
+    {
+        $normalized = strtolower(trim($status));
+
+        if ($normalized === '') {
+            return true;
+        }
+
+        return in_array($normalized, [
+            'ongoing',
+            'running',
+            'active',
+            'scheduled',
+            'live',
+            'open',
+            'enabled',
+        ], true);
     }
 
     /**
@@ -664,5 +712,41 @@ class ShopeeAdsApiService
         $oauth['last_error'] = $message;
         $this->persistOAuth($oauth);
         Log::error('Shopee Ads OAuth error: '.$message);
+    }
+
+    /**
+     * Shopee often returns HTTP 200 with a non-empty `error` field on failure.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function parseShopeeResponse(Response $response, string $context): ?array
+    {
+        if (! $response->successful()) {
+            $this->recordOAuthError($context.' failed (HTTP '.$response->status().'): '.$response->body());
+
+            return null;
+        }
+
+        $data = $response->json();
+        if (! is_array($data)) {
+            $this->recordOAuthError($context.' returned invalid JSON: '.$response->body());
+
+            return null;
+        }
+
+        $error = trim((string) ($data['error'] ?? ''));
+        if ($error !== '') {
+            $message = trim((string) ($data['message'] ?? ''));
+            $detail = $message !== '' ? "{$error} — {$message}" : $error;
+            $requestId = trim((string) ($data['request_id'] ?? ''));
+            if ($requestId !== '') {
+                $detail .= " (request_id: {$requestId})";
+            }
+            $this->recordOAuthError($context.' Shopee API error: '.$detail);
+
+            return null;
+        }
+
+        return $data;
     }
 }

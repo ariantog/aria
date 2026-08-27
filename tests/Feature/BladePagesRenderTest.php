@@ -45,6 +45,7 @@ it('renders the transactions index with its rows', function () {
         ->get('/transactions')
         ->assertOk()
         ->assertSee('Total', false)
+        ->assertSee('Description', false)
         ->assertSee('INV-SMOKE-1', false)
         ->assertSee('Test Supplier', false);
 });
@@ -112,7 +113,8 @@ it('renders the transaction show page', function () {
 
     $this->actingAs($this->user)
         ->get(route('transactions.show', $transaction))
-        ->assertOk();
+        ->assertOk()
+        ->assertSee('sortItems(', false);
 });
 
 it('renders the addrbook item sales page', function () {

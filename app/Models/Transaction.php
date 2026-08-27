@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\DisplaysTransactionTotals;
 use App\Support\ProductionColumnDefaults;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -11,6 +12,7 @@ use Illuminate\Support\Facades\Schema;
 
 class Transaction extends Model
 {
+    use DisplaysTransactionTotals;
     use HasFactory;
 
     protected $guarded = ['id'];
@@ -182,11 +184,6 @@ class Transaction extends Model
     public function isManual(): bool
     {
         return (int) $this->submit_type === self::SUBMIT_TYPE_MANUAL;
-    }
-
-    public function isFromJubelio(): bool
-    {
-        return (int) $this->submit_type === self::SUBMIT_TYPE_JUBELIO;
     }
 
     public function sender()

@@ -260,6 +260,8 @@ class AddrbookController extends Controller
             'transactionTypes' => \App\Models\Transaction::getTypes(),
             'filters' => request()->all(['from', 'to', 'type', 'order_date']),
             'can' => [
+                'edit_transaction' => request()->user()?->can(\App\Models\Transaction::getPermissions()['edit']) ?? false,
+                'delete_transaction' => request()->user()?->can(\App\Models\Transaction::getPermissions()['delete']) ?? false,
                 'bank_hidden_balance' => ! (request()->user()?->is_superadmin ?? false) && (request()->user()?->can('addrbook-bank-account-hidden-balance') ?? false),
             ],
             'flash' => ['success' => session('success'), 'error' => session('error')],
@@ -442,6 +444,8 @@ class AddrbookController extends Controller
     {
         $a = $addrbook;
         Gate::authorize(Addrbook::getPermissions($this->addrbookTypeSlug($a))['delete']);
+
+        // Soft delete only — Addrbook uses SoftDeletes on customers.deleted_at.
         $a->delete();
 
         return redirect()->to(Addrbook::typeIndexRoute((int) $a->type))->with('success', 'Deleted.');

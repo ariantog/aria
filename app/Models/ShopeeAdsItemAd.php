@@ -30,6 +30,7 @@ class ShopeeAdsItemAd extends Model
     protected function casts(): array
     {
         return [
+            'item_id' => 'integer',
             'roas_target' => 'float',
             'last_roas' => 'float',
             'turned_off' => 'boolean',

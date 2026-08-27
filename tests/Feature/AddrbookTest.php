@@ -131,6 +131,31 @@ test('can delete addrbook', function () {
     $response->assertRedirect(Addrbook::typeIndexRoute(Addrbook::TYPE_CUSTOMER));
 
     $this->assertSoftDeleted('customers', ['id' => $addrbook->id]);
+    $this->assertDatabaseHas('customers', ['id' => $addrbook->id, 'name' => 'To Delete']);
+    expect(Addrbook::find($addrbook->id))->toBeNull();
+    expect(Addrbook::withTrashed()->find($addrbook->id))->not->toBeNull();
+});
+
+test('addrbook list trash button soft deletes via fetch delete', function () {
+    $addrbook = Addrbook::create([
+        'name' => 'Trash Button Target',
+        'type' => Addrbook::TYPE_CUSTOMER,
+    ]);
+
+    $this->actingAs($this->user)
+        ->post(route('addrbook.destroy', $addrbook), ['_method' => 'DELETE'], [
+            'X-Requested-With' => 'XMLHttpRequest',
+        ])
+        ->assertRedirect(Addrbook::typeIndexRoute(Addrbook::TYPE_CUSTOMER));
+
+    $this->assertSoftDeleted('customers', ['id' => $addrbook->id]);
+    $this->assertDatabaseHas('customers', ['id' => $addrbook->id, 'name' => 'Trash Button Target']);
+
+    $this->actingAs($this->user)
+        ->get(route('addrbook.type.index', 'customer').'?trashed=only')
+        ->assertOk()
+        ->assertSee('Trash Button Target', false)
+        ->assertSee('Deleted', false);
 });
 
 test('addrbook has type_slug attribute', function () {

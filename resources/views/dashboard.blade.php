@@ -17,8 +17,8 @@
     $restock = $dashboard['restock'] ?? null;
     $produksi = $dashboard['produksi'] ?? null;
     $hasDailyPanel = $dashboard['has_daily_panel'] ?? false;
-    $fmtNum = fn ($v) => number_format((int) $v, 0, ',', '.');
-    $fmtMoney = fn ($v) => number_format((float) $v, 0, ',', '.');
+    $fmtNum = fn ($v) => format_amount($v, 0);
+    $fmtMoney = fn ($v) => format_amount($v, 0);
 @endphp
 
 <div class="flex h-full flex-1 flex-col gap-4 p-4">

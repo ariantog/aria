@@ -4,7 +4,7 @@
 
 @section('content')
 @php
-$fmt = fn ($v) => number_format((float) $v, 2, ',', '.');
+$fmt = fn ($v) => format_amount($v);
 $monthNames = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
 $exportQuery = http_build_query([
     'year' => $filters['year'],

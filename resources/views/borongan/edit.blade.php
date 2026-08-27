@@ -9,7 +9,7 @@ $breadcrumbs = [
     ['title' => 'Detail #' . $borongan->id, 'href' => route('borongan.show', $borongan->id)],
     ['title' => 'Edit', 'href' => route('borongan.edit', $borongan->id)],
 ];
-$fmt = fn($v) => 'Rp ' . number_format((float)($v ?? 0), 0, ',', '.');
+$fmt = fn($v) => format_currency($v ?? 0, 'Rp ', 0);
 $subTotalItem = $details->sum(fn($d) => (float)$d->total);
 @endphp
 

@@ -84,7 +84,7 @@ $mappingMissing = $data->item_with_jubelio_count > 0;
                     </div>
                     <div class="text-right">
                         <p class="mb-1 text-xs font-bold uppercase text-gray-400">Total</p>
-                        <p class="text-lg font-bold text-blue-600">Rp {{ number_format($data->total, 0, ',', '.') }}</p>
+                        <p class="text-lg font-bold text-blue-600">Rp {{ format_amount($data->total, 0) }}</p>
                     </div>
                 </div>
 
@@ -108,6 +108,7 @@ $mappingMissing = $data->item_with_jubelio_count > 0;
 
             @if($can_sync)
             <div class="space-y-4">
+                @if($adJustTypeA > 0)
                 @include('jubelio.partials.sync-card', [
                     'title' => 'Sender (Side A)',
                     'whName' => $whAName ?: ($data->sender->name ?? '-'),
@@ -116,7 +117,7 @@ $mappingMissing = $data->item_with_jubelio_count > 0;
                     'qty' => $data->total_items,
                     'submittedBy' => $data->submitByA->username ?? null,
                     'referenceId' => $data->a_reference_id,
-                    'needsSync' => $adJustTypeA > 0,
+                    'needsSync' => true,
                     'disabled' => $mappingMissing,
                     'role' => 'sender',
                     'side' => 1,
@@ -124,6 +125,8 @@ $mappingMissing = $data->item_with_jubelio_count > 0;
                     'warning' => $warningA,
                     'transactionId' => $data->id,
                 ])
+                @endif
+                @if($adJustTypeB > 0)
                 @include('jubelio.partials.sync-card', [
                     'title' => 'Receiver (Side B)',
                     'whName' => $whBName ?: ($data->receiver->name ?? '-'),
@@ -132,7 +135,7 @@ $mappingMissing = $data->item_with_jubelio_count > 0;
                     'qty' => $data->total_items,
                     'submittedBy' => $data->submitByB->username ?? null,
                     'referenceId' => $data->b_reference_id,
-                    'needsSync' => $adJustTypeB > 0,
+                    'needsSync' => true,
                     'disabled' => $mappingMissing,
                     'role' => 'receiver',
                     'side' => 2,
@@ -140,6 +143,7 @@ $mappingMissing = $data->item_with_jubelio_count > 0;
                     'warning' => $warningB,
                     'transactionId' => $data->id,
                 ])
+                @endif
             </div>
             @endif
         </div>

@@ -106,10 +106,57 @@ class ProductionMysqlCompat
             return 'NULL';
         }
 
+        return "'".self::fallbackTemporalValue($dataType)."'";
+    }
+
+    public static function fallbackTemporalValue(string $dataType): string
+    {
         // '1971-01-01' is inside the TIMESTAMP range in every timezone.
-        return in_array($dataType, ['timestamp', 'datetime'], true)
-            ? "'1971-01-01 00:00:00'"
-            : "'1970-01-01'";
+        return in_array(strtolower($dataType), ['timestamp', 'datetime'], true)
+            ? '1971-01-01 00:00:00'
+            : '1970-01-01';
+    }
+
+    public static function isInvalidLegacyDate(mixed $value): bool
+    {
+        if ($value === null || $value === '') {
+            return true;
+        }
+
+        if ($value instanceof \DateTimeInterface) {
+            $year = (int) $value->format('Y');
+
+            return $year < 1000;
+        }
+
+        $normalized = trim((string) $value);
+
+        if ($normalized === '' || str_contains($normalized, '0000-00-00') || str_starts_with($normalized, '-')) {
+            return true;
+        }
+
+        if (preg_match('/^(\d{4})-\d{2}-\d{2}/', $normalized, $matches)) {
+            return (int) $matches[1] < 1000;
+        }
+
+        return false;
+    }
+
+    public static function sanitizeLegacyDateValue(mixed $value, string $dataType = 'date', bool $nullable = false): ?string
+    {
+        if (self::isInvalidLegacyDate($value)) {
+            return $nullable ? null : self::fallbackTemporalValue($dataType);
+        }
+
+        if ($value instanceof \DateTimeInterface) {
+            return $value->format(strtolower($dataType) === 'date' ? 'Y-m-d' : 'Y-m-d H:i:s');
+        }
+
+        $normalized = trim((string) $value);
+
+        return strtolower($dataType) === 'date'
+            ? substr($normalized, 0, 10)
+            : $normalized;
     }
 
     public static function relaxedTemporalDefinition(string $dataType): string
