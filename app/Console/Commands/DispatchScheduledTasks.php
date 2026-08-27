@@ -104,9 +104,9 @@ class DispatchScheduledTasks extends Command
                 $key = ltrim($part, '-');
                 if (str_contains($key, '=')) {
                     [$key, $value] = explode('=', $key, 2);
-                    $parameters[$key] = $value;
+                    $parameters['--'.$key] = $value;
                 } else {
-                    $parameters[$key] = true;
+                    $parameters['--'.$key] = true;
                 }
             }
         }
