@@ -25,8 +25,10 @@ class StoreCashTransactionRequest extends FormRequest
             'items.*.note' => ['nullable', 'string', 'max:5000'],
             'items.*.total' => ['required', 'numeric', 'min:0.01'],
             'items.*.record_ppn' => ['sometimes', 'boolean'],
+            'items.*.record_pph' => ['sometimes', 'boolean'],
             'items.*.ppn_dpp' => ['nullable', 'numeric', 'min:0'],
             'items.*.ppn' => ['nullable', 'numeric', 'min:0'],
+            'items.*.pph' => ['nullable', 'numeric', 'min:0'],
         ];
     }
 

@@ -34,6 +34,33 @@ function createPkpCashOutFixture(): array
     return compact('entity', 'bank', 'ledger');
 }
 
+it('auto-calculates citos rental tax breakdown when pph switch is on', function () {
+    $data = createPkpCashOutFixture();
+
+    $this->actingAs($this->user)->postJson(route('transactions.cash-out.store'), [
+        'date' => $this->testDate,
+        'account_id' => $data['bank']->id,
+        'items' => [[
+            'customer_id' => $data['ledger']->id,
+            'total' => 17_422_500,
+            'record_ppn' => true,
+            'record_pph' => true,
+        ]],
+    ])->assertRedirect();
+
+    $transaction = Transaction::query()->latest('id')->first();
+
+    expect((float) $transaction->total)->toBe(-17_422_500.0)
+        ->and((float) $transaction->ppn_dpp)->toBe(17_250_000.0)
+        ->and((float) $transaction->ppn)->toBe(1_897_500.0)
+        ->and((float) $transaction->pph)->toBe(1_725_000.0);
+
+    $summary = ReportingMonthlyTaxSummary::where('reporting_entity_id', $data['entity']->id)->first();
+
+    expect((float) $summary->ppn_masukan_dpp)->toBe(17_250_000.0)
+        ->and((float) $summary->ppn_masukan_tax)->toBe(1_897_500.0);
+});
+
 it('auto-calculates PPN from gross total when switch is on without manual amounts', function () {
     $data = createPkpCashOutFixture();
     $gross = 1_110_000;

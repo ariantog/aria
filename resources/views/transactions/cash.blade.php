@@ -180,7 +180,15 @@ $config = [
                                            class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
                                     Record PPN {{ $isCashIn ? 'keluaran' : 'masukan' }}
                                 </label>
-                                <div x-show="row.record_ppn" x-cloak class="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                                <div x-show="row.record_ppn" x-cloak class="mt-2 space-y-2">
+                                    <label class="inline-flex items-center gap-2 text-xs font-medium text-gray-700">
+                                        <input type="checkbox"
+                                               x-model="row.record_pph"
+                                               @change="onRecordPphToggle(row)"
+                                               class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                        Include PPh withholding ({{ (float) ($pph_rate ?? 10) }}% of DPP)
+                                    </label>
+                                    <div class="grid grid-cols-1 gap-2 sm:grid-cols-3">
                                     <div>
                                         <label class="mb-1 block text-[10px] font-medium uppercase tracking-wide text-gray-500">DPP (Rp)</label>
                                         <input type="number"
@@ -203,9 +211,21 @@ $config = [
                                                class="{{ $rowInput }}"
                                                :class="rowInvalid(row) && row.record_ppn && !(Number(row.ppn) >= 0.01) ? 'border-red-400 bg-red-50' : ''">
                                     </div>
+                                    <div x-show="row.record_pph" x-cloak>
+                                        <label class="mb-1 block text-[10px] font-medium uppercase tracking-wide text-gray-500">PPh (Rp)</label>
+                                        <input type="number"
+                                               x-model.number="row.pph"
+                                               min="0"
+                                               step="any"
+                                               placeholder="0"
+                                               @input="markPpnManual(row)"
+                                               class="{{ $rowInput }}"
+                                               :class="rowInvalid(row) && row.record_pph && !(Number(row.pph) >= 0.01) ? 'border-red-400 bg-red-50' : ''">
+                                    </div>
+                                    </div>
                                 </div>
                                 <p x-show="row.record_ppn" x-cloak class="mt-1 text-[11px] text-gray-500">
-                                    DPP and PPN are calculated from Total (gross incl. tax). Edit either field if the invoice differs by a rupiah or when withholding applies.
+                                    DPP, PPN<span x-show="row.record_pph">, and PPh</span> are calculated from Total. Edit any field if the invoice differs slightly.
                                 </p>
                             </div>
                         </div>
@@ -250,6 +270,7 @@ const _CashMaxRows = 7;
 const _CashDefaultAccount = @json($defaultAccount ?? null);
 const _PkpBankIds = @json($pkpBankIds ?? []);
 const _PpnRate = {{ (float) ($ppn_rate ?? 11) }};
+const _PphRate = {{ (float) ($pph_rate ?? 10) }};
 
 function cashForm() {
     const today = new Date().toISOString().split('T')[0];
@@ -286,8 +307,10 @@ function cashForm() {
 
         resetRowPpn(row) {
             row.record_ppn = false;
+            row.record_pph = false;
             row.ppn_dpp = null;
             row.ppn = null;
+            row.pph = null;
             row.ppn_manual = false;
         },
 
@@ -295,24 +318,28 @@ function cashForm() {
             row.ppn_manual = true;
         },
 
-        syncPpnFromTotal(row) {
+        syncTaxFromTotal(row) {
             if (! row.record_ppn) {
                 return;
             }
-            const gross = Number(row.total || 0);
-            if (gross < 0.01) {
+            const payment = Number(row.total || 0);
+            if (payment < 0.01) {
                 row.ppn_dpp = null;
                 row.ppn = null;
+                row.pph = null;
                 return;
             }
-            const rate = _PpnRate / 100;
-            row.ppn_dpp = Math.round(gross / (1 + rate) * 100) / 100;
-            row.ppn = Math.round((gross - row.ppn_dpp) * 100) / 100;
+            const ppnRate = _PpnRate / 100;
+            const pphRate = row.record_pph ? (_PphRate / 100) : 0;
+            const divisor = 1 + ppnRate - pphRate;
+            row.ppn_dpp = Math.round(payment / divisor * 100) / 100;
+            row.ppn = Math.round(row.ppn_dpp * ppnRate * 100) / 100;
+            row.pph = row.record_pph ? Math.round(row.ppn_dpp * pphRate * 100) / 100 : null;
         },
 
         onTotalChange(row) {
             if (row.record_ppn && ! row.ppn_manual) {
-                this.syncPpnFromTotal(row);
+                this.syncTaxFromTotal(row);
             }
         },
 
@@ -323,7 +350,16 @@ function cashForm() {
                 return;
             }
             row.ppn_manual = false;
-            this.syncPpnFromTotal(row);
+            this.syncTaxFromTotal(row);
+        },
+
+        onRecordPphToggle(row) {
+            if (! row.record_pph) {
+                row.pph = null;
+            }
+            if (! row.ppn_manual) {
+                this.syncTaxFromTotal(row);
+            }
         },
 
         addRow() {
@@ -371,7 +407,12 @@ function cashForm() {
                 return false;
             }
             if (row.record_ppn) {
-                return Number(row.ppn_dpp) >= 0.01 && Number(row.ppn) >= 0.01;
+                if (!(Number(row.ppn_dpp) >= 0.01) || !(Number(row.ppn) >= 0.01)) {
+                    return false;
+                }
+                if (row.record_pph && !(Number(row.pph) >= 0.01)) {
+                    return false;
+                }
             }
             return true;
         },
@@ -452,7 +493,7 @@ function cashForm() {
 
             this.filledRows().forEach((row) => {
                 if (row.record_ppn && ! row.ppn_manual) {
-                    this.syncPpnFromTotal(row);
+                    this.syncTaxFromTotal(row);
                 }
             });
 
@@ -469,8 +510,10 @@ function cashForm() {
                     note: r.note,
                     total: Number(r.total || 0),
                     record_ppn: !!r.record_ppn,
+                    record_pph: !!r.record_pph,
                     ppn_dpp: r.record_ppn ? Number(r.ppn_dpp || 0) : null,
                     ppn: r.record_ppn ? Number(r.ppn || 0) : null,
+                    pph: r.record_ppn && r.record_pph ? Number(r.pph || 0) : null,
                 })),
             };
 
@@ -523,8 +566,10 @@ function newRow() {
         note: '',
         total: null,
         record_ppn: false,
+        record_pph: false,
         ppn_dpp: null,
         ppn: null,
+        pph: null,
         ppn_manual: false,
     };
 }
