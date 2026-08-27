@@ -70,7 +70,7 @@ class Transaction extends Model
         return [
             'date' => 'date', 'due' => 'date',
             'total' => 'decimal:2', 'discount' => 'decimal:2',
-            'adjustment' => 'decimal:2', 'ppn' => 'decimal:2',
+            'adjustment' => 'decimal:2', 'ppn' => 'decimal:2', 'ppn_dpp' => 'decimal:2',
             'real_total' => 'decimal:2', 'total_items' => 'decimal:2',
             'type' => 'integer',
             'status' => 'integer',
