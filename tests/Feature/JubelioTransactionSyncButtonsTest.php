@@ -279,7 +279,7 @@ it('normalizes string warehouse ids from mysql pluck when comparing parties', fu
         'receiver_id' => $receiver->id,
     ]);
 
-    $presented = $presenter->present($transaction, [(string) $sender->id]);
+    $presented = $presenter->present($transaction, $presenter->syncMap());
 
     expect($presented['sync_cek'])->toBe('S')
         ->and($presented['adjust_type_a'])->toBe(2)

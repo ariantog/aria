@@ -360,10 +360,10 @@ class JubelioController extends Controller
             $q->where(fn ($q) => $q->where(fn ($q) => $q->whereIn('type', [Transaction::TYPE_SELL, Transaction::TYPE_RETURN_SUPPLIER])->whereNull('a_submit_by')->whereIn('sender_id', fn ($s) => $s->select('warehouse_id')->from('jubeliosyncs')))->orWhere(fn ($q) => $q->whereIn('type', [Transaction::TYPE_BUY, Transaction::TYPE_RETURN])->whereNull('b_submit_by')->whereIn('receiver_id', fn ($s) => $s->select('warehouse_id')->from('jubeliosyncs')))->orWhere(fn ($q) => $q->where('type', Transaction::TYPE_MOVE)->where(fn ($q) => $q->where(fn ($w) => $w->whereIn('sender_id', fn ($s) => $s->select('warehouse_id')->from('jubeliosyncs'))->whereNull('a_submit_by'))->orWhere(fn ($w) => $w->whereIn('receiver_id', fn ($s) => $s->select('warehouse_id')->from('jubeliosyncs'))->whereNull('b_submit_by')))));
         }
         $t = $q->orderBy('date', 'desc')->orderBy('id', 'desc')->paginate(200)->withQueryString();
-        $syncedWarehouseIds = app(JubelioTransactionSyncPresenter::class)->syncedWarehouseIds();
-        $t->getCollection()->transform(function ($i) use ($syncedWarehouseIds) {
-            $i->sync_cek = app(JubelioTransactionSyncPresenter::class)
-                ->present($i, $syncedWarehouseIds)['sync_cek'];
+        $presenter = app(JubelioTransactionSyncPresenter::class);
+        $syncMap = $presenter->syncMap();
+        $t->getCollection()->transform(function ($i) use ($presenter, $syncMap) {
+            $i->sync_cek = $presenter->syncCekForList($i, $syncMap);
             $i->type_name = $i->getTypeLabel();
             $i->description = $i->description ?? $i->notes ?? '';
 
