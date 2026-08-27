@@ -10,9 +10,11 @@ use App\Models\TaxFakturImport;
 use App\Services\Reporting\TaxReportService;
 use App\Services\Tax\ExpectedPaymentDateCalculator;
 use App\Services\Tax\FakturCashInMatcher;
+use App\Services\Tax\FakturLineItemMatcher;
 use App\Services\Tax\FakturPajakDirectionResolver;
 use App\Services\Tax\FakturPajakPdfParser;
 use App\Services\Tax\ParsedFakturPajak;
+use App\Services\Tax\PostFakturSell;
 use App\Services\Tax\TaxFakturImportService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -66,7 +68,9 @@ class TaxFakturImportController extends Controller
     {
         Gate::authorize(Report::getPermissions()['view-tax-faktur']);
 
-        $import->load(['reportingEntity', 'counterparty', 'varianceExpenseAccount', 'user', 'cashInTransaction', 'varianceTransaction']);
+        $import->load(['reportingEntity', 'counterparty', 'varianceExpenseAccount', 'user', 'cashInTransaction', 'varianceTransaction', 'sellTransaction']);
+
+        $lineItemMatches = app(FakturLineItemMatcher::class)->propose($import->line_items ?? []);
 
         return view('reports.tax.faktur.show', [
             'import' => $import,
@@ -76,6 +80,15 @@ class TaxFakturImportController extends Controller
                 ->where('type', Addrbook::TYPE_ACCOUNT)
                 ->orderBy('name')
                 ->get(['id', 'name']),
+            'warehouses' => Addrbook::query()
+                ->whereIn('type', [Addrbook::TYPE_WAREHOUSE, Addrbook::TYPE_V_WAREHOUSE])
+                ->orderBy('name')
+                ->get(['id', 'name', 'type']),
+            'items' => \App\Models\Item::query()
+                ->orderBy('name')
+                ->limit(500)
+                ->get(['id', 'name', 'code', 'pcode']),
+            'lineItemMatches' => $lineItemMatches,
         ]);
     }
 
@@ -308,6 +321,52 @@ class TaxFakturImportController extends Controller
         return redirect()
             ->route('reports.tax.faktur.show', $import)
             ->with('success', 'Pembayaran faktur diperbarui.');
+    }
+
+    public function postSell(Request $request, TaxFakturImport $import, PostFakturSell $postFakturSell)
+    {
+        Gate::authorize(Report::getPermissions()['import-tax-faktur']);
+
+        $data = $request->validate([
+            'warehouse_id' => ['required', 'integer', 'exists:customers,id'],
+            'date_source' => ['required', 'in:faktur,cash_in'],
+            'invoice_source' => ['required', 'in:faktur,cash_in'],
+            'line_mode' => ['required', 'in:summary,mapped'],
+            'summary_item_id' => ['nullable', 'integer', 'exists:items,id'],
+            'mapped_lines' => ['nullable', 'array'],
+            'mapped_lines.*.line_no' => ['required_with:mapped_lines', 'integer', 'min:1'],
+            'mapped_lines.*.item_id' => ['required_with:mapped_lines', 'integer', 'exists:items,id'],
+        ]);
+
+        if ($data['line_mode'] === PostFakturSell::LINE_MODE_SUMMARY && empty($data['summary_item_id'])) {
+            return back()->withInput()->with('error', 'Select an item for the summary Sell line.');
+        }
+
+        try {
+            $transaction = $postFakturSell->execute($import, [
+                'warehouse_id' => (int) $data['warehouse_id'],
+                'date_source' => $data['date_source'],
+                'invoice_source' => $data['invoice_source'],
+                'line_mode' => $data['line_mode'],
+                'summary_item_id' => isset($data['summary_item_id']) ? (int) $data['summary_item_id'] : null,
+                'mapped_lines' => $data['mapped_lines'] ?? [],
+            ]);
+        } catch (InvalidArgumentException $e) {
+            return back()->withInput()->with('error', $e->getMessage());
+        }
+
+        return redirect()
+            ->route('reports.tax.faktur.show', $import->fresh())
+            ->with('success', "Sell #{$transaction->id} posted from faktur {$import->faktur_number}.");
+    }
+
+    public function lineItemMatches(TaxFakturImport $import, FakturLineItemMatcher $matcher)
+    {
+        Gate::authorize(Report::getPermissions()['import-tax-faktur']);
+
+        return response()->json([
+            'lines' => $matcher->propose($import->line_items ?? []),
+        ]);
     }
 
     private function resolvePdfPath(TaxFakturImport $import): ?string

@@ -36,6 +36,9 @@ $gross = $import->fakturGross();
     @if(session('success'))
         <div class="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">{{ session('success') }}</div>
     @endif
+    @if(session('error'))
+        <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ session('error') }}</div>
+    @endif
 
     <div class="grid gap-4 lg:grid-cols-2">
         <div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm text-sm">
@@ -107,6 +110,19 @@ $gross = $import->fakturGross();
                             <span class="text-gray-500"> · {{ $import->cashInTransaction->date?->format('Y-m-d') }} · {{ $fmt(abs((float) $import->cashInTransaction->total)) }}</span>
                         @else
                             <span class="text-gray-400">Belum di-link</span>
+                        @endif
+                    </dd>
+                </div>
+                <div>
+                    <dt class="text-gray-500">Sell terkait</dt>
+                    <dd>
+                        @if($import->sellTransaction)
+                            <a href="{{ route('transactions.show', $import->sellTransaction) }}" class="text-blue-600 hover:underline">
+                                #{{ $import->sellTransaction->id }}
+                            </a>
+                            <span class="text-gray-500"> · {{ $import->sellTransaction->date?->format('Y-m-d') }} · DPP {{ $fmt(abs((float) $import->sellTransaction->total)) }} · PPN {{ $fmt((float) $import->sellTransaction->ppn) }}</span>
+                        @else
+                            <span class="text-gray-400">Belum di-post</span>
                         @endif
                     </dd>
                 </div>
@@ -191,6 +207,110 @@ $gross = $import->fakturGross();
                     Simpan pembayaran
                 </button>
             </form>
+        </div>
+    @endif
+
+    @if($canImport && $import->canPostConsignmentSell())
+        <div class="rounded-xl border border-blue-200 bg-blue-50/40 p-4 shadow-sm text-sm" x-data="{
+            lineMode: '{{ old('line_mode', 'summary') }}',
+            lineMatches: @js($lineItemMatches),
+        }">
+            <h3 class="mb-1 font-semibold text-gray-900">Post Sell dari faktur</h3>
+            <p class="mb-3 text-xs text-gray-600">
+                Buat transaksi Sell (warehouse → {{ $import->counterparty?->name }}) sesuai DPP/PPN faktur.
+                PPN keluaran di ringkasan akan diambil dari Sell; import faktur tetap tersimpan untuk audit PDF.
+            </p>
+            <form method="POST" action="{{ route('reports.tax.faktur.post-sell', $import) }}" class="space-y-3">
+                @csrf
+                <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    <div>
+                        <label class="mb-1 block text-xs text-gray-500" for="post_sell_warehouse_id">Warehouse</label>
+                        <select id="post_sell_warehouse_id" name="warehouse_id" required class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                            <option value="">— Pilih —</option>
+                            @foreach($warehouses as $warehouse)
+                                <option value="{{ $warehouse->id }}" @selected((int) old('warehouse_id') === $warehouse->id)>{{ $warehouse->name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-xs text-gray-500" for="post_sell_date_source">Tanggal Sell</label>
+                        <select id="post_sell_date_source" name="date_source" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                            <option value="faktur" @selected(old('date_source', 'faktur') === 'faktur')>Tanggal faktur ({{ $import->faktur_date?->format('Y-m-d') }})</option>
+                            <option value="cash_in" @selected(old('date_source') === 'cash_in')>Tanggal Cash In / bayar</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-xs text-gray-500" for="post_sell_invoice_source">Invoice</label>
+                        <select id="post_sell_invoice_source" name="invoice_source" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                            <option value="faktur" @selected(old('invoice_source', 'faktur') === 'faktur')>Nomor faktur ({{ $import->faktur_number }})</option>
+                            <option value="cash_in" @selected(old('invoice_source') === 'cash_in')>Invoice Cash In terkait</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-xs text-gray-500" for="post_sell_line_mode">Baris item</label>
+                        <select id="post_sell_line_mode" name="line_mode" x-model="lineMode" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                            <option value="summary">Satu baris ringkasan (DPP {{ $fmt($import->dpp) }})</option>
+                            <option value="mapped">Map per baris faktur</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div x-show="lineMode === 'summary'" x-cloak>
+                    <label class="mb-1 block text-xs text-gray-500" for="post_sell_summary_item_id">Item ringkasan</label>
+                    <select id="post_sell_summary_item_id" name="summary_item_id" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                        <option value="">— Pilih item —</option>
+                        @foreach($items as $item)
+                            <option value="{{ $item->id }}" @selected((int) old('summary_item_id') === $item->id)>
+                                {{ $item->name }}@if($item->code) · {{ $item->code }}@endif
+                            </option>
+                        @endforeach
+                    </select>
+                    <p class="mt-1 text-xs text-gray-500">Qty 1 × harga = DPP faktur. Stok harus tersedia di warehouse.</p>
+                </div>
+
+                <div x-show="lineMode === 'mapped'" x-cloak class="overflow-hidden rounded-lg border border-gray-200 bg-white">
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="border-b bg-gray-50 text-left text-xs text-gray-500">
+                                <th class="px-3 py-2 font-medium">#</th>
+                                <th class="px-3 py-2 font-medium">Nama faktur</th>
+                                <th class="px-3 py-2 font-medium">Item inventory</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <template x-for="(line, index) in lineMatches" :key="line.line_no">
+                                <tr class="border-b">
+                                    <td class="px-3 py-2 tabular-nums" x-text="line.line_no"></td>
+                                    <td class="px-3 py-2">
+                                        <span x-text="line.name"></span>
+                                        <span class="block text-xs text-gray-500" x-text="`Qty ${line.quantity} · Rp ${formatAmountId(line.total)}`"></span>
+                                        <template x-if="line.best_match">
+                                            <span class="mt-0.5 block text-xs text-green-700" x-text="`Saran: ${line.best_match.name}`"></span>
+                                        </template>
+                                    </td>
+                                    <td class="px-3 py-2">
+                                        <input type="hidden" :name="`mapped_lines[${index}][line_no]`" :value="line.line_no">
+                                        <select :name="`mapped_lines[${index}][item_id]`" class="w-full rounded border border-gray-300 px-2 py-1 text-sm" required>
+                                            <option value="">— Pilih —</option>
+                                            @foreach($items as $item)
+                                                <option value="{{ $item->id }}">{{ $item->name }}@if($item->code) · {{ $item->code }}@endif</option>
+                                            @endforeach
+                                        </select>
+                                    </td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+
+                <button type="submit" class="rounded-lg bg-blue-700 px-4 py-2 text-sm font-medium text-white hover:bg-blue-800" data-testid="faktur-post-sell">
+                    Post Sell dari faktur
+                </button>
+            </form>
+        </div>
+    @elseif($canImport && $import->isConsignmentCounterparty() && ! $import->sell_transaction_id)
+        <div class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            Link Cash In atau isi jumlah/tanggal pembayaran sebelum posting Sell.
         </div>
     @endif
 
