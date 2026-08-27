@@ -279,11 +279,9 @@ class TransactionsController extends Controller
             return 'Contact';
         };
         $jubelioSync = $jubelioSyncPresenter->applyToTransaction($transaction);
-        $hasMappedSyncSide = ($jubelioSync['adjust_type_a'] ?? 0) > 0
-            || ($jubelioSync['adjust_type_b'] ?? 0) > 0;
         $jubelioSync['show_ui'] = config('services.jubelio.active')
             && $jubelioSync['can_sync']
-            && ($jubelioSync['sync_cek'] || $hasMappedSyncSide)
+            && (bool) $jubelioSync['sync_cek']
             && Transaction::userCanJubelioTransactionSync(Auth::user());
         $invoiceService = app(TransactionInvoiceService::class);
         $canDraftReturn = $this->canDraftReturn($transaction);
