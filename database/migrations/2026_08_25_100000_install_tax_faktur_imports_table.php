@@ -40,6 +40,7 @@ return new class extends Migration
                 $table->unsignedInteger('variance_expense_addrbook_id')->nullable();
                 $table->unsignedInteger('cash_in_transaction_id')->nullable();
                 $table->unsignedInteger('variance_transaction_id')->nullable();
+                $table->unsignedInteger('sell_transaction_id')->nullable();
                 $table->string('signatory_name')->nullable();
                 $table->string('source_format', 64)->nullable();
                 $table->json('line_items')->nullable();

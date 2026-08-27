@@ -60,6 +60,11 @@ class TaxFakturImport extends Model
         return $this->belongsTo(Transaction::class, 'variance_transaction_id');
     }
 
+    public function sellTransaction(): BelongsTo
+    {
+        return $this->belongsTo(Transaction::class, 'sell_transaction_id');
+    }
+
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
@@ -96,6 +101,44 @@ class TaxFakturImport extends Model
     public function directionLabel(): string
     {
         return $this->direction === self::DIRECTION_MASUKAN ? 'Masukan (pembelian)' : 'Keluaran (penjualan)';
+    }
+
+    /**
+     * MDS/Central-style consignment customers schedule payment via payment_due_day.
+     */
+    public function isConsignmentCounterparty(): bool
+    {
+        if ($this->direction !== self::DIRECTION_KELUARAN) {
+            return false;
+        }
+
+        $counterparty = $this->counterparty;
+        if (! $counterparty) {
+            return false;
+        }
+
+        if (! in_array((int) $counterparty->type, [Addrbook::TYPE_CUSTOMER, Addrbook::TYPE_RESELLER], true)) {
+            return false;
+        }
+
+        return $counterparty->payment_due_day !== null;
+    }
+
+    public function hasPaymentInfo(): bool
+    {
+        if ($this->cash_in_transaction_id) {
+            return true;
+        }
+
+        return $this->payment_received_amount !== null
+            && $this->payment_received_date !== null;
+    }
+
+    public function canPostConsignmentSell(): bool
+    {
+        return $this->isConsignmentCounterparty()
+            && $this->hasPaymentInfo()
+            && ! $this->sell_transaction_id;
     }
 
     public function scopePaymentOverdue(Builder $query): Builder

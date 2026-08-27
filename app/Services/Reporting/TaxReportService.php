@@ -528,6 +528,7 @@ class TaxReportService
             ->where('report_month', $month)
             ->where('direction', $direction)
             ->whereIn('reporting_entity_id', $entityIds)
+            ->whereNull('sell_transaction_id')
             ->orderBy('faktur_date')
             ->orderBy('id')
             ->get()
@@ -605,6 +606,7 @@ class TaxReportService
             ->where('report_month', $month)
             ->where('direction', $direction)
             ->whereIn('reporting_entity_id', $entityIds)
+            ->whereNull('sell_transaction_id')
             ->selectRaw('COALESCE(SUM(dpp), 0) as dpp, COALESCE(SUM(ppn), 0) as ppn')
             ->first();
 
