@@ -1,19 +1,20 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="utf-8">
-    <title>Receipt #{{ $transaction->invoice }}</title>
-    <link rel="stylesheet" href="{{ asset('css/receipt.css') }}">
+<title>CORENATION</title>
+<meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="{{ asset('css/receipt.css') }}">
 </head>
 <body onload="window.print()">
 <div class="receipt">
-    <div class="center title-main">{{ $branding['company_name'] }}</div>
-    <div class="center title-sub">{{ $branding['address'] }}</div>
-    @if($branding['phone'])
-    <div class="center title-sub">Tel: {{ $branding['phone'] }}</div>
-    @endif
+    <div class="center">CORENATION</div>
+    <div class="center">CILANDAK TOWN SQUARE no.171</div>
+    <div class="center">FX SUDIRMAN lt.4</div>
+    <div class="center">BSD MAGGIORE GRANDE G50</div>
     <br>
-    <div class="center invoice-label">Retail Invoice</div>
+    <div class="center">Retail Invoice</div>
     <br>
     <div>Date : {{ $transaction->date?->format('d/m/Y') }}</div>
     <div>Bill No: {{ $transaction->invoice }}</div>
@@ -25,7 +26,7 @@
     @php
         $subtotal = 0;
         $subq = 0;
-        $fmt = fn ($n) => format_amount($n);
+        $fmt = fn ($n) => number_format((float) $n, 0, ',', '.');
     @endphp
 
     @foreach($transaction->details as $detail)
@@ -45,15 +46,15 @@
         $stText = str_pad('SubTotal', 18);
         $stQty = str_pad((string) $subq, 3, ' ', STR_PAD_LEFT);
         $stAmt = str_pad($fmt($subtotal), 9, ' ', STR_PAD_LEFT);
-        $discount = max(0, $subtotal - abs((float) $transaction->real_total));
+        $discount = abs((float) $transaction->real_total) - $subtotal;
     @endphp
     <div class="receipt-line">{{ $stText }}{{ $stQty }}{{ $stAmt }}</div>
     <hr>
 
     <div>Discount : {{ $fmt($discount) }}</div>
-    <div><strong>TOTAL : {{ $fmt(abs($transaction->real_total)) }}</strong></div>
+    <div><strong>TOTAL : {{ $fmt(abs((float) $transaction->real_total)) }}</strong></div>
     <br>
-    <div class="center thankyou">@corenationactive 082244226656</div>
+    <div class="center">@corenationactive 082244226656</div>
 </div>
 </body>
 </html>
