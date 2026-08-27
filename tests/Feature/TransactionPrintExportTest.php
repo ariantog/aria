@@ -43,9 +43,10 @@ it('renders the thermal receipt page for print pos', function () {
         ->assertOk()
         ->assertSee('CORENATION', false)
         ->assertSee('CILANDAK TOWN SQUARE', false)
+        ->assertSee('FX SUDIRMAN', false)
+        ->assertSee('MAGGIORE GRANDE', false)
         ->assertSee('Test Shirt', false)
-        ->assertDontSee('FX SUDIRMAN', false)
-        ->assertDontSee('MAGGIORE GRANDE', false);
+        ->assertSee('css/receipt.css', false);
 });
 
 it('renders the dot matrix print page', function () {
