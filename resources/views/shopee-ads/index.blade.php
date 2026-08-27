@@ -281,15 +281,16 @@ $saInnerCardWhite = 'space-y-3 rounded-lg border border-gray-200 bg-white p-4';
                     </div>
                 </label>
                 <label class="block">
-                    <span class="{{ $saLabel }}">Item replenish WIB (H:M)</span>
+                    <span class="{{ $saLabel }}">Item replenish max per schedule</span>
+                    <input type="number" name="item_replenish_max_per_run" value="{{ $settings->item_replenish_max_per_run }}" class="{{ $saInput }}" required>
+                    <p class="mt-1 text-xs {{ $saTextMuted }}">Max new ads after each produk_manual increment schedule. Daily reset fills to max {{ $settings->max_item_ads }} in one run. Legacy WIB time below is ignored by cron.</p>
+                </label>
+                <label class="block opacity-60">
+                    <span class="{{ $saLabel }}">Item replenish WIB (legacy, unused)</span>
                     <div class="mt-1 flex gap-2">
                         <input type="number" name="item_replenish_hour" value="{{ $settings->item_replenish_hour }}" class="{{ $saInputSm }}" required>
                         <input type="number" name="item_replenish_minute" value="{{ $settings->item_replenish_minute }}" class="{{ $saInputSm }}" required>
                     </div>
-                </label>
-                <label class="block">
-                    <span class="{{ $saLabel }}">Max new item ads / run</span>
-                    <input type="number" name="item_replenish_max_per_run" value="{{ $settings->item_replenish_max_per_run }}" class="{{ $saInput }}" required>
                 </label>
             </div>
             <div class="flex flex-wrap gap-4 text-sm text-gray-700">
@@ -453,8 +454,9 @@ $saInnerCardWhite = 'space-y-3 rounded-lg border border-gray-200 bg-white p-4';
             <h2 class="text-sm font-semibold text-gray-900">Item ads (tracked)</h2>
             <p class="mt-1 text-xs {{ $saTextMuted }}">
                 Tabel dari DB lokal — klik <strong>Sync Item Ads</strong> untuk tarik data live dari Shopee (bisa beberapa detik).
-                <strong class="text-gray-700">Daily reset</strong> mengatur ulang budget iklan yang sudah ada;
-                <strong class="text-gray-700">Replenish</strong> membuat iklan baru (max {{ $settings->item_replenish_max_per_run }} per run).
+                <strong class="text-gray-700">Daily reset</strong> mengatur ulang budget iklan yang sudah ada dan <strong>membuat iklan baru sampai max {{ $settings->max_item_ads }}</strong>;
+                setelah jadwal increment produk_manual, sistem top-up jika active &lt; max (max {{ $settings->item_replenish_max_per_run }} per jadwal).
+                Tombol <strong>Replenish</strong> = manual top-up (max {{ $settings->item_replenish_max_per_run }}).
                 @if($itemAdsSyncStats !== null)
                 <span class="mt-1 block">Sync terakhir: {{ $itemAdsSyncStats['active'] }} aktif di Shopee
                     @if($itemAdsSyncStats['imported'] > 0)({{ $itemAdsSyncStats['imported'] }} baru)@endif

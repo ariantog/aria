@@ -25,6 +25,7 @@ it('catches up daily reset later the same WIB day when the midnight cron tick wa
         'gms_current_budget' => 450000,
         'item_ad_starting_budget' => 100000,
         'max_item_ads' => 4,
+        'item_replenish_enabled' => false,
         'last_daily_reset_at' => Carbon::parse('2026-08-26 00:01:00', 'Asia/Jakarta'),
     ]);
 
@@ -91,6 +92,7 @@ it('runs daily reset before increment schedules on the same process tick', funct
         'gms_campaign_id' => 'gmv-order',
         'gms_current_budget' => 400000,
         'daily_max_budget' => 500000,
+        'item_replenish_enabled' => false,
         'last_daily_reset_at' => Carbon::parse('2026-08-26 00:01:00', 'Asia/Jakarta'),
     ]);
 
@@ -135,6 +137,45 @@ it('runs daily reset before increment schedules on the same process tick', funct
         ->and($schedules)->toBe(1)
         ->and($callOrder)->toBe(['reset', 'increment'])
         ->and($settings->fresh()->gms_current_budget)->toBe(150000);
+});
+
+it('replenishes item ads after automated daily reset when enabled', function () {
+    Carbon::setTestNow(Carbon::parse('2026-08-27 00:01:00', 'Asia/Jakarta'));
+
+    $settings = ShopeeAdsSetting::current();
+    $settings->update([
+        'daily_reset_hour' => 0,
+        'daily_reset_minute' => 1,
+        'gms_campaign_id' => 'gmv-reset',
+        'max_item_ads' => 3,
+        'item_ad_starting_budget' => 75000,
+        'item_ads_enabled' => true,
+        'item_replenish_enabled' => true,
+        'daily_max_budget' => 500000,
+        'last_daily_reset_at' => Carbon::parse('2026-08-26 00:01:00', 'Asia/Jakarta'),
+    ]);
+
+    $api = Mockery::mock(ShopeeAdsApiService::class);
+    $api->shouldReceive('hasShopAuthorization')->andReturn(true);
+    $api->shouldReceive('setGmsBudget')->once()->with('gmv-reset', Mockery::type('int'))->andReturn(true);
+    $api->shouldReceive('listManualProductAds')->andReturn([]);
+    $api->shouldReceive('getRecommendedItems')->andReturn([
+        ['item_id' => 501, 'source' => 'recommended'],
+        ['item_id' => 502, 'source' => 'recommended'],
+        ['item_id' => 503, 'source' => 'recommended'],
+    ]);
+    $api->shouldReceive('createManualProductAd')
+        ->times(3)
+        ->andReturnUsing(fn ($itemId) => 'camp-'.$itemId);
+
+    $engine = new ShopeeAdsEngineService(
+        $api,
+        app(ShopeeAdsSpecialRulesService::class),
+        Mockery::mock(ShopeeAdsTelegramNotifier::class)->shouldIgnoreMissing(),
+    );
+
+    expect($engine->runDailyResetIfDue())->toBeTrue()
+        ->and(ShopeeAdsItemAd::query()->count())->toBe(3);
 });
 
 it('does not run daily reset before the configured WIB slot on a new day', function () {
