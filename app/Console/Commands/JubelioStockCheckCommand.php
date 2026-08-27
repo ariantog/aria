@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Models\JubelioStockCheck;
+use App\Models\ScheduledTask;
 use App\Services\JubelioStockCheckService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
@@ -10,12 +11,14 @@ use Illuminate\Support\Facades\Log;
 class JubelioStockCheckCommand extends Command
 {
     protected $signature = 'app:jubelio-stock-check
-                            {--single : Process only one synced warehouse per run}';
+                            {--sync : Process all remaining synced warehouses in one run}';
 
     protected $description = 'Compare Aria warehouse stock with Jubelio available for linked SKUs';
 
     public function handle(JubelioStockCheckService $service): int
     {
+        $this->recordCronHeartbeat();
+
         $this->info('Memulai pengecekan stok Jubelio...');
 
         config(['services.jubelio.active' => true]);
@@ -61,7 +64,7 @@ class JubelioStockCheckCommand extends Command
                         $job->discrepancies()->count(),
                     ));
                 }
-            } while (! $this->option('single') && ! $result['done']);
+            } while ($this->option('sync') && ! $result['done']);
 
             if ($result['done']) {
                 $this->info(sprintf(
@@ -85,5 +88,15 @@ class JubelioStockCheckCommand extends Command
 
             return self::FAILURE;
         }
+    }
+
+    private function recordCronHeartbeat(): void
+    {
+        ScheduledTask::query()
+            ->where(function ($query) {
+                $query->where('command', 'app:jubelio-stock-check')
+                    ->orWhere('command', 'app:jubelio-stock-check --single');
+            })
+            ->update(['last_run_at' => now()]);
     }
 }
