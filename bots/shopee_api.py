@@ -386,7 +386,7 @@ class ShopeeAdsClient:
                 "GET",
                 "/api/v2/ads/get_product_level_campaign_setting_info",
                 query={
-                    "info_type_list": "1,2,3",  # 1 common, 2 budget, 3 status (per Shopee)
+                    "info_type_list": "1,2,3,4",
                     "campaign_id_list": ",".join(str(c) for c in chunk),
                 },
             )
@@ -530,9 +530,8 @@ class ShopeeAdsClient:
     # GMV-Max (GMS) campaign  -- the shop's live "Iklan Produk GMV Max"
     #
     # Shopee's GMV-Max Shop campaign is ONE campaign with ONE campaign-level
-    # daily_budget. The performance read returns the live campaign_id + metrics
-    # but NOT the configured daily_budget, so the bot tracks the budget itself
-    # in the DB (seed once, then own the value it sets via change_budget).
+    # daily_budget. Live budget is read via get_gms_campaign_performance (preferred)
+    # and get_product_level_campaign_setting_info before falling back to DB tracking.
     # ------------------------------------------------------------------ #
     @staticmethod
     def _date_range_ddmmyyyy(days_back: int = 0) -> tuple:
@@ -628,49 +627,141 @@ class ShopeeAdsClient:
 
     @staticmethod
     def _extract_campaign_budget_from_setting_row(row: Dict[str, Any]) -> Optional[float]:
-        """Best-effort daily budget from get_product_level_campaign_setting_info row."""
+        """Best-effort daily budget from campaign setting / GMS performance payloads."""
         common = row.get("common_info", {}) or {}
         manual = row.get("manual_bidding_info", {}) or {}
         auto = row.get("auto_bidding_info", {}) or {}
-        gms = row.get("gms_info", {}) or row.get("gms_campaign_info", {}) or {}
+        budget_info = row.get("budget_info", {}) or {}
+        gms = row.get("gms_info", {}) or row.get("gms_campaign_info", {}) or row.get("shop_gms_info", {}) or {}
 
         candidates = [
-            common.get("campaign_budget"),
-            common.get("daily_budget"),
+            row.get("daily_budget"),
+            row.get("campaign_budget"),
+            budget_info.get("daily_budget"),
+            budget_info.get("campaign_budget"),
             gms.get("daily_budget"),
             gms.get("campaign_budget"),
-            manual.get("campaign_budget"),
+            common.get("daily_budget"),
+            common.get("campaign_budget"),
             manual.get("daily_budget"),
-            auto.get("campaign_budget"),
+            manual.get("campaign_budget"),
             auto.get("daily_budget"),
-            row.get("campaign_budget"),
-            row.get("daily_budget"),
+            auto.get("campaign_budget"),
         ]
         for value in candidates:
             if value is not None and float(value) > 0:
                 return float(value)
         return None
 
+    @staticmethod
+    def _extract_gms_budget_from_performance_payload(resp: Dict[str, Any]) -> Optional[float]:
+        budget = ShopeeAdsClient._extract_campaign_budget_from_setting_row(resp)
+        if budget is not None:
+            return budget
+        for key in (
+            "campaign_info",
+            "campaign_setting",
+            "gms_info",
+            "gms_campaign_info",
+            "setting",
+            "common_info",
+        ):
+            block = resp.get(key)
+            if isinstance(block, dict):
+                budget = ShopeeAdsClient._extract_campaign_budget_from_setting_row(block)
+                if budget is not None:
+                    return budget
+        return None
+
+    @staticmethod
+    def _is_gms_campaign_setting_row(row: Dict[str, Any], expected_campaign_id: str) -> bool:
+        cid = str(row.get("campaign_id", ""))
+        if cid == expected_campaign_id:
+            return True
+        common = row.get("common_info", {}) or {}
+        ad_type = str(common.get("ad_type") or row.get("ad_type") or "").lower()
+        if ad_type and ("gms" in ad_type or "gmv" in ad_type):
+            return True
+        return "gms_info" in row or "gms_campaign_info" in row
+
+    async def _gms_budget_from_performance(self, campaign_id: str) -> Optional[float]:
+        start, end = self._date_range_ddmmyyyy(0)
+        try:
+            data = await self._request(
+                "POST",
+                "/api/v2/ads/get_gms_campaign_performance",
+                body={"start_date": start, "end_date": end},
+            )
+        except ShopeeAPIError as exc:
+            logger.warning("get_gms_live_budget performance fetch failed for %s: %s", campaign_id, exc)
+            return None
+        resp = data.get("response", {}) or {}
+        response_cid = str(resp.get("campaign_id", ""))
+        if response_cid and response_cid != str(campaign_id):
+            logger.warning(
+                "get_gms_live_budget performance campaign_id mismatch (expected %s, got %s)",
+                campaign_id,
+                response_cid,
+            )
+        budget = self._extract_gms_budget_from_performance_payload(resp)
+        if budget is None:
+            logger.warning(
+                "get_gms_live_budget: budget missing in performance payload for %s (keys=%s)",
+                campaign_id,
+                list(resp.keys()),
+            )
+        return budget
+
+    async def _scan_gms_budget_from_campaign_lists(self, campaign_id: str) -> Optional[float]:
+        target_id = int(campaign_id)
+        for ad_type_filter in ("gms", "all"):
+            ids = await self._campaign_id_list(ad_type_filter)
+            if not ids:
+                continue
+            if target_id in ids:
+                ids = [target_id]
+            elif ad_type_filter == "gms":
+                continue
+            for i in range(0, len(ids), 100):
+                chunk = ids[i : i + 100]
+                infos = await self._campaign_setting_info(chunk)
+                for info in infos:
+                    raw = info.get("raw", {}) or {}
+                    if not self._is_gms_campaign_setting_row(raw, str(campaign_id)):
+                        continue
+                    budget = self._extract_campaign_budget_from_setting_row(raw)
+                    if budget is not None:
+                        return budget
+        return None
+
     async def get_gms_live_budget(self, campaign_id: str) -> Optional[float]:
         """
-        Live GMV-Max daily budget from Shopee (get_product_level_campaign_setting_info).
+        Live GMV-Max daily budget — try GMS performance, setting info, then list scan.
         """
+        live = await self._gms_budget_from_performance(campaign_id)
+        if live is not None:
+            logger.info("[gmv_max] live budget %.0f from get_gms_campaign_performance", live)
+            return live
+
         try:
             infos = await self._campaign_setting_info([int(campaign_id)])
         except ShopeeAPIError as exc:
-            logger.warning("get_gms_live_budget failed for %s: %s", campaign_id, exc)
-            return None
-        if not infos:
-            logger.warning("get_gms_live_budget: no settings for campaign %s", campaign_id)
-            return None
-        raw = infos[0].get("raw", {}) or {}
-        budget = self._extract_campaign_budget_from_setting_row(raw)
-        if budget is None:
-            logger.warning(
-                "get_gms_live_budget: budget missing in settings for campaign %s",
-                campaign_id,
-            )
-        return budget
+            logger.warning("get_gms_live_budget setting fetch failed for %s: %s", campaign_id, exc)
+            infos = []
+        if infos:
+            raw = infos[0].get("raw", {}) or {}
+            budget = self._extract_campaign_budget_from_setting_row(raw)
+            if budget is not None:
+                logger.info("[gmv_max] live budget %.0f from campaign setting info", budget)
+                return budget
+
+        live = await self._scan_gms_budget_from_campaign_lists(campaign_id)
+        if live is not None:
+            logger.info("[gmv_max] live budget %.0f from campaign list scan", live)
+            return live
+
+        logger.warning("get_gms_live_budget: all sources failed for campaign %s", campaign_id)
+        return None
 
     async def set_gms_budget(
         self, campaign_id: str, daily_budget: float

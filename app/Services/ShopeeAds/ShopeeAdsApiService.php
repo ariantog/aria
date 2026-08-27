@@ -241,7 +241,7 @@ class ShopeeAdsApiService
      * @param  list<int|string>  $campaignIds
      * @return list<array{campaign_id: string, campaign_name: string, budget: float, status: string, item_id: int, raw: array}>
      */
-    public function campaignSettingInfo(array $campaignIds): array
+    public function campaignSettingInfo(array $campaignIds, string $infoTypeList = '1,2,3,4'): array
     {
         if ($campaignIds === []) {
             return [];
@@ -255,7 +255,7 @@ class ShopeeAdsApiService
             $response = $this->shopGet(
                 '/api/v2/ads/get_product_level_campaign_setting_info',
                 [
-                    'info_type_list' => '1,2,3',
+                    'info_type_list' => $infoTypeList,
                     'campaign_id_list' => implode(',', $chunk),
                 ],
             );
@@ -290,29 +290,179 @@ class ShopeeAdsApiService
     }
 
     /**
-     * Live GMV-Max daily budget from Shopee (get_product_level_campaign_setting_info).
+     * Live GMV-Max daily budget from Shopee.
+     *
+     * Shop GMV Max is a dedicated GMS campaign — its budget is often absent from
+     * get_product_level_campaign_setting_info for the performance campaign_id, so
+     * we try get_gms_campaign_performance first, then setting info, then list scan.
      */
     public function getGmsLiveBudget(string $campaignId): ?int
     {
-        $infos = $this->campaignSettingInfo([(int) $campaignId]);
-
-        if ($infos === []) {
-            Log::warning('GMV-Max live budget fetch returned no campaign settings', [
+        $fromPerformance = $this->getGmsBudgetFromPerformanceResponse($campaignId);
+        if ($fromPerformance !== null) {
+            Log::info('GMV-Max live budget from get_gms_campaign_performance', [
                 'campaign_id' => $campaignId,
+                'live' => $fromPerformance,
+            ]);
+
+            return $fromPerformance;
+        }
+
+        $fromSetting = $this->getGmsBudgetFromCampaignSettingInfo($campaignId);
+        if ($fromSetting !== null) {
+            Log::info('GMV-Max live budget from campaign setting info', [
+                'campaign_id' => $campaignId,
+                'live' => $fromSetting,
+            ]);
+
+            return $fromSetting;
+        }
+
+        $fromScan = $this->scanGmsBudgetFromCampaignLists($campaignId);
+        if ($fromScan !== null) {
+            Log::info('GMV-Max live budget from campaign list scan', [
+                'campaign_id' => $campaignId,
+                'live' => $fromScan,
+            ]);
+
+            return $fromScan;
+        }
+
+        Log::warning('GMV-Max live budget unavailable from all Shopee sources', [
+            'campaign_id' => $campaignId,
+        ]);
+
+        return null;
+    }
+
+    private function getGmsBudgetFromPerformanceResponse(string $campaignId): ?int
+    {
+        [$start, $end] = $this->wibDateRange(0);
+        $response = $this->shopPost(
+            '/api/v2/ads/get_gms_campaign_performance',
+            ['start_date' => $start, 'end_date' => $end],
+        );
+
+        if (! $response->successful()) {
+            Log::warning('GMV-Max performance fetch failed for live budget', [
+                'campaign_id' => $campaignId,
+                'status' => $response->status(),
+                'body' => Str::limit($response->body(), 500),
             ]);
 
             return null;
         }
 
-        $budget = $this->extractCampaignBudgetFromSettingRow($infos[0]['raw'] ?? []);
+        $resp = $response->json('response') ?? [];
+        $responseCampaignId = isset($resp['campaign_id']) ? (string) $resp['campaign_id'] : null;
 
+        if ($responseCampaignId !== null && $responseCampaignId !== $campaignId) {
+            Log::warning('GMV-Max performance campaign_id mismatch while reading live budget', [
+                'expected' => $campaignId,
+                'actual' => $responseCampaignId,
+            ]);
+        }
+
+        $budget = $this->extractGmsBudgetFromPerformancePayload($resp);
         if ($budget === null) {
-            Log::warning('GMV-Max live budget missing in Shopee campaign settings', [
-                'campaign_id' => $campaignId,
+            Log::warning('GMV-Max budget not found in get_gms_campaign_performance payload', [
+                'campaign_id' => $responseCampaignId ?? $campaignId,
+                'top_level_keys' => array_keys($resp),
             ]);
         }
 
         return $budget;
+    }
+
+    private function getGmsBudgetFromCampaignSettingInfo(string $campaignId): ?int
+    {
+        $infos = $this->campaignSettingInfo([(int) $campaignId]);
+
+        if ($infos === []) {
+            return null;
+        }
+
+        return $this->extractCampaignBudgetFromSettingRow($infos[0]['raw'] ?? []);
+    }
+
+    private function scanGmsBudgetFromCampaignLists(string $campaignId): ?int
+    {
+        $targetId = (int) $campaignId;
+
+        foreach (['gms', 'all'] as $adTypeFilter) {
+            $ids = $this->campaignIdList($adTypeFilter);
+
+            if ($ids === []) {
+                continue;
+            }
+
+            if (in_array($targetId, $ids, true)) {
+                $ids = [$targetId];
+            } elseif ($adTypeFilter === 'gms') {
+                continue;
+            }
+
+            for ($i = 0; $i < count($ids); $i += 100) {
+                $chunk = array_slice($ids, $i, 100);
+                foreach ($this->campaignSettingInfo($chunk) as $info) {
+                    $raw = $info['raw'] ?? [];
+                    if (! $this->isGmsCampaignSettingRow($raw, $campaignId)) {
+                        continue;
+                    }
+
+                    $budget = $this->extractCampaignBudgetFromSettingRow($raw);
+                    if ($budget !== null) {
+                        return $budget;
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  array<string, mixed>  $resp
+     */
+    private function extractGmsBudgetFromPerformancePayload(array $resp): ?int
+    {
+        $budget = $this->extractCampaignBudgetFromSettingRow($resp);
+        if ($budget !== null) {
+            return $budget;
+        }
+
+        foreach (['campaign_info', 'campaign_setting', 'gms_info', 'gms_campaign_info', 'setting', 'common_info'] as $key) {
+            if (! isset($resp[$key]) || ! is_array($resp[$key])) {
+                continue;
+            }
+
+            $budget = $this->extractCampaignBudgetFromSettingRow($resp[$key]);
+            if ($budget !== null) {
+                return $budget;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  array<string, mixed>  $row
+     */
+    private function isGmsCampaignSettingRow(array $row, string $expectedCampaignId): bool
+    {
+        $campaignId = (string) ($row['campaign_id'] ?? '');
+        if ($campaignId === $expectedCampaignId) {
+            return true;
+        }
+
+        $common = $row['common_info'] ?? [];
+        $adType = strtolower((string) ($common['ad_type'] ?? $row['ad_type'] ?? ''));
+
+        if ($adType !== '' && (str_contains($adType, 'gms') || str_contains($adType, 'gmv'))) {
+            return true;
+        }
+
+        return isset($row['gms_info']) || isset($row['gms_campaign_info']);
     }
 
     public function getCampaignLiveBudget(string $campaignId): ?int
@@ -328,19 +478,22 @@ class ShopeeAdsApiService
         $common = $row['common_info'] ?? [];
         $manual = $row['manual_bidding_info'] ?? [];
         $auto = $row['auto_bidding_info'] ?? [];
-        $gms = $row['gms_info'] ?? $row['gms_campaign_info'] ?? [];
+        $budgetInfo = $row['budget_info'] ?? [];
+        $gms = $row['gms_info'] ?? $row['gms_campaign_info'] ?? $row['shop_gms_info'] ?? [];
 
         $candidates = [
-            $common['campaign_budget'] ?? null,
-            $common['daily_budget'] ?? null,
+            $row['daily_budget'] ?? null,
+            $row['campaign_budget'] ?? null,
+            $budgetInfo['daily_budget'] ?? null,
+            $budgetInfo['campaign_budget'] ?? null,
             $gms['daily_budget'] ?? null,
             $gms['campaign_budget'] ?? null,
-            $manual['campaign_budget'] ?? null,
+            $common['daily_budget'] ?? null,
+            $common['campaign_budget'] ?? null,
             $manual['daily_budget'] ?? null,
-            $auto['campaign_budget'] ?? null,
+            $manual['campaign_budget'] ?? null,
             $auto['daily_budget'] ?? null,
-            $row['campaign_budget'] ?? null,
-            $row['daily_budget'] ?? null,
+            $auto['campaign_budget'] ?? null,
         ];
 
         foreach ($candidates as $value) {

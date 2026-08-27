@@ -10,8 +10,9 @@ but **do not have working budget APIs** — the PHP UI only schedules the two wo
 
 **Budget increment bug:** increments must use the **live** Shopee budget (after manual edits),
 not `starting_budget` or a stale DB value. Item ads sync live budgets before each increment
-(`engine.py` ~1508). GMV Max reads live budget via `get_product_level_campaign_setting_info`
-when possible, then falls back to tracked `gms_current_budget`.
+(`engine.py` ~1508). GMV Max reads live budget via `get_gms_campaign_performance` first
+(then `get_product_level_campaign_setting_info` / campaign list scan), then falls back to
+tracked `gms_current_budget` only when all sources fail.
 
 A production-ready system that ramps **Shopee Ads (Indonesia)** budgets on a
 **time-based, fixed-IDR schedule**, anchored to **Asia/Jakarta (WIB, GMT+7)**.
