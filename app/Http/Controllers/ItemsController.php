@@ -283,9 +283,7 @@ class ItemsController extends Controller
                 $request->file('image')
             );
 
-            $route = $isAsset ? 'assetlancar.index' : 'items.index';
-
-            return redirect()->route($route)->with('success', 'Item updated.');
+            return redirect($item->fresh()->showUrl())->with('success', 'Item updated.');
         } catch (\Exception $e) {
             return back()->withErrors(['message' => $e->getMessage()])->withInput();
         }
