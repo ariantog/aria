@@ -47,9 +47,9 @@ class Transaction extends Model
 
     const STATUS_CANCELLED = 2;
 
-    const SUBMIT_TYPE_MANUAL = 1;
+    const SUBMIT_TYPE_MANUAL = 1; // L10: aria submit
 
-    const SUBMIT_TYPE_JUBELIO = 2;
+    const SUBMIT_TYPE_JUBELIO = 2; // L10: cron jubelio
 
     /** L10 Jubelio cron used -100 when no human submitter (production user_id is NOT NULL). */
     const JUBELIO_CRON_USER_ID = -100;
@@ -184,12 +184,6 @@ class Transaction extends Model
     public function isManual(): bool
     {
         return (int) $this->submit_type === self::SUBMIT_TYPE_MANUAL;
-    }
-
-    /** Any non-Jubelio-cron row (matches the "aria submit" badge on transaction show). */
-    public function isAriaSubmit(): bool
-    {
-        return ! $this->isFromJubelio();
     }
 
     public function sender()
@@ -341,6 +335,10 @@ class Transaction extends Model
 
             if (Schema::hasColumn($table, 'location_id') && $transaction->location_id === null) {
                 $transaction->location_id = auth()->user()?->location_id ?? 0;
+            }
+
+            if (Schema::hasColumn($table, 'submit_type') && $transaction->submit_type === null) {
+                $transaction->submit_type = self::SUBMIT_TYPE_MANUAL;
             }
         });
     }

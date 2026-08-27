@@ -14,7 +14,7 @@ class JubelioTransactionSyncPresenter
     {
         $transaction->loadMissing(['sender', 'receiver', 'submitByA', 'submitByB', 'details.item']);
 
-        $canSync = $transaction->isAriaSubmit();
+        $canSync = $transaction->isManual();
         $type = (int) $transaction->type;
         $senderId = (int) $transaction->sender_id;
         $receiverId = (int) $transaction->receiver_id;
