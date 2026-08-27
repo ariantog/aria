@@ -30,6 +30,8 @@ class ShopeeAdsSetting extends Model
         'group_replenish_minute',
         'gms_campaign_id',
         'gms_current_budget',
+        'gms_current_spend',
+        'gms_current_spend_at',
         'item_ads_enabled',
         'max_item_ads',
         'item_ad_starting_budget',
@@ -79,6 +81,7 @@ class ShopeeAdsSetting extends Model
             'last_daily_reset_at' => 'datetime',
             'last_replenish_at' => 'datetime',
             'last_item_replenish_at' => 'datetime',
+            'gms_current_spend_at' => 'datetime',
         ];
     }
 

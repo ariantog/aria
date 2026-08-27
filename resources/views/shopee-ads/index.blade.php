@@ -93,9 +93,9 @@ $saInnerCardWhite = 'space-y-3 rounded-lg border border-gray-200 bg-white p-4';
             </p>
             <p class="mt-1 text-xs {{ $saTextMuted }}">DB: <code class="text-xs">{{ $settings->status }}</code></p>
         </div>
-        <div class="{{ $saCard }} p-5">
-            <p class="text-xs font-medium uppercase {{ $saTextMuted }}">GMV Max (tracked)</p>
-            <p class="mt-2 text-lg font-semibold text-gray-900">Rp {{ number_format($settings->gms_current_budget, 0, ',', '.') }}</p>
+        <div class="{{ $saCard }} p-5" data-testid="shopee-ads-gmv-spend">
+            <p class="text-xs font-medium uppercase {{ $saTextMuted }}">GMV Max (spending today)</p>
+            <p class="mt-2 text-lg font-semibold text-gray-900">Rp {{ number_format($settings->gms_current_spend, 0, ',', '.') }}</p>
             @if($settings->gms_campaign_id)
             <p class="mt-1 text-xs {{ $saTextMuted }}">Campaign {{ $settings->gms_campaign_id }}</p>
             @endif
