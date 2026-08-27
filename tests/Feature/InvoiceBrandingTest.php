@@ -74,7 +74,7 @@ it('falls back to sender name and address when description is empty', function (
     expect($branding['phone'])->toBe('08199887766');
 });
 
-it('renders sender branding on receipt and print pages', function () {
+it('renders fixed thermal receipt header regardless of sender branding', function () {
     $sender = Addrbook::factory()->warehouse()->create([
         'description' => "Receipt Store\nJl. Receipt 99",
         'phone' => '08123456789',
@@ -97,10 +97,26 @@ it('renders sender branding on receipt and print pages', function () {
     $this->actingAs($this->user)
         ->get(route('transactions.receipt', $transaction))
         ->assertOk()
-        ->assertSee('Receipt Store', false)
-        ->assertSee('Jl. Receipt 99', false)
-        ->assertSee('08123456789', false)
-        ->assertDontSee('CORENATION', false);
+        ->assertSee('CORENATION', false)
+        ->assertSee('CILANDAK TOWN SQUARE', false)
+        ->assertSee('FX SUDIRMAN', false)
+        ->assertSee('MAGGIORE GRANDE', false)
+        ->assertDontSee('Receipt Store', false)
+        ->assertDontSee('08123456789', false);
+});
+
+it('renders sender branding on print pages', function () {
+    $sender = Addrbook::factory()->warehouse()->create([
+        'description' => "Receipt Store\nJl. Receipt 99",
+        'phone' => '08123456789',
+    ]);
+    $receiver = Addrbook::factory()->customer()->create();
+    $transaction = Transaction::factory()->create([
+        'invoice' => 'PRT-BRAND',
+        'sender_id' => $sender->id,
+        'receiver_id' => $receiver->id,
+    ]);
+    TransactionDetail::factory()->create(['transaction_id' => $transaction->id]);
 
     $this->actingAs($this->user)
         ->get(route('transactions.print', $transaction))

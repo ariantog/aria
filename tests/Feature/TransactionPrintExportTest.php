@@ -29,7 +29,7 @@ it('renders the thermal receipt page for print pos', function () {
         'real_total' => 100_000,
         'total' => 100_000,
     ]);
-    $item = Item::factory()->create(['name' => 'Test Shirt']);
+    $item = Item::factory()->create(['name' => 'Test Shirt', 'code' => 'AJDCA2302510L']);
     TransactionDetail::factory()->create([
         'transaction_id' => $transaction->id,
         'item_id' => $item->id,
@@ -43,9 +43,11 @@ it('renders the thermal receipt page for print pos', function () {
         ->assertOk()
         ->assertSee('CORENATION', false)
         ->assertSee('CILANDAK TOWN SQUARE', false)
+        ->assertSee('FX SUDIRMAN', false)
+        ->assertSee('MAGGIORE GRANDE', false)
         ->assertSee('Test Shirt', false)
-        ->assertDontSee('FX SUDIRMAN', false)
-        ->assertDontSee('MAGGIORE GRANDE', false);
+        ->assertSee('AJDCA2302510L', false)
+        ->assertSee('css/receipt.css', false);
 });
 
 it('renders the dot matrix print page', function () {
