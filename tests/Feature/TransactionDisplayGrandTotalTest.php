@@ -23,8 +23,8 @@ it('uses seller income for legacy jubelio sell rows that double-count adjustment
     expect($transaction->displayGrandTotal())->toBe(82350.0);
 });
 
-it('keeps modern jubelio sell grand total on real_total', function () {
-    $transaction = Transaction::factory()->create([
+it('reads jubelio sell net receivable regardless of which header column stores it', function () {
+    $legacyLayout = Transaction::factory()->create([
         'type' => Transaction::TYPE_SELL,
         'submit_type' => Transaction::SUBMIT_TYPE_JUBELIO,
         'total' => -64000,
@@ -32,7 +32,17 @@ it('keeps modern jubelio sell grand total on real_total', function () {
         'real_total' => -42935,
     ]);
 
-    expect($transaction->displayGrandTotal())->toBe(42935.0);
+    $l10Layout = Transaction::factory()->create([
+        'type' => Transaction::TYPE_SELL,
+        'submit_type' => Transaction::SUBMIT_TYPE_JUBELIO,
+        'real_total' => -64000,
+        'adjustment' => -21065,
+        'total' => -42935,
+    ]);
+
+    expect($legacyLayout->displayGrandTotal())->toBe(42935.0)
+        ->and($l10Layout->displayGrandTotal())->toBe(42935.0)
+        ->and($l10Layout->displayListTotal())->toBe(42935.0);
 });
 
 it('shows corrected grand total on transaction show for legacy jubelio rows', function () {

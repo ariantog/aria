@@ -414,8 +414,9 @@ class ProcessJubelioOrder
                 }
 
                 $grandTotal = $subTotal + (float) $transaction->adjustment;
-                $transaction->total = Transaction::signedAmount($type, $subTotal);
-                $transaction->real_total = Transaction::signedAmount($type, $grandTotal);
+                // L10 Jubelio convention: real_total = line subtotal, total = net after adjustment.
+                $transaction->real_total = Transaction::signedAmount($type, $subTotal);
+                $transaction->total = Transaction::signedAmount($type, $grandTotal);
                 $transaction->total_items = $totalQty;
                 $transaction->save();
 

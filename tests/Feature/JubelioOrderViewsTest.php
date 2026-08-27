@@ -504,9 +504,9 @@ it('applies marketplace discount adjustment when line prices use list amounts', 
     $transaction = Transaction::where('invoice', 'SP-LIST-PRICE')->first();
 
     expect($transaction)->not->toBeNull()
-        ->and((float) $transaction->total)->toBe(-122590.0)
+        ->and((float) $transaction->real_total)->toBe(-122590.0)
         ->and((float) $transaction->adjustment)->toBe(-79000.0)
-        ->and((float) $transaction->real_total)->toBe(-43590.0);
+        ->and((float) $transaction->total)->toBe(-43590.0);
 });
 
 it('books seller income for marketplace orders with fee breakdown', function () {
@@ -559,9 +559,9 @@ it('books seller income for marketplace orders with fee breakdown', function () 
     $transaction = Transaction::where('invoice', 'SP-SELLER-INCOME')->first();
 
     expect($transaction)->not->toBeNull()
-        ->and((float) $transaction->total)->toBe(-64000.0)
+        ->and((float) $transaction->real_total)->toBe(-64000.0)
         ->and((float) $transaction->adjustment)->toBe(-21065.0)
-        ->and((float) $transaction->real_total)->toBe(-42935.0);
+        ->and((float) $transaction->total)->toBe(-42935.0);
 });
 
 it('can mark duplicate jubelio order as solved', function () {
