@@ -94,6 +94,7 @@ class ReportingSummaryRecorder
     {
         $this->recordCashInTax($transaction);
         $this->recordItemTax($transaction);
+        $this->recordCashTransactionTax($transaction);
         $this->recordLegacyTaxCashOut($transaction);
     }
 
@@ -120,6 +121,10 @@ class ReportingSummaryRecorder
         $gross = abs((float) $transaction->total);
 
         if ($entity->is_pkp) {
+            if ((float) $transaction->ppn > 0) {
+                return;
+            }
+
             if ($this->cashInShouldInferKeluaranTax($transaction)) {
                 $rate = $this->getPpnRate();
                 $dpp = round($gross / (1 + $rate), 2);
@@ -187,6 +192,94 @@ class ReportingSummaryRecorder
         );
 
         $summary->increment('tax_paid', (float) $transaction->total);
+    }
+
+    public function adjustCashTransactionTax(Transaction $transaction, float $previousPpn, ?float $previousPpnDpp): void
+    {
+        if (! $this->isWithinReportingCutover($transaction)) {
+            return;
+        }
+
+        if ($previousPpn > 0) {
+            $this->applyCashTransactionTax(
+                $transaction,
+                $previousPpn,
+                $previousPpnDpp ?? 0,
+                subtract: true,
+            );
+        }
+
+        if ((float) $transaction->ppn > 0) {
+            $this->applyCashTransactionTax(
+                $transaction,
+                (float) $transaction->ppn,
+                (float) ($transaction->ppn_dpp ?? 0),
+                subtract: false,
+            );
+        }
+    }
+
+    private function recordCashTransactionTax(Transaction $transaction): void
+    {
+        $tax = abs((float) $transaction->ppn);
+        if ($tax <= 0) {
+            return;
+        }
+
+        $dpp = abs((float) ($transaction->ppn_dpp ?? 0));
+        if ($dpp <= 0) {
+            return;
+        }
+
+        $this->applyCashTransactionTax($transaction, $tax, $dpp, subtract: false);
+    }
+
+    private function applyCashTransactionTax(
+        Transaction $transaction,
+        float $tax,
+        float $dpp,
+        bool $subtract,
+    ): void {
+        $type = (int) $transaction->type;
+
+        if (! in_array($type, [Transaction::TYPE_CASH_IN, Transaction::TYPE_CASH_OUT], true)) {
+            return;
+        }
+
+        if ($type === Transaction::TYPE_CASH_OUT && ReportingTaxAccount::findForLedger((int) $transaction->receiver_id)) {
+            return;
+        }
+
+        $entity = match ($type) {
+            Transaction::TYPE_CASH_OUT => ReportingEntity::findActiveForBank((int) $transaction->sender_id),
+            Transaction::TYPE_CASH_IN => ReportingEntity::findActiveForBank((int) $transaction->receiver_id),
+            default => null,
+        };
+
+        if (! $entity?->is_pkp) {
+            return;
+        }
+
+        $summary = $this->taxSummary(
+            $transaction->date->year,
+            $transaction->date->month,
+            $entity->id,
+        );
+
+        [$dppColumn, $taxColumn] = match ($type) {
+            Transaction::TYPE_CASH_OUT => ['ppn_masukan_dpp', 'ppn_masukan_tax'],
+            Transaction::TYPE_CASH_IN => ['ppn_keluaran_dpp', 'ppn_keluaran_tax'],
+            default => [null, null],
+        };
+
+        if ($subtract) {
+            $summary->decrement($dppColumn, $dpp);
+            $summary->decrement($taxColumn, $tax);
+
+            return;
+        }
+
+        $this->incrementTaxPair($summary, $dppColumn, $taxColumn, $dpp, $tax);
     }
 
     public function resolveReportSlugForLedger(int $ledgerId): ?string

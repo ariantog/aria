@@ -15,6 +15,7 @@ use App\Models\DeletedTransactionDetail;
 use App\Models\Transaction;
 use App\Services\BookClosingService;
 use App\Services\Jubelio\JubelioTransactionSyncPresenter;
+use App\Services\Reporting\ReportingSummaryRecorder;
 use App\Services\TransactionInvoiceService;
 use App\Services\TransactionListExportService;
 use App\Services\TransactionReturnDraftService;
@@ -182,6 +183,7 @@ class TransactionsController extends Controller
         return view('transactions.cash', [
             'bankList' => \App\Models\Addrbook::where('type', \App\Models\Addrbook::TYPE_BANK)->orderBy('name')->get(),
             'ppn_rate' => (float) \App\Models\Setting::getValue('ppn_rate', 11),
+            'pkpBankIds' => \App\Models\ReportingEntity::activePkpBankIds(),
             'min_date' => $bookClosingService->getMinAllowedDate()->toDateString(),
             'type' => 'in',
             'defaultAccount' => $userPreferences->defaultCashAccount(Auth::user(), true),
@@ -204,6 +206,7 @@ class TransactionsController extends Controller
         return view('transactions.cash', [
             'bankList' => \App\Models\Addrbook::where('type', \App\Models\Addrbook::TYPE_BANK)->orderBy('name')->get(),
             'ppn_rate' => (float) \App\Models\Setting::getValue('ppn_rate', 11),
+            'pkpBankIds' => \App\Models\ReportingEntity::activePkpBankIds(),
             'min_date' => $bookClosingService->getMinAllowedDate()->toDateString(),
             'type' => 'out',
             'defaultAccount' => $userPreferences->defaultCashAccount(Auth::user(), false),
@@ -285,6 +288,14 @@ class TransactionsController extends Controller
             && Transaction::userCanJubelioTransactionSync(Auth::user());
         $invoiceService = app(TransactionInvoiceService::class);
         $canDraftReturn = $this->canDraftReturn($transaction);
+        $cashBankId = match ((int) $transaction->type) {
+            Transaction::TYPE_CASH_IN => (int) $transaction->receiver_id,
+            Transaction::TYPE_CASH_OUT => (int) $transaction->sender_id,
+            default => 0,
+        };
+        $cashReportingEntity = $cashBankId > 0
+            ? \App\Models\ReportingEntity::findActiveForBank($cashBankId)
+            : null;
 
         return view('transactions.show', [
             'transaction' => $transaction,
@@ -300,6 +311,10 @@ class TransactionsController extends Controller
             'flash' => ['success' => session('success'), 'error' => session('error')],
             'hasInvoicePdf' => $invoiceService->invoicePdfExists($transaction),
             'invoicePdfUrl' => $invoiceService->invoicePdfUrl($transaction),
+            'canEditPpn' => Auth::user()->can(Transaction::getPermissions()['edit'])
+                && in_array((int) $transaction->type, [Transaction::TYPE_CASH_IN, Transaction::TYPE_CASH_OUT], true)
+                && ($cashReportingEntity?->is_pkp ?? false),
+            'ppn_rate' => (float) \App\Models\Setting::getValue('ppn_rate', 11),
         ]);
     }
 
@@ -486,6 +501,62 @@ class TransactionsController extends Controller
         }
 
         return back()->with('success', 'Transaction note updated.');
+    }
+
+    public function updatePpn(Request $request, Transaction $transaction, ReportingSummaryRecorder $recorder)
+    {
+        Gate::authorize(Transaction::getPermissions()['edit']);
+        abort_unless(
+            app(\App\Services\LocationAccessService::class)->canAccessTransaction(Auth::user(), $transaction),
+            403
+        );
+        abort_unless(
+            in_array((int) $transaction->type, [Transaction::TYPE_CASH_IN, Transaction::TYPE_CASH_OUT], true),
+            422,
+            'PPN can only be edited on cash in/out transactions.',
+        );
+
+        $bankId = (int) $transaction->type === Transaction::TYPE_CASH_IN
+            ? (int) $transaction->receiver_id
+            : (int) $transaction->sender_id;
+        $entity = \App\Models\ReportingEntity::findActiveForBank($bankId);
+        abort_unless($entity?->is_pkp, 422, 'This bank is not linked to a PKP reporting entity.');
+
+        $validated = $request->validate([
+            'record_ppn' => ['required', 'boolean'],
+            'ppn_dpp' => ['nullable', 'numeric', 'min:0'],
+            'ppn' => ['nullable', 'numeric', 'min:0'],
+        ]);
+
+        $recordPpn = filter_var($validated['record_ppn'], FILTER_VALIDATE_BOOLEAN);
+        if ($recordPpn) {
+            $request->validate([
+                'ppn_dpp' => ['required', 'numeric', 'min:0.01'],
+                'ppn' => ['required', 'numeric', 'min:0.01'],
+            ]);
+        }
+
+        $previousPpn = (float) $transaction->ppn;
+        $previousPpnDpp = $transaction->ppn_dpp !== null ? (float) $transaction->ppn_dpp : null;
+
+        $transaction->update([
+            'ppn' => $recordPpn ? (float) $validated['ppn'] : 0,
+            'ppn_dpp' => $recordPpn ? (float) $validated['ppn_dpp'] : null,
+        ]);
+
+        $recorder->adjustCashTransactionTax($transaction->fresh(), $previousPpn, $previousPpnDpp);
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'ppn' => (float) $transaction->ppn,
+                'ppn_dpp' => $transaction->ppn_dpp !== null ? (float) $transaction->ppn_dpp : null,
+                'record_ppn' => (float) $transaction->ppn > 0,
+                'display_ppn' => format_amount($transaction->ppn),
+                'display_dpp' => $transaction->ppn_dpp !== null ? format_amount($transaction->ppn_dpp) : '-',
+            ]);
+        }
+
+        return back()->with('success', 'Transaction PPN updated.');
     }
 
     public function destroy(Transaction $transaction, TransactionService $service, BookClosingService $bookClosingService)

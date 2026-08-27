@@ -26,10 +26,12 @@
         return \Illuminate\Support\Carbon::parse($d)->format('d/m/Y');
     };
     $noteText = $transaction->description ?: ($transaction->notes ?: '');
+    $hasRecordedPpn = (float) $transaction->ppn > 0;
+    $ppnDppDisplay = $transaction->ppn_dpp !== null ? $fmt($transaction->ppn_dpp) : '-';
 @endphp
 
 <div class="flex h-full flex-1 flex-col gap-4 overflow-x-auto rounded-xl p-4"
-     x-data="transactionShowPage({{ $transaction->id }}, @js($noteText), @js((bool) ($can['edit_transaction'] ?? false)))">
+     x-data="transactionShowPage({{ $transaction->id }}, @js($noteText), @js((bool) ($can['edit_transaction'] ?? false)), @js((bool) ($canEditPpn ?? false)), @js((float) $transaction->ppn), @js($transaction->ppn_dpp !== null ? (float) $transaction->ppn_dpp : null), @js((float) ($ppn_rate ?? 11)))">
 
     {{-- Top Action Bar --}}
     <div class="flex flex-col justify-between gap-4 md:flex-row md:items-center print:hidden">
@@ -120,6 +122,47 @@
                         class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
                     <span x-show="!noteSaving">Save</span>
                     <span x-show="noteSaving">Saving…</span>
+                </button>
+            </div>
+        </div>
+    </div>
+    @endif
+
+    @if($canEditPpn ?? false)
+    {{-- Edit PPN dialog --}}
+    <div x-show="ppnModalOpen" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 print:hidden"
+         @keydown.window.escape="ppnModalOpen = false">
+        <div @click.away="ppnModalOpen = false" class="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
+            <h3 class="text-lg font-semibold text-gray-900">Edit PPN</h3>
+            <p class="mt-1 text-sm text-gray-500">Record tax DPP and PPN for this cash transaction. The bank total stays unchanged.</p>
+            <div class="mt-4 space-y-3">
+                <label class="inline-flex items-center gap-2 text-sm font-medium text-gray-700">
+                    <input type="checkbox" x-model="ppnRecord" @change="onPpnRecordToggle()" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                    Record PPN for this transaction
+                </label>
+                <div x-show="ppnRecord" x-cloak class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div>
+                        <label for="tx-show-ppn-dpp" class="mb-1 block text-sm font-medium text-gray-700">DPP (Rp)</label>
+                        <input id="tx-show-ppn-dpp" type="number" min="0" step="any" x-model.number="ppnDppDraft"
+                               x-ref="ppnDppInput"
+                               @input="syncPpnDraftFromDpp()"
+                               class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label for="tx-show-ppn-tax" class="mb-1 block text-sm font-medium text-gray-700">PPN (Rp)</label>
+                        <input id="tx-show-ppn-tax" type="number" min="0" step="any" x-model.number="ppnTaxDraft"
+                               class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                    </div>
+                </div>
+                <p x-show="ppnError" x-text="ppnError" class="text-sm text-rose-600"></p>
+            </div>
+            <div class="mt-6 flex justify-end gap-2">
+                <button type="button" @click="ppnModalOpen = false"
+                        class="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Cancel</button>
+                <button type="button" @click="savePpn()" :disabled="ppnSaving"
+                        class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
+                    <span x-show="!ppnSaving">Save</span>
+                    <span x-show="ppnSaving">Saving…</span>
                 </button>
             </div>
         </div>
@@ -388,7 +431,21 @@
                 </div>
                 <div class="flex items-center justify-between text-sm">
                     <span class="text-gray-500">PPN / Tax</span>
-                    <span class="font-bold">{{ $fmt($transaction->ppn) }}</span>
+                    <div class="flex items-center gap-2">
+                        <span class="font-bold" x-text="ppnDisplay"></span>
+                        @if($canEditPpn ?? false)
+                        <button type="button"
+                                data-testid="edit-tx-show-ppn"
+                                @click="openPpnEdit()"
+                                class="inline-flex items-center rounded-md border border-gray-300 bg-white px-2 py-1 text-[11px] font-medium text-gray-700 hover:bg-gray-50 print:hidden">
+                            Edit
+                        </button>
+                        @endif
+                    </div>
+                </div>
+                <div x-show="ppnRecord" x-cloak class="flex items-center justify-between text-xs text-gray-500">
+                    <span>Tax DPP</span>
+                    <span x-text="ppnDppDisplay"></span>
                 </div>
                 <div class="pt-2">
                     <div class="flex items-center justify-between gap-3 rounded-lg bg-blue-600 p-4 text-white shadow-lg shadow-blue-500/20">
@@ -438,7 +495,7 @@
 
 @push('scripts')
 <script>
-function transactionShowPage(transactionId, initialNote, canEditNote) {
+function transactionShowPage(transactionId, initialNote, canEditNote, canEditPpn, initialPpn, initialPpnDpp, ppnRate) {
     const storageKey = 'aria-transaction-show-view';
     const defaults = { showImage: true, showBarcode: true, showSku: false, showName: true };
     let saved = {};
@@ -466,6 +523,19 @@ function transactionShowPage(transactionId, initialNote, canEditNote) {
         noteSaving: false,
         noteError: '',
         canEditNote: !!canEditNote,
+        canEditPpn: !!canEditPpn,
+        ppnRate: Number(ppnRate || 11),
+        ppnAmount: Number(initialPpn || 0),
+        ppnDppAmount: initialPpnDpp !== null ? Number(initialPpnDpp) : null,
+        ppnRecord: Number(initialPpn || 0) > 0,
+        ppnDisplay: formatAmountId(Number(initialPpn || 0)),
+        ppnDppDisplay: initialPpnDpp !== null ? formatAmountId(Number(initialPpnDpp)) : '-',
+        ppnModalOpen: false,
+        ppnDraft: Number(initialPpn || 0),
+        ppnDppDraft: initialPpnDpp !== null ? Number(initialPpnDpp) : null,
+        ppnTaxDraft: Number(initialPpn || 0),
+        ppnSaving: false,
+        ppnError: '',
         openNoteEdit() {
             if (!this.canEditNote) {
                 return;
@@ -503,6 +573,74 @@ function transactionShowPage(transactionId, initialNote, canEditNote) {
                 this.noteError = 'Failed to save note.';
             } finally {
                 this.noteSaving = false;
+            }
+        },
+        openPpnEdit() {
+            if (!this.canEditPpn) {
+                return;
+            }
+            this.ppnRecord = this.ppnAmount > 0;
+            this.ppnDppDraft = this.ppnDppAmount;
+            this.ppnTaxDraft = this.ppnAmount;
+            this.ppnError = '';
+            this.ppnModalOpen = true;
+            this.$nextTick(() => this.$refs.ppnDppInput?.focus());
+        },
+        onPpnRecordToggle() {
+            if (!this.ppnRecord) {
+                this.ppnDppDraft = null;
+                this.ppnTaxDraft = null;
+            }
+        },
+        syncPpnDraftFromDpp() {
+            if (!this.ppnRecord) {
+                return;
+            }
+            const dpp = Number(this.ppnDppDraft || 0);
+            if (dpp >= 0.01) {
+                this.ppnTaxDraft = Math.round(dpp * (this.ppnRate / 100) * 100) / 100;
+            }
+        },
+        async savePpn() {
+            if (!this.canEditPpn || this.ppnSaving) {
+                return;
+            }
+            if (this.ppnRecord && (!(Number(this.ppnDppDraft) >= 0.01) || !(Number(this.ppnTaxDraft) >= 0.01))) {
+                this.ppnError = 'DPP and PPN are required when recording PPN.';
+                return;
+            }
+            this.ppnSaving = true;
+            this.ppnError = '';
+            try {
+                const res = await fetch(`/transactions/${transactionId}/ppn`, {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]')?.content ?? '',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    body: JSON.stringify({
+                        record_ppn: !!this.ppnRecord,
+                        ppn_dpp: this.ppnRecord ? Number(this.ppnDppDraft || 0) : null,
+                        ppn: this.ppnRecord ? Number(this.ppnTaxDraft || 0) : null,
+                    }),
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) {
+                    this.ppnError = data.message || (data.errors?.ppn?.[0] ?? 'Failed to save PPN.');
+                    return;
+                }
+                this.ppnAmount = Number(data.ppn || 0);
+                this.ppnDppAmount = data.ppn_dpp !== null ? Number(data.ppn_dpp) : null;
+                this.ppnRecord = !!data.record_ppn;
+                this.ppnDisplay = data.display_ppn || formatAmountId(this.ppnAmount);
+                this.ppnDppDisplay = data.display_dpp || '-';
+                this.ppnModalOpen = false;
+            } catch (e) {
+                this.ppnError = 'Failed to save PPN.';
+            } finally {
+                this.ppnSaving = false;
             }
         },
         init() {
