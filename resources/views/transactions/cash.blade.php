@@ -72,6 +72,7 @@ $config = [
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Bank Account <span class="text-red-500">*</span></label>
                         <select name="account_id" x-model="form.account_id"
+                                @change="onAccountChange()"
                                 class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
                             <option value="">Select bank account…</option>
                             @foreach($bankList as $bank)
@@ -170,6 +171,41 @@ $config = [
                                     <span class="sm:hidden">Remove</span>
                                 </button>
                             </div>
+                            <div x-show="isPkpBank()" x-cloak class="sm:col-span-12 rounded-lg border border-dashed border-gray-200 bg-gray-50/80 px-3 py-2.5">
+                                <label class="inline-flex items-center gap-2 text-xs font-medium text-gray-700">
+                                    <input type="checkbox"
+                                           x-model="row.record_ppn"
+                                           @change="onRecordPpnToggle(row)"
+                                           class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                    Record PPN {{ $isCashIn ? 'keluaran' : 'masukan' }}
+                                </label>
+                                <div x-show="row.record_ppn" x-cloak class="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                                    <div>
+                                        <label class="mb-1 block text-[10px] font-medium uppercase tracking-wide text-gray-500">DPP (Rp)</label>
+                                        <input type="number"
+                                               x-model.number="row.ppn_dpp"
+                                               min="0"
+                                               step="any"
+                                               placeholder="0"
+                                               @input="syncPpnFromDpp(row)"
+                                               class="{{ $rowInput }}"
+                                               :class="rowInvalid(row) && row.record_ppn && !(Number(row.ppn_dpp) >= 0.01) ? 'border-red-400 bg-red-50' : ''">
+                                    </div>
+                                    <div>
+                                        <label class="mb-1 block text-[10px] font-medium uppercase tracking-wide text-gray-500">PPN (Rp)</label>
+                                        <input type="number"
+                                               x-model.number="row.ppn"
+                                               min="0"
+                                               step="any"
+                                               placeholder="0"
+                                               class="{{ $rowInput }}"
+                                               :class="rowInvalid(row) && row.record_ppn && !(Number(row.ppn) >= 0.01) ? 'border-red-400 bg-red-50' : ''">
+                                    </div>
+                                </div>
+                                <p x-show="row.record_ppn" x-cloak class="mt-1 text-[11px] text-gray-500">
+                                    Total above is the actual bank movement; DPP and PPN are recorded separately for tax reporting.
+                                </p>
+                            </div>
                         </div>
                     </template>
                 </div>
@@ -210,6 +246,8 @@ const _CashCsrf = '{{ csrf_token() }}';
 const _TxIndex = '{{ route('transactions.index') }}';
 const _CashMaxRows = 7;
 const _CashDefaultAccount = @json($defaultAccount ?? null);
+const _PkpBankIds = @json($pkpBankIds ?? []);
+const _PpnRate = {{ (float) ($ppn_rate ?? 11) }};
 
 function cashForm() {
     const today = new Date().toISOString().split('T')[0];
@@ -230,6 +268,47 @@ function cashForm() {
             if (_CashDefaultAccount) {
                 this.form.account_id = String(_CashDefaultAccount.id);
                 this.form.account = _CashDefaultAccount;
+            }
+        },
+
+        isPkpBank() {
+            return _PkpBankIds.includes(Number(this.form.account_id));
+        },
+
+        onAccountChange() {
+            if (this.isPkpBank()) {
+                return;
+            }
+            this.form.items.forEach((row) => this.resetRowPpn(row));
+        },
+
+        resetRowPpn(row) {
+            row.record_ppn = false;
+            row.ppn_dpp = null;
+            row.ppn = null;
+        },
+
+        onRecordPpnToggle(row) {
+            if (! row.record_ppn) {
+                this.resetRowPpn(row);
+                row.record_ppn = false;
+                return;
+            }
+            if (!(Number(row.ppn_dpp) >= 0.01)) {
+                row.ppn_dpp = null;
+            }
+            if (!(Number(row.ppn) >= 0.01)) {
+                row.ppn = null;
+            }
+        },
+
+        syncPpnFromDpp(row) {
+            if (! row.record_ppn) {
+                return;
+            }
+            const dpp = Number(row.ppn_dpp || 0);
+            if (dpp >= 0.01) {
+                row.ppn = Math.round(dpp * (_PpnRate / 100) * 100) / 100;
             }
         },
 
@@ -271,10 +350,16 @@ function cashForm() {
         accountValid() { return !!this.form.account_id; },
         rowEmpty(row) {
             return !row.customer_id && (row.total === null || row.total === '' || Number(row.total) === 0)
-                && !row.invoice && !row.note;
+                && !row.invoice && !row.note && !row.record_ppn;
         },
         rowValid(row) {
-            return !!row.customer_id && Number(row.total) >= 0.01;
+            if (!row.customer_id || !(Number(row.total) >= 0.01)) {
+                return false;
+            }
+            if (row.record_ppn) {
+                return Number(row.ppn_dpp) >= 0.01 && Number(row.ppn) >= 0.01;
+            }
+            return true;
         },
         rowInvalid(row) {
             return !this.rowEmpty(row) && !this.rowValid(row);
@@ -363,6 +448,9 @@ function cashForm() {
                     invoice: r.invoice,
                     note: r.note,
                     total: Number(r.total || 0),
+                    record_ppn: !!r.record_ppn,
+                    ppn_dpp: r.record_ppn ? Number(r.ppn_dpp || 0) : null,
+                    ppn: r.record_ppn ? Number(r.ppn || 0) : null,
                 })),
             };
 
@@ -414,6 +502,9 @@ function newRow() {
         invoice: '',
         note: '',
         total: null,
+        record_ppn: false,
+        ppn_dpp: null,
+        ppn: null,
     };
 }
 </script>
