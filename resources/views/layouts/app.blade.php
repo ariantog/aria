@@ -274,6 +274,27 @@ function isPrintableComboboxKey(key, e) {
     return key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey;
 }
 
+// Swallow Enter/Tab field navigation briefly after programmatic focus (Android IME).
+function suppressFieldNavigation(ms = 400) {
+    window._suppressFieldNavUntil = Date.now() + ms;
+}
+
+function isFieldNavigationSuppressed() {
+    return Date.now() < (window._suppressFieldNavUntil || 0);
+}
+
+// Defer focus until after keyup: $nextTick runs as a microtask before keyup on
+// Android/external keyboards, so the same Enter's keyup lands on the next field.
+function deferFocusElement(id, select = true) {
+    setTimeout(() => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.focus();
+            if (select && typeof el.select === 'function') el.select();
+        }
+    }, 0);
+}
+
 // ─── Autocomplete defaults (addrbook + item comboboxes) ─────────────────────
 const COMBOBOX_MIN_CHARS = 3;
 const COMBOBOX_MAX_RESULTS = 8;
@@ -361,6 +382,7 @@ function asyncCombobox(config) {
                 if (el) el.value = item ? item.id : '';
             }
             if (this.onSelect) this.onSelect(item);
+            if (item) suppressFieldNavigation(400);
         },
 
         clearSelection() {
