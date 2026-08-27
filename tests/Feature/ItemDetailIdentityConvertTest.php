@@ -67,18 +67,60 @@ it('warns about special sku families without a convert button', function () {
 });
 
 it('converts a single asset lancar item from the detail page', function () {
-    $item = makeLegacyAssetItem('GLOVE-01-BLACK-S', 'BOXING GLOVE - BLACK - S');
+    $gloveType = Tag::factory()->create([
+        'type' => Tag::TYPE_TYPE,
+        'item_type' => ItemType::ASSET_LANCAR->value,
+        'code' => 'GLOVE',
+        'name' => 'Glove',
+    ]);
+
+    $item = makeLegacyAssetItem('GLOVE-07-BLACK-S', 'MICROFIBER STRAP GYM GLOVE - BLACK - S');
+    $item->update(['genre' => $gloveType->id, 'pcode' => 'GLOVE-07']);
+    $item->tags()->sync([$gloveType->id]);
 
     $this->actingAs($this->user)
         ->post(route('assetlancar.convert-identity', $item))
         ->assertRedirect(route('assetlancar.show', $item))
         ->assertSessionHas('success');
 
-    $item->refresh();
+    $item->refresh()->load(['group', 'tags']);
 
-    expect($item->group_id)->not->toBeNull()
-        ->and($item->code)->toBe('GLOVE-01-BLACK-S')
-        ->and($item->tags->contains(fn (Tag $tag) => $tag->type === Tag::TYPE_WARNA))->toBeTrue();
+    expect($item->group_id)->toBeGreaterThan(0)
+        ->and($item->group?->master)->toBe('GLOVE-07')
+        ->and($item->group?->variant)->toBe('BLACK')
+        ->and($item->code)->toBe('GLOVE-07-BLACK-S')
+        ->and($item->genre)->toBe($gloveType->id)
+        ->and($item->tags->contains(fn (Tag $tag) => $tag->id === $gloveType->id))->toBeTrue()
+        ->and($item->tags->contains(fn (Tag $tag) => $tag->type === Tag::TYPE_WARNA))->toBeTrue()
+        ->and($item->tags->contains(fn (Tag $tag) => $tag->type === Tag::TYPE_SIZE))->toBeTrue();
+});
+
+it('links converted asset lancar items to parent group and restock type', function () {
+    $gloveType = Tag::factory()->create([
+        'type' => Tag::TYPE_TYPE,
+        'item_type' => ItemType::ASSET_LANCAR->value,
+        'code' => 'GLOVE',
+        'name' => 'Glove',
+    ]);
+
+    $item = makeLegacyAssetItem('GLOVE-07-BLACK-S', 'MICROFIBER STRAP GYM GLOVE - BLACK - S');
+    $item->update(['genre' => $gloveType->id, 'pcode' => 'GLOVE-07']);
+
+    app(LegacyItemConverterService::class)->convertSingleFromDetail(
+        $item->fresh(['tags', 'group']),
+        $this->user,
+    );
+
+    $item->refresh()->load(['group', 'tags']);
+
+    $parent = app(\App\Services\Items\ItemGroupHierarchyService::class)->parentDetail('2:GLOVE-07', false);
+    $restockQuery = app(\App\Services\Restock\RestockSheetService::class);
+    $method = new ReflectionMethod($restockQuery, 'assetLancarItemsForType');
+    $method->setAccessible(true);
+
+    expect($parent)->not->toBeNull()
+        ->and(collect($parent['colors'])->pluck('group_id'))->toContain($item->group_id)
+        ->and($method->invoke($restockQuery, $gloveType)->where('items.id', $item->id)->exists())->toBeTrue();
 });
 
 it('rejects generic convert for special sku posts', function () {

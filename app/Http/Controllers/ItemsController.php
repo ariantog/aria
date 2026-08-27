@@ -199,7 +199,7 @@ class ItemsController extends Controller
             'activeStock' => (float) $activeWarehouseItems->sum('quantity'),
             'deletedStock' => (float) $deletedWarehouseItems->sum('quantity'),
             'isAsset' => $item->type === ItemType::ASSET_LANCAR,
-            'groupUrl' => $item->group_id
+            'groupUrl' => $this->legacyConverter->hasProductGroup($item)
                 ? route('items.group-parent-detail', $this->identityBuilder->parentKeyToSlug(
                     $this->identityBuilder->itemParentKey($item)
                 ))
