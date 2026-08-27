@@ -67,6 +67,7 @@ class ProductionColumnDefaults
             'real_total' => 0,
             'cogs' => 0,
             'location_id' => 0,
+            'submit_type' => Transaction::SUBMIT_TYPE_MANUAL,
         ],
         'transaction_details' => [
             'transaction_disc' => 0,

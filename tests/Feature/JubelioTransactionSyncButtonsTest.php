@@ -359,7 +359,7 @@ it('shows move sync for superadmin when sender warehouse is mapped', function ()
         ->assertSee('Push to Jubelio — WH Super Move', false);
 });
 
-it('shows move sync when submit_type is legacy zero but ui reads aria submit', function () {
+it('does not show move sync when submit_type is not L10 aria submit (1)', function () {
     $user = seedTransactionShowUser();
     $sender = Addrbook::factory()->warehouse()->create(['name' => 'WH Legacy Submit']);
     $receiver = Addrbook::factory()->warehouse()->create();
@@ -374,13 +374,21 @@ it('shows move sync when submit_type is legacy zero but ui reads aria submit', f
     ]);
     seedItemTransactionDetail($transaction, $item);
 
-    expect($transaction->isManual())->toBeFalse()
-        ->and($transaction->isAriaSubmit())->toBeTrue();
-
-    $this->actingAs($user)
+    $html = $this->actingAs($user)
         ->get(route('transactions.show', $transaction))
         ->assertSuccessful()
-        ->assertSee('aria submit', false)
-        ->assertSee('Sinkron Jubelio', false)
-        ->assertSee('Push to Jubelio — WH Legacy Submit', false);
+        ->getContent();
+
+    expect($html)->not->toContain('Sinkron Jubelio')
+        ->and(substr_count($html, 'Push to Jubelio'))->toBe(0);
+});
+
+it('defaults submit_type to L10 aria submit on create when omitted', function () {
+    $transaction = Transaction::factory()->create([
+        'type' => Transaction::TYPE_MOVE,
+        'submit_type' => null,
+    ]);
+
+    expect($transaction->fresh()->submit_type)->toBe(Transaction::SUBMIT_TYPE_MANUAL)
+        ->and($transaction->isManual())->toBeTrue();
 });
