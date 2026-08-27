@@ -28,10 +28,11 @@
     $noteText = $transaction->description ?: ($transaction->notes ?: '');
     $hasRecordedPpn = (float) $transaction->ppn > 0;
     $ppnDppDisplay = $transaction->ppn_dpp !== null ? $fmt($transaction->ppn_dpp) : '-';
+    $cashTotalAbs = abs((float) $transaction->total);
 @endphp
 
 <div class="flex h-full flex-1 flex-col gap-4 overflow-x-auto rounded-xl p-4"
-     x-data="transactionShowPage({{ $transaction->id }}, @js($noteText), @js((bool) ($can['edit_transaction'] ?? false)), @js((bool) ($canEditPpn ?? false)), @js((float) $transaction->ppn), @js($transaction->ppn_dpp !== null ? (float) $transaction->ppn_dpp : null), @js((float) ($ppn_rate ?? 11)))">
+     x-data="transactionShowPage({{ $transaction->id }}, @js($noteText), @js((bool) ($can['edit_transaction'] ?? false)), @js((bool) ($canEditPpn ?? false)), @js((float) $transaction->ppn), @js($transaction->ppn_dpp !== null ? (float) $transaction->ppn_dpp : null), @js((float) ($ppn_rate ?? 11)), @js($cashTotalAbs))">
 
     {{-- Top Action Bar --}}
     <div class="flex flex-col justify-between gap-4 md:flex-row md:items-center print:hidden">
@@ -134,7 +135,7 @@
          @keydown.window.escape="ppnModalOpen = false">
         <div @click.away="ppnModalOpen = false" class="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
             <h3 class="text-lg font-semibold text-gray-900">Edit PPN</h3>
-            <p class="mt-1 text-sm text-gray-500">Record tax DPP and PPN for this cash transaction. The bank total stays unchanged.</p>
+            <p class="mt-1 text-sm text-gray-500">DPP and PPN are calculated from the transaction total. Edit either field if the invoice differs slightly or withholding applies.</p>
             <div class="mt-4 space-y-3">
                 <label class="inline-flex items-center gap-2 text-sm font-medium text-gray-700">
                     <input type="checkbox" x-model="ppnRecord" @change="onPpnRecordToggle()" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
@@ -145,12 +146,13 @@
                         <label for="tx-show-ppn-dpp" class="mb-1 block text-sm font-medium text-gray-700">DPP (Rp)</label>
                         <input id="tx-show-ppn-dpp" type="number" min="0" step="any" x-model.number="ppnDppDraft"
                                x-ref="ppnDppInput"
-                               @input="syncPpnDraftFromDpp()"
+                               @input="ppnManual = true"
                                class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
                     </div>
                     <div>
                         <label for="tx-show-ppn-tax" class="mb-1 block text-sm font-medium text-gray-700">PPN (Rp)</label>
                         <input id="tx-show-ppn-tax" type="number" min="0" step="any" x-model.number="ppnTaxDraft"
+                               @input="ppnManual = true"
                                class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
                     </div>
                 </div>
@@ -495,7 +497,7 @@
 
 @push('scripts')
 <script>
-function transactionShowPage(transactionId, initialNote, canEditNote, canEditPpn, initialPpn, initialPpnDpp, ppnRate) {
+function transactionShowPage(transactionId, initialNote, canEditNote, canEditPpn, initialPpn, initialPpnDpp, ppnRate, transactionTotal) {
     const storageKey = 'aria-transaction-show-view';
     const defaults = { showImage: true, showBarcode: true, showSku: false, showName: true };
     let saved = {};
@@ -525,6 +527,8 @@ function transactionShowPage(transactionId, initialNote, canEditNote, canEditPpn
         canEditNote: !!canEditNote,
         canEditPpn: !!canEditPpn,
         ppnRate: Number(ppnRate || 11),
+        transactionTotal: Number(transactionTotal || 0),
+        ppnManual: Number(initialPpn || 0) > 0,
         ppnAmount: Number(initialPpn || 0),
         ppnDppAmount: initialPpnDpp !== null ? Number(initialPpnDpp) : null,
         ppnRecord: Number(initialPpn || 0) > 0,
@@ -580,30 +584,41 @@ function transactionShowPage(transactionId, initialNote, canEditNote, canEditPpn
                 return;
             }
             this.ppnRecord = this.ppnAmount > 0;
+            this.ppnManual = this.ppnAmount > 0;
             this.ppnDppDraft = this.ppnDppAmount;
             this.ppnTaxDraft = this.ppnAmount;
             this.ppnError = '';
             this.ppnModalOpen = true;
+            if (this.ppnRecord && ! this.ppnManual) {
+                this.syncPpnDraftFromTotal();
+            }
             this.$nextTick(() => this.$refs.ppnDppInput?.focus());
         },
         onPpnRecordToggle() {
             if (!this.ppnRecord) {
                 this.ppnDppDraft = null;
                 this.ppnTaxDraft = null;
-            }
-        },
-        syncPpnDraftFromDpp() {
-            if (!this.ppnRecord) {
+                this.ppnManual = false;
                 return;
             }
-            const dpp = Number(this.ppnDppDraft || 0);
-            if (dpp >= 0.01) {
-                this.ppnTaxDraft = Math.round(dpp * (this.ppnRate / 100) * 100) / 100;
+            this.ppnManual = false;
+            this.syncPpnDraftFromTotal();
+        },
+        syncPpnDraftFromTotal() {
+            const gross = Number(this.transactionTotal || 0);
+            if (gross < 0.01) {
+                return;
             }
+            const rate = this.ppnRate / 100;
+            this.ppnDppDraft = Math.round(gross / (1 + rate) * 100) / 100;
+            this.ppnTaxDraft = Math.round((gross - this.ppnDppDraft) * 100) / 100;
         },
         async savePpn() {
             if (!this.canEditPpn || this.ppnSaving) {
                 return;
+            }
+            if (this.ppnRecord && ! this.ppnManual) {
+                this.syncPpnDraftFromTotal();
             }
             if (this.ppnRecord && (!(Number(this.ppnDppDraft) >= 0.01) || !(Number(this.ppnTaxDraft) >= 0.01))) {
                 this.ppnError = 'DPP and PPN are required when recording PPN.';

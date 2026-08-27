@@ -13,6 +13,7 @@ use App\Http\Requests\StoreTransferRequest;
 use App\Models\DeletedTransaction;
 use App\Models\DeletedTransactionDetail;
 use App\Models\Transaction;
+use App\Support\PpnAmounts;
 use App\Services\BookClosingService;
 use App\Services\Jubelio\JubelioTransactionSyncPresenter;
 use App\Services\Reporting\ReportingSummaryRecorder;
@@ -529,19 +530,29 @@ class TransactionsController extends Controller
         ]);
 
         $recordPpn = filter_var($validated['record_ppn'], FILTER_VALIDATE_BOOLEAN);
+
+        $ppn = 0.0;
+        $ppnDpp = null;
         if ($recordPpn) {
-            $request->validate([
-                'ppn_dpp' => ['required', 'numeric', 'min:0.01'],
-                'ppn' => ['required', 'numeric', 'min:0.01'],
-            ]);
+            $submittedPpn = (float) ($validated['ppn'] ?? 0);
+            $submittedDpp = isset($validated['ppn_dpp']) ? (float) $validated['ppn_dpp'] : null;
+
+            if ($submittedPpn >= 0.01 && $submittedDpp !== null && $submittedDpp >= 0.01) {
+                $ppn = $submittedPpn;
+                $ppnDpp = $submittedDpp;
+            } else {
+                $amounts = PpnAmounts::fromGross((float) $transaction->total);
+                $ppn = $amounts['ppn'];
+                $ppnDpp = $amounts['dpp'];
+            }
         }
 
         $previousPpn = (float) $transaction->ppn;
         $previousPpnDpp = $transaction->ppn_dpp !== null ? (float) $transaction->ppn_dpp : null;
 
         $transaction->update([
-            'ppn' => $recordPpn ? (float) $validated['ppn'] : 0,
-            'ppn_dpp' => $recordPpn ? (float) $validated['ppn_dpp'] : null,
+            'ppn' => $ppn,
+            'ppn_dpp' => $ppnDpp,
         ]);
 
         $recorder->adjustCashTransactionTax($transaction->fresh(), $previousPpn, $previousPpnDpp);

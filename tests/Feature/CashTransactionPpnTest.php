@@ -34,6 +34,26 @@ function createPkpCashOutFixture(): array
     return compact('entity', 'bank', 'ledger');
 }
 
+it('auto-calculates PPN from gross total when switch is on without manual amounts', function () {
+    $data = createPkpCashOutFixture();
+    $gross = 1_110_000;
+
+    $this->actingAs($this->user)->postJson(route('transactions.cash-out.store'), [
+        'date' => $this->testDate,
+        'account_id' => $data['bank']->id,
+        'items' => [[
+            'customer_id' => $data['ledger']->id,
+            'total' => $gross,
+            'record_ppn' => true,
+        ]],
+    ])->assertRedirect();
+
+    $transaction = Transaction::query()->latest('id')->first();
+
+    expect((float) $transaction->ppn_dpp)->toBe(1_000_000.0)
+        ->and((float) $transaction->ppn)->toBe(110_000.0);
+});
+
 it('stores cash out with explicit PPN masukan when row switch is on', function () {
     $data = createPkpCashOutFixture();
 

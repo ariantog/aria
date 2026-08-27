@@ -5,6 +5,7 @@ namespace App\Actions\Transactions;
 use App\Http\Requests\StoreCashTransactionRequest;
 use App\Models\Addrbook;
 use App\Models\Transaction;
+use App\Support\PpnAmounts;
 use App\Services\TransactionService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -28,8 +29,7 @@ class CreateCashTransaction
                 $total = (float) $item['total'];
                 $grandTotal = Transaction::signedAmount($type, $total);
                 $recordPpn = filter_var($item['record_ppn'] ?? false, FILTER_VALIDATE_BOOLEAN);
-                $ppn = $recordPpn ? (float) $item['ppn'] : 0;
-                $ppnDpp = $recordPpn ? (float) $item['ppn_dpp'] : null;
+                [$ppn, $ppnDpp] = $this->resolveCashPpnAmounts($recordPpn, $total, $item);
                 $trx = Transaction::create([
                     'date' => $data['date'], 'type' => $type,
                     'sender_type' => (int) $sender->type,
@@ -56,5 +56,26 @@ class CreateCashTransaction
         });
 
         return $createdIds;
+    }
+
+    /**
+     * @return array{0: float, 1: float|null}
+     */
+    private function resolveCashPpnAmounts(bool $recordPpn, float $total, array $item): array
+    {
+        if (! $recordPpn) {
+            return [0, null];
+        }
+
+        $ppn = (float) ($item['ppn'] ?? 0);
+        $ppnDpp = isset($item['ppn_dpp']) ? (float) $item['ppn_dpp'] : null;
+
+        if ($ppn >= 0.01 && $ppnDpp !== null && $ppnDpp >= 0.01) {
+            return [$ppn, $ppnDpp];
+        }
+
+        $amounts = PpnAmounts::fromGross($total);
+
+        return [$amounts['ppn'], $amounts['dpp']];
     }
 }
