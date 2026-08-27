@@ -70,11 +70,44 @@ migration file must be production-safe on its own**:
 - Fresh prod bootstrap = `2026_08_13_100000_production_database_bootstrap` (+ seeder). Add new
   L12 tables to the bootstrap's `up()` list as well as shipping the standalone migration.
 
+## AI agent restrictions (MUST follow)
+
+These override generic Laravel / accounting assumptions. **Do not "fix" or refactor these unless the
+user explicitly asks.**
+
+### No demo videos or GUI walkthroughs
+
+- **Do NOT record demo videos, screen recordings, or walkthrough artifacts** (including
+  `RecordScreen`, `computerUse` demos, and browser-based "prove it works" recordings).
+- The maintainer tests manually. Implement, run `./vendor/bin/pest` / `curl` / tinker as needed, **commit**,
+  and open a PR. Avoid burning tokens on GUI demos.
+
+### Do NOT change signed transaction totals
+
+`transactions.total` and `transactions.real_total` are **signed integers/decimals by design** — not
+unsigned amounts with sign inferred elsewhere.
+
+- **Sign convention (do not flip):** positive = sender owes receiver; negative = receiver owes sender.
+  **Buy / Return / CashIn → positive.** **Sell / ReturnSupplier / CashOut / Transfer → negative.**
+  Authoritative helper: `Transaction::signedAmount($type, $amount)` in `app/Models/Transaction.php`.
+- **When writing new transactions**, store totals through `Transaction::signedAmount()` (see
+  `CreateItemTransaction`, `CreateCashTransaction`, `CreateTransferTransaction`). Do **not** store
+  `abs($grandTotal)` and apply sign later.
+- **When reading totals for balances**, use `TransactionService::balanceAmount()` — it already
+  normalizes legacy rows via `signedAmount(abs($stored))`. Do **not** replace this with bare
+  `abs()`, `*-1` flips, debit/credit logic, or "always store positive" refactors.
+- **Display-only** formatting may use `abs()` for human-readable currency; **do not** change what is
+  persisted based on display needs.
+- **Do not edit** `Transaction::signedAmount()`, `Transaction::typeIsNegative()`, or tests such as
+  `tests/Unit/TransactionSignedAmountTest.php` and `tests/Feature/TransactionBalanceIntegrityTest.php`
+  unless the task **explicitly** requests a signed-total convention change.
+- **Balance bugs:** fix running-balance recalculation, observer/job ordering, or back-dated row
+  updates — **not** the sign convention. If a row looks "wrong", check whether you are comparing
+  against legacy unsigned data before rewriting the signing rules.
+
 ## Testing & workflow preferences (IMPORTANT)
 
-- **Do NOT record demo videos or screen recordings, and do NOT run computerUse "demo" walkthroughs.**
-  The maintainer tests manually. Just implement and **commit** the code for review. Avoid burning
-  tokens on GUI demos.
+- See **AI agent restrictions** above — no demo videos or GUI walkthroughs.
 - Lightweight functional checks are still fine and encouraged before committing: run `./vendor/bin/pest`,
   and use `curl`/`php artisan tinker` to sanity‑check routes, queries, and JSON endpoints.
 - Commit each logical change separately with a clear message; push to the working branch.
@@ -111,6 +144,7 @@ migration file must be production-safe on its own**:
 - Balances use **signed values**, not debit/credit. Parties are sender/receiver; a positive value/balance
   means the sender owes the receiver, negative means the receiver owes the sender. buy/return → total
   positive; sell/return-supplier → total negative. The double-entry is handled in the background.
+  **Agents: do not change this convention** — see **AI agent restrictions** above.
 - Transaction types (`App\Enums\TransactionType`): Buy=1, Sell=2, Move=3, Transfer=6, CashOut=7, Use=8,
   CashIn=9, Adjust=12, Return=15, Production=16, ReturnSupplier=17, Depreciation=18. Legal sender/receiver
   types per transaction live in `config/transaction_rules.php`.
@@ -183,7 +217,8 @@ own branch, with its own PR.
   already-merged branch (it causes messy rebases). If task B truly depends on unmerged task A, say so
   explicitly and I'll branch B off A.
 - **One PR per branch.** I'll commit each logical change separately, run `./vendor/bin/pest` (and the
-  `BladePagesRenderTest` smoke test after touching Blade), and open a draft PR. No demo videos.
+  `BladePagesRenderTest` smoke test after touching Blade), and open a draft PR. No demo videos (see
+  **AI agent restrictions**).
 - **Kickoff prompt template** to paste into the new chat:
   ```
   Goal: <what to build / fix>
