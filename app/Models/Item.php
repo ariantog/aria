@@ -44,7 +44,6 @@ class Item extends Model
         'tag_ids',
         'description',
         'description2',
-        'url',
         'jubelio_item_id',
         'restock_urgent_threshold',
     ];

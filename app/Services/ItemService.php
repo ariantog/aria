@@ -310,6 +310,9 @@ class ItemService
         $item->cost = $input->cost ?? $item->cost ?? 0;
         $item->description = $input->description ?? $item->description ?? '';
         $item->description2 = $input->description2 ?? $item->description2 ?? '';
+        $item->restock_urgent_threshold = $this->normalizeRestockUrgentThreshold(
+            $input->restock_urgent_threshold ?? $item->restock_urgent_threshold
+        );
         $item->size = $sizeTag?->id ?? 0;
         $item->genre = $typeTag?->id ?? 0;
         $item->brand = $this->resolveBrand($pcode);
@@ -336,6 +339,7 @@ class ItemService
                 'name' => $storedName,
                 'description' => isset($input->description) ? strtoupper($input->description) : null,
                 'description2' => isset($input->description2) ? strtoupper($input->description2) : null,
+                'url' => $this->normalizeUrl($input->url ?? null),
             ],
         );
 
@@ -349,6 +353,10 @@ class ItemService
 
         if (isset($input->description2)) {
             $group->description2 = strtoupper($input->description2);
+        }
+
+        if (isset($input->url)) {
+            $group->url = $this->normalizeUrl($input->url);
         }
 
         $group->save();
@@ -572,5 +580,23 @@ class ItemService
         }
 
         return ItemType::tryFrom((int) $value) ?? ItemType::ITEM;
+    }
+
+    private function normalizeUrl(mixed $value): ?string
+    {
+        $url = trim((string) ($value ?? ''));
+
+        return $url === '' ? null : $url;
+    }
+
+    private function normalizeRestockUrgentThreshold(mixed $value): ?int
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        $threshold = (int) $value;
+
+        return $threshold > 0 ? $threshold : null;
     }
 }

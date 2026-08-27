@@ -33,6 +33,8 @@ $formItem = [
     'cost' => old('cost', $item->cost),
     'description' => old('description', $item->description),
     'description2' => old('description2', $item->description2),
+    'url' => old('url', optional($item->group)->url),
+    'restock_urgent_threshold' => old('restock_urgent_threshold', $item->restock_urgent_threshold),
 ];
 @endphp
 

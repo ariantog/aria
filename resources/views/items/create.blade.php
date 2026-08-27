@@ -9,6 +9,8 @@
         'cost' => old('cost'),
         'description' => old('description'),
         'description2' => old('description2'),
+        'url' => old('url'),
+        'restock_urgent_threshold' => old('restock_urgent_threshold'),
     ];
 @endphp
 @section('title', $isAsset ? 'Create New Asset' : 'Create New Item')
