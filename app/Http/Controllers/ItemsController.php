@@ -211,14 +211,30 @@ class ItemsController extends Controller
     protected function detailIdentityConvertContext(Item $item): ?array
     {
         $user = auth()->user();
+        $permissions = Item::getPermissions();
+        $viewPermission = $item->type === ItemType::ASSET_LANCAR
+            ? $permissions['asset-lancar-view']
+            : $permissions['view'];
 
-        if (! $user?->is_superadmin && ! Gate::check(Item::getPermissions()['convert-legacy'])) {
+        if (! $user?->is_superadmin && ! Gate::check($viewPermission)) {
             return null;
         }
 
         $context = $this->legacyConverter->detailConvertContext($item);
 
-        return $context['visible'] ? $context : null;
+        if (! $context['visible']) {
+            return null;
+        }
+
+        $canConvert = $user?->is_superadmin || Gate::check($permissions['convert-legacy']);
+        $context['can_convert'] = $canConvert;
+
+        if (! $canConvert) {
+            $context['convertible'] = false;
+            $context['message'] = trim(($context['message'] ?? '').' Legacy Converter permission is required to run conversion.');
+        }
+
+        return $context;
     }
 
     public function edit(Item $item)

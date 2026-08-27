@@ -714,7 +714,8 @@ class LegacyItemConverterService
         }
 
         if ($itemType === ItemType::ASSET_LANCAR) {
-            return $this->itemLinkedToExpectedGroup($item, $parse, $itemType);
+            return $this->itemLinkedToExpectedGroup($item, $parse, $itemType)
+                && $this->resolveAssetLancarTypeTag($item) !== null;
         }
 
         return true;
@@ -725,6 +726,11 @@ class LegacyItemConverterService
         $group = $item->group;
 
         if (! $group) {
+            return false;
+        }
+
+        $groupMaster = strtoupper(trim((string) ($group->master ?? '')));
+        if ($groupMaster === '') {
             return false;
         }
 
@@ -819,7 +825,7 @@ class LegacyItemConverterService
             ];
         }
 
-        if ($parse->success && $this->isAlreadyCanonical($item, $parse)) {
+        if ($parse->success && $this->isDetailConversionComplete($item, $parse)) {
             return array_merge($hidden, ['message' => 'Item is already converted and linked to its product group.']);
         }
 
@@ -841,12 +847,31 @@ class LegacyItemConverterService
             'parse' => $parse,
             'message' => $this->detailConversionRepairMessage($item, $parse, $itemType),
             'item_type' => $itemType,
+            'can_convert' => true,
         ];
+    }
+
+    /**
+     * Detail panel hides only when SKU, group link, tags, and asset TYPE tag are all complete.
+     */
+    public function isDetailConversionComplete(Item $item, LegacyParseResult $parse): bool
+    {
+        if (! $parse->success || ! $this->isAlreadyCanonical($item, $parse)) {
+            return false;
+        }
+
+        $itemType = $this->makeParser()->resolveItemType($item);
+
+        if ($itemType === ItemType::ASSET_LANCAR) {
+            return $this->resolveAssetLancarTypeTag($item) !== null;
+        }
+
+        return true;
     }
 
     protected function detailConversionRepairMessage(Item $item, LegacyParseResult $parse, ItemType $itemType): ?string
     {
-        if ($this->isAlreadyCanonical($item, $parse)) {
+        if ($this->isDetailConversionComplete($item, $parse)) {
             return null;
         }
 
@@ -861,6 +886,10 @@ class LegacyItemConverterService
 
             return 'Item is linked to the wrong product group (expected '
                 .$parsed['master'].' / '.$expectedVariant.'). Converting will relink it.';
+        }
+
+        if ($itemType === ItemType::ASSET_LANCAR && $this->resolveAssetLancarTypeTag($item) === null) {
+            return 'Item is missing the asset TYPE tag (e.g. GLOVE) required for restock. Converting will restore it.';
         }
 
         return 'Item identity is incomplete. Converting will finish group link, tags, and SKU.';
