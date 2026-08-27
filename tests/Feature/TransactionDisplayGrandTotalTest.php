@@ -41,11 +41,36 @@ it('reads jubelio sell net receivable regardless of which header column stores i
     ]);
 
     expect($legacyLayout->displayGrandTotal())->toBe(42935.0)
-        ->and($l10Layout->displayGrandTotal())->toBe(42935.0)
-        ->and($l10Layout->displayListTotal())->toBe(42935.0);
+        ->and($l10Layout->displayGrandTotal())->toBe(42935.0);
 });
 
-it('shows corrected grand total on transaction show for legacy jubelio rows', function () {
+it('shows signed header total on transaction list and detail', function () {
+    $sell = Transaction::factory()->create([
+        'type' => Transaction::TYPE_SELL,
+        'total' => -150_000,
+        'real_total' => -150_000,
+        'invoice' => 'INV-SIGNED-SELL',
+    ]);
+    $buy = Transaction::factory()->create([
+        'type' => Transaction::TYPE_BUY,
+        'total' => 75_000,
+        'real_total' => 75_000,
+        'invoice' => 'INV-SIGNED-BUY',
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('transactions.index'))
+        ->assertOk()
+        ->assertSee('-150,000', false)
+        ->assertSee('75,000', false);
+
+    $this->actingAs($this->user)
+        ->get(route('transactions.show', $sell))
+        ->assertOk()
+        ->assertSee('-150,000', false);
+});
+
+it('shows signed header total on legacy jubelio transaction detail', function () {
     $warehouse = Addrbook::factory()->warehouse()->create();
     $customer = Addrbook::factory()->create(['type' => Addrbook::TYPE_CUSTOMER]);
     $item = Item::factory()->create();
@@ -80,7 +105,7 @@ it('shows corrected grand total on transaction show for legacy jubelio rows', fu
     $this->actingAs($this->user)
         ->get(route('transactions.show', $transaction))
         ->assertOk()
-        ->assertSee('82,350', false);
+        ->assertSee('-82,350', false);
 });
 
 it('uses line-item sum for summary subtotal when header total is net receivable', function () {
@@ -141,5 +166,5 @@ it('exposes display helpers on deleted transactions and renders deleted show', f
     $this->actingAs($this->user)
         ->get(route('transactions.deleted.show', $deleted->id))
         ->assertOk()
-        ->assertSee('82,350', false);
+        ->assertSee('-82,350', false);
 });

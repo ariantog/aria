@@ -36,11 +36,11 @@ trait DisplaysTransactionTotals
     }
 
     /**
-     * Positive net payable for detail pages, print, and PDF.
+     * Positive net payable for PDF export and print (unsigned).
      *
-     * Jubelio rows may store subtotal/receivable on either header column depending on
-     * era (L10 legacy, pre-fix L12, or current L10-aligned cron). Net is always the
-     * smaller absolute header amount when they differ.
+     * Manual Aria rows store net on `real_total` and gross line sum on `total`.
+     * Jubelio rows may store subtotal/receivable on either column depending on era;
+     * net is the smaller absolute header amount when they differ.
      */
     public function displayGrandTotal(): float
     {
@@ -59,18 +59,5 @@ trait DisplaysTransactionTotals
         }
 
         return $real;
-    }
-
-    /** Amount shown in transaction lists — net receivable for Jubelio, header total otherwise. */
-    public function displayListTotal(): float
-    {
-        if (
-            $this->isFromJubelio()
-            && in_array((int) $this->type, [Transaction::TYPE_SELL, Transaction::TYPE_RETURN], true)
-        ) {
-            return $this->displayGrandTotal();
-        }
-
-        return abs((float) $this->total);
     }
 }
