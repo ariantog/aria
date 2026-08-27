@@ -473,16 +473,6 @@ class LegacyItemConverterService
             return $this->recordResult($run, $item, ItemIdentityConversionResult::STATUS_FAILED, $parse, $dryRun);
         }
 
-        if ($this->hasPreservedLegacyCode($item)) {
-            $skipped = LegacyParseResult::failure(
-                'ALREADY_CONVERTED',
-                'Item already has a preserved legacy_code; skipping re-conversion.',
-                $parse->snapshot,
-            );
-
-            return $this->recordResult($run, $item, ItemIdentityConversionResult::STATUS_SKIPPED, $skipped, $dryRun);
-        }
-
         if ($this->isAlreadyCanonical($item, $parse)) {
             return $this->recordResult($run, $item, ItemIdentityConversionResult::STATUS_SKIPPED, $parse, $dryRun);
         }
@@ -783,7 +773,7 @@ class LegacyItemConverterService
     }
 
     /**
-     * Detail-page convert panel: ungrouped items still on a legacy SKU (no preserved legacy_code).
+     * Detail-page convert panel: items not yet fully canonical (group link, tags, SKU).
      *
      * @return array{
      *     visible: bool,
@@ -811,14 +801,6 @@ class LegacyItemConverterService
             return array_merge($hidden, ['message' => 'Unsupported item type for identity conversion.']);
         }
 
-        if ($this->hasProductGroup($item)) {
-            return array_merge($hidden, ['message' => 'Item already belongs to a product group.']);
-        }
-
-        if (! $this->isPendingConversion($item)) {
-            return array_merge($hidden, ['message' => 'Item already has a preserved legacy SKU.']);
-        }
-
         $specialRules = new SpecialSkuConverterRules;
         $specialFamily = $specialRules->matchingFamilyPrefix((string) $item->code);
 
@@ -837,6 +819,10 @@ class LegacyItemConverterService
             ];
         }
 
+        if ($parse->success && $this->isAlreadyCanonical($item, $parse)) {
+            return array_merge($hidden, ['message' => 'Item is already converted and linked to its product group.']);
+        }
+
         if (! $parse->success) {
             return [
                 'visible' => true,
@@ -853,9 +839,31 @@ class LegacyItemConverterService
             'convertible' => true,
             'special_family' => null,
             'parse' => $parse,
-            'message' => null,
+            'message' => $this->detailConversionRepairMessage($item, $parse, $itemType),
             'item_type' => $itemType,
         ];
+    }
+
+    protected function detailConversionRepairMessage(Item $item, LegacyParseResult $parse, ItemType $itemType): ?string
+    {
+        if ($this->isAlreadyCanonical($item, $parse)) {
+            return null;
+        }
+
+        if (! $this->hasProductGroup($item)) {
+            return 'Item is not linked to a product group yet. Converting will create or reuse the correct group.';
+        }
+
+        if (! $this->itemLinkedToExpectedGroup($item, $parse, $itemType)) {
+            $parsed = $this->identityBuilder->parsePcode($itemType, (string) $parse->pcode);
+            $warnaTag = Tag::findWarnaTag((string) $parse->warnaCode);
+            $expectedVariant = $this->identityBuilder->groupVariant($itemType, (string) $parse->pcode, $warnaTag);
+
+            return 'Item is linked to the wrong product group (expected '
+                .$parsed['master'].' / '.$expectedVariant.'). Converting will relink it.';
+        }
+
+        return 'Item identity is incomplete. Converting will finish group link, tags, and SKU.';
     }
 
     public function convertSingleFromDetail(Item $item, User $user): ItemIdentityConversionResult
