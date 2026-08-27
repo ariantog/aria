@@ -278,12 +278,7 @@ class ShopeeAdsApiService
                 $out[] = [
                     'campaign_id' => (string) ($c['campaign_id'] ?? ''),
                     'campaign_name' => (string) ($common['ad_name'] ?? $c['ad_name'] ?? 'Campaign '.($c['campaign_id'] ?? '')),
-                    'budget' => (float) (
-                        $budgetInfo['campaign_budget']
-                        ?? $common['campaign_budget']
-                        ?? $c['campaign_budget']
-                        ?? 0
-                    ),
+                    'budget' => (float) ($this->extractCampaignBudgetFromSettingRow($c) ?? 0),
                     'status' => strtolower((string) ($common['campaign_status'] ?? $c['campaign_status'] ?? '')),
                     'item_id' => $itemId,
                     'raw' => $c,
@@ -294,17 +289,67 @@ class ShopeeAdsApiService
         return $out;
     }
 
-    public function getCampaignLiveBudget(string $campaignId): ?int
+    /**
+     * Live GMV-Max daily budget from Shopee (get_product_level_campaign_setting_info).
+     */
+    public function getGmsLiveBudget(string $campaignId): ?int
     {
         $infos = $this->campaignSettingInfo([(int) $campaignId]);
 
         if ($infos === []) {
+            Log::warning('GMV-Max live budget fetch returned no campaign settings', [
+                'campaign_id' => $campaignId,
+            ]);
+
             return null;
         }
 
-        $budget = (float) ($infos[0]['budget'] ?? 0);
+        $budget = $this->extractCampaignBudgetFromSettingRow($infos[0]['raw'] ?? []);
 
-        return $budget > 0 ? (int) round($budget) : null;
+        if ($budget === null) {
+            Log::warning('GMV-Max live budget missing in Shopee campaign settings', [
+                'campaign_id' => $campaignId,
+            ]);
+        }
+
+        return $budget;
+    }
+
+    public function getCampaignLiveBudget(string $campaignId): ?int
+    {
+        return $this->getGmsLiveBudget($campaignId);
+    }
+
+    /**
+     * @param  array<string, mixed>  $row
+     */
+    private function extractCampaignBudgetFromSettingRow(array $row): ?int
+    {
+        $common = $row['common_info'] ?? [];
+        $manual = $row['manual_bidding_info'] ?? [];
+        $auto = $row['auto_bidding_info'] ?? [];
+        $gms = $row['gms_info'] ?? $row['gms_campaign_info'] ?? [];
+
+        $candidates = [
+            $common['campaign_budget'] ?? null,
+            $common['daily_budget'] ?? null,
+            $gms['daily_budget'] ?? null,
+            $gms['campaign_budget'] ?? null,
+            $manual['campaign_budget'] ?? null,
+            $manual['daily_budget'] ?? null,
+            $auto['campaign_budget'] ?? null,
+            $auto['daily_budget'] ?? null,
+            $row['campaign_budget'] ?? null,
+            $row['daily_budget'] ?? null,
+        ];
+
+        foreach ($candidates as $value) {
+            if ($value !== null && (float) $value > 0) {
+                return (int) round((float) $value);
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -548,16 +593,29 @@ class ShopeeAdsApiService
     /**
      * @return array{before: int, after: int, applied_increment: int}|null
      */
-    public function addGmsBudget(string $campaignId, int $trackedBudget, int $incrementIdr, int $combinedCap): ?array
+    public function addGmsBudget(string $campaignId, int $fallbackBudget, int $incrementIdr, int $maxGmvBudget, ?int $knownLive = null): ?array
     {
-        $live = $this->getCampaignLiveBudget($campaignId);
-        $current = $live ?? $trackedBudget;
+        $live = $knownLive ?? $this->getGmsLiveBudget($campaignId);
+        $current = ($live !== null && $live > 0) ? $live : $fallbackBudget;
 
         if ($current <= 0) {
             return null;
         }
 
-        $perCampaignCap = $current + max(0, $combinedCap - $current);
+        if ($live === null) {
+            Log::warning('GMV-Max increment falling back to tracked DB budget (live fetch failed)', [
+                'campaign_id' => $campaignId,
+                'tracked' => $fallbackBudget,
+            ]);
+        } elseif ($live !== $fallbackBudget) {
+            Log::info('GMV-Max increment using live Shopee budget', [
+                'campaign_id' => $campaignId,
+                'live' => $live,
+                'tracked' => $fallbackBudget,
+            ]);
+        }
+
+        $perCampaignCap = $current + max(0, $maxGmvBudget - $current);
 
         return $this->applyIncrement($current, $incrementIdr, $perCampaignCap, function (int $after) use ($campaignId) {
             return $this->setGmsBudget($campaignId, $after);

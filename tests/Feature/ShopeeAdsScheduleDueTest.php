@@ -25,6 +25,7 @@ it('runs a missed schedule later the same WIB day', function () {
 
     $api = Mockery::mock(\App\Services\ShopeeAds\ShopeeAdsApiService::class);
     $api->shouldReceive('hasShopAuthorization')->andReturn(true);
+    $api->shouldReceive('getGmsLiveBudget')->andReturn(null);
     $api->shouldReceive('addGmsBudget')
         ->once()
         ->andReturn(['before' => 100000, 'after' => 150000, 'applied_increment' => 50000]);
@@ -61,6 +62,7 @@ it('treats legacy Python status Running as active for schedules', function () {
 
     $api = Mockery::mock(\App\Services\ShopeeAds\ShopeeAdsApiService::class);
     $api->shouldReceive('hasShopAuthorization')->andReturn(true);
+    $api->shouldReceive('getGmsLiveBudget')->andReturn(null);
     $api->shouldReceive('addGmsBudget')->once()->andReturn([
         'before' => 100000,
         'after' => 150000,

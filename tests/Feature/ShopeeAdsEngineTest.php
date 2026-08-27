@@ -15,12 +15,16 @@ it('uses live budget when incrementing GMV Max', function () {
     ]);
 
     $api = Mockery::mock(ShopeeAdsApiService::class);
+    $api->shouldReceive('getGmsLiveBudget')
+        ->once()
+        ->with('gmv-1')
+        ->andReturn(1_000_000);
     $api->shouldReceive('addGmsBudget')
         ->once()
-        ->with('gmv-1', 100, 100, 500000)
+        ->with('gmv-1', 1_000_000, 100, Mockery::type('int'), 1_000_000)
         ->andReturn([
-            'before' => 250,
-            'after' => 350,
+            'before' => 1_000_000,
+            'after' => 1_100_000,
             'applied_increment' => 100,
         ]);
 
@@ -31,7 +35,41 @@ it('uses live budget when incrementing GMV Max', function () {
     );
 
     expect($engine->applyGmvMaxIncrement($settings, 100))->toBeTrue();
-    expect($settings->fresh()->gms_current_budget)->toBe(350);
+    expect($settings->fresh()->gms_current_budget)->toBe(1_100_000);
+});
+
+it('syncs live GMV budget to DB before increment when manual edit drifted', function () {
+    $settings = ShopeeAdsSetting::current();
+    $settings->update([
+        'starting_budget_gmv_max' => 100000,
+        'daily_max_budget' => 5_000_000,
+        'gms_campaign_id' => 'gmv-live',
+        'gms_current_budget' => 500000,
+        'status' => 'active',
+    ]);
+
+    $api = Mockery::mock(ShopeeAdsApiService::class);
+    $api->shouldReceive('getGmsLiveBudget')
+        ->once()
+        ->with('gmv-live')
+        ->andReturn(1_000_000);
+    $api->shouldReceive('addGmsBudget')
+        ->once()
+        ->with('gmv-live', 1_000_000, 100000, Mockery::type('int'), 1_000_000)
+        ->andReturn([
+            'before' => 1_000_000,
+            'after' => 1_100_000,
+            'applied_increment' => 100000,
+        ]);
+
+    $engine = new ShopeeAdsEngineService(
+        $api,
+        app(\App\Services\ShopeeAds\ShopeeAdsSpecialRulesService::class),
+        Mockery::mock(\App\Services\ShopeeAds\ShopeeAdsTelegramNotifier::class)->shouldIgnoreMissing(),
+    );
+
+    expect($engine->applyGmvMaxIncrement($settings, 100000))->toBeTrue();
+    expect($settings->fresh()->gms_current_budget)->toBe(1_100_000);
 });
 
 it('uses live budget when incrementing item ads pool', function () {

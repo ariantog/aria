@@ -64,6 +64,7 @@ it('notifies admins when GMV increment runs from schedule', function () {
     ]);
 
     $api = Mockery::mock(\App\Services\ShopeeAds\ShopeeAdsApiService::class);
+    $api->shouldReceive('getGmsLiveBudget')->andReturn(null);
     $api->shouldReceive('addGmsBudget')
         ->once()
         ->andReturn([
