@@ -178,6 +178,25 @@ class TaxReportService
             ->get();
 
         foreach ($cashIns as $transaction) {
+            if ((float) $transaction->ppn > 0) {
+                $entity = ReportingEntity::findActiveForBank((int) $transaction->receiver_id);
+                if (! $entity || ! $this->entityMatches($entity->id, $entityIds)) {
+                    continue;
+                }
+
+                $rows->push($this->formatRow(
+                    $transaction,
+                    'cash_in',
+                    'Penerimaan (PPN)',
+                    $this->partyName($transaction->sender_id),
+                    $entity->name,
+                    abs((float) $transaction->ppn_dpp),
+                    abs((float) $transaction->ppn),
+                ));
+
+                continue;
+            }
+
             if (! $this->recorder->cashInShouldInferKeluaranTax($transaction)) {
                 continue;
             }
@@ -325,6 +344,33 @@ class TaxReportService
         }
 
         $rows = $rows->merge($this->fakturImportRows($entityIds, $year, $month, TaxFakturImport::DIRECTION_MASUKAN));
+
+        $cashOuts = Transaction::query()
+            ->where('status', Transaction::STATUS_COMPLETED)
+            ->whereBetween('date', [$startDate, $endDate])
+            ->where('type', Transaction::TYPE_CASH_OUT)
+            ->where('sender_type', Addrbook::TYPE_BANK)
+            ->where('ppn', '>', 0)
+            ->orderBy('date')
+            ->orderBy('id')
+            ->get();
+
+        foreach ($cashOuts as $transaction) {
+            $entity = ReportingEntity::findActiveForBank((int) $transaction->sender_id);
+            if (! $entity || ! $this->entityMatches($entity->id, $entityIds)) {
+                continue;
+            }
+
+            $rows->push($this->formatRow(
+                $transaction,
+                'cash_out',
+                'Pengeluaran (PPN)',
+                $this->partyName($transaction->receiver_id),
+                $entity->name,
+                abs((float) $transaction->ppn_dpp),
+                abs((float) $transaction->ppn),
+            ));
+        }
 
         return $rows->sortBy([
             ['date', 'asc'],

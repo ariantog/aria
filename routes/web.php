@@ -241,6 +241,7 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
         ->parameters(['invoice-maker' => 'invoice']);
 
     Route::patch('transactions/{transaction}/note', [App\Http\Controllers\TransactionsController::class, 'updateNote'])->name('transactions.update-note');
+    Route::patch('transactions/{transaction}/ppn', [App\Http\Controllers\TransactionsController::class, 'updatePpn'])->name('transactions.update-ppn');
     Route::get('transactions/{transaction}', [App\Http\Controllers\TransactionsController::class, 'show'])->name('transactions.show');
     Route::delete('transactions/{transaction}', [App\Http\Controllers\TransactionsController::class, 'destroy'])->name('transactions.destroy');
 

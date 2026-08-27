@@ -27,6 +27,9 @@ class CreateCashTransaction
                 $receiver = $isCashIn ? $account : $contact;
                 $total = (float) $item['total'];
                 $grandTotal = Transaction::signedAmount($type, $total);
+                $recordPpn = filter_var($item['record_ppn'] ?? false, FILTER_VALIDATE_BOOLEAN);
+                $ppn = $recordPpn ? (float) $item['ppn'] : 0;
+                $ppnDpp = $recordPpn ? (float) $item['ppn_dpp'] : null;
                 $trx = Transaction::create([
                     'date' => $data['date'], 'type' => $type,
                     'sender_type' => (int) $sender->type,
@@ -39,7 +42,9 @@ class CreateCashTransaction
                     'total' => $grandTotal,
                     'real_total' => $grandTotal,
                     'total_items' => 0,
-                    'adjustment' => 0, 'discount' => 0, 'ppn' => 0,
+                    'adjustment' => 0, 'discount' => 0,
+                    'ppn' => $ppn,
+                    'ppn_dpp' => $ppnDpp,
                     'submit_type' => Transaction::SUBMIT_TYPE_MANUAL,
                 ]);
                 if (empty($trx->invoice)) {
