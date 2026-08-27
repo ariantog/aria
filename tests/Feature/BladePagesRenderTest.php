@@ -37,7 +37,8 @@ it('renders the dashboard', function () {
     $this->actingAs($this->user)
         ->get('/dashboard')
         ->assertOk()
-        ->assertSee('Dashboard', false);
+        ->assertSee('Dashboard', false)
+        ->assertSee('data-testid="sidebar-menu-search"', false);
 });
 
 it('renders the transactions index with its rows', function () {

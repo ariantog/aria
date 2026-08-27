@@ -141,6 +141,28 @@
             </button>
         </div>
 
+        {{-- Menu filter --}}
+        <div x-show="sidebarOpen" x-cloak class="flex-shrink-0 border-b border-gray-100 px-2 py-2">
+            <label for="sidebar-menu-search" class="sr-only">Filter menu</label>
+            <div class="relative">
+                <svg class="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                <input id="sidebar-menu-search"
+                       type="search"
+                       x-model="menuSearch"
+                       placeholder="Filter menu…"
+                       autocomplete="off"
+                       data-testid="sidebar-menu-search"
+                       class="w-full rounded-md border border-gray-300 py-1.5 pl-8 pr-8 text-sm text-gray-700 placeholder:text-gray-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                <button type="button"
+                        x-show="menuSearch.trim()"
+                        @click="menuSearch = ''"
+                        class="absolute right-1.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+                        aria-label="Clear menu filter">
+                    <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+        </div>
+
         {{-- Nav --}}
         <nav class="flex-1 overflow-y-auto overflow-x-hidden py-2 px-2"
              @click="if (isMobile && $event.target.closest('a[href]')) sidebarOpen = false">
@@ -264,6 +286,36 @@ function appShell() {
     return {
         sidebarOpen: localStorage.getItem('sidebarOpen') !== 'false',
         isMobile: window.innerWidth < 1024,
+        menuSearch: '',
+        matchesNav(...labels) {
+            const q = this.menuSearch.trim().toLowerCase();
+            if (!q) {
+                return true;
+            }
+
+            return labels.some((label) => String(label).toLowerCase().includes(q));
+        },
+        navLinkVisible(label, groupLabel = '') {
+            if (!this.menuSearch.trim()) {
+                return true;
+            }
+
+            return this.matchesNav(label, groupLabel);
+        },
+        navGroupVisible(...labels) {
+            return this.matchesNav(...labels);
+        },
+        syncNavGroupOpen(openRef, defaultOpen, ...labels) {
+            if (this.menuSearch.trim() && this.matchesNav(...labels)) {
+                openRef.open = true;
+
+                return;
+            }
+
+            if (!this.menuSearch.trim()) {
+                openRef.open = defaultOpen;
+            }
+        },
         init() {
             this.isMobile = window.innerWidth < 1024;
             if (this.isMobile) this.sidebarOpen = false;

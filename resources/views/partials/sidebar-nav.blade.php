@@ -25,10 +25,175 @@
     $isActive = function (string $prefix) use ($currentUrl): bool {
         return str_starts_with('/' . ltrim($currentUrl, '/'), $prefix);
     };
+
+    $visibleAddrbookTypes = collect($addrbookTypes)->filter(
+        fn ($type) => $hasPerm($type['permission']) || $isSuperAdmin
+    );
+
+    $txNavLabels = ['Transactions'];
+    if ($hasPerm('transactions-list') || $isSuperAdmin) {
+        $txNavLabels[] = 'List All';
+    }
+    if ($hasPerm('transactions-type-buy') || $isSuperAdmin) {
+        $txNavLabels[] = 'Buy';
+    }
+    if ($hasPerm('transactions-type-sell') || $isSuperAdmin) {
+        $txNavLabels[] = 'Sell';
+    }
+    if ($hasPerm('transactions-type-move') || $isSuperAdmin) {
+        $txNavLabels[] = 'Move';
+    }
+    if ($hasPerm('transactions-type-cash-in') || $isSuperAdmin) {
+        $txNavLabels[] = 'Cash In';
+    }
+    if ($hasPerm('transactions-type-cash-out') || $isSuperAdmin) {
+        $txNavLabels[] = 'Cash Out';
+    }
+    if ($hasPerm('transactions-type-transfer') || $isSuperAdmin) {
+        $txNavLabels[] = 'Transfer';
+    }
+    if ($hasPerm('transactions-type-adjust') || $isSuperAdmin) {
+        $txNavLabels[] = 'Adjust';
+    }
+    if ($hasPerm('transactions-type-return') || $isSuperAdmin) {
+        $txNavLabels[] = 'Return';
+    }
+    if ($hasPerm('transactions-type-return-supplier') || $isSuperAdmin) {
+        $txNavLabels[] = 'Return Supplier';
+    }
+    if ($hasPerm('report-purchase') || $isSuperAdmin) {
+        $txNavLabels[] = 'Pembelian';
+    }
+    if ($hasPerm('report-export-sell') || $isSuperAdmin) {
+        $txNavLabels[] = 'Export Sell';
+    }
+
+    $abNavLabels = ['Address Book', ...$visibleAddrbookTypes->pluck('name')->all()];
+
+    $stuffNavLabels = ['Stuff'];
+    if ($hasPerm('items-list') || $isSuperAdmin) {
+        $stuffNavLabels[] = 'Item';
+    }
+    if ($hasPerm('assetLancar-list') || $isSuperAdmin) {
+        $stuffNavLabels[] = 'Asset Lancar';
+    }
+    if ($hasPerm('stuff-group-list') || $isSuperAdmin) {
+        $stuffNavLabels[] = 'Group';
+    }
+    if ($hasPerm('stuff-tag-list') || $isSuperAdmin) {
+        $stuffNavLabels[] = 'Tags';
+    }
+    if ($hasPerm('restock-list') || $isSuperAdmin) {
+        $stuffNavLabels[] = 'Restock';
+    }
+    if ($hasPerm('items-convert-legacy') || $isSuperAdmin) {
+        $stuffNavLabels[] = 'Legacy Converter';
+        $stuffNavLabels[] = 'Special Converter';
+    }
+    if ($hasPerm('stock-notification-list') || $isSuperAdmin) {
+        $stuffNavLabels[] = 'Stock Alerts';
+    }
+
+    $reportNavLabels = ['Reports'];
+    if ($hasPerm('report-item-sales') || $isSuperAdmin) {
+        $reportNavLabels[] = 'Item Sale';
+    }
+    if ($hasPerm('report-warehouse-item') || $isSuperAdmin) {
+        $reportNavLabels[] = 'Item Gudang';
+    }
+    if ($hasPerm('report-compare') || $isSuperAdmin) {
+        $reportNavLabels[] = 'Compare';
+    }
+    if ($hasPerm('report-warehouse-arrangement') || $isSuperAdmin) {
+        $reportNavLabels[] = 'Warehouse Arrangement';
+    }
+    if ($hasPerm('report-product-performance') || $isSuperAdmin) {
+        $reportNavLabels[] = 'Product Performance';
+    }
+    if ($hasPerm('report-inventory-health') || $isSuperAdmin) {
+        $reportNavLabels[] = 'Inventory Health';
+    }
+    if ($hasPerm('report-nett-cash') || $isSuperAdmin) {
+        $reportNavLabels[] = 'Nett Cash';
+    }
+    if ($hasPerm('report-cash-flow') || $isSuperAdmin) {
+        $reportNavLabels[] = 'Cash Flow';
+    }
+    if ($hasPerm('report-expense') || $isSuperAdmin) {
+        $reportNavLabels[] = 'Laporan Biaya';
+    }
+    if ($hasPerm('report-tax-ppn') || $isSuperAdmin) {
+        $reportNavLabels[] = 'Laporan PPN';
+    }
+    if ($hasPerm('report-tax-faktur') || $hasPerm('report-tax-faktur-import') || $isSuperAdmin) {
+        $reportNavLabels[] = 'Faktur Pajak';
+    }
+    if ($hasPerm('report-produksi-potong') || $isSuperAdmin) {
+        $reportNavLabels[] = 'Statistik Potong';
+    }
+    if ($hasPerm('report-produksi-qc') || $isSuperAdmin) {
+        $reportNavLabels[] = 'Statistik QC';
+    }
+    if ($isSuperAdmin) {
+        $reportNavLabels[] = 'Reporting Entities';
+    }
+
+    $jubelioNavLabels = ['Jubelio'];
+    if ($hasPerm('jubelio-view') || $isSuperAdmin) {
+        $jubelioNavLabels = array_merge($jubelioNavLabels, ['Orders', 'Cancellations', 'Get Orders', 'Cek Order', 'Koneksi']);
+    }
+    if ($hasPerm('jubelio-sync') || $isSuperAdmin) {
+        $jubelioNavLabels[] = 'Stock Sync';
+        $jubelioNavLabels[] = 'Warehouse Map';
+    }
+    if ($hasPerm('jubelio-stock-check') || $isSuperAdmin) {
+        $jubelioNavLabels[] = 'Stock Check';
+    }
+
+    $journalNavLabels = ['Journals'];
+    if ($hasPerm('journal-account-list') || $isSuperAdmin) {
+        $journalNavLabels[] = 'Accounts';
+    }
+    if ($hasPerm('journal-operation-list') || $isSuperAdmin) {
+        $journalNavLabels[] = 'Operations';
+    }
+
+    $produksiNavLabels = ['Produksi'];
+    if ($hasPerm('production-list') || $isSuperAdmin) {
+        $produksiNavLabels[] = 'Production';
+    }
+    if ($hasPerm('production-setoran-list') || $isSuperAdmin) {
+        $produksiNavLabels[] = 'Setoran';
+    }
+    if ($hasPerm('production-worker-list') || $isSuperAdmin) {
+        $produksiNavLabels = array_merge($produksiNavLabels, ['Potong Workers', 'Jahit Workers', 'QC Workers', 'Pritil Workers']);
+    }
+
+    $systemNavLabels = ['System Settings'];
+    if ($hasPerm('setting-general-view') || $isSuperAdmin) {
+        $systemNavLabels[] = 'General';
+    }
+    if ($hasPerm('setting-cron-manager-view') || $isSuperAdmin) {
+        $systemNavLabels[] = 'Cron Manager';
+    }
+
+    $userNavLabels = ['User Management'];
+    if ($hasPerm('users-list') || $isSuperAdmin) {
+        $userNavLabels[] = 'Users';
+    }
+    if ($hasPerm('users-roles-list') || $isSuperAdmin) {
+        $userNavLabels[] = 'Roles';
+    }
+    if ($hasPerm('users-permissions-list') || $isSuperAdmin) {
+        $userNavLabels[] = 'Permissions';
+    }
+    if ($hasPerm('users-locations-list') || $isSuperAdmin) {
+        $userNavLabels[] = 'Locations';
+    }
 @endphp
 
 {{-- ── Dashboard ─────────────────────────────────────────────────────── --}}
-<div class="mb-1">
+<div class="mb-1" x-show="navLinkVisible('Dashboard')">
     <a href="{{ route('dashboard') }}"
        class="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors
               {{ $isActive('/dashboard') ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100' }}">
@@ -55,7 +220,10 @@
     || $isSuperAdmin
 )
 @php $txActive = $isActive('/transactions') || $isActive('/reports/purchase'); @endphp
-<div x-data="{ open: {{ $txActive ? 'true' : 'false' }} }" class="mb-1">
+<div x-data="{ open: {{ $txActive ? 'true' : 'false' }} }"
+     class="mb-1"
+     x-show="navGroupVisible(@js($txNavLabels))"
+     x-effect="syncNavGroupOpen($data, {{ $txActive ? 'true' : 'false' }}, @js($txNavLabels))">
     <button @click="open = !open"
             class="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors
                    {{ $txActive ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100' }}">
@@ -65,40 +233,40 @@
     </button>
     <div x-show="open && sidebarOpen" x-cloak class="ml-6 mt-1 space-y-0.5">
         @if($hasPerm('transactions-list') || $isSuperAdmin)
-        <a href="{{ route('transactions.index') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $currentUrl === 'transactions' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">List All</a>
+        <a href="{{ route('transactions.index') }}" x-show="navLinkVisible('List All', 'Transactions')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $currentUrl === 'transactions' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">List All</a>
         @endif
         @if($hasPerm('transactions-type-buy') || $isSuperAdmin)
-        <a href="{{ route('transactions.create', 'buy') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ str_starts_with($currentUrl,'transactions/buy') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Buy</a>
+        <a href="{{ route('transactions.create', 'buy') }}" x-show="navLinkVisible('Buy', 'Transactions')" class="block rounded-md px-2.5 py-1.5 text-sm {{ str_starts_with($currentUrl,'transactions/buy') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Buy</a>
         @endif
         @if($hasPerm('transactions-type-sell') || $isSuperAdmin)
-        <a href="{{ route('transactions.create', 'sell') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ str_starts_with($currentUrl,'transactions/sell') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Sell</a>
+        <a href="{{ route('transactions.create', 'sell') }}" x-show="navLinkVisible('Sell', 'Transactions')" class="block rounded-md px-2.5 py-1.5 text-sm {{ str_starts_with($currentUrl,'transactions/sell') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Sell</a>
         @endif
         @if($hasPerm('transactions-type-move') || $isSuperAdmin)
-        <a href="{{ route('transactions.create', 'move') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ str_starts_with($currentUrl,'transactions/move') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Move</a>
+        <a href="{{ route('transactions.create', 'move') }}" x-show="navLinkVisible('Move', 'Transactions')" class="block rounded-md px-2.5 py-1.5 text-sm {{ str_starts_with($currentUrl,'transactions/move') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Move</a>
         @endif
         @if($hasPerm('transactions-type-cash-in') || $isSuperAdmin)
-        <a href="{{ route('transactions.cash-in') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $currentUrl === 'transactions/cash-in' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Cash In</a>
+        <a href="{{ route('transactions.cash-in') }}" x-show="navLinkVisible('Cash In', 'Transactions')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $currentUrl === 'transactions/cash-in' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Cash In</a>
         @endif
         @if($hasPerm('transactions-type-cash-out') || $isSuperAdmin)
-        <a href="{{ route('transactions.cash-out') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $currentUrl === 'transactions/cash-out' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Cash Out</a>
+        <a href="{{ route('transactions.cash-out') }}" x-show="navLinkVisible('Cash Out', 'Transactions')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $currentUrl === 'transactions/cash-out' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Cash Out</a>
         @endif
         @if($hasPerm('transactions-type-transfer') || $isSuperAdmin)
-        <a href="{{ route('transactions.transfer') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $currentUrl === 'transactions/transfer' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Transfer</a>
+        <a href="{{ route('transactions.transfer') }}" x-show="navLinkVisible('Transfer', 'Transactions')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $currentUrl === 'transactions/transfer' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Transfer</a>
         @endif
         @if($hasPerm('transactions-type-adjust') || $isSuperAdmin)
-        <a href="{{ route('transactions.adjust') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $currentUrl === 'transactions/adjust' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Adjust</a>
+        <a href="{{ route('transactions.adjust') }}" x-show="navLinkVisible('Adjust', 'Transactions')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $currentUrl === 'transactions/adjust' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Adjust</a>
         @endif
         @if($hasPerm('transactions-type-return') || $isSuperAdmin)
-        <a href="{{ route('transactions.create', 'return') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ str_starts_with($currentUrl,'transactions/return/') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Return</a>
+        <a href="{{ route('transactions.create', 'return') }}" x-show="navLinkVisible('Return', 'Transactions')" class="block rounded-md px-2.5 py-1.5 text-sm {{ str_starts_with($currentUrl,'transactions/return/') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Return</a>
         @endif
         @if($hasPerm('transactions-type-return-supplier') || $isSuperAdmin)
-        <a href="{{ route('transactions.create', 'return-supplier') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ str_starts_with($currentUrl,'transactions/return-supplier/') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Return Supplier</a>
+        <a href="{{ route('transactions.create', 'return-supplier') }}" x-show="navLinkVisible('Return Supplier', 'Transactions')" class="block rounded-md px-2.5 py-1.5 text-sm {{ str_starts_with($currentUrl,'transactions/return-supplier/') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Return Supplier</a>
         @endif
         @if($hasPerm('report-purchase') || $isSuperAdmin)
-        <a href="{{ route('reports.purchase') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/purchase') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Pembelian</a>
+        <a href="{{ route('reports.purchase') }}" x-show="navLinkVisible('Pembelian', 'Transactions')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/purchase') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Pembelian</a>
         @endif
         @if($hasPerm('report-export-sell') || $isSuperAdmin)
-        <a href="{{ route('transactions.export-sell') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/transactions/export-sell') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Export Sell</a>
+        <a href="{{ route('transactions.export-sell') }}" x-show="navLinkVisible('Export Sell', 'Transactions')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/transactions/export-sell') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Export Sell</a>
         @endif
     </div>
 </div>
@@ -106,7 +274,7 @@
 
 {{-- ── Invoice Maker ─────────────────────────────────────────────────── --}}
 @if($hasPerm('invoice-maker-list') || $isSuperAdmin)
-<div class="mb-1">
+<div class="mb-1" x-show="navLinkVisible('Invoice Maker')">
     <a href="{{ route('invoice-maker.index') }}"
        class="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors
               {{ $isActive('/invoice-maker') ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100' }}">
@@ -117,14 +285,12 @@
 @endif
 
 {{-- ── Address Book ──────────────────────────────────────────────────── --}}
-@php
-    $visibleAddrbookTypes = collect($addrbookTypes)->filter(
-        fn ($type) => $hasPerm($type['permission']) || $isSuperAdmin
-    );
-@endphp
 @if($isSuperAdmin || $visibleAddrbookTypes->isNotEmpty())
 @php $abActive = $isActive('/addrbook') || $visibleAddrbookTypes->contains(fn ($type) => $isActive('/'.$type['slug'])); @endphp
-<div x-data="{ open: {{ $abActive ? 'true' : 'false' }} }" class="mb-1">
+<div x-data="{ open: {{ $abActive ? 'true' : 'false' }} }"
+     class="mb-1"
+     x-show="navGroupVisible(@js($abNavLabels))"
+     x-effect="syncNavGroupOpen($data, {{ $abActive ? 'true' : 'false' }}, @js($abNavLabels))">
     <button @click="open = !open"
             class="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors
                    {{ $abActive ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100' }}">
@@ -134,7 +300,7 @@
     </button>
     <div x-show="open && sidebarOpen" x-cloak class="ml-6 mt-1 space-y-0.5">
         @foreach($visibleAddrbookTypes as $type)
-            <a href="{{ url('/'.$type['slug']) }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/'.$type['slug']) ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">{{ $type['name'] }}</a>
+            <a href="{{ url('/'.$type['slug']) }}" x-show="navLinkVisible(@js($type['name']), 'Address Book')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/'.$type['slug']) ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">{{ $type['name'] }}</a>
         @endforeach
     </div>
 </div>
@@ -146,7 +312,10 @@
     $stuffActive = $isActive('/items') || $isActive('/assetlancar') || $isActive('/tags') || $isActive('/restock')
         || $isActive('/stock-notifications');
 @endphp
-<div x-data="{ open: {{ $stuffActive ? 'true' : 'false' }} }" class="mb-1">
+<div x-data="{ open: {{ $stuffActive ? 'true' : 'false' }} }"
+     class="mb-1"
+     x-show="navGroupVisible(@js($stuffNavLabels))"
+     x-effect="syncNavGroupOpen($data, {{ $stuffActive ? 'true' : 'false' }}, @js($stuffNavLabels))">
     <button @click="open = !open"
             class="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors
                    {{ $stuffActive ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100' }}">
@@ -156,26 +325,26 @@
     </button>
     <div x-show="open && sidebarOpen" x-cloak class="ml-6 mt-1 space-y-0.5">
         @if($hasPerm('items-list') || $isSuperAdmin)
-        <a href="{{ route('items.index') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/items') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Item</a>
+        <a href="{{ route('items.index') }}" x-show="navLinkVisible('Item', 'Stuff')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/items') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Item</a>
         @endif
         @if($hasPerm('assetLancar-list') || $isSuperAdmin)
-        <a href="{{ route('assetlancar.index') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/assetlancar') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Asset Lancar</a>
+        <a href="{{ route('assetlancar.index') }}" x-show="navLinkVisible('Asset Lancar', 'Stuff')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/assetlancar') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Asset Lancar</a>
         @endif
         @if($hasPerm('stuff-group-list') || $isSuperAdmin)
-        <a href="{{ route('items.group') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/items-group') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Group</a>
+        <a href="{{ route('items.group') }}" x-show="navLinkVisible('Group', 'Stuff')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/items-group') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Group</a>
         @endif
         @if($hasPerm('stuff-tag-list') || $isSuperAdmin)
-        <a href="{{ route('tags.index') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/tags') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Tags</a>
+        <a href="{{ route('tags.index') }}" x-show="navLinkVisible('Tags', 'Stuff')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/tags') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Tags</a>
         @endif
         @if($hasPerm('restock-list') || $isSuperAdmin)
-        <a href="{{ route('restock.index') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/restock') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Restock</a>
+        <a href="{{ route('restock.index') }}" x-show="navLinkVisible('Restock', 'Stuff')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/restock') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Restock</a>
         @endif
         @if($hasPerm('items-convert-legacy') || $isSuperAdmin)
-        <a href="{{ route('items.legacy-converter') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/items/legacy-converter') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Legacy Converter</a>
-        <a href="{{ route('items.special-converter') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/items/special-converter') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Special Converter</a>
+        <a href="{{ route('items.legacy-converter') }}" x-show="navLinkVisible('Legacy Converter', 'Stuff')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/items/legacy-converter') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Legacy Converter</a>
+        <a href="{{ route('items.special-converter') }}" x-show="navLinkVisible('Special Converter', 'Stuff')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/items/special-converter') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Special Converter</a>
         @endif
         @if($hasPerm('stock-notification-list') || $isSuperAdmin)
-        <a href="{{ route('stock-notifications.index') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/stock-notifications') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Stock Alerts</a>
+        <a href="{{ route('stock-notifications.index') }}" x-show="navLinkVisible('Stock Alerts', 'Stuff')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/stock-notifications') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Stock Alerts</a>
         @endif
     </div>
 </div>
@@ -218,7 +387,10 @@
         || $isActive('/reports/produksi-qc')
         || $isActive('/reports/entities');
 @endphp
-<div x-data="{ open: {{ $repActive ? 'true' : 'false' }} }" class="mb-1">
+<div x-data="{ open: {{ $repActive ? 'true' : 'false' }} }"
+     class="mb-1"
+     x-show="navGroupVisible(@js($reportNavLabels))"
+     x-effect="syncNavGroupOpen($data, {{ $repActive ? 'true' : 'false' }}, @js($reportNavLabels))">
     <button @click="open = !open"
             class="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors
                    {{ $repActive ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100' }}">
@@ -231,60 +403,60 @@
         <p class="px-2.5 pt-2 pb-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-400">Inventory</p>
         @endif
         @if($hasPerm('report-item-sales') || $isSuperAdmin)
-        <a href="{{ route('reports.item-sales') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/item-sales') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Item Sale</a>
+        <a href="{{ route('reports.item-sales') }}" x-show="navLinkVisible('Item Sale', 'Reports')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/item-sales') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Item Sale</a>
         @endif
         @if($hasPerm('report-warehouse-item') || $isSuperAdmin)
-        <a href="{{ route('reports.warehouse-item') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/warehouse-item') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Item Gudang</a>
+        <a href="{{ route('reports.warehouse-item') }}" x-show="navLinkVisible('Item Gudang', 'Reports')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/warehouse-item') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Item Gudang</a>
         @endif
         @if($hasPerm('report-compare') || $isSuperAdmin)
-        <a href="{{ route('reports.compare') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/compare') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Compare</a>
+        <a href="{{ route('reports.compare') }}" x-show="navLinkVisible('Compare', 'Reports')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/compare') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Compare</a>
         @endif
         @if($hasPerm('report-warehouse-arrangement') || $isSuperAdmin)
-        <a href="{{ route('reports.warehouse-arrangement') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/warehouse-arrangement') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Warehouse Arrangement</a>
+        <a href="{{ route('reports.warehouse-arrangement') }}" x-show="navLinkVisible('Warehouse Arrangement', 'Reports')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/warehouse-arrangement') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Warehouse Arrangement</a>
         @endif
         @if($hasPerm('report-product-performance') || $isSuperAdmin)
-        <a href="{{ route('reports.product-performance') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/product-performance') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Product Performance</a>
+        <a href="{{ route('reports.product-performance') }}" x-show="navLinkVisible('Product Performance', 'Reports')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/product-performance') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Product Performance</a>
         @endif
         @if($hasPerm('report-inventory-health') || $isSuperAdmin)
-        <a href="{{ route('reports.inventory-health') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/inventory-health') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Inventory Health</a>
+        <a href="{{ route('reports.inventory-health') }}" x-show="navLinkVisible('Inventory Health', 'Reports')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/inventory-health') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Inventory Health</a>
         @endif
 
         @if($hasPerm('report-nett-cash') || $hasPerm('report-cash-flow') || $hasPerm('report-expense') || $isSuperAdmin)
         <p class="px-2.5 pt-2 pb-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-400">Finance</p>
         @endif
         @if($hasPerm('report-nett-cash') || $isSuperAdmin)
-        <a href="{{ route('reports.nett-cash-sby') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/nett-cash-sby') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Nett Cash</a>
+        <a href="{{ route('reports.nett-cash-sby') }}" x-show="navLinkVisible('Nett Cash', 'Reports')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/nett-cash-sby') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Nett Cash</a>
         @endif
         @if($hasPerm('report-cash-flow') || $isSuperAdmin)
-        <a href="{{ route('reports.cash-flow') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/cash-flow') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Cash Flow</a>
+        <a href="{{ route('reports.cash-flow') }}" x-show="navLinkVisible('Cash Flow', 'Reports')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/cash-flow') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Cash Flow</a>
         @endif
         @if($hasPerm('report-expense') || $isSuperAdmin)
-        <a href="{{ route('reports.expense') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/expense') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Laporan Biaya</a>
+        <a href="{{ route('reports.expense') }}" x-show="navLinkVisible('Laporan Biaya', 'Reports')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/expense') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Laporan Biaya</a>
         @endif
 
         @if($hasPerm('report-tax-ppn') || $hasPerm('report-tax-faktur') || $hasPerm('report-tax-faktur-import') || $isSuperAdmin)
         <p class="px-2.5 pt-2 pb-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-400">Tax</p>
         @endif
         @if($hasPerm('report-tax-ppn') || $isSuperAdmin)
-        <a href="{{ route('reports.tax.ppn') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/tax/ppn') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Laporan PPN</a>
+        <a href="{{ route('reports.tax.ppn') }}" x-show="navLinkVisible('Laporan PPN', 'Reports')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/tax/ppn') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Laporan PPN</a>
         @endif
         @if($hasPerm('report-tax-faktur') || $hasPerm('report-tax-faktur-import') || $isSuperAdmin)
-        <a href="{{ route('reports.tax.faktur.index') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/tax/faktur') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Faktur Pajak</a>
+        <a href="{{ route('reports.tax.faktur.index') }}" x-show="navLinkVisible('Faktur Pajak', 'Reports')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/tax/faktur') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Faktur Pajak</a>
         @endif
 
         @if($hasPerm('report-produksi-potong') || $hasPerm('report-produksi-qc') || $isSuperAdmin)
         <p class="px-2.5 pt-2 pb-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-400">Production</p>
         @endif
         @if($hasPerm('report-produksi-potong') || $isSuperAdmin)
-        <a href="{{ route('reports.produksi-potong') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/produksi-potong') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Statistik Potong</a>
+        <a href="{{ route('reports.produksi-potong') }}" x-show="navLinkVisible('Statistik Potong', 'Reports')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/produksi-potong') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Statistik Potong</a>
         @endif
         @if($hasPerm('report-produksi-qc') || $isSuperAdmin)
-        <a href="{{ route('reports.produksi-qc') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/produksi-qc') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Statistik QC</a>
+        <a href="{{ route('reports.produksi-qc') }}" x-show="navLinkVisible('Statistik QC', 'Reports')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/produksi-qc') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Statistik QC</a>
         @endif
 
         @if($isSuperAdmin)
         <p class="px-2.5 pt-2 pb-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-400">Admin</p>
-        <a href="{{ route('reports.entities.index') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/entities') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Reporting Entities</a>
+        <a href="{{ route('reports.entities.index') }}" x-show="navLinkVisible('Reporting Entities', 'Reports')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/entities') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Reporting Entities</a>
         @endif
     </div>
 </div>
@@ -293,7 +465,10 @@
 {{-- ── Jubelio ───────────────────────────────────────────────────────── --}}
 @if($hasPerm('jubelio-view') || $hasPerm('jubelio-sync') || $hasPerm('jubelio-stock-check') || $isSuperAdmin)
 @php $jubActive = $isActive('/jubelio'); @endphp
-<div x-data="{ open: {{ $jubActive ? 'true' : 'false' }} }" class="mb-1">
+<div x-data="{ open: {{ $jubActive ? 'true' : 'false' }} }"
+     class="mb-1"
+     x-show="navGroupVisible(@js($jubelioNavLabels))"
+     x-effect="syncNavGroupOpen($data, {{ $jubActive ? 'true' : 'false' }}, @js($jubelioNavLabels))">
     <button @click="open = !open"
             class="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors
                    {{ $jubActive ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100' }}">
@@ -303,18 +478,18 @@
     </button>
     <div x-show="open && sidebarOpen" x-cloak class="ml-6 mt-1 space-y-0.5">
         @if($hasPerm('jubelio-view') || $isSuperAdmin)
-        <a href="{{ route('jubelio.index') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $currentUrl === 'jubelio' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Orders</a>
-        <a href="{{ route('jubelio.returns.index') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/jubelio-returns') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Cancellations</a>
-        <a href="{{ route('jubelio.get-orders.index') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/jubelio-get-orders') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Get Orders</a>
-        <a href="{{ route('jubelio.order.cek') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/jubelio/order/cek') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Cek Order</a>
-        <a href="{{ route('jubelio.token.index') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/jubelio/token') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Koneksi</a>
+        <a href="{{ route('jubelio.index') }}" x-show="navLinkVisible('Orders', 'Jubelio')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $currentUrl === 'jubelio' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Orders</a>
+        <a href="{{ route('jubelio.returns.index') }}" x-show="navLinkVisible('Cancellations', 'Jubelio')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/jubelio-returns') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Cancellations</a>
+        <a href="{{ route('jubelio.get-orders.index') }}" x-show="navLinkVisible('Get Orders', 'Jubelio')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/jubelio-get-orders') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Get Orders</a>
+        <a href="{{ route('jubelio.order.cek') }}" x-show="navLinkVisible('Cek Order', 'Jubelio')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/jubelio/order/cek') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Cek Order</a>
+        <a href="{{ route('jubelio.token.index') }}" x-show="navLinkVisible('Koneksi', 'Jubelio')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/jubelio/token') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Koneksi</a>
         @endif
         @if($hasPerm('jubelio-sync') || $isSuperAdmin)
-        <a href="{{ route('jubelio.transaction.sync') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/jubelio-transaction') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Stock Sync</a>
-        <a href="{{ route('jubelio.sync.index') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/jubelio-sync') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Warehouse Map</a>
+        <a href="{{ route('jubelio.transaction.sync') }}" x-show="navLinkVisible('Stock Sync', 'Jubelio')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/jubelio-transaction') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Stock Sync</a>
+        <a href="{{ route('jubelio.sync.index') }}" x-show="navLinkVisible('Warehouse Map', 'Jubelio')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/jubelio-sync') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Warehouse Map</a>
         @endif
         @if($hasPerm('jubelio-stock-check') || $isSuperAdmin)
-        <a href="{{ route('jubelio-stock-checks.index') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/jubelio-stock-checks') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Stock Check</a>
+        <a href="{{ route('jubelio-stock-checks.index') }}" x-show="navLinkVisible('Stock Check', 'Jubelio')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/jubelio-stock-checks') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Stock Check</a>
         @endif
     </div>
 </div>
@@ -322,7 +497,7 @@
 
 {{-- ── Shopee Ads ────────────────────────────────────────────────────── --}}
 @if($hasPerm('shopee-ads-view') || $isSuperAdmin)
-<div class="mb-1">
+<div class="mb-1" x-show="navLinkVisible('Shopee Ads')">
     <a href="{{ route('shopee-ads.index') }}"
        class="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors
               {{ $isActive('/shopee-ads') ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100' }}">
@@ -335,7 +510,10 @@
 {{-- ── Journals ──────────────────────────────────────────────────────── --}}
 @if($hasPerm('journal-account-list') || $hasPerm('journal-operation-list') || $isSuperAdmin)
 @php $jrnActive = $isActive('/journals'); @endphp
-<div x-data="{ open: {{ $jrnActive ? 'true' : 'false' }} }" class="mb-1">
+<div x-data="{ open: {{ $jrnActive ? 'true' : 'false' }} }"
+     class="mb-1"
+     x-show="navGroupVisible(@js($journalNavLabels))"
+     x-effect="syncNavGroupOpen($data, {{ $jrnActive ? 'true' : 'false' }}, @js($journalNavLabels))">
     <button @click="open = !open"
             class="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors
                    {{ $jrnActive ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100' }}">
@@ -345,10 +523,10 @@
     </button>
     <div x-show="open && sidebarOpen" x-cloak class="ml-6 mt-1 space-y-0.5">
         @if($hasPerm('journal-account-list') || $isSuperAdmin)
-        <a href="{{ route('account-list.index') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/journals/account-list') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Accounts</a>
+        <a href="{{ route('account-list.index') }}" x-show="navLinkVisible('Accounts', 'Journals')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/journals/account-list') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Accounts</a>
         @endif
         @if($hasPerm('journal-operation-list') || $isSuperAdmin)
-        <a href="{{ route('operations.index') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/journals/operations') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Operations</a>
+        <a href="{{ route('operations.index') }}" x-show="navLinkVisible('Operations', 'Journals')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/journals/operations') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Operations</a>
         @endif
     </div>
 </div>
@@ -359,7 +537,10 @@
 @php
     $prdActive = $isActive('/produksi');
 @endphp
-<div x-data="{ open: {{ $prdActive ? 'true' : 'false' }} }" class="mb-1">
+<div x-data="{ open: {{ $prdActive ? 'true' : 'false' }} }"
+     class="mb-1"
+     x-show="navGroupVisible(@js($produksiNavLabels))"
+     x-effect="syncNavGroupOpen($data, {{ $prdActive ? 'true' : 'false' }}, @js($produksiNavLabels))">
     <button @click="open = !open"
             class="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors
                    {{ $prdActive ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100' }}">
@@ -369,16 +550,16 @@
     </button>
     <div x-show="open && sidebarOpen" x-cloak class="ml-6 mt-1 space-y-0.5">
         @if($hasPerm('production-list') || $isSuperAdmin)
-        <a href="{{ route('produksi.index') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $currentUrl === 'produksi' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Production</a>
+        <a href="{{ route('produksi.index') }}" x-show="navLinkVisible('Production', 'Produksi')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $currentUrl === 'produksi' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Production</a>
         @endif
         @if($hasPerm('production-setoran-list') || $isSuperAdmin)
-        <a href="{{ route('produksi.setoran.index') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/produksi/setoran') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Setoran</a>
+        <a href="{{ route('produksi.setoran.index') }}" x-show="navLinkVisible('Setoran', 'Produksi')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/produksi/setoran') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Setoran</a>
         @endif
         @if($hasPerm('production-worker-list') || $isSuperAdmin)
-        <a href="{{ route('produksi.potong.index') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/produksi/potong') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Potong Workers</a>
-        <a href="{{ route('produksi.jahit.index') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/produksi/jahit') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Jahit Workers</a>
-        <a href="{{ route('produksi.qc.index') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/produksi/qc') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">QC Workers</a>
-        <a href="{{ route('produksi.pritil.index') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/produksi/pritil') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Pritil Workers</a>
+        <a href="{{ route('produksi.potong.index') }}" x-show="navLinkVisible('Potong Workers', 'Produksi')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/produksi/potong') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Potong Workers</a>
+        <a href="{{ route('produksi.jahit.index') }}" x-show="navLinkVisible('Jahit Workers', 'Produksi')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/produksi/jahit') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Jahit Workers</a>
+        <a href="{{ route('produksi.qc.index') }}" x-show="navLinkVisible('QC Workers', 'Produksi')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/produksi/qc') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">QC Workers</a>
+        <a href="{{ route('produksi.pritil.index') }}" x-show="navLinkVisible('Pritil Workers', 'Produksi')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/produksi/pritil') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Pritil Workers</a>
         @endif
     </div>
 </div>
@@ -386,7 +567,7 @@
 
 {{-- ── Borongan ──────────────────────────────────────────────────────── --}}
 @if($hasPerm('borongan-list') || $isSuperAdmin)
-<div class="mb-1">
+<div class="mb-1" x-show="navLinkVisible('Borongan')">
     <a href="{{ route('borongan.index') }}"
        class="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors
               {{ $isActive('/borongan') ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100' }}">
@@ -399,7 +580,10 @@
 {{-- ── System Settings ───────────────────────────────────────────────── --}}
 @if($hasPerm('setting-general-view') || $hasPerm('setting-cron-manager-view') || $isSuperAdmin)
 @php $sysActive = $isActive('/system-settings') || $isActive('/cron-manager'); @endphp
-<div x-data="{ open: {{ $sysActive ? 'true' : 'false' }} }" class="mb-1">
+<div x-data="{ open: {{ $sysActive ? 'true' : 'false' }} }"
+     class="mb-1"
+     x-show="navGroupVisible(@js($systemNavLabels))"
+     x-effect="syncNavGroupOpen($data, {{ $sysActive ? 'true' : 'false' }}, @js($systemNavLabels))">
     <button @click="open = !open"
             class="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors
                    {{ $sysActive ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100' }}">
@@ -409,10 +593,10 @@
     </button>
     <div x-show="open && sidebarOpen" x-cloak class="ml-6 mt-1 space-y-0.5">
         @if($hasPerm('setting-general-view') || $isSuperAdmin)
-        <a href="{{ route('system-settings.index') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/system-settings') && ! $isActive('/cron-manager') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">General</a>
+        <a href="{{ route('system-settings.index') }}" x-show="navLinkVisible('General', 'System Settings')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/system-settings') && ! $isActive('/cron-manager') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">General</a>
         @endif
         @if($hasPerm('setting-cron-manager-view') || $isSuperAdmin)
-        <a href="{{ route('scheduled-tasks.index') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/cron-manager') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Cron Manager</a>
+        <a href="{{ route('scheduled-tasks.index') }}" x-show="navLinkVisible('Cron Manager', 'System Settings')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/cron-manager') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Cron Manager</a>
         @endif
     </div>
 </div>
@@ -421,7 +605,10 @@
 {{-- ── User Management ───────────────────────────────────────────────── --}}
 @if($hasPerm('users-list') || $hasPerm('users-roles-list') || $isSuperAdmin)
 @php $umActive = $isActive('/users') || $isActive('/roles') || $isActive('/permissions'); @endphp
-<div x-data="{ open: {{ $umActive ? 'true' : 'false' }} }" class="mb-1">
+<div x-data="{ open: {{ $umActive ? 'true' : 'false' }} }"
+     class="mb-1"
+     x-show="navGroupVisible(@js($userNavLabels))"
+     x-effect="syncNavGroupOpen($data, {{ $umActive ? 'true' : 'false' }}, @js($userNavLabels))">
     <button @click="open = !open"
             class="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors
                    {{ $umActive ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100' }}">
@@ -431,16 +618,16 @@
     </button>
     <div x-show="open && sidebarOpen" x-cloak class="ml-6 mt-1 space-y-0.5">
         @if($hasPerm('users-list') || $isSuperAdmin)
-        <a href="{{ route('users.index') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/users') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Users</a>
+        <a href="{{ route('users.index') }}" x-show="navLinkVisible('Users', 'User Management')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/users') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Users</a>
         @endif
         @if($hasPerm('users-roles-list') || $isSuperAdmin)
-        <a href="{{ route('roles.index') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/roles') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Roles</a>
+        <a href="{{ route('roles.index') }}" x-show="navLinkVisible('Roles', 'User Management')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/roles') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Roles</a>
         @endif
         @if($hasPerm('users-permissions-list') || $isSuperAdmin)
-        <a href="{{ route('permissions.index') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/permissions') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Permissions</a>
+        <a href="{{ route('permissions.index') }}" x-show="navLinkVisible('Permissions', 'User Management')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/permissions') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Permissions</a>
         @endif
         @if($hasPerm('users-locations-list') || $isSuperAdmin)
-        <a href="{{ route('locations.index') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/locations') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Locations</a>
+        <a href="{{ route('locations.index') }}" x-show="navLinkVisible('Locations', 'User Management')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/locations') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Locations</a>
         @endif
     </div>
 </div>
