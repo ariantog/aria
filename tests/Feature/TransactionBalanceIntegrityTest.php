@@ -73,6 +73,67 @@ describe('signed balance rules', function () {
     });
 });
 
+describe('august calendar running balances', function () {
+    function seedAugustBuy(Addrbook $supplier, Addrbook $warehouse, Item $item, string $date, int $qty, int $price): Transaction
+    {
+        test()->post(route('transactions.store'), [
+            'date' => $date,
+            'type' => 'buy',
+            'sender_id' => $supplier->id,
+            'receiver_id' => $warehouse->id,
+            'items' => [['item_id' => $item->id, 'quantity' => $qty, 'price' => $price]],
+        ])->assertRedirect();
+
+        return Transaction::latest('id')->first();
+    }
+
+    it('inserting on Aug 1 shifts running balances on later August rows', function () {
+        Carbon::setTestNow('2026-08-27');
+
+        $supplier = Addrbook::factory()->create(['type' => Addrbook::TYPE_SUPPLIER]);
+        $warehouse = Addrbook::factory()->create(['type' => Addrbook::TYPE_WAREHOUSE]);
+        $item = Item::factory()->create(['qty' => 0]);
+
+        $aug10 = seedAugustBuy($supplier, $warehouse, $item, '2026-08-10', 10, 5000);
+        $aug20 = seedAugustBuy($supplier, $warehouse, $item, '2026-08-20', 5, 2000);
+
+        expect((float) $aug10->fresh()->sender_balance)->toBe(50000.0)
+            ->and((float) $aug20->fresh()->sender_balance)->toBe(60000.0);
+
+        seedAugustBuy($supplier, $warehouse, $item, '2026-08-01', 20, 5000);
+        $aug1 = Transaction::orderBy('date')->orderBy('id')->first();
+
+        expect((float) $aug1->sender_balance)->toBe(100000.0)
+            ->and((float) $aug10->fresh()->sender_balance)->toBe(150000.0)
+            ->and((float) $aug20->fresh()->sender_balance)->toBe(160000.0)
+            ->and((float) AddrbookStat::where('customer_id', $supplier->id)->value('balance'))->toBe(160000.0);
+    });
+
+    it('deleting an older August transaction recalculates later running balances', function () {
+        Carbon::setTestNow('2026-08-27');
+
+        $supplier = Addrbook::factory()->create(['type' => Addrbook::TYPE_SUPPLIER]);
+        $warehouse = Addrbook::factory()->create(['type' => Addrbook::TYPE_WAREHOUSE]);
+        $item = Item::factory()->create(['qty' => 0]);
+
+        $aug1 = seedAugustBuy($supplier, $warehouse, $item, '2026-08-01', 10, 5000);
+        $aug10 = seedAugustBuy($supplier, $warehouse, $item, '2026-08-10', 5, 2000);
+        $aug20 = seedAugustBuy($supplier, $warehouse, $item, '2026-08-20', 2, 5000);
+
+        expect((float) $aug1->fresh()->sender_balance)->toBe(50000.0)
+            ->and((float) $aug10->fresh()->sender_balance)->toBe(60000.0)
+            ->and((float) $aug20->fresh()->sender_balance)->toBe(70000.0);
+
+        $this->delete(route('transactions.destroy', $aug1))
+            ->assertRedirect(route('transactions.index'));
+
+        expect(Transaction::find($aug1->id))->toBeNull()
+            ->and((float) $aug10->fresh()->sender_balance)->toBe(10000.0)
+            ->and((float) $aug20->fresh()->sender_balance)->toBe(20000.0)
+            ->and((float) AddrbookStat::where('customer_id', $supplier->id)->value('balance'))->toBe(20000.0);
+    });
+});
+
 describe('back-dated insert recalculates later running balances', function () {
     function seedBuyTransaction(Addrbook $supplier, Addrbook $warehouse, Item $item, string $date, int $qty, int $price): Transaction
     {
