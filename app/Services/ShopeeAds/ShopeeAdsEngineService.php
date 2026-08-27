@@ -349,22 +349,55 @@ class ShopeeAdsEngineService
             return false;
         }
 
-        $live = $this->api->getGmsLiveBudget($campaignId);
+        $liveBudget = $this->api->getGmsLiveBudget($campaignId);
+        $performance = $this->api->getGmsCampaign();
+        $spendToday = $performance !== null
+            ? max(0, (int) round($performance['expense']))
+            : max(0, (int) $settings->gms_current_spend);
+        $tracked = (int) $settings->gms_current_budget;
 
-        if ($live !== null && $live > 0 && $live !== (int) $settings->gms_current_budget) {
-            Log::info('GMV-Max synced live budget from Shopee before increment', [
+        $base = max(
+            ($liveBudget !== null && $liveBudget > 0) ? $liveBudget : 0,
+            $spendToday,
+            $tracked,
+        );
+
+        if ($base <= 0) {
+            Log::error('GMV-Max increment skipped: could not resolve a budget base', [
                 'campaign_id' => $campaignId,
-                'live' => $live,
-                'tracked' => (int) $settings->gms_current_budget,
+                'live_budget' => $liveBudget,
+                'spend_today' => $spendToday,
+                'tracked' => $tracked,
             ]);
-            $settings->update(['gms_current_budget' => $live]);
+
+            return false;
+        }
+
+        Log::info('GMV-Max increment base resolved', [
+            'campaign_id' => $campaignId,
+            'base' => $base,
+            'live_budget' => $liveBudget,
+            'spend_today' => $spendToday,
+            'tracked' => $tracked,
+        ]);
+
+        $updates = [];
+        if ($base !== $tracked) {
+            $updates['gms_current_budget'] = $base;
+        }
+        if ($performance !== null && $spendToday !== (int) $settings->gms_current_spend) {
+            $updates['gms_current_spend'] = $spendToday;
+            $updates['gms_current_spend_at'] = now();
+        }
+        if ($updates !== []) {
+            $settings->update($updates);
             $settings->refresh();
         }
 
         $tracked = (int) $settings->gms_current_budget;
         $maxGmvBudget = $tracked + $this->combinedHeadroom($settings);
 
-        $result = $this->api->addGmsBudget($campaignId, $tracked, $incrementIdr, $maxGmvBudget, $live);
+        $result = $this->api->addGmsBudget($campaignId, $tracked, $incrementIdr, $maxGmvBudget, $base);
 
         if ($result === null) {
             return false;
@@ -384,7 +417,7 @@ class ShopeeAdsEngineService
             $result['before'],
             $result['after'],
             $result['applied_increment'],
-            'GMV-Max schedule increment (live budget + increment)',
+            'GMV-Max schedule increment (max live budget, spend today, tracked + increment)',
         );
 
         if ($runTime !== null && $result['applied_increment'] > 0) {

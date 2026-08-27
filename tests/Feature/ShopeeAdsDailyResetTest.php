@@ -124,6 +124,7 @@ it('runs daily reset before increment schedules on the same process tick', funct
             return ['before' => 100000, 'after' => 150000, 'applied_increment' => 50000];
         });
     $api->shouldReceive('getGmsLiveBudget')->andReturn(null);
+    $api->shouldReceive('getGmsCampaign')->andReturn(null);
 
     $engine = new ShopeeAdsEngineService(
         $api,

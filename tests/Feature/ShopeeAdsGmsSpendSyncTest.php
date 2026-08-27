@@ -40,8 +40,8 @@ it('skips gmv max spend sync when shop is not authorized', function () {
 it('runs gmv spend sync on every shopee ads process tick', function () {
     $engine = Mockery::mock(ShopeeAdsEngineService::class);
     $engine->shouldReceive('runDailyResetIfDue')->once()->andReturn(false);
-    $engine->shouldReceive('runDueSchedules')->once()->andReturn(0);
     $engine->shouldReceive('syncGmsCurrentSpend')->once()->andReturn(true);
+    $engine->shouldReceive('runDueSchedules')->once()->andReturn(0);
     $engine->shouldReceive('getRunDiagnostics')->once()->andReturn([
         'now_wib' => '2026-08-26 11:00:00',
         'now_utc' => '2026-08-26 04:00:00',
