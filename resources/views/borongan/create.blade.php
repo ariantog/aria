@@ -27,7 +27,7 @@ $breadcrumbs = [
         </a>
     </div>
 
-    <form method="POST" action="{{ route('borongan.store') }}" @submit="if(groups.length===0){$event.preventDefault(); alert('Tidak ada item yang bisa disimpan.');}">
+    <form method="POST" action="{{ route('borongan.store') }}" @submit="handleSubmit($event)">
         @csrf
         <input type="hidden" name="from" :value="from">
         <input type="hidden" name="to" :value="to">
@@ -103,12 +103,12 @@ $breadcrumbs = [
                                 </thead>
                                 <tbody>
                                     <template x-for="(item, idx) in group.items" :key="item.produksi_id">
-                                        <tr class="border-b hover:bg-gray-50">
+                                        <tr class="border-b hover:bg-gray-50" :class="item.missing_jahit_price ? 'bg-amber-50 hover:bg-amber-100' : ''">
                                             <td class="p-3" x-text="idx + 1"></td>
                                             <td class="p-3"><a :href="item.edit_link" target="_blank" class="font-mono text-blue-600 hover:underline" x-text="item.serial"></a></td>
                                             <td class="p-3 font-medium" x-text="item.code"></td>
                                             <td class="p-3 text-right" x-text="item.quantity"></td>
-                                            <td class="p-3 text-right" x-text="fmt(item.ongkos)"></td>
+                                            <td class="p-3 text-right" :class="item.missing_jahit_price ? 'font-semibold text-red-600' : ''" x-text="item.missing_jahit_price ? 'Kosong' : fmt(item.ongkos)"></td>
                                             <td class="p-3 text-right font-semibold" x-text="fmt(item.total)"></td>
                                         </tr>
                                     </template>
@@ -150,6 +150,31 @@ function boronganCreate(cfg) {
         loading: false,
         searched: false,
         fmt(v) { return 'Rp ' + formatAmountId(v); },
+        missingJahitPriceItems() {
+            return [...new Set(this.groups.flatMap((group) => group.items
+                .filter((item) => item.missing_jahit_price)
+                .map((item) => item.code || item.serial)))];
+        },
+        alertMissingJahitPrice() {
+            const missing = this.missingJahitPriceItems();
+            if (!missing.length) {
+                return false;
+            }
+
+            alert('Harga jahit kosong untuk item berikut:\n\n' + missing.join('\n'));
+            return true;
+        },
+        handleSubmit(event) {
+            if (this.groups.length === 0) {
+                event.preventDefault();
+                alert('Tidak ada item yang bisa disimpan.');
+                return;
+            }
+
+            if (this.alertMissingJahitPrice()) {
+                event.preventDefault();
+            }
+        },
         groupGrandTotal(group) {
             const fees = (Number(group.permak) || 0) + (Number(group.tres) || 0) + (Number(group.lain2) || 0);
             return (Number(group.subtotal) || 0) + fees;
@@ -178,6 +203,7 @@ function boronganCreate(cfg) {
                     tres: g.is_append ? Number(g.existing_tres) || 0 : 0,
                     lain2: g.is_append ? Number(g.existing_lain2) || 0 : 0,
                 }));
+                this.alertMissingJahitPrice();
             } catch (e) {
                 console.error(e);
                 this.groups = [];
