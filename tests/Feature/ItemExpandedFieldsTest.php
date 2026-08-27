@@ -2,6 +2,7 @@
 
 use App\Enums\ItemType;
 use App\Models\Item;
+use App\Models\ItemGroup;
 use App\Models\Tag;
 use App\Models\User;
 
@@ -20,8 +21,9 @@ it('shows url and restock threshold fields on item create page', function () {
 });
 
 it('shows url and restock threshold fields on item edit page', function () {
+    $group = ItemGroup::factory()->create(['url' => 'https://example.com/product']);
     $item = Item::factory()->create([
-        'url' => 'https://example.com/product',
+        'group_id' => $group->id,
         'restock_urgent_threshold' => 12,
     ]);
 
@@ -34,7 +36,7 @@ it('shows url and restock threshold fields on item edit page', function () {
         ->assertSee('value="12"', false);
 });
 
-it('stores url and restock urgent threshold when creating manufactured item', function () {
+it('stores group url and item restock urgent threshold when creating manufactured item', function () {
     $typeTag = Tag::factory()->create([
         'type' => Tag::TYPE_TYPE,
         'item_type' => ItemType::ITEM->value,
@@ -65,11 +67,11 @@ it('stores url and restock urgent threshold when creating manufactured item', fu
     $item = Item::query()->where('pcode', 'CX93249-03')->first();
 
     expect($item)->not->toBeNull()
-        ->and($item->url)->toBe('https://shop.example.com/cx93249')
+        ->and($item->group?->url)->toBe('https://shop.example.com/cx93249')
         ->and($item->restock_urgent_threshold)->toBe(15);
 });
 
-it('updates url and restock urgent threshold on item edit', function () {
+it('updates group url and item restock urgent threshold on item edit', function () {
     $typeTag = Tag::factory()->create([
         'type' => Tag::TYPE_TYPE,
         'item_type' => ItemType::ITEM->value,
@@ -80,10 +82,15 @@ it('updates url and restock urgent threshold on item edit', function () {
     $warnaTag = Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'BLUE', 'name' => 'BLUE']);
     $jahitTag = Tag::factory()->create(['type' => Tag::TYPE_JAHIT, 'code' => 'J1', 'name' => 'J1']);
 
+    $group = ItemGroup::factory()->create([
+        'master' => 'CX93249',
+        'variant' => '03',
+        'url' => null,
+    ]);
     $item = Item::factory()->create([
+        'group_id' => $group->id,
         'pcode' => 'CX93249-03',
         'code' => 'AJD-CX93249-03-S',
-        'url' => null,
         'restock_urgent_threshold' => null,
     ]);
     $item->tags()->attach([$typeTag->id, $sizeTag->id, $warnaTag->id, $jahitTag->id]);
@@ -104,14 +111,16 @@ it('updates url and restock urgent threshold on item edit', function () {
         ->assertRedirect();
 
     $item->refresh();
+    $group->refresh();
 
-    expect($item->url)->toBe('https://updated.example.com/item')
+    expect($group->url)->toBe('https://updated.example.com/item')
         ->and($item->restock_urgent_threshold)->toBe(8);
 });
 
-it('shows url and restock threshold on item detail page when set', function () {
+it('shows group url and item restock threshold on item detail page when set', function () {
+    $group = ItemGroup::factory()->create(['url' => 'https://catalog.example.com/sku']);
     $item = Item::factory()->create([
-        'url' => 'https://catalog.example.com/sku',
+        'group_id' => $group->id,
         'restock_urgent_threshold' => 20,
     ]);
 

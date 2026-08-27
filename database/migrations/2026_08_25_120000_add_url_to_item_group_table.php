@@ -8,12 +8,12 @@ return new class extends Migration
 {
     public function up(): void
     {
-        if (! Schema::hasTable('items')) {
+        if (! Schema::hasTable('item_group')) {
             return;
         }
 
-        Schema::table('items', function (Blueprint $table) {
-            if (! Schema::hasColumn('items', 'url')) {
+        Schema::table('item_group', function (Blueprint $table) {
+            if (! Schema::hasColumn('item_group', 'url')) {
                 $table->string('url')->nullable();
             }
         });
@@ -21,11 +21,11 @@ return new class extends Migration
 
     public function down(): void
     {
-        if (! Schema::hasTable('items') || ! Schema::hasColumn('items', 'url')) {
+        if (! Schema::hasTable('item_group') || ! Schema::hasColumn('item_group', 'url')) {
             return;
         }
 
-        Schema::table('items', function (Blueprint $table) {
+        Schema::table('item_group', function (Blueprint $table) {
             $table->dropColumn('url');
         });
     }

@@ -101,10 +101,10 @@ $nb = optional($item->group)->description2 ?? ($item->description2 ?? '-');
                             <p class="mb-1 text-[10px] font-bold uppercase tracking-tight text-gray-500">NB</p>
                             <p class="text-xs leading-relaxed text-gray-600">{{ $nb }}</p>
                         </div>
-                        @if($item->url)
+                        @if($item->group?->url)
                         <div>
                             <p class="mb-1 text-[10px] font-bold uppercase tracking-tight text-gray-500">Product URL</p>
-                            <a href="{{ $item->url }}" target="_blank" rel="noopener noreferrer" class="text-xs text-blue-600 hover:underline">{{ $item->url }}</a>
+                            <a href="{{ $item->group->url }}" target="_blank" rel="noopener noreferrer" class="text-xs text-blue-600 hover:underline">{{ $item->group->url }}</a>
                         </div>
                         @endif
                         @if($item->restock_urgent_threshold)
