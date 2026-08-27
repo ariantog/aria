@@ -7,7 +7,7 @@
     <div class="border-b border-amber-200 px-6 py-4">
         <h3 class="text-sm font-semibold uppercase tracking-widest text-amber-900">Legacy SKU Conversion</h3>
         <p class="mt-1 text-sm text-amber-800">
-            This item has no product group and still uses a legacy SKU format.
+            Use this to finish SKU conversion, product group linking, and tags when the item is not fully set up yet.
         </p>
     </div>
     <div class="space-y-4 px-6 py-4">
@@ -46,6 +46,9 @@
                 @endif
                 @if($parse?->groupName)
                     <p class="mt-1 text-amber-800">Product group: {{ $parse->groupName }}</p>
+                @endif
+                @if($identityConvert['message'])
+                    <p class="mt-2 text-amber-800">{{ $identityConvert['message'] }}</p>
                 @endif
                 <p class="mt-2 text-xs text-amber-700">
                     The old SKU is saved to <span class="font-mono">legacy_code</span> when it changes, for Jubelio order matching.
