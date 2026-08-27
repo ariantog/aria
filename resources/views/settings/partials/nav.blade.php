@@ -1,6 +1,7 @@
 @php
     $settingsNav = [
         ['title' => 'Transaction defaults', 'href' => route('transaction-defaults.edit'), 'active' => request()->routeIs('transaction-defaults.*')],
+        ['title' => 'Favorite links', 'href' => route('favorites.edit'), 'active' => request()->routeIs('favorites.*')],
         ['title' => 'Appearance', 'href' => route('appearance.edit'), 'active' => request()->routeIs('appearance.*')],
     ];
 @endphp
@@ -8,7 +9,7 @@
 <div class="px-4 py-6">
     <div class="mb-6">
         <h1 class="text-xl font-semibold text-gray-900">Preferences</h1>
-        <p class="text-sm text-gray-500">Personal defaults for transactions and appearance.</p>
+        <p class="text-sm text-gray-500">Personal defaults for transactions, sidebar shortcuts, and appearance.</p>
     </div>
 
     <div class="flex flex-col lg:flex-row lg:space-x-12">
