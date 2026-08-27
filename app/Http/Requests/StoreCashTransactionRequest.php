@@ -49,19 +49,6 @@ class StoreCashTransactionRequest extends FormRequest
                         "items.{$index}.record_ppn",
                         'PPN can only be recorded when the bank account belongs to a PKP reporting entity.',
                     );
-
-                    continue;
-                }
-
-                $ppnDpp = (float) ($item['ppn_dpp'] ?? 0);
-                $ppn = (float) ($item['ppn'] ?? 0);
-
-                if ($ppnDpp < 0.01) {
-                    $validator->errors()->add("items.{$index}.ppn_dpp", 'DPP is required when recording PPN.');
-                }
-
-                if ($ppn < 0.01) {
-                    $validator->errors()->add("items.{$index}.ppn", 'PPN amount is required when recording PPN.');
                 }
             }
         });

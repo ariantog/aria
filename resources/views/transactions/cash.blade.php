@@ -158,6 +158,7 @@ $config = [
                             <div class="sm:col-span-2">
                                 <label class="mb-1 block text-xs font-medium text-gray-500 sm:hidden">Total (Rp)</label>
                                 <input type="number" x-model.number="row.total" placeholder="0" min="0" step="any"
+                                       @input="onTotalChange(row)"
                                        @keydown="fieldKeydown(idx, 'total', $event)"
                                        @keyup="fieldKeyup(idx, 'total', $event)"
                                        :id="'total_' + idx"
@@ -187,7 +188,7 @@ $config = [
                                                min="0"
                                                step="any"
                                                placeholder="0"
-                                               @input="syncPpnFromDpp(row)"
+                                               @input="markPpnManual(row)"
                                                class="{{ $rowInput }}"
                                                :class="rowInvalid(row) && row.record_ppn && !(Number(row.ppn_dpp) >= 0.01) ? 'border-red-400 bg-red-50' : ''">
                                     </div>
@@ -198,12 +199,13 @@ $config = [
                                                min="0"
                                                step="any"
                                                placeholder="0"
+                                               @input="markPpnManual(row)"
                                                class="{{ $rowInput }}"
                                                :class="rowInvalid(row) && row.record_ppn && !(Number(row.ppn) >= 0.01) ? 'border-red-400 bg-red-50' : ''">
                                     </div>
                                 </div>
                                 <p x-show="row.record_ppn" x-cloak class="mt-1 text-[11px] text-gray-500">
-                                    Total above is the actual bank movement; DPP and PPN are recorded separately for tax reporting.
+                                    DPP and PPN are calculated from Total (gross incl. tax). Edit either field if the invoice differs by a rupiah or when withholding applies.
                                 </p>
                             </div>
                         </div>
@@ -286,6 +288,32 @@ function cashForm() {
             row.record_ppn = false;
             row.ppn_dpp = null;
             row.ppn = null;
+            row.ppn_manual = false;
+        },
+
+        markPpnManual(row) {
+            row.ppn_manual = true;
+        },
+
+        syncPpnFromTotal(row) {
+            if (! row.record_ppn) {
+                return;
+            }
+            const gross = Number(row.total || 0);
+            if (gross < 0.01) {
+                row.ppn_dpp = null;
+                row.ppn = null;
+                return;
+            }
+            const rate = _PpnRate / 100;
+            row.ppn_dpp = Math.round(gross / (1 + rate) * 100) / 100;
+            row.ppn = Math.round((gross - row.ppn_dpp) * 100) / 100;
+        },
+
+        onTotalChange(row) {
+            if (row.record_ppn && ! row.ppn_manual) {
+                this.syncPpnFromTotal(row);
+            }
         },
 
         onRecordPpnToggle(row) {
@@ -294,22 +322,8 @@ function cashForm() {
                 row.record_ppn = false;
                 return;
             }
-            if (!(Number(row.ppn_dpp) >= 0.01)) {
-                row.ppn_dpp = null;
-            }
-            if (!(Number(row.ppn) >= 0.01)) {
-                row.ppn = null;
-            }
-        },
-
-        syncPpnFromDpp(row) {
-            if (! row.record_ppn) {
-                return;
-            }
-            const dpp = Number(row.ppn_dpp || 0);
-            if (dpp >= 0.01) {
-                row.ppn = Math.round(dpp * (_PpnRate / 100) * 100) / 100;
-            }
+            row.ppn_manual = false;
+            this.syncPpnFromTotal(row);
         },
 
         addRow() {
@@ -436,6 +450,12 @@ function cashForm() {
             if (!this.canSubmit()) return;
             if (!beginSubmit(this)) return;
 
+            this.filledRows().forEach((row) => {
+                if (row.record_ppn && ! row.ppn_manual) {
+                    this.syncPpnFromTotal(row);
+                }
+            });
+
             const form = this.$el.querySelector('form');
             if (form) window.markFormSubmitInFlight(form);
             let keepLocked = false;
@@ -505,6 +525,7 @@ function newRow() {
         record_ppn: false,
         ppn_dpp: null,
         ppn: null,
+        ppn_manual: false,
     };
 }
 </script>
