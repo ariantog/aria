@@ -70,6 +70,14 @@
 
         /* Input focus ring */
         input:focus, select:focus, textarea:focus { outline: 2px solid #3b82f6; outline-offset: 1px; }
+
+        /* Hide number input spin buttons sitewide */
+        input[type="number"]::-webkit-inner-spin-button,
+        input[type="number"]::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        input[type="number"] { -moz-appearance: textfield; }
     </style>
 </head>
 <body class="min-h-full bg-gray-50 text-gray-900 antialiased"
@@ -501,6 +509,33 @@ document.addEventListener('keyup', function (e) {
         e.preventDefault();
     }
 }, true);
+
+// ─── Number inputs: block wheel + arrow-key value changes ───────────────────
+(function () {
+    function activeNumberInput() {
+        const el = document.activeElement;
+        return el instanceof HTMLInputElement
+            && el.type === 'number'
+            && !el.disabled
+            && !el.readOnly;
+    }
+
+    document.addEventListener('wheel', function (e) {
+        if (activeNumberInput()) {
+            e.preventDefault();
+        }
+    }, { passive: false });
+
+    document.addEventListener('keydown', function (e) {
+        if (!activeNumberInput()) {
+            return;
+        }
+        const key = normalizeNavigationKey(e);
+        if (key === 'ArrowUp' || key === 'ArrowDown') {
+            e.preventDefault();
+        }
+    }, true);
+})();
 
 // ─── Autocomplete defaults (addrbook + item comboboxes) ─────────────────────
 const COMBOBOX_MIN_CHARS = 3;
