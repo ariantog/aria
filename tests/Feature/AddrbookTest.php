@@ -235,3 +235,13 @@ test('persists warehouse arrangement source warehouses on update', function () {
         ->assertOk()
         ->assertSee('Source WH', false);
 });
+
+test('bank list is sorted by name', function () {
+    Addrbook::factory()->create(['name' => 'Zebra Bank', 'type' => Addrbook::TYPE_BANK]);
+    Addrbook::factory()->create(['name' => 'Alpha Bank', 'type' => Addrbook::TYPE_BANK]);
+
+    $this->actingAs($this->user)
+        ->get(route('addrbook.type.index', 'bank'))
+        ->assertOk()
+        ->assertSeeInOrder(['Alpha Bank', 'Zebra Bank'], false);
+});

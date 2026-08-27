@@ -60,7 +60,7 @@ class AddrbookController extends Controller
                     ->orWhere('address', 'like', $pattern)
                 );
             })
-            ->latest();
+            ->when($type === 'bank', fn ($q) => $q->orderBy('name'), fn ($q) => $q->latest());
 
         // Combobox / autocomplete requests (?json=1)
         if ($this->isJsonRequest()) {
