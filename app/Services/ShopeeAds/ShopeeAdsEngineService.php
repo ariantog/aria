@@ -139,6 +139,44 @@ class ShopeeAdsEngineService
     }
 
     /**
+     * Persist today's GMV-Max spend from Shopee so the dashboard can read DB only.
+     */
+    public function syncGmsCurrentSpend(?ShopeeAdsSetting $settings = null): bool
+    {
+        $settings ??= ShopeeAdsSetting::current();
+
+        if (! $this->api->hasShopAuthorization()) {
+            return false;
+        }
+
+        $camp = $this->api->getGmsCampaign();
+
+        if ($camp === null) {
+            Log::warning('GMV-Max spend sync skipped: no campaign performance from Shopee');
+
+            return false;
+        }
+
+        $updates = [
+            'gms_current_spend' => max(0, (int) round($camp['expense'])),
+            'gms_current_spend_at' => now(),
+        ];
+
+        if (! $settings->gms_campaign_id && filled($camp['campaign_id'] ?? null)) {
+            $updates['gms_campaign_id'] = (string) $camp['campaign_id'];
+        }
+
+        $settings->update($updates);
+
+        Log::info('GMV-Max spend synced from Shopee', [
+            'spend' => $updates['gms_current_spend'],
+            'campaign_id' => $camp['campaign_id'],
+        ]);
+
+        return true;
+    }
+
+    /**
      * Human-readable reasons when shopee-ads:process does nothing (for CLI / ops).
      *
      * @return array{

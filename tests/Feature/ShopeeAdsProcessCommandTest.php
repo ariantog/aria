@@ -6,6 +6,7 @@ it('runs the engine even when SHOPEE_ADS_ACTIVE env is unset', function () {
     $engine = Mockery::mock(ShopeeAdsEngineService::class);
     $engine->shouldReceive('runDailyResetIfDue')->once()->andReturn(false);
     $engine->shouldReceive('runDueSchedules')->once()->andReturn(0);
+    $engine->shouldReceive('syncGmsCurrentSpend')->once()->andReturn(false);
     $engine->shouldReceive('getRunDiagnostics')->once()->andReturn([
         'now_wib' => '2026-08-26 11:00:00',
         'now_utc' => '2026-08-26 04:00:00',
