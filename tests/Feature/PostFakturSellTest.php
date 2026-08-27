@@ -142,6 +142,37 @@ it('posts sell from keluaran faktur with faktur dpp and ppn totals', function ()
     expect((float) $stock)->toBe(99.0);
 });
 
+it('matches gross sell to faktur and treats payment gap as consignment margin', function () {
+    $data = seedConsignmentFakturSellScenario();
+    $this->actingAs($this->user);
+
+    $fakturGross = $data['parsed']->grossIncludingTax();
+    $paymentReceived = 20_000_000.0;
+    $expectedMargin = round($paymentReceived - $fakturGross, 2);
+
+    $import = app(TaxFakturImportService::class)->storeFromParsed($data['parsed'], [
+        'direction' => TaxFakturImport::DIRECTION_KELUARAN,
+        'reporting_entity_id' => $data['entity']->id,
+        'counterparty_id' => $data['customer']->id,
+        'payment_received_amount' => $paymentReceived,
+        'payment_received_date' => '2026-08-15',
+        'cash_in_transaction_id' => $data['cashIn']->id,
+    ]);
+
+    expect((float) $import->fakturGross())->toBe($fakturGross)
+        ->and((float) $import->payment_variance)->toBe($expectedMargin)
+        ->and(abs((float) $data['cashIn']->total))->toBe($paymentReceived);
+
+    $sell = app(PostFakturSell::class)->execute($import, [
+        'warehouse_id' => $data['warehouse']->id,
+        'line_mode' => PostFakturSell::LINE_MODE_SUMMARY,
+        'summary_item_id' => $data['item']->id,
+    ]);
+
+    expect(abs((float) $sell->real_total))->toBe($fakturGross)
+        ->and(abs((float) $sell->real_total))->toBeGreaterThan($paymentReceived);
+});
+
 it('resolves sell tax entity from linked cash in bank', function () {
     $data = seedConsignmentFakturSellScenario();
     $this->actingAs($this->user);

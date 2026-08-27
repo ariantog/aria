@@ -91,7 +91,7 @@ class PostFakturSell
                 'receiver_type' => (int) $customer->type,
                 'receiver_id' => $customer->id,
                 'invoice' => $invoice,
-                'notes' => sprintf('Sell from faktur %s', $import->faktur_number),
+                'notes' => sprintf('Gross sell from faktur %s (DPP+PPN)', $import->faktur_number),
                 'user_id' => Auth::id(),
                 'status' => Transaction::STATUS_COMPLETED,
                 'total' => Transaction::signedAmount(Transaction::TYPE_SELL, $dpp),

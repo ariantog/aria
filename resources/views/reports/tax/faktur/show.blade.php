@@ -50,7 +50,7 @@ $gross = $import->fakturGross();
                 <div><dt class="text-gray-500">Reporting entity</dt><dd>{{ $import->reportingEntity?->name }}</dd></div>
                 <div><dt class="text-gray-500">Lawan transaksi</dt><dd>{{ $import->counterparty?->name }}</dd></div>
                 <div><dt class="text-gray-500">DPP / PPN / PPnBM</dt><dd class="tabular-nums">{{ $fmt($import->dpp) }} / {{ $fmt($import->ppn) }} / {{ $fmt($import->ppnbm) }}</dd></div>
-                <div><dt class="text-gray-500">Total faktur (DPP+PPN)</dt><dd class="tabular-nums font-medium">{{ $fmt($gross) }}</dd></div>
+                <div><dt class="text-gray-500">Gross faktur (DPP+PPN) — dasar Sell</dt><dd class="tabular-nums font-medium">{{ $fmt($gross) }}</dd></div>
                 @if($import->signatory_name)
                     <div><dt class="text-gray-500">Penandatangan</dt><dd>{{ $import->signatory_name }}</dd></div>
                 @endif
@@ -77,7 +77,7 @@ $gross = $import->fakturGross();
                     </dd>
                 </div>
                 <div>
-                    <dt class="text-gray-500">Pembayaran diterima</dt>
+                    <dt class="text-gray-500">Pembayaran diterima (nett + PPN)</dt>
                     <dd>
                         @if($import->payment_received_date)
                             <span class="tabular-nums text-green-700">{{ $fmt($import->payment_received_amount) }}</span>
@@ -89,8 +89,11 @@ $gross = $import->fakturGross();
                 </div>
                 @if($import->payment_variance && abs((float) $import->payment_variance) > 0.01)
                     <div>
-                        <dt class="text-gray-500">Selisih vs faktur</dt>
-                        <dd class="tabular-nums">{{ $fmt($import->payment_variance) }}
+                        <dt class="text-gray-500">Margin / biaya konsinyasi (gross − bayar)</dt>
+                        <dd class="tabular-nums">{{ $fmt(abs((float) $import->payment_variance)) }}
+                            @if((float) $import->payment_variance < 0)
+                                <span class="text-xs text-gray-500">(MDS/Central potong)</span>
+                            @endif
                             @if($import->varianceExpenseAccount)
                                 <span class="text-xs text-gray-500">→ {{ $import->varianceExpenseAccount->name }}</span>
                             @endif
@@ -120,7 +123,7 @@ $gross = $import->fakturGross();
                             <a href="{{ route('transactions.show', $import->sellTransaction) }}" class="text-blue-600 hover:underline">
                                 #{{ $import->sellTransaction->id }}
                             </a>
-                            <span class="text-gray-500"> · {{ $import->sellTransaction->date?->format('Y-m-d') }} · DPP {{ $fmt(abs((float) $import->sellTransaction->total)) }} · PPN {{ $fmt((float) $import->sellTransaction->ppn) }}</span>
+                            <span class="text-gray-500"> · {{ $import->sellTransaction->date?->format('Y-m-d') }} · Gross {{ $fmt(abs((float) $import->sellTransaction->real_total)) }} (DPP {{ $fmt(abs((float) $import->sellTransaction->total)) }} + PPN {{ $fmt((float) $import->sellTransaction->ppn) }})</span>
                         @else
                             <span class="text-gray-400">Belum di-post</span>
                         @endif
@@ -173,7 +176,7 @@ $gross = $import->fakturGross();
                 @method('PATCH')
                 <div class="grid gap-3 sm:grid-cols-2">
                     <div>
-                        <label class="mb-1 block text-xs text-gray-500" for="show_payment_received_amount">Jumlah diterima (Rp)</label>
+                        <label class="mb-1 block text-xs text-gray-500" for="show_payment_received_amount">Jumlah diterima — nett + PPN (Rp)</label>
                         <input type="number" step="0.01" id="show_payment_received_amount" name="payment_received_amount"
                                x-model="paymentAmount" @input="refreshSuggestions()"
                                class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm tabular-nums">
@@ -217,8 +220,10 @@ $gross = $import->fakturGross();
         }">
             <h3 class="mb-1 font-semibold text-gray-900">Post Sell dari faktur</h3>
             <p class="mb-3 text-xs text-gray-600">
-                Buat transaksi Sell (warehouse → {{ $import->counterparty?->name }}) sesuai DPP/PPN faktur.
-                PPN keluaran di ringkasan akan diambil dari Sell; import faktur tetap tersimpan untuk audit PDF.
+                Konsinyasi MDS/Central: Sell = <strong>gross</strong> faktur (DPP+PPN {{ $fmt($gross) }}).
+                Cash In = nett+PPN yang diterima ({{ $import->payment_received_amount ? $fmt($import->payment_received_amount) : '—' }}).
+                Selisih = margin/biaya → sudah di-book ke akun biaya via Cash Out.
+                Default tanggal Sell = tanggal faktur (periode PPN).
             </p>
             <form method="POST" action="{{ route('reports.tax.faktur.post-sell', $import) }}" class="space-y-3">
                 @csrf
