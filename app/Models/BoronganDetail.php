@@ -12,6 +12,8 @@ class BoronganDetail extends Model
 
     protected $table = 'prod_borongandetail';
 
+    public $timestamps = false;
+
     protected $guarded = ['id'];
 
     protected $casts = [

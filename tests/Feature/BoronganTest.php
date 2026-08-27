@@ -31,6 +31,10 @@ beforeEach(function () {
     $this->admin->assignRole($role);
 });
 
+it('borongan detail model does not use timestamps', function () {
+    expect((new \App\Models\BoronganDetail)->usesTimestamps())->toBeFalse();
+});
+
 it('denies access to list borongan for unauthorized user', function () {
     $response = $this->actingAs($this->user)->get('/borongan');
     $response->assertStatus(403);
