@@ -108,13 +108,39 @@ it('updates group url and item restock urgent threshold on item edit', function 
                 'jahit' => $jahitTag->id,
             ],
         ])
-        ->assertRedirect();
+        ->assertRedirect(route('items.show', $item));
 
     $item->refresh();
     $group->refresh();
 
     expect($group->url)->toBe('https://updated.example.com/item')
         ->and($item->restock_urgent_threshold)->toBe(8);
+});
+
+it('redirects to asset lancar detail page after update', function () {
+    $sizeTag = Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'S', 'name' => 'S']);
+    $warnaTag = Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'BLACK', 'name' => 'BLACK']);
+    $item = Item::factory()->create([
+        'type' => ItemType::ASSET_LANCAR,
+        'code' => 'GLOVE-07-BLACK-S',
+        'pcode' => 'GLOVE-07',
+        'cost' => 1000,
+    ]);
+    $item->tags()->attach([$sizeTag->id, $warnaTag->id]);
+
+    $this->actingAs($this->user)
+        ->put(route('assetlancar.update', $item), [
+            'type' => ItemType::ASSET_LANCAR->value,
+            'pcode' => 'GLOVE-07',
+            'product_name' => 'Glove 07',
+            'cost' => 1500,
+            'tags' => [
+                'sizes' => [$sizeTag->id],
+                'warna' => $warnaTag->id,
+            ],
+        ])
+        ->assertRedirect(route('assetlancar.show', $item))
+        ->assertSessionHas('success', 'Item updated.');
 });
 
 it('shows group url and item restock threshold on item detail page when set', function () {
