@@ -311,10 +311,22 @@ class ShopeeAdsEngineService
             return false;
         }
 
+        $live = $this->api->getGmsLiveBudget($campaignId);
+
+        if ($live !== null && $live > 0 && $live !== (int) $settings->gms_current_budget) {
+            Log::info('GMV-Max synced live budget from Shopee before increment', [
+                'campaign_id' => $campaignId,
+                'live' => $live,
+                'tracked' => (int) $settings->gms_current_budget,
+            ]);
+            $settings->update(['gms_current_budget' => $live]);
+            $settings->refresh();
+        }
+
         $tracked = (int) $settings->gms_current_budget;
         $maxGmvBudget = $tracked + $this->combinedHeadroom($settings);
 
-        $result = $this->api->addGmsBudget($campaignId, $tracked, $incrementIdr, $maxGmvBudget);
+        $result = $this->api->addGmsBudget($campaignId, $tracked, $incrementIdr, $maxGmvBudget, $live);
 
         if ($result === null) {
             return false;
