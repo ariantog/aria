@@ -72,6 +72,35 @@ it('skips inactive cron manager tasks', function () {
     expect(ScheduledTask::query()->where('command', 'shopee-ads:process')->value('last_run_at'))->toBeNull();
 });
 
+it('dispatches cron manager commands with CLI flags', function () {
+    Log::spy();
+
+    ScheduledTask::query()->updateOrCreate(
+        ['command' => 'app:recalculate-warehouse-item-stats --months=2'],
+        [
+            'name' => 'Reconcile Recent Warehouse Item Stats',
+            'frequency' => 'daily',
+            'active' => true,
+            'description' => 'test',
+        ],
+    );
+
+    $this->artisan('app:dispatch-scheduled-tasks')
+        ->assertSuccessful();
+
+    Log::shouldHaveReceived('info')
+        ->with('Scheduled task starting', ['command' => 'app:recalculate-warehouse-item-stats --months=2'])
+        ->once();
+
+    Log::shouldHaveReceived('info')
+        ->with('Scheduled task finished', ['command' => 'app:recalculate-warehouse-item-stats --months=2'])
+        ->once();
+
+    expect(ScheduledTask::query()
+        ->where('command', 'app:recalculate-warehouse-item-stats --months=2')
+        ->value('last_run_at'))->not->toBeNull();
+});
+
 it('does not run scheduler-only commands inside the dispatcher', function () {
     Log::spy();
 
