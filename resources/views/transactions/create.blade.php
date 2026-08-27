@@ -621,7 +621,8 @@ function createTransaction() {
             this.form.items.push(this.newItemRow());
             if (focus) {
                 const idx = this.form.items.length - 1;
-                this.$nextTick(() => document.getElementById('code_' + idx)?.focus());
+                suppressFieldNavigation(400);
+                deferFocusElement('code_' + idx);
             }
         },
 
@@ -880,6 +881,11 @@ function createTransaction() {
         // "Unidentified" (keyCode 229) on keydown, which no modifier can match,
         // and sometimes only the keyup carries a usable key.
         rowKeydown(idx, field, e) {
+            if (isFieldNavigationSuppressed()) {
+                e.preventDefault();
+                e.stopPropagation();
+                return;
+            }
             this._rowKeyHandled = false;
             if (this._processRowKey(idx, field, e)) {
                 this._rowKeyHandled = true;
@@ -889,11 +895,16 @@ function createTransaction() {
         },
 
         rowKeyup(idx, field, e) {
+            if (isFieldNavigationSuppressed()) {
+                e.preventDefault();
+                return;
+            }
             if (this._rowKeyHandled) {
                 this._rowKeyHandled = false;
                 return;
             }
             if (this._processRowKey(idx, field, e)) {
+                this._rowKeyHandled = true;
                 e.preventDefault();
             }
         },
@@ -913,6 +924,7 @@ function createTransaction() {
                 if (!code) return isEnter;
                 // Already resolved and unchanged: just advance.
                 if (row.item_id && String(row.code || '') === code) {
+                    suppressFieldNavigation(400);
                     this.focusField(idx, 'qty');
                     return true;
                 }
@@ -920,9 +932,9 @@ function createTransaction() {
                 return true;
             }
 
-            if (field === 'qty') { this.focusField(idx, _AfterQtyField); return true; }
-            if (field === 'disc') { this.focusField(idx, 'price'); return true; }
-            if (field === 'price') { this.priceEnter(idx); return true; }
+            if (field === 'qty') { suppressFieldNavigation(400); this.focusField(idx, _AfterQtyField); return true; }
+            if (field === 'disc') { suppressFieldNavigation(400); this.focusField(idx, 'price'); return true; }
+            if (field === 'price') { suppressFieldNavigation(400); this.priceEnter(idx); return true; }
 
             return false;
         },
@@ -931,7 +943,8 @@ function createTransaction() {
             this.barcodeError = '';
             this.applyItemAtIndex(idx, item);
             this.recalcItem(idx);
-            this.$nextTick(() => this.focusField(idx, 'qty'));
+            suppressFieldNavigation(400);
+            deferFocusElement('qty_' + idx);
         },
 
         nameKeyboardNavLock(row) {
@@ -954,6 +967,10 @@ function createTransaction() {
         },
 
         nameKeydown(idx, e) {
+            if (isFieldNavigationSuppressed()) {
+                e.preventDefault();
+                return;
+            }
             this.form.items[idx]._keydownHandled = false;
             if (this._processNameKey(idx, e)) {
                 this.form.items[idx]._keydownHandled = true;
@@ -964,12 +981,17 @@ function createTransaction() {
         nameKeyup(idx, e) {
             const row = this.form.items[idx];
             if (!row) return;
+            if (isFieldNavigationSuppressed()) {
+                e.preventDefault();
+                return;
+            }
             if (row._keydownHandled) {
                 row._keydownHandled = false;
                 return;
             }
             const key = normalizeNavigationKey(e);
             if (['ArrowDown', 'ArrowUp', 'Enter'].includes(key) && this._processNameKey(idx, e)) {
+                row._keydownHandled = true;
                 e.preventDefault();
             }
         },
@@ -1013,6 +1035,7 @@ function createTransaction() {
                 } else if (len === 1) {
                     this.pickItem(idx, row.results[0]);
                 } else {
+                    suppressFieldNavigation(400);
                     this.focusField(idx, 'qty');
                 }
                 return true;
@@ -1026,15 +1049,12 @@ function createTransaction() {
         },
 
         focusField(idx, field) {
-            this.$nextTick(() => {
-                const el = document.getElementById(field + '_' + idx);
-                if (el) { el.focus(); if (el.select) el.select(); }
-            });
+            deferFocusElement(field + '_' + idx);
         },
 
         priceEnter(idx) {
             if (idx === this.form.items.length - 1) this.addItemRow(true);
-            else this.focusField(idx + 1, 'code');
+            else deferFocusElement('code_' + (idx + 1));
         },
 
         recalcItem(idx) {

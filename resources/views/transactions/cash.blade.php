@@ -376,10 +376,7 @@ function cashForm() {
             row.customer = item;
             if (!item) return;
             suppressFieldNavigation(400);
-            setTimeout(() => {
-                const el = document.getElementById('invoice_' + idx);
-                if (el) { el.focus(); el.select?.(); }
-            }, 0);
+            deferFocusElement('invoice_' + idx);
         },
 
         removeRow(idx) {
@@ -426,28 +423,17 @@ function cashForm() {
         },
 
         focusNext(idx, field) {
-            let id;
             if (field === 'next') {
                 // Move to next row or add row (capped at _CashMaxRows)
                 if (idx < this.form.items.length - 1) {
-                    id = 'source_' + (idx + 1);
+                    deferFocusElement('source_' + (idx + 1), false);
                 } else if (this.canAddRow()) {
                     this.addRow();
-                    this.$nextTick(() => {
-                        const el = document.getElementById('source_' + (idx + 1));
-                        if (el) el.focus();
-                    });
-                    return;
-                } else {
-                    return;
+                    deferFocusElement('source_' + (idx + 1), false);
                 }
-            } else {
-                id = field + '_' + idx;
+                return;
             }
-            this.$nextTick(() => {
-                const el = document.getElementById(id);
-                if (el) { el.focus(); if (el.select) el.select(); }
-            });
+            deferFocusElement(field + '_' + idx);
         },
 
         // Bare keydown/keyup (not Alpine .enter) so Android/IME keyboards work.
@@ -473,12 +459,14 @@ function cashForm() {
                 return;
             }
             if (this._processFieldKey(idx, field, e)) {
+                this._fieldKeyHandled = true;
                 e.preventDefault();
             }
         },
 
         _processFieldKey(idx, field, e) {
             if (normalizeNavigationKey(e) !== 'Enter') return false;
+            suppressFieldNavigation(400);
             if (field === 'invoice') { this.focusNext(idx, 'note'); return true; }
             if (field === 'note') { this.focusNext(idx, 'total'); return true; }
             if (field === 'total') { this.focusNext(idx, 'next'); return true; }
