@@ -378,6 +378,18 @@ function isFieldNavigationSuppressed() {
     return Date.now() < (window._suppressFieldNavUntil || 0);
 }
 
+// Defer focus until after keyup: $nextTick runs as a microtask before keyup on
+// Android/external keyboards, so the same Enter's keyup lands on the next field.
+function deferFocusElement(id, select = true) {
+    setTimeout(() => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.focus();
+            if (select && typeof el.select === 'function') el.select();
+        }
+    }, 0);
+}
+
 // ─── Filter form Enter → next field (selects included) ───────────────────────
 function filterFormFocusables(form) {
     const nodes = form.querySelectorAll(
