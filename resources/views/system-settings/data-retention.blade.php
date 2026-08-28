@@ -56,8 +56,14 @@ $statusStyles = [
     <div class="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm">
         <div class="font-semibold text-blue-900">Archive preview — year {{ $archivePreview['year'] }}</div>
         <ul class="mt-2 grid gap-1 sm:grid-cols-2">
-            @foreach(collect($archivePreview)->except('year') as $key => $count)
-            <li><span class="text-blue-800">{{ str_replace('_', ' ', $key) }}:</span> <strong>{{ number_format($count) }}</strong></li>
+            @foreach(collect($archivePreview)->only([
+                'transactions',
+                'details',
+                'customers',
+                'items',
+                'item_groups',
+            ]) as $key => $count)
+            <li><span class="text-blue-800">{{ str_replace('_', ' ', $key) }}:</span> <strong>{{ number_format((int) $count) }}</strong></li>
             @endforeach
         </ul>
     </div>
@@ -67,8 +73,19 @@ $statusStyles = [
     <div class="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm">
         <div class="font-semibold text-amber-900">Live cleanup preview — year {{ $cleanupPreview['year'] }}</div>
         <ul class="mt-2 grid gap-1 sm:grid-cols-2">
-            @foreach(collect($cleanupPreview)->except('year', 'uses_partition_drop', 'partition_name') as $key => $count)
-            <li><span class="text-amber-900">{{ str_replace('_', ' ', $key) }}:</span> <strong>{{ number_format($count) }}</strong></li>
+            @foreach(collect($cleanupPreview)->only([
+                'transactions',
+                'details',
+                'monthly_stats',
+                'monthly_accounts',
+                'daily_customers',
+                'orphan_items',
+                'orphan_item_groups',
+                'orphan_customers',
+                'orphan_suppliers',
+                'orphan_resellers',
+            ]) as $key => $count)
+            <li><span class="text-amber-900">{{ str_replace('_', ' ', $key) }}:</span> <strong>{{ number_format((int) $count) }}</strong></li>
             @endforeach
         </ul>
         <p class="mt-2 text-amber-800">

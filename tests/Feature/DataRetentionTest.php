@@ -198,6 +198,23 @@ it('renders archive pages for superadmin', function () {
         ->assertSee('Selective Item Purge');
 });
 
+it('renders cleanup preview with partition metadata without number_format errors', function () {
+    app(PermissionGenerator::class)->generateForModule('DataRetentionRun');
+    $user = User::query()->find(1) ?? User::factory()->create(['id' => 1]);
+
+    $this->actingAs($user)
+        ->from(route('data-retention.index'))
+        ->post(route('data-retention.preview-cleanup'), ['year' => 2014])
+        ->assertRedirect(route('data-retention.index'));
+
+    $this->actingAs($user)
+        ->get(route('data-retention.index'))
+        ->assertSuccessful()
+        ->assertSee('Live cleanup preview')
+        ->assertSee('p2015')
+        ->assertSee('Partition drop:');
+});
+
 it('allows archive-view users to browse archive but not data retention', function () {
     app(PermissionGenerator::class)->generateForModule('DataRetentionRun');
 
