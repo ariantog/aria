@@ -392,7 +392,116 @@ it('rejects jubelio sell when mapped warehouse stock is insufficient', function 
         ->and($result['message'])->toContain('Gudang Kosong')
         ->and($result['message'])->toContain('SKU-NO-STOCK');
 
+    $order->refresh();
+    expect($order->warehouse_id)->toBe($warehouse->id)
+        ->and($order->stockErrorItemsList())->toHaveCount(1)
+        ->and($order->stockErrorItemsList()[0]['code'])->toBe('SKU-NO-STOCK')
+        ->and($order->stockErrorItemsList()[0]['item_id'])->toBe($item->id);
+
     expect(Transaction::where('invoice', 'INV-NO-STOCK')->exists())->toBeFalse();
+});
+
+it('filters jubelio orders index by mapped warehouse', function () {
+    $user = User::factory()->create();
+    $warehouseA = Addrbook::factory()->warehouse()->create(['name' => 'Gudang Filter A']);
+    $warehouseB = Addrbook::factory()->warehouse()->create(['name' => 'Gudang Filter B']);
+
+    Jubeliosync::create([
+        'jubelio_store_id' => 901,
+        'jubelio_store_name' => 'Store A',
+        'jubelio_location_id' => 902,
+        'jubelio_location_name' => 'Loc A',
+        'warehouse_id' => $warehouseA->id,
+        'customer_id' => 0,
+        'bin_id' => 0,
+    ]);
+
+    Jubeliosync::create([
+        'jubelio_store_id' => 903,
+        'jubelio_store_name' => 'Store B',
+        'jubelio_location_id' => 904,
+        'jubelio_location_name' => 'Loc B',
+        'warehouse_id' => $warehouseB->id,
+        'customer_id' => 0,
+        'bin_id' => 0,
+    ]);
+
+    Jubelioorder::create([
+        'jubelio_order_id' => 'wh-filter-a',
+        'source' => 1,
+        'invoice' => 'INV-WH-FILTER-A',
+        'type' => 'SELL',
+        'order_status' => 'SHIPPED',
+        'run_count' => 0,
+        'warehouse_id' => $warehouseA->id,
+        'status' => 0,
+    ]);
+
+    Jubelioorder::create([
+        'jubelio_order_id' => 'wh-filter-b',
+        'source' => 1,
+        'invoice' => 'INV-WH-FILTER-B',
+        'type' => 'SELL',
+        'order_status' => 'SHIPPED',
+        'run_count' => 0,
+        'warehouse_id' => $warehouseB->id,
+        'status' => 0,
+    ]);
+
+    $this->actingAs($user)
+        ->get(route('jubelio.index', ['warehouse_id' => $warehouseA->id, 'status' => 'pending']))
+        ->assertSuccessful()
+        ->assertSee('INV-WH-FILTER-A')
+        ->assertDontSee('INV-WH-FILTER-B')
+        ->assertSee('Gudang Filter A', false);
+});
+
+it('shows clickable stock error codes on jubelio orders index', function () {
+    $user = User::factory()->create();
+    $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'Gudang Kosong']);
+    $customer = Addrbook::factory()->create(['type' => Addrbook::TYPE_CUSTOMER]);
+    $item = Item::factory()->create(['code' => 'SKU-LIST-STOCK']);
+
+    Jubeliosync::create([
+        'jubelio_store_id' => 8,
+        'jubelio_store_name' => 'Store',
+        'jubelio_location_id' => 9,
+        'jubelio_location_name' => 'Loc',
+        'warehouse_id' => $warehouse->id,
+        'customer_id' => $customer->id,
+        'bin_id' => 0,
+    ]);
+
+    mockJubelioSalesOrder('list-stock-1', [
+        'salesorder_no' => 'INV-LIST-STOCK',
+        'store_id' => 8,
+        'location_id' => 9,
+        'sub_total' => 5000,
+        'real_total' => 5000,
+        'items' => [
+            ['item_code' => 'SKU-LIST-STOCK', 'qty' => 1, 'price' => 5000],
+        ],
+    ]);
+
+    $order = Jubelioorder::create([
+        'jubelio_order_id' => 'list-stock-1',
+        'source' => 1,
+        'invoice' => 'INV-LIST-STOCK',
+        'type' => 'SELL',
+        'order_status' => 'SHIPPED',
+        'run_count' => 0,
+        'status' => 0,
+    ]);
+
+    app(\App\Actions\Jubelio\ProcessJubelioOrder::class)->execute($order);
+
+    $itemUrl = route('items.show', $item);
+
+    $this->actingAs($user)
+        ->get(route('jubelio.index', ['status' => 'error']))
+        ->assertSuccessful()
+        ->assertSee('SKU-LIST-STOCK')
+        ->assertSee($itemUrl, false);
 });
 
 it('ignores inflated jubelio sub_total when line prices already match grand total', function () {

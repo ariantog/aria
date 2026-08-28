@@ -229,6 +229,11 @@ $sc = $statusConfig[$order->status] ?? ['label' => 'Unknown', 'cls' => 'border b
                     Perbaiki stok di Aria terlebih dahulu, lalu klik <strong>Buat Transaksi Manual</strong> di atas.
                 </p>
                 @endif
+                @if($order->hasStockError())
+                <div class="mb-4">
+                    @include('jubelio.partials.stock-error-items', ['stockErrorItems' => $order->stockErrorItemsList()])
+                </div>
+                @endif
                 <div class="rounded-lg border border-red-900/30 bg-red-100 p-4 font-mono text-xs text-red-700">
                     <pre class="whitespace-pre-wrap">{{ $order->error }}</pre>
                 </div>
