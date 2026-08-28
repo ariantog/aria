@@ -17,6 +17,7 @@ class DataRetentionController extends Controller
         Gate::authorize(DataRetentionRun::getPermissions()['manage']);
 
         $runs = DataRetentionRun::query()->orderBy('year')->get();
+        $orphanPreview = $retention->previewOrphanPurges();
 
         return view('system-settings.data-retention', [
             'archiveConfigured' => $retention->archiveConfigured(),
@@ -24,6 +25,7 @@ class DataRetentionController extends Controller
             'liveStartYear' => $retention->liveRetentionStartYear(),
             'eligibleYears' => $retention->yearsEligibleForArchive(),
             'usesPartitioning' => $retention->usesPartitioning(),
+            'orphanPreview' => $orphanPreview,
             'runs' => $runs,
             'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
@@ -110,11 +112,12 @@ class DataRetentionController extends Controller
         }
 
         return back()->with('success', sprintf(
-            'Year %d removed from live: %d transaction(s), %d detail(s), %d orphan item(s) purged.',
+            'Year %d removed from live: %d transaction(s), %d detail(s), %d orphan item(s) and %d item group(s) purged.',
             $year,
             $result['transactions'],
             $result['details'],
             $result['items_purged'],
+            $result['item_groups_purged'] ?? 0,
         ));
     }
 
@@ -127,11 +130,61 @@ class DataRetentionController extends Controller
         ]);
 
         try {
-            $purged = $retention->purgeOrphanItemsFromLive(false);
+            $result = $retention->purgeOrphanItemsFromLive(false);
         } catch (Throwable $e) {
             return back()->with('error', $e->getMessage());
         }
 
-        return back()->with('success', "Purged {$purged} orphan item(s) from the live database.");
+        return back()->with('success', sprintf(
+            'Purged %d orphan item(s) and %d orphan item group(s) from the live database.',
+            $result['items'],
+            $result['groups'],
+        ));
+    }
+
+    public function purgeOrphanItemGroups(Request $request, DataRetentionService $retention): RedirectResponse
+    {
+        Gate::authorize(DataRetentionRun::getPermissions()['manage']);
+
+        $validated = $request->validate([
+            'confirm' => ['required', 'string', 'in:PURGE-ORPHAN-ITEM-GROUPS'],
+        ]);
+
+        try {
+            $purged = $retention->purgeOrphanItemGroupsFromLive(false);
+        } catch (Throwable $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with('success', "Purged {$purged} orphan item group(s) from the live database.");
+    }
+
+    public function purgeOrphanAddrbooks(Request $request, DataRetentionService $retention, string $type): RedirectResponse
+    {
+        Gate::authorize(DataRetentionRun::getPermissions()['manage']);
+
+        $addrbookType = DataRetentionService::PURGEABLE_ADDRBOOK_TYPES[$type] ?? null;
+
+        if ($addrbookType === null) {
+            abort(404);
+        }
+
+        $expected = $retention->confirmTokenForAddrbookType($addrbookType);
+
+        $validated = $request->validate([
+            'confirm' => ['required', 'string', "in:{$expected}"],
+        ]);
+
+        try {
+            $purged = $retention->purgeOrphanAddrbooksFromLive($addrbookType, false);
+        } catch (Throwable $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with('success', sprintf(
+            'Purged %d orphan %s from the live database.',
+            $purged,
+            $type,
+        ));
     }
 }

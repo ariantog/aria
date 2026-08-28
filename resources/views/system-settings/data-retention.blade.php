@@ -134,17 +134,53 @@ $statusStyles = [
     </div>
 
     <div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-        <h2 class="text-lg font-semibold">3. Purge orphan items (live)</h2>
-        <p class="mt-1 text-sm text-gray-500">Hard-delete items created before {{ $liveStartYear }} with no remaining transaction lines and no warehouse stock.</p>
-        <form method="POST" action="{{ route('data-retention.purge-orphan-items') }}" class="mt-4 flex flex-wrap items-end gap-2"
-              onsubmit="return confirm('Permanently delete orphan items from live?');">
-            @csrf
-            <div class="min-w-[14rem] flex-1">
-                <label class="mb-1 block text-xs font-medium text-gray-500">Type PURGE-ORPHAN-ITEMS to confirm</label>
-                <input type="text" name="confirm" required placeholder="PURGE-ORPHAN-ITEMS" class="h-9 w-full max-w-md rounded-md border border-gray-300 px-3 text-sm font-mono">
-            </div>
-            <button type="submit" class="h-9 rounded-md border border-red-300 bg-red-50 px-4 text-sm font-medium text-red-800 hover:bg-red-100">Purge orphan items</button>
-        </form>
+        <h2 class="text-lg font-semibold">3. Purge orphans (live)</h2>
+        <p class="mt-1 text-sm text-gray-500">
+            Contacts/items created before <strong>{{ $orphanPreview['cutoff_year'] }}</strong> with no remaining transaction references.
+            Soft-deleted rows are included. Warehouse stock blocks the standard item purge only.
+        </p>
+
+        <dl class="mt-4 grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-3">
+            <div><dt class="text-gray-500">Orphan items (no stock)</dt><dd class="font-semibold tabular-nums">{{ number_format($orphanPreview['items']) }}</dd></div>
+            <div><dt class="text-gray-500">Orphan items (incl. stock)</dt><dd class="font-semibold tabular-nums">{{ number_format($orphanPreview['items_with_stock']) }}</dd></div>
+            <div><dt class="text-gray-500">Orphan item groups</dt><dd class="font-semibold tabular-nums">{{ number_format($orphanPreview['item_groups']) }}</dd></div>
+            <div><dt class="text-gray-500">Orphan customers</dt><dd class="font-semibold tabular-nums">{{ number_format($orphanPreview['customers']) }}</dd></div>
+            <div><dt class="text-gray-500">Orphan suppliers</dt><dd class="font-semibold tabular-nums">{{ number_format($orphanPreview['suppliers']) }}</dd></div>
+            <div><dt class="text-gray-500">Orphan resellers</dt><dd class="font-semibold tabular-nums">{{ number_format($orphanPreview['resellers']) }}</dd></div>
+        </dl>
+
+        <div class="mt-4 grid gap-4 xl:grid-cols-2">
+            <form method="POST" action="{{ route('data-retention.purge-orphan-items') }}" class="space-y-2 rounded-lg border border-gray-200 p-3"
+                  onsubmit="return confirm('Permanently delete orphan items (zero warehouse stock)?');">
+                @csrf
+                <div class="text-sm font-medium">Items (standard)</div>
+                <input type="text" name="confirm" required placeholder="PURGE-ORPHAN-ITEMS" class="h-9 w-full rounded-md border border-gray-300 px-3 text-sm font-mono">
+                <button type="submit" class="h-9 rounded-md border border-red-300 bg-red-50 px-4 text-sm font-medium text-red-800 hover:bg-red-100">Purge orphan items</button>
+            </form>
+
+            <form method="POST" action="{{ route('data-retention.purge-orphan-item-groups') }}" class="space-y-2 rounded-lg border border-gray-200 p-3"
+                  onsubmit="return confirm('Permanently delete orphan item groups?');">
+                @csrf
+                <div class="text-sm font-medium">Item groups (no remaining items)</div>
+                <input type="text" name="confirm" required placeholder="PURGE-ORPHAN-ITEM-GROUPS" class="h-9 w-full rounded-md border border-gray-300 px-3 text-sm font-mono">
+                <button type="submit" class="h-9 rounded-md border border-red-300 bg-red-50 px-4 text-sm font-medium text-red-800 hover:bg-red-100">Purge orphan item groups</button>
+            </form>
+
+            @foreach(['customers' => 'PURGE-ORPHAN-CUSTOMERS', 'suppliers' => 'PURGE-ORPHAN-SUPPLIERS', 'resellers' => 'PURGE-ORPHAN-RESELLERS'] as $slug => $token)
+            <form method="POST" action="{{ route('data-retention.purge-orphan-addrbooks', $slug) }}" class="space-y-2 rounded-lg border border-gray-200 p-3"
+                  onsubmit="return confirm('Permanently delete orphan {{ $slug }}?');">
+                @csrf
+                <div class="text-sm font-medium">{{ ucfirst($slug) }}</div>
+                <input type="text" name="confirm" required placeholder="{{ $token }}" class="h-9 w-full rounded-md border border-gray-300 px-3 text-sm font-mono">
+                <button type="submit" class="h-9 rounded-md border border-red-300 bg-red-50 px-4 text-sm font-medium text-red-800 hover:bg-red-100">Purge orphan {{ $slug }}</button>
+            </form>
+            @endforeach
+        </div>
+
+        <div class="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+            To purge old items that still have warehouse stock, use the
+            <a href="{{ route('data-retention.item-purge.index') }}" class="font-medium underline">selective item purge</a> page (preview + <code class="rounded bg-amber-100 px-1">PURGE-ITEMS-WITH-STOCK</code>).
+        </div>
     </div>
 
     <div class="overflow-hidden rounded-xl border bg-white shadow-sm">
