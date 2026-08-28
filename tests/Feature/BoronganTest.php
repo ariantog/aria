@@ -94,6 +94,9 @@ it('allows access to view borongan details for authorized user', function () {
     $response = $this->actingAs($this->user)->get("/borongan/{$borongan->id}");
     $response->assertStatus(200);
     $response->assertViewIs('borongan.show');
+    $response->assertSee('borongan-show', false);
+    $response->assertSee('@page', false);
+    $response->assertSee('print:hidden', false);
 });
 
 it('creates one borongan per jahit for gudang items in date range', function () {
