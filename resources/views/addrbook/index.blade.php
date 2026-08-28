@@ -9,6 +9,8 @@ $breadcrumbs = [
     ['title' => 'Address Book', 'href' => $baseUrl],
     ['title' => 'List', 'href' => $baseUrl],
 ];
+$showArrangementColumn = $current_type === 'warehouse';
+$tableColumnCount = $showArrangementColumn ? 6 : 5;
 @endphp
 
 <div class="flex flex-col gap-4 p-3 sm:p-4">
@@ -61,6 +63,9 @@ $breadcrumbs = [
                     <th class="px-3 py-3 font-bold">Name / ID</th>
                     <th class="px-3 py-3 font-bold">Contact Info</th>
                     <th class="w-32 px-3 py-3 text-right font-bold">Connectivity</th>
+                    @if($showArrangementColumn)
+                    <th class="w-28 px-3 py-3 text-center font-bold">Arrangement</th>
+                    @endif
                     <th class="w-36 px-3 py-3 text-right font-bold">Balance</th>
                     <th class="w-24 px-3 py-3 text-right font-bold">Actions</th>
                 </tr>
@@ -95,6 +100,15 @@ $breadcrumbs = [
                             </div>
                             @if($a->ppn)<span class="mt-1 inline-block rounded bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-700">PPN {{ $ppn_rate }}%</span>@endif
                         </td>
+                        @if($showArrangementColumn)
+                        <td class="px-3 py-3 text-center">
+                            @if($a->arrangement_enabled)
+                                <span class="inline-block rounded bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">Destination</span>
+                            @else
+                                <span class="text-gray-300">—</span>
+                            @endif
+                        </td>
+                        @endif
                         <td class="whitespace-nowrap px-3 py-3 text-right font-medium text-gray-900">IDR {{ format_amount($bal) }}</td>
                         <td class="px-3 py-3">
                             <div class="flex justify-end gap-1">
@@ -112,7 +126,7 @@ $breadcrumbs = [
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="5" class="px-4 py-12 text-center text-sm italic text-gray-500">No address book entries found.</td></tr>
+                    <tr><td colspan="{{ $tableColumnCount }}" class="px-4 py-12 text-center text-sm italic text-gray-500">No address book entries found.</td></tr>
                 @endforelse
             </tbody>
         </table>
