@@ -328,6 +328,38 @@ it('purges orphan items with warehouse stock on selective purge', function () {
         ->and(DB::table('warehouse_item')->where('item_id', $item->id)->exists())->toBeFalse();
 });
 
+it('purges orphan items with migration-touched created_at when bulk timestamp is configured', function () {
+    $this->travelTo('2026-08-28');
+
+    config(['data_retention.legacy_bulk_touch_timestamps' => ['2026-08-24 02:58:40']]);
+
+    $item = Item::factory()->create(['created_at' => '2026-08-24 02:58:40']);
+
+    $result = $this->retention->purgeOrphanItemsFromLive(
+        dryRun: false,
+        cutoffYear: 2022,
+    );
+
+    expect($result['items'])->toBe(1)
+        ->and(DB::table('items')->where('id', $item->id)->exists())->toBeFalse();
+});
+
+it('does not purge recent orphan items that were not bulk-touched', function () {
+    $this->travelTo('2026-08-28');
+
+    config(['data_retention.legacy_bulk_touch_timestamps' => ['2026-08-24 02:58:40']]);
+
+    $item = Item::factory()->create(['created_at' => '2026-08-27 12:00:00']);
+
+    $result = $this->retention->purgeOrphanItemsFromLive(
+        dryRun: false,
+        cutoffYear: 2022,
+    );
+
+    expect($result['items'])->toBe(0)
+        ->and(DB::table('items')->where('id', $item->id)->exists())->toBeTrue();
+});
+
 it('lists orphan items with migration-touched created_at on selective preview', function () {
     $this->travelTo('2026-08-28');
 

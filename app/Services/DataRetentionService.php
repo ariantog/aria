@@ -956,7 +956,10 @@ class DataRetentionService
 
         if (! $ignoreCreatedAtCutoff) {
             $cutoffDate = sprintf('%04d-01-01', $cutoffYear);
-            $query->where('items.created_at', '<', $cutoffDate);
+            $query->where(function ($ageQuery) use ($cutoffDate) {
+                $ageQuery->where('items.created_at', '<', $cutoffDate)
+                    ->orWhereIn('items.created_at', $this->legacyBulkTouchTimestamps());
+            });
         }
 
         if (! $ignoreWarehouseStock) {
@@ -988,7 +991,10 @@ class DataRetentionService
 
         $query = $this->live()->table('customers')
             ->where('customers.type', $type)
-            ->where('customers.created_at', '<', $cutoffDate);
+            ->where(function ($ageQuery) use ($cutoffDate) {
+                $ageQuery->where('customers.created_at', '<', $cutoffDate)
+                    ->orWhereIn('customers.created_at', $this->legacyBulkTouchTimestamps());
+            });
 
         foreach (['transactions', 'transaction_details', 'deleted', 'deleted_details'] as $table) {
             if (! Schema::hasTable($table)) {
@@ -1068,5 +1074,15 @@ class DataRetentionService
         }
 
         DB::table('customers')->where('id', $id)->delete();
+    }
+
+    /**
+     * L10 schema puts ON UPDATE CURRENT_TIMESTAMP on created_at; bulk migrations rewrite it.
+     *
+     * @return list<string>
+     */
+    protected function legacyBulkTouchTimestamps(): array
+    {
+        return config('data_retention.legacy_bulk_touch_timestamps', []);
     }
 }
