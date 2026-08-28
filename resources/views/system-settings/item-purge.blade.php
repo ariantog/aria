@@ -32,12 +32,11 @@ $breadcrumbs = [
         <div>
             <h1 class="text-2xl font-bold tracking-tight">Selective Item Purge</h1>
             <p class="text-sm text-gray-500">
-                Hard-delete orphan items with <strong>no transaction lines</strong>, even when warehouse stock &gt; 0.
-                Soft-deleted items are included. Item groups with no remaining items are purged afterward.
+                Hard-delete orphan items with <strong>no transaction lines</strong> and <strong>id &le; max id</strong>,
+                even when warehouse stock &gt; 0. Soft-deleted items are included.
             </p>
             <p class="mt-1 text-xs text-gray-500">
-                Orphans are listed regardless of <code class="rounded bg-gray-100 px-1">created_at</code> so legacy rows
-                touched by migration are not hidden. Check <strong>Keep</strong> to exclude an item from purge.
+                Check <strong>Keep</strong> to exclude an item from purge. Unchecked rows will be deleted on submit.
             </p>
         </div>
         <a href="{{ route('data-retention.index') }}" class="text-sm font-medium text-blue-600 hover:underline">← Data Retention</a>
@@ -52,8 +51,8 @@ $breadcrumbs = [
 
     <form method="GET" class="flex flex-wrap items-end gap-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
         <div>
-            <label class="mb-1 block text-xs font-medium text-gray-500">Reference cutoff year</label>
-            <input type="number" name="cutoff_year" value="{{ $cutoffYear }}" min="2000" max="2100" class="h-9 w-28 rounded-md border border-gray-300 px-3 text-sm">
+            <label class="mb-1 block text-xs font-medium text-gray-500">Max item id</label>
+            <input type="number" name="max_id" value="{{ $maxId }}" min="1" class="h-9 w-32 rounded-md border border-gray-300 px-3 text-sm" placeholder="e.g. 10000">
         </div>
         <div>
             <label class="mb-1 block text-xs font-medium text-gray-500">Item type</label>
@@ -74,11 +73,9 @@ $breadcrumbs = [
         <div class="flex flex-wrap items-center justify-between gap-2 p-4 pb-0">
             <h2 class="text-lg font-semibold">Preview</h2>
             <div class="text-sm text-gray-500">
-                <span>{{ number_format($preview->total()) }} orphan item(s)</span>
-                @if($keepIds !== [])
+                <span>{{ number_format($totalCandidates) }} candidate(s)</span>
                 <span class="mx-1">·</span>
                 <span>{{ number_format(count($keepIds)) }} kept</span>
-                @endif
                 <span class="mx-1">·</span>
                 <span class="font-medium text-red-700">{{ number_format($purgeCount) }} to purge</span>
             </div>
@@ -93,8 +90,6 @@ $breadcrumbs = [
                         <th class="px-3 py-2 font-medium">SKU</th>
                         <th class="px-3 py-2 font-medium">Name</th>
                         <th class="px-3 py-2 font-medium">Type</th>
-                        <th class="px-3 py-2 font-medium">Created</th>
-                        <th class="px-3 py-2 font-medium">Earliest tx</th>
                         <th class="px-3 py-2 font-medium">Deleted</th>
                         <th class="px-3 py-2 text-right font-medium">Warehouse qty</th>
                     </tr>
@@ -109,17 +104,21 @@ $breadcrumbs = [
                                    @checked(in_array($row['id'], $keepIds, true))
                                    @change="toggleKeep({{ $row['id'] }}, $event.target.checked)">
                         </td>
-                        <td class="px-3 py-2 font-mono text-xs">#{{ $row['id'] }}</td>
-                        <td class="px-3 py-2 font-mono text-xs">{{ $row['code'] }}</td>
-                        <td class="px-3 py-2">{{ $row['name'] }}</td>
+                        <td class="px-3 py-2 font-mono text-xs">
+                            <a href="{{ route('items.show', $row['id']) }}" class="text-blue-600 hover:underline">#{{ $row['id'] }}</a>
+                        </td>
+                        <td class="px-3 py-2 font-mono text-xs">
+                            <a href="{{ route('items.show', $row['id']) }}" class="text-blue-600 hover:underline">{{ $row['code'] }}</a>
+                        </td>
+                        <td class="px-3 py-2">
+                            <a href="{{ route('items.show', $row['id']) }}" class="text-blue-600 hover:underline">{{ $row['name'] }}</a>
+                        </td>
                         <td class="px-3 py-2">{{ $row['type'] }}</td>
-                        <td class="px-3 py-2 tabular-nums">{{ \Illuminate\Support\Carbon::parse($row['created_at'])->format('Y-m-d') }}</td>
-                        <td class="px-3 py-2 tabular-nums">{{ $row['earliest_tx_date'] ? \Illuminate\Support\Carbon::parse($row['earliest_tx_date'])->format('Y-m-d') : '—' }}</td>
                         <td class="px-3 py-2 tabular-nums">{{ $row['deleted_at'] ? \Illuminate\Support\Carbon::parse($row['deleted_at'])->format('Y-m-d') : '—' }}</td>
                         <td class="px-3 py-2 text-right tabular-nums">{{ $row['warehouse_qty'] }}</td>
                     </tr>
                     @empty
-                    <tr><td colspan="9" class="px-3 py-6 text-center text-gray-500">No matching items for this preview.</td></tr>
+                    <tr><td colspan="7" class="px-3 py-6 text-center text-gray-500">No matching items for this preview.</td></tr>
                     @endforelse
                 </tbody>
             </table>
@@ -131,7 +130,7 @@ $breadcrumbs = [
     <form method="POST" action="{{ route('data-retention.item-purge.purge') }}" class="rounded-xl border border-red-200 bg-red-50 p-4"
           onsubmit="return confirm('Permanently delete {{ number_format($purgeCount) }} orphan item(s)? Kept items are excluded.');">
         @csrf
-        <input type="hidden" name="cutoff_year" value="{{ $cutoffYear }}">
+        <input type="hidden" name="max_id" value="{{ $maxId }}">
         @if($itemType !== null)
         <input type="hidden" name="item_type" value="{{ $itemType }}">
         @endif
@@ -140,14 +139,14 @@ $breadcrumbs = [
         @endforeach
         <div class="text-sm font-semibold text-red-900">Execute purge</div>
         <p class="mt-1 text-sm text-red-800">
-            Purges every orphan item matching the filters above, except rows marked <strong>Keep</strong>
+            Purges every eligible orphan with id &le; {{ number_format($maxId) }}, except rows marked <strong>Keep</strong>
             ({{ number_format(count($keepIds)) }} kept, {{ number_format($purgeCount) }} will be deleted).
             Use pagination to mark items on other pages before submitting.
         </p>
         <div class="mt-3 flex flex-wrap items-end gap-2">
             <div class="min-w-[16rem] flex-1">
-                <label class="mb-1 block text-xs font-medium text-red-800">Type PURGE-ITEMS-WITH-STOCK to confirm</label>
-                <input type="text" name="confirm" required placeholder="PURGE-ITEMS-WITH-STOCK" class="h-9 w-full max-w-md rounded-md border border-red-300 bg-white px-3 text-sm font-mono">
+                <label class="mb-1 block text-xs font-medium text-red-800">Type PURGE-SELECTED-ITEMS to confirm</label>
+                <input type="text" name="confirm" required placeholder="PURGE-SELECTED-ITEMS" class="h-9 w-full max-w-md rounded-md border border-red-300 bg-white px-3 text-sm font-mono">
             </div>
             <button type="submit" class="h-9 rounded-md bg-red-600 px-4 text-sm font-medium text-white hover:bg-red-700" @disabled($purgeCount === 0)>
                 Purge {{ number_format($purgeCount) }} item(s)
