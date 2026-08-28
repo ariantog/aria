@@ -246,6 +246,16 @@ test('bank list is sorted by name', function () {
         ->assertSeeInOrder(['Alpha Bank', 'Zebra Bank'], false);
 });
 
+test('warehouse list is sorted by name', function () {
+    Addrbook::factory()->warehouse()->create(['name' => 'Zulu Warehouse']);
+    Addrbook::factory()->warehouse()->create(['name' => 'Alpha Warehouse']);
+
+    $this->actingAs($this->user)
+        ->get(route('addrbook.type.index', 'warehouse'))
+        ->assertOk()
+        ->assertSeeInOrder(['Alpha Warehouse', 'Zulu Warehouse'], false);
+});
+
 test('warehouse list shows arrangement destination column', function () {
     Addrbook::factory()->warehouse()->create([
         'name' => 'Arrangement WH',
