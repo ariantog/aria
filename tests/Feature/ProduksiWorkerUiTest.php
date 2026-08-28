@@ -97,7 +97,69 @@ it('filters produksi index by clicking customer filter value', function () {
 
     $response = $this->actingAs($this->user)->get('/produksi?customer=ACME');
 
-    $response->assertStatus(200);
+    $response->assertSuccessful();
     $response->assertSee('Alpha');
     $response->assertDontSee('Beta');
+});
+
+it('shows potong and jahit filter dropdowns on produksi index', function () {
+    $potong = Worker::create(['name' => 'Cutter X', 'type' => Worker::TYPE_POTONG]);
+    $jahit = Worker::create(['name' => 'Sewer Y', 'type' => Worker::TYPE_JAHIT]);
+
+    $response = $this->actingAs($this->user)->get('/produksi');
+
+    $response->assertSuccessful();
+    $response->assertSee('name="potong_id"', false);
+    $response->assertSee('name="jahit_id"', false);
+    $response->assertSee('Cutter X');
+    $response->assertSee('Sewer Y');
+});
+
+it('filters produksi index by potong and jahit workers', function () {
+    $potongA = Worker::create(['name' => 'Potong A', 'type' => Worker::TYPE_POTONG]);
+    $potongB = Worker::create(['name' => 'Potong B', 'type' => Worker::TYPE_POTONG]);
+    $jahitA = Worker::create(['name' => 'Jahit A', 'type' => Worker::TYPE_JAHIT]);
+    $jahitB = Worker::create(['name' => 'Jahit B', 'type' => Worker::TYPE_JAHIT]);
+
+    Produksi::create([
+        'temp_name' => 'Match Both',
+        'quantity' => 1,
+        'status' => Produksi::STATUS_PRODUKSI,
+        'potong_id' => $potongA->id,
+        'potong_date' => now()->toDateString(),
+        'jahit_id' => $jahitA->id,
+        'jahit_date' => now()->toDateString(),
+    ]);
+    Produksi::create([
+        'temp_name' => 'Other Potong',
+        'quantity' => 1,
+        'status' => Produksi::STATUS_PRODUKSI,
+        'potong_id' => $potongB->id,
+        'potong_date' => now()->toDateString(),
+        'jahit_id' => $jahitA->id,
+        'jahit_date' => now()->toDateString(),
+    ]);
+    Produksi::create([
+        'temp_name' => 'Other Jahit',
+        'quantity' => 1,
+        'status' => Produksi::STATUS_PRODUKSI,
+        'potong_id' => $potongA->id,
+        'potong_date' => now()->toDateString(),
+        'jahit_id' => $jahitB->id,
+        'jahit_date' => now()->toDateString(),
+    ]);
+
+    $this->actingAs($this->user)
+        ->get("/produksi?potong_id={$potongA->id}")
+        ->assertSuccessful()
+        ->assertSee('Match Both')
+        ->assertSee('Other Jahit')
+        ->assertDontSee('Other Potong');
+
+    $this->actingAs($this->user)
+        ->get("/produksi?jahit_id={$jahitA->id}")
+        ->assertSuccessful()
+        ->assertSee('Match Both')
+        ->assertSee('Other Potong')
+        ->assertDontSee('Other Jahit');
 });
