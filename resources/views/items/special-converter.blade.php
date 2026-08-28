@@ -101,6 +101,7 @@
                     <th class="px-4 py-3">Legacy</th>
                     <th class="px-4 py-3">Name</th>
                     <th class="px-4 py-3">Jubelio</th>
+                    <th class="px-4 py-3 text-right">Actions</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-gray-100">
@@ -109,6 +110,7 @@
                         $preview = $previews[$item->id]['parse'] ?? null;
                         $legacy = $preservedLegacyCode($item);
                         $showUrl = route('assetlancar.show', $item);
+                        $canConvert = $legacy === null && ($preview?->success ?? false);
                     @endphp
                     <tr class="hover:bg-gray-50 {{ $legacy ? 'bg-gray-50/80' : '' }}">
                         <td class="px-4 py-2 text-gray-500">
@@ -134,9 +136,29 @@
                         </td>
                         <td class="px-4 py-2 text-gray-700">{{ $item->name }}</td>
                         <td class="px-4 py-2 text-gray-500">{{ $item->jubelio_item_id ?: '—' }}</td>
+                        <td class="px-4 py-2 text-right">
+                            @if($canConvert)
+                                <form method="POST"
+                                      action="{{ route('items.special-converter.run-item', $item) }}"
+                                      class="inline"
+                                      onsubmit="return confirm('Convert {{ $item->code }} to {{ $preview->canonicalCode }}? Old code moves to legacy_code for Jubelio.');">
+                                    @csrf
+                                    <input type="hidden" name="page" value="{{ $currentPage }}">
+                                    <button type="submit"
+                                            data-testid="special-converter-convert-{{ $item->id }}"
+                                            class="rounded-md bg-blue-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-blue-700">
+                                        Convert
+                                    </button>
+                                </form>
+                            @elseif($legacy)
+                                <span class="text-xs text-gray-400">Converted</span>
+                            @else
+                                <span class="text-xs text-gray-400">—</span>
+                            @endif
+                        </td>
                     </tr>
                 @empty
-                    <tr><td colspan="6" class="px-4 py-8 text-center text-gray-500">No pending special SKUs.</td></tr>
+                    <tr><td colspan="7" class="px-4 py-8 text-center text-gray-500">No pending special SKUs.</td></tr>
                 @endforelse
             </tbody>
         </table>

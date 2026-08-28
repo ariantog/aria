@@ -4,6 +4,7 @@ namespace App\Services\Items;
 
 use App\Enums\ItemType;
 use App\Models\Item;
+use App\Models\ItemIdentityConversionResult;
 use App\Models\ItemIdentityConversionRun;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
@@ -152,6 +153,33 @@ class SpecialSkuConverterService
             ->filter(fn (Item $item) => $this->isEligible($item))
             ->sortBy(fn (Item $item) => array_search($item->id, $itemIds, true))
             ->values();
+    }
+
+    public function runItem(Item $item, User $user): ItemIdentityConversionResult
+    {
+        if (! $this->isEligible($item)) {
+            throw new \RuntimeException('Item is not eligible for special SKU conversion.');
+        }
+
+        $item = $item->fresh(['tags', 'group']);
+        $parse = $this->parser->parse($item);
+
+        if (! $parse->success) {
+            throw new \RuntimeException($parse->detail ?? 'SKU cannot be parsed for conversion.');
+        }
+
+        $run = ItemIdentityConversionRun::query()->create([
+            'item_type' => ItemType::ASSET_LANCAR,
+            'dry_run' => false,
+            'batch_size' => 1,
+            'user_id' => $user->id,
+            'started_at' => now(),
+        ]);
+
+        $result = $this->legacyConverter->convertWithParse($item, $run, $parse, false);
+        $run->update(['finished_at' => now()]);
+
+        return $result;
     }
 
     public function runItems(Collection $items, User $user, bool $dryRun = false): ItemIdentityConversionRun
