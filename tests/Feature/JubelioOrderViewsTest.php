@@ -478,6 +478,52 @@ it('backfills first stock error item when viewing error status', function () {
         ->and($order->stockErrorItemsList()[0]['item_id'])->toBe($item->id);
 });
 
+it('can refresh jubelio order payload and report warehouse mapping', function () {
+    $user = User::factory()->create();
+    $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'Gudang Refresh']);
+
+    Jubeliosync::create([
+        'jubelio_store_id' => 951,
+        'jubelio_store_name' => 'Tokopedia',
+        'jubelio_location_id' => 952,
+        'jubelio_location_name' => 'BSD - ONLINE',
+        'warehouse_id' => $warehouse->id,
+        'customer_id' => 0,
+        'bin_id' => 0,
+    ]);
+
+    mockJubelioSalesOrder('refresh-1', [
+        'salesorder_no' => 'INV-REFRESH-1',
+        'store_id' => 951,
+        'location_id' => 952,
+        'location_name' => 'BSD - ONLINE',
+        'real_total' => 100000,
+        'items' => [],
+    ]);
+
+    $order = Jubelioorder::create([
+        'jubelio_order_id' => 'refresh-1',
+        'source' => 1,
+        'invoice' => 'INV-REFRESH-1',
+        'type' => 'SELL',
+        'order_status' => 'SHIPPED',
+        'run_count' => 1,
+        'error_type' => 1,
+        'error' => 'Stok tidak cukup',
+        'status' => 1,
+    ]);
+
+    $this->actingAs($user)
+        ->post(route('jubelio.refresh-payload', $order))
+        ->assertRedirect()
+        ->assertSessionHas('success');
+
+    $order->refresh();
+    expect($order->jubelio_store_id)->toBe(951)
+        ->and($order->jubelio_location_id)->toBe(952)
+        ->and($order->warehouse_id)->toBe($warehouse->id);
+});
+
 it('shows clickable customer warehouse and item links on order detail', function () {
     $user = User::factory()->create();
     $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'Gudang Detail Link']);

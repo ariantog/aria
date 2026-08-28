@@ -376,4 +376,71 @@ class JubelioOrderWarehouseResolver
     {
         return "{$storeId}:{$locationId}";
     }
+
+    /**
+     * Re-fetch payload from Jubelio API, refresh filter columns, and return mapping diagnostics.
+     *
+     * @return array{
+     *     success: bool,
+     *     message: string,
+     *     store_id: int,
+     *     location_id: int,
+     *     location_name: ?string,
+     *     aria_warehouse: ?string
+     * }
+     */
+    public function refreshFromApi(Jubelioorder $order): array
+    {
+        Jubelioorder::clearPayloadCacheFor($order->id);
+        app(JubelioOrderPayloadService::class)->forget($order->id);
+
+        $payloadService = app(JubelioOrderPayloadService::class);
+        $payload = $payloadService->fetchOrEmpty($order);
+        if ($payload === []) {
+            return [
+                'success' => false,
+                'message' => 'Payload kosong — cek koneksi Jubelio atau order ID.',
+                'store_id' => 0,
+                'location_id' => 0,
+                'location_name' => null,
+                'aria_warehouse' => null,
+            ];
+        }
+
+        $syncIndex = $this->syncIndex();
+        $this->persistWarehouseKeysFromPayload($order, $payload, $syncIndex);
+
+        if ($order->status === 1 && $order->error_type === 1 && $order->type === 'SELL') {
+            $firstError = app(JubelioOrderErrorItemBackfill::class)->firstSellErrorItem($order, $payload);
+            if ($firstError !== null) {
+                Jubelioorder::query()->whereKey($order->id)->update([
+                    'stock_error_items' => [$firstError],
+                ]);
+            }
+        }
+
+        $order->refresh();
+        $resolved = $this->resolve($order, $syncIndex);
+        $storeId = (int) ($payload['store_id'] ?? 0);
+        $locationId = (int) ($payload['location_id'] ?? 0);
+        $locationName = $payload['location_name'] ?? null;
+        $ariaWarehouse = $resolved['aria_warehouse'] ?? null;
+
+        if ($ariaWarehouse) {
+            $message = "Mapping: store {$storeId} / loc {$locationId} ({$locationName}) → {$ariaWarehouse}";
+        } elseif ($storeId > 0 && $locationId > 0) {
+            $message = "store {$storeId} / loc {$locationId} ({$locationName}) belum ada di Jubelio Sync — tambahkan mapping di Jubelio Sync.";
+        } else {
+            $message = "Payload tidak punya store_id/location_id (location_name: {$locationName}) — tidak bisa map ke gudang Aria.";
+        }
+
+        return [
+            'success' => true,
+            'message' => $message,
+            'store_id' => $storeId,
+            'location_id' => $locationId,
+            'location_name' => is_string($locationName) ? $locationName : null,
+            'aria_warehouse' => $ariaWarehouse,
+        ];
+    }
 }

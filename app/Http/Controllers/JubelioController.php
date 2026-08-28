@@ -114,9 +114,12 @@ class JubelioController extends Controller
         $orders = $q->paginate(15)->withQueryString();
         $orders->getCollection()->transform(function (Jubelioorder $order) use ($resolver, $syncIndex) {
             $warehouses = $resolver->resolve($order, $syncIndex);
+            $payload = $order->payloadArray();
             $order->jubelio_warehouse = $warehouses['jubelio_warehouse'];
             $order->aria_warehouse = $warehouses['aria_warehouse'];
             $order->aria_warehouse_url = $warehouses['aria_warehouse_url'];
+            $order->payload_store_id = (int) ($payload['store_id'] ?? 0);
+            $order->payload_location_id = (int) ($payload['location_id'] ?? 0);
 
             return $order;
         });
@@ -159,6 +162,18 @@ class JubelioController extends Controller
         return response()->json([
             'payload' => $jubelio->payloadArray(),
         ]);
+    }
+
+    public function refreshPayload(Jubelioorder $jubelio, JubelioOrderWarehouseResolver $resolver): RedirectResponse
+    {
+        Gate::authorize(Jubelio::getPermissions()['view']);
+
+        $result = $resolver->refreshFromApi($jubelio);
+
+        return back()->with(
+            $result['success'] ? 'success' : 'error',
+            $result['message'],
+        );
     }
 
     public function processOrder(Jubelioorder $jubelio, ProcessJubelioOrder $processor): RedirectResponse

@@ -41,6 +41,13 @@ $breadcrumbs = [
         </form>
     </div>
 
+    @if(!empty($flash['success']))
+    <div class="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">{{ $flash['success'] }}</div>
+    @endif
+    @if(!empty($flash['error']))
+    <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ $flash['error'] }}</div>
+    @endif
+
     {{-- Stat cards --}}
     <div class="grid grid-cols-2 gap-4 md:grid-cols-4">
         @php
@@ -139,6 +146,15 @@ $breadcrumbs = [
                                        data-testid="jubelio-aria-warehouse-link">{{ $order->aria_warehouse }}</a>
                                     @else
                                     <div class="text-sm font-medium text-gray-700">{{ $order->aria_warehouse ?: '—' }}</div>
+                                    @if(!$order->aria_warehouse)
+                                    <div class="mt-0.5 text-[10px] text-amber-700" title="Cek mapping di Jubelio Sync">
+                                        @if(($order->payload_store_id ?? 0) > 0 && ($order->payload_location_id ?? 0) > 0)
+                                            store {{ $order->payload_store_id }} / loc {{ $order->payload_location_id }} — belum di-sync
+                                        @else
+                                            store/loc kosong di payload Jubelio
+                                        @endif
+                                    </div>
+                                    @endif
                                     @endif
                                 </div>
                             </div>
@@ -159,6 +175,15 @@ $breadcrumbs = [
                         <td class="px-6 py-4 text-center">
                             <div class="flex flex-col items-center gap-1">
                                 @include('jubelio.partials.sync-status-badge', ['status' => $order->status, 'errorType' => $order->error_type, 'executeBy' => $order->user->name ?? null])
+                                <form method="POST" action="{{ route('jubelio.refresh-payload', $order) }}" class="inline">
+                                    @csrf
+                                    <button type="submit"
+                                            class="text-[10px] font-medium text-gray-500 hover:text-blue-600"
+                                            title="Ambil ulang payload dari Jubelio API dan perbarui mapping gudang"
+                                            data-testid="jubelio-refresh-payload-{{ $order->id }}">
+                                        ↻ Refresh payload
+                                    </button>
+                                </form>
                                 @if($order->hasStockError())
                                 @include('jubelio.partials.stock-error-items', ['stockErrorItems' => $order->stockErrorItemsList()])
                                 @elseif(((($order->status == 1 && $order->error_type == 1)) || ($order->status == 2 && $order->error_type == 2)) && $order->error)
