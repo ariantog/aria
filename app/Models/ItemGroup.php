@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Support\FillsProductionColumnDefaults;
+use App\Support\ItemImageResolver;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -43,15 +44,7 @@ class ItemGroup extends Model
 
     public function getImageUrlAttribute(): string
     {
-        $folder = str_pad(substr((string) $this->id, -2), 2, '0', STR_PAD_LEFT);
-        $filename = $this->id.'.jpg';
-        $path = config('core-nation.item_image_path').$folder.'/'.$filename;
-
-        if (file_exists($path)) {
-            return config('core-nation.item_image_url').$folder.'/'.$filename;
-        }
-
-        return asset('images/default-item.svg');
+        return app(ItemImageResolver::class)->resolveUrlForGroup($this);
     }
 
     public function getInWarehouseQtyAttribute(): float
