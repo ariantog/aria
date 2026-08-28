@@ -558,11 +558,7 @@ describe('jubelio sync ui', function () {
         expect($presented['can_sync'])->toBeTrue()
             ->and($presented['sync_cek'])->toBe('S');
 
-        $showUi = config('services.jubelio.active')
-            && $presented['can_sync']
-            && $presented['sync_cek'];
-
-        expect($showUi)->toBeFalse();
+        expect(app(JubelioTransactionSyncPresenter::class)->showSyncUi($presented))->toBeFalse();
 
         $response = $this->get(route('transactions.show', $transaction));
         $response->assertSuccessful();

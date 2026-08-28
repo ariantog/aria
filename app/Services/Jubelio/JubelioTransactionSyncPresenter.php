@@ -4,6 +4,7 @@ namespace App\Services\Jubelio;
 
 use App\Models\Jubeliosync;
 use App\Models\Transaction;
+use App\Models\User;
 use Illuminate\Support\Collection;
 
 class JubelioTransactionSyncPresenter
@@ -54,6 +55,21 @@ class JubelioTransactionSyncPresenter
         $transaction->is_from_jubelio = $presented['is_from_jubelio'];
 
         return $presented;
+    }
+
+    /**
+     * Whether stock-sync push controls should render for this transaction.
+     *
+     * @param  array<string, mixed>  $presented
+     */
+    public function showSyncUi(array $presented, ?User $user = null): bool
+    {
+        $user ??= auth()->user();
+
+        return config('services.jubelio.active')
+            && ($presented['can_sync'] ?? false)
+            && (bool) ($presented['sync_cek'] ?? null)
+            && Transaction::userCanJubelioTransactionSync($user);
     }
 
     /**

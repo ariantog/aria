@@ -6,6 +6,8 @@ use App\Models\Jubeliosync;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Services\Jubelio\JubelioTransactionSyncPresenter;
+use App\Services\JubelioService;
+use Illuminate\Support\Facades\Http;
 use Spatie\Permission\Models\Permission;
 
 function seedJubelioSyncForWarehouse(Addrbook $warehouse): Jubeliosync
@@ -391,4 +393,87 @@ it('defaults submit_type to L10 aria submit on create when omitted', function ()
 
     expect($transaction->fresh()->submit_type)->toBe(Transaction::SUBMIT_TYPE_MANUAL)
         ->and($transaction->isManual())->toBeTrue();
+});
+
+it('hides push buttons on detail sync when jubelio integration is inactive', function () {
+    config(['services.jubelio.active' => false]);
+
+    $user = seedTransactionShowUser();
+    $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'WH Inactive']);
+    $customer = Addrbook::factory()->create(['type' => Addrbook::TYPE_CUSTOMER]);
+    $item = Item::factory()->create(['jubelio_item_id' => 401]);
+    seedJubelioSyncForWarehouse($warehouse);
+
+    $transaction = Transaction::factory()->create([
+        'type' => Transaction::TYPE_SELL,
+        'submit_type' => Transaction::SUBMIT_TYPE_MANUAL,
+        'sender_id' => $warehouse->id,
+        'receiver_id' => $customer->id,
+    ]);
+    seedItemTransactionDetail($transaction, $item);
+
+    $this->actingAs($user)
+        ->get(route('jubelio.transaction.detail-sync', $transaction))
+        ->assertSuccessful()
+        ->assertSee('Integrasi Jubelio Nonaktif', false)
+        ->assertDontSee('Sender (Side A)', false)
+        ->assertDontSee('Push to Jubelio</button>', false);
+});
+
+it('posts stock adjustment to jubelio and marks side a as synced', function () {
+    config([
+        'services.jubelio.active' => true,
+        'services.jubelio.url' => 'https://api.jubelio.com/login',
+        'services.jubelio.email' => 'test@example.com',
+        'services.jubelio.password' => 'secret',
+        'services.jubelio.verify_ssl' => false,
+    ]);
+
+    \App\Models\Setting::create([
+        'group' => 'Jubelio',
+        'name' => 'Jubelio Token',
+        'slug' => JubelioService::TOKEN_SETTING_SLUG,
+        'value' => [
+            'token' => 'test-token',
+            'expires_at' => now()->addHours(5)->toDateTimeString(),
+        ],
+    ]);
+
+    Http::fake([
+        'https://api2.jubelio.com/inventory/adjustments/warehouse' => Http::response(['id' => 98765], 200),
+    ]);
+
+    $user = seedTransactionShowUser();
+    $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'WH Push']);
+    $customer = Addrbook::factory()->create(['type' => Addrbook::TYPE_CUSTOMER]);
+    $item = Item::factory()->create(['jubelio_item_id' => 501, 'code' => 'SKU-PUSH']);
+    seedJubelioSyncForWarehouse($warehouse);
+
+    $transaction = Transaction::factory()->create([
+        'type' => Transaction::TYPE_SELL,
+        'submit_type' => Transaction::SUBMIT_TYPE_MANUAL,
+        'sender_id' => $warehouse->id,
+        'receiver_id' => $customer->id,
+        'invoice' => 'INV-PUSH-1',
+    ]);
+    seedItemTransactionDetail($transaction, $item);
+
+    $this->actingAs($user)
+        ->post(route('jubelio.adjustStok', $transaction), [
+            'side' => 1,
+            'whType' => 2,
+            'adjustType' => 2,
+        ])
+        ->assertRedirect()
+        ->assertSessionHas('success');
+
+    $transaction->refresh();
+
+    expect($transaction->a_submit_by)->toBe($user->id)
+        ->and($transaction->a_reference_id)->toBe('98765');
+
+    Http::assertSent(function (\Illuminate\Http\Client\Request $request) {
+        return $request->url() === 'https://api2.jubelio.com/inventory/adjustments/warehouse'
+            && $request->method() === 'POST';
+    });
 });
