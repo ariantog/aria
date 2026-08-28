@@ -352,11 +352,12 @@ class TransactionsController extends Controller
         ]);
     }
 
-    public function storePdf(Transaction $transaction, TransactionInvoiceService $invoiceService)
+    public function storePdf(Request $request, Transaction $transaction, TransactionInvoiceService $invoiceService)
     {
         $this->authorizeTransactionView($transaction);
         $existed = $invoiceService->invoicePdfExists($transaction);
-        $invoiceService->createInvoicePdf($transaction, regenerate: true);
+        $itemView = \App\Support\TransactionItemViewOptions::fromRequest($request);
+        $invoiceService->createInvoicePdf($transaction, regenerate: true, itemView: $itemView);
 
         return redirect()
             ->route('transactions.show', $transaction)
@@ -366,19 +367,25 @@ class TransactionsController extends Controller
     public function receipt(Transaction $transaction, TransactionInvoiceService $invoiceService)
     {
         $this->authorizeTransactionView($transaction);
-        $fileUrl = $invoiceService->createReceiptPdf($transaction);
+        $invoiceService->createReceiptPdf($transaction);
+        $fileName = $invoiceService->receiptFileName($transaction);
+        $filePath = $invoiceService->invoiceDiskPath($fileName);
 
-        return redirect()->away($fileUrl);
+        return response()->file($filePath, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="'.$fileName.'"',
+        ]);
     }
 
-    public function printInvoice(Transaction $transaction, \App\Services\InvoiceBrandingService $brandingService)
+    public function printInvoice(Request $request, Transaction $transaction, \App\Services\InvoiceBrandingService $brandingService)
     {
         $this->authorizeTransactionView($transaction);
         $transaction->load(['details.item.group', 'sender', 'receiver']);
         $typeLabel = $transaction->getTypeLabel();
         $branding = $brandingService->forTransaction($transaction);
+        $itemView = \App\Support\TransactionItemViewOptions::fromRequest($request);
 
-        return view('transactions.print', compact('transaction', 'typeLabel', 'branding'));
+        return view('transactions.print', compact('transaction', 'typeLabel', 'branding', 'itemView'));
     }
 
     public function sendWhatsapp(Request $request, Transaction $transaction, TransactionInvoiceService $invoiceService)

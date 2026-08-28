@@ -24,7 +24,7 @@ afterEach(function () {
     File::deleteDirectory(storage_path('app/testing-invoices'));
 });
 
-it('generates the receipt pdf and redirects to the public url', function () {
+it('generates the receipt pdf and serves it inline', function () {
     $sender = Addrbook::factory()->warehouse()->create(['name' => 'Store - CITOS OFFLINE']);
     $receiver = Addrbook::factory()->customer()->create();
     $transaction = Transaction::factory()->create([
@@ -46,15 +46,13 @@ it('generates the receipt pdf and redirects to the public url', function () {
 
     $service = app(TransactionInvoiceService::class);
     $fileName = $service->receiptFileName($transaction);
-    $expectedUrl = $service->invoicePublicUrl($fileName);
 
     $this->actingAs($this->user)
         ->get(route('transactions.receipt', $transaction))
-        ->assertRedirect($expectedUrl);
+        ->assertOk()
+        ->assertHeader('content-type', 'application/pdf');
 
-    $filePath = $service->invoiceDiskPath($fileName);
-    expect(File::exists($filePath))->toBeTrue();
-    expect(File::get($filePath))->toStartWith('%PDF');
+    expect(File::exists($service->invoiceDiskPath($fileName)))->toBeTrue();
 });
 
 it('renders the receipt pdf blade with item name and code', function () {
@@ -89,15 +87,71 @@ it('renders the receipt pdf blade with item name and code', function () {
         ->toContain('Rp934.700');
 });
 
-it('renders the dot matrix print page', function () {
+it('renders the dot matrix print page with item view columns', function () {
+    $item = Item::factory()->create(['name' => 'Printed Shirt', 'code' => 'SKU-PRINT-01']);
     $transaction = Transaction::factory()->create(['invoice' => 'PRT-001']);
-    TransactionDetail::factory()->create(['transaction_id' => $transaction->id]);
+    TransactionDetail::factory()->create([
+        'transaction_id' => $transaction->id,
+        'item_id' => $item->id,
+        'quantity' => 2,
+        'price' => 50_000,
+        'discount' => 10,
+        'total' => 90_000,
+    ]);
 
     $this->actingAs($this->user)
-        ->get(route('transactions.print', $transaction))
+        ->get(route('transactions.print', [
+            'transaction' => $transaction,
+            'image' => 0,
+            'barcode' => 1,
+            'sku' => 1,
+            'name' => 1,
+        ]))
         ->assertOk()
-        ->assertSee('PRT-001', false)
+        ->assertSee('Printed Shirt', false)
+        ->assertSee('SKU-PRINT-01', false)
+        ->assertSee('Disc(%)', false)
         ->assertSee('css/print.css', false);
+});
+
+it('generates invoice pdf with item view columns from request', function () {
+    $item = Item::factory()->create(['name' => 'PDF Shirt', 'code' => 'SKU-PDF-01']);
+    $transaction = Transaction::factory()->create([
+        'invoice' => 'PDF-COLS',
+        'real_total' => 90_000,
+        'total' => 90_000,
+    ]);
+    TransactionDetail::factory()->create([
+        'transaction_id' => $transaction->id,
+        'item_id' => $item->id,
+        'quantity' => 1,
+        'price' => 100_000,
+        'discount' => 10,
+        'total' => 90_000,
+    ]);
+
+    $this->actingAs($this->user)
+        ->post(route('transactions.pdf.store', $transaction), [
+            'image' => 0,
+            'barcode' => 0,
+            'sku' => 1,
+            'name' => 1,
+        ])
+        ->assertRedirect(route('transactions.show', $transaction));
+
+    $html = view('transactions.pdf.invoice', [
+        'transaction' => $transaction->load('details.item'),
+        'typeLabel' => $transaction->getTypeLabel(),
+        'branding' => app(\App\Services\InvoiceBrandingService::class)->forTransaction($transaction),
+        'itemView' => \App\Support\TransactionItemViewOptions::fromRequest(new \Illuminate\Http\Request([
+            'image' => 0,
+            'barcode' => 0,
+            'sku' => 1,
+            'name' => 1,
+        ])),
+    ])->render();
+
+    expect($html)->toContain('SKU-PDF-01')->toContain('PDF Shirt');
 });
 
 it('shows save to pdf on transaction detail when no pdf exists', function () {

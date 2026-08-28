@@ -22,6 +22,10 @@
     </style>
 </head>
 <body>
+    @php
+        $itemView = $itemView ?? \App\Support\TransactionItemViewOptions::defaults();
+    @endphp
+
     <div class="header">
         <div class="header-logo">
             @if($branding['logo_path'])
@@ -54,26 +58,11 @@
         </tr>
     </table>
 
-    <table>
-        <thead>
-            <tr>
-                <th>Item</th>
-                <th class="right">Qty</th>
-                <th class="right">Price</th>
-                <th class="right">Total</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach($transaction->details as $detail)
-            <tr>
-                <td>{{ $detail->item?->getItemName() ?? '-' }}</td>
-                <td class="right">{{ format_amount($detail->quantity) }}</td>
-                <td class="right">{{ format_amount($detail->price) }}</td>
-                <td class="right">{{ format_amount($detail->total) }}</td>
-            </tr>
-            @endforeach
-        </tbody>
-    </table>
+    @include('transactions.partials.invoice-items-table', [
+        'transaction' => $transaction,
+        'itemView' => $itemView,
+        'forPdf' => true,
+    ])
 
     <table class="totals" style="width: 280px; margin-left: auto; margin-top: 12px;">
         <tr>
