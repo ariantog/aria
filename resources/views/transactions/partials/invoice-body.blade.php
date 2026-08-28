@@ -36,4 +36,6 @@
     @if($transaction->notes)
     <p style="margin-top:12px;"><em>Note: {{ $transaction->notes }}</em></p>
     @endif
+
+    @include('transactions.partials.invoice-signature-block', ['transaction' => $transaction])
 </div>

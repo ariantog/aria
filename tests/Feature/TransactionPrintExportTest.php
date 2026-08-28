@@ -87,9 +87,15 @@ it('renders the receipt pdf blade with item name and code', function () {
         ->toContain('Rp934.700');
 });
 
-it('renders the dot matrix print page with item view columns', function () {
+it('renders the dot matrix print page with item view columns and signature blocks', function () {
+    $sender = Addrbook::factory()->warehouse()->create(['name' => 'Warehouse Staff']);
+    $receiver = Addrbook::factory()->customer()->create(['name' => 'Customer One']);
     $item = Item::factory()->create(['name' => 'Printed Shirt', 'code' => 'SKU-PRINT-01']);
-    $transaction = Transaction::factory()->create(['invoice' => 'PRT-001']);
+    $transaction = Transaction::factory()->create([
+        'invoice' => 'PRT-001',
+        'sender_id' => $sender->id,
+        'receiver_id' => $receiver->id,
+    ]);
     TransactionDetail::factory()->create([
         'transaction_id' => $transaction->id,
         'item_id' => $item->id,
@@ -111,6 +117,11 @@ it('renders the dot matrix print page with item view columns', function () {
         ->assertSee('Printed Shirt', false)
         ->assertSee('SKU-PRINT-01', false)
         ->assertSee('Disc(%)', false)
+        ->assertSee('Mengetahui', false)
+        ->assertSee('Pemberi', false)
+        ->assertSee('Penerima', false)
+        ->assertSee('Warehouse Staff', false)
+        ->assertSee('Customer One', false)
         ->assertSee('css/print.css', false);
 });
 
