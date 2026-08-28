@@ -2,9 +2,11 @@
 
 namespace Tests\Unit;
 
+use App\Enums\ItemType;
 use App\Models\Item;
 use App\Models\ItemGroup;
 use App\Services\ImageService;
+use App\Support\ItemImageResolver;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\File;
@@ -14,16 +16,17 @@ class ImagePathLogicTest extends TestCase
 {
     private ?string $defaultImageBackup = null;
 
+    private ItemImageResolver $resolver;
+
     protected function setUp(): void
     {
         parent::setUp();
 
-        // Use a temporary directory for testing
         Config::set('core-nation.item_image_path', storage_path('framework/testing/images/'));
         Config::set('core-nation.item_image_url', 'http://localhost/asset/');
 
-        // Ensure default image exists for fallback test — back up any real asset
-        // so the test never corrupts the committed file.
+        $this->resolver = app(ItemImageResolver::class);
+
         if (! File::exists(public_path('images'))) {
             File::makeDirectory(public_path('images'), 0755, true);
         }
@@ -47,45 +50,40 @@ class ImagePathLogicTest extends TestCase
         } else {
             File::delete(public_path('images/default-item.png'));
         }
-        // Clean up default image if we created it just for test (optional, strictly speaking we should modify public_path mock but here we just touch the file)
-        // File::delete(public_path('images/default-item.svg'));
         parent::tearDown();
     }
 
-    public function test_image_path_generation_for_small_ids()
+    public function test_image_path_generation_for_small_ids(): void
     {
-        $service = new ImageService;
+        $service = app(ImageService::class);
         $group = new ItemGroup(['id' => 3]);
-        // Mock ID by force setting it (since it's not saved)
         $group->id = 3;
 
         $file = UploadedFile::fake()->image('test.jpg');
         $service->saveImage($group, $file);
 
-        // Expected: 03/3.jpg
         $expectedPath = config('core-nation.item_image_path').'03/3.jpg';
 
         $this->assertFileExists($expectedPath, 'Image for ID 3 should be at 03/3.jpg');
     }
 
-    public function test_image_path_generation_for_large_ids()
+    public function test_image_path_generation_for_large_ids(): void
     {
-        $service = new ImageService;
+        $service = app(ImageService::class);
         $group = new ItemGroup;
         $group->id = 125;
 
         $file = UploadedFile::fake()->image('test.jpg');
         $service->saveImage($group, $file);
 
-        // Expected according to requirement: 25/125.jpg
         $expectedPath = config('core-nation.item_image_path').'25/125.jpg';
 
         $this->assertFileExists($expectedPath, 'Image for ID 125 should be at 25/125.jpg');
     }
 
-    public function test_group_items_share_same_image_file()
+    public function test_group_items_share_same_image_file(): void
     {
-        $service = new ImageService;
+        $service = app(ImageService::class);
         $group = new ItemGroup;
         $group->id = 50;
 
@@ -98,18 +96,12 @@ class ImagePathLogicTest extends TestCase
         $itemB->group_id = 50;
 
         $file = UploadedFile::fake()->image('test.jpg');
-
-        // Save image for Item A (which belongs to Group 50)
         $service->saveItemImage($itemA, $file);
 
-        // Expected Path: .../50/50.jpg (Group ID as filename)
-        // Folder: 50 (last 2 digits of Group ID 50 is 50, padded to 50)
-        // Filename: 50.jpg
         $expectedPath = config('core-nation.item_image_path').'50/50.jpg';
 
         $this->assertFileExists($expectedPath, 'Image should be saved using Group ID filename');
 
-        // Verify Item Accessors return URL because file exists
         $this->assertEquals(
             config('core-nation.item_image_url').'50/50.jpg',
             $itemA->image_url,
@@ -123,20 +115,14 @@ class ImagePathLogicTest extends TestCase
         );
     }
 
-    public function test_item_returns_default_image_when_file_missing()
+    public function test_item_returns_default_image_when_file_missing(): void
     {
         $item = new Item;
         $item->id = 999;
         $item->group_id = 0;
 
-        // Ensure no file exists at expected path (.../99/999.jpg)
-
-        // Item::image_url falls back to asset('images/default-item.svg') when
-        // the file is missing.
-
         $this->assertStringContainsString('default-item.svg', $item->image_url);
 
-        // Now create file and check it returns real URL
         $folder = '99';
         $filename = '999.jpg';
         $path = config('core-nation.item_image_path').$folder;
@@ -149,5 +135,72 @@ class ImagePathLogicTest extends TestCase
             config('core-nation.item_image_url').'99/999.jpg',
             $item->image_url
         );
+    }
+
+    public function test_asset_lancar_falls_back_to_legacy_item_id_image(): void
+    {
+        $item = new Item;
+        $item->id = 501;
+        $item->group_id = 900;
+        $item->type = ItemType::ASSET_LANCAR;
+
+        $this->assertStringContainsString('default-item.svg', $item->image_url);
+
+        $folder = '01';
+        $path = config('core-nation.item_image_path').$folder;
+        File::makeDirectory($path, 0755, true);
+        File::put($path.'/501.jpg', 'legacy asset image');
+
+        $this->assertEquals(
+            config('core-nation.item_image_url').'01/501.jpg',
+            $item->image_url,
+            'Legacy per-SKU asset lancar uploads should resolve via item id'
+        );
+    }
+
+    public function test_group_prefers_group_image_then_falls_back_to_child_item(): void
+    {
+        $group = new ItemGroup;
+        $group->id = 60;
+
+        $item = new Item;
+        $item->id = 601;
+        $item->group_id = 60;
+
+        $group->setRelation('items', collect([$item]));
+
+        $folder = '01';
+        $path = config('core-nation.item_image_path').$folder;
+        File::makeDirectory($path, 0755, true);
+        File::put($path.'/601.jpg', 'child sku image');
+
+        $this->assertEquals(
+            config('core-nation.item_image_url').'01/601.jpg',
+            $this->resolver->resolveUrlForGroup($group),
+        );
+    }
+
+    public function test_parent_group_resolves_first_available_child_image(): void
+    {
+        $groupA = new ItemGroup;
+        $groupA->id = 70;
+
+        $groupB = new ItemGroup;
+        $groupB->id = 71;
+
+        $item = new Item;
+        $item->id = 701;
+        $item->group_id = 71;
+
+        $groupB->setRelation('items', collect([$item]));
+
+        $folder = '01';
+        $path = config('core-nation.item_image_path').$folder;
+        File::makeDirectory($path, 0755, true);
+        File::put($path.'/701.jpg', 'child image for parent fallback');
+
+        $url = $this->resolver->resolveUrlForGroups(collect([$groupA, $groupB]));
+
+        $this->assertEquals(config('core-nation.item_image_url').'01/701.jpg', $url);
     }
 }
