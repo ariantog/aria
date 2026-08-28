@@ -285,10 +285,7 @@ class TransactionsController extends Controller
             return 'Contact';
         };
         $jubelioSync = $jubelioSyncPresenter->applyToTransaction($transaction);
-        $jubelioSync['show_ui'] = config('services.jubelio.active')
-            && $jubelioSync['can_sync']
-            && (bool) $jubelioSync['sync_cek']
-            && Transaction::userCanJubelioTransactionSync(Auth::user());
+        $jubelioSync['show_ui'] = $jubelioSyncPresenter->showSyncUi($jubelioSync, Auth::user());
         $invoiceService = app(TransactionInvoiceService::class);
         $canDraftReturn = $this->canDraftReturn($transaction);
         $cashBankId = match ((int) $transaction->type) {

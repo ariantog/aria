@@ -383,6 +383,7 @@ class JubelioController extends Controller
         return view('jubelio.detail-sync', [
             'data' => $transaction,
             'can_sync' => $sync['can_sync'],
+            'show_ui' => $presenter->showSyncUi($sync),
             'JubelioA' => $sync['jubelio_a'],
             'JubelioB' => $sync['jubelio_b'],
             'adJustTypeA' => $sync['adjust_type_a'],
