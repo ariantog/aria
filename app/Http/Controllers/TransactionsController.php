@@ -363,12 +363,12 @@ class TransactionsController extends Controller
             ->with('success', $existed ? 'Invoice PDF regenerated.' : 'Invoice PDF saved.');
     }
 
-    public function receipt(Transaction $transaction)
+    public function receipt(Transaction $transaction, TransactionInvoiceService $invoiceService)
     {
         $this->authorizeTransactionView($transaction);
-        $transaction->load(['details.item.group', 'sender', 'receiver']);
+        $fileUrl = $invoiceService->createReceiptPdf($transaction);
 
-        return view('transactions.receipt', compact('transaction'));
+        return redirect()->away($fileUrl);
     }
 
     public function printInvoice(Transaction $transaction, \App\Services\InvoiceBrandingService $brandingService)

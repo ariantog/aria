@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Addrbook;
 use App\Models\Item;
 use App\Models\Transaction;
 use App\Models\TransactionDetail;
@@ -23,31 +24,69 @@ afterEach(function () {
     File::deleteDirectory(storage_path('app/testing-invoices'));
 });
 
-it('renders the thermal receipt page for print pos', function () {
+it('generates the receipt pdf and redirects to the public url', function () {
+    $sender = Addrbook::factory()->warehouse()->create(['name' => 'Store - CITOS OFFLINE']);
+    $receiver = Addrbook::factory()->customer()->create();
     $transaction = Transaction::factory()->create([
-        'invoice' => 'RCP-001',
-        'real_total' => 100_000,
-        'total' => 100_000,
+        'invoice' => '615922',
+        'sender_id' => $sender->id,
+        'receiver_id' => $receiver->id,
+        'real_total' => -934_700,
+        'total_items' => 4,
     ]);
-    $item = Item::factory()->create(['name' => 'Test Shirt', 'code' => 'AJDCA2302510L']);
+    $item = Item::factory()->create(['name' => 'LANA TOP - LILAC', 'code' => 'AJDCA2302510L']);
     TransactionDetail::factory()->create([
         'transaction_id' => $transaction->id,
         'item_id' => $item->id,
-        'quantity' => 2,
-        'price' => 50_000,
-        'total' => 100_000,
+        'quantity' => 1,
+        'price' => 299_900,
+        'discount' => 20,
+        'total' => 239_920,
     ]);
+
+    $service = app(TransactionInvoiceService::class);
+    $fileName = $service->receiptFileName($transaction);
+    $expectedUrl = $service->invoicePublicUrl($fileName);
 
     $this->actingAs($this->user)
         ->get(route('transactions.receipt', $transaction))
-        ->assertOk()
-        ->assertSee('CORENATION', false)
-        ->assertSee('CILANDAK TOWN SQUARE', false)
-        ->assertSee('FX SUDIRMAN', false)
-        ->assertSee('MAGGIORE GRANDE', false)
-        ->assertSee('Test Shirt', false)
-        ->assertSee('AJDCA2302510L', false)
-        ->assertSee('css/receipt.css', false);
+        ->assertRedirect($expectedUrl);
+
+    $filePath = $service->invoiceDiskPath($fileName);
+    expect(File::exists($filePath))->toBeTrue();
+    expect(File::get($filePath))->toStartWith('%PDF');
+});
+
+it('renders the receipt pdf blade with item name and code', function () {
+    $sender = Addrbook::factory()->warehouse()->create(['name' => 'Store - CITOS OFFLINE']);
+    $transaction = Transaction::factory()->create([
+        'invoice' => '615922',
+        'sender_id' => $sender->id,
+        'real_total' => -934_700,
+        'total_items' => 4,
+    ]);
+    $item = Item::factory()->create(['name' => 'LANA TOP - LILAC', 'code' => 'AJDCA2302510L']);
+    TransactionDetail::factory()->create([
+        'transaction_id' => $transaction->id,
+        'item_id' => $item->id,
+        'quantity' => 1,
+        'price' => 299_900,
+        'discount' => 20,
+        'total' => 239_920,
+    ]);
+    $transaction->load(['details.item', 'sender']);
+    $branding = app(\App\Services\InvoiceBrandingService::class)->forTransaction($transaction);
+
+    $html = view('transactions.pdf.receipt', compact('transaction', 'branding'))->render();
+
+    expect($html)
+        ->toContain('CoreNation Active')
+        ->toContain('615922')
+        ->toContain('Store - CITOS OFFLINE')
+        ->toContain('LANA TOP - LILAC')
+        ->toContain('AJDCA2302510L')
+        ->toContain('Grand Total')
+        ->toContain('Rp934.700');
 });
 
 it('renders the dot matrix print page', function () {
