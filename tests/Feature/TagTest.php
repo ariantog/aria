@@ -91,6 +91,64 @@ it('can delete tag', function () {
     ]);
 });
 
+it('filters tags list by tag type', function () {
+    Tag::create([
+        'name' => 'Size Tag',
+        'code' => 'SZ',
+        'type' => Tag::TYPE_SIZE,
+        'item_type' => 0,
+    ]);
+    Tag::create([
+        'name' => 'Type Tag',
+        'code' => 'TP',
+        'type' => Tag::TYPE_TYPE,
+        'item_type' => 0,
+    ]);
+
+    $this->actingAs($this->user)
+        ->get('/tags?type='.Tag::TYPE_SIZE)
+        ->assertOk()
+        ->assertSee('Size Tag')
+        ->assertDontSee('Type Tag');
+});
+
+it('shows the number of items tagged on the tags list', function () {
+    $tag = Tag::create([
+        'name' => 'Counted Tag',
+        'code' => 'CNT',
+        'type' => Tag::TYPE_NORMAL,
+        'item_type' => 0,
+    ]);
+    $otherTag = Tag::create([
+        'name' => 'Other Tag',
+        'code' => 'OTH',
+        'type' => Tag::TYPE_NORMAL,
+        'item_type' => 0,
+    ]);
+
+    $itemOne = Item::factory()->create([
+        'type' => ItemType::ITEM,
+        'tag_ids' => (string) $tag->id,
+    ]);
+    $itemTwo = Item::factory()->create([
+        'type' => ItemType::ITEM,
+        'tag_ids' => (string) $tag->id,
+    ]);
+    $itemOne->tags()->sync([$tag->id]);
+    $itemTwo->tags()->sync([$tag->id]);
+    Item::factory()->create([
+        'type' => ItemType::ITEM,
+        'tag_ids' => (string) $otherTag->id,
+    ])->tags()->sync([$otherTag->id]);
+
+    $response = $this->actingAs($this->user)->get('/tags');
+
+    $response->assertOk()
+        ->assertSee('Counted Tag')
+        ->assertSee(route('items.index', ['tag_ids' => [$tag->id]]), false)
+        ->assertSee('>2</a>', false);
+});
+
 it('untags items and asset lancar when a tag is deleted', function () {
     $tag = Tag::create([
         'name' => 'Detach Me',
