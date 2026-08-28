@@ -599,12 +599,23 @@ class ShopeeAdsApiService
      */
     public function getItemAdsRoas(array $campaignIds): array
     {
+        return collect($this->getItemAdsDailyPerformance($campaignIds))
+            ->map(fn (array $row) => (float) ($row['roas'] ?? 0))
+            ->all();
+    }
+
+    /**
+     * @param  list<int|string>  $campaignIds
+     * @return array<string, array{roas: float, spend: float}>
+     */
+    public function getItemAdsDailyPerformance(array $campaignIds): array
+    {
         if ($campaignIds === []) {
             return [];
         }
 
         $today = $this->wibToday();
-        $roas = [];
+        $out = [];
         $ids = array_map('intval', $campaignIds);
 
         for ($i = 0; $i < count($ids); $i += 100) {
@@ -625,11 +636,14 @@ class ShopeeAdsApiService
             foreach ($response->json('response.campaign_list') ?? [] as $row) {
                 $cid = (string) ($row['campaign_id'] ?? '');
                 $rep = $row['report'] ?? $row;
-                $roas[$cid] = (float) ($rep['broad_roi'] ?? $rep['roas'] ?? 0);
+                $out[$cid] = [
+                    'roas' => (float) ($rep['broad_roi'] ?? $rep['roas'] ?? 0),
+                    'spend' => (float) ($rep['expense'] ?? $rep['spend'] ?? 0),
+                ];
             }
         }
 
-        return $roas;
+        return $out;
     }
 
     public function setItemAdBudget(string $campaignId, int $newBudget): bool
@@ -657,6 +671,30 @@ class ShopeeAdsApiService
                 'edit_action' => 'stop',
             ],
         );
+
+        return $response->successful();
+    }
+
+    /**
+     * Permanently remove an individual product ad from Shopee (edit_action=delete).
+     */
+    public function deleteItemAd(string $campaignId): bool
+    {
+        $response = $this->shopPost(
+            '/api/v2/ads/edit_manual_product_ads',
+            [
+                'reference_id' => $campaignId,
+                'campaign_id' => (int) $campaignId,
+                'edit_action' => 'delete',
+            ],
+        );
+
+        if (! $response->successful()) {
+            Log::warning('delete_manual_product_ad failed', [
+                'campaign_id' => $campaignId,
+                'body' => Str::limit($response->body(), 500),
+            ]);
+        }
 
         return $response->successful();
     }
