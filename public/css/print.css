@@ -39,3 +39,28 @@ a {
 #invoice .sh {
     display: block;
 }
+
+#invoice .invoice-signatures {
+    clear: both;
+    width: 100%;
+    margin-top: 48px;
+    border-collapse: collapse;
+    page-break-inside: avoid;
+}
+
+#invoice .invoice-signatures td {
+    width: 33%;
+    vertical-align: top;
+    text-align: center;
+    padding: 0 8px;
+    font-size: 10pt;
+}
+
+#invoice .invoice-signatures .sign-space {
+    height: 72px;
+}
+
+#invoice .invoice-signatures .sign-line {
+    padding-top: 4px;
+    font-size: 9pt;
+}
