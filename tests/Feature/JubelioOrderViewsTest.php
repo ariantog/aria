@@ -8,7 +8,6 @@ use App\Models\Transaction;
 use App\Models\User;
 use App\Models\WarehouseItem;
 use App\Services\JubelioService;
-use Illuminate\Support\Facades\Cache;
 use Mockery\MockInterface;
 
 it('defaults jubelio orders index to pending only', function () {
@@ -282,81 +281,6 @@ it('filters jubelio orders by warehouse using jubelio store location keys', func
         ->assertDontSee('INV-WH-BACKFILL-B');
 });
 
-it('skips warehouse backfill when scoped orders already have store location keys', function () {
-    $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'Gudang Cached']);
-
-    Jubeliosync::create([
-        'jubelio_store_id' => 921,
-        'jubelio_store_name' => 'Store',
-        'jubelio_location_id' => 922,
-        'jubelio_location_name' => 'Loc Cached',
-        'warehouse_id' => $warehouse->id,
-        'customer_id' => 0,
-        'bin_id' => 0,
-    ]);
-
-    Jubelioorder::create([
-        'jubelio_order_id' => 'wh-cached-1',
-        'source' => 1,
-        'invoice' => 'INV-WH-CACHED',
-        'type' => 'SELL',
-        'order_status' => 'SHIPPED',
-        'run_count' => 0,
-        'jubelio_store_id' => 921,
-        'jubelio_location_id' => 922,
-        'warehouse_id' => $warehouse->id,
-        'status' => 0,
-    ]);
-
-    test()->mock(JubelioService::class, function (MockInterface $mock) {
-        $mock->shouldNotReceive('fetchSalesOrder');
-    });
-
-    $scope = Jubelioorder::query()->where('status', 0);
-
-    app(\App\Services\Jubelio\JubelioOrderWarehouseResolver::class)
-        ->maybeBackfillForWarehouseFilter($scope, $warehouse->id);
-});
-
-it('throttles warehouse key backfill after an unsuccessful api pass', function () {
-    Cache::flush();
-
-    $user = User::factory()->create();
-    $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'Gudang Throttle']);
-
-    Jubeliosync::create([
-        'jubelio_store_id' => 931,
-        'jubelio_store_name' => 'Store',
-        'jubelio_location_id' => 932,
-        'jubelio_location_name' => 'Loc Throttle',
-        'warehouse_id' => $warehouse->id,
-        'customer_id' => 0,
-        'bin_id' => 0,
-    ]);
-
-    Jubelioorder::create([
-        'jubelio_order_id' => 'wh-throttle-1',
-        'source' => 1,
-        'invoice' => 'INV-WH-THROTTLE',
-        'type' => 'SELL',
-        'order_status' => 'SHIPPED',
-        'run_count' => 0,
-        'status' => 0,
-    ]);
-
-    test()->mock(JubelioService::class, function (MockInterface $mock) {
-        $mock->shouldReceive('fetchSalesOrder')
-            ->once()
-            ->with('wh-throttle-1')
-            ->andReturn([]);
-    });
-
-    $url = route('jubelio.index', ['warehouse_id' => $warehouse->id, 'status' => 'pending']);
-
-    $this->actingAs($user)->get($url)->assertSuccessful();
-    $this->actingAs($user)->get($url)->assertSuccessful();
-});
-
 it('shows return warehouse from original sell not return payload sync', function () {
     $user = User::factory()->create();
     $warehouseA = Addrbook::factory()->warehouse()->create(['name' => 'Gudang Sell Asal']);
@@ -423,58 +347,68 @@ it('shows return warehouse from original sell not return payload sync', function
         ->assertSee($warehouseUrl, false);
 });
 
-it('backfills first stock error item when viewing error status', function () {
-    Cache::flush();
-
+it('can refresh jubelio order payload without changing updated_at or status', function () {
     $user = User::factory()->create();
-    $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'Gudang Error Backfill']);
+    $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'Gudang Refresh']);
     $customer = Addrbook::factory()->create(['type' => Addrbook::TYPE_CUSTOMER]);
-    $item = Item::factory()->create(['code' => 'SKU-ERR-BF']);
+    $item = Item::factory()->create(['code' => 'SKU-REFRESH-ERR']);
 
     Jubeliosync::create([
-        'jubelio_store_id' => 801,
-        'jubelio_store_name' => 'Store',
-        'jubelio_location_id' => 802,
-        'jubelio_location_name' => 'Loc',
+        'jubelio_store_id' => 951,
+        'jubelio_store_name' => 'Tokopedia',
+        'jubelio_location_id' => 952,
+        'jubelio_location_name' => 'BSD - ONLINE',
         'warehouse_id' => $warehouse->id,
         'customer_id' => $customer->id,
         'bin_id' => 0,
     ]);
 
-    mockJubelioSalesOrder('err-bf-1', [
-        'salesorder_no' => 'INV-ERR-BF',
-        'store_id' => 801,
-        'location_id' => 802,
+    mockJubelioSalesOrder('refresh-1', [
+        'salesorder_no' => 'INV-REFRESH-1',
+        'store_id' => 951,
+        'location_id' => 952,
+        'location_name' => 'BSD - ONLINE',
         'sub_total' => 5000,
         'real_total' => 5000,
         'items' => [
-            ['item_code' => 'SKU-ERR-BF', 'qty' => 2, 'price' => 2500],
+            ['item_code' => 'SKU-REFRESH-ERR', 'qty' => 2, 'price' => 2500],
         ],
     ]);
 
     $order = Jubelioorder::create([
-        'jubelio_order_id' => 'err-bf-1',
+        'jubelio_order_id' => 'refresh-1',
         'source' => 1,
-        'invoice' => 'INV-ERR-BF',
+        'invoice' => 'INV-REFRESH-1',
         'type' => 'SELL',
         'order_status' => 'SHIPPED',
         'run_count' => 1,
         'error_type' => 1,
-        'error' => 'Stok tidak cukup di gudang Gudang Error Backfill: SKU-ERR-BF',
+        'error' => 'Stok tidak cukup',
         'status' => 1,
     ]);
 
-    $itemUrl = route('items.show', $item);
+    $syncedAt = now()->subDays(2);
+    \Illuminate\Support\Facades\DB::table('jubelioorders')
+        ->where('id', $order->id)
+        ->update(['updated_at' => $syncedAt]);
+    $order->refresh();
+    $status = $order->status;
+    $errorType = $order->error_type;
 
     $this->actingAs($user)
-        ->get(route('jubelio.index', ['status' => 'error']))
-        ->assertSuccessful()
-        ->assertSee('SKU-ERR-BF')
-        ->assertSee($itemUrl, false);
+        ->post(route('jubelio.refresh-payload', $order))
+        ->assertRedirect()
+        ->assertSessionHas('success');
 
     $order->refresh();
-    expect($order->stockErrorItemsList())->toHaveCount(1)
-        ->and($order->stockErrorItemsList()[0]['code'])->toBe('SKU-ERR-BF')
+    expect($order->jubelio_store_id)->toBe(951)
+        ->and($order->jubelio_location_id)->toBe(952)
+        ->and($order->warehouse_id)->toBe($warehouse->id)
+        ->and($order->status)->toBe($status)
+        ->and($order->error_type)->toBe($errorType)
+        ->and($order->updated_at->toDateTimeString())->toBe($syncedAt->toDateTimeString())
+        ->and($order->stockErrorItemsList())->toHaveCount(1)
+        ->and($order->stockErrorItemsList()[0]['code'])->toBe('SKU-REFRESH-ERR')
         ->and($order->stockErrorItemsList()[0]['item_id'])->toBe($item->id);
 });
 

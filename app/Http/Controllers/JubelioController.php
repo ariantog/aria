@@ -101,12 +101,7 @@ class JubelioController extends Controller
         $q->when($request->invoice, fn ($q) => $q->where('invoice', 'like', '%'.$request->invoice.'%'));
 
         if ($warehouseId > 0) {
-            $resolver->maybeBackfillForWarehouseFilter((clone $q), $warehouseId);
             $resolver->applyWarehouseFilter($q, $warehouseId);
-        }
-
-        if ($request->status === 'error') {
-            $resolver->maybeBackfillStockErrorItems((clone $q));
         }
 
         $stats = Jubelioorder::selectRaw('COUNT(CASE WHEN status=0 THEN 1 END) as pending, COUNT(CASE WHEN status=2 AND error_type=10 THEN 1 END) as success, COUNT(CASE WHEN status=2 AND error_type=2 THEN 1 END) as warning, COUNT(CASE WHEN status=1 AND error_type=1 THEN 1 END) as error')->first();
@@ -305,12 +300,15 @@ class JubelioController extends Controller
                 return response()->json(['status' => 'ok', 'message' => 'Invoice sudah ada']);
             }
 
-            $storeId = (int) ($d['store_id'] ?? 0);
-            $locationId = (int) ($d['location_id'] ?? 0);
-            $warehouseId = app(JubelioOrderWarehouseResolver::class)->warehouseIdFromStoreLocation(
-                $storeId,
-                $locationId,
-            );
+            $resolver = app(JubelioOrderWarehouseResolver::class);
+            $payload = $d;
+            if ((int) ($d['store_id'] ?? 0) <= 0 || (int) ($d['location_id'] ?? 0) <= 0) {
+                $apiPayload = app(JubelioService::class)->fetchSalesOrder((string) ($d['salesorder_id'] ?? ''));
+                if (is_array($apiPayload)) {
+                    $payload = array_merge($d, $apiPayload);
+                }
+            }
+            $warehouseColumns = $resolver->sellWarehouseColumnsFromPayload($payload);
 
             $order = Jubelioorder::create([
                 'jubelio_order_id' => $d['salesorder_id'],
@@ -319,9 +317,9 @@ class JubelioController extends Controller
                 'type' => 'SELL',
                 'order_status' => $d['status'],
                 'run_count' => 0,
-                'warehouse_id' => $warehouseId,
-                'jubelio_store_id' => $storeId,
-                'jubelio_location_id' => $locationId,
+                'jubelio_store_id' => $warehouseColumns['jubelio_store_id'],
+                'jubelio_location_id' => $warehouseColumns['jubelio_location_id'],
+                'warehouse_id' => $warehouseColumns['warehouse_id'],
                 'status' => 0,
             ]);
 
