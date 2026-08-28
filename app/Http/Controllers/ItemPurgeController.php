@@ -24,7 +24,6 @@ class ItemPurgeController extends Controller
 
         $itemType = request()->query('item_type');
         $itemType = $itemType !== null && $itemType !== '' ? (int) $itemType : null;
-        $keepIds = $this->normalizeKeepIds(request()->query('keep', []));
 
         $preview = $retention->previewSelectableItemPurge(
             $maxId,
@@ -33,18 +32,14 @@ class ItemPurgeController extends Controller
         )->appends(array_filter([
             'max_id' => $maxId > 0 ? $maxId : null,
             'item_type' => $itemType,
-            'keep' => $keepIds !== [] ? $keepIds : null,
         ], fn ($value) => $value !== null && $value !== ''));
 
         $totalCandidates = $retention->countSelectableOrphanItems($maxId, $itemType);
-        $purgeCount = $retention->countSelectableOrphanItems($maxId, $itemType, $keepIds);
 
         return view('system-settings.item-purge', [
             'maxId' => $maxId,
             'itemType' => $itemType,
-            'keepIds' => $keepIds,
             'totalCandidates' => $totalCandidates,
-            'purgeCount' => $purgeCount,
             'itemTypes' => [
                 ItemType::ITEM->value => 'Item',
                 ItemType::ASSET_LANCAR->value => 'Asset Lancar',
@@ -61,6 +56,9 @@ class ItemPurgeController extends Controller
         $validated = $request->validate([
             'max_id' => ['required', 'integer', 'min:1'],
             'item_type' => ['nullable', 'integer'],
+            'page' => ['nullable', 'integer', 'min:1'],
+            'page_item_ids' => ['required', 'array', 'min:1'],
+            'page_item_ids.*' => ['integer', 'min:1'],
             'keep_ids' => ['nullable', 'array'],
             'keep_ids.*' => ['integer', 'min:1'],
             'confirm' => ['required', 'string', 'in:PURGE-SELECTED-ITEMS'],
@@ -68,13 +66,20 @@ class ItemPurgeController extends Controller
 
         $maxId = (int) $validated['max_id'];
         $itemType = isset($validated['item_type']) ? (int) $validated['item_type'] : null;
+        $page = isset($validated['page']) ? (int) $validated['page'] : 1;
+        $pageItemIds = $this->normalizeKeepIds($validated['page_item_ids']);
         $keepIds = $this->normalizeKeepIds($validated['keep_ids'] ?? []);
+        $purgeIds = array_values(array_diff($pageItemIds, $keepIds));
+
+        if ($purgeIds === []) {
+            return back()->with('error', 'No items selected for purge on this page.');
+        }
 
         try {
-            $result = $retention->purgeSelectableOrphanItemsFromLive(
+            $result = $retention->purgeSelectableOrphanItemsByIds(
                 maxId: $maxId,
                 itemType: $itemType,
-                excludeItemIds: $keepIds,
+                itemIds: $purgeIds,
             );
         } catch (Throwable $e) {
             return back()->with('error', $e->getMessage());
@@ -84,11 +89,13 @@ class ItemPurgeController extends Controller
             ->route('data-retention.item-purge.index', array_filter([
                 'max_id' => $maxId,
                 'item_type' => $itemType,
+                'page' => $page > 1 ? $page : null,
             ], fn ($value) => $value !== null && $value !== ''))
             ->with('success', sprintf(
-                'Purged %d item(s) and %d item group(s). %d item(s) were kept.',
+                'Purged %d item(s) and %d item group(s) from page %d. %d item(s) on this page were kept. Other pages were not changed.',
                 $result['items'],
                 $result['groups'],
+                $page,
                 count($keepIds),
             ));
     }
