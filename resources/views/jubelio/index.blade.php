@@ -17,15 +17,23 @@ $breadcrumbs = [
             Jubelio Orders
         </h1>
 
-        <form method="GET" action="{{ route('jubelio.index') }}" class="flex items-center gap-2">
+        <form method="GET" action="{{ route('jubelio.index') }}" class="flex flex-wrap items-center gap-2">
             <input type="hidden" name="status" value="{{ $filters['status'] ?? '' }}">
+            <select name="warehouse_id"
+                    class="h-9 rounded-md border border-gray-300 bg-white px-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                    data-testid="jubelio-warehouse-filter">
+                <option value="">Semua gudang</option>
+                @foreach($mappedWarehouses as $warehouse)
+                <option value="{{ $warehouse['id'] }}" @selected((string) ($filters['warehouse_id'] ?? '') === (string) $warehouse['id'])>{{ $warehouse['name'] }}</option>
+                @endforeach
+            </select>
             <div class="relative">
                 <svg class="absolute top-2.5 left-2.5 h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z"/></svg>
                 <input type="text" name="invoice" value="{{ $filters['invoice'] ?? '' }}" placeholder="Search Invoice..."
                        class="h-9 w-64 rounded-md border border-gray-300 pl-9 pr-3 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
             </div>
             <button type="submit" class="rounded-lg bg-blue-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-800">Search</button>
-            @if(!empty($filters['status']) || !empty($filters['invoice']))
+            @if(!empty($filters['status']) || !empty($filters['invoice']) || !empty($filters['warehouse_id']))
             <a href="{{ route('jubelio.index') }}" class="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100">
                 <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg> Clear
             </a>
@@ -46,7 +54,7 @@ $breadcrumbs = [
         @endphp
         @foreach($cards as $c)
         @php $isActive = ($c['status'] === 'pending' && $activeStatus === '') || $activeStatus === $c['status']; @endphp
-        <a href="{{ route('jubelio.index', ['status' => $c['status'], 'invoice' => $filters['invoice'] ?? null]) }}"
+        <a href="{{ route('jubelio.index', ['status' => $c['status'], 'invoice' => $filters['invoice'] ?? null, 'warehouse_id' => $filters['warehouse_id'] ?? null]) }}"
            class="flex items-center justify-between rounded-lg border-l-4 {{ $c['border'] }} {{ $c['bg'] }} p-4 shadow-sm transition-all hover:opacity-90 {{ $isActive ? $c['ring'] : '' }}">
             <div>
                 <p class="text-[10px] font-semibold tracking-wider uppercase opacity-70 md:text-xs">{{ $c['title'] }}</p>
@@ -145,7 +153,9 @@ $breadcrumbs = [
                         <td class="px-6 py-4 text-center">
                             <div class="flex flex-col items-center gap-1">
                                 @include('jubelio.partials.sync-status-badge', ['status' => $order->status, 'errorType' => $order->error_type, 'executeBy' => $order->user->name ?? null])
-                                @if(((($order->status == 1 && $order->error_type == 1)) || ($order->status == 2 && $order->error_type == 2)) && $order->error)
+                                @if($order->hasStockError())
+                                @include('jubelio.partials.stock-error-items', ['stockErrorItems' => $order->stockErrorItemsList()])
+                                @elseif(((($order->status == 1 && $order->error_type == 1)) || ($order->status == 2 && $order->error_type == 2)) && $order->error)
                                 <p class="max-w-[12rem] truncate text-[10px] text-red-600" title="{{ $order->error }}">{{ $order->error }}</p>
                                 @endif
                             </div>
