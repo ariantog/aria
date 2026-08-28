@@ -27,6 +27,13 @@ class Jubelioorder extends Model
         self::$resolvedPayloadCache = [];
     }
 
+    public static function clearPayloadCacheFor(?int $orderId): void
+    {
+        if ($orderId !== null) {
+            unset(self::$resolvedPayloadCache[$orderId]);
+        }
+    }
+
     /**
      * @return array<string, mixed>
      */
