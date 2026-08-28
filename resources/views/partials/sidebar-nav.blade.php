@@ -176,7 +176,7 @@
     if ($hasPerm('setting-cron-manager-view') || $isSuperAdmin) {
         $systemNavLabels[] = 'Cron Manager';
     }
-    if ($hasPerm('data-retention-manage') || $isSuperAdmin) {
+    if ($isSuperAdmin) {
         $systemNavLabels[] = 'Data Retention';
         $systemNavLabels[] = 'Selective Item Purge';
     }
@@ -642,7 +642,7 @@
 @endif
 
 {{-- ── System Settings ───────────────────────────────────────────────── --}}
-@if($hasPerm('setting-general-view') || $hasPerm('setting-cron-manager-view') || $hasPerm('data-retention-manage') || $isSuperAdmin)
+@if($hasPerm('setting-general-view') || $hasPerm('setting-cron-manager-view') || $isSuperAdmin)
 @php $sysActive = $isActive('/system-settings') || $isActive('/cron-manager') || $isActive('/data-retention'); @endphp
 <div x-data="{ open: {{ $sysActive ? 'true' : 'false' }} }"
      class="mb-1"
@@ -665,7 +665,7 @@
         @if($hasPerm('report-warehouse-arrangement') || $isSuperAdmin)
         <a href="{{ route('warehouse-stat-backfill.index') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/warehouse-stat-backfill') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Warehouse Stats Backfill</a>
         @endif
-        @if($hasPerm('data-retention-manage') || $isSuperAdmin)
+        @if($isSuperAdmin)
         <a href="{{ route('data-retention.index') }}" x-show="navLinkVisible('Data Retention', 'System Settings')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/data-retention') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Data Retention</a>
         <a href="{{ route('data-retention.item-purge.index') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/data-retention/item-purge') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Selective Item Purge</a>
         @endif

@@ -8,6 +8,7 @@ use App\Services\DataRetentionService;
 use App\Services\PermissionGenerator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Spatie\Permission\Models\Permission;
 
 beforeEach(function () {
     config([
@@ -156,6 +157,46 @@ it('renders archive pages for superadmin', function () {
         ->get(route('data-retention.item-purge.index'))
         ->assertSuccessful()
         ->assertSee('Selective Item Purge');
+});
+
+it('allows archive-view users to browse archive but not data retention', function () {
+    app(PermissionGenerator::class)->generateForModule('DataRetentionRun');
+
+    User::factory()->create(['id' => 1]);
+    $user = User::factory()->create();
+    expect($user->id)->not->toBe(User::SUPERADMIN_ID);
+    $user->givePermissionTo('archive-view');
+
+    $this->actingAs($user)
+        ->get(route('archive.index'))
+        ->assertSuccessful()
+        ->assertSee('Archive');
+
+    $this->actingAs($user)
+        ->get(route('data-retention.index'))
+        ->assertForbidden();
+
+    $this->actingAs($user)
+        ->get(route('data-retention.item-purge.index'))
+        ->assertForbidden();
+});
+
+it('denies data retention even when legacy manage permission was granted', function () {
+    app(PermissionGenerator::class)->generateForModule('DataRetentionRun');
+    Permission::firstOrCreate(['name' => 'data-retention-manage', 'guard_name' => 'web']);
+
+    User::factory()->create(['id' => 1]);
+    $user = User::factory()->create();
+    expect($user->id)->not->toBe(User::SUPERADMIN_ID);
+    $user->givePermissionTo(['archive-view', 'data-retention-manage']);
+
+    $this->actingAs($user)
+        ->get(route('archive.index'))
+        ->assertSuccessful();
+
+    $this->actingAs($user)
+        ->get(route('data-retention.index'))
+        ->assertForbidden();
 });
 
 it('purges soft-deleted orphan items without checking deleted_at', function () {
