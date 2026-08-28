@@ -147,3 +147,67 @@ it('forbids special converter without permission', function () {
         ->get(route('items.special-converter'))
         ->assertForbidden();
 });
+
+it('converts a single special sku from the converter row action', function () {
+    $item = Item::factory()->create([
+        'type' => ItemType::ASSET_LANCAR->value,
+        'group_id' => null,
+        'code' => 'FABRICBAND-03-LIGHT-BABYBLUE',
+        'legacy_code' => null,
+        'pcode' => 'FABRICBAND-03',
+        'name' => 'FABRIC BAND - BABYBLUE - LIGHT',
+        'jubelio_item_id' => 12345,
+    ]);
+
+    $this->actingAs($this->user)
+        ->post(route('items.special-converter.run-item', $item), ['page' => 1])
+        ->assertRedirect(route('items.special-converter', ['page' => 1]))
+        ->assertSessionHas('success');
+
+    $item->refresh();
+
+    expect($item->code)->toBe('FABRICBAND-03-BABYBLUE-LIGHT')
+        ->and($item->legacy_code)->toBe('FABRICBAND-03-LIGHT-BABYBLUE')
+        ->and($item->jubelio_item_id)->toBe(12345)
+        ->and($item->group_id)->not->toBeNull();
+});
+
+it('links a single special sku to an existing parent group when already present', function () {
+    $existingGroup = \App\Models\ItemGroup::factory()->create([
+        'master' => 'FABRICBAND-03',
+        'variant' => 'BABYBLUE',
+        'name' => 'FABRIC BAND - BABYBLUE',
+    ]);
+
+    $item = Item::factory()->create([
+        'type' => ItemType::ASSET_LANCAR->value,
+        'group_id' => null,
+        'code' => 'FABRICBAND-03-LIGHT-BABYBLUE',
+        'legacy_code' => null,
+        'pcode' => 'FABRICBAND-03',
+        'name' => 'FABRIC BAND - BABYBLUE - LIGHT',
+    ]);
+
+    $this->service->runItem($item, $this->user);
+
+    $item->refresh();
+
+    expect($item->group_id)->toBe($existingGroup->id)
+        ->and(\App\Models\ItemGroup::query()->where('master', 'FABRICBAND-03')->where('variant', 'BABYBLUE')->count())->toBe(1);
+});
+
+it('shows convert button on pending special sku rows', function () {
+    Item::factory()->create([
+        'type' => ItemType::ASSET_LANCAR->value,
+        'group_id' => null,
+        'code' => 'FABRICBAND-03-LIGHT-BABYBLUE',
+        'pcode' => 'FABRICBAND-03',
+        'name' => 'FABRIC BAND - BABYBLUE - LIGHT',
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('items.special-converter'))
+        ->assertOk()
+        ->assertSee('data-testid="special-converter-convert-', false)
+        ->assertSee('Convert', false);
+});
