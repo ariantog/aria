@@ -13,6 +13,13 @@ use Throwable;
 
 class DataRetentionService
 {
+    /**
+     * L10 MySQL partitions are named by their upper-bound year, not the calendar year stored inside.
+     * Example: calendar 2014 rows live in p2015 (date >= 2014-01-01 and < 2015-01-01).
+     * p2014 is a catch-all for date < 2014-01-01 and cannot drop a single calendar year.
+     */
+    public const FIRST_DEDICATED_PARTITION_CALENDAR_YEAR = 2014;
+
     /** @var array<string, int> */
     public const PURGEABLE_ADDRBOOK_TYPES = [
         'customers' => Addrbook::TYPE_CUSTOMER,
@@ -54,7 +61,17 @@ class DataRetentionService
 
     public function partitionName(int $year): string
     {
-        return 'p'.$year;
+        return $this->partitionNameForCalendarYear($year);
+    }
+
+    public function partitionNameForCalendarYear(int $year): string
+    {
+        return 'p'.($year + 1);
+    }
+
+    public function calendarYearUsesPartitionDrop(int $year): bool
+    {
+        return $year >= self::FIRST_DEDICATED_PARTITION_CALENDAR_YEAR;
     }
 
     public function archiveConfigured(): bool
@@ -255,7 +272,12 @@ class DataRetentionService
             'orphan_customers' => $this->countOrphanAddrbooks(Addrbook::TYPE_CUSTOMER),
             'orphan_suppliers' => $this->countOrphanAddrbooks(Addrbook::TYPE_SUPPLIER),
             'orphan_resellers' => $this->countOrphanAddrbooks(Addrbook::TYPE_RESELLER),
-            'uses_partition_drop' => $this->usesPartitioning() && $this->partitionExists('transactions', $year),
+            'partition_name' => $this->calendarYearUsesPartitionDrop($year)
+                ? $this->partitionNameForCalendarYear($year)
+                : null,
+            'uses_partition_drop' => $this->usesPartitioning()
+                && $this->calendarYearUsesPartitionDrop($year)
+                && $this->partitionExists('transactions', $year),
         ];
     }
 
@@ -345,7 +367,16 @@ class DataRetentionService
         }
 
         if ($run->isCleaned()) {
-            throw new \RuntimeException("Year {$year} was already cleaned from the live database.");
+            if ($this->countTransactionsForYear($year) === 0) {
+                throw new \RuntimeException("Year {$year} was already cleaned from the live database.");
+            }
+
+            // Prior cleanup marked success but rows remain (e.g. wrong partition dropped) — allow retry.
+            $run->update([
+                'status' => DataRetentionRun::STATUS_ARCHIVED,
+                'cleanup_finished_at' => null,
+                'last_error' => null,
+            ]);
         }
 
         $preview = $this->previewLiveCleanup($year);
@@ -376,6 +407,8 @@ class DataRetentionService
             }
 
             $this->purgeAggregateRowsForYear($year);
+
+            $this->assertYearRemovedFromLive($year);
 
             $itemPurge = $this->purgeOrphanItemsFromLive(false);
 
@@ -751,6 +784,24 @@ class DataRetentionService
         return ((int) ($row->partitions ?? 0)) > 0;
     }
 
+    protected function countTransactionsForYear(int $year): int
+    {
+        return (int) $this->live()->table('transactions')
+            ->whereBetween('date', $this->yearBounds($year))
+            ->count();
+    }
+
+    protected function assertYearRemovedFromLive(int $year): void
+    {
+        $remaining = $this->countTransactionsForYear($year);
+
+        if ($remaining > 0) {
+            throw new \RuntimeException(
+                "Cleanup incomplete: {$remaining} transaction(s) still exist for calendar year {$year}."
+            );
+        }
+    }
+
     protected function partitionExists(string $table, int $year): bool
     {
         if ($this->live()->getDriverName() !== 'mysql') {
@@ -758,7 +809,7 @@ class DataRetentionService
         }
 
         $database = $this->live()->getDatabaseName();
-        $partition = $this->partitionName($year);
+        $partition = $this->partitionNameForCalendarYear($year);
         $row = $this->live()->selectOne(
             'SELECT PARTITION_NAME FROM information_schema.PARTITIONS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND PARTITION_NAME = ? LIMIT 1',
             [$database, $table, $partition],
@@ -769,7 +820,13 @@ class DataRetentionService
 
     protected function dropYearPartition(string $table, int $year): void
     {
-        $partition = $this->partitionName($year);
+        if (! $this->calendarYearUsesPartitionDrop($year)) {
+            throw new \RuntimeException(
+                "Calendar year {$year} shares partition p2014 with all pre-2014 data; use row delete instead."
+            );
+        }
+
+        $partition = $this->partitionNameForCalendarYear($year);
         $this->live()->statement("ALTER TABLE `{$table}` DROP PARTITION `{$partition}`");
     }
 

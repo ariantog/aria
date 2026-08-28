@@ -71,7 +71,12 @@ $statusStyles = [
             <li><span class="text-amber-900">{{ str_replace('_', ' ', $key) }}:</span> <strong>{{ number_format($count) }}</strong></li>
             @endforeach
         </ul>
-        <p class="mt-2 text-amber-800">Partition drop: {{ ($cleanupPreview['uses_partition_drop'] ?? false) ? 'yes' : 'no' }}</p>
+        <p class="mt-2 text-amber-800">
+            Partition drop: {{ ($cleanupPreview['uses_partition_drop'] ?? false) ? 'yes' : 'no' }}
+            @if(! empty($cleanupPreview['partition_name']))
+                (drops <code class="rounded bg-amber-100 px-1">{{ $cleanupPreview['partition_name'] }}</code> for calendar {{ $cleanupPreview['year'] }})
+            @endif
+        </p>
     </div>
     @endif
 
