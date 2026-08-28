@@ -53,8 +53,12 @@
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100">
+                    @php $previousTransactionId = null; @endphp
                     @forelse($rows as $row)
                         @php
+                            $transactionId = (int) $row->transaction_id;
+                            $isFirstLineForTransaction = $previousTransactionId !== $transactionId;
+                            $previousTransactionId = $transactionId;
                             $itemUrl = \App\Http\Controllers\ExportSellController::itemShowUrl($row->item?->type, (int) $row->item_id);
                             $sender = $row->sender ?? $row->transaction?->sender;
                             $receiver = $row->receiver ?? $row->transaction?->receiver;
@@ -65,7 +69,11 @@
                         @endphp
                         <tr class="align-top hover:bg-gray-50">
                             <td class="whitespace-nowrap px-3 py-2 text-gray-700">
-                                {{ $row->date ? \Illuminate\Support\Carbon::parse($row->date)->format('d M Y') : '—' }}
+                                @if($isFirstLineForTransaction && $row->date)
+                                    {{ \Illuminate\Support\Carbon::parse($row->date)->format('d M Y') }}
+                                @else
+                                    <span class="text-gray-400">—</span>
+                                @endif
                             </td>
                             <td class="whitespace-nowrap px-3 py-2">
                                 <span class="inline-flex rounded border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-bold uppercase text-blue-700">
@@ -91,18 +99,34 @@
                             <td class="whitespace-nowrap px-3 py-2 text-right font-mono">{{ format_amount($row->discount) }}%</td>
                             <td class="whitespace-nowrap px-3 py-2 text-right font-mono">{{ format_currency($row->total) }}</td>
                             <td class="whitespace-nowrap px-3 py-2 text-right font-mono" x-show="showTxAdjustment">
-                                <span class="{{ ($transaction?->adjustment ?? 0) < 0 ? 'text-red-600' : (($transaction?->adjustment ?? 0) > 0 ? 'text-green-600' : 'text-gray-700') }}">
-                                    {{ format_currency($transaction?->adjustment ?? 0) }}
-                                </span>
+                                @if($isFirstLineForTransaction)
+                                    <span class="{{ ($transaction?->adjustment ?? 0) < 0 ? 'text-red-600' : (($transaction?->adjustment ?? 0) > 0 ? 'text-green-600' : 'text-gray-700') }}">
+                                        {{ format_currency($transaction?->adjustment ?? 0) }}
+                                    </span>
+                                @else
+                                    <span class="text-gray-400">—</span>
+                                @endif
                             </td>
                             <td class="whitespace-nowrap px-3 py-2 text-right font-mono" x-show="showTxDiscount">
-                                {{ format_amount($transaction?->discount ?? 0) }}%
+                                @if($isFirstLineForTransaction)
+                                    {{ format_amount($transaction?->discount ?? 0) }}%
+                                @else
+                                    <span class="text-gray-400">—</span>
+                                @endif
                             </td>
                             <td class="whitespace-nowrap px-3 py-2 text-right font-mono" x-show="showTxTotal">
-                                {{ format_currency($transaction?->total ?? 0) }}
+                                @if($isFirstLineForTransaction)
+                                    {{ format_currency($transaction?->total ?? 0) }}
+                                @else
+                                    <span class="text-gray-400">—</span>
+                                @endif
                             </td>
-                            <td class="max-w-[220px] px-3 py-2 text-gray-700" x-show="showTxDescription" title="{{ $txDescription }}">
-                                <span class="line-clamp-2">{{ $txDescription !== '' ? $txDescription : '—' }}</span>
+                            <td class="max-w-[220px] px-3 py-2 text-gray-700" x-show="showTxDescription" @if($isFirstLineForTransaction && $txDescription !== '') title="{{ $txDescription }}" @endif>
+                                @if($isFirstLineForTransaction)
+                                    <span class="line-clamp-2">{{ $txDescription !== '' ? $txDescription : '—' }}</span>
+                                @else
+                                    <span class="text-gray-400">—</span>
+                                @endif
                             </td>
                             <td class="px-3 py-2">
                                 @if($senderUrl && $sender)
