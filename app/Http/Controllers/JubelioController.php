@@ -105,13 +105,14 @@ class JubelioController extends Controller
             $resolver->applyWarehouseFilter($q, $warehouseId);
         }
 
+        if ($request->status === 'error') {
+            $resolver->maybeBackfillStockErrorItems((clone $q));
+        }
+
         $stats = Jubelioorder::selectRaw('COUNT(CASE WHEN status=0 THEN 1 END) as pending, COUNT(CASE WHEN status=2 AND error_type=10 THEN 1 END) as success, COUNT(CASE WHEN status=2 AND error_type=2 THEN 1 END) as warning, COUNT(CASE WHEN status=1 AND error_type=1 THEN 1 END) as error')->first();
         $syncIndex = $resolver->syncIndex();
         $orders = $q->paginate(15)->withQueryString();
         $orders->getCollection()->transform(function (Jubelioorder $order) use ($resolver, $syncIndex) {
-            if ((int) $order->jubelio_store_id === 0 || (int) $order->jubelio_location_id === 0) {
-                $resolver->persistWarehouseKeysFromPayload($order, $order->payloadArray(), $syncIndex);
-            }
             $warehouses = $resolver->resolve($order, $syncIndex);
             $order->jubelio_warehouse = $warehouses['jubelio_warehouse'];
             $order->aria_warehouse = $warehouses['aria_warehouse'];
@@ -232,13 +233,7 @@ class JubelioController extends Controller
             ->where('invoice', $dataApi['salesorder_no'])
             ->first();
 
-        $warehouseResolver = app(JubelioOrderWarehouseResolver::class);
         $warehouseId = (int) ($sellTransaction?->sender_id ?? 0);
-        $storeId = (int) ($dataApi['store_id'] ?? 0);
-        $locationId = (int) ($dataApi['location_id'] ?? 0);
-        if ($warehouseId <= 0) {
-            $warehouseId = $warehouseResolver->warehouseIdFromStoreLocation($storeId, $locationId);
-        }
 
         Jubelioorder::create([
             'jubelio_order_id' => $dataApi['return_id'],
@@ -248,8 +243,8 @@ class JubelioController extends Controller
             'order_status' => 'RETURN',
             'run_count' => 0,
             'warehouse_id' => $warehouseId,
-            'jubelio_store_id' => $storeId,
-            'jubelio_location_id' => $locationId,
+            'jubelio_store_id' => 0,
+            'jubelio_location_id' => 0,
             'status' => 0,
         ]);
 
