@@ -117,6 +117,21 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::post('warehouse-stat-backfill/resume', [App\Http\Controllers\WarehouseStatBackfillController::class, 'resume'])->name('warehouse-stat-backfill.resume');
     Route::post('warehouse-stat-backfill/run-batch', [App\Http\Controllers\WarehouseStatBackfillController::class, 'runBatch'])->name('warehouse-stat-backfill.run-batch');
 
+    // Data retention (archive copy + live cleanup)
+    Route::get('data-retention', [App\Http\Controllers\DataRetentionController::class, 'index'])->name('data-retention.index');
+    Route::post('data-retention/preview-archive', [App\Http\Controllers\DataRetentionController::class, 'previewArchive'])->name('data-retention.preview-archive');
+    Route::post('data-retention/archive-year', [App\Http\Controllers\DataRetentionController::class, 'archiveYear'])->name('data-retention.archive-year');
+    Route::post('data-retention/preview-cleanup', [App\Http\Controllers\DataRetentionController::class, 'previewCleanup'])->name('data-retention.preview-cleanup');
+    Route::post('data-retention/cleanup-year', [App\Http\Controllers\DataRetentionController::class, 'cleanupYear'])->name('data-retention.cleanup-year');
+    Route::post('data-retention/purge-orphan-items', [App\Http\Controllers\DataRetentionController::class, 'purgeOrphanItems'])->name('data-retention.purge-orphan-items');
+
+    // Archive (read-only)
+    Route::get('archive', [App\Http\Controllers\ArchiveDashboardController::class, 'index'])->name('archive.index');
+    Route::get('archive/transactions', [App\Http\Controllers\ArchiveTransactionsController::class, 'index'])->name('archive.transactions.index');
+    Route::get('archive/transactions/{id}', [App\Http\Controllers\ArchiveTransactionsController::class, 'show'])->name('archive.transactions.show');
+    Route::get('archive/items', [App\Http\Controllers\ArchiveItemsController::class, 'index'])->name('archive.items.index');
+    Route::get('archive/items/{id}', [App\Http\Controllers\ArchiveItemsController::class, 'show'])->name('archive.items.show');
+
     // Cron Manager
     Route::get('cron-manager', [App\Http\Controllers\ScheduledTaskController::class, 'index'])->name('scheduled-tasks.index');
     Route::patch('cron-manager/{scheduledTask}', [App\Http\Controllers\ScheduledTaskController::class, 'update'])->name('scheduled-tasks.update');

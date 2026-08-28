@@ -176,6 +176,16 @@
     if ($hasPerm('setting-cron-manager-view') || $isSuperAdmin) {
         $systemNavLabels[] = 'Cron Manager';
     }
+    if ($hasPerm('data-retention-manage') || $isSuperAdmin) {
+        $systemNavLabels[] = 'Data Retention';
+    }
+
+    $archiveNavLabels = ['Archive'];
+    if ($hasPerm('archive-view') || $isSuperAdmin) {
+        $archiveNavLabels[] = 'Overview';
+        $archiveNavLabels[] = 'Transactions';
+        $archiveNavLabels[] = 'Items';
+    }
 
     $userNavLabels = ['User Management'];
     if ($hasPerm('users-list') || $isSuperAdmin) {
@@ -608,9 +618,31 @@
 </div>
 @endif
 
+{{-- ── Archive (read-only) ───────────────────────────────────────────── --}}
+@if($hasPerm('archive-view') || $isSuperAdmin)
+@php $archiveActive = $isActive('/archive'); @endphp
+<div x-data="{ open: {{ $archiveActive ? 'true' : 'false' }} }"
+     class="mb-1"
+     x-show="navGroupVisible(@js($archiveNavLabels))"
+     x-effect="syncNavGroupOpen($data, {{ $archiveActive ? 'true' : 'false' }}, @js($archiveNavLabels))">
+    <button @click="open = !open"
+            class="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors
+                   {{ $archiveActive ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100' }}">
+        <svg class="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/></svg>
+        <span x-show="sidebarOpen" x-cloak class="flex-1 text-left">Archive</span>
+        <svg x-show="sidebarOpen" x-cloak :class="open ? 'rotate-90' : ''" class="h-3.5 w-3.5 flex-shrink-0 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+    </button>
+    <div x-show="open && sidebarOpen" x-cloak class="ml-6 mt-1 space-y-0.5">
+        <a href="{{ route('archive.index') }}" x-show="navLinkVisible('Overview', 'Archive')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $currentUrl === 'archive' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Overview</a>
+        <a href="{{ route('archive.transactions.index') }}" x-show="navLinkVisible('Transactions', 'Archive')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/archive/transactions') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Transactions</a>
+        <a href="{{ route('archive.items.index') }}" x-show="navLinkVisible('Items', 'Archive')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/archive/items') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Items</a>
+    </div>
+</div>
+@endif
+
 {{-- ── System Settings ───────────────────────────────────────────────── --}}
-@if($hasPerm('setting-general-view') || $hasPerm('setting-cron-manager-view') || $isSuperAdmin)
-@php $sysActive = $isActive('/system-settings') || $isActive('/cron-manager'); @endphp
+@if($hasPerm('setting-general-view') || $hasPerm('setting-cron-manager-view') || $hasPerm('data-retention-manage') || $isSuperAdmin)
+@php $sysActive = $isActive('/system-settings') || $isActive('/cron-manager') || $isActive('/data-retention'); @endphp
 <div x-data="{ open: {{ $sysActive ? 'true' : 'false' }} }"
      class="mb-1"
      x-show="navGroupVisible(@js($systemNavLabels))"
@@ -631,6 +663,9 @@
         @endif
         @if($hasPerm('report-warehouse-arrangement') || $isSuperAdmin)
         <a href="{{ route('warehouse-stat-backfill.index') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/warehouse-stat-backfill') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Warehouse Stats Backfill</a>
+        @endif
+        @if($hasPerm('data-retention-manage') || $isSuperAdmin)
+        <a href="{{ route('data-retention.index') }}" x-show="navLinkVisible('Data Retention', 'System Settings')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/data-retention') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Data Retention</a>
         @endif
     </div>
 </div>
