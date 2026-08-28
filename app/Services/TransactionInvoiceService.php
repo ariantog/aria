@@ -80,4 +80,42 @@ class TransactionInvoiceService
 
         return $this->invoicePublicUrl($fileName);
     }
+
+    public function receiptFileName(Transaction $transaction): string
+    {
+        return 'receipt_'.$transaction->id.'.pdf';
+    }
+
+    public function receiptPdfExists(Transaction $transaction): bool
+    {
+        return File::exists($this->invoiceDiskPath($this->receiptFileName($transaction)));
+    }
+
+    public function createReceiptPdf(Transaction $transaction, bool $regenerate = true): string
+    {
+        $fileName = $this->receiptFileName($transaction);
+        $filePath = $this->invoiceDiskPath($fileName);
+
+        if (File::exists($filePath) && ! $regenerate) {
+            return $this->invoicePublicUrl($fileName);
+        }
+
+        $transaction->loadMissing(['details.item.group', 'sender', 'receiver', 'user']);
+        $branding = $this->brandingService->forTransaction($transaction);
+
+        if (File::exists($filePath)) {
+            File::delete($filePath);
+        }
+
+        Pdf::loadView('transactions.pdf.receipt', compact('transaction', 'branding'))
+            ->setPaper('a4', 'portrait')
+            ->setOptions([
+                'isHtml5ParserEnabled' => true,
+                'isRemoteEnabled' => true,
+                'isPhpEnabled' => true,
+            ])
+            ->save($filePath);
+
+        return $this->invoicePublicUrl($fileName);
+    }
 }
