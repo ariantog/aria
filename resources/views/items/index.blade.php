@@ -151,7 +151,7 @@ $filtersStorageKey = $isAsset ? 'aria-assetlancar-index-filters-open' : 'aria-it
                             <a href="{{ $baseUrl }}/{{ $item->id }}" class="font-medium text-blue-600 hover:underline">{{ $item->id }}</a>
                         </td>
                         <td class="truncate px-2 py-2 font-mono text-gray-600" title="{{ $item->code }}">{{ $item->code ?: '-' }}</td>
-                        <td class="truncate px-2 py-2 text-gray-800" title="{{ $item->name }}">{{ $item->name ?: '-' }}</td>
+                        <td class="truncate px-2 py-2 text-gray-800" title="{{ $item->getItemName() }}">{{ $item->getItemName() ?: '-' }}</td>
                         <td class="truncate px-2 py-2 text-gray-700" title="{{ $item->description }}">{{ $item->description ?: '-' }}</td>
                         <td class="whitespace-nowrap px-2 py-2 text-right font-bold tabular-nums text-gray-800">{{ $idr($item->price) }}</td>
                         <td class="truncate px-2 py-2 text-gray-500" title="{{ $item->description2 }}">{{ $item->description2 ?: '--' }}</td>

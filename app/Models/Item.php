@@ -127,10 +127,11 @@ class Item extends Model
             return;
         }
 
-        $prefix = LikeSearch::prefix($term);
+        $contains = LikeSearch::contains($term);
 
-        $query->where(function ($q) use ($term, $prefix) {
-            $q->where('code', 'like', $prefix);
+        $query->where(function ($q) use ($term, $contains) {
+            $q->where('code', 'like', $contains)
+                ->orWhere('legacy_code', 'like', $contains);
 
             if (ctype_digit($term)) {
                 $q->orWhere('id', (int) $term);
@@ -145,11 +146,11 @@ class Item extends Model
             return;
         }
 
-        $prefix = LikeSearch::prefix($term);
+        $contains = LikeSearch::contains($term);
 
-        $query->where(function ($q) use ($prefix) {
-            $q->where('code', 'like', $prefix)
-                ->orWhere('legacy_code', 'like', $prefix);
+        $query->where(function ($q) use ($contains) {
+            $q->where('code', 'like', $contains)
+                ->orWhere('legacy_code', 'like', $contains);
         });
     }
 
@@ -216,7 +217,9 @@ class Item extends Model
             return $this->name;
         }
 
-        return $this->group?->alias ?? $this->name;
+        $alias = trim((string) ($this->group?->alias ?? ''));
+
+        return $alias !== '' ? $alias : $this->name;
     }
 
     public function isAssetLancar(): bool
