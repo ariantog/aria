@@ -8,14 +8,13 @@ use App\Services\DataRetentionService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Gate;
 use Throwable;
 
 class ItemPurgeController extends Controller
 {
     public function index(DataRetentionService $retention): View
     {
-        Gate::authorize(DataRetentionRun::getPermissions()['manage']);
+        DataRetentionRun::authorizeManage();
 
         $cutoffYear = (int) request()->query('cutoff_year', $retention->liveRetentionStartYear());
         $itemType = request()->query('item_type');
@@ -43,7 +42,7 @@ class ItemPurgeController extends Controller
 
     public function purge(Request $request, DataRetentionService $retention): RedirectResponse
     {
-        Gate::authorize(DataRetentionRun::getPermissions()['manage']);
+        DataRetentionRun::authorizeManage();
 
         $validated = $request->validate([
             'cutoff_year' => ['required', 'integer', 'min:2000', 'max:2100'],

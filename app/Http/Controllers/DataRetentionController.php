@@ -7,14 +7,13 @@ use App\Services\DataRetentionService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Gate;
 use Throwable;
 
 class DataRetentionController extends Controller
 {
     public function index(DataRetentionService $retention): View
     {
-        Gate::authorize(DataRetentionRun::getPermissions()['manage']);
+        DataRetentionRun::authorizeManage();
 
         $runs = DataRetentionRun::query()->orderBy('year')->get();
         $orphanPreview = $retention->previewOrphanPurges();
@@ -33,7 +32,7 @@ class DataRetentionController extends Controller
 
     public function previewArchive(Request $request, DataRetentionService $retention): RedirectResponse
     {
-        Gate::authorize(DataRetentionRun::getPermissions()['manage']);
+        DataRetentionRun::authorizeManage();
 
         $validated = $request->validate([
             'year' => ['required', 'integer', 'min:2000', 'max:2100'],
@@ -46,7 +45,7 @@ class DataRetentionController extends Controller
 
     public function archiveYear(Request $request, DataRetentionService $retention): RedirectResponse
     {
-        Gate::authorize(DataRetentionRun::getPermissions()['manage']);
+        DataRetentionRun::authorizeManage();
 
         $validated = $request->validate([
             'year' => ['required', 'integer', 'min:2000', 'max:2100'],
@@ -78,7 +77,7 @@ class DataRetentionController extends Controller
 
     public function previewCleanup(Request $request, DataRetentionService $retention): RedirectResponse
     {
-        Gate::authorize(DataRetentionRun::getPermissions()['manage']);
+        DataRetentionRun::authorizeManage();
 
         $validated = $request->validate([
             'year' => ['required', 'integer', 'min:2000', 'max:2100'],
@@ -91,7 +90,7 @@ class DataRetentionController extends Controller
 
     public function cleanupYear(Request $request, DataRetentionService $retention): RedirectResponse
     {
-        Gate::authorize(DataRetentionRun::getPermissions()['manage']);
+        DataRetentionRun::authorizeManage();
 
         $validated = $request->validate([
             'year' => ['required', 'integer', 'min:2000', 'max:2100'],
@@ -123,7 +122,7 @@ class DataRetentionController extends Controller
 
     public function purgeOrphanItems(Request $request, DataRetentionService $retention): RedirectResponse
     {
-        Gate::authorize(DataRetentionRun::getPermissions()['manage']);
+        DataRetentionRun::authorizeManage();
 
         $validated = $request->validate([
             'confirm' => ['required', 'string', 'in:PURGE-ORPHAN-ITEMS'],
@@ -144,7 +143,7 @@ class DataRetentionController extends Controller
 
     public function purgeOrphanItemGroups(Request $request, DataRetentionService $retention): RedirectResponse
     {
-        Gate::authorize(DataRetentionRun::getPermissions()['manage']);
+        DataRetentionRun::authorizeManage();
 
         $validated = $request->validate([
             'confirm' => ['required', 'string', 'in:PURGE-ORPHAN-ITEM-GROUPS'],
@@ -161,7 +160,7 @@ class DataRetentionController extends Controller
 
     public function purgeOrphanAddrbooks(Request $request, DataRetentionService $retention, string $type): RedirectResponse
     {
-        Gate::authorize(DataRetentionRun::getPermissions()['manage']);
+        DataRetentionRun::authorizeManage();
 
         $addrbookType = DataRetentionService::PURGEABLE_ADDRBOOK_TYPES[$type] ?? null;
 

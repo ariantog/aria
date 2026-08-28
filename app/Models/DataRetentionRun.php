@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Auth;
 
 class DataRetentionRun extends Model
 {
@@ -43,8 +44,15 @@ class DataRetentionRun extends Model
     {
         return [
             'archive-view' => 'archive-view',
-            'manage' => 'data-retention-manage',
         ];
+    }
+
+    /**
+     * Destructive retention actions are limited to user id 1 (the one superadmin).
+     */
+    public static function authorizeManage(): void
+    {
+        abort_unless(User::isSuperadmin(Auth::user()), 403);
     }
 
     public function isArchived(): bool
