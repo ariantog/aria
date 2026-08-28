@@ -327,3 +327,123 @@ it('purges orphan items with warehouse stock on selective purge', function () {
         ->and(DB::table('items')->where('id', $item->id)->exists())->toBeFalse()
         ->and(DB::table('warehouse_item')->where('item_id', $item->id)->exists())->toBeFalse();
 });
+
+it('lists orphan items with migration-touched created_at on selective preview', function () {
+    $this->travelTo('2026-08-28');
+
+    $orphan = Item::factory()->create(['created_at' => '2026-08-24 02:58:40']);
+    $withTx = Item::factory()->create(['created_at' => '2026-08-24 02:58:40']);
+    $transaction = Transaction::factory()->create(['date' => '2020-01-10']);
+    DB::table('transaction_details')->insert([
+        'id' => 9101,
+        'transaction_id' => $transaction->id,
+        'item_id' => $withTx->id,
+        'quantity' => 1,
+        'price' => 100,
+        'discount' => 0,
+        'total' => 100,
+        'date' => '2020-01-10',
+        'transaction_type' => Transaction::TYPE_SELL,
+        'sender_id' => 1,
+        'receiver_id' => 1,
+        'transaction_disc' => 0,
+    ]);
+
+    $preview = $this->retention->previewSelectableItemPurge(
+        cutoffYear: 2022,
+        ignoreWarehouseStock: true,
+        ignoreCreatedAtCutoff: true,
+        perPage: 100,
+    );
+
+    expect($preview->total())->toBe(1)
+        ->and($preview->first()['id'])->toBe($orphan->id);
+});
+
+it('paginates selective item purge preview at 100 rows sorted by id asc', function () {
+    $this->travelTo('2026-08-28');
+
+    for ($i = 0; $i < 105; $i++) {
+        Item::factory()->create(['created_at' => '2014-01-01']);
+    }
+
+    $pageOne = $this->retention->previewSelectableItemPurge(
+        cutoffYear: 2022,
+        ignoreWarehouseStock: true,
+        ignoreCreatedAtCutoff: true,
+        perPage: 100,
+    );
+
+    expect($pageOne->total())->toBe(105)
+        ->and($pageOne->perPage())->toBe(100)
+        ->and($pageOne->count())->toBe(100)
+        ->and($pageOne->first()['id'])->toBeLessThan($pageOne->last()['id']);
+
+    request()->merge(['page' => 2]);
+
+    $pageTwo = $this->retention->previewSelectableItemPurge(
+        cutoffYear: 2022,
+        ignoreWarehouseStock: true,
+        ignoreCreatedAtCutoff: true,
+        perPage: 100,
+    );
+
+    expect($pageTwo->currentPage())->toBe(2)
+        ->and($pageTwo->count())->toBe(5);
+});
+
+it('excludes kept item ids from selective orphan purge', function () {
+    $this->travelTo('2026-08-28');
+
+    $keep = Item::factory()->create(['created_at' => '2014-01-01']);
+    $purge = Item::factory()->create(['created_at' => '2014-02-01']);
+
+    $result = $this->retention->purgeOrphanItemsFromLive(
+        dryRun: false,
+        ignoreWarehouseStock: true,
+        cutoffYear: 2022,
+        ignoreCreatedAtCutoff: true,
+        excludeItemIds: [$keep->id],
+    );
+
+    expect($result['items'])->toBe(1)
+        ->and(DB::table('items')->where('id', $keep->id)->exists())->toBeTrue()
+        ->and(DB::table('items')->where('id', $purge->id)->exists())->toBeFalse();
+});
+
+it('renders selective item purge with keep checkboxes and pagination', function () {
+    app(PermissionGenerator::class)->generateForModule('DataRetentionRun');
+    $user = User::query()->find(1) ?? User::factory()->create(['id' => 1]);
+
+    $this->travelTo('2026-08-28');
+    $orphan = Item::factory()->create(['created_at' => '2026-08-24 02:58:40']);
+
+    $this->actingAs($user)
+        ->get(route('data-retention.item-purge.index', ['cutoff_year' => 2022]))
+        ->assertSuccessful()
+        ->assertSee('Selective Item Purge')
+        ->assertSee('Keep')
+        ->assertSee('#'.$orphan->id)
+        ->assertSee('Purge 1 item(s)');
+});
+
+it('purges selective items while honoring keep ids from the form', function () {
+    app(PermissionGenerator::class)->generateForModule('DataRetentionRun');
+    $user = User::query()->find(1) ?? User::factory()->create(['id' => 1]);
+
+    $this->travelTo('2026-08-28');
+
+    $keep = Item::factory()->create(['created_at' => '2026-08-24 02:58:40']);
+    $purge = Item::factory()->create(['created_at' => '2026-08-24 02:58:40']);
+
+    $this->actingAs($user)
+        ->post(route('data-retention.item-purge.purge'), [
+            'cutoff_year' => 2022,
+            'keep_ids' => [$keep->id],
+            'confirm' => 'PURGE-ITEMS-WITH-STOCK',
+        ])
+        ->assertRedirect(route('data-retention.item-purge.index', ['cutoff_year' => 2022]));
+
+    expect(DB::table('items')->where('id', $keep->id)->exists())->toBeTrue()
+        ->and(DB::table('items')->where('id', $purge->id)->exists())->toBeFalse();
+});
