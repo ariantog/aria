@@ -133,7 +133,13 @@ $breadcrumbs = [
                                 </div>
                                 <div>
                                     <span class="text-[10px] font-bold uppercase text-gray-400">Aria</span>
+                                    @if($order->aria_warehouse_url)
+                                    <a href="{{ $order->aria_warehouse_url }}"
+                                       class="text-sm font-medium text-blue-600 hover:underline"
+                                       data-testid="jubelio-aria-warehouse-link">{{ $order->aria_warehouse }}</a>
+                                    @else
                                     <div class="text-sm font-medium text-gray-700">{{ $order->aria_warehouse ?: '—' }}</div>
+                                    @endif
                                 </div>
                             </div>
                         </td>
