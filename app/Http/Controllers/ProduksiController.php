@@ -101,7 +101,7 @@ class ProduksiController extends Controller
             ->when($request->filled('serial'), fn ($q) => $q->where(fn ($s) => $s->where('id', base_convert($request->serial, 36, 10))->orWhere('original_id', base_convert($request->serial, 36, 10))));
         $prod_produksi = $query->latest('id')->paginate(20)->withQueryString();
 
-        return view('produksi.index', ['prod_produksi' => $prod_produksi, 'filters' => $request->only(['from', 'to', 'kode', 'customer', 'potong_id', 'jahit_id', 'serial', 'surat_jalan_potong', 'warna']), 'jahitList' => Worker::jahit()->get(), 'can' => $this->produksiPermissions(), 'flash' => ['success' => session('success'), 'error' => session('error')]]);
+        return view('produksi.index', ['prod_produksi' => $prod_produksi, 'filters' => $request->only(['from', 'to', 'kode', 'customer', 'potong_id', 'jahit_id', 'serial', 'surat_jalan_potong', 'warna']), 'potongList' => Worker::potong()->get(), 'jahitList' => Worker::jahit()->get(), 'can' => $this->produksiPermissions(), 'flash' => ['success' => session('success'), 'error' => session('error')]]);
     }
 
     public function create()
