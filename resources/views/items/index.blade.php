@@ -37,19 +37,15 @@ $idr = fn ($v) => 'Rp ' . format_amount($v, 0);
         </div>
     </div>
 
-    {{-- Filters --}}
+    {{-- Filters (order matches table columns) --}}
     <form method="GET" action="{{ $baseUrl }}" class="flex flex-wrap items-end gap-2 rounded-xl border border-gray-200 bg-white p-3">
         <div class="flex flex-col gap-1">
             <label class="text-xs font-medium text-gray-500 uppercase">SKU / Code</label>
-            <input type="text" name="code" value="{{ $filters['code'] ?? '' }}" placeholder="Code…" class="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm">
+            <input type="text" name="code" value="{{ $filters['code'] ?? '' }}" placeholder="SKU, barcode ID, alias…" class="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm">
         </div>
         <div class="flex flex-col gap-1">
-            <label class="text-xs font-medium text-gray-500 uppercase">Name</label>
-            <input type="text" name="name" value="{{ $filters['name'] ?? '' }}" placeholder="Name…" data-filter-enter-submit class="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm">
-        </div>
-        <div class="flex flex-col gap-1">
-            <label class="text-xs font-medium text-gray-500 uppercase">Product</label>
-            <input type="text" name="product_name" value="{{ $filters['product_name'] ?? '' }}" placeholder="Product name…" class="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm">
+            <label class="text-xs font-medium text-gray-500 uppercase">Display Name</label>
+            <input type="text" name="name" value="{{ $filters['name'] ?? '' }}" placeholder="Display name…" data-filter-enter-submit class="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm">
         </div>
         <div class="flex flex-col gap-1">
             <label class="text-xs font-medium text-gray-500 uppercase">Description</label>
@@ -99,10 +95,6 @@ $idr = fn ($v) => 'Rp ' . format_amount($v, 0);
                     <th class="w-16 px-2 py-2.5 font-bold" x-show="showImage">Image</th>
                     <th class="w-14 px-2 py-2.5 font-bold">ID</th>
                     <th class="w-32 px-2 py-2.5 font-bold">SKU</th>
-                    @unless($isAsset)
-                        <th class="w-28 px-2 py-2.5 font-bold">Kode Produksi</th>
-                    @endunless
-                    <th class="px-2 py-2.5 font-bold">Product</th>
                     <th class="px-2 py-2.5 font-bold">Display Name</th>
                     <th class="px-2 py-2.5 font-bold">Description</th>
                     <th class="w-28 px-2 py-2.5 text-right font-bold">Price</th>
@@ -115,7 +107,6 @@ $idr = fn ($v) => 'Rp ' . format_amount($v, 0);
             <tbody class="divide-y divide-gray-100">
                 @forelse($items as $item)
                     @php
-                        $productName = $item->group?->name ?? '-';
                         $desc = $item->group?->description ?? $item->description;
                         $nb = $item->group?->description2 ?? $item->description2;
                     @endphp
@@ -133,10 +124,6 @@ $idr = fn ($v) => 'Rp ' . format_amount($v, 0);
                             <a href="{{ $baseUrl }}/{{ $item->id }}" class="font-medium text-blue-600 hover:underline">{{ $item->id }}</a>
                         </td>
                         <td class="truncate px-2 py-2 font-mono text-gray-600" title="{{ $item->code }}">{{ $item->code ?: '-' }}</td>
-                        @unless($isAsset)
-                            <td class="truncate px-2 py-2 font-mono text-gray-500" title="{{ $item->pcode }}">{{ $item->pcode ?: '-' }}</td>
-                        @endunless
-                        <td class="truncate px-2 py-2 italic text-gray-700" title="{{ $productName }}">{{ $productName }}</td>
                         <td class="truncate px-2 py-2 text-gray-800" title="{{ $item->name }}">{{ $item->name ?: '-' }}</td>
                         <td class="truncate px-2 py-2 text-gray-700" title="{{ $desc }}">{{ $desc ?: '-' }}</td>
                         <td class="whitespace-nowrap px-2 py-2 text-right font-bold tabular-nums text-gray-800">{{ $idr($item->price) }}</td>
@@ -156,7 +143,7 @@ $idr = fn ($v) => 'Rp ' . format_amount($v, 0);
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="11" class="px-4 py-12 text-center text-sm italic text-gray-500">No {{ $isAsset ? 'assets' : 'items' }} found matching your filters.</td></tr>
+                    <tr><td colspan="10" class="px-4 py-12 text-center text-sm italic text-gray-500">No {{ $isAsset ? 'assets' : 'items' }} found matching your filters.</td></tr>
                 @endforelse
             </tbody>
         </table>

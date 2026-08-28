@@ -119,6 +119,35 @@ class Item extends Model
         });
     }
 
+    public function scopeFilterIndexCode(Builder $query, string $term): void
+    {
+        $term = trim($term);
+        if ($term === '') {
+            return;
+        }
+
+        $prefix = LikeSearch::prefix($term);
+
+        $query->where(function ($q) use ($term, $prefix) {
+            $q->where('code', 'like', $prefix)
+                ->orWhere('legacy_code', 'like', $prefix);
+
+            if (ctype_digit($term)) {
+                $q->orWhere('id', (int) $term);
+            }
+        });
+    }
+
+    public function scopeFilterDisplayName(Builder $query, string $term): void
+    {
+        $contains = LikeSearch::contains($term);
+        if ($contains === '%') {
+            return;
+        }
+
+        $query->where('name', 'like', $contains);
+    }
+
     public function scopeFilterByTags(Builder $query, array $tagIds): void
     {
         if (empty($tagIds)) {
