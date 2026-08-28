@@ -73,10 +73,18 @@ class JubelioOrderWarehouseResolver
     }
 
     /**
+     * Cache denormalized keys for SQL filtering only — payload remains authoritative for display.
+     *
      * @param  array<string, mixed>  $payload
      */
     public function persistWarehouseKeysFromPayload(Jubelioorder $order, array $payload, ?Collection $syncIndex = null): void
     {
+        if ($order->type === 'RETURN') {
+            $this->persistReturnWarehouseKeys($order, $payload);
+
+            return;
+        }
+
         $storeId = (int) ($payload['store_id'] ?? 0);
         $locationId = (int) ($payload['location_id'] ?? 0);
 
@@ -103,6 +111,43 @@ class JubelioOrderWarehouseResolver
         $order->warehouse_id = $warehouseId;
     }
 
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    private function persistReturnWarehouseKeys(Jubelioorder $order, array $payload): void
+    {
+        $salesInvoice = (string) ($payload['salesorder_no'] ?? '');
+        if ($salesInvoice === '') {
+            return;
+        }
+
+        $sell = Transaction::query()
+            ->where('type', Transaction::TYPE_SELL)
+            ->where('invoice', $salesInvoice)
+            ->first();
+
+        $warehouseId = (int) ($sell?->sender_id ?? 0);
+        if ($warehouseId <= 0) {
+            return;
+        }
+
+        if ((int) $order->warehouse_id === $warehouseId
+            && (int) $order->jubelio_store_id === 0
+            && (int) $order->jubelio_location_id === 0) {
+            return;
+        }
+
+        Jubelioorder::query()->whereKey($order->id)->update([
+            'warehouse_id' => $warehouseId,
+            'jubelio_store_id' => 0,
+            'jubelio_location_id' => 0,
+        ]);
+
+        $order->warehouse_id = $warehouseId;
+        $order->jubelio_store_id = 0;
+        $order->jubelio_location_id = 0;
+    }
+
     public function applyWarehouseFilter(Builder $query, int $warehouseId): void
     {
         if ($warehouseId <= 0) {
@@ -112,36 +157,44 @@ class JubelioOrderWarehouseResolver
         $syncs = $this->syncsForWarehouse($warehouseId);
 
         $query->where(function (Builder $builder) use ($warehouseId, $syncs) {
-            $builder->where('warehouse_id', $warehouseId);
-
             foreach ($syncs as $sync) {
                 $builder->orWhere(function (Builder $inner) use ($sync) {
-                    $inner->where('jubelio_store_id', $sync->jubelio_store_id)
+                    $inner->where('type', 'SELL')
+                        ->where('jubelio_store_id', $sync->jubelio_store_id)
                         ->where('jubelio_location_id', $sync->jubelio_location_id);
                 });
             }
+
+            $builder->orWhere(function (Builder $inner) use ($warehouseId) {
+                $inner->where('type', 'RETURN')
+                    ->where('warehouse_id', $warehouseId);
+            });
         });
     }
 
     public function scopeMissingWarehouseKeys(Builder $query): Builder
     {
         return $query->where(function (Builder $inner) {
-            $inner->where('jubelio_store_id', 0)
-                ->orWhere('jubelio_location_id', 0);
+            $inner->where(function (Builder $sell) {
+                $sell->where('type', 'SELL')
+                    ->where(function (Builder $missing) {
+                        $missing->where('jubelio_store_id', 0)
+                            ->orWhere('jubelio_location_id', 0);
+                    });
+            })->orWhere(function (Builder $ret) {
+                $ret->where('type', 'RETURN')
+                    ->where('warehouse_id', 0);
+            });
         });
     }
 
     public function hasMissingWarehouseKeysInScope(Builder $scope): bool
     {
-        return (clone $scope)->where(function (Builder $query) {
-            $query->where('jubelio_store_id', 0)
-                ->orWhere('jubelio_location_id', 0);
-        })->exists();
+        return $this->scopeMissingWarehouseKeys(clone $scope)->exists();
     }
 
     /**
-     * One-off legacy repair: fetch Jubelio store/location for rows still missing keys.
-     * Throttled so normal list/filter views do not hammer the API every request.
+     * Legacy repair for SQL filter columns only. Throttled per warehouse.
      */
     public function maybeBackfillForWarehouseFilter(Builder $scope, int $warehouseId, int $limit = 50): void
     {
@@ -193,42 +246,69 @@ class JubelioOrderWarehouseResolver
         return $updated;
     }
 
-    public function resolveWarehouseId(Jubelioorder $order, ?Collection $syncIndex = null): int
+    /**
+     * Populate stock_error_items with the first failing line for legacy error rows.
+     */
+    public function maybeBackfillStockErrorItems(Builder $scope, int $limit = 50): void
     {
-        if ((int) $order->warehouse_id > 0) {
-            return (int) $order->warehouse_id;
+        if (Cache::has('jubelio_stock_err_backfill')) {
+            return;
         }
 
-        if ((int) $order->jubelio_store_id > 0 && (int) $order->jubelio_location_id > 0) {
-            return $this->warehouseIdFromStoreLocation(
-                (int) $order->jubelio_store_id,
-                (int) $order->jubelio_location_id,
-                $syncIndex,
-            );
-        }
+        $payloadService = app(JubelioOrderPayloadService::class);
+        $backfill = app(JubelioOrderErrorItemBackfill::class);
+        $updated = 0;
 
+        (clone $scope)
+            ->where('type', 'SELL')
+            ->where(function (Builder $query) {
+                $query->whereNull('stock_error_items')
+                    ->orWhere('stock_error_items', '[]');
+            })
+            ->orderBy('id')
+            ->limit($limit)
+            ->get()
+            ->each(function (Jubelioorder $order) use ($payloadService, $backfill, &$updated) {
+                $payload = $payloadService->fetchOrEmpty($order);
+                if ($payload === []) {
+                    return;
+                }
+
+                $firstError = $backfill->firstSellErrorItem($order, $payload);
+                if ($firstError === null) {
+                    return;
+                }
+
+                Jubelioorder::query()->whereKey($order->id)->update([
+                    'stock_error_items' => [$firstError],
+                ]);
+
+                $order->stock_error_items = [$firstError];
+                $updated++;
+            });
+
+        if ($updated === 0) {
+            Cache::put('jubelio_stock_err_backfill', true, now()->addHours(6));
+        }
+    }
+
+    /**
+     * Display mapping — always payload → jubeliosync for SELL (same as pre-filter branch).
+     *
+     * @return array{
+     *     jubelio_warehouse: ?string,
+     *     aria_warehouse: ?string,
+     *     aria_warehouse_id: ?int,
+     *     aria_warehouse_url: ?string
+     * }
+     */
+    public function resolve(Jubelioorder $order, ?Collection $syncIndex = null): array
+    {
         if ($order->type === 'RETURN') {
-            $payload = $order->payloadArray();
-            $salesInvoice = (string) ($payload['salesorder_no'] ?? '');
-            if ($salesInvoice === '') {
-                return 0;
-            }
-
-            $sell = Transaction::query()
-                ->where('type', Transaction::TYPE_SELL)
-                ->where('invoice', $salesInvoice)
-                ->first();
-
-            return (int) ($sell?->sender_id ?? 0);
+            return $this->resolveReturn($order);
         }
 
-        $payload = $order->payloadArray();
-
-        return $this->warehouseIdFromStoreLocation(
-            (int) ($payload['store_id'] ?? 0),
-            (int) ($payload['location_id'] ?? 0),
-            $syncIndex,
-        );
+        return $this->resolveSell($order, $syncIndex);
     }
 
     /**
@@ -239,40 +319,51 @@ class JubelioOrderWarehouseResolver
      *     aria_warehouse_url: ?string
      * }
      */
-    public function resolve(Jubelioorder $order, ?Collection $syncIndex = null): array
+    private function resolveSell(Jubelioorder $order, ?Collection $syncIndex = null): array
     {
-        $index = $syncIndex ?? $this->syncIndex();
+        $payload = $order->payloadArray();
+        $storeId = (int) ($payload['store_id'] ?? 0);
+        $locationId = (int) ($payload['location_id'] ?? 0);
+
         $sync = null;
-
-        if ((int) $order->jubelio_store_id > 0 && (int) $order->jubelio_location_id > 0) {
-            $sync = $index->get($this->key((int) $order->jubelio_store_id, (int) $order->jubelio_location_id));
-        }
-
-        $payload = [];
-        $storeId = (int) $order->jubelio_store_id;
-        $locationId = (int) $order->jubelio_location_id;
-
-        if ($sync === null) {
-            $payload = $order->payloadArray();
-            $storeId = (int) ($payload['store_id'] ?? 0);
-            $locationId = (int) ($payload['location_id'] ?? 0);
-
-            if ($storeId > 0 && $locationId > 0) {
-                $sync = $index->get($this->key($storeId, $locationId));
-            }
+        if ($storeId > 0 && $locationId > 0) {
+            $index = $syncIndex ?? $this->syncIndex();
+            $sync = $index->get($this->key($storeId, $locationId));
         }
 
         $warehouse = $sync?->warehouse;
-        if ($warehouse === null) {
-            $warehouseId = $this->resolveWarehouseId($order, $index);
-            if ($warehouseId > 0) {
-                $warehouse = Addrbook::query()->find($warehouseId);
-            }
-        }
 
         return [
             'jubelio_warehouse' => $sync?->jubelio_location_name
                 ?? ($payload['location_name'] ?? null),
+            'aria_warehouse' => $warehouse?->name,
+            'aria_warehouse_id' => $warehouse?->id,
+            'aria_warehouse_url' => $warehouse
+                ? route('addrbook.type.show', ['type' => $warehouse->type_slug, 'addrbook' => $warehouse->id])
+                : null,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     jubelio_warehouse: ?string,
+     *     aria_warehouse: ?string,
+     *     aria_warehouse_id: ?int,
+     *     aria_warehouse_url: ?string
+     * }
+     */
+    private function resolveReturn(Jubelioorder $order): array
+    {
+        $payload = $order->payloadArray();
+        $sell = Transaction::query()
+            ->where('type', Transaction::TYPE_SELL)
+            ->where('invoice', (string) ($payload['salesorder_no'] ?? ''))
+            ->first();
+
+        $warehouse = $sell ? Addrbook::query()->find($sell->sender_id) : null;
+
+        return [
+            'jubelio_warehouse' => $payload['location_name'] ?? null,
             'aria_warehouse' => $warehouse?->name,
             'aria_warehouse_id' => $warehouse?->id,
             'aria_warehouse_url' => $warehouse

@@ -79,29 +79,27 @@ class ProcessJubelioOrder
             ->first();
 
         if (! $jubelioSync) {
-            $order->update(array_merge([
+            $order->update([
                 'run_count' => $runCount,
                 'error_type' => 1,
                 'error' => 'Data sync store/location ID tidak ditemukan',
                 'stock_error_items' => null,
                 'status' => 1,
-            ], $this->warehousePersistFields($dataApi)));
+            ]);
 
             return ['success' => false, 'message' => 'Data sync store/location ID tidak ditemukan'];
         }
 
-        $warehouseId = (int) $jubelioSync->warehouse_id;
-
         $matched = $this->matchItems($dataApi['items'] ?? [], 'qty');
 
         if ($matched['error']) {
-            $order->update(array_merge([
+            $order->update([
                 'run_count' => $runCount,
                 'error_type' => 1,
                 'error' => $matched['error'],
                 'stock_error_items' => null,
                 'status' => 1,
-            ], $this->warehousePersistFields($dataApi, $warehouseId)));
+            ]);
 
             return ['success' => false, 'message' => $matched['error']];
         }
@@ -109,26 +107,26 @@ class ProcessJubelioOrder
         $arrayInvoice = $dataApi['salesorder_no'] ?? $order->invoice;
 
         if (Transaction::where('type', Transaction::TYPE_SELL)->where('invoice', $arrayInvoice)->exists()) {
-            $order->update(array_merge([
+            $order->update([
                 'run_count' => $runCount,
                 'error_type' => 2,
                 'error' => 'Transaction sudah ada',
                 'stock_error_items' => null,
                 'status' => 2,
-            ], $this->warehousePersistFields($dataApi, $warehouseId)));
+            ]);
 
             return ['success' => false, 'message' => 'Transaction sudah ada'];
         }
 
-        $stockError = $this->validateWarehouseStock($warehouseId, $matched['items']);
+        $stockError = $this->validateWarehouseStock($jubelioSync->warehouse_id, $matched['items']);
         if ($stockError !== null) {
-            $order->update(array_merge([
+            $order->update([
                 'run_count' => $runCount,
                 'error_type' => 1,
                 'error' => $stockError['message'],
                 'stock_error_items' => $stockError['items'],
                 'status' => 1,
-            ], $this->warehousePersistFields($dataApi, $warehouseId)));
+            ]);
 
             return ['success' => false, 'message' => $stockError['message']];
         }
@@ -149,26 +147,26 @@ class ProcessJubelioOrder
         ]);
 
         if ($createData['status'] === '200') {
-            $order->update(array_merge([
+            $order->update([
                 'run_count' => $runCount,
                 'error_type' => 10,
                 'error' => null,
                 'stock_error_items' => null,
                 'status' => 2,
                 'execute_by' => $executedByUserId ?? 0,
-            ], $this->warehousePersistFields($dataApi, $warehouseId)));
+            ]);
             Log::info("Berhasil Sell: {$arrayInvoice}");
 
             return ['success' => true, 'message' => 'Transaksi berhasil dibuat'];
         }
 
-        $order->update(array_merge([
+        $order->update([
             'run_count' => $runCount,
             'error_type' => 1,
             'error' => $createData['message'],
             'stock_error_items' => null,
             'status' => 1,
-        ], $this->warehousePersistFields($dataApi, $warehouseId)));
+        ]);
 
         return ['success' => false, 'message' => $createData['message']];
     }
@@ -200,25 +198,25 @@ class ProcessJubelioOrder
         $matched = $this->matchItems($dataApi['items'] ?? [], 'qty_in_base');
 
         if ($matched['error']) {
-            $order->update(array_merge([
+            $order->update([
                 'run_count' => $runCount,
                 'error_type' => 1,
                 'error' => $matched['error'],
                 'stock_error_items' => null,
                 'status' => 1,
-            ], $this->warehousePersistFields($dataApi, $warehouseId)));
+            ]);
 
             return ['success' => false, 'message' => $matched['error']];
         }
 
         if (Transaction::where('type', Transaction::TYPE_RETURN)->where('invoice', $dataApi['return_no'])->exists()) {
-            $order->update(array_merge([
+            $order->update([
                 'run_count' => $runCount,
                 'error_type' => 2,
                 'error' => 'Invoice Retur sudah ada',
                 'stock_error_items' => null,
                 'status' => 2,
-            ], $this->warehousePersistFields($dataApi, $warehouseId)));
+            ]);
 
             return ['success' => false, 'message' => 'Invoice Retur sudah ada'];
         }
@@ -239,41 +237,28 @@ class ProcessJubelioOrder
         ]);
 
         if ($createData['status'] === '200') {
-            $order->update(array_merge([
+            $order->update([
                 'run_count' => $runCount,
                 'error_type' => 10,
                 'error' => null,
                 'stock_error_items' => null,
                 'status' => 2,
                 'execute_by' => $executedByUserId ?? 0,
-            ], $this->warehousePersistFields($dataApi, $warehouseId)));
+            ]);
             Log::info('Berhasil Return: '.$dataApi['return_no']);
 
             return ['success' => true, 'message' => 'Transaksi retur berhasil dibuat'];
         }
 
-        $order->update(array_merge([
+        $order->update([
             'run_count' => $runCount,
             'error_type' => 1,
             'error' => $createData['message'],
             'stock_error_items' => null,
             'status' => 1,
-        ], $this->warehousePersistFields($dataApi, $warehouseId)));
+        ]);
 
         return ['success' => false, 'message' => $createData['message']];
-    }
-
-    /**
-     * @param  array<string, mixed>  $dataApi
-     * @return array{warehouse_id: int, jubelio_store_id: int, jubelio_location_id: int}
-     */
-    private function warehousePersistFields(array $dataApi, int $warehouseId = 0): array
-    {
-        return [
-            'warehouse_id' => $warehouseId,
-            'jubelio_store_id' => (int) ($dataApi['store_id'] ?? 0),
-            'jubelio_location_id' => (int) ($dataApi['location_id'] ?? 0),
-        ];
     }
 
     /**
