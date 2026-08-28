@@ -244,6 +244,8 @@ class JubelioGetOrdersService
                     (int) ($row['location_id'] ?? 0),
                     $syncIndex,
                 ),
+                'jubelio_store_id' => (int) ($row['store_id'] ?? 0),
+                'jubelio_location_id' => (int) ($row['location_id'] ?? 0),
                 'status' => 0,
                 'created_at' => $now,
                 'updated_at' => $now,
@@ -409,6 +411,8 @@ class JubelioGetOrdersService
                 (int) ($apiData['store_id'] ?? 0),
                 (int) ($apiData['location_id'] ?? 0),
             ),
+            'jubelio_store_id' => (int) ($apiData['store_id'] ?? 0),
+            'jubelio_location_id' => (int) ($apiData['location_id'] ?? 0),
             'status' => 0,
         ]);
 
