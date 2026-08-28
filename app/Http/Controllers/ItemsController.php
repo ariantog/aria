@@ -110,7 +110,7 @@ class ItemsController extends Controller
             ]);
         }
 
-        $items = $q
+        $items = $q->with('group')
             ->withSum(['warehouseItems as active_qty' => fn ($query) => $query->forActiveWarehouseAddrbooks()], 'quantity')
             ->orderBy('id', 'desc')
             ->paginate(50)

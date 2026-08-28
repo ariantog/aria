@@ -60,23 +60,23 @@ test('items index barcode filter matches id and code', function () {
         ->assertDontSee('AJD-BARCODE-MATCH-S', false);
 });
 
-test('items index code filter matches code and legacy_code only', function () {
-    $byCode = Item::factory()->create(['code' => 'AJD-CODE-MATCH-S', 'legacy_code' => null]);
-    $byLegacy = Item::factory()->create(['code' => 'AJD-NEW-SKU-S', 'legacy_code' => 'OLD-LEGACY-SKU']);
+test('items index code filter matches substring in code and legacy_code', function () {
+    $byCode = Item::factory()->create(['code' => 'AJD-CX90151-01-M', 'legacy_code' => null]);
+    $byLegacy = Item::factory()->create(['code' => 'AJD-NEW-SKU-S', 'legacy_code' => 'OLD-90151-LEGACY']);
     $other = Item::factory()->create(['code' => 'AJD-OTHER-CODE-S', 'legacy_code' => null]);
 
     $this->actingAs($this->user)
-        ->get(route('items.index', ['code' => 'AJD-CODE-MATCH']))
+        ->get(route('items.index', ['code' => '90151']))
         ->assertOk()
-        ->assertSee('AJD-CODE-MATCH-S', false)
-        ->assertDontSee('AJD-NEW-SKU-S', false)
+        ->assertSee('AJD-CX90151-01-M', false)
+        ->assertSee('AJD-NEW-SKU-S', false)
         ->assertDontSee('AJD-OTHER-CODE-S', false);
 
     $this->actingAs($this->user)
-        ->get(route('items.index', ['code' => 'OLD-LEGACY']))
+        ->get(route('items.index', ['code' => 'OLD-90151']))
         ->assertOk()
         ->assertSee('AJD-NEW-SKU-S', false)
-        ->assertDontSee('AJD-CODE-MATCH-S', false);
+        ->assertDontSee('AJD-CX90151-01-M', false);
 
     $this->actingAs($this->user)
         ->get(route('items.index', ['code' => (string) $other->id]))
@@ -99,6 +99,42 @@ test('items index name filter searches item name', function () {
         ->assertOk()
         ->assertSee('AJD-DISPLAY-FILTER-M', false)
         ->assertDontSee('AJD-OTHER-FILTER-L', false);
+});
+
+test('getItemName prefers non-empty group alias for manufactured items', function () {
+    $group = \App\Models\ItemGroup::factory()->make(['name' => 'GROUP PRODUCT NAME']);
+    $group->setRawAttributes(array_merge($group->getAttributes(), ['alias' => 'GROUP ALIAS NAME']));
+
+    $item = Item::factory()->make([
+        'name' => 'ITEM DISPLAY NAME - NAVY - S',
+        'type' => \App\Enums\ItemType::ITEM,
+    ]);
+    $item->setRelation('group', $group);
+
+    expect($item->getItemName())->toBe('GROUP ALIAS NAME');
+});
+
+test('items index name column prefers group alias when available', function () {
+    if (! \Illuminate\Support\Facades\Schema::hasColumn('item_group', 'alias')) {
+        return;
+    }
+
+    $group = \App\Models\ItemGroup::factory()->create(['name' => 'GROUP PRODUCT NAME']);
+    \Illuminate\Support\Facades\DB::table('item_group')
+        ->where('id', $group->id)
+        ->update(['alias' => 'GROUP ALIAS NAME']);
+
+    Item::factory()->create([
+        'group_id' => $group->id,
+        'name' => 'ITEM DISPLAY NAME - NAVY - S',
+        'code' => 'AJD-ALIAS-DISPLAY-S',
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('items.index'))
+        ->assertOk()
+        ->assertSee('GROUP ALIAS NAME', false)
+        ->assertDontSee('ITEM DISPLAY NAME - NAVY - S', false);
 });
 
 test('items index desc filter searches item description only', function () {
