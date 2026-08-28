@@ -99,17 +99,27 @@ class JubelioController extends Controller
             $q->where('status', 0);
         }
         $q->when($request->invoice, fn ($q) => $q->where('invoice', 'like', '%'.$request->invoice.'%'));
+
         if ($warehouseId > 0) {
-            $q->where('warehouse_id', $warehouseId);
+            for ($pass = 0; $pass < 5; $pass++) {
+                $backfilled = $resolver->backfillMissingWarehouseKeys((clone $q), 200);
+                if ($backfilled === 0) {
+                    break;
+                }
+            }
+            $resolver->applyWarehouseFilter($q, $warehouseId);
         }
 
         $stats = Jubelioorder::selectRaw('COUNT(CASE WHEN status=0 THEN 1 END) as pending, COUNT(CASE WHEN status=2 AND error_type=10 THEN 1 END) as success, COUNT(CASE WHEN status=2 AND error_type=2 THEN 1 END) as warning, COUNT(CASE WHEN status=1 AND error_type=1 THEN 1 END) as error')->first();
         $syncIndex = $resolver->syncIndex();
         $orders = $q->paginate(15)->withQueryString();
         $orders->getCollection()->transform(function (Jubelioorder $order) use ($resolver, $syncIndex) {
+            $payload = $order->payloadArray();
+            $resolver->persistWarehouseKeysFromPayload($order, $payload, $syncIndex);
             $warehouses = $resolver->resolve($order, $syncIndex);
             $order->jubelio_warehouse = $warehouses['jubelio_warehouse'];
             $order->aria_warehouse = $warehouses['aria_warehouse'];
+            $order->aria_warehouse_url = $warehouses['aria_warehouse_url'];
 
             return $order;
         });
@@ -228,11 +238,10 @@ class JubelioController extends Controller
 
         $warehouseResolver = app(JubelioOrderWarehouseResolver::class);
         $warehouseId = (int) ($sellTransaction?->sender_id ?? 0);
+        $storeId = (int) ($dataApi['store_id'] ?? 0);
+        $locationId = (int) ($dataApi['location_id'] ?? 0);
         if ($warehouseId <= 0) {
-            $warehouseId = $warehouseResolver->warehouseIdFromStoreLocation(
-                (int) ($dataApi['store_id'] ?? 0),
-                (int) ($dataApi['location_id'] ?? 0),
-            );
+            $warehouseId = $warehouseResolver->warehouseIdFromStoreLocation($storeId, $locationId);
         }
 
         Jubelioorder::create([
@@ -243,6 +252,8 @@ class JubelioController extends Controller
             'order_status' => 'RETURN',
             'run_count' => 0,
             'warehouse_id' => $warehouseId,
+            'jubelio_store_id' => $storeId,
+            'jubelio_location_id' => $locationId,
             'status' => 0,
         ]);
 
@@ -288,9 +299,11 @@ class JubelioController extends Controller
                 return response()->json(['status' => 'ok', 'message' => 'Invoice sudah ada']);
             }
 
+            $storeId = (int) ($d['store_id'] ?? 0);
+            $locationId = (int) ($d['location_id'] ?? 0);
             $warehouseId = app(JubelioOrderWarehouseResolver::class)->warehouseIdFromStoreLocation(
-                (int) ($d['store_id'] ?? 0),
-                (int) ($d['location_id'] ?? 0),
+                $storeId,
+                $locationId,
             );
 
             $order = Jubelioorder::create([
@@ -301,6 +314,8 @@ class JubelioController extends Controller
                 'order_status' => $d['status'],
                 'run_count' => 0,
                 'warehouse_id' => $warehouseId,
+                'jubelio_store_id' => $storeId,
+                'jubelio_location_id' => $locationId,
                 'status' => 0,
             ]);
 

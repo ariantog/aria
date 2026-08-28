@@ -217,7 +217,66 @@ it('shows jubelio and aria warehouse names on orders list', function () {
         ->get(route('jubelio.index'))
         ->assertSuccessful()
         ->assertSee('Gudang Jubelio Pusat')
-        ->assertSee('Gudang Aria Utama');
+        ->assertSee('Gudang Aria Utama')
+        ->assertSee(route('addrbook.type.show', ['type' => $warehouse->type_slug, 'addrbook' => $warehouse->id]), false);
+});
+
+it('filters jubelio orders by warehouse using jubelio store location keys', function () {
+    $user = User::factory()->create();
+    $warehouseA = Addrbook::factory()->warehouse()->create(['name' => 'Gudang Backfill A']);
+    $warehouseB = Addrbook::factory()->warehouse()->create(['name' => 'Gudang Backfill B']);
+
+    Jubeliosync::create([
+        'jubelio_store_id' => 911,
+        'jubelio_store_name' => 'Store A',
+        'jubelio_location_id' => 912,
+        'jubelio_location_name' => 'Loc A',
+        'warehouse_id' => $warehouseA->id,
+        'customer_id' => 0,
+        'bin_id' => 0,
+    ]);
+
+    Jubeliosync::create([
+        'jubelio_store_id' => 913,
+        'jubelio_store_name' => 'Store B',
+        'jubelio_location_id' => 914,
+        'jubelio_location_name' => 'Loc B',
+        'warehouse_id' => $warehouseB->id,
+        'customer_id' => 0,
+        'bin_id' => 0,
+    ]);
+
+    Jubelioorder::create([
+        'jubelio_order_id' => 'wh-backfill-a',
+        'source' => 1,
+        'invoice' => 'INV-WH-BACKFILL-A',
+        'type' => 'SELL',
+        'order_status' => 'SHIPPED',
+        'run_count' => 0,
+        'jubelio_store_id' => 911,
+        'jubelio_location_id' => 912,
+        'warehouse_id' => 0,
+        'status' => 0,
+    ]);
+
+    Jubelioorder::create([
+        'jubelio_order_id' => 'wh-backfill-b',
+        'source' => 1,
+        'invoice' => 'INV-WH-BACKFILL-B',
+        'type' => 'SELL',
+        'order_status' => 'SHIPPED',
+        'run_count' => 0,
+        'jubelio_store_id' => 913,
+        'jubelio_location_id' => 914,
+        'warehouse_id' => 0,
+        'status' => 0,
+    ]);
+
+    $this->actingAs($user)
+        ->get(route('jubelio.index', ['warehouse_id' => $warehouseA->id, 'status' => 'pending']))
+        ->assertSuccessful()
+        ->assertSee('INV-WH-BACKFILL-A')
+        ->assertDontSee('INV-WH-BACKFILL-B');
 });
 
 it('shows clickable customer warehouse and item links on order detail', function () {
