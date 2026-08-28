@@ -374,7 +374,10 @@ class AddrbookController extends Controller
             ->buildQuery($request, Auth::user(), $a->id)
             ->get();
 
-        return $exportService->download($rows);
+        return $exportService->download(
+            $rows,
+            $queryService->visibleTransactionColumnsFromRequest($request),
+        );
     }
 
     public function stat($id)

@@ -12,9 +12,13 @@ class ExportSellExportService
 {
     /**
      * @param  Collection<int, TransactionDetail>  $rows
+     * @param  list<string>  $visibleTransactionColumns
      */
-    public function download(Collection $rows): StreamedResponse
+    public function download(Collection $rows, array $visibleTransactionColumns = []): StreamedResponse
     {
+        $queryService = app(ExportSellQueryService::class);
+        $columnLabels = $queryService->optionalTransactionColumnLabels();
+
         $spreadsheet = new Spreadsheet;
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle('Export Sell');
@@ -28,33 +32,56 @@ class ExportSellExportService
             'Qty',
             'Discount %',
             'Subtotal',
-            'Sender',
-            'Receiver',
         ];
+
+        foreach ($visibleTransactionColumns as $columnKey) {
+            $headers[] = $columnLabels[$columnKey] ?? $columnKey;
+        }
+
+        $headers[] = 'Sender';
+        $headers[] = 'Receiver';
+
         $sheet->fromArray($headers, null, 'A1');
-        $sheet->getStyle('A1:J1')->getFont()->setBold(true);
+        $lastColumn = $this->columnLetter(count($headers));
+        $sheet->getStyle('A1:'.$lastColumn.'1')->getFont()->setBold(true);
 
         $rowNum = 2;
         foreach ($rows as $detail) {
             $typeLabel = TransactionDetail::typeLabel((int) $detail->transaction_type);
+            $transaction = $detail->transaction;
+            $sender = $detail->sender ?? $transaction?->sender;
+            $receiver = $detail->receiver ?? $transaction?->receiver;
 
-            $sheet->fromArray([
+            $row = [
                 $detail->date ? \Illuminate\Support\Carbon::parse($detail->date)->format('d/m/Y') : '',
                 $typeLabel,
-                $detail->transaction?->invoice ?? '',
+                $transaction?->invoice ?? '',
                 (int) $detail->item_id,
                 $detail->item?->code ?? '',
                 (float) $detail->quantity,
                 (float) $detail->discount,
                 (float) $detail->total,
-                $detail->sender?->name ?? '',
-                $detail->receiver?->name ?? '',
-            ], null, 'A'.$rowNum);
+            ];
+
+            foreach ($visibleTransactionColumns as $columnKey) {
+                $row[] = match ($columnKey) {
+                    'adjustment' => (float) ($transaction?->adjustment ?? 0),
+                    'discount' => (float) ($transaction?->discount ?? 0),
+                    'total' => (float) ($transaction?->total ?? 0),
+                    'description' => (string) ($transaction?->description ?: ($transaction?->notes ?? '')),
+                    default => '',
+                };
+            }
+
+            $row[] = $sender?->name ?? '';
+            $row[] = $receiver?->name ?? '';
+
+            $sheet->fromArray($row, null, 'A'.$rowNum);
 
             $rowNum++;
         }
 
-        foreach (range('A', 'J') as $col) {
+        foreach (range('A', $lastColumn) as $col) {
             $sheet->getColumnDimension($col)->setAutoSize(true);
         }
 
@@ -69,4 +96,15 @@ class ExportSellExportService
         ]);
     }
 
+    private function columnLetter(int $columnIndex): string
+    {
+        $letter = '';
+        while ($columnIndex > 0) {
+            $columnIndex--;
+            $letter = chr(65 + ($columnIndex % 26)).$letter;
+            $columnIndex = intdiv($columnIndex, 26);
+        }
+
+        return $letter;
+    }
 }
