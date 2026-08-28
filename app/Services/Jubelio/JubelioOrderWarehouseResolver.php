@@ -8,6 +8,7 @@ use App\Models\Jubeliosync;
 use App\Models\Transaction;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 
 class JubelioOrderWarehouseResolver
 {
@@ -122,18 +123,52 @@ class JubelioOrderWarehouseResolver
         });
     }
 
-    public function backfillMissingWarehouseKeys(Builder $scope, int $limit = 100): int
+    public function scopeMissingWarehouseKeys(Builder $query): Builder
+    {
+        return $query->where(function (Builder $inner) {
+            $inner->where('jubelio_store_id', 0)
+                ->orWhere('jubelio_location_id', 0);
+        });
+    }
+
+    public function hasMissingWarehouseKeysInScope(Builder $scope): bool
+    {
+        return (clone $scope)->where(function (Builder $query) {
+            $query->where('jubelio_store_id', 0)
+                ->orWhere('jubelio_location_id', 0);
+        })->exists();
+    }
+
+    /**
+     * One-off legacy repair: fetch Jubelio store/location for rows still missing keys.
+     * Throttled so normal list/filter views do not hammer the API every request.
+     */
+    public function maybeBackfillForWarehouseFilter(Builder $scope, int $warehouseId, int $limit = 50): void
+    {
+        if ($warehouseId <= 0 || ! $this->hasMissingWarehouseKeysInScope($scope)) {
+            return;
+        }
+
+        $cacheKey = "jubelio_wh_backfill:{$warehouseId}";
+
+        if (Cache::has($cacheKey)) {
+            return;
+        }
+
+        $updated = $this->backfillMissingWarehouseKeys($scope, $limit);
+
+        if ($updated === 0) {
+            Cache::put($cacheKey, true, now()->addHours(6));
+        }
+    }
+
+    public function backfillMissingWarehouseKeys(Builder $scope, int $limit = 50): int
     {
         $payloadService = app(JubelioOrderPayloadService::class);
         $syncIndex = $this->syncIndex();
         $updated = 0;
 
-        (clone $scope)
-            ->where(function (Builder $query) {
-                $query->where('jubelio_store_id', 0)
-                    ->orWhere('jubelio_location_id', 0)
-                    ->orWhere('warehouse_id', 0);
-            })
+        $this->scopeMissingWarehouseKeys(clone $scope)
             ->orderBy('id')
             ->limit($limit)
             ->get()
@@ -213,12 +248,18 @@ class JubelioOrderWarehouseResolver
             $sync = $index->get($this->key((int) $order->jubelio_store_id, (int) $order->jubelio_location_id));
         }
 
-        $payload = $order->payloadArray();
-        $storeId = (int) ($payload['store_id'] ?? 0);
-        $locationId = (int) ($payload['location_id'] ?? 0);
+        $payload = [];
+        $storeId = (int) $order->jubelio_store_id;
+        $locationId = (int) $order->jubelio_location_id;
 
-        if ($sync === null && $storeId > 0 && $locationId > 0) {
-            $sync = $index->get($this->key($storeId, $locationId));
+        if ($sync === null) {
+            $payload = $order->payloadArray();
+            $storeId = (int) ($payload['store_id'] ?? 0);
+            $locationId = (int) ($payload['location_id'] ?? 0);
+
+            if ($storeId > 0 && $locationId > 0) {
+                $sync = $index->get($this->key($storeId, $locationId));
+            }
         }
 
         $warehouse = $sync?->warehouse;

@@ -101,12 +101,7 @@ class JubelioController extends Controller
         $q->when($request->invoice, fn ($q) => $q->where('invoice', 'like', '%'.$request->invoice.'%'));
 
         if ($warehouseId > 0) {
-            for ($pass = 0; $pass < 5; $pass++) {
-                $backfilled = $resolver->backfillMissingWarehouseKeys((clone $q), 200);
-                if ($backfilled === 0) {
-                    break;
-                }
-            }
+            $resolver->maybeBackfillForWarehouseFilter((clone $q), $warehouseId);
             $resolver->applyWarehouseFilter($q, $warehouseId);
         }
 
@@ -114,8 +109,9 @@ class JubelioController extends Controller
         $syncIndex = $resolver->syncIndex();
         $orders = $q->paginate(15)->withQueryString();
         $orders->getCollection()->transform(function (Jubelioorder $order) use ($resolver, $syncIndex) {
-            $payload = $order->payloadArray();
-            $resolver->persistWarehouseKeysFromPayload($order, $payload, $syncIndex);
+            if ((int) $order->jubelio_store_id === 0 || (int) $order->jubelio_location_id === 0) {
+                $resolver->persistWarehouseKeysFromPayload($order, $order->payloadArray(), $syncIndex);
+            }
             $warehouses = $resolver->resolve($order, $syncIndex);
             $order->jubelio_warehouse = $warehouses['jubelio_warehouse'];
             $order->aria_warehouse = $warehouses['aria_warehouse'];
