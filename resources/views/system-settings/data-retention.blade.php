@@ -201,7 +201,7 @@ $statusStyles = [
 
         <div class="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
             To purge old items that still have warehouse stock, use the
-            <a href="{{ route('data-retention.item-purge.index') }}" class="font-medium underline">selective item purge</a> page (preview + <code class="rounded bg-amber-100 px-1">PURGE-ITEMS-WITH-STOCK</code>).
+            <a href="{{ route('data-retention.item-purge.index') }}" class="font-medium underline">selective item purge</a> page (preview + <code class="rounded bg-amber-100 px-1">PURGE-SELECTED-ITEMS</code>).
         </div>
     </div>
 

@@ -317,13 +317,165 @@ it('purges orphan items with warehouse stock on selective purge', function () {
         'updated_at' => now(),
     ]);
 
-    $result = $this->retention->purgeOrphanItemsFromLive(
-        dryRun: false,
-        ignoreWarehouseStock: true,
-        cutoffYear: 2022,
+    $result = $this->retention->purgeSelectableOrphanItemsFromLive(
+        maxId: $item->id,
     );
 
     expect($result['items'])->toBe(1)
         ->and(DB::table('items')->where('id', $item->id)->exists())->toBeFalse()
         ->and(DB::table('warehouse_item')->where('item_id', $item->id)->exists())->toBeFalse();
+});
+
+it('purges orphan items with migration-touched created_at when bulk timestamp is configured', function () {
+    $this->travelTo('2026-08-28');
+
+    config(['data_retention.legacy_bulk_touch_timestamps' => ['2026-08-24 02:58:40']]);
+
+    $item = Item::factory()->create(['created_at' => '2026-08-24 02:58:40']);
+
+    $result = $this->retention->purgeOrphanItemsFromLive(
+        dryRun: false,
+        cutoffYear: 2022,
+    );
+
+    expect($result['items'])->toBe(1)
+        ->and(DB::table('items')->where('id', $item->id)->exists())->toBeFalse();
+});
+
+it('does not purge recent orphan items that were not bulk-touched', function () {
+    $this->travelTo('2026-08-28');
+
+    config(['data_retention.legacy_bulk_touch_timestamps' => ['2026-08-24 02:58:40']]);
+
+    $item = Item::factory()->create(['created_at' => '2026-08-27 12:00:00']);
+
+    $result = $this->retention->purgeOrphanItemsFromLive(
+        dryRun: false,
+        cutoffYear: 2022,
+    );
+
+    expect($result['items'])->toBe(0)
+        ->and(DB::table('items')->where('id', $item->id)->exists())->toBeTrue();
+});
+
+it('lists orphan items with id lte max id on selective preview including soft-deleted', function () {
+    $this->travelTo('2026-08-28');
+
+    $orphan = Item::factory()->create(['created_at' => '2026-08-27 12:00:00']);
+    $softDeleted = Item::factory()->create(['created_at' => '2026-08-27 12:00:00']);
+    $softDeleted->delete();
+    $withTx = Item::factory()->create(['created_at' => '2026-08-24 02:58:40']);
+    $transaction = Transaction::factory()->create(['date' => '2020-01-10']);
+    DB::table('transaction_details')->insert([
+        'id' => 9101,
+        'transaction_id' => $transaction->id,
+        'item_id' => $withTx->id,
+        'quantity' => 1,
+        'price' => 100,
+        'discount' => 0,
+        'total' => 100,
+        'date' => '2020-01-10',
+        'transaction_type' => Transaction::TYPE_SELL,
+        'sender_id' => 1,
+        'receiver_id' => 1,
+        'transaction_disc' => 0,
+    ]);
+    $aboveMax = Item::factory()->create(['created_at' => '2014-01-01']);
+
+    $maxId = max($orphan->id, $softDeleted->id, $withTx->id);
+    expect($aboveMax->id)->toBeGreaterThan($maxId);
+
+    $preview = $this->retention->previewSelectableItemPurge(
+        maxId: $maxId,
+        perPage: 100,
+    );
+
+    expect($preview->total())->toBe(2)
+        ->and(collect($preview->items())->pluck('id')->all())->toEqualCanonicalizing([$orphan->id, $softDeleted->id]);
+});
+
+it('paginates selective item purge preview at 100 rows sorted by id asc', function () {
+    $this->travelTo('2026-08-28');
+
+    for ($i = 0; $i < 105; $i++) {
+        Item::factory()->create(['created_at' => '2014-01-01']);
+    }
+
+    $maxId = (int) DB::table('items')->max('id');
+
+    $pageOne = $this->retention->previewSelectableItemPurge(
+        maxId: $maxId,
+        perPage: 100,
+    );
+
+    expect($pageOne->total())->toBe(105)
+        ->and($pageOne->perPage())->toBe(100)
+        ->and($pageOne->count())->toBe(100)
+        ->and($pageOne->first()['id'])->toBeLessThan($pageOne->last()['id']);
+
+    request()->merge(['page' => 2]);
+
+    $pageTwo = $this->retention->previewSelectableItemPurge(
+        maxId: $maxId,
+        perPage: 100,
+    );
+
+    expect($pageTwo->currentPage())->toBe(2)
+        ->and($pageTwo->count())->toBe(5);
+});
+
+it('excludes kept item ids from selective orphan purge', function () {
+    $this->travelTo('2026-08-28');
+
+    $keep = Item::factory()->create(['created_at' => '2014-01-01']);
+    $purge = Item::factory()->create(['created_at' => '2014-02-01']);
+    $maxId = max($keep->id, $purge->id);
+
+    $result = $this->retention->purgeSelectableOrphanItemsFromLive(
+        maxId: $maxId,
+        excludeItemIds: [$keep->id],
+    );
+
+    expect($result['items'])->toBe(1)
+        ->and(DB::table('items')->where('id', $keep->id)->exists())->toBeTrue()
+        ->and(DB::table('items')->where('id', $purge->id)->exists())->toBeFalse();
+});
+
+it('renders selective item purge with keep checkboxes and pagination', function () {
+    app(PermissionGenerator::class)->generateForModule('DataRetentionRun');
+    $user = User::query()->find(1) ?? User::factory()->create(['id' => 1]);
+
+    $this->travelTo('2026-08-28');
+    $orphan = Item::factory()->create(['created_at' => '2026-08-24 02:58:40']);
+
+    $this->actingAs($user)
+        ->get(route('data-retention.item-purge.index', ['max_id' => $orphan->id]))
+        ->assertSuccessful()
+        ->assertSee('Selective Item Purge')
+        ->assertSee('Max item id')
+        ->assertSee('Keep')
+        ->assertSee('#'.$orphan->id)
+        ->assertSee('Purge 1 item(s)');
+});
+
+it('purges selective items while honoring keep ids from the form', function () {
+    app(PermissionGenerator::class)->generateForModule('DataRetentionRun');
+    $user = User::query()->find(1) ?? User::factory()->create(['id' => 1]);
+
+    $this->travelTo('2026-08-28');
+
+    $keep = Item::factory()->create(['created_at' => '2026-08-24 02:58:40']);
+    $purge = Item::factory()->create(['created_at' => '2026-08-24 02:58:40']);
+    $maxId = max($keep->id, $purge->id);
+
+    $this->actingAs($user)
+        ->post(route('data-retention.item-purge.purge'), [
+            'max_id' => $maxId,
+            'keep_ids' => [$keep->id],
+            'confirm' => 'PURGE-SELECTED-ITEMS',
+        ])
+        ->assertRedirect(route('data-retention.item-purge.index', ['max_id' => $maxId]));
+
+    expect(DB::table('items')->where('id', $keep->id)->exists())->toBeTrue()
+        ->and(DB::table('items')->where('id', $purge->id)->exists())->toBeFalse();
 });
