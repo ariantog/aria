@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Addrbook;
 use App\Models\DataRetentionRun;
 use Illuminate\Database\Connection;
 use Illuminate\Support\Carbon;
@@ -12,6 +13,13 @@ use Throwable;
 
 class DataRetentionService
 {
+    /** @var array<string, int> */
+    public const PURGEABLE_ADDRBOOK_TYPES = [
+        'customers' => Addrbook::TYPE_CUSTOMER,
+        'suppliers' => Addrbook::TYPE_SUPPLIER,
+        'resellers' => Addrbook::TYPE_RESELLER,
+    ];
+
     public function retentionYears(): int
     {
         return max(1, (int) config('data_retention.retention_years', 5));
@@ -242,9 +250,83 @@ class DataRetentionService
             'monthly_stats' => $this->countMonthlyStatsForYear($year),
             'monthly_accounts' => $this->countMonthlyAccountsForYear($year),
             'daily_customers' => $this->countCustomerDailyForYear($year),
-            'orphan_items' => $this->countOrphanItemsBeforeYear($this->liveRetentionStartYear()),
+            'orphan_items' => $this->countOrphanItems($this->liveRetentionStartYear()),
+            'orphan_item_groups' => $this->countOrphanItemGroups(),
+            'orphan_customers' => $this->countOrphanAddrbooks(Addrbook::TYPE_CUSTOMER),
+            'orphan_suppliers' => $this->countOrphanAddrbooks(Addrbook::TYPE_SUPPLIER),
+            'orphan_resellers' => $this->countOrphanAddrbooks(Addrbook::TYPE_RESELLER),
             'uses_partition_drop' => $this->usesPartitioning() && $this->partitionExists('transactions', $year),
         ];
+    }
+
+    /**
+     * @return array{
+     *     cutoff_year: int,
+     *     items: int,
+     *     item_groups: int,
+     *     customers: int,
+     *     suppliers: int,
+     *     resellers: int,
+     *     items_with_stock: int
+     * }
+     */
+    public function previewOrphanPurges(?int $cutoffYear = null): array
+    {
+        $cutoffYear ??= $this->liveRetentionStartYear();
+
+        return [
+            'cutoff_year' => $cutoffYear,
+            'items' => $this->countOrphanItems($cutoffYear),
+            'item_groups' => $this->countOrphanItemGroups(),
+            'customers' => $this->countOrphanAddrbooks(Addrbook::TYPE_CUSTOMER, $cutoffYear),
+            'suppliers' => $this->countOrphanAddrbooks(Addrbook::TYPE_SUPPLIER, $cutoffYear),
+            'resellers' => $this->countOrphanAddrbooks(Addrbook::TYPE_RESELLER, $cutoffYear),
+            'items_with_stock' => $this->countOrphanItems($cutoffYear, ignoreWarehouseStock: true),
+        ];
+    }
+
+    /**
+     * @return array{items: list<array<string, mixed>>, total: int}
+     */
+    public function previewSelectableItemPurge(
+        int $cutoffYear,
+        ?int $itemType = null,
+        bool $ignoreWarehouseStock = true,
+        int $limit = 50,
+    ): array {
+        $query = $this->orphanItemIdsQuery($cutoffYear, $ignoreWarehouseStock);
+
+        if ($itemType !== null) {
+            $query->where('items.type', $itemType);
+        }
+
+        $total = (int) (clone $query)->count('items.id');
+
+        $rows = $query
+            ->select([
+                'items.id',
+                'items.code',
+                'items.name',
+                'items.type',
+                'items.created_at',
+                'items.deleted_at',
+            ])
+            ->selectRaw('COALESCE((SELECT SUM(warehouse_item.quantity) FROM warehouse_item WHERE warehouse_item.item_id = items.id), 0) as warehouse_qty')
+            ->orderBy('items.id')
+            ->limit($limit)
+            ->get()
+            ->map(fn ($row) => [
+                'id' => (int) $row->id,
+                'code' => $row->code,
+                'name' => $row->name,
+                'type' => (int) $row->type,
+                'created_at' => $row->created_at,
+                'deleted_at' => $row->deleted_at,
+                'warehouse_qty' => (float) $row->warehouse_qty,
+            ])
+            ->all();
+
+        return ['items' => $rows, 'total' => $total];
     }
 
     /**
@@ -273,6 +355,7 @@ class DataRetentionService
                 'transactions' => $preview['transactions'],
                 'details' => $preview['details'],
                 'items_purged' => $preview['orphan_items'],
+                'item_groups_purged' => $preview['orphan_item_groups'],
             ];
         }
 
@@ -294,11 +377,11 @@ class DataRetentionService
 
             $this->purgeAggregateRowsForYear($year);
 
-            $itemsPurged = $this->purgeOrphanItemsFromLive(false);
+            $itemPurge = $this->purgeOrphanItemsFromLive(false);
 
             $run->update([
                 'status' => DataRetentionRun::STATUS_CLEANED,
-                'items_purged' => $itemsPurged,
+                'items_purged' => $itemPurge['items'],
                 'cleanup_finished_at' => now(),
                 'last_error' => null,
             ]);
@@ -306,7 +389,8 @@ class DataRetentionService
             return [
                 'transactions' => $preview['transactions'],
                 'details' => $preview['details'],
-                'items_purged' => $itemsPurged,
+                'items_purged' => $itemPurge['items'],
+                'item_groups_purged' => $itemPurge['groups'],
             ];
         } catch (Throwable $e) {
             $run->update([
@@ -318,17 +402,94 @@ class DataRetentionService
         }
     }
 
-    public function purgeOrphanItemsFromLive(bool $dryRun = false): int
-    {
-        $cutoffYear = $this->liveRetentionStartYear();
+    /**
+     * @return array{items: int, groups: int}
+     */
+    public function purgeOrphanItemsFromLive(
+        bool $dryRun = false,
+        bool $ignoreWarehouseStock = false,
+        ?int $cutoffYear = null,
+        ?int $itemType = null,
+    ): array {
+        $cutoffYear ??= $this->liveRetentionStartYear();
         $batch = config('data_retention.item_purge_batch_size', 500);
         $purged = 0;
 
         while (true) {
-            $ids = $this->orphanItemIdsQuery($cutoffYear)
+            $query = $this->orphanItemIdsQuery($cutoffYear, $ignoreWarehouseStock)
                 ->orderBy('items.id')
+                ->limit($batch);
+
+            if ($itemType !== null) {
+                $query->where('items.type', $itemType);
+            }
+
+            $ids = $query->pluck('items.id');
+
+            if ($ids->isEmpty()) {
+                break;
+            }
+
+            if ($dryRun) {
+                return [
+                    'items' => $purged + $ids->count(),
+                    'groups' => $this->countOrphanItemGroups(),
+                ];
+            }
+
+            foreach ($ids as $id) {
+                DB::transaction(fn () => $this->hardDeleteItem((int) $id));
+                $purged++;
+            }
+        }
+
+        return [
+            'items' => $purged,
+            'groups' => $this->purgeOrphanItemGroupsFromLive(false),
+        ];
+    }
+
+    public function purgeOrphanItemGroupsFromLive(bool $dryRun = false): int
+    {
+        $batch = config('data_retention.item_purge_batch_size', 500);
+        $purged = 0;
+
+        while (true) {
+            $ids = $this->orphanItemGroupIdsQuery()
+                ->orderBy('item_group.id')
                 ->limit($batch)
-                ->pluck('items.id');
+                ->pluck('item_group.id');
+
+            if ($ids->isEmpty()) {
+                break;
+            }
+
+            if ($dryRun) {
+                return $purged + $ids->count();
+            }
+
+            DB::table('item_group')->whereIn('id', $ids->all())->delete();
+            $purged += $ids->count();
+        }
+
+        return $purged;
+    }
+
+    public function purgeOrphanAddrbooksFromLive(int $type, bool $dryRun = false, ?int $cutoffYear = null): int
+    {
+        if (! in_array($type, self::PURGEABLE_ADDRBOOK_TYPES, true)) {
+            throw new \InvalidArgumentException('Addrbook type is not eligible for orphan purge.');
+        }
+
+        $cutoffYear ??= $this->liveRetentionStartYear();
+        $batch = config('data_retention.item_purge_batch_size', 500);
+        $purged = 0;
+
+        while (true) {
+            $ids = $this->orphanAddrbookIdsQuery($type, $cutoffYear)
+                ->orderBy('customers.id')
+                ->limit($batch)
+                ->pluck('customers.id');
 
             if ($ids->isEmpty()) {
                 break;
@@ -339,17 +500,22 @@ class DataRetentionService
             }
 
             foreach ($ids as $id) {
-                DB::transaction(function () use ($id) {
-                    DB::table('item_tag')->where('item_id', $id)->delete();
-                    DB::table('item_identity_conversion_results')->where('item_id', $id)->delete();
-                    DB::table('warehouse_item')->where('item_id', $id)->delete();
-                    DB::table('items')->where('id', $id)->delete();
-                });
+                DB::transaction(fn () => $this->hardDeleteAddrbook((int) $id));
                 $purged++;
             }
         }
 
         return $purged;
+    }
+
+    public function confirmTokenForAddrbookType(int $type): string
+    {
+        return match ($type) {
+            Addrbook::TYPE_CUSTOMER => 'PURGE-ORPHAN-CUSTOMERS',
+            Addrbook::TYPE_SUPPLIER => 'PURGE-ORPHAN-SUPPLIERS',
+            Addrbook::TYPE_RESELLER => 'PURGE-ORPHAN-RESELLERS',
+            default => throw new \InvalidArgumentException('Unsupported addrbook purge type.'),
+        };
     }
 
     /**
@@ -670,28 +836,134 @@ class DataRetentionService
             ->count();
     }
 
-    protected function countOrphanItemsBeforeYear(int $cutoffYear): int
+    public function countOrphanItems(int $cutoffYear, bool $ignoreWarehouseStock = false): int
     {
-        return (int) $this->orphanItemIdsQuery($cutoffYear)->count();
+        return (int) $this->orphanItemIdsQuery($cutoffYear, $ignoreWarehouseStock)->count('items.id');
     }
 
-    protected function orphanItemIdsQuery(int $cutoffYear): \Illuminate\Database\Query\Builder
+    public function countOrphanItemGroups(): int
+    {
+        return (int) $this->orphanItemGroupIdsQuery()->count('item_group.id');
+    }
+
+    public function countOrphanAddrbooks(int $type, ?int $cutoffYear = null): int
+    {
+        $cutoffYear ??= $this->liveRetentionStartYear();
+
+        return (int) $this->orphanAddrbookIdsQuery($type, $cutoffYear)->count('customers.id');
+    }
+
+    protected function orphanItemIdsQuery(int $cutoffYear, bool $ignoreWarehouseStock = false): \Illuminate\Database\Query\Builder
     {
         $cutoffDate = sprintf('%04d-01-01', $cutoffYear);
 
-        return $this->live()->table('items')
-            ->whereNull('deleted_at')
-            ->where('created_at', '<', $cutoffDate)
-            ->whereNotExists(function ($query) {
-                $query->select(DB::raw(1))
+        $query = $this->live()->table('items')
+            ->where('items.created_at', '<', $cutoffDate)
+            ->whereNotExists(function ($subquery) {
+                $subquery->select(DB::raw(1))
                     ->from('transaction_details')
                     ->whereColumn('transaction_details.item_id', 'items.id');
-            })
-            ->whereNotExists(function ($query) {
-                $query->select(DB::raw(1))
+            });
+
+        if (! $ignoreWarehouseStock) {
+            $query->whereNotExists(function ($subquery) {
+                $subquery->select(DB::raw(1))
                     ->from('warehouse_item')
                     ->whereColumn('warehouse_item.item_id', 'items.id')
                     ->where('warehouse_item.quantity', '>', 0);
             });
+        }
+
+        return $query;
+    }
+
+    protected function orphanItemGroupIdsQuery(): \Illuminate\Database\Query\Builder
+    {
+        return $this->live()->table('item_group')
+            ->whereNotExists(function ($subquery) {
+                $subquery->select(DB::raw(1))
+                    ->from('items')
+                    ->whereColumn('items.group_id', 'item_group.id')
+                    ->where('items.group_id', '>', 0);
+            });
+    }
+
+    protected function orphanAddrbookIdsQuery(int $type, int $cutoffYear): \Illuminate\Database\Query\Builder
+    {
+        $cutoffDate = sprintf('%04d-01-01', $cutoffYear);
+
+        $query = $this->live()->table('customers')
+            ->where('customers.type', $type)
+            ->where('customers.created_at', '<', $cutoffDate);
+
+        foreach (['transactions', 'transaction_details', 'deleted', 'deleted_details'] as $table) {
+            if (! Schema::hasTable($table)) {
+                continue;
+            }
+
+            $query->whereNotExists(function ($subquery) use ($table) {
+                $subquery->select(DB::raw(1))
+                    ->from($table)
+                    ->where(function ($partyQuery) use ($table) {
+                        $partyQuery->whereColumn("{$table}.sender_id", 'customers.id')
+                            ->orWhereColumn("{$table}.receiver_id", 'customers.id');
+                    });
+            });
+        }
+
+        return $query;
+    }
+
+    protected function hardDeleteItem(int $id): void
+    {
+        if (Schema::hasTable('item_tag')) {
+            DB::table('item_tag')->where('item_id', $id)->delete();
+        }
+
+        if (Schema::hasTable('item_identity_conversion_results')) {
+            DB::table('item_identity_conversion_results')->where('item_id', $id)->delete();
+        }
+
+        if (Schema::hasTable('warehouse_item')) {
+            DB::table('warehouse_item')->where('item_id', $id)->delete();
+        }
+
+        DB::table('items')->where('id', $id)->delete();
+    }
+
+    protected function hardDeleteAddrbook(int $id): void
+    {
+        if (Schema::hasTable('customerstat')) {
+            DB::table('customerstat')->where('customer_id', $id)->delete();
+        }
+
+        if (Schema::hasTable('customer_class')) {
+            DB::table('customer_class')->where('customer_id', $id)->delete();
+        }
+
+        if (Schema::hasTable('monthly_account_summaries')) {
+            DB::table('monthly_account_summaries')->where('customer_id', $id)->delete();
+        }
+
+        if (Schema::hasTable('location_customer')) {
+            DB::table('location_customer')->where('customer_id', $id)->delete();
+        }
+
+        foreach (['reporting_channel_banks', 'reporting_warehouse_fulfillment', 'reporting_ledger_roles'] as $table) {
+            if (Schema::hasTable($table)) {
+                DB::table($table)->where('customer_id', $id)->delete();
+            }
+        }
+
+        if (Schema::hasTable('ledger_merge_maps')) {
+            DB::table('ledger_merge_maps')
+                ->where(function ($query) use ($id) {
+                    $query->where('old_customer_id', $id)
+                        ->orWhere('new_customer_id', $id);
+                })
+                ->delete();
+        }
+
+        DB::table('customers')->where('id', $id)->delete();
     }
 }

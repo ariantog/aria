@@ -124,6 +124,10 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::post('data-retention/preview-cleanup', [App\Http\Controllers\DataRetentionController::class, 'previewCleanup'])->name('data-retention.preview-cleanup');
     Route::post('data-retention/cleanup-year', [App\Http\Controllers\DataRetentionController::class, 'cleanupYear'])->name('data-retention.cleanup-year');
     Route::post('data-retention/purge-orphan-items', [App\Http\Controllers\DataRetentionController::class, 'purgeOrphanItems'])->name('data-retention.purge-orphan-items');
+    Route::post('data-retention/purge-orphan-item-groups', [App\Http\Controllers\DataRetentionController::class, 'purgeOrphanItemGroups'])->name('data-retention.purge-orphan-item-groups');
+    Route::post('data-retention/purge-orphan-addrbooks/{type}', [App\Http\Controllers\DataRetentionController::class, 'purgeOrphanAddrbooks'])->name('data-retention.purge-orphan-addrbooks');
+    Route::get('data-retention/item-purge', [App\Http\Controllers\ItemPurgeController::class, 'index'])->name('data-retention.item-purge.index');
+    Route::post('data-retention/item-purge', [App\Http\Controllers\ItemPurgeController::class, 'purge'])->name('data-retention.item-purge.purge');
 
     // Archive (read-only)
     Route::get('archive', [App\Http\Controllers\ArchiveDashboardController::class, 'index'])->name('archive.index');

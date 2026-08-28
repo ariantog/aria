@@ -151,4 +151,82 @@ it('renders archive pages for superadmin', function () {
         ->get(route('data-retention.index'))
         ->assertSuccessful()
         ->assertSee('Data Retention');
+
+    $this->actingAs($user)
+        ->get(route('data-retention.item-purge.index'))
+        ->assertSuccessful()
+        ->assertSee('Selective Item Purge');
+});
+
+it('purges soft-deleted orphan items without checking deleted_at', function () {
+    $this->travelTo('2026-08-28');
+
+    $item = Item::factory()->create(['created_at' => '2014-03-01']);
+    $item->delete();
+
+    $result = $this->retention->purgeOrphanItemsFromLive(false);
+
+    expect($result['items'])->toBe(1)
+        ->and(DB::table('items')->where('id', $item->id)->exists())->toBeFalse();
+});
+
+it('purges orphan item groups after items are removed', function () {
+    $this->travelTo('2026-08-28');
+
+    $groupId = DB::table('item_group')->insertGetId([
+        'name' => 'Old Group',
+        'master' => 'OLD',
+        'variant' => 'RED',
+    ]);
+
+    $item = Item::factory()->create([
+        'created_at' => '2014-01-01',
+        'group_id' => $groupId,
+    ]);
+
+    $this->retention->purgeOrphanItemsFromLive(false);
+
+    expect(DB::table('item_group')->where('id', $groupId)->exists())->toBeFalse();
+});
+
+it('purges orphan customers and related stat rows', function () {
+    $this->travelTo('2026-08-28');
+
+    $customer = \App\Models\Addrbook::factory()->customer()->create(['created_at' => '2014-06-01']);
+    DB::table('customerstat')->insert([
+        'customer_id' => $customer->id,
+        'balance' => 0,
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    $purged = $this->retention->purgeOrphanAddrbooksFromLive(\App\Models\Addrbook::TYPE_CUSTOMER, false);
+
+    expect($purged)->toBe(1)
+        ->and(DB::table('customers')->where('id', $customer->id)->exists())->toBeFalse()
+        ->and(DB::table('customerstat')->where('customer_id', $customer->id)->exists())->toBeFalse();
+});
+
+it('purges orphan items with warehouse stock on selective purge', function () {
+    $this->travelTo('2026-08-28');
+
+    $item = Item::factory()->create(['created_at' => '2014-04-01']);
+    DB::table('warehouse_item')->insert([
+        'item_id' => $item->id,
+        'warehouse_id' => \App\Models\Addrbook::factory()->warehouse()->create()->id,
+        'warehouse_type' => '2',
+        'quantity' => 12,
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    $result = $this->retention->purgeOrphanItemsFromLive(
+        dryRun: false,
+        ignoreWarehouseStock: true,
+        cutoffYear: 2022,
+    );
+
+    expect($result['items'])->toBe(1)
+        ->and(DB::table('items')->where('id', $item->id)->exists())->toBeFalse()
+        ->and(DB::table('warehouse_item')->where('item_id', $item->id)->exists())->toBeFalse();
 });
