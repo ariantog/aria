@@ -33,10 +33,28 @@ class TagController extends Controller
             $query->where('type', (int) $typeFilter);
         }
 
+        $sort = $request->query('sort', 'name');
+        $direction = strtolower($request->query('direction', 'asc')) === 'desc' ? 'desc' : 'asc';
+        $sortable = ['name', 'code', 'type', 'item_type', 'items_count'];
+
+        if (! in_array($sort, $sortable, true)) {
+            $sort = 'name';
+        }
+
+        $query->orderBy($sort, $direction);
+
+        if ($sort !== 'name') {
+            $query->orderBy('name');
+        }
+
+        $query->orderBy('id');
+
         return view('stuff.tags.index', [
-            'tags' => $query->orderBy('name')->paginate(50)->withQueryString(),
+            'tags' => $query->paginate(50)->withQueryString(),
             'search' => $search,
             'typeFilter' => $typeFilter,
+            'sort' => $sort,
+            'direction' => $direction,
             'types' => Tag::$types,
             'itemTypes' => [
                 'All' => 0,

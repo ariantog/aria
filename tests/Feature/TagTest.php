@@ -149,6 +149,68 @@ it('shows the number of items tagged on the tags list', function () {
         ->assertSee('>2</a>', false);
 });
 
+it('sorts tags list by column', function () {
+    Tag::create([
+        'name' => 'Alpha Tag',
+        'code' => 'AAA',
+        'type' => Tag::TYPE_NORMAL,
+        'item_type' => 0,
+    ]);
+    Tag::create([
+        'name' => 'Zulu Tag',
+        'code' => 'ZZZ',
+        'type' => Tag::TYPE_NORMAL,
+        'item_type' => 0,
+    ]);
+
+    $this->actingAs($this->user)
+        ->get('/tags?sort=name&direction=desc')
+        ->assertOk()
+        ->assertSeeInOrder(['Zulu Tag', 'Alpha Tag']);
+
+    $this->actingAs($this->user)
+        ->get('/tags?sort=code&direction=asc')
+        ->assertOk()
+        ->assertSeeInOrder(['Alpha Tag', 'Zulu Tag']);
+});
+
+it('sorts tags list by item count', function () {
+    $lowTag = Tag::create([
+        'name' => 'Low Count',
+        'code' => 'LOW',
+        'type' => Tag::TYPE_NORMAL,
+        'item_type' => 0,
+    ]);
+    $highTag = Tag::create([
+        'name' => 'High Count',
+        'code' => 'HIGH',
+        'type' => Tag::TYPE_NORMAL,
+        'item_type' => 0,
+    ]);
+
+    $lowItem = Item::factory()->create([
+        'type' => ItemType::ITEM,
+        'tag_ids' => (string) $lowTag->id,
+    ]);
+    $lowItem->tags()->sync([$lowTag->id]);
+
+    $highOne = Item::factory()->create([
+        'type' => ItemType::ITEM,
+        'tag_ids' => (string) $highTag->id,
+    ]);
+    $highTwo = Item::factory()->create([
+        'type' => ItemType::ITEM,
+        'tag_ids' => (string) $highTag->id,
+    ]);
+    $highOne->tags()->sync([$highTag->id]);
+    $highTwo->tags()->sync([$highTag->id]);
+
+    $this->actingAs($this->user)
+        ->get('/tags?sort=items_count&direction=desc')
+        ->assertOk()
+        ->assertSeeInOrder(['High Count', 'Low Count']);
+});
+
 it('untags items and asset lancar when a tag is deleted', function () {
     $tag = Tag::create([
         'name' => 'Detach Me',
