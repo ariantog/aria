@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\ItemBrand;
 use App\Enums\ItemType;
 use App\Support\FillsProductionColumnDefaults;
+use App\Support\ItemImageResolver;
 use App\Support\LikeSearch;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -191,24 +192,12 @@ class Item extends Model
     // Helper Accessors (from legacy logic)
     public function getImageUrlAttribute(): string
     {
-        $folderId = ($this->group_id > 0) ? $this->group_id : $this->id;
-        $folder = str_pad(substr((string) $folderId, -2), 2, '0', STR_PAD_LEFT);
-        $filename = $folderId.'.jpg';
-        $path = config('core-nation.item_image_path').$folder.'/'.$filename;
-
-        if (file_exists($path)) {
-            return config('core-nation.item_image_url').$folder.'/'.$filename;
-        }
-
-        return asset('images/default-item.svg');
+        return app(ItemImageResolver::class)->resolveUrlForItem($this);
     }
 
     public function getImagePathAttribute(): string
     {
-        $folderId = ($this->group_id > 0) ? $this->group_id : $this->id;
-        $folder = str_pad(substr((string) $folderId, -2), 2, '0', STR_PAD_LEFT);
-
-        return config('core-nation.item_image_path').$folder.'/'.$folderId.'.jpg';
+        return app(ItemImageResolver::class)->resolveDiskPathForItem($this);
     }
 
     public function getItemCode(): string

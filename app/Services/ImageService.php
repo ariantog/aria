@@ -3,17 +3,15 @@
 namespace App\Services;
 
 use App\Models\ItemGroup;
+use App\Support\ItemImageResolver;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\File;
 
 class ImageService
 {
-    // protected ImageManager $manager;
-
-    public function __construct()
-    {
-        // $this->manager = new ImageManager(new Driver());
-    }
+    public function __construct(
+        protected ItemImageResolver $imageResolver,
+    ) {}
 
     public function saveImage(ItemGroup $group, ?UploadedFile $file): void
     {
@@ -21,14 +19,8 @@ class ImageService
             return;
         }
 
-        // Logic ported from ItemsManagerHelper
-        // Logic ported from ItemsManagerHelper
-        $folder = str_pad(substr((string) $group->id, -2), 2, '0', STR_PAD_LEFT);
-        $filename = $group->id.'.jpg';
-
-        $path = config('core-nation.item_image_path', public_path('asset/'));
-        // $filePath = $path . $folder . '/' . $filename;
-        $dirPath = $path.$folder;
+        $dirPath = dirname($this->imageResolver->diskPathForId((int) $group->id));
+        $filename = $this->imageResolver->filenameForId((int) $group->id);
 
         if (! File::exists($dirPath)) {
             File::makeDirectory($dirPath, 0755, true);
@@ -47,14 +39,9 @@ class ImageService
             return;
         }
 
-        // Logic ported from ItemsManagerHelper for Items
-        // Logic ported from ItemsManagerHelper for Items
-        $folderId = ($item->group_id > 0) ? $item->group_id : $item->id;
-        $folder = str_pad(substr((string) $folderId, -2), 2, '0', STR_PAD_LEFT);
-        $filename = $folderId.'.jpg';
-
-        $path = config('core-nation.item_image_path', public_path('asset/'));
-        $dirPath = $path.$folder;
+        $folderId = ($item->group_id > 0) ? (int) $item->group_id : (int) $item->id;
+        $dirPath = dirname($this->imageResolver->diskPathForId($folderId));
+        $filename = $this->imageResolver->filenameForId($folderId);
 
         if (! File::exists($dirPath)) {
             File::makeDirectory($dirPath, 0755, true);
@@ -65,21 +52,16 @@ class ImageService
 
     public function copyItemImage(\App\Models\Item $sourceItem, \App\Models\Item $targetItem): void
     {
-        // Source Path
-        $sFolderId = ($sourceItem->group_id > 0) ? $sourceItem->group_id : $sourceItem->id;
-        $sFolder = str_pad(substr((string) $sFolderId, -2), 2, '0', STR_PAD_LEFT);
-        $sFilename = $sFolderId.'.jpg';
-        $sPath = config('core-nation.item_image_path', public_path('asset/')).$sFolder.'/'.$sFilename;
+        $sFolderId = ($sourceItem->group_id > 0) ? (int) $sourceItem->group_id : (int) $sourceItem->id;
+        $sPath = $this->imageResolver->diskPathForId($sFolderId);
 
         if (! File::exists($sPath)) {
             return;
         }
 
-        // Target Path
-        $tFolderId = ($targetItem->group_id > 0) ? $targetItem->group_id : $targetItem->id;
-        $tFolder = str_pad(substr((string) $tFolderId, -2), 2, '0', STR_PAD_LEFT);
-        $tFilename = $tFolderId.'.jpg';
-        $tDir = config('core-nation.item_image_path', public_path('asset/')).$tFolder;
+        $tFolderId = ($targetItem->group_id > 0) ? (int) $targetItem->group_id : (int) $targetItem->id;
+        $tDir = dirname($this->imageResolver->diskPathForId($tFolderId));
+        $tFilename = $this->imageResolver->filenameForId($tFolderId);
 
         if (! File::exists($tDir)) {
             File::makeDirectory($tDir, 0755, true);
