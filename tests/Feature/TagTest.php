@@ -4,6 +4,7 @@ use App\Enums\ItemType;
 use App\Models\Item;
 use App\Models\Tag;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Role;
 
 beforeEach(function () {
@@ -245,7 +246,115 @@ it('untags items and asset lancar when a tag is deleted', function () {
     expect($item->tag_ids)->toBe((string) $otherTag->id)
         ->and($asset->tag_ids)->toBe((string) $otherTag->id)
         ->and($item->tags()->pluck('tags.id')->all())->toBe([$otherTag->id])
-        ->and($asset->tags()->pluck('tags.id')->all())->toBe([$otherTag->id]);
+        ->and($asset->tags()->pluck('tags.id')->all())->toBe([$otherTag->id])
+        ->and(DB::table('item_tag')->where('tag_id', $tag->id)->count())->toBe(0)
+        ->and(DB::table('item_tag')->where('tag_id', $otherTag->id)->count())->toBe(2);
+});
+
+it('removes item_tag pivot rows only for the deleted tag', function () {
+    $deletedTag = Tag::create([
+        'name' => 'Gone Tag',
+        'code' => 'GONE',
+        'type' => Tag::TYPE_NORMAL,
+        'item_type' => 0,
+    ]);
+    $keptTag = Tag::create([
+        'name' => 'Stay Tag',
+        'code' => 'STAY',
+        'type' => Tag::TYPE_NORMAL,
+        'item_type' => 0,
+    ]);
+
+    $item = Item::factory()->create([
+        'type' => ItemType::ITEM,
+        'tag_ids' => "{$deletedTag->id},{$keptTag->id}",
+    ]);
+    $item->tags()->sync([$deletedTag->id, $keptTag->id]);
+
+    $this->actingAs($this->user)->delete("/tags/{$deletedTag->id}")->assertSessionHasNoErrors();
+
+    expect(DB::table('item_tag')->where('tag_id', $deletedTag->id)->count())->toBe(0)
+        ->and(DB::table('item_tag')->where('tag_id', $keptTag->id)->count())->toBe(1);
+});
+
+it('clears legacy tag_ids when a tag is deleted without pivot rows', function () {
+    $tag = Tag::create([
+        'name' => 'Legacy Only',
+        'code' => 'LEG',
+        'type' => Tag::TYPE_NORMAL,
+        'item_type' => 0,
+    ]);
+    $otherTag = Tag::create([
+        'name' => 'Other Legacy',
+        'code' => 'OTH2',
+        'type' => Tag::TYPE_NORMAL,
+        'item_type' => 0,
+    ]);
+
+    $item = Item::factory()->create([
+        'type' => ItemType::ITEM,
+        'tag_ids' => "{$otherTag->id},{$tag->id}",
+        'genre' => $tag->id,
+        'size' => $tag->id,
+    ]);
+
+    $this->actingAs($this->user)->delete("/tags/{$tag->id}")->assertSessionHasNoErrors();
+
+    $item->refresh();
+
+    expect($item->tag_ids)->toBe((string) $otherTag->id)
+        ->and($item->genre)->toBe(0)
+        ->and($item->size)->toBe(0);
+});
+
+it('renders item and asset lancar show pages after a referenced tag is deleted', function () {
+    $typeTag = Tag::create([
+        'name' => 'Show Type',
+        'code' => 'SHWT',
+        'type' => Tag::TYPE_TYPE,
+        'item_type' => ItemType::ITEM->value,
+    ]);
+    $warnaTag = Tag::create([
+        'name' => 'SHOWRED',
+        'code' => 'SHOWRED',
+        'type' => Tag::TYPE_WARNA,
+        'item_type' => 0,
+    ]);
+    $assetTypeTag = Tag::create([
+        'name' => 'GLOVE',
+        'code' => 'GLOVE',
+        'type' => Tag::TYPE_TYPE,
+        'item_type' => ItemType::ASSET_LANCAR->value,
+    ]);
+
+    $item = Item::factory()->create([
+        'type' => ItemType::ITEM,
+        'tag_ids' => "{$typeTag->id},{$warnaTag->id}",
+        'code' => 'SHWT-TEST-01-S',
+    ]);
+    $asset = Item::factory()->create([
+        'type' => ItemType::ASSET_LANCAR,
+        'tag_ids' => (string) $assetTypeTag->id,
+        'code' => 'GLOVE-01-RED',
+    ]);
+
+    $item->tags()->sync([$typeTag->id, $warnaTag->id]);
+    $asset->tags()->sync([$assetTypeTag->id]);
+
+    $this->actingAs($this->user)->delete("/tags/{$warnaTag->id}")->assertSessionHasNoErrors();
+
+    $this->actingAs($this->user)
+        ->get(route('items.show', $item))
+        ->assertOk()
+        ->assertSee($typeTag->name)
+        ->assertDontSee($warnaTag->name);
+
+    $this->actingAs($this->user)->delete("/tags/{$assetTypeTag->id}")->assertSessionHasNoErrors();
+
+    $this->actingAs($this->user)
+        ->get(route('assetlancar.show', $asset))
+        ->assertOk()
+        ->assertSee($asset->code);
 });
 
 it('links asset lancar tags to the asset lancar index', function () {

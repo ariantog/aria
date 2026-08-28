@@ -4,10 +4,12 @@ namespace App\Models;
 
 use App\Enums\ItemType;
 use App\Support\FillsProductionColumnDefaults;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 class Tag extends Model
 {
@@ -274,6 +276,27 @@ class Tag extends Model
         return $attributes;
     }
 
+    protected static function stripDeletedTagFromItem(Item $item, int $tagId): void
+    {
+        $updates = [];
+
+        $tagIds = array_values(array_filter(
+            array_map('intval', explode(',', (string) $item->tag_ids)),
+            fn (int $id) => $id !== $tagId,
+        ));
+        $updates['tag_ids'] = implode(',', $tagIds);
+
+        if ((int) $item->genre === $tagId) {
+            $updates['genre'] = 0;
+        }
+
+        if ((int) $item->size === $tagId) {
+            $updates['size'] = 0;
+        }
+
+        $item->updateQuietly($updates);
+    }
+
     protected static function booted(): void
     {
         static::saving(function (Tag $tag) {
@@ -284,14 +307,42 @@ class Tag extends Model
         });
 
         static::deleting(function (Tag $tag) {
-            $tag->items()->each(function (Item $item) use ($tag) {
-                $tagIds = array_values(array_filter(
-                    array_map('intval', explode(',', (string) $item->tag_ids)),
-                    fn (int $id) => $id !== $tag->id,
-                ));
+            $tagId = (int) $tag->id;
 
-                $item->updateQuietly(['tag_ids' => implode(',', $tagIds)]);
-            });
+            $itemIds = DB::table('item_tag')
+                ->where('tag_id', $tagId)
+                ->pluck('item_id');
+
+            $legacyItemIds = Item::query()
+                ->where(function (Builder $query) use ($tagId) {
+                    $query->where('tag_ids', (string) $tagId)
+                        ->orWhere('tag_ids', 'like', "{$tagId},%")
+                        ->orWhere('tag_ids', 'like', "%,{$tagId},%")
+                        ->orWhere('tag_ids', 'like', "%,{$tagId}");
+                })
+                ->pluck('id');
+
+            $itemIds = $itemIds->merge($legacyItemIds)->unique();
+
+            DB::table('item_tag')->where('tag_id', $tagId)->delete();
+
+            if ($itemIds->isNotEmpty()) {
+                Item::query()
+                    ->whereIn('id', $itemIds)
+                    ->each(function (Item $item) use ($tagId) {
+                        static::stripDeletedTagFromItem($item, $tagId);
+                    });
+            }
+
+            Item::query()
+                ->where(function (Builder $query) use ($tagId) {
+                    $query->where('genre', $tagId)
+                        ->orWhere('size', $tagId);
+                })
+                ->when($itemIds->isNotEmpty(), fn (Builder $query) => $query->whereNotIn('id', $itemIds))
+                ->each(function (Item $item) use ($tagId) {
+                    static::stripDeletedTagFromItem($item, $tagId);
+                });
         });
     }
 }
