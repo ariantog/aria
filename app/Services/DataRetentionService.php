@@ -308,39 +308,23 @@ class DataRetentionService
     }
 
     /**
-     * Paginated preview of orphan items eligible for selective purge.
+     * Paginated preview of orphan items eligible for selective purge (id &lt;= max id, zero tx lines).
      *
-     * When {@see $ignoreCreatedAtCutoff} is true (default for the selective purge UI), items with
-     * no transaction lines are listed even if a migration touched {@see items.created_at}.
+     * Includes soft-deleted items. Warehouse stock is ignored for eligibility.
      */
     public function previewSelectableItemPurge(
-        int $cutoffYear,
+        int $maxId,
         ?int $itemType = null,
-        bool $ignoreWarehouseStock = true,
-        bool $ignoreCreatedAtCutoff = true,
         int $perPage = 100,
     ): \Illuminate\Contracts\Pagination\LengthAwarePaginator {
-        $query = $this->orphanItemIdsQuery($cutoffYear, $ignoreWarehouseStock, $ignoreCreatedAtCutoff);
-
-        if ($itemType !== null) {
-            $query->where('items.type', $itemType);
-        }
-
-        $earliestTxSubquery = "(SELECT MIN(transaction_details.date) FROM transaction_details"
-            ." WHERE transaction_details.item_id = items.id"
-            ." AND transaction_details.date IS NOT NULL"
-            ." AND transaction_details.date != '0000-00-00')";
-
-        return $query
+        return $this->selectableOrphanItemIdsQuery($maxId, $itemType)
             ->select([
                 'items.id',
                 'items.code',
                 'items.name',
                 'items.type',
-                'items.created_at',
                 'items.deleted_at',
             ])
-            ->selectRaw("{$earliestTxSubquery} as earliest_tx_date")
             ->selectRaw('COALESCE((SELECT SUM(warehouse_item.quantity) FROM warehouse_item WHERE warehouse_item.item_id = items.id), 0) as warehouse_qty')
             ->orderBy('items.id')
             ->paginate($perPage)
@@ -349,25 +333,17 @@ class DataRetentionService
                 'code' => $row->code,
                 'name' => $row->name,
                 'type' => (int) $row->type,
-                'created_at' => $row->created_at,
                 'deleted_at' => $row->deleted_at,
-                'earliest_tx_date' => $row->earliest_tx_date,
                 'warehouse_qty' => (float) $row->warehouse_qty,
             ]);
     }
 
     public function countSelectableOrphanItems(
-        int $cutoffYear,
+        int $maxId,
         ?int $itemType = null,
-        bool $ignoreWarehouseStock = true,
-        bool $ignoreCreatedAtCutoff = true,
         array $excludeItemIds = [],
     ): int {
-        $query = $this->orphanItemIdsQuery($cutoffYear, $ignoreWarehouseStock, $ignoreCreatedAtCutoff);
-
-        if ($itemType !== null) {
-            $query->where('items.type', $itemType);
-        }
+        $query = $this->selectableOrphanItemIdsQuery($maxId, $itemType);
 
         if ($excludeItemIds !== []) {
             $query->whereNotIn('items.id', $this->normalizeItemIds($excludeItemIds));
@@ -467,23 +443,59 @@ class DataRetentionService
         bool $dryRun = false,
         bool $ignoreWarehouseStock = false,
         ?int $cutoffYear = null,
-        ?int $itemType = null,
-        bool $ignoreCreatedAtCutoff = false,
-        array $excludeItemIds = [],
     ): array {
         $cutoffYear ??= $this->liveRetentionStartYear();
+        $batch = config('data_retention.item_purge_batch_size', 500);
+        $purged = 0;
+
+        while (true) {
+            $ids = $this->orphanItemIdsQuery($cutoffYear, $ignoreWarehouseStock)
+                ->orderBy('items.id')
+                ->limit($batch)
+                ->pluck('items.id');
+
+            if ($ids->isEmpty()) {
+                break;
+            }
+
+            if ($dryRun) {
+                return [
+                    'items' => $purged + $ids->count(),
+                    'groups' => $this->countOrphanItemGroups(),
+                ];
+            }
+
+            foreach ($ids as $id) {
+                DB::transaction(fn () => $this->hardDeleteItem((int) $id));
+                $purged++;
+            }
+        }
+
+        return [
+            'items' => $purged,
+            'groups' => $this->purgeOrphanItemGroupsFromLive(false),
+        ];
+    }
+
+    /**
+     * Hard-delete orphan items selected via the selective purge UI (id &lt;= max id, zero tx lines).
+     *
+     * @return array{items: int, groups: int}
+     */
+    public function purgeSelectableOrphanItemsFromLive(
+        int $maxId,
+        ?int $itemType = null,
+        array $excludeItemIds = [],
+        bool $dryRun = false,
+    ): array {
         $batch = config('data_retention.item_purge_batch_size', 500);
         $purged = 0;
         $excludeItemIds = $this->normalizeItemIds($excludeItemIds);
 
         while (true) {
-            $query = $this->orphanItemIdsQuery($cutoffYear, $ignoreWarehouseStock, $ignoreCreatedAtCutoff)
+            $query = $this->selectableOrphanItemIdsQuery($maxId, $itemType)
                 ->orderBy('items.id')
                 ->limit($batch);
-
-            if ($itemType !== null) {
-                $query->where('items.type', $itemType);
-            }
 
             if ($excludeItemIds !== []) {
                 $query->whereNotIn('items.id', $excludeItemIds);
@@ -945,22 +957,19 @@ class DataRetentionService
     protected function orphanItemIdsQuery(
         int $cutoffYear,
         bool $ignoreWarehouseStock = false,
-        bool $ignoreCreatedAtCutoff = false,
     ): \Illuminate\Database\Query\Builder {
+        $cutoffDate = sprintf('%04d-01-01', $cutoffYear);
+
         $query = $this->live()->table('items')
             ->whereNotExists(function ($subquery) {
                 $subquery->select(DB::raw(1))
                     ->from('transaction_details')
                     ->whereColumn('transaction_details.item_id', 'items.id');
-            });
-
-        if (! $ignoreCreatedAtCutoff) {
-            $cutoffDate = sprintf('%04d-01-01', $cutoffYear);
-            $query->where(function ($ageQuery) use ($cutoffDate) {
+            })
+            ->where(function ($ageQuery) use ($cutoffDate) {
                 $ageQuery->where('items.created_at', '<', $cutoffDate)
                     ->orWhereIn('items.created_at', $this->legacyBulkTouchTimestamps());
             });
-        }
 
         if (! $ignoreWarehouseStock) {
             $query->whereNotExists(function ($subquery) {
@@ -969,6 +978,23 @@ class DataRetentionService
                     ->whereColumn('warehouse_item.item_id', 'items.id')
                     ->where('warehouse_item.quantity', '>', 0);
             });
+        }
+
+        return $query;
+    }
+
+    protected function selectableOrphanItemIdsQuery(int $maxId, ?int $itemType = null): \Illuminate\Database\Query\Builder
+    {
+        $query = $this->live()->table('items')
+            ->where('items.id', '<=', $maxId)
+            ->whereNotExists(function ($subquery) {
+                $subquery->select(DB::raw(1))
+                    ->from('transaction_details')
+                    ->whereColumn('transaction_details.item_id', 'items.id');
+            });
+
+        if ($itemType !== null) {
+            $query->where('items.type', $itemType);
         }
 
         return $query;
