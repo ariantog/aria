@@ -67,7 +67,7 @@ $statusStyles = [
     <div class="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm">
         <div class="font-semibold text-amber-900">Live cleanup preview — year {{ $cleanupPreview['year'] }}</div>
         <ul class="mt-2 grid gap-1 sm:grid-cols-2">
-            @foreach(collect($cleanupPreview)->except('year', 'uses_partition_drop') as $key => $count)
+            @foreach(collect($cleanupPreview)->except('year', 'uses_partition_drop', 'partition_name') as $key => $count)
             <li><span class="text-amber-900">{{ str_replace('_', ' ', $key) }}:</span> <strong>{{ number_format($count) }}</strong></li>
             @endforeach
         </ul>
