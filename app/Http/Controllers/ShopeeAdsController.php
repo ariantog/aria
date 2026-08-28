@@ -54,7 +54,7 @@ class ShopeeAdsController extends Controller
             'automationTimezone' => $automationTimezone,
             'nowWib' => $nowWib,
             'oauthErrorHint' => $api->formatOAuthErrorForUser($api->getLastOAuthError()),
-            'planned' => $this->plannedEndOfDay($settings, $schedules, $specialRules, $engine),
+            'planned' => $this->plannedEndOfDay($settings, $schedules, $specialRules, $engine, $api),
             'ruleStatus' => $ruleStatus,
             'canEdit' => request()->user()?->can(ShopeeAds::getPermissions()['edit']) ?? false,
             'canBoost' => request()->user()?->can(ShopeeAds::getPermissions()['boost']) ?? false,
@@ -129,6 +129,7 @@ class ShopeeAdsController extends Controller
         $settings = ShopeeAdsSetting::current();
         $validated['item_ads_enabled'] = $request->boolean('item_ads_enabled');
         $validated['item_replenish_enabled'] = $request->boolean('item_replenish_enabled');
+        $validated['item_auto_topup_enabled'] = $request->boolean('item_auto_topup_enabled');
         $validated['double_date_enabled'] = $request->boolean('double_date_enabled');
         $validated['payday_enabled'] = $request->boolean('payday_enabled');
         $settings->update($validated);
@@ -253,7 +254,7 @@ class ShopeeAdsController extends Controller
         $settings->update(['last_daily_reset_at' => $engine->jakartaNow()]);
 
         $message = 'Daily reset dijalankan.';
-        if ($settings->item_ads_enabled && $settings->item_replenish_enabled) {
+        if ($settings->item_ads_enabled && ($settings->item_replenish_enabled || $settings->item_auto_topup_enabled)) {
             $replenish = $engine->replenishItemAds($settings->fresh(), fillToCap: true);
             $message .= ' '.$replenish['message'];
         }
@@ -269,6 +270,16 @@ class ShopeeAdsController extends Controller
         $result = $engine->applyManualBudgetBoost($settings);
 
         return back()->with('success', $result['message']);
+    }
+
+    public function suggestGroupAds(ShopeeAdsEngineService $engine): RedirectResponse
+    {
+        Gate::authorize(ShopeeAds::getPermissions()['view']);
+
+        $settings = ShopeeAdsSetting::current();
+        $suggestions = $engine->suggestGroupAds($settings, 15);
+
+        return back()->with('group_ad_suggestions', $suggestions);
     }
 
     /**
@@ -339,6 +350,7 @@ class ShopeeAdsController extends Controller
         $schedules,
         ShopeeAdsSpecialRulesService $specialRules,
         ShopeeAdsEngineService $engine,
+        ShopeeAdsApiService $api,
     ): array
     {
         $multipliers = $specialRules->resolveForToday($settings);
@@ -354,10 +366,13 @@ class ShopeeAdsController extends Controller
         $itemStartPool = $engine->itemAdsStartingPoolTotal($settings, $multipliers);
         $itemStartPerAd = $engine->itemAdBudgetPerSlot($settings, $multipliers);
         $slotCount = $engine->itemAdsSlotCount($settings, $multipliers);
-        $activeItemAds = ShopeeAdsItemAd::query()
-            ->where('turned_off', false)
-            ->whereNotIn('status', ['ended', 'closed', 'berakhir'])
-            ->count();
+        $liveCount = $api->hasShopAuthorization() ? count($api->listManualProductAds(true)) : 0;
+        $activeItemAds = $liveCount > 0
+            ? $liveCount
+            : ShopeeAdsItemAd::query()
+                ->where('turned_off', false)
+                ->whereNotIn('status', ['ended', 'closed', 'berakhir'])
+                ->count();
         $effectiveMaxAds = $slotCount;
         $itemStart = $itemStartPerAd * $activeItemAds;
         $itemInc = (int) $schedules

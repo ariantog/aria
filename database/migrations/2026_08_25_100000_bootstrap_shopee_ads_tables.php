@@ -18,6 +18,7 @@ return new class extends Migration
         (require __DIR__.'/2026_08_22_100000_install_shopee_ads_tables.php')->up();
         (require __DIR__.'/2026_08_22_110000_expand_shopee_ads_gmv_and_item_ads.php')->up();
         (require __DIR__.'/2026_08_26_120000_widen_shopee_ads_item_id_column.php')->up();
+        (require __DIR__.'/2026_08_28_100000_add_shopee_ads_item_performance_and_topup.php')->up();
     }
 
     public function down(): void

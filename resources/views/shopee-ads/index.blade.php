@@ -59,6 +59,10 @@ $saInnerCardWhite = 'space-y-3 rounded-lg border border-gray-200 bg-white p-4';
                 @csrf
                 <button type="submit" class="{{ $saBtnSecondary }}">Replenish Item Ads</button>
             </form>
+            <form method="POST" action="{{ route('shopee-ads.suggest-group-ads') }}">
+                @csrf
+                <button type="submit" class="{{ $saBtnBlueOutline }}" data-testid="shopee-ads-suggest-group">Suggest Group Ads</button>
+            </form>
             <form method="POST" action="{{ route('shopee-ads.daily-reset') }}">
                 @csrf
                 <button type="submit" class="{{ $saBtnAmber }}">Daily Reset Now</button>
@@ -82,6 +86,40 @@ $saInnerCardWhite = 'space-y-3 rounded-lg border border-gray-200 bg-white p-4';
             <li>{{ $reason }}</li>
             @endforeach
         </ul>
+    </div>
+    @endif
+
+    @if(session('group_ad_suggestions') !== null)
+    <div class="{{ $saCard }}" data-testid="shopee-ads-group-suggestions">
+        <div class="{{ $saCardHeader }}">
+            <h2 class="text-sm font-semibold text-gray-900">Saran iklan group (suggestion only — tidak memanggil API create)</h2>
+        </div>
+        @if(count(session('group_ad_suggestions')) === 0)
+        <p class="p-5 text-sm {{ $saTextMuted }}">Tidak ada kandidat — butuh riwayat performa (~1 minggu) atau daftar recommended Shopee.</p>
+        @else
+        <div class="overflow-x-auto">
+            <table class="min-w-full text-sm">
+                <thead class="{{ $saTableHead }}">
+                    <tr>
+                        <th class="{{ $saTh }}">Item ID</th>
+                        <th class="{{ $saTh }}">Sumber</th>
+                        <th class="{{ $saTh }}">Avg ROAS</th>
+                        <th class="{{ $saTh }}">Alasan</th>
+                    </tr>
+                </thead>
+                <tbody class="{{ $saDivide }}">
+                    @foreach(session('group_ad_suggestions') as $row)
+                    <tr>
+                        <td class="{{ $saTd }} font-mono">{{ $row['item_id'] }}</td>
+                        <td class="{{ $saTd }}">{{ $row['source'] }}</td>
+                        <td class="{{ $saTd }}">{{ number_format($row['avg_roas'], 2) }}</td>
+                        <td class="{{ $saTd }} {{ $saTextBody }}">{{ $row['reason'] }}</td>
+                    </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+        @endif
     </div>
     @endif
 
@@ -300,6 +338,9 @@ $saInnerCardWhite = 'space-y-3 rounded-lg border border-gray-200 bg-white p-4';
                 </label>
                 <label class="flex items-center gap-2">
                     <input type="checkbox" name="item_replenish_enabled" value="1" {{ $settings->item_replenish_enabled ? 'checked' : '' }}> Auto item replenish
+                </label>
+                <label class="flex items-center gap-2">
+                    <input type="checkbox" name="item_auto_topup_enabled" value="1" {{ ($settings->item_auto_topup_enabled ?? true) ? 'checked' : '' }}> Auto top-up after ad delete
                 </label>
             </div>
 

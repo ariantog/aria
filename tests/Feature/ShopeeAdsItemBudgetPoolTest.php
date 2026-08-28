@@ -49,6 +49,7 @@ it('resets each item ad to per-slot budget from the shared pool', function () {
     $settings->update([
         'item_ad_starting_budget' => 100000,
         'max_item_ads' => 4,
+        'item_ads_enabled' => true,
     ]);
 
     ShopeeAdsItemAd::query()->create([

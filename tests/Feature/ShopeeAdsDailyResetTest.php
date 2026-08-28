@@ -25,6 +25,9 @@ it('catches up daily reset later the same WIB day when the midnight cron tick wa
         'gms_current_budget' => 450000,
         'item_ad_starting_budget' => 100000,
         'max_item_ads' => 4,
+        'item_ads_enabled' => true,
+        'item_roas_off_threshold' => 99,
+        'item_off_after_checks' => 99,
         'item_replenish_enabled' => false,
         'last_daily_reset_at' => Carbon::parse('2026-08-26 00:01:00', 'Asia/Jakarta'),
     ]);
@@ -42,6 +45,9 @@ it('catches up daily reset later the same WIB day when the midnight cron tick wa
         ['campaign_id' => 'item-yesterday', 'campaign_name' => 'x', 'budget' => 200000.0, 'status' => 'ongoing', 'item_id' => 99],
     ]);
     $api->shouldReceive('setGmsBudget')->once()->with('gmv-reset', 100000)->andReturn(true);
+    $api->shouldReceive('getItemAdsDailyPerformance')->andReturn([
+        'item-yesterday' => ['roas' => 5.0, 'spend' => 1000.0],
+    ]);
     $api->shouldReceive('setItemAdBudget')->once()->with('item-yesterday', 25000)->andReturn(true);
 
     $engine = new ShopeeAdsEngineService(
