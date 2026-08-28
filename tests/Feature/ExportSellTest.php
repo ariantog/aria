@@ -26,6 +26,11 @@ it('renders export sell page for authorized users', function () {
         ->assertSee('data-testid="export-sell-sender-combobox"', false)
         ->assertSee('data-testid="export-sell-receiver-combobox"', false)
         ->assertSee('data-testid="export-sell-item-combobox"', false)
+        ->assertSee('data-testid="toggle-export-sell-tx-adjustment"', false)
+        ->assertSee('data-testid="toggle-export-sell-tx-discount"', false)
+        ->assertSee('data-testid="toggle-export-sell-tx-total"', false)
+        ->assertSee('data-testid="toggle-export-sell-tx-description"', false)
+        ->assertSee('data-testid="export-sell-excel-link"', false)
         ->assertSee('showFilters: true', false);
 });
 
@@ -272,6 +277,73 @@ it('exports filtered sell lines to excel', function () {
     $response->assertOk();
     expect($response->headers->get('content-type'))
         ->toContain('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+});
+
+it('exports optional transaction header columns when requested', function () {
+    $transaction = Transaction::factory()->create([
+        'type' => Transaction::TYPE_SELL,
+        'invoice' => 'SELL-XLS-TX-COLS',
+        'adjustment' => 12_500,
+        'discount' => 5,
+        'total' => -1_000_000,
+        'description' => 'Header note for export',
+    ]);
+    TransactionDetail::factory()->create([
+        'transaction_id' => $transaction->id,
+        'transaction_type' => Transaction::TYPE_SELL,
+    ]);
+
+    $response = $this->actingAs($this->user)->get(route('transactions.export-sell.build', [
+        'invoice' => 'SELL-XLS-TX-COLS',
+        'show_tx_adjustment' => 1,
+        'show_tx_discount' => 1,
+        'show_tx_total' => 1,
+        'show_tx_description' => 1,
+    ]));
+
+    $response->assertOk();
+
+    $tmp = tempnam(sys_get_temp_dir(), 'export-sell-');
+    file_put_contents($tmp, $response->streamedContent());
+
+    $sheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($tmp)->getActiveSheet();
+    unlink($tmp);
+
+    expect($sheet->getCell('I1')->getValue())->toBe('Adjustment')
+        ->and($sheet->getCell('J1')->getValue())->toBe('Inv. Discount')
+        ->and($sheet->getCell('K1')->getValue())->toBe('Tx Total')
+        ->and($sheet->getCell('L1')->getValue())->toBe('Description')
+        ->and((float) $sheet->getCell('I2')->getValue())->toBe(12500.0)
+        ->and((float) $sheet->getCell('J2')->getValue())->toBe(5.0)
+        ->and((float) $sheet->getCell('K2')->getValue())->toBe(-1000000.0)
+        ->and($sheet->getCell('L2')->getValue())->toBe('Header note for export');
+});
+
+it('omits optional transaction header columns from excel by default', function () {
+    $transaction = Transaction::factory()->create([
+        'type' => Transaction::TYPE_SELL,
+        'invoice' => 'SELL-XLS-DEFAULT-COLS',
+        'description' => 'Should stay hidden',
+    ]);
+    TransactionDetail::factory()->create([
+        'transaction_id' => $transaction->id,
+        'transaction_type' => Transaction::TYPE_SELL,
+    ]);
+
+    $response = $this->actingAs($this->user)->get(route('transactions.export-sell.build', [
+        'invoice' => 'SELL-XLS-DEFAULT-COLS',
+    ]));
+
+    $response->assertOk();
+
+    $tmp = tempnam(sys_get_temp_dir(), 'export-sell-');
+    file_put_contents($tmp, $response->streamedContent());
+
+    $sheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($tmp)->getActiveSheet();
+    unlink($tmp);
+
+    expect($sheet->getCell('I1')->getValue())->toBe('Sender')
+        ->and($sheet->getCell('J1')->getValue())->toBe('Receiver');
 });
 
 it('filters export sell lines by user location', function () {

@@ -63,6 +63,45 @@ class ExportSellQueryService
     }
 
     /**
+     * Optional transaction-header columns that can be toggled on the export-sell table.
+     *
+     * @return list<string>
+     */
+    public function optionalTransactionColumnKeys(): array
+    {
+        return ['adjustment', 'discount', 'total', 'description'];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function optionalTransactionColumnLabels(): array
+    {
+        return [
+            'adjustment' => 'Adjustment',
+            'discount' => 'Inv. Discount',
+            'total' => 'Tx Total',
+            'description' => 'Description',
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function visibleTransactionColumnsFromRequest(Request $request): array
+    {
+        $visible = [];
+
+        foreach ($this->optionalTransactionColumnKeys() as $key) {
+            if ($request->boolean('show_tx_'.$key)) {
+                $visible[] = $key;
+            }
+        }
+
+        return $visible;
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function filtersFromRequest(Request $request): array
