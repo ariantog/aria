@@ -478,6 +478,51 @@ class DataRetentionService
     }
 
     /**
+     * Hard-delete specific orphan items from the selective purge UI (id &lt;= max id, zero tx lines).
+     *
+     * Only IDs that pass {@see selectableOrphanItemIdsQuery()} are removed; unknown or ineligible IDs are ignored.
+     *
+     * @param  list<int>  $itemIds
+     * @return array{items: int, groups: int}
+     */
+    public function purgeSelectableOrphanItemsByIds(
+        int $maxId,
+        ?int $itemType,
+        array $itemIds,
+        bool $dryRun = false,
+    ): array {
+        $itemIds = $this->normalizeItemIds($itemIds);
+
+        if ($itemIds === []) {
+            return ['items' => 0, 'groups' => 0];
+        }
+
+        $eligibleIds = $this->selectableOrphanItemIdsQuery($maxId, $itemType)
+            ->whereIn('items.id', $itemIds)
+            ->orderBy('items.id')
+            ->pluck('items.id');
+
+        if ($dryRun) {
+            return [
+                'items' => $eligibleIds->count(),
+                'groups' => $this->countOrphanItemGroups(),
+            ];
+        }
+
+        $purged = 0;
+
+        foreach ($eligibleIds as $id) {
+            DB::transaction(fn () => $this->hardDeleteItem((int) $id));
+            $purged++;
+        }
+
+        return [
+            'items' => $purged,
+            'groups' => $this->purgeOrphanItemGroupsFromLive(false),
+        ];
+    }
+
+    /**
      * Hard-delete orphan items selected via the selective purge UI (id &lt;= max id, zero tx lines).
      *
      * @return array{items: int, groups: int}

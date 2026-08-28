@@ -9,25 +9,10 @@ $breadcrumbs = [
     ['title' => 'Data Retention', 'href' => route('data-retention.index')],
     ['title' => 'Selective Item Purge', 'href' => route('data-retention.item-purge.index')],
 ];
+$pageItemCount = $preview->count();
 @endphp
 
-<div class="flex flex-col gap-4 p-4" x-data="{
-    toggleKeep(id, checked) {
-        const params = new URLSearchParams(window.location.search);
-        let keeps = params.getAll('keep[]');
-        const key = String(id);
-        if (checked) {
-            if (! keeps.includes(key)) {
-                keeps.push(key);
-            }
-        } else {
-            keeps = keeps.filter((value) => value !== key);
-        }
-        params.delete('keep[]');
-        keeps.forEach((value) => params.append('keep[]', value));
-        window.location.search = params.toString();
-    }
-}">
+<div class="flex flex-col gap-4 p-4">
     <div class="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
         <div>
             <h1 class="text-2xl font-bold tracking-tight">Selective Item Purge</h1>
@@ -36,7 +21,8 @@ $breadcrumbs = [
                 even when warehouse stock &gt; 0. Soft-deleted items are included.
             </p>
             <p class="mt-1 text-xs text-gray-500">
-                Check <strong>Keep</strong> to exclude an item from purge. Unchecked rows will be deleted on submit.
+                Check <strong>Keep</strong> to exclude a row on this page from purge. Submit purges only
+                <strong>unchecked rows on the current page</strong>; visit other pages separately to purge them.
             </p>
         </div>
         <a href="{{ route('data-retention.index') }}" class="text-sm font-medium text-blue-600 hover:underline">← Data Retention</a>
@@ -63,21 +49,34 @@ $breadcrumbs = [
                 @endforeach
             </select>
         </div>
-        @foreach($keepIds as $keepId)
-        <input type="hidden" name="keep[]" value="{{ $keepId }}">
-        @endforeach
         <button type="submit" class="h-9 rounded-md bg-blue-600 px-4 text-sm font-medium text-white hover:bg-blue-700">Preview</button>
     </form>
 
-    <div class="rounded-xl border border-gray-200 bg-white shadow-sm">
+    <form method="POST" action="{{ route('data-retention.item-purge.purge') }}"
+          class="rounded-xl border border-gray-200 bg-white shadow-sm"
+          x-data="{
+              pagePurgeCount() {
+                  const total = this.$el.querySelectorAll('input[name=\'page_item_ids[]\']').length;
+                  const kept = this.$el.querySelectorAll('input[name=\'keep_ids[]\']:checked').length;
+                  return Math.max(0, total - kept);
+              }
+          }"
+          @submit="if (! confirm('Permanently delete ' + pagePurgeCount() + ' orphan item(s) on this page? Other pages are not affected.')) { $event.preventDefault(); }">
+        @csrf
+        <input type="hidden" name="max_id" value="{{ $maxId }}">
+        <input type="hidden" name="page" value="{{ $preview->currentPage() }}">
+        @if($itemType !== null)
+        <input type="hidden" name="item_type" value="{{ $itemType }}">
+        @endif
+
         <div class="flex flex-wrap items-center justify-between gap-2 p-4 pb-0">
             <h2 class="text-lg font-semibold">Preview</h2>
             <div class="text-sm text-gray-500">
-                <span>{{ number_format($totalCandidates) }} candidate(s)</span>
+                <span>{{ number_format($totalCandidates) }} candidate(s) total</span>
                 <span class="mx-1">·</span>
-                <span>{{ number_format(count($keepIds)) }} kept</span>
+                <span>page {{ $preview->currentPage() }} of {{ max(1, $preview->lastPage()) }}</span>
                 <span class="mx-1">·</span>
-                <span class="font-medium text-red-700">{{ number_format($purgeCount) }} to purge</span>
+                <span>{{ number_format($pageItemCount) }} on this page</span>
             </div>
         </div>
 
@@ -85,7 +84,7 @@ $breadcrumbs = [
             <table class="w-full text-sm">
                 <thead class="bg-gray-50 text-left text-xs text-gray-500">
                     <tr>
-                        <th class="px-3 py-2 font-medium" title="Check to exclude this item from purge">Keep</th>
+                        <th class="px-3 py-2 font-medium" title="Check to exclude this item from purge on this page">Keep</th>
                         <th class="px-3 py-2 font-medium">ID</th>
                         <th class="px-3 py-2 font-medium">SKU</th>
                         <th class="px-3 py-2 font-medium">Name</th>
@@ -96,13 +95,15 @@ $breadcrumbs = [
                 </thead>
                 <tbody class="divide-y">
                     @forelse($preview as $row)
-                    <tr @class(['bg-amber-50/60' => in_array($row['id'], $keepIds, true)])>
+                    <tr>
                         <td class="px-3 py-2">
                             <input type="checkbox"
+                                   name="keep_ids[]"
+                                   value="{{ $row['id'] }}"
                                    class="h-4 w-4 rounded border-gray-300"
                                    aria-label="Keep item #{{ $row['id'] }}"
-                                   @checked(in_array($row['id'], $keepIds, true))
-                                   @change="toggleKeep({{ $row['id'] }}, $event.target.checked)">
+                                   @change="$dispatch('input')">
+                            <input type="hidden" name="page_item_ids[]" value="{{ $row['id'] }}">
                         </td>
                         <td class="px-3 py-2 font-mono text-xs">
                             <a href="{{ route('items.show', $row['id']) }}" class="text-blue-600 hover:underline">#{{ $row['id'] }}</a>
@@ -125,32 +126,24 @@ $breadcrumbs = [
         </div>
 
         @include('partials.pagination', ['paginator' => $preview, 'label' => 'items'])
-    </div>
 
-    <form method="POST" action="{{ route('data-retention.item-purge.purge') }}" class="rounded-xl border border-red-200 bg-red-50 p-4"
-          onsubmit="return confirm('Permanently delete {{ number_format($purgeCount) }} orphan item(s)? Kept items are excluded.');">
-        @csrf
-        <input type="hidden" name="max_id" value="{{ $maxId }}">
-        @if($itemType !== null)
-        <input type="hidden" name="item_type" value="{{ $itemType }}">
-        @endif
-        @foreach($keepIds as $keepId)
-        <input type="hidden" name="keep_ids[]" value="{{ $keepId }}">
-        @endforeach
-        <div class="text-sm font-semibold text-red-900">Execute purge</div>
-        <p class="mt-1 text-sm text-red-800">
-            Purges every eligible orphan with id &le; {{ number_format($maxId) }}, except rows marked <strong>Keep</strong>
-            ({{ number_format(count($keepIds)) }} kept, {{ number_format($purgeCount) }} will be deleted).
-            Use pagination to mark items on other pages before submitting.
-        </p>
-        <div class="mt-3 flex flex-wrap items-end gap-2">
-            <div class="min-w-[16rem] flex-1">
-                <label class="mb-1 block text-xs font-medium text-red-800">Type PURGE-SELECTED-ITEMS to confirm</label>
-                <input type="text" name="confirm" required placeholder="PURGE-SELECTED-ITEMS" class="h-9 w-full max-w-md rounded-md border border-red-300 bg-white px-3 text-sm font-mono">
+        <div class="border-t border-red-200 bg-red-50 p-4">
+            <div class="text-sm font-semibold text-red-900">Execute purge (this page only)</div>
+            <p class="mt-1 text-sm text-red-800">
+                Purges only <strong>unchecked rows on page {{ $preview->currentPage() }}</strong>.
+                Items on other pages are <strong>not</strong> affected — browse each page and submit separately.
+            </p>
+            <div class="mt-3 flex flex-wrap items-end gap-2">
+                <div class="min-w-[16rem] flex-1">
+                    <label class="mb-1 block text-xs font-medium text-red-800">Type PURGE-SELECTED-ITEMS to confirm</label>
+                    <input type="text" name="confirm" required placeholder="PURGE-SELECTED-ITEMS" class="h-9 w-full max-w-md rounded-md border border-red-300 bg-white px-3 text-sm font-mono">
+                </div>
+                <button type="submit"
+                        class="h-9 rounded-md bg-red-600 px-4 text-sm font-medium text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                        :disabled="pagePurgeCount() === 0">
+                    <span x-text="'Purge ' + pagePurgeCount().toLocaleString() + ' on this page'">Purge {{ number_format($pageItemCount) }} on this page</span>
+                </button>
             </div>
-            <button type="submit" class="h-9 rounded-md bg-red-600 px-4 text-sm font-medium text-white hover:bg-red-700" @disabled($purgeCount === 0)>
-                Purge {{ number_format($purgeCount) }} item(s)
-            </button>
         </div>
     </form>
 </div>

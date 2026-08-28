@@ -431,9 +431,10 @@ it('excludes kept item ids from selective orphan purge', function () {
     $purge = Item::factory()->create(['created_at' => '2014-02-01']);
     $maxId = max($keep->id, $purge->id);
 
-    $result = $this->retention->purgeSelectableOrphanItemsFromLive(
+    $result = $this->retention->purgeSelectableOrphanItemsByIds(
         maxId: $maxId,
-        excludeItemIds: [$keep->id],
+        itemType: null,
+        itemIds: [$purge->id],
     );
 
     expect($result['items'])->toBe(1)
@@ -455,10 +456,11 @@ it('renders selective item purge with keep checkboxes and pagination', function 
         ->assertSee('Max item id')
         ->assertSee('Keep')
         ->assertSee('#'.$orphan->id)
-        ->assertSee('Purge 1 item(s)');
+        ->assertSee('Purge 1 on this page')
+        ->assertSee('this page only');
 });
 
-it('purges selective items while honoring keep ids from the form', function () {
+it('purges only unchecked items on the submitted page', function () {
     app(PermissionGenerator::class)->generateForModule('DataRetentionRun');
     $user = User::query()->find(1) ?? User::factory()->create(['id' => 1]);
 
@@ -471,6 +473,8 @@ it('purges selective items while honoring keep ids from the form', function () {
     $this->actingAs($user)
         ->post(route('data-retention.item-purge.purge'), [
             'max_id' => $maxId,
+            'page' => 1,
+            'page_item_ids' => [$keep->id, $purge->id],
             'keep_ids' => [$keep->id],
             'confirm' => 'PURGE-SELECTED-ITEMS',
         ])
@@ -478,4 +482,33 @@ it('purges selective items while honoring keep ids from the form', function () {
 
     expect(DB::table('items')->where('id', $keep->id)->exists())->toBeTrue()
         ->and(DB::table('items')->where('id', $purge->id)->exists())->toBeFalse();
+});
+
+it('does not purge items on other pages when submitting one page', function () {
+    app(PermissionGenerator::class)->generateForModule('DataRetentionRun');
+    $user = User::query()->find(1) ?? User::factory()->create(['id' => 1]);
+
+    $this->travelTo('2026-08-28');
+
+    $pageOneItems = collect();
+    for ($i = 0; $i < 100; $i++) {
+        $pageOneItems->push(Item::factory()->create(['created_at' => '2014-01-01']));
+    }
+
+    $pageTwoItem = Item::factory()->create(['created_at' => '2014-01-01']);
+    $maxId = (int) DB::table('items')->max('id');
+
+    $pageOneIds = $pageOneItems->pluck('id')->all();
+
+    $this->actingAs($user)
+        ->post(route('data-retention.item-purge.purge'), [
+            'max_id' => $maxId,
+            'page' => 1,
+            'page_item_ids' => $pageOneIds,
+            'confirm' => 'PURGE-SELECTED-ITEMS',
+        ])
+        ->assertRedirect(route('data-retention.item-purge.index', ['max_id' => $maxId]));
+
+    expect(DB::table('items')->where('id', $pageTwoItem->id)->exists())->toBeTrue()
+        ->and(DB::table('items')->whereIn('id', $pageOneIds)->count())->toBe(0);
 });
