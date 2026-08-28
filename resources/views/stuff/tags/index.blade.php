@@ -8,6 +8,16 @@ $breadcrumbs = [
     ['title' => 'Stuff', 'href' => route('tags.index')],
     ['title' => 'Tags', 'href' => route('tags.index')],
 ];
+$sortLink = function (string $column) use ($sort, $direction, $search, $typeFilter) {
+    $nextDir = ($sort === $column && $direction === 'asc') ? 'desc' : 'asc';
+
+    return route('tags.index', array_filter([
+        'search' => $search !== '' ? $search : null,
+        'type' => $typeFilter !== '' && $typeFilter !== null ? $typeFilter : null,
+        'sort' => $column,
+        'direction' => $nextDir,
+    ], fn ($value) => $value !== null && $value !== ''));
+};
 @endphp
 
 <div class="flex flex-col gap-4 p-3 sm:p-4" x-data="tagsIndex()">
@@ -41,6 +51,8 @@ $breadcrumbs = [
                 @endforeach
             </select>
         </div>
+        <input type="hidden" name="sort" value="{{ $sort }}">
+        <input type="hidden" name="direction" value="{{ $direction }}">
         <button type="submit" class="rounded-lg bg-blue-700 px-4 py-2 text-sm font-medium text-white hover:bg-blue-800">Filter</button>
         <a href="{{ route('tags.index') }}" class="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50">Reset</a>
     </form>
@@ -50,11 +62,21 @@ $breadcrumbs = [
             <table class="min-w-full divide-y divide-gray-200 text-sm">
                 <thead class="bg-gray-50">
                     <tr>
-                        <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Name</th>
-                        <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Code</th>
-                        <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Type</th>
-                        <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Item Type</th>
-                        <th class="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Items</th>
+                        <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+                            <a href="{{ $sortLink('name') }}" class="inline-flex items-center gap-1 hover:text-gray-900">Name @if($sort === 'name')<span class="text-blue-600">{{ $direction === 'asc' ? '↑' : '↓' }}</span>@endif</a>
+                        </th>
+                        <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+                            <a href="{{ $sortLink('code') }}" class="inline-flex items-center gap-1 hover:text-gray-900">Code @if($sort === 'code')<span class="text-blue-600">{{ $direction === 'asc' ? '↑' : '↓' }}</span>@endif</a>
+                        </th>
+                        <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+                            <a href="{{ $sortLink('type') }}" class="inline-flex items-center gap-1 hover:text-gray-900">Type @if($sort === 'type')<span class="text-blue-600">{{ $direction === 'asc' ? '↑' : '↓' }}</span>@endif</a>
+                        </th>
+                        <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+                            <a href="{{ $sortLink('item_type') }}" class="inline-flex items-center gap-1 hover:text-gray-900">Item Type @if($sort === 'item_type')<span class="text-blue-600">{{ $direction === 'asc' ? '↑' : '↓' }}</span>@endif</a>
+                        </th>
+                        <th class="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">
+                            <a href="{{ $sortLink('items_count') }}" class="inline-flex items-center gap-1 justify-end hover:text-gray-900">Items @if($sort === 'items_count')<span class="text-blue-600">{{ $direction === 'asc' ? '↑' : '↓' }}</span>@endif</a>
+                        </th>
                         <th class="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Actions</th>
                     </tr>
                 </thead>
