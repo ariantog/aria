@@ -17,54 +17,75 @@ test('items index page can be rendered', function () {
     $response->assertStatus(200);
 });
 
-test('items index hides redundant kode produksi and product columns', function () {
-    $group = \App\Models\ItemGroup::factory()->create(['name' => 'UNIQUE GROUP TITLE']);
+test('items index shows database columns and collapsible filters', function () {
     $item = Item::factory()->create([
-        'group_id' => $group->id,
         'name' => 'DISPLAY NAME - NAVY - S',
         'code' => 'AJD-FILTER-COL-S',
-        'pcode' => 'FILTER-COL',
+        'description' => 'Item description text',
+        'description2' => 'Internal note',
     ]);
 
     $this->actingAs($this->user)
         ->get(route('items.index'))
         ->assertOk()
-        ->assertSee('DISPLAY NAME - NAVY - S', false)
+        ->assertSee('>Barcode<', false)
+        ->assertSee('>Code<', false)
+        ->assertSee('>Name<', false)
+        ->assertSee('>Desc<', false)
+        ->assertSee((string) $item->id, false)
         ->assertSee('AJD-FILTER-COL-S', false)
-        ->assertDontSee('>Kode Produksi<', false)
-        ->assertDontSee('>Product<', false)
-        ->assertDontSee('UNIQUE GROUP TITLE', false);
+        ->assertSee('DISPLAY NAME - NAVY - S', false)
+        ->assertSee('Item description text', false)
+        ->assertSee('Internal note', false)
+        ->assertSee('data-testid="items-index-filters-toggle"', false)
+        ->assertSee('aria-items-index-filters-open', false);
 });
 
-test('items index code filter matches sku legacy alias and numeric barcode id', function () {
-    $bySku = Item::factory()->create(['code' => 'AJD-SKU-MATCH-S', 'legacy_code' => null]);
-    $byLegacy = Item::factory()->create(['code' => 'AJD-NEW-SKU-S', 'legacy_code' => 'OLD-BARCODE-SKU']);
-    $byId = Item::factory()->create(['code' => 'AJD-ID-MATCH-S', 'legacy_code' => null]);
+test('items index barcode filter matches id and code', function () {
+    $byCode = Item::factory()->create(['code' => 'AJD-BARCODE-MATCH-S', 'legacy_code' => null]);
+    $byId = Item::factory()->create(['code' => 'AJD-ID-BARCODE-S', 'legacy_code' => null]);
+    $other = Item::factory()->create(['code' => 'AJD-OTHER-BARCODE-S', 'legacy_code' => 'OLD-BARCODE-SKU']);
 
     $this->actingAs($this->user)
-        ->get(route('items.index', ['code' => 'AJD-SKU-MATCH']))
+        ->get(route('items.index', ['barcode' => 'AJD-BARCODE-MATCH']))
         ->assertOk()
-        ->assertSee('AJD-SKU-MATCH-S', false)
-        ->assertDontSee('AJD-NEW-SKU-S', false)
-        ->assertDontSee('AJD-ID-MATCH-S', false);
+        ->assertSee('AJD-BARCODE-MATCH-S', false)
+        ->assertDontSee('AJD-ID-BARCODE-S', false)
+        ->assertDontSee('AJD-OTHER-BARCODE-S', false);
 
     $this->actingAs($this->user)
-        ->get(route('items.index', ['code' => 'OLD-BARCODE']))
+        ->get(route('items.index', ['barcode' => (string) $byId->id]))
+        ->assertOk()
+        ->assertSee('AJD-ID-BARCODE-S', false)
+        ->assertDontSee('AJD-BARCODE-MATCH-S', false);
+});
+
+test('items index code filter matches code and legacy_code only', function () {
+    $byCode = Item::factory()->create(['code' => 'AJD-CODE-MATCH-S', 'legacy_code' => null]);
+    $byLegacy = Item::factory()->create(['code' => 'AJD-NEW-SKU-S', 'legacy_code' => 'OLD-LEGACY-SKU']);
+    $other = Item::factory()->create(['code' => 'AJD-OTHER-CODE-S', 'legacy_code' => null]);
+
+    $this->actingAs($this->user)
+        ->get(route('items.index', ['code' => 'AJD-CODE-MATCH']))
+        ->assertOk()
+        ->assertSee('AJD-CODE-MATCH-S', false)
+        ->assertDontSee('AJD-NEW-SKU-S', false)
+        ->assertDontSee('AJD-OTHER-CODE-S', false);
+
+    $this->actingAs($this->user)
+        ->get(route('items.index', ['code' => 'OLD-LEGACY']))
         ->assertOk()
         ->assertSee('AJD-NEW-SKU-S', false)
-        ->assertDontSee('AJD-SKU-MATCH-S', false);
+        ->assertDontSee('AJD-CODE-MATCH-S', false);
 
     $this->actingAs($this->user)
-        ->get(route('items.index', ['code' => (string) $byId->id]))
+        ->get(route('items.index', ['code' => (string) $other->id]))
         ->assertOk()
-        ->assertSee('AJD-ID-MATCH-S', false)
-        ->assertDontSee('AJD-SKU-MATCH-S', false);
+        ->assertDontSee('AJD-OTHER-CODE-S', false);
 });
 
-test('items index display name filter searches item name not group product title', function () {
-    $group = \App\Models\ItemGroup::factory()->create(['name' => 'GROUP PRODUCT ONLY']);
+test('items index name filter searches item name', function () {
     $match = Item::factory()->create([
-        'group_id' => $group->id,
         'name' => 'DISPLAY FILTER MATCH - BLUE - M',
         'code' => 'AJD-DISPLAY-FILTER-M',
     ]);
@@ -78,11 +99,30 @@ test('items index display name filter searches item name not group product title
         ->assertOk()
         ->assertSee('AJD-DISPLAY-FILTER-M', false)
         ->assertDontSee('AJD-OTHER-FILTER-L', false);
+});
+
+test('items index desc filter searches item description only', function () {
+    $group = \App\Models\ItemGroup::factory()->create(['description' => 'GROUP DESCRIPTION ONLY']);
+    $match = Item::factory()->create([
+        'group_id' => $group->id,
+        'code' => 'AJD-DESC-FILTER-M',
+        'description' => 'ITEM DESCRIPTION MATCH',
+    ]);
+    $other = Item::factory()->create([
+        'code' => 'AJD-DESC-OTHER-M',
+        'description' => 'OTHER DESCRIPTION',
+    ]);
 
     $this->actingAs($this->user)
-        ->get(route('items.index', ['name' => 'GROUP PRODUCT ONLY']))
+        ->get(route('items.index', ['desc' => 'ITEM DESCRIPTION MATCH']))
         ->assertOk()
-        ->assertDontSee('AJD-DISPLAY-FILTER-M', false);
+        ->assertSee('AJD-DESC-FILTER-M', false)
+        ->assertDontSee('AJD-DESC-OTHER-M', false);
+
+    $this->actingAs($this->user)
+        ->get(route('items.index', ['desc' => 'GROUP DESCRIPTION ONLY']))
+        ->assertOk()
+        ->assertDontSee('AJD-DESC-FILTER-M', false);
 });
 
 test('items create page can be rendered', function () {

@@ -119,7 +119,7 @@ class Item extends Model
         });
     }
 
-    public function scopeFilterIndexCode(Builder $query, string $term): void
+    public function scopeFilterIndexBarcode(Builder $query, string $term): void
     {
         $term = trim($term);
         if ($term === '') {
@@ -129,12 +129,26 @@ class Item extends Model
         $prefix = LikeSearch::prefix($term);
 
         $query->where(function ($q) use ($term, $prefix) {
-            $q->where('code', 'like', $prefix)
-                ->orWhere('legacy_code', 'like', $prefix);
+            $q->where('code', 'like', $prefix);
 
             if (ctype_digit($term)) {
                 $q->orWhere('id', (int) $term);
             }
+        });
+    }
+
+    public function scopeFilterIndexCode(Builder $query, string $term): void
+    {
+        $term = trim($term);
+        if ($term === '') {
+            return;
+        }
+
+        $prefix = LikeSearch::prefix($term);
+
+        $query->where(function ($q) use ($prefix) {
+            $q->where('code', 'like', $prefix)
+                ->orWhere('legacy_code', 'like', $prefix);
         });
     }
 
@@ -146,6 +160,16 @@ class Item extends Model
         }
 
         $query->where('name', 'like', $contains);
+    }
+
+    public function scopeFilterDescription(Builder $query, string $term): void
+    {
+        $contains = LikeSearch::contains($term);
+        if ($contains === '%') {
+            return;
+        }
+
+        $query->where('description', 'like', $contains);
     }
 
     public function scopeFilterByTags(Builder $query, array $tagIds): void

@@ -13,9 +13,21 @@ $sizeTags = ($tags[\App\Models\Tag::TYPE_SIZE] ?? collect());
 $warnaTags = ($tags[\App\Models\Tag::TYPE_WARNA] ?? collect());
 $jahitTags = ($tags[\App\Models\Tag::TYPE_JAHIT] ?? collect());
 $idr = fn ($v) => 'Rp ' . format_amount($v, 0);
+$filtersStorageKey = $isAsset ? 'aria-assetlancar-index-filters-open' : 'aria-items-index-filters-open';
 @endphp
 
-<div class="flex flex-col gap-3 p-3 sm:p-4" x-data="{ showImage: true }">
+<div class="flex flex-col gap-3 p-3 sm:p-4" x-data="{
+    showImage: true,
+    filtersOpen: true,
+    filtersStorageKey: @js($filtersStorageKey),
+    init() {
+        const saved = localStorage.getItem(this.filtersStorageKey);
+        this.filtersOpen = saved === null ? true : saved === '1';
+        this.$watch('filtersOpen', (value) => {
+            localStorage.setItem(this.filtersStorageKey, value ? '1' : '0');
+        });
+    },
+}">
     {{-- Header --}}
     <div class="flex flex-col items-start justify-between gap-2 sm:flex-row sm:items-center">
         <div>
@@ -37,55 +49,74 @@ $idr = fn ($v) => 'Rp ' . format_amount($v, 0);
         </div>
     </div>
 
-    {{-- Filters (order matches table columns) --}}
-    <form method="GET" action="{{ $baseUrl }}" class="flex flex-wrap items-end gap-2 rounded-xl border border-gray-200 bg-white p-3">
-        <div class="flex flex-col gap-1">
-            <label class="text-xs font-medium text-gray-500 uppercase">SKU / Code</label>
-            <input type="text" name="code" value="{{ $filters['code'] ?? '' }}" placeholder="SKU, barcode ID, alias…" class="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm">
-        </div>
-        <div class="flex flex-col gap-1">
-            <label class="text-xs font-medium text-gray-500 uppercase">Display Name</label>
-            <input type="text" name="name" value="{{ $filters['name'] ?? '' }}" placeholder="Display name…" data-filter-enter-submit class="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm">
-        </div>
-        <div class="flex flex-col gap-1">
-            <label class="text-xs font-medium text-gray-500 uppercase">Description</label>
-            <input type="text" name="desc" value="{{ $filters['desc'] ?? '' }}" placeholder="Description…" class="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm">
-        </div>
-        @unless($isAsset)
-        <div class="flex flex-col gap-1">
-            <label class="text-xs font-medium text-gray-500 uppercase">Type</label>
-            <select name="item_type" class="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm">
-                <option value="">All</option>
-                @foreach($typeTags as $t)<option value="{{ $t->id }}" @selected((string) ($filters['item_type'] ?? '') === (string) $t->id)>{{ $t->name }}</option>@endforeach
-            </select>
-        </div>
-        <div class="flex flex-col gap-1">
-            <label class="text-xs font-medium text-gray-500 uppercase">Size</label>
-            <select name="size" class="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm">
-                <option value="">All</option>
-                @foreach($sizeTags as $t)<option value="{{ $t->id }}" @selected((string) ($filters['size'] ?? '') === (string) $t->id)>{{ $t->name }}</option>@endforeach
-            </select>
-        </div>
-        <div class="flex flex-col gap-1">
-            <label class="text-xs font-medium text-gray-500 uppercase">Warna</label>
-            <select name="warna" class="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm">
-                <option value="">All</option>
-                @foreach($warnaTags as $t)<option value="{{ $t->id }}" @selected((string) ($filters['warna'] ?? '') === (string) $t->id)>{{ $t->name }}</option>@endforeach
-            </select>
-        </div>
-        <div class="flex flex-col gap-1">
-            <label class="text-xs font-medium text-gray-500 uppercase">Jahit</label>
-            <select name="jahit" class="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm">
-                <option value="">All</option>
-                @foreach($jahitTags as $t)<option value="{{ $t->id }}" @selected((string) ($filters['jahit'] ?? '') === (string) $t->id)>{{ $t->name }}</option>@endforeach
-            </select>
-        </div>
-        @endunless
-        <div class="flex gap-2">
-            <button type="submit" class="rounded-lg bg-blue-700 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-800">Filter</button>
-            <a href="{{ $baseUrl }}" class="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-50">Reset</a>
-        </div>
-    </form>
+    {{-- Filters --}}
+    <div class="overflow-hidden rounded-xl border border-gray-200 bg-white" data-testid="items-index-filters">
+        <button type="button"
+                data-testid="items-index-filters-toggle"
+                @click="filtersOpen = !filtersOpen"
+                class="flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left text-sm font-medium text-gray-700 hover:bg-gray-50">
+            <span>Filters</span>
+            <svg class="h-4 w-4 shrink-0 text-gray-500 transition-transform" :class="filtersOpen ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+            </svg>
+        </button>
+        <form method="GET"
+              action="{{ $baseUrl }}"
+              x-show="filtersOpen"
+              x-cloak
+              class="flex flex-wrap items-end gap-2 border-t border-gray-200 p-3">
+            <div class="flex flex-col gap-1">
+                <label class="text-xs font-medium text-gray-500 uppercase">Barcode</label>
+                <input type="text" name="barcode" value="{{ $filters['barcode'] ?? '' }}" placeholder="ID or code…" class="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm">
+            </div>
+            <div class="flex flex-col gap-1">
+                <label class="text-xs font-medium text-gray-500 uppercase">Code</label>
+                <input type="text" name="code" value="{{ $filters['code'] ?? '' }}" placeholder="Code or legacy alias…" class="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm">
+            </div>
+            <div class="flex flex-col gap-1">
+                <label class="text-xs font-medium text-gray-500 uppercase">Name</label>
+                <input type="text" name="name" value="{{ $filters['name'] ?? '' }}" placeholder="Name…" data-filter-enter-submit class="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm">
+            </div>
+            <div class="flex flex-col gap-1">
+                <label class="text-xs font-medium text-gray-500 uppercase">Desc</label>
+                <input type="text" name="desc" value="{{ $filters['desc'] ?? '' }}" placeholder="Description…" class="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm">
+            </div>
+            @unless($isAsset)
+            <div class="flex flex-col gap-1">
+                <label class="text-xs font-medium text-gray-500 uppercase">Type</label>
+                <select name="item_type" class="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm">
+                    <option value="">All</option>
+                    @foreach($typeTags as $t)<option value="{{ $t->id }}" @selected((string) ($filters['item_type'] ?? '') === (string) $t->id)>{{ $t->name }}</option>@endforeach
+                </select>
+            </div>
+            <div class="flex flex-col gap-1">
+                <label class="text-xs font-medium text-gray-500 uppercase">Size</label>
+                <select name="size" class="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm">
+                    <option value="">All</option>
+                    @foreach($sizeTags as $t)<option value="{{ $t->id }}" @selected((string) ($filters['size'] ?? '') === (string) $t->id)>{{ $t->name }}</option>@endforeach
+                </select>
+            </div>
+            <div class="flex flex-col gap-1">
+                <label class="text-xs font-medium text-gray-500 uppercase">Warna</label>
+                <select name="warna" class="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm">
+                    <option value="">All</option>
+                    @foreach($warnaTags as $t)<option value="{{ $t->id }}" @selected((string) ($filters['warna'] ?? '') === (string) $t->id)>{{ $t->name }}</option>@endforeach
+                </select>
+            </div>
+            <div class="flex flex-col gap-1">
+                <label class="text-xs font-medium text-gray-500 uppercase">Jahit</label>
+                <select name="jahit" class="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm">
+                    <option value="">All</option>
+                    @foreach($jahitTags as $t)<option value="{{ $t->id }}" @selected((string) ($filters['jahit'] ?? '') === (string) $t->id)>{{ $t->name }}</option>@endforeach
+                </select>
+            </div>
+            @endunless
+            <div class="flex gap-2">
+                <button type="submit" class="rounded-lg bg-blue-700 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-800">Filter</button>
+                <a href="{{ $baseUrl }}" class="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-50">Reset</a>
+            </div>
+        </form>
+    </div>
 
     {{-- Table --}}
     <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
@@ -93,10 +124,10 @@ $idr = fn ($v) => 'Rp ' . format_amount($v, 0);
             <thead class="border-b border-gray-200 bg-gray-50 text-[10px] uppercase tracking-wider text-gray-500">
                 <tr>
                     <th class="w-16 px-2 py-2.5 font-bold" x-show="showImage">Image</th>
-                    <th class="w-14 px-2 py-2.5 font-bold">ID</th>
-                    <th class="w-32 px-2 py-2.5 font-bold">SKU</th>
-                    <th class="px-2 py-2.5 font-bold">Display Name</th>
-                    <th class="px-2 py-2.5 font-bold">Description</th>
+                    <th class="w-14 px-2 py-2.5 font-bold">Barcode</th>
+                    <th class="w-32 px-2 py-2.5 font-bold">Code</th>
+                    <th class="px-2 py-2.5 font-bold">Name</th>
+                    <th class="px-2 py-2.5 font-bold">Desc</th>
                     <th class="w-28 px-2 py-2.5 text-right font-bold">Price</th>
                     <th class="w-40 px-2 py-2.5 font-bold">NB</th>
                     <th class="w-16 px-2 py-2.5 text-right font-bold">Qty</th>
@@ -106,10 +137,6 @@ $idr = fn ($v) => 'Rp ' . format_amount($v, 0);
             </thead>
             <tbody class="divide-y divide-gray-100">
                 @forelse($items as $item)
-                    @php
-                        $desc = $item->group?->description ?? $item->description;
-                        $nb = $item->group?->description2 ?? $item->description2;
-                    @endphp
                     <tr class="align-middle hover:bg-gray-50">
                         <td class="px-2 py-2" x-show="showImage">
                             @if($item->image_url)
@@ -125,9 +152,9 @@ $idr = fn ($v) => 'Rp ' . format_amount($v, 0);
                         </td>
                         <td class="truncate px-2 py-2 font-mono text-gray-600" title="{{ $item->code }}">{{ $item->code ?: '-' }}</td>
                         <td class="truncate px-2 py-2 text-gray-800" title="{{ $item->name }}">{{ $item->name ?: '-' }}</td>
-                        <td class="truncate px-2 py-2 text-gray-700" title="{{ $desc }}">{{ $desc ?: '-' }}</td>
+                        <td class="truncate px-2 py-2 text-gray-700" title="{{ $item->description }}">{{ $item->description ?: '-' }}</td>
                         <td class="whitespace-nowrap px-2 py-2 text-right font-bold tabular-nums text-gray-800">{{ $idr($item->price) }}</td>
-                        <td class="truncate px-2 py-2 text-gray-500" title="{{ $nb }}">{{ $nb ?: '--' }}</td>
+                        <td class="truncate px-2 py-2 text-gray-500" title="{{ $item->description2 }}">{{ $item->description2 ?: '--' }}</td>
                         <td class="whitespace-nowrap px-2 py-2 text-right font-bold tabular-nums text-emerald-600">{{ format_amount((float) ($item->active_qty ?? 0), 0) }}</td>
                         <td class="px-2 py-2">
                             @if($item->jubelio_item_id)
