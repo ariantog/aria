@@ -317,10 +317,8 @@ it('purges orphan items with warehouse stock on selective purge', function () {
         'updated_at' => now(),
     ]);
 
-    $result = $this->retention->purgeOrphanItemsFromLive(
-        dryRun: false,
-        ignoreWarehouseStock: true,
-        cutoffYear: 2022,
+    $result = $this->retention->purgeSelectableOrphanItemsFromLive(
+        maxId: $item->id,
     );
 
     expect($result['items'])->toBe(1)
@@ -360,10 +358,12 @@ it('does not purge recent orphan items that were not bulk-touched', function () 
         ->and(DB::table('items')->where('id', $item->id)->exists())->toBeTrue();
 });
 
-it('lists orphan items with migration-touched created_at on selective preview', function () {
+it('lists orphan items with id lte max id on selective preview including soft-deleted', function () {
     $this->travelTo('2026-08-28');
 
-    $orphan = Item::factory()->create(['created_at' => '2026-08-24 02:58:40']);
+    $orphan = Item::factory()->create(['created_at' => '2026-08-27 12:00:00']);
+    $softDeleted = Item::factory()->create(['created_at' => '2026-08-27 12:00:00']);
+    $softDeleted->delete();
     $withTx = Item::factory()->create(['created_at' => '2026-08-24 02:58:40']);
     $transaction = Transaction::factory()->create(['date' => '2020-01-10']);
     DB::table('transaction_details')->insert([
@@ -380,16 +380,18 @@ it('lists orphan items with migration-touched created_at on selective preview', 
         'receiver_id' => 1,
         'transaction_disc' => 0,
     ]);
+    $aboveMax = Item::factory()->create(['created_at' => '2014-01-01']);
+
+    $maxId = max($orphan->id, $softDeleted->id, $withTx->id);
+    expect($aboveMax->id)->toBeGreaterThan($maxId);
 
     $preview = $this->retention->previewSelectableItemPurge(
-        cutoffYear: 2022,
-        ignoreWarehouseStock: true,
-        ignoreCreatedAtCutoff: true,
+        maxId: $maxId,
         perPage: 100,
     );
 
-    expect($preview->total())->toBe(1)
-        ->and($preview->first()['id'])->toBe($orphan->id);
+    expect($preview->total())->toBe(2)
+        ->and(collect($preview->items())->pluck('id')->all())->toEqualCanonicalizing([$orphan->id, $softDeleted->id]);
 });
 
 it('paginates selective item purge preview at 100 rows sorted by id asc', function () {
@@ -399,10 +401,10 @@ it('paginates selective item purge preview at 100 rows sorted by id asc', functi
         Item::factory()->create(['created_at' => '2014-01-01']);
     }
 
+    $maxId = (int) DB::table('items')->max('id');
+
     $pageOne = $this->retention->previewSelectableItemPurge(
-        cutoffYear: 2022,
-        ignoreWarehouseStock: true,
-        ignoreCreatedAtCutoff: true,
+        maxId: $maxId,
         perPage: 100,
     );
 
@@ -414,9 +416,7 @@ it('paginates selective item purge preview at 100 rows sorted by id asc', functi
     request()->merge(['page' => 2]);
 
     $pageTwo = $this->retention->previewSelectableItemPurge(
-        cutoffYear: 2022,
-        ignoreWarehouseStock: true,
-        ignoreCreatedAtCutoff: true,
+        maxId: $maxId,
         perPage: 100,
     );
 
@@ -429,12 +429,10 @@ it('excludes kept item ids from selective orphan purge', function () {
 
     $keep = Item::factory()->create(['created_at' => '2014-01-01']);
     $purge = Item::factory()->create(['created_at' => '2014-02-01']);
+    $maxId = max($keep->id, $purge->id);
 
-    $result = $this->retention->purgeOrphanItemsFromLive(
-        dryRun: false,
-        ignoreWarehouseStock: true,
-        cutoffYear: 2022,
-        ignoreCreatedAtCutoff: true,
+    $result = $this->retention->purgeSelectableOrphanItemsFromLive(
+        maxId: $maxId,
         excludeItemIds: [$keep->id],
     );
 
@@ -451,9 +449,10 @@ it('renders selective item purge with keep checkboxes and pagination', function 
     $orphan = Item::factory()->create(['created_at' => '2026-08-24 02:58:40']);
 
     $this->actingAs($user)
-        ->get(route('data-retention.item-purge.index', ['cutoff_year' => 2022]))
+        ->get(route('data-retention.item-purge.index', ['max_id' => $orphan->id]))
         ->assertSuccessful()
         ->assertSee('Selective Item Purge')
+        ->assertSee('Max item id')
         ->assertSee('Keep')
         ->assertSee('#'.$orphan->id)
         ->assertSee('Purge 1 item(s)');
@@ -467,14 +466,15 @@ it('purges selective items while honoring keep ids from the form', function () {
 
     $keep = Item::factory()->create(['created_at' => '2026-08-24 02:58:40']);
     $purge = Item::factory()->create(['created_at' => '2026-08-24 02:58:40']);
+    $maxId = max($keep->id, $purge->id);
 
     $this->actingAs($user)
         ->post(route('data-retention.item-purge.purge'), [
-            'cutoff_year' => 2022,
+            'max_id' => $maxId,
             'keep_ids' => [$keep->id],
-            'confirm' => 'PURGE-ITEMS-WITH-STOCK',
+            'confirm' => 'PURGE-SELECTED-ITEMS',
         ])
-        ->assertRedirect(route('data-retention.item-purge.index', ['cutoff_year' => 2022]));
+        ->assertRedirect(route('data-retention.item-purge.index', ['max_id' => $maxId]));
 
     expect(DB::table('items')->where('id', $keep->id)->exists())->toBeTrue()
         ->and(DB::table('items')->where('id', $purge->id)->exists())->toBeFalse();
