@@ -77,6 +77,24 @@ return [
             'engine' => null,
         ],
 
+        'archive' => [
+            'driver' => env('ARCHIVE_DB_DRIVER', env('DB_CONNECTION', 'sqlite') === 'sqlite' ? 'sqlite' : 'mysql'),
+            'url' => env('ARCHIVE_DB_URL'),
+            'host' => env('ARCHIVE_DB_HOST', env('DB_HOST', '127.0.0.1')),
+            'port' => env('ARCHIVE_DB_PORT', env('DB_PORT', '3306')),
+            'database' => env('ARCHIVE_DB_DATABASE', database_path('database_archive.sqlite')),
+            'username' => env('ARCHIVE_DB_USERNAME', env('DB_USERNAME', 'root')),
+            'password' => env('ARCHIVE_DB_PASSWORD', env('DB_PASSWORD', '')),
+            'unix_socket' => env('ARCHIVE_DB_SOCKET', env('DB_SOCKET', '')),
+            'charset' => env('ARCHIVE_DB_CHARSET', env('DB_CHARSET', 'utf8mb4')),
+            'collation' => env('ARCHIVE_DB_COLLATION', env('DB_COLLATION', 'utf8mb4_unicode_ci')),
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'strict' => true,
+            'engine' => null,
+            'foreign_key_constraints' => env('ARCHIVE_DB_FOREIGN_KEYS', true),
+        ],
+
         'mariadb' => [
             'driver' => 'mariadb',
             'url' => env('DB_URL'),
