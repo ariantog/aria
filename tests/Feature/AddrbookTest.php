@@ -245,3 +245,40 @@ test('bank list is sorted by name', function () {
         ->assertOk()
         ->assertSeeInOrder(['Alpha Bank', 'Zebra Bank'], false);
 });
+
+test('warehouse list shows arrangement destination column', function () {
+    Addrbook::factory()->warehouse()->create([
+        'name' => 'Arrangement WH',
+        'arrangement_enabled' => true,
+    ]);
+    Addrbook::factory()->warehouse()->create([
+        'name' => 'Regular WH',
+        'arrangement_enabled' => false,
+    ]);
+
+    $response = $this->actingAs($this->user)
+        ->get(route('addrbook.type.index', 'warehouse'))
+        ->assertOk()
+        ->assertSee('Arrangement', false)
+        ->assertSee('Arrangement WH', false)
+        ->assertSee('Regular WH', false)
+        ->assertSee('Destination', false);
+
+    expect($response->getContent())->toContain('Arrangement WH');
+    expect(substr_count($response->getContent(), 'Destination'))->toBe(1);
+});
+
+test('customer list does not show arrangement column', function () {
+    Addrbook::factory()->create([
+        'name' => 'Arrangement Customer',
+        'type' => Addrbook::TYPE_CUSTOMER,
+        'arrangement_enabled' => true,
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('addrbook.type.index', 'customer'))
+        ->assertOk()
+        ->assertSee('Arrangement Customer', false)
+        ->assertDontSee('>Arrangement<', false)
+        ->assertDontSee('Destination', false);
+});
