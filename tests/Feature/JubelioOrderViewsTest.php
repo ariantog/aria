@@ -7,6 +7,9 @@ use App\Models\Jubeliosync;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Models\WarehouseItem;
+use App\Services\JubelioService;
+use Illuminate\Support\Facades\Cache;
+use Mockery\MockInterface;
 
 it('defaults jubelio orders index to pending only', function () {
     $user = User::factory()->create();
@@ -277,6 +280,81 @@ it('filters jubelio orders by warehouse using jubelio store location keys', func
         ->assertSuccessful()
         ->assertSee('INV-WH-BACKFILL-A')
         ->assertDontSee('INV-WH-BACKFILL-B');
+});
+
+it('skips warehouse backfill when scoped orders already have store location keys', function () {
+    $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'Gudang Cached']);
+
+    Jubeliosync::create([
+        'jubelio_store_id' => 921,
+        'jubelio_store_name' => 'Store',
+        'jubelio_location_id' => 922,
+        'jubelio_location_name' => 'Loc Cached',
+        'warehouse_id' => $warehouse->id,
+        'customer_id' => 0,
+        'bin_id' => 0,
+    ]);
+
+    Jubelioorder::create([
+        'jubelio_order_id' => 'wh-cached-1',
+        'source' => 1,
+        'invoice' => 'INV-WH-CACHED',
+        'type' => 'SELL',
+        'order_status' => 'SHIPPED',
+        'run_count' => 0,
+        'jubelio_store_id' => 921,
+        'jubelio_location_id' => 922,
+        'warehouse_id' => $warehouse->id,
+        'status' => 0,
+    ]);
+
+    test()->mock(JubelioService::class, function (MockInterface $mock) {
+        $mock->shouldNotReceive('fetchSalesOrder');
+    });
+
+    $scope = Jubelioorder::query()->where('status', 0);
+
+    app(\App\Services\Jubelio\JubelioOrderWarehouseResolver::class)
+        ->maybeBackfillForWarehouseFilter($scope, $warehouse->id);
+});
+
+it('throttles warehouse key backfill after an unsuccessful api pass', function () {
+    Cache::flush();
+
+    $user = User::factory()->create();
+    $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'Gudang Throttle']);
+
+    Jubeliosync::create([
+        'jubelio_store_id' => 931,
+        'jubelio_store_name' => 'Store',
+        'jubelio_location_id' => 932,
+        'jubelio_location_name' => 'Loc Throttle',
+        'warehouse_id' => $warehouse->id,
+        'customer_id' => 0,
+        'bin_id' => 0,
+    ]);
+
+    Jubelioorder::create([
+        'jubelio_order_id' => 'wh-throttle-1',
+        'source' => 1,
+        'invoice' => 'INV-WH-THROTTLE',
+        'type' => 'SELL',
+        'order_status' => 'SHIPPED',
+        'run_count' => 0,
+        'status' => 0,
+    ]);
+
+    test()->mock(JubelioService::class, function (MockInterface $mock) {
+        $mock->shouldReceive('fetchSalesOrder')
+            ->once()
+            ->with('wh-throttle-1')
+            ->andReturn([]);
+    });
+
+    $url = route('jubelio.index', ['warehouse_id' => $warehouse->id, 'status' => 'pending']);
+
+    $this->actingAs($user)->get($url)->assertSuccessful();
+    $this->actingAs($user)->get($url)->assertSuccessful();
 });
 
 it('shows clickable customer warehouse and item links on order detail', function () {
