@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\TransactionDetail;
+use App\Support\ExportSellRowGrouping;
 use Illuminate\Support\Collection;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -18,6 +19,7 @@ class ExportSellExportService
     {
         $queryService = app(ExportSellQueryService::class);
         $columnLabels = $queryService->optionalTransactionColumnLabels();
+        $grouping = new ExportSellRowGrouping;
 
         $spreadsheet = new Spreadsheet;
         $sheet = $spreadsheet->getActiveSheet();
@@ -47,13 +49,17 @@ class ExportSellExportService
 
         $rowNum = 2;
         foreach ($rows as $detail) {
+            $transactionId = (int) $detail->transaction_id;
+            $isFirstLine = $grouping->isFirstLineForTransaction($transactionId);
+            $grouping->advance($transactionId);
+
             $typeLabel = TransactionDetail::typeLabel((int) $detail->transaction_type);
             $transaction = $detail->transaction;
             $sender = $detail->sender ?? $transaction?->sender;
             $receiver = $detail->receiver ?? $transaction?->receiver;
 
             $row = [
-                $detail->date ? \Illuminate\Support\Carbon::parse($detail->date)->format('d/m/Y') : '',
+                $grouping->formattedDate($detail, $isFirstLine),
                 $typeLabel,
                 $transaction?->invoice ?? '',
                 (int) $detail->item_id,
@@ -64,13 +70,7 @@ class ExportSellExportService
             ];
 
             foreach ($visibleTransactionColumns as $columnKey) {
-                $row[] = match ($columnKey) {
-                    'adjustment' => (float) ($transaction?->adjustment ?? 0),
-                    'discount' => (float) ($transaction?->discount ?? 0),
-                    'total' => (float) ($transaction?->total ?? 0),
-                    'description' => (string) ($transaction?->description ?: ($transaction?->notes ?? '')),
-                    default => '',
-                };
+                $row[] = $grouping->transactionColumnValue($columnKey, $transaction, $isFirstLine);
             }
 
             $row[] = $sender?->name ?? '';

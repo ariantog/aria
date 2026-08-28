@@ -199,9 +199,9 @@ class ExportSellQueryService
 
                 return $this->applyPartyNameFilter($q, 'receiver', $term);
             })
-            ->orderByDesc('transaction_details.date')
-            ->orderByDesc('transaction_details.transaction_id')
-            ->orderByDesc('transaction_details.id');
+            ->orderBy('transaction_details.date')
+            ->orderBy('transaction_details.transaction_id')
+            ->orderBy('transaction_details.id');
     }
 
     private function applyPartyIdFilter(Builder $query, string $role, int $partyId): Builder
