@@ -105,6 +105,16 @@ class ScheduledTaskSeeder extends Seeder
         );
 
         \App\Models\ScheduledTask::updateOrCreate(
+            ['command' => 'app:process-data-retention-archive'],
+            [
+                'name' => 'Archive Eligible Transaction Year',
+                'frequency' => 'yearly',
+                'active' => false,
+                'description' => 'Copies the next eligible calendar year to the archive DB. Enable after the archive database is bootstrapped; live cleanup stays manual on Data Retention.',
+            ]
+        );
+
+        \App\Models\ScheduledTask::updateOrCreate(
             ['command' => 'jubelio:check-connection'],
             [
                 'name' => 'Jubelio Check Connection',
