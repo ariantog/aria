@@ -96,7 +96,8 @@ it('generates the receipt pdf for print pos', function () {
 
     $this->actingAs($this->user)
         ->get(route('transactions.receipt', $transaction))
-        ->assertRedirect($service->invoicePublicUrl($fileName));
+        ->assertOk()
+        ->assertHeader('content-type', 'application/pdf');
 
     expect(File::exists($service->invoiceDiskPath($fileName)))->toBeTrue();
 });

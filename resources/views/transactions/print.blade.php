@@ -7,6 +7,11 @@
     <link rel="stylesheet" href="{{ asset('css/print.css') }}">
 </head>
 <body onload="window.print()">
-    @include('transactions.partials.invoice-body', ['transaction' => $transaction, 'typeLabel' => $typeLabel, 'branding' => $branding])
+    @include('transactions.partials.invoice-body', [
+        'transaction' => $transaction,
+        'typeLabel' => $typeLabel,
+        'branding' => $branding,
+        'itemView' => $itemView ?? \App\Support\TransactionItemViewOptions::defaults(),
+    ])
 </body>
 </html>

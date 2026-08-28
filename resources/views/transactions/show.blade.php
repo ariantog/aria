@@ -570,6 +570,8 @@ function transactionShowPage(transactionId, initialNote, canEditNote, canEditPpn
         sortDir: 'asc',
         waOpen: false,
         deleteConfirmOpen: false,
+        printMenuOpen: false,
+        invoiceMenuOpen: false,
         noteText: initialNote || '',
         noteDraft: initialNote || '',
         noteModalOpen: false,
@@ -750,6 +752,15 @@ function transactionShowPage(transactionId, initialNote, canEditNote, canEditPpn
                 showSku: this.showSku,
                 showName: this.showName,
             }));
+        },
+        itemViewQuery() {
+            const params = new URLSearchParams();
+            params.set('image', this.showImage ? '1' : '0');
+            params.set('barcode', this.showBarcode ? '1' : '0');
+            params.set('sku', this.showSku ? '1' : '0');
+            params.set('name', this.showName ? '1' : '0');
+
+            return params.toString();
         },
         showCopyFeedback() {
             this.copyFeedback = true;
