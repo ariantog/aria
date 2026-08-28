@@ -56,9 +56,8 @@ class ItemsController extends Controller
         $q->when($request->filled('search'), fn ($q) => $q->search($request->search))
             ->when($request->filled('id'), fn ($q) => $q->where('id', $request->id))
             ->when($request->filled('brand'), fn ($q) => $q->where('brand', $request->brand))
-            ->when($request->filled('code'), fn ($q) => $q->where('code', 'like', "{$request->code}%"))
-            ->when($request->filled('name'), fn ($q) => $q->where('name', 'like', "%{$request->name}%"))
-            ->when($request->filled('product_name'), fn ($q) => $q->whereHas('group', fn ($s) => $s->where('name', 'like', "%{$request->product_name}%")))
+            ->when($request->filled('code'), fn ($q) => $q->filterIndexCode($request->code))
+            ->when($request->filled('name'), fn ($q) => $q->filterDisplayName($request->name))
             ->when($request->filled('desc'), fn ($q) => $q->where(fn ($s) => $s
                 ->where('description', 'like', "%{$request->desc}%")
                 ->orWhereHas('group', fn ($g) => $g->where('description', 'like', "%{$request->desc}%"))
@@ -121,7 +120,7 @@ class ItemsController extends Controller
 
         return view('items.index', [
             'items' => $items,
-            'filters' => $request->only(['search', 'brand', 'type', 'jahit', 'size', 'warna', 'item_type', 'code', 'name', 'product_name', 'desc']),
+            'filters' => $request->only(['search', 'brand', 'type', 'jahit', 'size', 'warna', 'item_type', 'code', 'name', 'desc']),
             'brands' => $this->brandOptions(),
             'types' => $this->typeOptions(),
             'tags' => $this->tagGroupsForList($type),
