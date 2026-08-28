@@ -146,6 +146,7 @@ it('runs increment then top-up on produk_manual schedule tick', function () {
             'item_id' => 2000 + $i,
         ])->all(),
     );
+    $api->shouldReceive('getItemAdsDailyPerformance')->andReturn([]);
     $api->shouldReceive('getItemAdsRoas')->andReturn([]);
     $api->shouldReceive('addItemAdBudget')->andReturn([
         'before' => 25000,
