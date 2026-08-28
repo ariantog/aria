@@ -10,6 +10,7 @@ $breadcrumbs = [
     ['title' => 'Selective Item Purge', 'href' => route('data-retention.item-purge.index')],
 ];
 $pageItemCount = $preview->count();
+$pageItemIds = collect($preview->items())->pluck('id')->values()->all();
 @endphp
 
 <div class="flex flex-col gap-4 p-4">
@@ -55,10 +56,19 @@ $pageItemCount = $preview->count();
     <form method="POST" action="{{ route('data-retention.item-purge.purge') }}"
           class="rounded-xl border border-gray-200 bg-white shadow-sm"
           x-data="{
+              pageItemIds: @js($pageItemIds),
+              keepIds: [],
               pagePurgeCount() {
-                  const total = this.$el.querySelectorAll('input[name=\'page_item_ids[]\']').length;
-                  const kept = this.$el.querySelectorAll('input[name=\'keep_ids[]\']:checked').length;
-                  return Math.max(0, total - kept);
+                  return this.pageItemIds.filter((id) => ! this.keepIds.includes(id)).length;
+              },
+              syncKeep(id, checked) {
+                  if (checked) {
+                      if (! this.keepIds.includes(id)) {
+                          this.keepIds.push(id);
+                      }
+                  } else {
+                      this.keepIds = this.keepIds.filter((value) => value !== id);
+                  }
               }
           }"
           @submit="if (! confirm('Permanently delete ' + pagePurgeCount() + ' orphan item(s) on this page? Other pages are not affected.')) { $event.preventDefault(); }">
@@ -102,7 +112,7 @@ $pageItemCount = $preview->count();
                                    value="{{ $row['id'] }}"
                                    class="h-4 w-4 rounded border-gray-300"
                                    aria-label="Keep item #{{ $row['id'] }}"
-                                   @change="$dispatch('input')">
+                                   @change="syncKeep({{ $row['id'] }}, $event.target.checked)">
                             <input type="hidden" name="page_item_ids[]" value="{{ $row['id'] }}">
                         </td>
                         <td class="px-3 py-2 font-mono text-xs">
