@@ -69,6 +69,13 @@ it('computes eligible archive years from retention window', function () {
         ->and($this->retention->yearsEligibleForArchive())->toBe([]);
 });
 
+it('maps calendar years to L10 upper-bound partition names', function () {
+    expect($this->retention->partitionNameForCalendarYear(2014))->toBe('p2015')
+        ->and($this->retention->partitionNameForCalendarYear(2020))->toBe('p2021')
+        ->and($this->retention->calendarYearUsesPartitionDrop(2014))->toBeTrue()
+        ->and($this->retention->calendarYearUsesPartitionDrop(2013))->toBeFalse();
+});
+
 it('copies a calendar year to the archive database', function () {
     $this->travelTo('2026-08-28');
 
@@ -137,6 +144,38 @@ it('removes an archived year from live using row delete fallback on sqlite', fun
 
     $run = DataRetentionRun::query()->where('year', 2020)->first();
     expect($run->status)->toBe(DataRetentionRun::STATUS_CLEANED);
+});
+
+it('allows retrying cleanup when a prior run was marked cleaned but rows remain', function () {
+    $this->travelTo('2026-08-28');
+
+    $transaction = Transaction::factory()->create(['date' => '2020-01-10', 'description' => 'still here']);
+    DB::table('transaction_details')->insert([
+        'id' => 9003,
+        'transaction_id' => $transaction->id,
+        'item_id' => Item::factory()->create()->id,
+        'quantity' => 1,
+        'price' => 100,
+        'discount' => 0,
+        'total' => 100,
+        'date' => '2020-01-10',
+        'transaction_type' => Transaction::TYPE_SELL,
+        'sender_id' => 1,
+        'receiver_id' => 1,
+        'transaction_disc' => 0,
+    ]);
+
+    $this->retention->archiveYear(2020);
+
+    DataRetentionRun::query()->where('year', 2020)->update([
+        'status' => DataRetentionRun::STATUS_CLEANED,
+        'cleanup_finished_at' => now(),
+    ]);
+
+    $this->retention->cleanupLiveYear(2020);
+
+    expect(DB::table('transactions')->whereBetween('date', ['2020-01-01', '2020-12-31'])->count())->toBe(0)
+        ->and(DataRetentionRun::query()->where('year', 2020)->value('status'))->toBe(DataRetentionRun::STATUS_CLEANED);
 });
 
 it('renders archive pages for superadmin', function () {
