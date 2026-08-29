@@ -84,8 +84,8 @@ class RecalculateAggregation extends Command
                     'receiver_balance' => $this->balances[$receiverId] ?? 0,
                 ]);
 
-                // Process Details & Stocks
-                if (isset($allDetails[$trx->id])) {
+                // Process Details & Stocks (depreciation posts expense, not warehouse qty)
+                if ((int) $trx->type !== Transaction::TYPE_DEPRECIATION && isset($allDetails[$trx->id])) {
                     foreach ($allDetails[$trx->id] as $detail) {
                         $qty = (float) $detail->quantity;
                         $itemId = $detail->item_id;
@@ -168,6 +168,13 @@ class RecalculateAggregation extends Command
             if ($receiverId) {
                 $this->balances[$receiverId] = (float) ($this->balances[$receiverId] ?? 0) + $amount;
             }
+        } elseif ($type === Transaction::TYPE_DEPRECIATION) {
+            if ($senderId) {
+                $this->balances[$senderId] = (float) ($this->balances[$senderId] ?? 0) + $amount;
+            }
+            if ($receiverId) {
+                $this->balances[$receiverId] = (float) ($this->balances[$receiverId] ?? 0) + $amount;
+            }
         }
     }
 
@@ -202,6 +209,7 @@ class RecalculateAggregation extends Command
             Transaction::TYPE_PRODUCTION => 'use',
             Transaction::TYPE_CASH_IN => 'sell',
             Transaction::TYPE_CASH_OUT => 'buy',
+            Transaction::TYPE_DEPRECIATION => 'depreciation',
             default => null,
         };
 
@@ -219,6 +227,7 @@ class RecalculateAggregation extends Command
             Transaction::TYPE_CASH_OUT,
             Transaction::TYPE_TRANSFER,
             Transaction::TYPE_ADJUST,
+            Transaction::TYPE_DEPRECIATION,
         ], true);
 
         $trackReceiver = in_array($type, [
@@ -228,6 +237,7 @@ class RecalculateAggregation extends Command
             Transaction::TYPE_CASH_OUT,
             Transaction::TYPE_TRANSFER,
             Transaction::TYPE_ADJUST,
+            Transaction::TYPE_DEPRECIATION,
         ], true);
 
         if ($senderId && $trackSender) {
@@ -245,7 +255,7 @@ class RecalculateAggregation extends Command
     {
         $key = "{$id}.{$date}";
         if (! isset($this->dailies[$key])) {
-            $this->dailies[$key] = ['buy' => 0, 'sell' => 0, 'return' => 0, 'return_supplier' => 0, 'move' => 0, 'transfer' => 0, 'adjust' => 0, 'use' => 0];
+            $this->dailies[$key] = ['buy' => 0, 'sell' => 0, 'return' => 0, 'return_supplier' => 0, 'move' => 0, 'transfer' => 0, 'adjust' => 0, 'use' => 0, 'depreciation' => 0];
         }
         $this->dailies[$key][$col] += $amt;
     }

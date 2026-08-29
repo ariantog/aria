@@ -77,6 +77,9 @@
     if ($hasPerm('assetLancar-list') || $isSuperAdmin) {
         $stuffNavLabels[] = 'Asset Lancar';
     }
+    if ($hasPerm('assetTetap-list') || $isSuperAdmin) {
+        $stuffNavLabels[] = 'Asset Tetap';
+    }
     if ($hasPerm('stuff-group-list') || $isSuperAdmin) {
         $stuffNavLabels[] = 'Group';
     }
@@ -121,6 +124,9 @@
     }
     if ($hasPerm('report-expense') || $isSuperAdmin) {
         $reportNavLabels[] = 'Laporan Biaya';
+    }
+    if ($hasPerm('report-asset-tetap') || $isSuperAdmin) {
+        $reportNavLabels[] = 'Nilai Buku Asset Tetap';
     }
     if ($hasPerm('report-tax-ppn') || $isSuperAdmin) {
         $reportNavLabels[] = 'Laporan PPN';
@@ -349,9 +355,9 @@
 @endif
 
 {{-- ── Stuff (Items, etc.) ───────────────────────────────────────────── --}}
-@if($hasPerm('items-list') || $hasPerm('assetLancar-list') || $hasPerm('stuff-group-list') || $hasPerm('stuff-tag-list') || $hasPerm('restock-list') || $hasPerm('items-convert-legacy') || $hasPerm('stock-notification-list') || $isSuperAdmin)
+@if($hasPerm('items-list') || $hasPerm('assetLancar-list') || $hasPerm('assetTetap-list') || $hasPerm('stuff-group-list') || $hasPerm('stuff-tag-list') || $hasPerm('restock-list') || $hasPerm('items-convert-legacy') || $hasPerm('stock-notification-list') || $isSuperAdmin)
 @php
-    $stuffActive = $isActive('/items') || $isActive('/assetlancar') || $isActive('/tags') || $isActive('/restock')
+    $stuffActive = $isActive('/items') || $isActive('/assetlancar') || $isActive('/assettetap') || $isActive('/tags') || $isActive('/restock')
         || $isActive('/stock-notifications');
 @endphp
 <div x-data="{ open: {{ $stuffActive ? 'true' : 'false' }} }"
@@ -371,6 +377,9 @@
         @endif
         @if($hasPerm('assetLancar-list') || $isSuperAdmin)
         <a href="{{ route('assetlancar.index') }}" x-show="navLinkVisible('Asset Lancar', 'Stuff')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/assetlancar') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Asset Lancar</a>
+        @endif
+        @if($hasPerm('assetTetap-list') || $isSuperAdmin)
+        <a href="{{ route('assettetap.index') }}" x-show="navLinkVisible('Asset Tetap', 'Stuff')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/assettetap') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Asset Tetap</a>
         @endif
         @if($hasPerm('stuff-group-list') || $isSuperAdmin)
         <a href="{{ route('items.group') }}" x-show="navLinkVisible('Group', 'Stuff')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/items-group') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Group</a>
@@ -405,6 +414,7 @@
     || $hasPerm('report-nett-cash')
     || $hasPerm('report-cash-flow')
     || $hasPerm('report-expense')
+    || $hasPerm('report-asset-tetap')
     || $hasPerm('report-tax-ppn')
     || $hasPerm('report-tax-faktur')
     || $hasPerm('report-tax-faktur-import')
@@ -423,6 +433,7 @@
         || $isActive('/reports/nett-cash-sby')
         || $isActive('/reports/cash-flow')
         || $isActive('/reports/expense')
+        || $isActive('/reports/asset-tetap')
         || $isActive('/reports/tax/ppn')
         || $isActive('/reports/tax/faktur')
         || $isActive('/reports/produksi-potong')
@@ -463,7 +474,7 @@
         <a href="{{ route('reports.inventory-health') }}" x-show="navLinkVisible('Inventory Health', 'Reports')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/inventory-health') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Inventory Health</a>
         @endif
 
-        @if($hasPerm('report-nett-cash') || $hasPerm('report-cash-flow') || $hasPerm('report-expense') || $isSuperAdmin)
+        @if($hasPerm('report-nett-cash') || $hasPerm('report-cash-flow') || $hasPerm('report-expense') || $hasPerm('report-asset-tetap') || $isSuperAdmin)
         <p class="px-2.5 pt-2 pb-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-400">Finance</p>
         @endif
         @if($hasPerm('report-nett-cash') || $isSuperAdmin)
@@ -474,6 +485,9 @@
         @endif
         @if($hasPerm('report-expense') || $isSuperAdmin)
         <a href="{{ route('reports.expense') }}" x-show="navLinkVisible('Laporan Biaya', 'Reports')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/expense') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Laporan Biaya</a>
+        @endif
+        @if($hasPerm('report-asset-tetap') || $isSuperAdmin)
+        <a href="{{ route('reports.asset-tetap') }}" x-show="navLinkVisible('Nilai Buku Asset Tetap', 'Reports')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/asset-tetap') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Nilai Buku Asset Tetap</a>
         @endif
 
         @if($hasPerm('report-tax-ppn') || $hasPerm('report-tax-faktur') || $hasPerm('report-tax-faktur-import') || $isSuperAdmin)

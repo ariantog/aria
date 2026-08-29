@@ -209,6 +209,18 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::get('assetlancar/{item}/stats', [App\Http\Controllers\ItemsController::class, 'itemStats'])->name('assetlancar.stats');
     Route::post('assetlancar/{item}/convert-identity', [App\Http\Controllers\ItemIdentityConvertController::class, 'store'])->name('assetlancar.convert-identity');
 
+    Route::get('assettetap', [App\Http\Controllers\AssetTetapController::class, 'index'])->name('assettetap.index');
+    Route::get('assettetap/create', [App\Http\Controllers\AssetTetapController::class, 'create'])->name('assettetap.create');
+    Route::post('assettetap', [App\Http\Controllers\AssetTetapController::class, 'store'])->name('assettetap.store');
+    Route::get('assettetap/depreciate', [App\Http\Controllers\AssetTetapController::class, 'depreciate'])->name('assettetap.depreciate');
+    Route::post('assettetap/depreciate', [App\Http\Controllers\AssetTetapController::class, 'storeDepreciate'])->middleware('prevent.duplicate')->name('assettetap.depreciate.store');
+    Route::get('assettetap/{item}', [App\Http\Controllers\AssetTetapController::class, 'show'])->name('assettetap.show');
+    Route::get('assettetap/{item}/edit', [App\Http\Controllers\AssetTetapController::class, 'edit'])->name('assettetap.edit');
+    Route::put('assettetap/{item}', [App\Http\Controllers\AssetTetapController::class, 'update'])->name('assettetap.update');
+    Route::delete('assettetap/{item}', [App\Http\Controllers\AssetTetapController::class, 'destroy'])->name('assettetap.destroy');
+    Route::get('assettetap/{item}/buy', [App\Http\Controllers\AssetTetapController::class, 'buy'])->name('assettetap.buy');
+    Route::post('assettetap/{item}/buy', [App\Http\Controllers\AssetTetapController::class, 'storeBuy'])->middleware('prevent.duplicate')->name('assettetap.buy.store');
+
     // Item Group Routes
     Route::get('items-group', [App\Http\Controllers\ItemsController::class, 'group'])->name('items.group');
     Route::get('items-group/parent/{parentSlug}', [App\Http\Controllers\ItemsController::class, 'groupParentDetail'])->name('items.group-parent-detail');
@@ -345,6 +357,7 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
         Route::get('/nett-cash-sby', \App\Http\Controllers\Reports\NettCashController::class)->name('nett-cash-sby');
         Route::get('/purchase', \App\Http\Controllers\Reports\PurchaseReportController::class)->name('purchase');
         Route::get('/expense', \App\Http\Controllers\Reports\ExpenseReportController::class)->name('expense');
+        Route::get('/asset-tetap', \App\Http\Controllers\Reports\AssetTetapReportController::class)->name('asset-tetap');
         Route::get('/warehouse-item', [\App\Http\Controllers\Reports\WarehouseItemReportController::class, 'index'])->name('warehouse-item');
         Route::get('/cash-flow', \App\Http\Controllers\CashFlowController::class)->name('cash-flow');
         Route::get('/compare', [\App\Http\Controllers\Reports\CompareReportController::class, 'index'])->name('compare');

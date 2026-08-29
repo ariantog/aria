@@ -217,9 +217,10 @@ class LegacyAclMapper
     private function mapAssetTetap(string $action): array
     {
         return match ($action) {
-            'index', 'detail', 'transactions' => ['items-list'],
-            'create' => ['items-create'],
-            'edit' => ['items-edit'],
+            'index', 'detail', 'transactions' => ['assetTetap-list'],
+            'create' => ['assetTetap-create'],
+            'edit' => ['assetTetap-edit'],
+            'delete' => ['assetTetap-delete'],
             default => [],
         };
     }
