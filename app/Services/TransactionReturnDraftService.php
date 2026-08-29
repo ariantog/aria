@@ -63,6 +63,7 @@ class TransactionReturnDraftService
                 'discount' => (float) $detail->discount,
                 'subtotal' => (float) $detail->total,
                 'note' => $detail->notes ?? '',
+                'jubelio_item_id' => (int) ($item->jubelio_item_id ?? 0),
                 'warehouse_item' => $item->warehouseItems->map(fn ($wi) => [
                     'warehouse_id' => (string) $wi->warehouse_id,
                     'quantity' => (float) $wi->quantity,

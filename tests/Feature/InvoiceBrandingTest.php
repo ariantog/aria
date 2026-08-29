@@ -74,18 +74,15 @@ it('falls back to sender name and address when description is empty', function (
     expect($branding['phone'])->toBe('08199887766');
 });
 
-it('renders fixed thermal receipt header regardless of sender branding', function () {
-    $sender = Addrbook::factory()->warehouse()->create([
-        'description' => "Receipt Store\nJl. Receipt 99",
-        'phone' => '08123456789',
-    ]);
+it('generates the receipt pdf for print pos', function () {
+    $sender = Addrbook::factory()->warehouse()->create(['name' => 'Receipt Store']);
     $receiver = Addrbook::factory()->customer()->create();
     $transaction = Transaction::factory()->create([
         'invoice' => 'RCP-BRAND',
         'sender_id' => $sender->id,
         'receiver_id' => $receiver->id,
     ]);
-    $item = Item::factory()->create(['name' => 'Branded Shirt']);
+    $item = Item::factory()->create(['name' => 'Branded Shirt', 'code' => 'AJDCA2302510L']);
     TransactionDetail::factory()->create([
         'transaction_id' => $transaction->id,
         'item_id' => $item->id,
@@ -94,15 +91,15 @@ it('renders fixed thermal receipt header regardless of sender branding', functio
         'total' => 50_000,
     ]);
 
+    $service = app(TransactionInvoiceService::class);
+    $fileName = $service->receiptFileName($transaction);
+
     $this->actingAs($this->user)
         ->get(route('transactions.receipt', $transaction))
         ->assertOk()
-        ->assertSee('CORENATION', false)
-        ->assertSee('CILANDAK TOWN SQUARE', false)
-        ->assertSee('FX SUDIRMAN', false)
-        ->assertSee('MAGGIORE GRANDE', false)
-        ->assertDontSee('Receipt Store', false)
-        ->assertDontSee('08123456789', false);
+        ->assertHeader('content-type', 'application/pdf');
+
+    expect(File::exists($service->invoiceDiskPath($fileName)))->toBeTrue();
 });
 
 it('renders sender branding on print pages', function () {

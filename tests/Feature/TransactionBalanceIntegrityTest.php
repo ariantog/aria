@@ -265,6 +265,37 @@ describe('back-dated insert recalculates later running balances', function () {
 });
 
 describe('edit and delete integrity', function () {
+    function seedPostedBuy(
+        TransactionService $service,
+        Addrbook $supplier,
+        Addrbook $warehouse,
+        Item $item,
+        string $date,
+        int $qty,
+        int $price,
+    ): Transaction {
+        $transaction = Transaction::factory()->create([
+            'type' => Transaction::TYPE_BUY,
+            'date' => $date,
+            'sender_id' => $supplier->id,
+            'sender_type' => $supplier->type,
+            'receiver_id' => $warehouse->id,
+            'receiver_type' => $warehouse->type,
+            'total' => $qty * $price,
+            'real_total' => $qty * $price,
+        ]);
+        \App\Models\TransactionDetail::factory()->create([
+            'transaction_id' => $transaction->id,
+            'item_id' => $item->id,
+            'quantity' => $qty,
+            'price' => $price,
+            'total' => $qty * $price,
+        ]);
+        $service->handleTransaction($transaction);
+
+        return $transaction;
+    }
+
     it('reposts edited totals and recalculates later running balances', function () {
         $service = app(TransactionService::class);
         $supplier = Addrbook::factory()->create(['type' => Addrbook::TYPE_SUPPLIER]);
@@ -324,6 +355,115 @@ describe('edit and delete integrity', function () {
             ->and((float) $tx2->fresh()->sender_balance)->toBe(125000.0)
             ->and((float) AddrbookStat::where('customer_id', $supplier->id)->value('balance'))->toBe(125000.0)
             ->and((float) WarehouseItem::where('warehouse_id', $warehouse->id)->where('item_id', $item->id)->value('quantity'))->toBe(25.0);
+    });
+
+    it('moving an August transaction earlier reorders later running balances', function () {
+        Carbon::setTestNow('2026-08-27');
+
+        $service = app(TransactionService::class);
+        $supplier = Addrbook::factory()->create(['type' => Addrbook::TYPE_SUPPLIER]);
+        $warehouse = Addrbook::factory()->create(['type' => Addrbook::TYPE_WAREHOUSE]);
+        $item = Item::factory()->create(['qty' => 0]);
+
+        $aug10 = seedPostedBuy($service, $supplier, $warehouse, $item, '2026-08-10', 10, 5000);
+        $aug20 = seedPostedBuy($service, $supplier, $warehouse, $item, '2026-08-20', 5, 2000);
+
+        expect((float) $aug10->fresh()->sender_balance)->toBe(50000.0)
+            ->and((float) $aug20->fresh()->sender_balance)->toBe(60000.0);
+
+        $service->editTransaction($aug20, function (Transaction $transaction) {
+            $transaction->update(['date' => '2026-08-05']);
+        });
+
+        expect((float) $aug20->fresh()->sender_balance)->toBe(10000.0)
+            ->and((float) $aug10->fresh()->sender_balance)->toBe(60000.0)
+            ->and((float) AddrbookStat::where('customer_id', $supplier->id)->value('balance'))->toBe(60000.0);
+    });
+
+    it('moving an August transaction later shifts intermediate running balances', function () {
+        Carbon::setTestNow('2026-08-27');
+
+        $service = app(TransactionService::class);
+        $supplier = Addrbook::factory()->create(['type' => Addrbook::TYPE_SUPPLIER]);
+        $warehouse = Addrbook::factory()->create(['type' => Addrbook::TYPE_WAREHOUSE]);
+        $item = Item::factory()->create(['qty' => 0]);
+
+        $aug1 = seedPostedBuy($service, $supplier, $warehouse, $item, '2026-08-01', 10, 5000);
+        $aug10 = seedPostedBuy($service, $supplier, $warehouse, $item, '2026-08-10', 2, 5000);
+        $aug20 = seedPostedBuy($service, $supplier, $warehouse, $item, '2026-08-20', 1, 5000);
+
+        expect((float) $aug1->fresh()->sender_balance)->toBe(50000.0)
+            ->and((float) $aug10->fresh()->sender_balance)->toBe(60000.0)
+            ->and((float) $aug20->fresh()->sender_balance)->toBe(65000.0);
+
+        $service->editTransaction($aug10, function (Transaction $transaction) {
+            $transaction->update(['date' => '2026-08-25']);
+        });
+
+        expect((float) $aug1->fresh()->sender_balance)->toBe(50000.0)
+            ->and((float) $aug20->fresh()->sender_balance)->toBe(55000.0)
+            ->and((float) $aug10->fresh()->sender_balance)->toBe(65000.0)
+            ->and((float) AddrbookStat::where('customer_id', $supplier->id)->value('balance'))->toBe(65000.0);
+    });
+
+    it('editing date and amount on an August row matches back-dated insert totals', function () {
+        Carbon::setTestNow('2026-08-27');
+
+        $service = app(TransactionService::class);
+        $supplier = Addrbook::factory()->create(['type' => Addrbook::TYPE_SUPPLIER]);
+        $warehouse = Addrbook::factory()->create(['type' => Addrbook::TYPE_WAREHOUSE]);
+        $item = Item::factory()->create(['qty' => 0]);
+
+        $aug10 = seedPostedBuy($service, $supplier, $warehouse, $item, '2026-08-10', 10, 5000);
+        $aug20 = seedPostedBuy($service, $supplier, $warehouse, $item, '2026-08-20', 5, 2000);
+
+        expect((float) $aug10->fresh()->sender_balance)->toBe(50000.0)
+            ->and((float) $aug20->fresh()->sender_balance)->toBe(60000.0);
+
+        $service->editTransaction($aug10, function (Transaction $transaction) {
+            $transaction->update([
+                'date' => '2026-08-01',
+                'total' => 100000,
+                'real_total' => 100000,
+            ]);
+            $transaction->details()->update([
+                'quantity' => 20,
+                'total' => 100000,
+            ]);
+        });
+
+        expect((float) $aug10->fresh()->sender_balance)->toBe(100000.0)
+            ->and((float) $aug20->fresh()->sender_balance)->toBe(110000.0)
+            ->and((float) AddrbookStat::where('customer_id', $supplier->id)->value('balance'))->toBe(110000.0);
+    });
+
+    it('changing the supplier party recalculates both old and new running balances', function () {
+        Carbon::setTestNow('2026-08-27');
+
+        $service = app(TransactionService::class);
+        $supplierA = Addrbook::factory()->create(['type' => Addrbook::TYPE_SUPPLIER]);
+        $supplierB = Addrbook::factory()->create(['type' => Addrbook::TYPE_SUPPLIER]);
+        $warehouse = Addrbook::factory()->create(['type' => Addrbook::TYPE_WAREHOUSE]);
+        $item = Item::factory()->create(['qty' => 0]);
+
+        $aug1 = seedPostedBuy($service, $supplierA, $warehouse, $item, '2026-08-01', 10, 5000);
+        $aug10 = seedPostedBuy($service, $supplierA, $warehouse, $item, '2026-08-10', 2, 5000);
+
+        expect((float) $aug1->fresh()->sender_balance)->toBe(50000.0)
+            ->and((float) $aug10->fresh()->sender_balance)->toBe(60000.0)
+            ->and((float) AddrbookStat::where('customer_id', $supplierB->id)->value('balance'))->toBe(0.0);
+
+        $service->editTransaction($aug10, function (Transaction $transaction) use ($supplierB) {
+            $transaction->update([
+                'sender_id' => $supplierB->id,
+                'sender_type' => $supplierB->type,
+            ]);
+        });
+
+        expect((float) $aug1->fresh()->sender_balance)->toBe(50000.0)
+            ->and((float) $aug10->fresh()->sender_balance)->toBe(10000.0)
+            ->and((float) AddrbookStat::where('customer_id', $supplierA->id)->value('balance'))->toBe(50000.0)
+            ->and((float) AddrbookStat::where('customer_id', $supplierB->id)->value('balance'))->toBe(10000.0);
     });
 
     it('rejects deleting a transaction inside a closed book period', function () {
@@ -418,11 +558,7 @@ describe('jubelio sync ui', function () {
         expect($presented['can_sync'])->toBeTrue()
             ->and($presented['sync_cek'])->toBe('S');
 
-        $showUi = config('services.jubelio.active')
-            && $presented['can_sync']
-            && $presented['sync_cek'];
-
-        expect($showUi)->toBeFalse();
+        expect(app(JubelioTransactionSyncPresenter::class)->showSyncUi($presented))->toBeFalse();
 
         $response = $this->get(route('transactions.show', $transaction));
         $response->assertSuccessful();

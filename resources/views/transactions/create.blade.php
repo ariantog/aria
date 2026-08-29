@@ -223,6 +223,13 @@
                     <button type="button" @click="barcodeError = ''" class="text-amber-600 hover:text-amber-800">✕</button>
                 </div>
 
+                {{-- Jubelio item-link warning (informational only; does not block submit) --}}
+                <div x-show="hasJubelioUnlinkedWarning()" x-cloak data-testid="jubelio-unlinked-warning"
+                     class="mx-5 mt-4 flex items-start justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                    <span x-text="jubelioUnlinkedMessage()"></span>
+                    <button type="button" @click="dismissJubelioWarning = true" class="shrink-0 text-amber-600 hover:text-amber-800">✕</button>
+                </div>
+
                 {{-- Table header --}}
                 <div class="hidden grid-cols-12 gap-2 border-b bg-gray-50 px-5 py-2.5 text-[10px] font-medium uppercase tracking-wide text-gray-500 sm:grid">
                     <div class="col-span-2">Code / Barcode</div>
@@ -286,6 +293,11 @@
                                         </div>
                                     </template>
                                 </div>
+                                <p x-show="item.jubelio_unlinked_warning" x-cloak
+                                   class="mt-1 text-[10px] font-medium text-amber-700"
+                                   data-testid="jubelio-unlinked-row-hint">
+                                    Belum terhubung ke Jubelio
+                                </p>
                             </div>
                             {{-- Qty --}}
                             <div class="sm:col-span-1">
@@ -457,6 +469,7 @@ const _PriceSource = @json($config['price_source'] ?? 'price');
 const _Prefill = @json($prefill ?? null);
 const _ItemLookupUrl = @json(route('transactions.item-by-id', ['type' => $type]));
 const _ItemLookupByCodeUrl = @json(route('transactions.item-by-code', ['type' => $type]));
+const _JubelioSync = @json($jubelio_sync ?? ['synced_warehouse_ids' => []]);
 const _AfterQtyField = @js($isMove ? 'price' : 'disc');
 const _BarcodeScannerLibUrl = 'https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.5/umd/zxing-browser.min.js';
 
@@ -497,6 +510,7 @@ function createTransaction() {
         errors: {},
         serverErrors: [],
         barcodeError: '',
+        dismissJubelioWarning: false,
         scannerOpen: false,
         scannerIdx: null,
         scannerLoading: false,
@@ -558,6 +572,8 @@ function createTransaction() {
                     row.warehouse_stock = this.stockFor(row) || Number(ci.warehouse_stock || 0);
                     row.note = ci.note || '';
                     row.subtotal = gross - (gross * row.discount / 100);
+                    row.jubelio_item_id = Number(ci.jubelio_item_id ?? 0);
+                    this.refreshRowJubelioWarning(row);
                     this.form.items.push(row);
                 });
                 this.recalcTotals();
@@ -567,8 +583,8 @@ function createTransaction() {
                 this.addItemRow(false);
             }
             // The warehouse side can change after items are added → refresh their stock.
-            this.$watch('form.sender_id', () => this.refreshStocks());
-            this.$watch('form.receiver_id', () => this.refreshStocks());
+            this.$watch('form.sender_id', () => { this.refreshStocks(); this.refreshJubelioWarnings(); });
+            this.$watch('form.receiver_id', () => { this.refreshStocks(); this.refreshJubelioWarnings(); });
             // PPN depends on the counterparty's ppn flag.
             this.$watch('form.sender', () => this.recalcTotals());
             this.$watch('form.receiver', () => this.recalcTotals());
@@ -609,6 +625,7 @@ function createTransaction() {
                 item_id: '', code: '', name: '',
                 quantity: 1, price: 0, discount: 0,
                 warehouse_stock: null, warehouse_item: [],
+                jubelio_item_id: 0, jubelio_unlinked_warning: false,
                 subtotal: 0, note: '',
                 results: [], showDropdown: false, activeIndex: -1, searchTimer: null,
             };
@@ -656,9 +673,66 @@ function createTransaction() {
             row.warehouse_item = this.warehouseItemsFrom(source);
             if (!row.quantity || row.quantity < 0.01) row.quantity = 1;
             row.warehouse_stock = this.stockFor(row);
+            row.jubelio_item_id = Number(source.jubelio_item_id ?? 0);
+            this.refreshRowJubelioWarning(row);
             row.results = [];
             row.showDropdown = false;
             row.activeIndex = -1;
+        },
+
+        jubelioWarehouseMapped() {
+            const synced = new Set((_JubelioSync.synced_warehouse_ids || []).map(id => Number(id)));
+            const mapped = (id) => {
+                const n = Number(id);
+
+                return n > 0 && synced.has(n);
+            };
+
+            if (_TxType === 'move') {
+                return mapped(this.form.sender_id) || mapped(this.form.receiver_id);
+            }
+            if (_TxType === 'sell' || _TxType === 'return-supplier') {
+                return mapped(this.form.sender_id);
+            }
+            if (_TxType === 'buy' || _TxType === 'return') {
+                return mapped(this.form.receiver_id);
+            }
+
+            return false;
+        },
+
+        itemJubelioLinked(source) {
+            const id = Number(source?.jubelio_item_id ?? 0);
+
+            return id > 0;
+        },
+
+        refreshRowJubelioWarning(row) {
+            row.jubelio_unlinked_warning = this.jubelioWarehouseMapped()
+                && !!row.item_id
+                && !this.itemJubelioLinked(row);
+            if (row.jubelio_unlinked_warning) this.dismissJubelioWarning = false;
+        },
+
+        refreshJubelioWarnings() {
+            this.form.items.forEach(row => this.refreshRowJubelioWarning(row));
+        },
+
+        jubelioUnlinkedCount() {
+            return this.form.items.filter(row => row.jubelio_unlinked_warning).length;
+        },
+
+        hasJubelioUnlinkedWarning() {
+            return !this.dismissJubelioWarning && this.jubelioUnlinkedCount() > 0;
+        },
+
+        jubelioUnlinkedMessage() {
+            const n = this.jubelioUnlinkedCount();
+            if (n === 1) {
+                return '1 item belum terhubung ke Jubelio. Transaksi tetap bisa disimpan, tetapi sinkron stok ke Jubelio membutuhkan penghubungan item terlebih dahulu.';
+            }
+
+            return n + ' item belum terhubung ke Jubelio. Transaksi tetap bisa disimpan, tetapi sinkron stok ke Jubelio membutuhkan penghubungan item terlebih dahulu.';
         },
 
         async fetchJson(url) {
@@ -860,6 +934,8 @@ function createTransaction() {
             // Ignore programmatic x-model updates (e.g. after barcode fill).
             if (e && !e.isTrusted) return;
             row.item_id = '';
+            row.jubelio_item_id = 0;
+            row.jubelio_unlinked_warning = false;
             const q = String(row.name || '').trim();
             clearTimeout(row.searchTimer);
             if (!q || q.length < COMBOBOX_MIN_CHARS) { row.results = []; row.showDropdown = false; return; }
@@ -1124,6 +1200,8 @@ function createTransaction() {
                     row.warehouse_stock = this.stockFor(row) || Number(ci.warehouse_stock || 0);
                     row.note = ci.note || '';
                     row.subtotal = gross - (gross * row.discount / 100);
+                    row.jubelio_item_id = Number(ci.jubelio_item_id ?? 0);
+                    this.refreshRowJubelioWarning(row);
                     this.form.items.push(row);
                 });
                 if (this.form.items.length === 0) this.addItemRow(false);

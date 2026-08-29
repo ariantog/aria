@@ -74,7 +74,7 @@ class TransactionsController extends Controller
         return $exportService->download($rows, $hideBank);
     }
 
-    public function create(string $type, Request $request, BookClosingService $bookClosingService, TransactionReturnDraftService $draftService, UserPreferenceService $userPreferences)
+    public function create(string $type, Request $request, BookClosingService $bookClosingService, TransactionReturnDraftService $draftService, UserPreferenceService $userPreferences, JubelioTransactionSyncPresenter $jubelioSyncPresenter)
     {
         Transaction::authorizeTypeAccess($type);
         $config = config("transaction_rules.{$type}");
@@ -103,6 +103,7 @@ class TransactionsController extends Controller
             'ppn_rate' => (float) \App\Models\Setting::getValue('ppn_rate', 11),
             'min_date' => $bookClosingService->getMinAllowedDate()->toDateString(),
             'prefill' => $this->resolveCreatePrefill($type, $request, $draftService, $userPreferences),
+            'jubelio_sync' => $jubelioSyncPresenter->createFormSyncConfig(),
         ]);
     }
 
@@ -161,6 +162,7 @@ class TransactionsController extends Controller
             'type' => $item->type->value,
             'price' => (float) $item->price,
             'cost' => (float) $item->cost,
+            'jubelio_item_id' => (int) ($item->jubelio_item_id ?? 0),
             'warehouse_item' => $item->warehouseItems->map(fn ($wi) => [
                 'warehouse_id' => (string) $wi->warehouse_id,
                 'quantity' => (float) $wi->quantity,
@@ -285,10 +287,7 @@ class TransactionsController extends Controller
             return 'Contact';
         };
         $jubelioSync = $jubelioSyncPresenter->applyToTransaction($transaction);
-        $jubelioSync['show_ui'] = config('services.jubelio.active')
-            && $jubelioSync['can_sync']
-            && (bool) $jubelioSync['sync_cek']
-            && Transaction::userCanJubelioTransactionSync(Auth::user());
+        $jubelioSync['show_ui'] = $jubelioSyncPresenter->showSyncUi($jubelioSync, Auth::user());
         $invoiceService = app(TransactionInvoiceService::class);
         $canDraftReturn = $this->canDraftReturn($transaction);
         $cashBankId = match ((int) $transaction->type) {
@@ -352,23 +351,29 @@ class TransactionsController extends Controller
         ]);
     }
 
-    public function storePdf(Transaction $transaction, TransactionInvoiceService $invoiceService)
+    public function storePdf(Request $request, Transaction $transaction, TransactionInvoiceService $invoiceService)
     {
         $this->authorizeTransactionView($transaction);
         $existed = $invoiceService->invoicePdfExists($transaction);
-        $invoiceService->createInvoicePdf($transaction, regenerate: true);
+        $itemView = \App\Support\TransactionItemViewOptions::fromRequest($request);
+        $invoiceService->createInvoicePdf($transaction, regenerate: true, itemView: $itemView);
 
         return redirect()
             ->route('transactions.show', $transaction)
             ->with('success', $existed ? 'Invoice PDF regenerated.' : 'Invoice PDF saved.');
     }
 
-    public function receipt(Transaction $transaction)
+    public function receipt(Transaction $transaction, TransactionInvoiceService $invoiceService)
     {
         $this->authorizeTransactionView($transaction);
-        $transaction->load(['details.item.group', 'sender', 'receiver']);
+        $invoiceService->createReceiptPdf($transaction);
+        $fileName = $invoiceService->receiptFileName($transaction);
+        $filePath = $invoiceService->invoiceDiskPath($fileName);
 
-        return view('transactions.receipt', compact('transaction'));
+        return response()->file($filePath, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="'.$fileName.'"',
+        ]);
     }
 
     public function printInvoice(Request $request, Transaction $transaction, \App\Services\InvoiceBrandingService $brandingService)
@@ -377,9 +382,9 @@ class TransactionsController extends Controller
         $transaction->load(['details.item.group', 'sender', 'receiver']);
         $typeLabel = $transaction->getTypeLabel();
         $branding = $brandingService->forTransaction($transaction);
-        $viewColumns = \App\Support\TransactionItemViewColumns::fromRequest($request);
+        $itemView = \App\Support\TransactionItemViewOptions::fromRequest($request);
 
-        return view('transactions.print', compact('transaction', 'typeLabel', 'branding', 'viewColumns'));
+        return view('transactions.print', compact('transaction', 'typeLabel', 'branding', 'itemView'));
     }
 
     public function sendWhatsapp(Request $request, Transaction $transaction, TransactionInvoiceService $invoiceService)
@@ -461,6 +466,7 @@ class TransactionsController extends Controller
                     'item_id' => (string) $item->id,
                     'code' => $item->code,
                     'name' => $item->name,
+                    'jubelio_item_id' => (int) ($item->jubelio_item_id ?? 0),
                     'quantity' => (float) $row['qty'],
                     'warehouse_stock' => $whQty,
                     'warehouse_item' => $warehouseItem,

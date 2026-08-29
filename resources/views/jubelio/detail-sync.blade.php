@@ -68,6 +68,14 @@ $mappingMissing = $data->item_with_jubelio_count > 0;
             <p class="text-sm opacity-80">Transaksi ini dikirimkan secara otomatis oleh sistem (Cron/Jubelio). Sinkronisasi manual tidak diperlukan dan tidak dapat dilakukan untuk data ini.</p>
         </div>
     </div>
+    @elseif(!($show_ui ?? false))
+    <div class="flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 p-6 text-gray-700 shadow-sm">
+        <svg class="h-6 w-6 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        <div>
+            <h3 class="font-bold">Integrasi Jubelio Nonaktif</h3>
+            <p class="text-sm opacity-80">Push stok ke Jubelio dinonaktifkan saat <code class="rounded bg-gray-200 px-1">JUBELIO_ACTIVE=false</code>. Aktifkan integrasi di environment untuk menampilkan tombol sinkron.</p>
+        </div>
+    </div>
     @endif
 
     <div class="grid grid-cols-1 gap-6 md:grid-cols-3">
@@ -106,7 +114,7 @@ $mappingMissing = $data->item_with_jubelio_count > 0;
                 </div>
             </div>
 
-            @if($can_sync)
+            @if(($show_ui ?? false) && $can_sync)
             <div class="space-y-4">
                 @if($adJustTypeA > 0)
                 @include('jubelio.partials.sync-card', [

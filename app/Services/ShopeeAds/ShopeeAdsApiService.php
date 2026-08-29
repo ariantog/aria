@@ -599,12 +599,23 @@ class ShopeeAdsApiService
      */
     public function getItemAdsRoas(array $campaignIds): array
     {
+        return collect($this->getItemAdsDailyPerformance($campaignIds))
+            ->map(fn (array $row) => (float) ($row['roas'] ?? 0))
+            ->all();
+    }
+
+    /**
+     * @param  list<int|string>  $campaignIds
+     * @return array<string, array{roas: float, spend: float}>
+     */
+    public function getItemAdsDailyPerformance(array $campaignIds): array
+    {
         if ($campaignIds === []) {
             return [];
         }
 
         $today = $this->wibToday();
-        $roas = [];
+        $out = [];
         $ids = array_map('intval', $campaignIds);
 
         for ($i = 0; $i < count($ids); $i += 100) {
@@ -625,11 +636,14 @@ class ShopeeAdsApiService
             foreach ($response->json('response.campaign_list') ?? [] as $row) {
                 $cid = (string) ($row['campaign_id'] ?? '');
                 $rep = $row['report'] ?? $row;
-                $roas[$cid] = (float) ($rep['broad_roi'] ?? $rep['roas'] ?? 0);
+                $out[$cid] = [
+                    'roas' => (float) ($rep['broad_roi'] ?? $rep['roas'] ?? 0),
+                    'spend' => (float) ($rep['expense'] ?? $rep['spend'] ?? 0),
+                ];
             }
         }
 
-        return $roas;
+        return $out;
     }
 
     public function setItemAdBudget(string $campaignId, int $newBudget): bool
@@ -657,6 +671,30 @@ class ShopeeAdsApiService
                 'edit_action' => 'stop',
             ],
         );
+
+        return $response->successful();
+    }
+
+    /**
+     * Permanently remove an individual product ad from Shopee (edit_action=delete).
+     */
+    public function deleteItemAd(string $campaignId): bool
+    {
+        $response = $this->shopPost(
+            '/api/v2/ads/edit_manual_product_ads',
+            [
+                'reference_id' => $campaignId,
+                'campaign_id' => (int) $campaignId,
+                'edit_action' => 'delete',
+            ],
+        );
+
+        if (! $response->successful()) {
+            Log::warning('delete_manual_product_ad failed', [
+                'campaign_id' => $campaignId,
+                'body' => Str::limit($response->body(), 500),
+            ]);
+        }
 
         return $response->successful();
     }
@@ -689,7 +727,67 @@ class ShopeeAdsApiService
     }
 
     /**
-     * @return list<array{item_id: int, sku_tags: list<string>}>
+     * Per-item performance inside the GMV-Max campaign (read-only; used for candidate ranking).
+     *
+     * @return list<array{item_id: int, roas: float, expense: float, gmv: float, clicks: int, impression: int, orders: int}>
+     */
+    public function getGmsItemPerformance(int $daysBack = 7, int $limit = 100): array
+    {
+        [$start, $end] = $this->wibDateRange($daysBack);
+        $page = max(1, min($limit, 100));
+        $out = [];
+        $offset = 0;
+
+        while (true) {
+            $response = $this->shopPost('/api/v2/ads/get_gms_item_performance', [
+                'start_date' => $start,
+                'end_date' => $end,
+                'offset' => $offset,
+                'limit' => $page,
+            ]);
+
+            if (! $response->successful()) {
+                break;
+            }
+
+            $resp = $response->json('response');
+            if (! is_array($resp)) {
+                break;
+            }
+
+            foreach ($resp['result_list'] ?? [] as $it) {
+                if (! is_array($it)) {
+                    continue;
+                }
+
+                $rep = is_array($it['report'] ?? null) ? $it['report'] : [];
+                $out[] = [
+                    'item_id' => (int) ($it['item_id'] ?? 0),
+                    'roas' => (float) ($rep['broad_roi'] ?? $rep['roas'] ?? 0),
+                    'expense' => (float) ($rep['expense'] ?? 0),
+                    'gmv' => (float) ($rep['broad_gmv'] ?? $rep['gmv'] ?? 0),
+                    'clicks' => (int) ($rep['clicks'] ?? 0),
+                    'impression' => (int) ($rep['impression'] ?? 0),
+                    'orders' => (int) ($rep['broad_order'] ?? $rep['orders'] ?? 0),
+                ];
+            }
+
+            if (! ($resp['has_next_page'] ?? false) || $offset > 1000) {
+                break;
+            }
+
+            $offset += $page;
+        }
+
+        return collect($out)
+            ->filter(fn (array $row) => $row['item_id'] > 0)
+            ->sortByDesc('roas')
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return list<array{item_id: int, sku_tags: list<string>, item_status: list<string>, ongoing_ad_types: list<string>}>
      */
     public function getRecommendedItems(): array
     {
@@ -713,6 +811,8 @@ class ShopeeAdsApiService
                 return [
                     'item_id' => (int) ($it['item_id'] ?? 0),
                     'sku_tags' => array_map('strtolower', $it['sku_tag_list'] ?? []),
+                    'item_status' => array_map('strtolower', $it['item_status_list'] ?? []),
+                    'ongoing_ad_types' => array_map('strtolower', $it['ongoing_ad_type_list'] ?? []),
                 ];
             })
             ->filter(fn ($it) => $it['item_id'] > 0)

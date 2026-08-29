@@ -26,6 +26,11 @@ it('renders export sell page for authorized users', function () {
         ->assertSee('data-testid="export-sell-sender-combobox"', false)
         ->assertSee('data-testid="export-sell-receiver-combobox"', false)
         ->assertSee('data-testid="export-sell-item-combobox"', false)
+        ->assertSee('data-testid="toggle-export-sell-tx-adjustment"', false)
+        ->assertSee('data-testid="toggle-export-sell-tx-discount"', false)
+        ->assertSee('data-testid="toggle-export-sell-tx-total"', false)
+        ->assertSee('data-testid="toggle-export-sell-tx-description"', false)
+        ->assertSee('data-testid="export-sell-excel-link"', false)
         ->assertSee('showFilters: true', false);
 });
 
@@ -272,6 +277,171 @@ it('exports filtered sell lines to excel', function () {
     $response->assertOk();
     expect($response->headers->get('content-type'))
         ->toContain('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+});
+
+it('exports optional transaction header columns when requested', function () {
+    $transaction = Transaction::factory()->create([
+        'type' => Transaction::TYPE_SELL,
+        'invoice' => 'SELL-XLS-TX-COLS',
+        'adjustment' => 12_500,
+        'discount' => 5,
+        'total' => -1_000_000,
+        'description' => 'Header note for export',
+    ]);
+    TransactionDetail::factory()->create([
+        'transaction_id' => $transaction->id,
+        'transaction_type' => Transaction::TYPE_SELL,
+    ]);
+
+    $response = $this->actingAs($this->user)->get(route('transactions.export-sell.build', [
+        'invoice' => 'SELL-XLS-TX-COLS',
+        'show_tx_adjustment' => 1,
+        'show_tx_discount' => 1,
+        'show_tx_total' => 1,
+        'show_tx_description' => 1,
+    ]));
+
+    $response->assertOk();
+
+    $tmp = tempnam(sys_get_temp_dir(), 'export-sell-');
+    file_put_contents($tmp, $response->streamedContent());
+
+    $sheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($tmp)->getActiveSheet();
+    unlink($tmp);
+
+    expect($sheet->getCell('I1')->getValue())->toBe('Adjustment')
+        ->and($sheet->getCell('J1')->getValue())->toBe('Inv. Discount')
+        ->and($sheet->getCell('K1')->getValue())->toBe('Tx Total')
+        ->and($sheet->getCell('L1')->getValue())->toBe('Description')
+        ->and((float) $sheet->getCell('I2')->getValue())->toBe(12500.0)
+        ->and((float) $sheet->getCell('J2')->getValue())->toBe(5.0)
+        ->and((float) $sheet->getCell('K2')->getValue())->toBe(-1000000.0)
+        ->and($sheet->getCell('L2')->getValue())->toBe('Header note for export');
+});
+
+it('omits optional transaction header columns from excel by default', function () {
+    $transaction = Transaction::factory()->create([
+        'type' => Transaction::TYPE_SELL,
+        'invoice' => 'SELL-XLS-DEFAULT-COLS',
+        'description' => 'Should stay hidden',
+    ]);
+    TransactionDetail::factory()->create([
+        'transaction_id' => $transaction->id,
+        'transaction_type' => Transaction::TYPE_SELL,
+    ]);
+
+    $response = $this->actingAs($this->user)->get(route('transactions.export-sell.build', [
+        'invoice' => 'SELL-XLS-DEFAULT-COLS',
+    ]));
+
+    $response->assertOk();
+
+    $tmp = tempnam(sys_get_temp_dir(), 'export-sell-');
+    file_put_contents($tmp, $response->streamedContent());
+
+    $sheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($tmp)->getActiveSheet();
+    unlink($tmp);
+
+    expect($sheet->getCell('I1')->getValue())->toBe('Sender')
+        ->and($sheet->getCell('J1')->getValue())->toBe('Receiver');
+});
+
+it('orders export sell lines by date and transaction id ascending', function () {
+    $olderTx = Transaction::factory()->create([
+        'type' => Transaction::TYPE_SELL,
+        'invoice' => 'SELL-SORT-OLDER',
+        'date' => '2026-01-01',
+    ]);
+    $newerTx = Transaction::factory()->create([
+        'type' => Transaction::TYPE_SELL,
+        'invoice' => 'SELL-SORT-NEWER',
+        'date' => '2026-02-01',
+    ]);
+
+    TransactionDetail::factory()->create([
+        'transaction_id' => $newerTx->id,
+        'transaction_type' => Transaction::TYPE_SELL,
+        'date' => '2026-02-01',
+    ]);
+    TransactionDetail::factory()->create([
+        'transaction_id' => $olderTx->id,
+        'transaction_type' => Transaction::TYPE_SELL,
+        'date' => '2026-01-01',
+    ]);
+
+    $response = $this->actingAs($this->user)->get(route('transactions.export-sell.build', [
+        'type' => Transaction::TYPE_SELL,
+        'from' => '2026-01-01',
+        'to' => '2026-02-28',
+    ]));
+
+    $response->assertOk();
+
+    $tmp = tempnam(sys_get_temp_dir(), 'export-sell-');
+    file_put_contents($tmp, $response->streamedContent());
+
+    $sheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($tmp)->getActiveSheet();
+    unlink($tmp);
+
+    expect($sheet->getCell('C2')->getValue())->toBe('SELL-SORT-OLDER')
+        ->and($sheet->getCell('C3')->getValue())->toBe('SELL-SORT-NEWER');
+});
+
+it('blanks repeated transaction header columns on subsequent detail lines in excel', function () {
+    $itemA = Item::factory()->create(['code' => 'GROUP-ITEM-A']);
+    $itemB = Item::factory()->create(['code' => 'GROUP-ITEM-B']);
+
+    $transaction = Transaction::factory()->create([
+        'type' => Transaction::TYPE_SELL,
+        'invoice' => 'SELL-GROUPED-COLS',
+        'date' => '2026-03-10',
+        'adjustment' => 1_000,
+        'discount' => 7,
+        'total' => -500_000,
+        'description' => 'Grouped header note',
+    ]);
+
+    TransactionDetail::factory()->create([
+        'transaction_id' => $transaction->id,
+        'transaction_type' => Transaction::TYPE_SELL,
+        'item_id' => $itemA->id,
+        'date' => '2026-03-10',
+    ]);
+    TransactionDetail::factory()->create([
+        'transaction_id' => $transaction->id,
+        'transaction_type' => Transaction::TYPE_SELL,
+        'item_id' => $itemB->id,
+        'date' => '2026-03-10',
+    ]);
+
+    $response = $this->actingAs($this->user)->get(route('transactions.export-sell.build', [
+        'invoice' => 'SELL-GROUPED-COLS',
+        'show_tx_adjustment' => 1,
+        'show_tx_discount' => 1,
+        'show_tx_total' => 1,
+        'show_tx_description' => 1,
+    ]));
+
+    $response->assertOk();
+
+    $tmp = tempnam(sys_get_temp_dir(), 'export-sell-');
+    file_put_contents($tmp, $response->streamedContent());
+
+    $sheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($tmp)->getActiveSheet();
+    unlink($tmp);
+
+    expect($sheet->getCell('A2')->getValue())->toBe('10/03/2026')
+        ->and($sheet->getCell('E2')->getValue())->toBe('GROUP-ITEM-A')
+        ->and((float) $sheet->getCell('I2')->getValue())->toBe(1000.0)
+        ->and((float) $sheet->getCell('J2')->getValue())->toBe(7.0)
+        ->and((float) $sheet->getCell('K2')->getValue())->toBe(-500000.0)
+        ->and($sheet->getCell('L2')->getValue())->toBe('Grouped header note')
+        ->and($sheet->getCell('A3')->getValue())->toBeNull()
+        ->and($sheet->getCell('E3')->getValue())->toBe('GROUP-ITEM-B')
+        ->and($sheet->getCell('I3')->getValue())->toBeNull()
+        ->and($sheet->getCell('J3')->getValue())->toBeNull()
+        ->and($sheet->getCell('K3')->getValue())->toBeNull()
+        ->and($sheet->getCell('L3')->getValue())->toBeNull();
 });
 
 it('filters export sell lines by user location', function () {

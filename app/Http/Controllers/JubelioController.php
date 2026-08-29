@@ -77,6 +77,15 @@ class JubelioController extends Controller
     public function index(Request $request): View
     {
         Gate::authorize(Jubelio::getPermissions()['view']);
+
+        $resolver = app(JubelioOrderWarehouseResolver::class);
+        $mappedWarehouses = $resolver->mappedWarehousesForFilter();
+        $allowedWarehouseIds = $mappedWarehouses->pluck('id')->all();
+        $warehouseId = (int) $request->query('warehouse_id', 0);
+        if ($warehouseId > 0 && ! in_array($warehouseId, $allowedWarehouseIds, true)) {
+            $warehouseId = 0;
+        }
+
         $q = Jubelioorder::query()->with('user')->orderBy('updated_at', 'desc');
         if ($request->status == 'warning') {
             $q->where('status', 2)->where('error_type', 2);
@@ -86,23 +95,42 @@ class JubelioController extends Controller
             $q->where('status', 1)->where('error_type', 1);
         } elseif ($request->status == 'pending') {
             $q->where('status', 0);
-        } elseif (! $request->invoice) {
+        } elseif (! $request->invoice && $warehouseId <= 0) {
             $q->where('status', 0);
         }
         $q->when($request->invoice, fn ($q) => $q->where('invoice', 'like', '%'.$request->invoice.'%'));
+
+        if ($warehouseId > 0) {
+            $resolver->applyWarehouseFilter($q, $warehouseId);
+        }
+
         $stats = Jubelioorder::selectRaw('COUNT(CASE WHEN status=0 THEN 1 END) as pending, COUNT(CASE WHEN status=2 AND error_type=10 THEN 1 END) as success, COUNT(CASE WHEN status=2 AND error_type=2 THEN 1 END) as warning, COUNT(CASE WHEN status=1 AND error_type=1 THEN 1 END) as error')->first();
-        $resolver = app(JubelioOrderWarehouseResolver::class);
         $syncIndex = $resolver->syncIndex();
         $orders = $q->paginate(15)->withQueryString();
         $orders->getCollection()->transform(function (Jubelioorder $order) use ($resolver, $syncIndex) {
             $warehouses = $resolver->resolve($order, $syncIndex);
+            $payload = $order->payloadArray();
             $order->jubelio_warehouse = $warehouses['jubelio_warehouse'];
             $order->aria_warehouse = $warehouses['aria_warehouse'];
+            $order->aria_warehouse_url = $warehouses['aria_warehouse_url'];
+            $order->payload_store_id = (int) ($payload['store_id'] ?? 0);
+            $order->payload_location_id = (int) ($payload['location_id'] ?? 0);
 
             return $order;
         });
 
-        return view('jubelio.index', ['orders' => $orders, 'stats' => ['pending' => (int) $stats->pending, 'success' => (int) $stats->success, 'warning' => (int) $stats->warning, 'error' => (int) $stats->error], 'filters' => $request->only(['status', 'invoice']), 'flash' => ['success' => session('success'), 'error' => session('error') ?? session('errorMessage')]]);
+        return view('jubelio.index', [
+            'orders' => $orders,
+            'stats' => [
+                'pending' => (int) $stats->pending,
+                'success' => (int) $stats->success,
+                'warning' => (int) $stats->warning,
+                'error' => (int) $stats->error,
+            ],
+            'mappedWarehouses' => $mappedWarehouses,
+            'filters' => $request->only(['status', 'invoice', 'warehouse_id']),
+            'flash' => ['success' => session('success'), 'error' => session('error') ?? session('errorMessage')],
+        ]);
     }
 
     public function show(Jubelioorder $jubelio, JubelioOrderShowPresenter $presenter): View
@@ -129,6 +157,18 @@ class JubelioController extends Controller
         return response()->json([
             'payload' => $jubelio->payloadArray(),
         ]);
+    }
+
+    public function refreshPayload(Jubelioorder $jubelio, JubelioOrderWarehouseResolver $resolver): RedirectResponse
+    {
+        Gate::authorize(Jubelio::getPermissions()['view']);
+
+        $result = $resolver->refreshFromApi($jubelio);
+
+        return back()->with(
+            $result['success'] ? 'success' : 'error',
+            $result['message'],
+        );
     }
 
     public function processOrder(Jubelioorder $jubelio, ProcessJubelioOrder $processor): RedirectResponse
@@ -199,6 +239,12 @@ class JubelioController extends Controller
             return response()->json(['status' => 'ok', 'message' => 'Transaksi sell tidak ada.']);
         }
 
+        $sellTransaction = Transaction::where('type', Transaction::TYPE_SELL)
+            ->where('invoice', $dataApi['salesorder_no'])
+            ->first();
+
+        $warehouseId = (int) ($sellTransaction?->sender_id ?? 0);
+
         Jubelioorder::create([
             'jubelio_order_id' => $dataApi['return_id'],
             'source' => 1,
@@ -206,6 +252,9 @@ class JubelioController extends Controller
             'type' => 'RETURN',
             'order_status' => 'RETURN',
             'run_count' => 0,
+            'warehouse_id' => $warehouseId,
+            'jubelio_store_id' => 0,
+            'jubelio_location_id' => 0,
             'status' => 0,
         ]);
 
@@ -251,6 +300,16 @@ class JubelioController extends Controller
                 return response()->json(['status' => 'ok', 'message' => 'Invoice sudah ada']);
             }
 
+            $resolver = app(JubelioOrderWarehouseResolver::class);
+            $payload = $d;
+            if ((int) ($d['store_id'] ?? 0) <= 0 || (int) ($d['location_id'] ?? 0) <= 0) {
+                $apiPayload = app(JubelioService::class)->fetchSalesOrder((string) ($d['salesorder_id'] ?? ''));
+                if (is_array($apiPayload)) {
+                    $payload = array_merge($d, $apiPayload);
+                }
+            }
+            $warehouseColumns = $resolver->sellWarehouseColumnsFromPayload($payload);
+
             $order = Jubelioorder::create([
                 'jubelio_order_id' => $d['salesorder_id'],
                 'source' => 1,
@@ -258,6 +317,9 @@ class JubelioController extends Controller
                 'type' => 'SELL',
                 'order_status' => $d['status'],
                 'run_count' => 0,
+                'jubelio_store_id' => $warehouseColumns['jubelio_store_id'],
+                'jubelio_location_id' => $warehouseColumns['jubelio_location_id'],
+                'warehouse_id' => $warehouseColumns['warehouse_id'],
                 'status' => 0,
             ]);
 
@@ -383,6 +445,7 @@ class JubelioController extends Controller
         return view('jubelio.detail-sync', [
             'data' => $transaction,
             'can_sync' => $sync['can_sync'],
+            'show_ui' => $presenter->showSyncUi($sync),
             'JubelioA' => $sync['jubelio_a'],
             'JubelioB' => $sync['jubelio_b'],
             'adJustTypeA' => $sync['adjust_type_a'],

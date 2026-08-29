@@ -4,6 +4,7 @@ namespace App\Services\Jubelio;
 
 use App\Models\Jubeliosync;
 use App\Models\Transaction;
+use App\Models\User;
 use Illuminate\Support\Collection;
 
 class JubelioTransactionSyncPresenter
@@ -57,6 +58,21 @@ class JubelioTransactionSyncPresenter
     }
 
     /**
+     * Whether stock-sync push controls should render for this transaction.
+     *
+     * @param  array<string, mixed>  $presented
+     */
+    public function showSyncUi(array $presented, ?User $user = null): bool
+    {
+        $user ??= auth()->user();
+
+        return config('services.jubelio.active')
+            && ($presented['can_sync'] ?? false)
+            && (bool) ($presented['sync_cek'] ?? null)
+            && Transaction::userCanJubelioTransactionSync($user);
+    }
+
+    /**
      * @return Collection<int, Jubeliosync>
      */
     public function syncMap(): Collection
@@ -67,11 +83,21 @@ class JubelioTransactionSyncPresenter
     }
 
     /**
-     * @return list<int>
+     * Jubelio mapping hints for the transaction create form (item load warnings).
+     * Uses jubeliosyncs.warehouse_id only — no Jubelio API calls.
+     *
+     * @return array{synced_warehouse_ids: list<int>}
      */
-    public function syncedWarehouseIds(): array
+    public function createFormSyncConfig(): array
     {
-        return $this->syncMap()->keys()->all();
+        return [
+            'synced_warehouse_ids' => Jubeliosync::query()
+                ->pluck('warehouse_id')
+                ->map(fn ($id) => (int) $id)
+                ->unique()
+                ->values()
+                ->all(),
+        ];
     }
 
     /**

@@ -188,12 +188,17 @@ $fmt = fn ($v) => format_amount($v, 0);
         <section class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
             <div class="border-b-4 border-purple-300 bg-purple-50 px-6 py-4">
                 <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                    <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                        <h3 class="text-lg font-bold uppercase tracking-wide text-purple-900">{{ $color['code'] }}</h3>
-                        <span class="text-sm text-purple-700">{{ $color['name'] }}</span>
-                        @if($color['pcode'])
-                        <span class="font-mono text-xs text-purple-500">{{ $color['pcode'] }}</span>
+                    <div class="flex items-start gap-4">
+                        @if(!empty($color['image_url']))
+                        <img src="{{ $color['image_url'] }}" alt="{{ $color['name'] }}" class="h-16 w-16 shrink-0 rounded-lg border border-purple-200 bg-white object-cover">
                         @endif
+                        <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                            <h3 class="text-lg font-bold uppercase tracking-wide text-purple-900">{{ $color['code'] }}</h3>
+                            <span class="text-sm text-purple-700">{{ $color['name'] }}</span>
+                            @if($color['pcode'])
+                            <span class="font-mono text-xs text-purple-500">{{ $color['pcode'] }}</span>
+                            @endif
+                        </div>
                     </div>
                     <div class="min-w-[10rem] rounded-lg border border-purple-200 bg-white/80 px-3 py-2">
                         <p class="mb-1 text-[10px] font-semibold uppercase tracking-wide text-purple-700">Color total (Aria)</p>

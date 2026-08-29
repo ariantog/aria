@@ -44,4 +44,11 @@ class JubelioOrderPayloadService
     {
         return $this->fetch($order) ?? [];
     }
+
+    public function forget(?int $orderId): void
+    {
+        if ($orderId !== null) {
+            unset($this->cache[$orderId]);
+        }
+    }
 }

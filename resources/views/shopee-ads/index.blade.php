@@ -42,34 +42,93 @@ $saInnerCardWhite = 'space-y-3 rounded-lg border border-gray-200 bg-white p-4';
             </p>
         </div>
         @if($canEdit)
-        <div class="flex flex-wrap gap-2">
-            <form method="POST" action="{{ route('shopee-ads.toggle-pause') }}">
-                @csrf
-                @if($settings->isPaused())
-                <button type="submit" class="{{ $saBtnPrimary }}">Continue</button>
-                @else
-                <button type="submit" class="{{ $saBtnSecondary }}">Pause</button>
-                @endif
-            </form>
-            <form method="POST" action="{{ route('shopee-ads.sync-item-ads') }}">
-                @csrf
-                <button type="submit" class="{{ $saBtnSecondary }}">Sync Item Ads</button>
-            </form>
-            <form method="POST" action="{{ route('shopee-ads.replenish') }}">
-                @csrf
-                <button type="submit" class="{{ $saBtnSecondary }}">Replenish Item Ads</button>
-            </form>
-            <form method="POST" action="{{ route('shopee-ads.daily-reset') }}">
-                @csrf
-                <button type="submit" class="{{ $saBtnAmber }}">Daily Reset Now</button>
-            </form>
-            @if($canBoost)
-            <form method="POST" action="{{ route('shopee-ads.boost') }}" onsubmit="return confirm('Boost semua budget iklan ×{{ $settings->manual_boost_multiplier }}?')">
-                @csrf
-                <button type="submit" class="{{ $saBtnPurple }}">Boost ×{{ $settings->manual_boost_multiplier }}</button>
-            </form>
-            @endif
-            <a href="{{ route('shopee-ads.authorize') }}" class="{{ $saBtnOrange }}">Authorize Shopee</a>
+        <div
+            class="w-full min-w-[18rem] max-w-xl shrink-0 {{ $saCard }}"
+            x-data="{ activeTab: 'item-ads' }"
+            data-testid="shopee-ads-action-tabs"
+        >
+            <div class="border-b border-gray-200 px-3 pt-2">
+                <nav class="-mb-px flex flex-wrap gap-x-1" aria-label="Shopee Ads actions">
+                    <button
+                        type="button"
+                        @click="activeTab = 'item-ads'"
+                        :class="activeTab === 'item-ads' ? 'border-blue-600 text-blue-700' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'"
+                        class="border-b-2 px-3 py-2 text-sm font-medium transition-colors"
+                        data-testid="shopee-ads-tab-item-ads"
+                    >Item Ads</button>
+                    <button
+                        type="button"
+                        @click="activeTab = 'group-ads'"
+                        :class="activeTab === 'group-ads' ? 'border-blue-600 text-blue-700' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'"
+                        class="border-b-2 px-3 py-2 text-sm font-medium transition-colors"
+                        data-testid="shopee-ads-tab-group-ads"
+                    >Group Ads</button>
+                    <button
+                        type="button"
+                        @click="activeTab = 'maintenance'"
+                        :class="activeTab === 'maintenance' ? 'border-blue-600 text-blue-700' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'"
+                        class="border-b-2 px-3 py-2 text-sm font-medium transition-colors"
+                        data-testid="shopee-ads-tab-maintenance"
+                    >Maintenance</button>
+                    <button
+                        type="button"
+                        @click="activeTab = 'account'"
+                        :class="activeTab === 'account' ? 'border-blue-600 text-blue-700' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'"
+                        class="border-b-2 px-3 py-2 text-sm font-medium transition-colors"
+                        data-testid="shopee-ads-tab-account"
+                    >Account</button>
+                </nav>
+            </div>
+            <div class="px-4 py-3">
+                <div x-show="activeTab === 'item-ads'" x-cloak class="flex flex-wrap items-center gap-2">
+                    <form method="POST" action="{{ route('shopee-ads.sync-item-ads') }}">
+                        @csrf
+                        <button type="submit" class="{{ $saBtnSecondary }}">Sync Item Ads</button>
+                    </form>
+                    <form method="POST" action="{{ route('shopee-ads.replenish') }}">
+                        @csrf
+                        <button type="submit" class="{{ $saBtnSecondary }}">Replenish Item Ads</button>
+                    </form>
+                    <form method="POST" action="{{ route('shopee-ads.toggle-pause') }}">
+                        @csrf
+                        @if($settings->isPaused())
+                        <button type="submit" class="{{ $saBtnPrimary }}">Continue</button>
+                        @else
+                        <button type="submit" class="{{ $saBtnSecondary }}">Pause</button>
+                        @endif
+                    </form>
+                </div>
+                <div x-show="activeTab === 'group-ads'" x-cloak>
+                    <form method="POST" action="{{ route('shopee-ads.suggest-group-ads') }}" class="flex flex-wrap items-center gap-2">
+                        @csrf
+                        <label class="flex items-center gap-2 text-sm">
+                            <span class="shrink-0 text-xs font-medium text-gray-600">Sumber saran</span>
+                            <select name="strategy" class="rounded-lg border border-gray-300 px-3 py-2 text-sm" data-testid="shopee-ads-group-strategy">
+                                <option value="all" @selected(session('group_ad_strategy', 'all') === 'all')>Semua (ROAS + sales + Shopee)</option>
+                                <option value="roas" @selected(session('group_ad_strategy') === 'roas')>ROAS (performa iklan)</option>
+                                <option value="sales" @selected(session('group_ad_strategy') === 'sales')>Sales (GMS / transaksi)</option>
+                                <option value="recommended" @selected(session('group_ad_strategy') === 'recommended')>Shopee recommended (best ROI / selling)</option>
+                            </select>
+                        </label>
+                        <button type="submit" class="{{ $saBtnBlueOutline }}" data-testid="shopee-ads-suggest-group">Suggest Group Ads</button>
+                    </form>
+                </div>
+                <div x-show="activeTab === 'maintenance'" x-cloak class="flex flex-wrap items-center gap-2">
+                    <form method="POST" action="{{ route('shopee-ads.daily-reset') }}">
+                        @csrf
+                        <button type="submit" class="{{ $saBtnAmber }}">Daily Reset Now</button>
+                    </form>
+                    @if($canBoost)
+                    <form method="POST" action="{{ route('shopee-ads.boost') }}" onsubmit="return confirm('Boost semua budget iklan ×{{ $settings->manual_boost_multiplier }}?')">
+                        @csrf
+                        <button type="submit" class="{{ $saBtnPurple }}">Boost ×{{ $settings->manual_boost_multiplier }}</button>
+                    </form>
+                    @endif
+                </div>
+                <div x-show="activeTab === 'account'" x-cloak class="flex flex-wrap items-center gap-2">
+                    <a href="{{ route('shopee-ads.authorize') }}" class="{{ $saBtnOrange }}">Authorize Shopee</a>
+                </div>
+            </div>
         </div>
         @endif
     </div>
@@ -82,6 +141,92 @@ $saInnerCardWhite = 'space-y-3 rounded-lg border border-gray-200 bg-white p-4';
             <li>{{ $reason }}</li>
             @endforeach
         </ul>
+    </div>
+    @endif
+
+    @if(session('group_ad_suggestions') !== null)
+        @php
+        $groupStrategyLabels = [
+            'all' => 'Semua (ROAS + sales + Shopee)',
+            'roas' => 'ROAS (performa iklan)',
+            'sales' => 'Sales (GMS / transaksi)',
+            'recommended' => 'Shopee recommended (best ROI / selling)',
+        ];
+        $groupSourceLabels = [
+            'performance_history' => 'ROAS history',
+            'gms_roas' => 'GMS ROAS',
+            'gms_sales' => 'GMS sales',
+            'transaction_sales' => 'Sales (transaksi)',
+            'best_roi' => 'Best ROI',
+            'best_selling' => 'Best selling',
+            'top_search' => 'Top search',
+            'recommended' => 'Recommended',
+        ];
+    @endphp
+    <div class="{{ $saCard }}" data-testid="shopee-ads-group-suggestions" x-data="{ groupSearch: '' }">
+        <div class="{{ $saCardHeader }}">
+            <h2 class="text-sm font-semibold text-gray-900">Saran iklan group (suggestion only — tidak memanggil API create)</h2>
+            @if(session('group_ad_strategy'))
+            <p class="mt-1 text-xs {{ $saTextMuted }}">Strategi: {{ $groupStrategyLabels[session('group_ad_strategy')] ?? session('group_ad_strategy') }}</p>
+            @endif
+        </div>
+        @if(count(session('group_ad_suggestions')) === 0)
+        <p class="p-5 text-sm {{ $saTextMuted }}">Tidak ada kandidat — butuh riwayat performa (~1 minggu), data GMS/sales, atau daftar recommended Shopee.</p>
+        @else
+        <div class="border-b border-gray-100 px-5 py-3">
+            <label class="block text-xs font-medium text-gray-600">
+                Cari item (nama, kode, Shopee ID)
+                <input
+                    type="search"
+                    x-model="groupSearch"
+                    placeholder="Ketik nama atau kode…"
+                    class="mt-1 w-full max-w-md rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                    data-testid="shopee-ads-group-search"
+                >
+            </label>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="min-w-full text-sm">
+                <thead class="{{ $saTableHead }}">
+                    <tr>
+                        <th class="{{ $saTh }}">Item</th>
+                        <th class="{{ $saTh }}">Shopee ID</th>
+                        <th class="{{ $saTh }}">Sumber</th>
+                        <th class="{{ $saTh }}">Avg ROAS</th>
+                        <th class="{{ $saTh }}">Sales score</th>
+                        <th class="{{ $saTh }}">Alasan</th>
+                    </tr>
+                </thead>
+                <tbody class="{{ $saDivide }}">
+                    @foreach(session('group_ad_suggestions') as $row)
+                    <tr
+                        data-search="{{ strtolower(trim(($row['item_name'] ?? '').' '.($row['item_code'] ?? '').' '.$row['item_id'])) }}"
+                        x-show="!groupSearch || $el.dataset.search.includes(groupSearch.toLowerCase())"
+                    >
+                        <td class="{{ $saTd }}">
+                            @if(! empty($row['item_name']))
+                            <div class="font-medium text-gray-900">{{ $row['item_name'] }}</div>
+                            @if(! empty($row['item_code']))
+                            <div class="font-mono text-xs text-gray-500">{{ $row['item_code'] }}</div>
+                            @endif
+                            @if(! empty($row['aria_item_id']))
+                            <div class="text-xs text-gray-400">Aria #{{ $row['aria_item_id'] }}</div>
+                            @endif
+                            @else
+                            <span class="{{ $saTextMuted }}">Belum terhubung ke item lokal</span>
+                            @endif
+                        </td>
+                        <td class="{{ $saTd }} font-mono text-xs">{{ $row['item_id'] }}</td>
+                        <td class="{{ $saTd }}">{{ $groupSourceLabels[$row['source']] ?? $row['source'] }}</td>
+                        <td class="{{ $saTd }}">{{ number_format($row['avg_roas'], 2) }}</td>
+                        <td class="{{ $saTd }}">{{ number_format($row['sales_score'], 0) }}</td>
+                        <td class="{{ $saTd }} {{ $saTextBody }}">{{ $row['reason'] }}</td>
+                    </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+        @endif
     </div>
     @endif
 
@@ -300,6 +445,9 @@ $saInnerCardWhite = 'space-y-3 rounded-lg border border-gray-200 bg-white p-4';
                 </label>
                 <label class="flex items-center gap-2">
                     <input type="checkbox" name="item_replenish_enabled" value="1" {{ $settings->item_replenish_enabled ? 'checked' : '' }}> Auto item replenish
+                </label>
+                <label class="flex items-center gap-2">
+                    <input type="checkbox" name="item_auto_topup_enabled" value="1" {{ ($settings->item_auto_topup_enabled ?? true) ? 'checked' : '' }}> Auto top-up after ad delete
                 </label>
             </div>
 

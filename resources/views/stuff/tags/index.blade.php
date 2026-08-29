@@ -8,6 +8,16 @@ $breadcrumbs = [
     ['title' => 'Stuff', 'href' => route('tags.index')],
     ['title' => 'Tags', 'href' => route('tags.index')],
 ];
+$sortLink = function (string $column) use ($sort, $direction, $search, $typeFilter) {
+    $nextDir = ($sort === $column && $direction === 'asc') ? 'desc' : 'asc';
+
+    return route('tags.index', array_filter([
+        'search' => $search !== '' ? $search : null,
+        'type' => $typeFilter !== '' && $typeFilter !== null ? $typeFilter : null,
+        'sort' => $column,
+        'direction' => $nextDir,
+    ], fn ($value) => $value !== null && $value !== ''));
+};
 @endphp
 
 <div class="flex flex-col gap-4 p-3 sm:p-4" x-data="tagsIndex()">
@@ -26,12 +36,23 @@ $breadcrumbs = [
     </div>
 
     {{-- Search --}}
-    <form method="GET" action="{{ route('tags.index') }}" class="flex items-end gap-2 rounded-xl border border-gray-200 bg-white p-3">
-        <div class="flex-1 max-w-sm">
-            <label class="mb-1 block text-xs font-medium uppercase text-gray-500">Search</label>
+    <form method="GET" action="{{ route('tags.index') }}" class="flex flex-wrap items-end gap-2 rounded-xl border border-gray-200 bg-white p-3">
+        <div class="flex flex-col gap-1 max-w-sm flex-1">
+            <label class="text-xs font-medium uppercase text-gray-500">Search</label>
             <input type="text" name="search" value="{{ $search }}" placeholder="Search by name or code…"
                    class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500">
         </div>
+        <div class="flex flex-col gap-1">
+            <label class="text-xs font-medium uppercase text-gray-500">Tag Type</label>
+            <select name="type" class="rounded-md border border-gray-300 px-2.5 py-2 text-sm">
+                <option value="">All types</option>
+                @foreach($types as $id => $label)
+                    <option value="{{ $id }}" @selected((string) $typeFilter === (string) $id)>{{ $label }}</option>
+                @endforeach
+            </select>
+        </div>
+        <input type="hidden" name="sort" value="{{ $sort }}">
+        <input type="hidden" name="direction" value="{{ $direction }}">
         <button type="submit" class="rounded-lg bg-blue-700 px-4 py-2 text-sm font-medium text-white hover:bg-blue-800">Filter</button>
         <a href="{{ route('tags.index') }}" class="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50">Reset</a>
     </form>
@@ -41,10 +62,21 @@ $breadcrumbs = [
             <table class="min-w-full divide-y divide-gray-200 text-sm">
                 <thead class="bg-gray-50">
                     <tr>
-                        <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Name</th>
-                        <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Code</th>
-                        <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Type</th>
-                        <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Item Type</th>
+                        <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+                            <a href="{{ $sortLink('name') }}" class="inline-flex items-center gap-1 hover:text-gray-900">Name @if($sort === 'name')<span class="text-blue-600">{{ $direction === 'asc' ? '↑' : '↓' }}</span>@endif</a>
+                        </th>
+                        <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+                            <a href="{{ $sortLink('code') }}" class="inline-flex items-center gap-1 hover:text-gray-900">Code @if($sort === 'code')<span class="text-blue-600">{{ $direction === 'asc' ? '↑' : '↓' }}</span>@endif</a>
+                        </th>
+                        <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+                            <a href="{{ $sortLink('type') }}" class="inline-flex items-center gap-1 hover:text-gray-900">Type @if($sort === 'type')<span class="text-blue-600">{{ $direction === 'asc' ? '↑' : '↓' }}</span>@endif</a>
+                        </th>
+                        <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+                            <a href="{{ $sortLink('item_type') }}" class="inline-flex items-center gap-1 hover:text-gray-900">Item Type @if($sort === 'item_type')<span class="text-blue-600">{{ $direction === 'asc' ? '↑' : '↓' }}</span>@endif</a>
+                        </th>
+                        <th class="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">
+                            <a href="{{ $sortLink('items_count') }}" class="inline-flex items-center gap-1 justify-end hover:text-gray-900">Items @if($sort === 'items_count')<span class="text-blue-600">{{ $direction === 'asc' ? '↑' : '↓' }}</span>@endif</a>
+                        </th>
                         <th class="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Actions</th>
                     </tr>
                 </thead>
@@ -64,6 +96,9 @@ $breadcrumbs = [
                         </td>
                         <td class="whitespace-nowrap px-6 py-4">
                             <span class="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-[10px] font-bold uppercase text-gray-600">{{ $itemTypeLabel !== false ? $itemTypeLabel : 'All' }}</span>
+                        </td>
+                        <td class="whitespace-nowrap px-6 py-4 text-right tabular-nums text-gray-700">
+                            <a href="{{ $filterUrl }}" class="font-medium text-blue-600 hover:text-blue-800 hover:underline" title="View tagged {{ $tag->filterItemType() === \App\Enums\ItemType::ASSET_LANCAR ? 'asset lancar' : 'items' }}">{{ number_format($tag->items_count) }}</a>
                         </td>
                         <td class="whitespace-nowrap px-6 py-4 text-right">
                             <div class="flex justify-end gap-1">
@@ -87,7 +122,7 @@ $breadcrumbs = [
                         </td>
                     </tr>
                     @empty
-                    <tr><td colspan="5" class="px-6 py-12 text-center text-sm text-gray-500">No tags found.</td></tr>
+                    <tr><td colspan="6" class="px-6 py-12 text-center text-sm text-gray-500">No tags found.</td></tr>
                     @endforelse
                 </tbody>
             </table>

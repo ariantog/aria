@@ -58,6 +58,10 @@
                class="rounded-lg px-3 py-1.5 text-sm font-medium {{ $itemType === \App\Enums\ItemType::ITEM ? 'bg-blue-600 text-white' : 'border border-gray-300 text-gray-700 hover:bg-gray-50' }}">
                 Manufactured
             </a>
+            <a href="{{ route('items.special-converter') }}"
+               class="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                Special SKU Converter
+            </a>
         </div>
     </div>
 
@@ -158,10 +162,12 @@
                 <thead class="bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
                     <tr>
                         <th class="px-4 py-3">ID</th>
-                        <th class="px-4 py-3">Code</th>
+                        <th class="px-4 py-3">Current code</th>
+                        <th class="px-4 py-3">New code</th>
                         <th class="px-4 py-3">Legacy</th>
                         <th class="px-4 py-3">Name</th>
                         <th class="px-4 py-3">Group</th>
+                        <th class="px-4 py-3 text-right">Actions</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100">
@@ -169,6 +175,8 @@
                         @php
                             $showUrl = $itemShowUrl($item);
                             $legacy = $preservedLegacyCode($item);
+                            $preview = ($previews->get($item->id) ?? [])['parse'] ?? null;
+                            $canConvert = $legacy === null && ($preview?->success ?? false);
                         @endphp
                         <tr class="hover:bg-gray-50 {{ $legacy ? 'bg-gray-50/80' : '' }}">
                             <td class="px-4 py-2 text-gray-500">
@@ -185,7 +193,21 @@
                                     <span class="text-gray-900">{{ $item->code }}</span>
                                 @endif
                             </td>
-                            <td class="px-4 py-2 font-mono text-xs {{ $legacy ? 'text-amber-700' : 'text-gray-400' }}">{{ $legacy ?? '—' }}</td>
+                            <td class="px-4 py-2 font-mono text-green-700">
+                                @if($preview?->success)
+                                    {{ $preview->canonicalCode }}
+                                @elseif($preview)
+                                    <span class="text-red-600" title="{{ $preview->detail }}">{{ $preview->failureCode }}</span>
+                                    @if($preview->detail)
+                                        <span class="block text-xs text-red-500">{{ $preview->detail }}</span>
+                                    @endif
+                                @else
+                                    —
+                                @endif
+                            </td>
+                            <td class="px-4 py-2 font-mono text-xs {{ $legacy ? 'text-amber-700' : 'text-gray-400' }}">
+                                {{ $legacy ?? ($preview?->success ? $item->code : '—') }}
+                            </td>
                             <td class="px-4 py-2 text-gray-700">
                                 @if($showUrl)
                                     <a href="{{ $showUrl }}" class="hover:text-blue-600 hover:underline">{{ $item->name }}</a>
@@ -194,9 +216,30 @@
                                 @endif
                             </td>
                             <td class="px-4 py-2 text-gray-500">{{ $item->group_id ?? '—' }}</td>
+                            <td class="px-4 py-2 text-right">
+                                @if($canConvert)
+                                    <form method="POST"
+                                          action="{{ route('items.legacy-converter.run-item', $item) }}"
+                                          class="inline"
+                                          onsubmit="return confirm('Convert {{ $item->code }} to {{ $preview->canonicalCode }}? Old code moves to legacy_code for Jubelio.');">
+                                        @csrf
+                                        <input type="hidden" name="type" value="{{ $itemType->value }}">
+                                        <input type="hidden" name="page" value="{{ $currentPage }}">
+                                        <button type="submit"
+                                                data-testid="legacy-converter-convert-{{ $item->id }}"
+                                                class="rounded-md bg-blue-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-blue-700">
+                                            Convert
+                                        </button>
+                                    </form>
+                                @elseif($legacy)
+                                    <span class="text-xs text-gray-400">Converted</span>
+                                @else
+                                    <span class="text-xs text-gray-400">—</span>
+                                @endif
+                            </td>
                         </tr>
                     @empty
-                        <tr><td colspan="5" class="px-4 py-8 text-center text-gray-500">No pending items.</td></tr>
+                        <tr><td colspan="7" class="px-4 py-8 text-center text-gray-500">No pending items.</td></tr>
                     @endforelse
                 </tbody>
             </table>

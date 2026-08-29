@@ -42,6 +42,7 @@ class ProcessJubelioOrder
                 'run_count' => $runCount,
                 'error_type' => 3,
                 'error' => 'Payload JSON tidak valid',
+                'stock_error_items' => null,
                 'status' => 1,
             ]);
 
@@ -82,6 +83,7 @@ class ProcessJubelioOrder
                 'run_count' => $runCount,
                 'error_type' => 1,
                 'error' => 'Data sync store/location ID tidak ditemukan',
+                'stock_error_items' => null,
                 'status' => 1,
             ]);
 
@@ -95,6 +97,7 @@ class ProcessJubelioOrder
                 'run_count' => $runCount,
                 'error_type' => 1,
                 'error' => $matched['error'],
+                'stock_error_items' => null,
                 'status' => 1,
             ]);
 
@@ -108,6 +111,7 @@ class ProcessJubelioOrder
                 'run_count' => $runCount,
                 'error_type' => 2,
                 'error' => 'Transaction sudah ada',
+                'stock_error_items' => null,
                 'status' => 2,
             ]);
 
@@ -115,15 +119,16 @@ class ProcessJubelioOrder
         }
 
         $stockError = $this->validateWarehouseStock($jubelioSync->warehouse_id, $matched['items']);
-        if ($stockError) {
+        if ($stockError !== null) {
             $order->update([
                 'run_count' => $runCount,
                 'error_type' => 1,
-                'error' => $stockError,
+                'error' => $stockError['message'],
+                'stock_error_items' => $stockError['items'],
                 'status' => 1,
             ]);
 
-            return ['success' => false, 'message' => $stockError];
+            return ['success' => false, 'message' => $stockError['message']];
         }
 
         $createData = $this->createTransaction(Transaction::TYPE_SELL, (object) [
@@ -146,6 +151,7 @@ class ProcessJubelioOrder
                 'run_count' => $runCount,
                 'error_type' => 10,
                 'error' => null,
+                'stock_error_items' => null,
                 'status' => 2,
                 'execute_by' => $executedByUserId ?? 0,
             ]);
@@ -158,6 +164,7 @@ class ProcessJubelioOrder
             'run_count' => $runCount,
             'error_type' => 1,
             'error' => $createData['message'],
+            'stock_error_items' => null,
             'status' => 1,
         ]);
 
@@ -179,11 +186,14 @@ class ProcessJubelioOrder
                 'run_count' => $runCount,
                 'error_type' => 3,
                 'error' => 'Transaksi jual (asal) tidak ditemukan untuk retur ini',
+                'stock_error_items' => null,
                 'status' => 1,
             ]);
 
             return ['success' => false, 'message' => 'Transaksi jual (asal) tidak ditemukan untuk retur ini'];
         }
+
+        $warehouseId = (int) $cekTransaksiSell->sender_id;
 
         $matched = $this->matchItems($dataApi['items'] ?? [], 'qty_in_base');
 
@@ -192,6 +202,7 @@ class ProcessJubelioOrder
                 'run_count' => $runCount,
                 'error_type' => 1,
                 'error' => $matched['error'],
+                'stock_error_items' => null,
                 'status' => 1,
             ]);
 
@@ -203,6 +214,7 @@ class ProcessJubelioOrder
                 'run_count' => $runCount,
                 'error_type' => 2,
                 'error' => 'Invoice Retur sudah ada',
+                'stock_error_items' => null,
                 'status' => 2,
             ]);
 
@@ -229,6 +241,7 @@ class ProcessJubelioOrder
                 'run_count' => $runCount,
                 'error_type' => 10,
                 'error' => null,
+                'stock_error_items' => null,
                 'status' => 2,
                 'execute_by' => $executedByUserId ?? 0,
             ]);
@@ -241,6 +254,7 @@ class ProcessJubelioOrder
             'run_count' => $runCount,
             'error_type' => 1,
             'error' => $createData['message'],
+            'stock_error_items' => null,
             'status' => 1,
         ]);
 
@@ -318,8 +332,9 @@ class ProcessJubelioOrder
 
     /**
      * @param  list<array<string, mixed>>  $items
+     * @return array{message: string, items: list<array{item_id: int, code: string, available: float, needed: float}>}|null
      */
-    protected function validateWarehouseStock(int $warehouseId, array $items): ?string
+    protected function validateWarehouseStock(int $warehouseId, array $items): ?array
     {
         $warehouse = Addrbook::find($warehouseId);
         if (! $warehouse || ! Addrbook::typeIsWarehouse((int) $warehouse->type)) {
@@ -340,7 +355,12 @@ class ProcessJubelioOrder
             $needed = (float) $item['quantity'];
 
             if ($needed > $available) {
-                $insufficient[] = "{$item['code']} (avail: {$available}, need: {$needed})";
+                $insufficient[] = [
+                    'item_id' => (int) $item['itemId'],
+                    'code' => (string) $item['code'],
+                    'available' => $available,
+                    'needed' => $needed,
+                ];
             }
         }
 
@@ -348,7 +368,14 @@ class ProcessJubelioOrder
             return null;
         }
 
-        return 'Stok tidak cukup di gudang '.$warehouse->name.': '.implode(', ', $insufficient);
+        $summary = collect($insufficient)
+            ->map(fn (array $row) => "{$row['code']} (avail: {$row['available']}, need: {$row['needed']})")
+            ->implode(', ');
+
+        return [
+            'message' => 'Stok tidak cukup di gudang '.$warehouse->name.': '.$summary,
+            'items' => $insufficient,
+        ];
     }
 
     /**

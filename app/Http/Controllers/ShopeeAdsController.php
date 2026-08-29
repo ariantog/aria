@@ -129,6 +129,7 @@ class ShopeeAdsController extends Controller
         $settings = ShopeeAdsSetting::current();
         $validated['item_ads_enabled'] = $request->boolean('item_ads_enabled');
         $validated['item_replenish_enabled'] = $request->boolean('item_replenish_enabled');
+        $validated['item_auto_topup_enabled'] = $request->boolean('item_auto_topup_enabled');
         $validated['double_date_enabled'] = $request->boolean('double_date_enabled');
         $validated['payday_enabled'] = $request->boolean('payday_enabled');
         $settings->update($validated);
@@ -253,7 +254,7 @@ class ShopeeAdsController extends Controller
         $settings->update(['last_daily_reset_at' => $engine->jakartaNow()]);
 
         $message = 'Daily reset dijalankan.';
-        if ($settings->item_ads_enabled && $settings->item_replenish_enabled) {
+        if ($settings->item_ads_enabled && ($settings->item_replenish_enabled || $settings->item_auto_topup_enabled)) {
             $replenish = $engine->replenishItemAds($settings->fresh(), fillToCap: true);
             $message .= ' '.$replenish['message'];
         }
@@ -269,6 +270,23 @@ class ShopeeAdsController extends Controller
         $result = $engine->applyManualBudgetBoost($settings);
 
         return back()->with('success', $result['message']);
+    }
+
+    public function suggestGroupAds(Request $request, ShopeeAdsEngineService $engine): RedirectResponse
+    {
+        Gate::authorize(ShopeeAds::getPermissions()['view']);
+
+        $validated = $request->validate([
+            'strategy' => ['nullable', 'string', 'in:all,roas,sales,recommended'],
+        ]);
+
+        $settings = ShopeeAdsSetting::current();
+        $strategy = (string) ($validated['strategy'] ?? 'all');
+        $suggestions = $engine->suggestGroupAds($settings, 15, $strategy);
+
+        return back()
+            ->with('group_ad_suggestions', $suggestions)
+            ->with('group_ad_strategy', $strategy);
     }
 
     /**
@@ -354,6 +372,7 @@ class ShopeeAdsController extends Controller
         $itemStartPool = $engine->itemAdsStartingPoolTotal($settings, $multipliers);
         $itemStartPerAd = $engine->itemAdBudgetPerSlot($settings, $multipliers);
         $slotCount = $engine->itemAdsSlotCount($settings, $multipliers);
+        // Planned-budget display uses DB only — listManualProductAds() paginates Shopee on every GET.
         $activeItemAds = ShopeeAdsItemAd::query()
             ->where('turned_off', false)
             ->whereNotIn('status', ['ended', 'closed', 'berakhir'])
@@ -396,7 +415,7 @@ class ShopeeAdsController extends Controller
                 'planned' => $itemPlanned,
                 'active_ads' => $activeItemAds,
                 'effective_max_ads' => $effectiveMaxAds,
-                'note' => 'Starting pool ÷ max item ads per slot; increment schedules = total pool per run (split by ROAS)',
+                'note' => 'Starting pool ÷ max item ads per slot; increment schedules = total pool per run (split by ROAS). Active count from DB — Sync Item Ads for live Shopee data.',
             ],
         ];
     }

@@ -57,8 +57,28 @@ $sc = $statusConfig[$order->status] ?? ['label' => 'Unknown', 'cls' => 'border b
                 <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z"/></svg>
                 Cek duplikat di Transaksi
             </a>
+
+            <form method="POST" action="{{ route('jubelio.refresh-payload', $order) }}">
+                @csrf
+                <button type="submit"
+                        class="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                        data-testid="jubelio-refresh-payload-detail">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                    Refresh payload
+                </button>
+            </form>
         </div>
     </div>
+
+    @if(!empty($flash['success']))
+    <div class="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">{{ $flash['success'] }}</div>
+    @endif
+    @if(!empty($flash['error']))
+    <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ $flash['error'] }}</div>
+    @endif
+    @if(!empty($flash['errorMessage']))
+    <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ $flash['errorMessage'] }}</div>
+    @endif
 
     <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div class="space-y-6 lg:col-span-1">
@@ -228,6 +248,11 @@ $sc = $statusConfig[$order->status] ?? ['label' => 'Unknown', 'cls' => 'border b
                     — Jubelio masih punya stok, tapi gudang Aria sudah 0 atau kurang.
                     Perbaiki stok di Aria terlebih dahulu, lalu klik <strong>Buat Transaksi Manual</strong> di atas.
                 </p>
+                @endif
+                @if($order->hasStockError())
+                <div class="mb-4">
+                    @include('jubelio.partials.stock-error-items', ['stockErrorItems' => $order->stockErrorItemsList()])
+                </div>
                 @endif
                 <div class="rounded-lg border border-red-900/30 bg-red-100 p-4 font-mono text-xs text-red-700">
                     <pre class="whitespace-pre-wrap">{{ $order->error }}</pre>

@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Addrbook;
 use App\Models\Item;
 use App\Models\ItemGroup;
 use App\Models\Transaction;
@@ -26,42 +27,145 @@ afterEach(function () {
     File::deleteDirectory(storage_path('app/testing-invoices'));
 });
 
-it('renders the thermal receipt page for print pos', function () {
+it('generates the receipt pdf and serves it inline', function () {
+    $sender = Addrbook::factory()->warehouse()->create(['name' => 'Store - CITOS OFFLINE']);
+    $receiver = Addrbook::factory()->customer()->create();
     $transaction = Transaction::factory()->create([
-        'invoice' => 'RCP-001',
-        'real_total' => 100_000,
-        'total' => 100_000,
+        'invoice' => '615922',
+        'sender_id' => $sender->id,
+        'receiver_id' => $receiver->id,
+        'real_total' => -934_700,
+        'total_items' => 4,
     ]);
-    $item = Item::factory()->create(['name' => 'Test Shirt', 'code' => 'AJDCA2302510L']);
+    $item = Item::factory()->create(['name' => 'LANA TOP - LILAC', 'code' => 'AJDCA2302510L']);
+    TransactionDetail::factory()->create([
+        'transaction_id' => $transaction->id,
+        'item_id' => $item->id,
+        'quantity' => 1,
+        'price' => 299_900,
+        'discount' => 20,
+        'total' => 239_920,
+    ]);
+
+    $service = app(TransactionInvoiceService::class);
+    $fileName = $service->receiptFileName($transaction);
+
+    $this->actingAs($this->user)
+        ->get(route('transactions.receipt', $transaction))
+        ->assertOk()
+        ->assertHeader('content-type', 'application/pdf');
+
+    expect(File::exists($service->invoiceDiskPath($fileName)))->toBeTrue();
+});
+
+it('renders the receipt pdf blade with item name and code', function () {
+    $sender = Addrbook::factory()->warehouse()->create(['name' => 'Store - CITOS OFFLINE']);
+    $transaction = Transaction::factory()->create([
+        'invoice' => '615922',
+        'sender_id' => $sender->id,
+        'real_total' => -934_700,
+        'total_items' => 4,
+    ]);
+    $item = Item::factory()->create(['name' => 'LANA TOP - LILAC', 'code' => 'AJDCA2302510L']);
+    TransactionDetail::factory()->create([
+        'transaction_id' => $transaction->id,
+        'item_id' => $item->id,
+        'quantity' => 1,
+        'price' => 299_900,
+        'discount' => 20,
+        'total' => 239_920,
+    ]);
+    $transaction->load(['details.item', 'sender']);
+    $branding = app(\App\Services\InvoiceBrandingService::class)->forTransaction($transaction);
+
+    $html = view('transactions.pdf.receipt', compact('transaction', 'branding'))->render();
+
+    expect($html)
+        ->toContain('CoreNation Active')
+        ->toContain('615922')
+        ->toContain('Store - CITOS OFFLINE')
+        ->toContain('LANA TOP - LILAC')
+        ->toContain('AJDCA2302510L')
+        ->toContain('Grand Total')
+        ->toContain('Rp934.700');
+});
+
+it('renders the dot matrix print page with item view columns and signature blocks', function () {
+    $sender = Addrbook::factory()->warehouse()->create(['name' => 'Warehouse Staff']);
+    $receiver = Addrbook::factory()->customer()->create(['name' => 'Customer One']);
+    $item = Item::factory()->create(['name' => 'Printed Shirt', 'code' => 'SKU-PRINT-01']);
+    $transaction = Transaction::factory()->create([
+        'invoice' => 'PRT-001',
+        'sender_id' => $sender->id,
+        'receiver_id' => $receiver->id,
+    ]);
     TransactionDetail::factory()->create([
         'transaction_id' => $transaction->id,
         'item_id' => $item->id,
         'quantity' => 2,
         'price' => 50_000,
-        'total' => 100_000,
+        'discount' => 10,
+        'total' => 90_000,
     ]);
 
     $this->actingAs($this->user)
-        ->get(route('transactions.receipt', $transaction))
+        ->get(route('transactions.print', [
+            'transaction' => $transaction,
+            'image' => 0,
+            'barcode' => 1,
+            'sku' => 1,
+            'name' => 1,
+        ]))
         ->assertOk()
-        ->assertSee('CORENATION', false)
-        ->assertSee('CILANDAK TOWN SQUARE', false)
-        ->assertSee('FX SUDIRMAN', false)
-        ->assertSee('MAGGIORE GRANDE', false)
-        ->assertSee('Test Shirt', false)
-        ->assertSee('AJDCA2302510L', false)
-        ->assertSee('css/receipt.css', false);
+        ->assertSee('Printed Shirt', false)
+        ->assertSee('SKU-PRINT-01', false)
+        ->assertSee('Disc(%)', false)
+        ->assertSee('Mengetahui', false)
+        ->assertSee('Pemberi', false)
+        ->assertSee('Penerima', false)
+        ->assertSee('Warehouse Staff', false)
+        ->assertSee('Customer One', false)
+        ->assertSee('css/print.css', false);
 });
 
-it('renders the dot matrix print page', function () {
-    $transaction = Transaction::factory()->create(['invoice' => 'PRT-001']);
-    TransactionDetail::factory()->create(['transaction_id' => $transaction->id]);
+it('generates invoice pdf with item view columns from request', function () {
+    $item = Item::factory()->create(['name' => 'PDF Shirt', 'code' => 'SKU-PDF-01']);
+    $transaction = Transaction::factory()->create([
+        'invoice' => 'PDF-COLS',
+        'real_total' => 90_000,
+        'total' => 90_000,
+    ]);
+    TransactionDetail::factory()->create([
+        'transaction_id' => $transaction->id,
+        'item_id' => $item->id,
+        'quantity' => 1,
+        'price' => 100_000,
+        'discount' => 10,
+        'total' => 90_000,
+    ]);
 
     $this->actingAs($this->user)
-        ->get(route('transactions.print', $transaction))
-        ->assertOk()
-        ->assertSee('PRT-001', false)
-        ->assertSee('css/print.css', false);
+        ->post(route('transactions.pdf.store', $transaction), [
+            'image' => 0,
+            'barcode' => 0,
+            'sku' => 1,
+            'name' => 1,
+        ])
+        ->assertRedirect(route('transactions.show', $transaction));
+
+    $html = view('transactions.pdf.invoice', [
+        'transaction' => $transaction->load('details.item'),
+        'typeLabel' => $transaction->getTypeLabel(),
+        'branding' => app(\App\Services\InvoiceBrandingService::class)->forTransaction($transaction),
+        'itemView' => \App\Support\TransactionItemViewOptions::fromRequest(new \Illuminate\Http\Request([
+            'image' => 0,
+            'barcode' => 0,
+            'sku' => 1,
+            'name' => 1,
+        ])),
+    ])->render();
+
+    expect($html)->toContain('SKU-PDF-01')->toContain('PDF Shirt');
 });
 
 it('shows save to pdf on transaction detail when no pdf exists', function () {
@@ -303,5 +407,6 @@ it('transaction show page builds print invoice href from view checkboxes', funct
     $this->actingAs($this->user)
         ->get(route('transactions.show', $transaction))
         ->assertOk()
-        ->assertSee('printInvoiceHref()', false);
+        ->assertSee('itemViewQuery()', false)
+        ->assertSee("name=\"desc\"", false);
 });

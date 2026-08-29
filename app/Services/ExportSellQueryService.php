@@ -63,6 +63,45 @@ class ExportSellQueryService
     }
 
     /**
+     * Optional transaction-header columns that can be toggled on the export-sell table.
+     *
+     * @return list<string>
+     */
+    public function optionalTransactionColumnKeys(): array
+    {
+        return ['adjustment', 'discount', 'total', 'description'];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function optionalTransactionColumnLabels(): array
+    {
+        return [
+            'adjustment' => 'Adjustment',
+            'discount' => 'Inv. Discount',
+            'total' => 'Tx Total',
+            'description' => 'Description',
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function visibleTransactionColumnsFromRequest(Request $request): array
+    {
+        $visible = [];
+
+        foreach ($this->optionalTransactionColumnKeys() as $key) {
+            if ($request->boolean('show_tx_'.$key)) {
+                $visible[] = $key;
+            }
+        }
+
+        return $visible;
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function filtersFromRequest(Request $request): array
@@ -160,9 +199,9 @@ class ExportSellQueryService
 
                 return $this->applyPartyNameFilter($q, 'receiver', $term);
             })
-            ->orderByDesc('transaction_details.date')
-            ->orderByDesc('transaction_details.transaction_id')
-            ->orderByDesc('transaction_details.id');
+            ->orderBy('transaction_details.date')
+            ->orderBy('transaction_details.transaction_id')
+            ->orderBy('transaction_details.id');
     }
 
     private function applyPartyIdFilter(Builder $query, string $role, int $partyId): Builder

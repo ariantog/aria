@@ -8,6 +8,7 @@ use App\Models\Item;
 use App\Models\ItemGroup;
 use App\Models\Tag;
 use App\Services\JubelioService;
+use App\Support\ItemImageResolver;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Pagination\LengthAwarePaginator as Paginator;
@@ -21,6 +22,7 @@ class ItemGroupHierarchyService
     public function __construct(
         protected ItemIdentityBuilder $identityBuilder,
         protected JubelioService $jubelioService,
+        protected ItemImageResolver $imageResolver,
     ) {}
 
     /**
@@ -140,7 +142,7 @@ class ItemGroupHierarchyService
             'product_name' => $productName,
             'uses_placeholder' => $usesPlaceholder,
             'description' => $this->resolveDescription($groups),
-            'image_url' => $groups->first()?->image_url,
+            'image_url' => $this->imageResolver->resolveUrlForGroups($groups),
             'group_ids' => $groups->pluck('id')->all(),
             'colors' => $colors,
             'total_warehouse_qty' => $this->sumWarehouseBreakdown($warehouseBreakdown),
@@ -359,6 +361,7 @@ class ItemGroupHierarchyService
                     'name' => $color['name'],
                     'pcode' => $sample->pcode,
                     'group_id' => $group->id,
+                    'image_url' => $this->imageResolver->resolveUrlForGroup($group, $colorItems),
                     'has_sizes' => $hasSizes,
                     'warehouse_breakdown' => $this->aggregateWarehouseBreakdown($colorItems),
                     'in_warehouse_qty' => $colorItems->sum(fn (Item $item) => $item->warehouseItems->sum('quantity')),

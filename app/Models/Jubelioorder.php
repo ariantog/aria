@@ -18,9 +18,20 @@ class Jubelioorder extends Model
 
     protected $guarded = [];
 
+    protected $casts = [
+        'stock_error_items' => 'array',
+    ];
+
     public static function clearPayloadCache(): void
     {
         self::$resolvedPayloadCache = [];
+    }
+
+    public static function clearPayloadCacheFor(?int $orderId): void
+    {
+        if ($orderId !== null) {
+            unset(self::$resolvedPayloadCache[$orderId]);
+        }
     }
 
     /**
@@ -56,6 +67,21 @@ class Jubelioorder extends Model
     public function payloadItems(): array
     {
         return JubelioOrderPayloadPresenter::items($this->payloadArray());
+    }
+
+    /**
+     * @return list<array{item_id: int, code: string, available: float, needed: float}>
+     */
+    public function stockErrorItemsList(): array
+    {
+        $items = $this->stock_error_items;
+
+        return is_array($items) ? $items : [];
+    }
+
+    public function hasStockError(): bool
+    {
+        return $this->stockErrorItemsList() !== [];
     }
 
     public function transactionsSearchUrl(): string

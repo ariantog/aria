@@ -31,8 +31,20 @@ $f = $filters;
         <div class="flex flex-col gap-1"><label class="text-xs font-medium uppercase text-gray-500">Serial</label><input type="text" name="serial" value="{{ $f['serial'] ?? '' }}" placeholder="Serial…" class="w-24 rounded-md border border-gray-300 px-2.5 py-1.5 text-sm"></div>
         <div class="flex flex-col gap-1"><label class="text-xs font-medium uppercase text-gray-500">SJP</label><input type="text" name="surat_jalan_potong" value="{{ $f['surat_jalan_potong'] ?? '' }}" placeholder="SJP…" class="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm"></div>
         <div class="flex flex-col gap-1"><label class="text-xs font-medium uppercase text-gray-500">Warna</label><input type="text" name="warna" value="{{ $f['warna'] ?? '' }}" placeholder="Warna…" class="w-24 rounded-md border border-gray-300 px-2.5 py-1.5 text-sm"></div>
-        <input type="hidden" name="potong_id" value="{{ $f['potong_id'] ?? '' }}">
-        <input type="hidden" name="jahit_id" value="{{ $f['jahit_id'] ?? '' }}">
+        <div class="flex flex-col gap-1">
+            <label class="text-xs font-medium uppercase text-gray-500">Potong</label>
+            <select name="potong_id" class="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm">
+                <option value="">All</option>
+                @foreach($potongList as $w)<option value="{{ $w->id }}" @selected(($f['potong_id'] ?? '') == $w->id)>{{ $w->name }}</option>@endforeach
+            </select>
+        </div>
+        <div class="flex flex-col gap-1">
+            <label class="text-xs font-medium uppercase text-gray-500">Jahit</label>
+            <select name="jahit_id" class="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm">
+                <option value="">All</option>
+                @foreach($jahitList as $w)<option value="{{ $w->id }}" @selected(($f['jahit_id'] ?? '') == $w->id)>{{ $w->name }}</option>@endforeach
+            </select>
+        </div>
         <div class="flex gap-2">
             <button type="submit" class="rounded-lg bg-blue-700 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-800">Filter</button>
             <a href="{{ route('produksi.index') }}" class="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-50">Reset</a>

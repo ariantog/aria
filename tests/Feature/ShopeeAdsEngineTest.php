@@ -152,7 +152,9 @@ it('uses live budget when incrementing item ads pool', function () {
     $api->shouldReceive('listManualProductAds')->andReturn([
         ['campaign_id' => 'item-1', 'campaign_name' => 'x', 'budget' => 250.0, 'status' => 'ongoing', 'item_id' => 12345],
     ]);
-    $api->shouldReceive('getItemAdsRoas')->andReturn(['item-1' => 8.0]);
+    $api->shouldReceive('getItemAdsDailyPerformance')->andReturn([
+        'item-1' => ['roas' => 8.0, 'spend' => 0.0],
+    ]);
     $api->shouldReceive('addItemAdBudget')
         ->once()
         ->with('item-1', 100, Mockery::type('int'))
@@ -203,12 +205,10 @@ it('syncs item ads from Shopee and marks missing campaigns closed', function () 
 
     $stats = $engine->syncItemAds();
 
-    expect($stats)->toBe([
-        'imported' => 1,
-        'updated' => 0,
-        'closed' => 1,
-        'active' => 1,
-    ])
+    expect($stats['imported'])->toBe(1)
+        ->and($stats['updated'])->toBe(0)
+        ->and($stats['closed'])->toBe(1)
+        ->and($stats['active'])->toBe(1)
         ->and(\App\Models\ShopeeAdsItemAd::find('live-1')->item_id)->toBe(12345)
         ->and(\App\Models\ShopeeAdsItemAd::find('stale-1')->status)->toBe('closed');
 });

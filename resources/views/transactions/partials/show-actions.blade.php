@@ -14,21 +14,21 @@
 
 <div class="-mx-1 flex w-full items-center gap-1.5 overflow-x-auto pb-0.5 sm:mx-0 sm:w-auto sm:flex-wrap sm:overflow-visible sm:gap-2">
     {{-- Print --}}
-    <div class="relative shrink-0" x-data="{ open: false }">
-        <button type="button" @click="open = !open" title="Print"
+    <div class="relative shrink-0">
+        <button type="button" @click="printMenuOpen = !printMenuOpen" title="Print"
                 class="inline-flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-2.5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 sm:px-3">
             <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
             <span class="hidden sm:inline">Print</span>
             <svg class="hidden h-3.5 w-3.5 text-gray-400 sm:inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
         </button>
-        <div x-show="open" x-cloak @click.away="open = false"
+        <div x-show="printMenuOpen" x-cloak @click.away="printMenuOpen = false"
              class="absolute right-0 top-full z-30 mt-1 w-48 rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
             <a href="{{ route('transactions.receipt', $transaction->id) }}" target="_blank"
                class="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
                 <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
                 Print POS
             </a>
-            <a :href="printInvoiceHref()" target="_blank"
+            <a :href="'{{ route('transactions.print', $transaction->id) }}?' + itemViewQuery()" target="_blank"
                class="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
                 <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
                 Print Invoice
@@ -37,14 +37,14 @@
     </div>
 
     {{-- Invoice / PDF --}}
-    <div class="relative shrink-0" x-data="{ open: false }">
-        <button type="button" @click="open = !open" title="Invoice"
+    <div class="relative shrink-0">
+        <button type="button" @click="invoiceMenuOpen = !invoiceMenuOpen" title="Invoice"
                 class="inline-flex items-center gap-1.5 rounded-md border border-blue-300 bg-blue-50 px-2.5 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100 sm:px-3">
             <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
             <span class="hidden sm:inline">Invoice</span>
             <svg class="hidden h-3.5 w-3.5 text-blue-400 sm:inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
         </button>
-        <div x-show="open" x-cloak @click.away="open = false"
+        <div x-show="invoiceMenuOpen" x-cloak @click.away="invoiceMenuOpen = false"
              class="absolute right-0 top-full z-30 mt-1 w-52 rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
             @if($hasInvoicePdf)
             <a href="{{ $invoicePdfUrl }}" target="_blank" rel="noopener"
@@ -54,6 +54,11 @@
             </a>
             <form method="POST" action="{{ route('transactions.pdf.store', $transaction->id) }}">
                 @csrf
+                <input type="hidden" name="image" :value="showImage ? 1 : 0">
+                <input type="hidden" name="barcode" :value="showBarcode ? 1 : 0">
+                <input type="hidden" name="sku" :value="showSku ? 1 : 0">
+                <input type="hidden" name="name" :value="showName ? 1 : 0">
+                <input type="hidden" name="desc" :value="showDescription ? 1 : 0">
                 <button type="submit" data-testid="regenerate-pdf-button"
                         class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50">
                     <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
@@ -63,6 +68,11 @@
             @else
             <form method="POST" action="{{ route('transactions.pdf.store', $transaction->id) }}">
                 @csrf
+                <input type="hidden" name="image" :value="showImage ? 1 : 0">
+                <input type="hidden" name="barcode" :value="showBarcode ? 1 : 0">
+                <input type="hidden" name="sku" :value="showSku ? 1 : 0">
+                <input type="hidden" name="name" :value="showName ? 1 : 0">
+                <input type="hidden" name="desc" :value="showDescription ? 1 : 0">
                 <button type="submit"
                         class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50">
                     <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>

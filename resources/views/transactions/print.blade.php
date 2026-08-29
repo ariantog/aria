@@ -11,7 +11,7 @@
         'transaction' => $transaction,
         'typeLabel' => $typeLabel,
         'branding' => $branding,
-        'viewColumns' => $viewColumns ?? \App\Support\TransactionItemViewColumns::defaults(),
+        'itemView' => $itemView ?? \App\Support\TransactionItemViewOptions::defaults(),
     ])
 </body>
 </html>

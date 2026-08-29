@@ -51,7 +51,10 @@ class ExportSellController extends Controller
             ->buildQuery($request, Auth::user())
             ->get();
 
-        return $exportService->download($rows);
+        return $exportService->download(
+            $rows,
+            $queryService->visibleTransactionColumnsFromRequest($request),
+        );
     }
 
     /**

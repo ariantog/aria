@@ -576,6 +576,8 @@ function transactionShowPage(transactionId, initialNote, canEditNote, canEditPpn
         sortDir: 'asc',
         waOpen: false,
         deleteConfirmOpen: false,
+        printMenuOpen: false,
+        invoiceMenuOpen: false,
         noteText: initialNote || '',
         noteDraft: initialNote || '',
         noteModalOpen: false,
@@ -759,23 +761,22 @@ function transactionShowPage(transactionId, initialNote, canEditNote, canEditPpn
                 showDescription: this.showDescription,
             }));
         },
+        itemViewQuery() {
+            const params = new URLSearchParams();
+            params.set('image', this.showImage ? '1' : '0');
+            params.set('barcode', this.showBarcode ? '1' : '0');
+            params.set('sku', this.showSku ? '1' : '0');
+            params.set('name', this.showName ? '1' : '0');
+            params.set('desc', this.showDescription ? '1' : '0');
+
+            return params.toString();
+        },
         showCopyFeedback() {
             this.copyFeedback = true;
             clearTimeout(this.copyFeedbackTimer);
             this.copyFeedbackTimer = setTimeout(() => {
                 this.copyFeedback = false;
             }, 2000);
-        },
-        printInvoiceHref() {
-            const params = new URLSearchParams({
-                image: this.showImage ? '1' : '0',
-                barcode: this.showBarcode ? '1' : '0',
-                sku: this.showSku ? '1' : '0',
-                name: this.showName ? '1' : '0',
-                desc: this.showDescription ? '1' : '0',
-            });
-
-            return `/transactions/${transactionId}/print?${params.toString()}`;
         },
         isCopyColumnVisible(col) {
             if (col === 'image') return this.showImage;

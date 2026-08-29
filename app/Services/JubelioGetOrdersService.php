@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Crongetorder;
 use App\Models\Jubelioorder;
 use App\Models\Transaction;
+use App\Services\Jubelio\JubelioOrderWarehouseResolver;
 use Carbon\Carbon;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\DB;
@@ -18,6 +19,7 @@ class JubelioGetOrdersService
 
     public function __construct(
         private JubelioService $jubelioService,
+        private JubelioOrderWarehouseResolver $warehouseResolver,
     ) {}
 
     /**
@@ -220,6 +222,7 @@ class JubelioGetOrdersService
         $existing = $this->existingInvoiceLookup($invoices);
         $now = now();
         $batch = [];
+        $syncIndex = $this->warehouseResolver->syncIndex();
 
         foreach ($eligible as $row) {
             $invoice = $row['salesorder_no'];
@@ -236,6 +239,13 @@ class JubelioGetOrdersService
                 'type' => 'SELL',
                 'order_status' => $row['internal_status'] ?? 'SHIPPED',
                 'run_count' => 0,
+                'warehouse_id' => $this->warehouseResolver->warehouseIdFromStoreLocation(
+                    (int) ($row['store_id'] ?? 0),
+                    (int) ($row['location_id'] ?? 0),
+                    $syncIndex,
+                ),
+                'jubelio_store_id' => (int) ($row['store_id'] ?? 0),
+                'jubelio_location_id' => (int) ($row['location_id'] ?? 0),
                 'status' => 0,
                 'created_at' => $now,
                 'updated_at' => $now,
@@ -397,6 +407,12 @@ class JubelioGetOrdersService
             'type' => 'SELL',
             'order_status' => $inspection['status'] ?: 'SHIPPED',
             'run_count' => 0,
+            'warehouse_id' => $this->warehouseResolver->warehouseIdFromStoreLocation(
+                (int) ($apiData['store_id'] ?? 0),
+                (int) ($apiData['location_id'] ?? 0),
+            ),
+            'jubelio_store_id' => (int) ($apiData['store_id'] ?? 0),
+            'jubelio_location_id' => (int) ($apiData['location_id'] ?? 0),
             'status' => 0,
         ]);
 

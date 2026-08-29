@@ -97,9 +97,11 @@ it('scales daily reset budgets on double date', function () {
         'starting_budget_gmv_max' => 100000,
         'item_ad_starting_budget' => 60000,
         'max_item_ads' => 1,
+        'item_ads_enabled' => true,
         'double_date_enabled' => true,
         'double_date_gmv_multiplier' => 2,
         'double_date_item_budget_multiplier' => 2,
+        'double_date_item_ads_multiplier' => 1,
         'gms_campaign_id' => 'gmv-dd',
         'gms_current_budget' => 50000,
     ]);

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Item;
+use App\Models\ItemIdentityConversionResult;
 use App\Services\Items\LegacyItemConverterService;
 use App\Services\Items\SpecialSkuConverterRules;
 use App\Services\Items\SpecialSkuConverterService;
@@ -70,6 +71,41 @@ class SpecialSkuConverterController extends Controller
         return redirect()
             ->route('items.special-converter', ['page' => $page])
             ->with('success', "Converted {$run->success_count} item(s): {$run->failed_count} failed, {$run->skipped_count} skipped.");
+    }
+
+    public function runItem(Request $request, Item $item): RedirectResponse
+    {
+        $this->authorizeConverter();
+
+        $page = $this->validatedPage($request);
+
+        try {
+            $result = $this->converterService->runItem($item, $request->user());
+        } catch (\Throwable $e) {
+            return redirect()
+                ->route('items.special-converter', ['page' => $page])
+                ->with('error', $e->getMessage());
+        }
+
+        if ($result->status === ItemIdentityConversionResult::STATUS_SUCCESS) {
+            $item->refresh();
+
+            return redirect()
+                ->route('items.special-converter', ['page' => $page])
+                ->with(
+                    'success',
+                    "Converted to {$item->code}."
+                    .($item->legacy_code ? " Legacy SKU {$item->legacy_code} preserved for Jubelio." : ''),
+                );
+        }
+
+        $detail = trim((string) ($result->detail ?? ''));
+        $failure = trim((string) ($result->failure_code ?? 'CONVERSION_FAILED'));
+        $message = $detail !== '' ? "{$failure}: {$detail}" : $failure;
+
+        return redirect()
+            ->route('items.special-converter', ['page' => $page])
+            ->with('error', $message);
     }
 
     /**

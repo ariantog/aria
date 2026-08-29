@@ -50,9 +50,11 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::post('items/legacy-converter/preview', [App\Http\Controllers\LegacyItemConverterController::class, 'preview'])->name('items.legacy-converter.preview');
     Route::post('items/legacy-converter/purge-useless', [App\Http\Controllers\LegacyItemConverterController::class, 'purgeUseless'])->name('items.legacy-converter.purge-useless');
     Route::post('items/legacy-converter/run', [App\Http\Controllers\LegacyItemConverterController::class, 'run'])->name('items.legacy-converter.run');
+    Route::post('items/legacy-converter/{item}/run', [App\Http\Controllers\LegacyItemConverterController::class, 'runItem'])->name('items.legacy-converter.run-item');
     Route::get('items/special-converter', [App\Http\Controllers\SpecialSkuConverterController::class, 'index'])->name('items.special-converter');
     Route::post('items/special-converter/preview', [App\Http\Controllers\SpecialSkuConverterController::class, 'preview'])->name('items.special-converter.preview');
     Route::post('items/special-converter/run', [App\Http\Controllers\SpecialSkuConverterController::class, 'run'])->name('items.special-converter.run');
+    Route::post('items/special-converter/{item}/run', [App\Http\Controllers\SpecialSkuConverterController::class, 'runItem'])->name('items.special-converter.run-item');
     Route::get('items/{item}/transactions', [App\Http\Controllers\ItemsController::class, 'itemTransactions'])->name('items.transactions');
     Route::get('items/{item}/stats', [App\Http\Controllers\ItemsController::class, 'itemStats'])->name('items.stats');
     Route::get('items/{item}/jubelio', [App\Http\Controllers\ItemsController::class, 'jubelio'])->name('items.jubelio');
@@ -66,6 +68,7 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::post('jubelio/token/refresh', [App\Http\Controllers\JubelioTokenController::class, 'refresh'])->name('jubelio.token.refresh');
     Route::post('jubelio/token/check', [App\Http\Controllers\JubelioTokenController::class, 'check'])->name('jubelio.token.check');
     Route::get('jubelio/{jubelio}/payload', [App\Http\Controllers\JubelioController::class, 'payload'])->name('jubelio.payload');
+    Route::post('jubelio/{jubelio}/refresh-payload', [App\Http\Controllers\JubelioController::class, 'refreshPayload'])->name('jubelio.refresh-payload');
     Route::post('jubelio/{jubelio}/process', [App\Http\Controllers\JubelioController::class, 'processOrder'])->name('jubelio.process');
     Route::post('jubelio/{jubelio}/solve', [App\Http\Controllers\JubelioController::class, 'markSolved'])->name('jubelio.solve');
     Route::resource('jubelio', App\Http\Controllers\JubelioController::class);
@@ -116,6 +119,25 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::post('warehouse-stat-backfill/resume', [App\Http\Controllers\WarehouseStatBackfillController::class, 'resume'])->name('warehouse-stat-backfill.resume');
     Route::post('warehouse-stat-backfill/run-batch', [App\Http\Controllers\WarehouseStatBackfillController::class, 'runBatch'])->name('warehouse-stat-backfill.run-batch');
 
+    // Data retention (archive copy + live cleanup)
+    Route::get('data-retention', [App\Http\Controllers\DataRetentionController::class, 'index'])->name('data-retention.index');
+    Route::post('data-retention/preview-archive', [App\Http\Controllers\DataRetentionController::class, 'previewArchive'])->name('data-retention.preview-archive');
+    Route::post('data-retention/archive-year', [App\Http\Controllers\DataRetentionController::class, 'archiveYear'])->name('data-retention.archive-year');
+    Route::post('data-retention/preview-cleanup', [App\Http\Controllers\DataRetentionController::class, 'previewCleanup'])->name('data-retention.preview-cleanup');
+    Route::post('data-retention/cleanup-year', [App\Http\Controllers\DataRetentionController::class, 'cleanupYear'])->name('data-retention.cleanup-year');
+    Route::post('data-retention/purge-orphan-items', [App\Http\Controllers\DataRetentionController::class, 'purgeOrphanItems'])->name('data-retention.purge-orphan-items');
+    Route::post('data-retention/purge-orphan-item-groups', [App\Http\Controllers\DataRetentionController::class, 'purgeOrphanItemGroups'])->name('data-retention.purge-orphan-item-groups');
+    Route::post('data-retention/purge-orphan-addrbooks/{type}', [App\Http\Controllers\DataRetentionController::class, 'purgeOrphanAddrbooks'])->name('data-retention.purge-orphan-addrbooks');
+    Route::get('data-retention/item-purge', [App\Http\Controllers\ItemPurgeController::class, 'index'])->name('data-retention.item-purge.index');
+    Route::post('data-retention/item-purge', [App\Http\Controllers\ItemPurgeController::class, 'purge'])->name('data-retention.item-purge.purge');
+
+    // Archive (read-only)
+    Route::get('archive', [App\Http\Controllers\ArchiveDashboardController::class, 'index'])->name('archive.index');
+    Route::get('archive/transactions', [App\Http\Controllers\ArchiveTransactionsController::class, 'index'])->name('archive.transactions.index');
+    Route::get('archive/transactions/{id}', [App\Http\Controllers\ArchiveTransactionsController::class, 'show'])->name('archive.transactions.show');
+    Route::get('archive/items', [App\Http\Controllers\ArchiveItemsController::class, 'index'])->name('archive.items.index');
+    Route::get('archive/items/{id}', [App\Http\Controllers\ArchiveItemsController::class, 'show'])->name('archive.items.show');
+
     // Cron Manager
     Route::get('cron-manager', [App\Http\Controllers\ScheduledTaskController::class, 'index'])->name('scheduled-tasks.index');
     Route::patch('cron-manager/{scheduledTask}', [App\Http\Controllers\ScheduledTaskController::class, 'update'])->name('scheduled-tasks.update');
@@ -132,6 +154,7 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::post('shopee-ads/replenish', [App\Http\Controllers\ShopeeAdsController::class, 'replenish'])->name('shopee-ads.replenish');
     Route::post('shopee-ads/daily-reset', [App\Http\Controllers\ShopeeAdsController::class, 'dailyReset'])->name('shopee-ads.daily-reset');
     Route::post('shopee-ads/boost-budget', [App\Http\Controllers\ShopeeAdsController::class, 'boostBudget'])->name('shopee-ads.boost');
+    Route::post('shopee-ads/suggest-group-ads', [App\Http\Controllers\ShopeeAdsController::class, 'suggestGroupAds'])->name('shopee-ads.suggest-group-ads');
 
     // Dynamic Addrbook Type Routes (e.g., /customer, /supplier)
     $addrbookTypes = implode('|', array_column(\App\Models\Addrbook::getTypes(), 'slug'));

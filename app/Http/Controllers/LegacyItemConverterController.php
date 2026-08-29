@@ -27,20 +27,35 @@ class LegacyItemConverterController extends Controller
             ?? ItemType::ASSET_LANCAR;
         $currentPage = max(1, (int) $request->query('page', 1));
 
-        $queueStats = $this->converterService->queueStats($itemType);
         $uselessCount = $this->converterService->uselessQuery($itemType)->count();
         $superOldCount = $this->converterService->superOldQuery($itemType)->count();
-        $unparseableCount = $queueStats['unparseable'];
         $latestRun = ItemIdentityConversionRun::query()
             ->where('item_type', $itemType)
             ->latest('id')
             ->first();
 
-        $data = match ($tab) {
-            'completed' => $this->completedResults($itemType),
-            'failed' => $this->failedResults($itemType),
-            default => $this->pendingItems($itemType, $queueStats['eligible']),
-        };
+        if ($tab === 'pending') {
+            $pendingData = $this->converterService->pendingIndexData(
+                $itemType,
+                LegacyItemConverterService::PENDING_PAGE_SIZE,
+                $currentPage,
+            );
+            $queueStats = $pendingData['stats'];
+            $data = $pendingData['paginator']->withQueryString();
+        } else {
+            $queueStats = $this->converterService->queueStats($itemType);
+            $data = match ($tab) {
+                'completed' => $this->completedResults($itemType),
+                'failed' => $this->failedResults($itemType),
+                default => $this->pendingItems($itemType, $queueStats['eligible']),
+            };
+        }
+
+        $unparseableCount = $queueStats['unparseable'];
+
+        $previews = $tab === 'pending'
+            ? $this->converterService->previewItems(collect($data->items()))->keyBy(fn (array $row) => $row['item']->id)
+            : collect();
 
         return view('items.legacy-converter', [
             'tab' => $tab,
@@ -52,6 +67,7 @@ class LegacyItemConverterController extends Controller
             'unparseableCount' => $unparseableCount,
             'latestRun' => $latestRun,
             'dataList' => $data,
+            'previews' => $previews,
             'batchSize' => LegacyItemConverterService::DEFAULT_BATCH_SIZE,
             'pageSize' => LegacyItemConverterService::PENDING_PAGE_SIZE,
             'currentPage' => $currentPage,
@@ -107,6 +123,54 @@ class LegacyItemConverterController extends Controller
                 'page' => $page,
             ])
             ->with('success', "Converted {$run->success_count} item(s): {$run->failed_count} failed, {$run->skipped_count} skipped.");
+    }
+
+    public function runItem(Request $request, Item $item): RedirectResponse
+    {
+        $this->authorizeConverter();
+
+        $itemType = $this->validatedItemType($request);
+        $page = $this->validatedPage($request);
+
+        try {
+            $result = $this->converterService->runItem($item, $itemType, $request->user());
+        } catch (\Throwable $e) {
+            return redirect()
+                ->route('items.legacy-converter', [
+                    'tab' => 'pending',
+                    'type' => $itemType->value,
+                    'page' => $page,
+                ])
+                ->with('error', $e->getMessage());
+        }
+
+        if ($result->status === ItemIdentityConversionResult::STATUS_SUCCESS) {
+            $item->refresh();
+
+            return redirect()
+                ->route('items.legacy-converter', [
+                    'tab' => 'pending',
+                    'type' => $itemType->value,
+                    'page' => $page,
+                ])
+                ->with(
+                    'success',
+                    "Converted to {$item->code}."
+                    .($item->legacy_code ? " Legacy SKU {$item->legacy_code} preserved for Jubelio." : ''),
+                );
+        }
+
+        $detail = trim((string) ($result->detail ?? ''));
+        $failure = trim((string) ($result->failure_code ?? 'CONVERSION_FAILED'));
+        $message = $detail !== '' ? "{$failure}: {$detail}" : $failure;
+
+        return redirect()
+            ->route('items.legacy-converter', [
+                'tab' => 'pending',
+                'type' => $itemType->value,
+                'page' => $page,
+            ])
+            ->with('error', $message);
     }
 
     public function purgeUseless(Request $request): RedirectResponse
