@@ -87,7 +87,34 @@ class JubelioTransactionSyncPresenter
      */
     public function syncedWarehouseIds(): array
     {
-        return $this->syncMap()->keys()->all();
+        return $this->mappedSyncMap()->keys()->all();
+    }
+
+    /**
+     * Jubelio mapping hints for the transaction create form (item load warnings).
+     *
+     * @return array{sync_sender: bool, sync_receiver: bool, synced_warehouse_ids: list<int>}
+     */
+    public function createFormSyncConfig(string $type): array
+    {
+        $typeId = (int) (config("transaction_rules.{$type}.id") ?? 0);
+
+        return [
+            'sync_sender' => in_array($typeId, [Transaction::TYPE_SELL, Transaction::TYPE_RETURN_SUPPLIER, Transaction::TYPE_MOVE], true),
+            'sync_receiver' => in_array($typeId, [Transaction::TYPE_BUY, Transaction::TYPE_RETURN, Transaction::TYPE_MOVE], true),
+            'synced_warehouse_ids' => $this->syncedWarehouseIds(),
+        ];
+    }
+
+    /**
+     * @return Collection<int, Jubeliosync>
+     */
+    private function mappedSyncMap(): Collection
+    {
+        return Jubeliosync::query()
+            ->where('jubelio_location_id', '>', 0)
+            ->get()
+            ->keyBy(fn (Jubeliosync $row) => (int) $row->warehouse_id);
     }
 
     /**
