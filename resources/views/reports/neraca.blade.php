@@ -85,7 +85,12 @@ $refreshQuery = http_build_query([
     <div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm" data-testid="neraca-persediaan">
         <h3 class="mb-1 text-sm font-semibold text-gray-900">Persediaan (grup, roll-forward dari Januari 2026)</h3>
         <p class="mb-3 text-xs text-gray-500">
-            Awal + Buy bahan − COGS jual − CashOut Gaji Mingguan / material.
+            @if(!empty($persediaan['capitalize_conversion']))
+                Awal + Buy bahan + tenaga (borongan, atau Gaji Mingguan jika borongan 0) + Material Produksi − COGS.
+                HPP produksi = (tenaga + material) ÷ pcs masuk gudang.
+            @else
+                Awal + Buy bahan − COGS jual − CashOut Gaji Mingguan / material.
+            @endif
             @if(!$report['is_consolidated'])
                 Nilai closing masuk neraca konsolidasi saja (bukan per entitas).
             @endif
@@ -109,17 +114,55 @@ $refreshQuery = http_build_query([
             </div>
             <div class="rounded-lg border border-gray-100 bg-gray-50 p-3">
                 <p class="text-xs text-gray-500">CashOut material</p>
-                <p class="text-lg font-semibold tabular-nums text-gray-900">{{ $fmt($persediaan['material_cash_out']) }}</p>
+                <p class="text-lg font-semibold tabular-nums text-gray-900" data-testid="persediaan-material-out">{{ $fmt($persediaan['material_cash_out']) }}</p>
+            </div>
+            <div class="rounded-lg border border-gray-100 bg-gray-50 p-3">
+                <p class="text-xs text-gray-500">Borongan</p>
+                <p class="text-lg font-semibold tabular-nums text-gray-900" data-testid="persediaan-borongan">{{ $fmt($persediaan['borongan_labor'] ?? 0) }}</p>
+            </div>
+            <div class="rounded-lg border border-gray-100 bg-gray-50 p-3">
+                <p class="text-xs text-gray-500">Pcs produksi (gudang)</p>
+                <p class="text-lg font-semibold tabular-nums text-gray-900" data-testid="persediaan-pcs">{{ format_number($persediaan['pcs_manufactured'] ?? 0) }}</p>
+            </div>
+            <div class="rounded-lg border border-gray-100 bg-gray-50 p-3">
+                <p class="text-xs text-gray-500">HPP / pcs produksi</p>
+                <p class="text-lg font-semibold tabular-nums text-gray-900" data-testid="persediaan-unit-cost">{{ format_amount($persediaan['manufactured_unit_cost'] ?? 0, 4) }}</p>
+            </div>
+            <div class="rounded-lg border border-gray-100 bg-gray-50 p-3">
+                <p class="text-xs text-gray-500">COGS produksi</p>
+                <p class="text-lg font-semibold tabular-nums text-gray-900" data-testid="persediaan-cogs-mfg">{{ $fmt($persediaan['manufactured_cogs'] ?? 0) }}</p>
+            </div>
+            <div class="rounded-lg border border-gray-100 bg-gray-50 p-3">
+                <p class="text-xs text-gray-500">COGS beli</p>
+                <p class="text-lg font-semibold tabular-nums text-gray-900" data-testid="persediaan-cogs-purchased">{{ $fmt($persediaan['purchased_cogs'] ?? 0) }}</p>
             </div>
             <div class="rounded-lg border border-gray-100 bg-gray-50 p-3">
                 <p class="text-xs text-gray-500">Adjustment</p>
                 <p class="text-lg font-semibold tabular-nums text-gray-900">{{ $fmt($persediaan['adjustment']) }}</p>
             </div>
-            <div class="rounded-lg border border-blue-100 bg-blue-50 p-3 sm:col-span-2">
+            <div class="rounded-lg border border-blue-100 bg-blue-50 p-3">
                 <p class="text-xs text-blue-700">Closing</p>
                 <p class="text-lg font-semibold tabular-nums text-blue-900" data-testid="persediaan-closing">{{ $fmt($persediaan['closing']) }}</p>
             </div>
         </div>
+        <p class="mt-3 text-xs text-gray-500" data-testid="persediaan-cogs-note">
+            Pcs gudang:
+            minggu {{ format_number($persediaan['pcs_manufactured_week'] ?? 0) }},
+            bulan {{ format_number($persediaan['pcs_manufactured'] ?? 0) }},
+            YTD {{ format_number($persediaan['pcs_manufactured_ytd'] ?? 0) }}.
+            Barang yang pernah masuk produksi memakai HPP/pcs;
+            barang beli memakai cost item.
+            @if(($persediaan['labor_source'] ?? 'none') === 'borongan')
+                Tenaga dari borongan (Gaji Mingguan hanya catatan).
+            @elseif(($persediaan['labor_source'] ?? 'none') === 'gaji')
+                Tenaga dari Gaji Mingguan (borongan 0).
+            @endif
+            @if(($persediaan['unit_cost_source'] ?? 'none') === 'prior')
+                HPP/pcs bulan ini memakai bulan sebelumnya (pcs gudang 0).
+            @elseif(($persediaan['unit_cost_source'] ?? 'none') === 'ytd')
+                HPP/pcs bulan ini memakai rata-rata YTD (pcs gudang 0).
+            @endif
+        </p>
     </div>
 
     @if(abs($report['balance_check']) >= 0.01)
