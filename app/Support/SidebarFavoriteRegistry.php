@@ -304,6 +304,15 @@ class SidebarFavoriteRegistry
                 'active_prefix' => '/reports/expense',
             ],
             [
+                'key' => 'report-neraca',
+                'label' => 'Neraca',
+                'group' => 'Reports',
+                'permission' => 'report-neraca',
+                'route' => 'reports.neraca',
+                'params' => [],
+                'active_prefix' => '/reports/neraca',
+            ],
+            [
                 'key' => 'report-tax-ppn',
                 'label' => 'Laporan PPN',
                 'group' => 'Reports',

@@ -361,6 +361,7 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
         Route::get('/product-performance', [\App\Http\Controllers\Reports\ProductPerformanceController::class, 'index'])->name('product-performance');
         Route::get('/produksi-potong', \App\Http\Controllers\Reports\ProduksiPotongReportController::class)->name('produksi-potong');
         Route::get('/produksi-qc', \App\Http\Controllers\Reports\ProduksiQcReportController::class)->name('produksi-qc');
+        Route::get('/neraca', \App\Http\Controllers\Reports\NeracaReportController::class)->name('neraca');
         Route::get('/tax/ppn', \App\Http\Controllers\Reports\TaxPpnReportController::class)->name('tax.ppn');
         Route::get('/tax/faktur', [\App\Http\Controllers\Reports\TaxFakturImportController::class, 'index'])->name('tax.faktur.index');
         Route::get('/tax/faktur/create', [\App\Http\Controllers\Reports\TaxFakturImportController::class, 'create'])->name('tax.faktur.create');

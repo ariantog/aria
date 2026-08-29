@@ -29,6 +29,7 @@ class Report
             'view-tax-ppn' => 'report-tax-ppn',
             'view-tax-faktur' => 'report-tax-faktur',
             'import-tax-faktur' => 'report-tax-faktur-import',
+            'view-neraca' => 'report-neraca',
         ];
     }
 }
