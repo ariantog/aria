@@ -56,7 +56,7 @@ class KaryawanController extends Controller
         $validated = $this->validatedKaryawan($request);
         Karyawan::create($validated);
 
-        return redirect()->route('karyawan.index')->with('success', 'Karyawan '.$request->nama.' created.');
+        return redirect()->route('karyawan.index')->with('success', 'Karyawan '.$request->nama.' berhasil ditambahkan.');
     }
 
     public function edit(Karyawan $karyawan)
@@ -79,7 +79,7 @@ class KaryawanController extends Controller
 
         $karyawan->update($this->validatedKaryawan($request, $karyawan));
 
-        return redirect()->route('karyawan.index')->with('success', 'Karyawan '.$karyawan->nama.' updated.');
+        return redirect()->route('karyawan.index')->with('success', 'Karyawan '.$karyawan->nama.' berhasil diperbarui.');
     }
 
     public function show(Karyawan $karyawan)
@@ -116,7 +116,7 @@ class KaryawanController extends Controller
 
         $karyawan->delete();
 
-        return redirect()->route('karyawan.index')->with('success', 'Karyawan '.$karyawan->nama.' deleted.');
+        return redirect()->route('karyawan.index')->with('success', 'Karyawan '.$karyawan->nama.' berhasil dihapus.');
     }
 
     /**
@@ -133,19 +133,27 @@ class KaryawanController extends Controller
             'no_telp' => 'required|string|max:255',
             'bulanan' => 'required|numeric',
             'harian' => 'required|numeric',
-            'premi' => 'required|numeric',
             'bank_id' => 'required|exists:customers,id',
             'flag' => 'required|integer|in:1,2',
+            'waktu_dibatasi' => 'nullable|boolean',
+            'jam_masuk' => 'nullable|date_format:H:i',
+            'grace_period_menit' => 'nullable|integer|min:0|max:180',
         ], [], [
-            'nama' => 'Name',
-            'alamat' => 'Address',
-            'no_telp' => 'Phone',
-            'bulanan' => 'Bulanan',
-            'harian' => 'Harian',
-            'premi' => 'Premi',
-            'bank_id' => 'Account bank',
-            'flag' => 'Privasi',
+            'nama' => 'nama',
+            'alamat' => 'alamat',
+            'no_telp' => 'telepon',
+            'bulanan' => 'gaji bulanan',
+            'harian' => 'tarif harian',
+            'bank_id' => 'rekening bank',
+            'flag' => 'privasi',
+            'jam_masuk' => 'jam masuk',
+            'grace_period_menit' => 'grace period',
         ]);
+
+        $validated['waktu_dibatasi'] = $request->boolean('waktu_dibatasi');
+        $validated['jam_masuk'] = $validated['jam_masuk'] ?? '08:00';
+        $validated['grace_period_menit'] = $validated['grace_period_menit'] ?? null;
+        $validated['premi'] = 0;
 
         if (! $canSetPrivate && (int) $validated['flag'] === KaryawanVisibility::FLAG_PRIVATE) {
             $validated['flag'] = KaryawanVisibility::FLAG_PUBLIC;

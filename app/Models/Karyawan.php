@@ -37,6 +37,13 @@ class Karyawan extends Model
         ];
     }
 
+    protected function casts(): array
+    {
+        return [
+            'waktu_dibatasi' => 'boolean',
+        ];
+    }
+
     public function gaji()
     {
         return $this->hasMany(Gaji::class);

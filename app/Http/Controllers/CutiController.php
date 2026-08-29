@@ -14,7 +14,7 @@ class CutiController extends Controller
     public function create(Karyawan $karyawan)
     {
         Gate::authorize(Karyawan::getPermissions()['cuti-create']);
-        $this->authorizeKaryawan(request(), $karyawan);
+        $this->authorizeKaryawan(request()->user(), $karyawan);
 
         return view('cuti.create', [
             'karyawan' => $karyawan,
@@ -24,7 +24,7 @@ class CutiController extends Controller
     public function store(Request $request, Karyawan $karyawan)
     {
         Gate::authorize(Karyawan::getPermissions()['cuti-create']);
-        $this->authorizeKaryawan($request, $karyawan);
+        $this->authorizeKaryawan($request->user(), $karyawan);
 
         $validated = $request->validate([
             'tgl_mulai' => 'required|date',
@@ -56,7 +56,7 @@ class CutiController extends Controller
 
         $cuti->save();
 
-        return redirect()->route('karyawan.show', $karyawan->id)->with('success', 'Cuti created.');
+        return redirect()->route('karyawan.show', $karyawan->id)->with('success', 'Cuti berhasil dicatat.');
     }
 
     protected function authorizeKaryawan($user, Karyawan $karyawan): void

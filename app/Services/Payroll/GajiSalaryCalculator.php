@@ -18,15 +18,18 @@ class GajiSalaryCalculator
      *   bulanan: int,
      *   harian_rate: int,
      *   harian_total: int,
-     *   premi: int,
      *   cuti_tahunan: int,
      *   cuti_sakit: int,
      *   cuti_mendadak: int,
+     *   hari_izin: int,
      *   total_cuti: int,
      *   denda_cuti_tahunan: int,
      *   denda_cuti_sakit: int,
-     *   potongan_cuti_bulanan: int,
-     *   potongan_cuti_premi: int,
+     *   potongan_harian: int,
+     *   menit_telat: int,
+     *   potongan_telat: int,
+     *   jam_lembur: float,
+     *   upah_lembur: int,
      *   total_potongan: int,
      *   bonus: int,
      *   sanksi: int,
@@ -35,6 +38,9 @@ class GajiSalaryCalculator
      *   limit_sakit: int,
      *   running_tahunan_before: int,
      *   running_sakit_before: int,
+     *   grace_period_menit: int,
+     *   jam_kerja_per_hari: int,
+     *   lembur_multiplier: float,
      * }
      */
     public function calculate(
@@ -43,25 +49,25 @@ class GajiSalaryCalculator
         int $tahun,
         int $bonus = 0,
         int $sanksi = 0,
-        ?int $overridePotongBulanan = null,
-        ?int $overridePotongPremi = null,
+        ?int $overridePotongHarian = null,
+        ?int $overridePotongTelat = null,
+        ?int $overrideUpahLembur = null,
         ?int $overrideCutiTahunan = null,
         ?int $overrideCutiSakit = null,
         ?int $overrideCutiMendadak = null,
+        ?int $overrideHariIzin = null,
+        ?int $overrideMenitTelat = null,
+        ?float $overrideJamLembur = null,
     ): array {
         $limitTahunan = (int) Setting::getValue('batas_cuti_tahunan', 12);
         $limitSakit = (int) Setting::getValue('batas_cuti_sakit', 30);
-
-        $payPeriod = Carbon::create($tahun, $bulan, 1);
-        $cutiPeriod = $payPeriod->copy()->subMonth();
+        $gracePeriod = $this->gracePeriodFor($karyawan);
+        $jamKerjaPerHari = (int) Setting::getValue('payroll.jam_kerja_per_hari', 8);
+        $lemburMultiplier = (float) Setting::getValue('payroll.lembur_multiplier', 1.5);
 
         $running = $this->runningCutiTotals($karyawan, $tahun, $bulan);
 
-        $cutiCounts = $this->cutiDaysForMonth(
-            $karyawan,
-            $cutiPeriod->year,
-            $cutiPeriod->month,
-        );
+        $cutiCounts = $this->cutiDaysForMonth($karyawan, $tahun, $bulan);
 
         if ($overrideCutiTahunan !== null) {
             $cutiCounts['tahunan'] = max(0, $overrideCutiTahunan);
@@ -72,6 +78,8 @@ class GajiSalaryCalculator
         if ($overrideCutiMendadak !== null) {
             $cutiCounts['mendadak'] = max(0, $overrideCutiMendadak);
         }
+
+        $hariIzin = $overrideHariIzin ?? 0;
 
         $dendaTahunan = $this->excessCutiDays(
             $running['tahunan'],
@@ -85,18 +93,23 @@ class GajiSalaryCalculator
         );
 
         $harianRate = (int) $karyawan->harian;
-        $defaultPotongBulanan = ($dendaTahunan + $dendaSakit + $cutiCounts['mendadak']) * $harianRate;
-        $potongBulanan = $overridePotongBulanan ?? $defaultPotongBulanan;
+        $defaultPotongHarian = ($dendaTahunan + $dendaSakit + $cutiCounts['mendadak'] + $hariIzin) * $harianRate;
+        $potongHarian = $overridePotongHarian ?? $defaultPotongHarian;
 
-        $totalCuti = $cutiCounts['tahunan'] + $cutiCounts['sakit'] + $cutiCounts['mendadak'];
-        $defaultPotongPremi = $totalCuti > 0 ? (int) $karyawan->premi : 0;
-        $potongPremi = $overridePotongPremi ?? $defaultPotongPremi;
+        $menitTelat = $overrideMenitTelat ?? 0;
+        $defaultPotongTelat = $this->calculateTelatPotongan($karyawan, $menitTelat, $harianRate, $gracePeriod, $jamKerjaPerHari);
+        $potongTelat = $overridePotongTelat ?? $defaultPotongTelat;
+
+        $jamLembur = $overrideJamLembur ?? 0.0;
+        $defaultUpahLembur = $this->calculateUpahLembur($jamLembur, $harianRate, $jamKerjaPerHari, $lemburMultiplier);
+        $upahLembur = $overrideUpahLembur ?? $defaultUpahLembur;
 
         $bulanan = (int) $karyawan->bulanan;
-        $premi = (int) $karyawan->premi;
         $harianTotal = $harianRate * self::WORKING_DAYS_PER_MONTH;
-        $totalPotongan = $potongBulanan + $potongPremi;
-        $totalGaji = $bulanan + $harianTotal + $premi + $bonus - $sanksi - $totalPotongan;
+        $totalPotongan = $potongHarian + $potongTelat + $sanksi;
+        $totalGaji = $bulanan + $harianTotal + $bonus + $upahLembur - $totalPotongan;
+
+        $totalCuti = $cutiCounts['tahunan'] + $cutiCounts['sakit'] + $cutiCounts['mendadak'];
 
         return [
             'bulan' => $bulan,
@@ -104,15 +117,18 @@ class GajiSalaryCalculator
             'bulanan' => $bulanan,
             'harian_rate' => $harianRate,
             'harian_total' => $harianTotal,
-            'premi' => $premi,
             'cuti_tahunan' => $cutiCounts['tahunan'],
             'cuti_sakit' => $cutiCounts['sakit'],
             'cuti_mendadak' => $cutiCounts['mendadak'],
+            'hari_izin' => $hariIzin,
             'total_cuti' => $totalCuti,
             'denda_cuti_tahunan' => $dendaTahunan,
             'denda_cuti_sakit' => $dendaSakit,
-            'potongan_cuti_bulanan' => $potongBulanan,
-            'potongan_cuti_premi' => $potongPremi,
+            'potongan_harian' => $potongHarian,
+            'menit_telat' => $menitTelat,
+            'potongan_telat' => $potongTelat,
+            'jam_lembur' => $jamLembur,
+            'upah_lembur' => $upahLembur,
             'total_potongan' => $totalPotongan,
             'bonus' => $bonus,
             'sanksi' => $sanksi,
@@ -121,14 +137,69 @@ class GajiSalaryCalculator
             'limit_sakit' => $limitSakit,
             'running_tahunan_before' => $running['tahunan'],
             'running_sakit_before' => $running['sakit'],
-            'cuti_period_month' => $cutiPeriod->month,
-            'cuti_period_year' => $cutiPeriod->year,
+            'grace_period_menit' => $gracePeriod,
+            'jam_kerja_per_hari' => $jamKerjaPerHari,
+            'lembur_multiplier' => $lemburMultiplier,
         ];
     }
 
+    public function gracePeriodFor(Karyawan $karyawan): int
+    {
+        if ($karyawan->grace_period_menit !== null) {
+            return (int) $karyawan->grace_period_menit;
+        }
+
+        return (int) Setting::getValue('payroll.grace_period_menit', 15);
+    }
+
+    public function calculateTelatPotongan(
+        Karyawan $karyawan,
+        int $menitTelat,
+        int $harianRate,
+        ?int $gracePeriod = null,
+        ?int $jamKerjaPerHari = null,
+    ): int {
+        if (! (bool) ($karyawan->waktu_dibatasi ?? true)) {
+            return 0;
+        }
+
+        if ($menitTelat <= 0 || $harianRate <= 0) {
+            return 0;
+        }
+
+        $grace = $gracePeriod ?? $this->gracePeriodFor($karyawan);
+        $hoursPerDay = $jamKerjaPerHari ?? (int) Setting::getValue('payroll.jam_kerja_per_hari', 8);
+        $hoursPerDay = max(1, $hoursPerDay);
+
+        if ($menitTelat <= $grace) {
+            return 0;
+        }
+
+        $hourlyRate = (int) floor($harianRate / $hoursPerDay);
+        $billableMinutes = $menitTelat - $grace;
+        $hours = (int) ceil($billableMinutes / 60);
+
+        return $hours * $hourlyRate;
+    }
+
+    public function calculateUpahLembur(
+        float $jamLembur,
+        int $harianRate,
+        ?int $jamKerjaPerHari = null,
+        ?float $multiplier = null,
+    ): int {
+        if ($jamLembur <= 0 || $harianRate <= 0) {
+            return 0;
+        }
+
+        $hoursPerDay = max(1, $jamKerjaPerHari ?? (int) Setting::getValue('payroll.jam_kerja_per_hari', 8));
+        $multiplier = $multiplier ?? (float) Setting::getValue('payroll.lembur_multiplier', 1.5);
+        $hourlyRate = $harianRate / $hoursPerDay;
+
+        return (int) round($jamLembur * $hourlyRate * $multiplier);
+    }
+
     /**
-     * Sum cuti days already paid out on earlier payroll slips in the same calendar year.
-     *
      * @return array{tahunan: int, sakit: int}
      */
     public function runningCutiTotals(Karyawan $karyawan, int $payrollYear, int $payrollMonth): array

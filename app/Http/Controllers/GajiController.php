@@ -47,7 +47,7 @@ class GajiController extends Controller
         KaryawanVisibility::scopeVisibleGaji($bankQuery, $user);
 
         $gajiPerBank = (clone $bankQuery)
-            ->selectRaw('bank_id, SUM('.Gaji::totalColumn().') as total_gaji')
+            ->selectRaw('bank_id, SUM(total_gaji) as total_gaji')
             ->groupBy('bank_id')
             ->with('bank')
             ->get();
@@ -102,7 +102,7 @@ class GajiController extends Controller
 
         return redirect()
             ->route('karyawan.show', $karyawan)
-            ->with('success', 'Gaji '.$karyawan->nama.' saved.');
+            ->with('success', 'Gaji '.$karyawan->nama.' berhasil disimpan.');
     }
 
     public function edit(Request $request, Gaji $gaji)
@@ -123,11 +123,15 @@ class GajiController extends Controller
             (int) $gaji->tahun,
             (int) $gaji->bonus,
             (int) $gaji->sanksi,
-            (int) $gaji->potongan_cuti_bulanan,
-            (int) $gaji->potongan_cuti_premi,
+            (int) $gaji->potongan_harian,
+            (int) $gaji->potongan_telat,
+            (int) $gaji->upah_lembur,
             (int) $gaji->cuti_tahunan,
             (int) $gaji->cuti_sakit,
             (int) $gaji->cuti_mendadak,
+            (int) $gaji->hari_izin,
+            (int) $gaji->menit_telat,
+            (float) $gaji->jam_lembur,
         );
 
         return view('gaji.form', [
@@ -153,7 +157,7 @@ class GajiController extends Controller
 
         return redirect()
             ->route('karyawan.show', $karyawan)
-            ->with('success', 'Gaji '.$karyawan->nama.' updated.');
+            ->with('success', 'Gaji '.$karyawan->nama.' berhasil diperbarui.');
     }
 
     public function destroy(Gaji $gaji)
@@ -163,7 +167,7 @@ class GajiController extends Controller
 
         $gaji->delete();
 
-        return redirect()->route('gaji.index')->with('success', 'Gaji deleted');
+        return redirect()->route('gaji.index')->with('success', 'Gaji berhasil dihapus.');
     }
 
     /**
@@ -179,20 +183,32 @@ class GajiController extends Controller
             'tahun' => 'required|integer|min:2000|max:2100',
             'bulanan' => 'required|numeric|min:0',
             'harian_rate' => 'required|numeric|min:0',
-            'premi' => 'required|numeric|min:0',
             'total_cuti_tahunan' => 'required|integer|min:0',
             'total_cuti_sakit' => 'required|integer|min:0',
             'total_cuti_mendadak' => 'required|integer|min:0',
-            'potong_bulanan' => 'required|numeric|min:0',
-            'potong_premi' => 'required|numeric|min:0',
+            'hari_izin' => 'required|integer|min:0',
+            'potong_harian' => 'required|numeric|min:0',
+            'menit_telat' => 'required|integer|min:0',
+            'potong_telat' => 'required|numeric|min:0',
+            'jam_lembur' => 'required|numeric|min:0',
+            'upah_lembur' => 'required|numeric|min:0',
             'bonus' => 'required|numeric|min:0',
             'sanksi' => 'required|numeric|min:0',
             'privasi' => 'required|integer|in:1,2',
+        ], [], [
+            'bulanan' => 'gaji bulanan',
+            'harian_rate' => 'tarif harian',
+            'hari_izin' => 'hari izin',
+            'potong_harian' => 'potongan harian',
+            'menit_telat' => 'menit telat',
+            'potong_telat' => 'potongan telat',
+            'jam_lembur' => 'jam lembur',
+            'upah_lembur' => 'upah lembur',
         ]);
 
         if (! $canSetPrivate && (int) $validated['privasi'] === KaryawanVisibility::FLAG_PRIVATE) {
             throw ValidationException::withMessages([
-                'privasi' => 'Only the superadmin can mark payroll as private.',
+                'privasi' => 'Hanya superadmin yang dapat menandai gaji sebagai privasi.',
             ]);
         }
 
@@ -206,11 +222,15 @@ class GajiController extends Controller
             (int) $validated['tahun'],
             (int) $validated['bonus'],
             (int) $validated['sanksi'],
-            (int) $validated['potong_bulanan'],
-            (int) $validated['potong_premi'],
+            (int) $validated['potong_harian'],
+            (int) $validated['potong_telat'],
+            (int) $validated['upah_lembur'],
             (int) $validated['total_cuti_tahunan'],
             (int) $validated['total_cuti_sakit'],
             (int) $validated['total_cuti_mendadak'],
+            (int) $validated['hari_izin'],
+            (int) $validated['menit_telat'],
+            (float) $validated['jam_lembur'],
         );
 
         $validated['total_gaji'] = $calculation['total_gaji'];
@@ -233,13 +253,15 @@ class GajiController extends Controller
             'tahun' => (int) $payload['tahun'],
             'bulanan' => (int) $payload['bulanan'],
             'harian' => (int) $payload['harian_total'],
-            'premi' => (int) $payload['premi'],
             'cuti_sakit' => (int) $payload['total_cuti_sakit'],
             'cuti_tahunan' => (int) $payload['total_cuti_tahunan'],
             'cuti_mendadak' => (int) $payload['total_cuti_mendadak'],
-            'total_cuti' => (int) $payload['total_cuti'],
-            'potongan_cuti_bulanan' => (int) $payload['potong_bulanan'],
-            'potongan_cuti_premi' => (int) $payload['potong_premi'],
+            'hari_izin' => (int) $payload['hari_izin'],
+            'potongan_harian' => (int) $payload['potong_harian'],
+            'menit_telat' => (int) $payload['menit_telat'],
+            'potongan_telat' => (int) $payload['potong_telat'],
+            'jam_lembur' => (float) $payload['jam_lembur'],
+            'upah_lembur' => (int) $payload['upah_lembur'],
             'total_potongan' => (int) $payload['total_potongan'],
             'bonus' => (int) $payload['bonus'],
             'sanksi' => (int) $payload['sanksi'],
@@ -260,7 +282,7 @@ class GajiController extends Controller
 
         if ($exists) {
             throw ValidationException::withMessages([
-                'bulan' => 'Payroll for this period already exists.',
+                'bulan' => 'Gaji untuk periode ini sudah ada.',
             ]);
         }
     }

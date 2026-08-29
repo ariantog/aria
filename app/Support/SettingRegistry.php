@@ -56,6 +56,27 @@ class SettingRegistry
                 'type' => 'number',
                 'default' => '30',
             ],
+            'payroll.grace_period_menit' => [
+                'group' => 'HR',
+                'name' => 'Grace Period Telat (menit)',
+                'type' => 'number',
+                'default' => '15',
+                'hint' => 'Menit keterlambatan yang tidak kena potong (default perusahaan). Bisa dioverride per karyawan.',
+            ],
+            'payroll.jam_kerja_per_hari' => [
+                'group' => 'HR',
+                'name' => 'Jam Kerja per Hari',
+                'type' => 'number',
+                'default' => '8',
+                'hint' => 'Digunakan untuk hitung tarif per jam (telat & lembur).',
+            ],
+            'payroll.lembur_multiplier' => [
+                'group' => 'HR',
+                'name' => 'Pengali Lembur',
+                'type' => 'number',
+                'default' => '1.5',
+                'hint' => 'Upah lembur = jam × (harian ÷ jam kerja) × pengali.',
+            ],
             'restock.default_supplier_id' => [
                 'group' => 'Restock',
                 'name' => 'Default Supplier',
