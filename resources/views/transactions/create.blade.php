@@ -469,7 +469,7 @@ const _PriceSource = @json($config['price_source'] ?? 'price');
 const _Prefill = @json($prefill ?? null);
 const _ItemLookupUrl = @json(route('transactions.item-by-id', ['type' => $type]));
 const _ItemLookupByCodeUrl = @json(route('transactions.item-by-code', ['type' => $type]));
-const _JubelioSync = @json($jubelio_sync ?? ['sync_sender' => false, 'sync_receiver' => false, 'synced_warehouse_ids' => []]);
+const _JubelioSync = @json($jubelio_sync ?? ['synced_warehouse_ids' => []]);
 const _AfterQtyField = @js($isMove ? 'price' : 'disc');
 const _BarcodeScannerLibUrl = 'https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.5/umd/zxing-browser.min.js';
 
@@ -681,10 +681,22 @@ function createTransaction() {
         },
 
         jubelioWarehouseMapped() {
-            const synced = _JubelioSync.synced_warehouse_ids || [];
-            const mapped = (id) => synced.includes(Number(id));
-            if (_JubelioSync.sync_sender && mapped(this.form.sender_id)) return true;
-            if (_JubelioSync.sync_receiver && mapped(this.form.receiver_id)) return true;
+            const synced = new Set((_JubelioSync.synced_warehouse_ids || []).map(id => Number(id)));
+            const mapped = (id) => {
+                const n = Number(id);
+
+                return n > 0 && synced.has(n);
+            };
+
+            if (_TxType === 'move') {
+                return mapped(this.form.sender_id) || mapped(this.form.receiver_id);
+            }
+            if (_TxType === 'sell' || _TxType === 'return-supplier') {
+                return mapped(this.form.sender_id);
+            }
+            if (_TxType === 'buy' || _TxType === 'return') {
+                return mapped(this.form.receiver_id);
+            }
 
             return false;
         },
@@ -1188,6 +1200,8 @@ function createTransaction() {
                     row.warehouse_stock = this.stockFor(row) || Number(ci.warehouse_stock || 0);
                     row.note = ci.note || '';
                     row.subtotal = gross - (gross * row.discount / 100);
+                    row.jubelio_item_id = Number(ci.jubelio_item_id ?? 0);
+                    this.refreshRowJubelioWarning(row);
                     this.form.items.push(row);
                 });
                 if (this.form.items.length === 0) this.addItemRow(false);
