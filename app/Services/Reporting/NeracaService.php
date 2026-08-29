@@ -19,6 +19,7 @@ class NeracaService
     public function __construct(
         private readonly InventoryRollForwardService $inventory,
         private readonly BalanceAsOfService $balances,
+        private readonly ReportingContactFilter $contacts,
     ) {}
 
     /**
@@ -55,7 +56,7 @@ class NeracaService
 
         $hadSnapshot = $this->balances->hasSnapshot($asOf->toDateString());
         $rows = $this->balances->balancesAsOf($asOf, persist: true, refresh: $refresh)
-            ->filter(fn (object $row) => $this->includeContact($row))
+            ->filter(fn (object $row) => $this->contacts->include($row))
             ->values();
 
         $scoped = $isConsolidated
@@ -63,8 +64,8 @@ class NeracaService
             : $rows->filter(fn (object $row) => (int) $row->reporting_entity_id === $resolvedEntityId);
 
         $kasRows = $scoped->where('customer_type', Addrbook::TYPE_BANK)->values();
-        $piutangRows = $this->receivableRows($isConsolidated ? $rows : $scoped);
-        $hutangRows = $this->payableRows($isConsolidated ? $rows : $scoped);
+        $piutangRows = $this->contacts->receivables($isConsolidated ? $rows : $scoped);
+        $hutangRows = $this->contacts->payables($isConsolidated ? $rows : $scoped);
 
         $kas = (float) $kasRows->sum('balance');
         $piutang = (float) $piutangRows->sum(fn (object $row) => abs((float) $row->balance));
@@ -165,43 +166,6 @@ class NeracaService
             ->where('type', ItemType::ASSET_TETAP)
             ->selectRaw('COALESCE(SUM(COALESCE(qty, 0) * COALESCE(cost, 0)), 0) as amount')
             ->value('amount');
-    }
-
-    private function includeContact(object $row): bool
-    {
-        if (! empty($row->is_internal_lending)) {
-            return false;
-        }
-
-        return $row->is_active_in_reports !== false;
-    }
-
-    /**
-     * Negative customer/reseller balances = they owe us (piutang).
-     *
-     * @param  Collection<int, object>  $rows
-     * @return Collection<int, object>
-     */
-    private function receivableRows(Collection $rows): Collection
-    {
-        return $rows
-            ->filter(fn (object $row) => in_array((int) $row->customer_type, [Addrbook::TYPE_CUSTOMER, Addrbook::TYPE_RESELLER], true))
-            ->filter(fn (object $row) => (float) $row->balance < 0)
-            ->values();
-    }
-
-    /**
-     * Positive supplier balances = we owe them (hutang).
-     *
-     * @param  Collection<int, object>  $rows
-     * @return Collection<int, object>
-     */
-    private function payableRows(Collection $rows): Collection
-    {
-        return $rows
-            ->filter(fn (object $row) => (int) $row->customer_type === Addrbook::TYPE_SUPPLIER)
-            ->filter(fn (object $row) => (float) $row->balance > 0)
-            ->values();
     }
 
     /**

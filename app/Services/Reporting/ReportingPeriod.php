@@ -47,4 +47,40 @@ class ReportingPeriod
 
         return [$date->year, $date->month];
     }
+
+    /**
+     * Calendar months ending at $year/$month (oldest first).
+     *
+     * @return list<array{0: int, 1: int}>
+     */
+    public static function monthsEnding(int $year, int $month, int $count): array
+    {
+        $count = max(1, $count);
+        $cursor = self::monthStart($year, $month);
+        $months = [];
+
+        for ($i = 0; $i < $count; $i++) {
+            $months[] = [$cursor->year, $cursor->month];
+            $cursor = $cursor->copy()->subMonth();
+        }
+
+        return array_reverse($months);
+    }
+
+    /**
+     * Inclusive date range covering the first through last month pair.
+     *
+     * @param  list<array{0: int, 1: int}>  $months
+     * @return array{0: string, 1: string}
+     */
+    public static function spanRange(array $months): array
+    {
+        $first = $months[0];
+        $last = $months[array_key_last($months)];
+
+        return [
+            self::monthStart($first[0], $first[1])->toDateString(),
+            self::monthEnd($last[0], $last[1])->toDateString(),
+        ];
+    }
 }
