@@ -273,7 +273,7 @@ class TransactionsController extends Controller
             app(\App\Services\LocationAccessService::class)->canAccessTransaction(Auth::user(), $transaction),
             403
         );
-        $transaction->load(['details.item', 'sender', 'receiver', 'user', 'submitByA', 'submitByB']);
+        $transaction->load(['details.item.group', 'sender', 'receiver', 'user', 'submitByA', 'submitByB']);
         $typeSlug = $this->resolveTypeSlug($transaction);
         $config = config("transaction_rules.{$typeSlug}");
         $getLabel = function ($role) use ($config) {

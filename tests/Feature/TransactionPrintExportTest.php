@@ -2,12 +2,15 @@
 
 use App\Models\Addrbook;
 use App\Models\Item;
+use App\Models\ItemGroup;
 use App\Models\Transaction;
 use App\Models\TransactionDetail;
 use App\Models\User;
 use App\Services\TransactionInvoiceService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Schema;
 
 uses(RefreshDatabase::class);
 
@@ -313,4 +316,54 @@ it('exports the current transactions page to excel', function () {
     $response->assertOk();
     expect($response->headers->get('content-type'))
         ->toContain('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+});
+
+it('shows group alias as item name on transaction detail', function () {
+    if (! Schema::hasColumn('item_group', 'alias')) {
+        Schema::table('item_group', function ($table) {
+            $table->string('alias')->nullable();
+        });
+    }
+
+    $group = ItemGroup::factory()->create(['name' => 'GROUP PRODUCT NAME']);
+    DB::table('item_group')->where('id', $group->id)->update(['alias' => 'GROUP ALIAS NAME']);
+
+    $item = Item::factory()->create([
+        'group_id' => $group->id,
+        'name' => 'ITEM DISPLAY NAME - NAVY - S',
+        'code' => 'AJD-TX-SHOW-S',
+    ]);
+
+    $transaction = Transaction::factory()->create(['invoice' => 'TX-ALIAS-NAME']);
+    TransactionDetail::factory()->create([
+        'transaction_id' => $transaction->id,
+        'item_id' => $item->id,
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('transactions.show', $transaction))
+        ->assertOk()
+        ->assertSee('GROUP ALIAS NAME', false)
+        ->assertDontSee('ITEM DISPLAY NAME - NAVY - S', false);
+});
+
+it('shows item description toggle and column on transaction detail', function () {
+    $item = Item::factory()->create([
+        'name' => 'Desc Toggle Item',
+        'code' => 'AJD-DESC-TOGGLE-M',
+        'description' => 'ITEM DESCRIPTION FOR TX SHOW',
+    ]);
+
+    $transaction = Transaction::factory()->create(['invoice' => 'TX-DESC-COL']);
+    TransactionDetail::factory()->create([
+        'transaction_id' => $transaction->id,
+        'item_id' => $item->id,
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('transactions.show', $transaction))
+        ->assertOk()
+        ->assertSee('x-model="showDescription"', false)
+        ->assertSee('ITEM DESCRIPTION FOR TX SHOW', false)
+        ->assertSee('data-copy-col="desc"', false);
 });
