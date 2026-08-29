@@ -14,9 +14,13 @@ class ItemListFilter
      */
     public function apply(Builder|Relation $query, Request $request): void
     {
-        $query->when($request->filled('code'), fn ($q) => $q->filterIndexLookup($request->code))
-            ->when($request->filled('name'), fn ($q) => $q->filterDisplayName($request->name))
-            ->when($request->filled('desc'), fn ($q) => $q->filterDescription($request->desc));
+        $code = trim((string) $request->query('code', ''));
+        $name = trim((string) $request->query('name', ''));
+        $desc = trim((string) $request->query('desc', ''));
+
+        $query->when($code !== '', fn ($q) => $q->filterIndexLookup($code))
+            ->when($name !== '', fn ($q) => $q->filterDisplayName($name))
+            ->when($desc !== '', fn ($q) => $q->filterDescription($desc));
 
         $this->applyTagFilters($query, $request);
     }

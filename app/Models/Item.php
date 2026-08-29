@@ -16,6 +16,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class Item extends Model
 {
@@ -141,14 +142,33 @@ class Item extends Model
 
     public function scopeFilterDisplayName(Builder $query, string $term): void
     {
-        $contains = LikeSearch::contains($term);
-        if ($contains === '%') {
+        $term = trim($term);
+        if ($term === '') {
             return;
         }
 
-        $query->where(function ($q) use ($contains) {
-            $q->where($q->qualifyColumn('name'), 'like', $contains)
-                ->orWhereHas('group', fn ($group) => $group->where('name', 'like', $contains));
+        $pattern = LikeSearch::containsInsensitive($term);
+        if ($pattern === '%') {
+            return;
+        }
+
+        $itemName = $query->getGrammar()->wrap($query->qualifyColumn('name'));
+
+        $query->where(function ($q) use ($pattern, $itemName) {
+            $q->whereRaw("LOWER({$itemName}) LIKE ?", [$pattern])
+                ->orWhereExists(function ($sub) use ($pattern) {
+                    $sub->selectRaw('1')
+                        ->from('item_group')
+                        ->whereColumn('item_group.id', 'items.group_id')
+                        ->where('items.group_id', '>', 0)
+                        ->where(function ($group) use ($pattern) {
+                            $group->whereRaw('LOWER(item_group.name) LIKE ?', [$pattern]);
+
+                            if (Schema::hasColumn('item_group', 'alias')) {
+                                $group->orWhereRaw('LOWER(item_group.alias) LIKE ?', [$pattern]);
+                            }
+                        });
+                });
         });
     }
 
