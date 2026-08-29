@@ -102,7 +102,7 @@ $exportQuery = http_build_query([
 
     @if(!$report['is_consolidated'])
         <div class="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600">
-            HPP dihitung di konsolidasi dari roll-forward persediaan (bukan borongan). Per entitas HPP = 0.
+            HPP dihitung di konsolidasi dari roll-forward persediaan (barang produksi: borongan + Material Produksi ÷ pcs gudang; barang beli: cost item). Per entitas HPP = 0.
         </div>
     @endif
 
