@@ -29,6 +29,14 @@ class ProductionColumnDefaults
             'password' => '',
             'portalId' => 0,
         ],
+        'depreciation' => [
+            'value' => 0,
+            'buy_price' => 0,
+            'residual_value' => 0,
+            'useful_life_months' => 0,
+            'warehouse_id' => 0,
+            'notes' => '',
+        ],
         'customer_class' => [
             'class' => '',
             'adjust' => 0,

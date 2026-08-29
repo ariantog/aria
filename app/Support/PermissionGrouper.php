@@ -41,6 +41,7 @@ class PermissionGrouper
         'Item Groups',
         'Tags',
         'Asset Lancar',
+        'Asset Tetap',
         'Transactions',
         'Restock',
         'Reports',
@@ -112,6 +113,7 @@ class PermissionGrouper
             [Addrbook::class, 'Addrbook'],
             [Item::class, 'Items', [
                 'asset-lancar-' => 'Asset Lancar',
+                'asset-tetap-' => 'Asset Tetap',
             ]],
             [ItemGroup::class, 'Item Groups'],
             [Tag::class, 'Tags'],
@@ -169,6 +171,7 @@ class PermissionGrouper
 
             return match ($module) {
                 'assetLancar' => 'Asset Lancar',
+                'assetTetap' => 'Asset Tetap',
                 default => ucfirst($module),
             };
         }
@@ -178,6 +181,7 @@ class PermissionGrouper
 
             return match ($module) {
                 'items', 'item' => 'Items',
+                'assetTetap' => 'Asset Tetap',
                 'stuff' => str_contains($name, '-tag-') ? 'Tags' : 'Item Groups',
                 'users' => str_contains($name, '-locations-') ? 'Locations'
                     : (str_contains($name, '-roles-') ? 'Roles'

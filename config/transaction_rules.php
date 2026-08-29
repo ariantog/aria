@@ -57,4 +57,10 @@ return [
         'sender_type' => [\App\Models\Addrbook::TYPE_BANK],
         'receiver_type' => \App\Models\Addrbook::cashPartyTypes(),
     ],
+    'depreciation' => [
+        'id' => \App\Models\Transaction::TYPE_DEPRECIATION,
+        'price_source' => 'cost',
+        'sender_type' => [\App\Models\Addrbook::TYPE_ACCOUNT],
+        'receiver_type' => [\App\Models\Addrbook::TYPE_ACCOUNT],
+    ],
 ];

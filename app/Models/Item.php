@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -85,6 +86,13 @@ class Item extends Model
             'asset-lancar-create' => 'assetLancar-create',
             'asset-lancar-edit' => 'assetLancar-edit',
             'asset-lancar-delete' => 'assetLancar-delete',
+
+            // Asset Tetap
+            'asset-tetap-view' => 'assetTetap-list',
+            'asset-tetap-create' => 'assetTetap-create',
+            'asset-tetap-edit' => 'assetTetap-edit',
+            'asset-tetap-delete' => 'assetTetap-delete',
+            'asset-tetap-depreciate' => 'assetTetap-depreciate',
         ];
     }
 
@@ -101,6 +109,11 @@ class Item extends Model
     public function warehouseItems(): HasMany
     {
         return $this->hasMany(WarehouseItem::class);
+    }
+
+    public function depreciation(): HasOne
+    {
+        return $this->hasOne(Depreciation::class, 'item_id');
     }
 
     // Scopes
@@ -221,7 +234,7 @@ class Item extends Model
 
     public function getItemName(): string
     {
-        if ($this->type === ItemType::ASSET_LANCAR) {
+        if ($this->type === ItemType::ASSET_LANCAR || $this->type === ItemType::ASSET_TETAP) {
             return $this->name;
         }
 
@@ -235,18 +248,27 @@ class Item extends Model
         return $this->type === ItemType::ASSET_LANCAR;
     }
 
+    public function isAssetTetap(): bool
+    {
+        return $this->type === ItemType::ASSET_TETAP;
+    }
+
     public function showUrl(): string
     {
-        return $this->isAssetLancar()
-            ? route('assetlancar.show', $this)
-            : route('items.show', $this);
+        return match (true) {
+            $this->isAssetLancar() => route('assetlancar.show', $this),
+            $this->isAssetTetap() => route('assettetap.show', $this),
+            default => route('items.show', $this),
+        };
     }
 
     public function editUrl(): string
     {
-        return $this->isAssetLancar()
-            ? route('assetlancar.edit', $this)
-            : route('items.edit', $this);
+        return match (true) {
+            $this->isAssetLancar() => route('assetlancar.edit', $this),
+            $this->isAssetTetap() => route('assettetap.edit', $this),
+            default => route('items.edit', $this),
+        };
     }
 
     /**
