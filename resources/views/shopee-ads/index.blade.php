@@ -59,8 +59,17 @@ $saInnerCardWhite = 'space-y-3 rounded-lg border border-gray-200 bg-white p-4';
                 @csrf
                 <button type="submit" class="{{ $saBtnSecondary }}">Replenish Item Ads</button>
             </form>
-            <form method="POST" action="{{ route('shopee-ads.suggest-group-ads') }}">
+            <form method="POST" action="{{ route('shopee-ads.suggest-group-ads') }}" class="flex flex-wrap items-end gap-2">
                 @csrf
+                <label class="text-sm">
+                    <span class="block text-xs font-medium text-gray-600">Sumber saran</span>
+                    <select name="strategy" class="mt-1 rounded-lg border border-gray-300 px-3 py-2 text-sm" data-testid="shopee-ads-group-strategy">
+                        <option value="all" @selected(session('group_ad_strategy', 'all') === 'all')>Semua (ROAS + sales + Shopee)</option>
+                        <option value="roas" @selected(session('group_ad_strategy') === 'roas')>ROAS (performa iklan)</option>
+                        <option value="sales" @selected(session('group_ad_strategy') === 'sales')>Sales (GMS / transaksi)</option>
+                        <option value="recommended" @selected(session('group_ad_strategy') === 'recommended')>Shopee recommended (best ROI / selling)</option>
+                    </select>
+                </label>
                 <button type="submit" class="{{ $saBtnBlueOutline }}" data-testid="shopee-ads-suggest-group">Suggest Group Ads</button>
             </form>
             <form method="POST" action="{{ route('shopee-ads.daily-reset') }}">
@@ -90,29 +99,81 @@ $saInnerCardWhite = 'space-y-3 rounded-lg border border-gray-200 bg-white p-4';
     @endif
 
     @if(session('group_ad_suggestions') !== null)
-    <div class="{{ $saCard }}" data-testid="shopee-ads-group-suggestions">
+        @php
+        $groupStrategyLabels = [
+            'all' => 'Semua (ROAS + sales + Shopee)',
+            'roas' => 'ROAS (performa iklan)',
+            'sales' => 'Sales (GMS / transaksi)',
+            'recommended' => 'Shopee recommended (best ROI / selling)',
+        ];
+        $groupSourceLabels = [
+            'performance_history' => 'ROAS history',
+            'gms_roas' => 'GMS ROAS',
+            'gms_sales' => 'GMS sales',
+            'transaction_sales' => 'Sales (transaksi)',
+            'best_roi' => 'Best ROI',
+            'best_selling' => 'Best selling',
+            'top_search' => 'Top search',
+            'recommended' => 'Recommended',
+        ];
+    @endphp
+    <div class="{{ $saCard }}" data-testid="shopee-ads-group-suggestions" x-data="{ groupSearch: '' }">
         <div class="{{ $saCardHeader }}">
             <h2 class="text-sm font-semibold text-gray-900">Saran iklan group (suggestion only — tidak memanggil API create)</h2>
+            @if(session('group_ad_strategy'))
+            <p class="mt-1 text-xs {{ $saTextMuted }}">Strategi: {{ $groupStrategyLabels[session('group_ad_strategy')] ?? session('group_ad_strategy') }}</p>
+            @endif
         </div>
         @if(count(session('group_ad_suggestions')) === 0)
-        <p class="p-5 text-sm {{ $saTextMuted }}">Tidak ada kandidat — butuh riwayat performa (~1 minggu) atau daftar recommended Shopee.</p>
+        <p class="p-5 text-sm {{ $saTextMuted }}">Tidak ada kandidat — butuh riwayat performa (~1 minggu), data GMS/sales, atau daftar recommended Shopee.</p>
         @else
+        <div class="border-b border-gray-100 px-5 py-3">
+            <label class="block text-xs font-medium text-gray-600">
+                Cari item (nama, kode, Shopee ID)
+                <input
+                    type="search"
+                    x-model="groupSearch"
+                    placeholder="Ketik nama atau kode…"
+                    class="mt-1 w-full max-w-md rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                    data-testid="shopee-ads-group-search"
+                >
+            </label>
+        </div>
         <div class="overflow-x-auto">
             <table class="min-w-full text-sm">
                 <thead class="{{ $saTableHead }}">
                     <tr>
-                        <th class="{{ $saTh }}">Item ID</th>
+                        <th class="{{ $saTh }}">Item</th>
+                        <th class="{{ $saTh }}">Shopee ID</th>
                         <th class="{{ $saTh }}">Sumber</th>
                         <th class="{{ $saTh }}">Avg ROAS</th>
+                        <th class="{{ $saTh }}">Sales score</th>
                         <th class="{{ $saTh }}">Alasan</th>
                     </tr>
                 </thead>
                 <tbody class="{{ $saDivide }}">
                     @foreach(session('group_ad_suggestions') as $row)
-                    <tr>
-                        <td class="{{ $saTd }} font-mono">{{ $row['item_id'] }}</td>
-                        <td class="{{ $saTd }}">{{ $row['source'] }}</td>
+                    <tr
+                        data-search="{{ strtolower(trim(($row['item_name'] ?? '').' '.($row['item_code'] ?? '').' '.$row['item_id'])) }}"
+                        x-show="!groupSearch || $el.dataset.search.includes(groupSearch.toLowerCase())"
+                    >
+                        <td class="{{ $saTd }}">
+                            @if(! empty($row['item_name']))
+                            <div class="font-medium text-gray-900">{{ $row['item_name'] }}</div>
+                            @if(! empty($row['item_code']))
+                            <div class="font-mono text-xs text-gray-500">{{ $row['item_code'] }}</div>
+                            @endif
+                            @if(! empty($row['aria_item_id']))
+                            <div class="text-xs text-gray-400">Aria #{{ $row['aria_item_id'] }}</div>
+                            @endif
+                            @else
+                            <span class="{{ $saTextMuted }}">Belum terhubung ke item lokal</span>
+                            @endif
+                        </td>
+                        <td class="{{ $saTd }} font-mono text-xs">{{ $row['item_id'] }}</td>
+                        <td class="{{ $saTd }}">{{ $groupSourceLabels[$row['source']] ?? $row['source'] }}</td>
                         <td class="{{ $saTd }}">{{ number_format($row['avg_roas'], 2) }}</td>
+                        <td class="{{ $saTd }}">{{ number_format($row['sales_score'], 0) }}</td>
                         <td class="{{ $saTd }} {{ $saTextBody }}">{{ $row['reason'] }}</td>
                     </tr>
                     @endforeach

@@ -3,6 +3,8 @@
 namespace App\Services\ShopeeAds;
 
 use App\Enums\ShopeeAdsType;
+use App\Enums\TransactionType;
+use App\Models\Item;
 use App\Models\ShopeeAdsBudgetHistory;
 use App\Models\ShopeeAdsItemAd;
 use App\Models\ShopeeAdsItemPerformanceSnapshot;
@@ -11,6 +13,7 @@ use App\Models\ShopeeAdsSetting;
 use Carbon\Carbon;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -1008,25 +1011,30 @@ class ShopeeAdsEngineService
     }
 
     /**
-     * Suggest group ad candidates from performance history + Shopee recommendations.
+     * Suggest group ad candidates from performance history, GMS sales/ROAS, or Shopee tags.
      * Does not call Shopee create API (group ads may be gated per shop).
      *
-     * @return list<array{item_id: int, source: string, avg_roas: float, reason: string}>
+     * @return list<array{
+     *     item_id: int,
+     *     aria_item_id: int|null,
+     *     item_name: string|null,
+     *     item_code: string|null,
+     *     source: string,
+     *     avg_roas: float,
+     *     sales_score: float,
+     *     reason: string
+     * }>
      */
-    public function suggestGroupAds(ShopeeAdsSetting $settings, int $limit = 10): array
+    public function suggestGroupAds(ShopeeAdsSetting $settings, int $limit = 10, string $strategy = 'all'): array
     {
         $liveItemIds = $this->liveManualAdsByCampaign()->pluck('item_id')->map(fn ($id) => (int) $id)->all();
 
-        return collect($this->rankItemAdCandidates($settings, $liveItemIds))
+        $ranked = collect($this->rankItemAdCandidates($settings, $liveItemIds, $strategy))
             ->take($limit)
-            ->map(fn (array $row) => [
-                'item_id' => (int) $row['item_id'],
-                'source' => (string) ($row['source'] ?? 'recommended'),
-                'avg_roas' => (float) ($row['avg_roas'] ?? 0),
-                'reason' => (string) ($row['reason'] ?? ''),
-            ])
             ->values()
             ->all();
+
+        return $this->enrichGroupAdSuggestions($ranked);
     }
 
     /**
@@ -1236,17 +1244,45 @@ class ShopeeAdsEngineService
     }
 
     /**
-     * Rank replenish / group-suggest candidates. Uses 7-day snapshot avg when available,
-     * otherwise Shopee recommended-item tags (best selling / best ROI / top search).
+     * Rank replenish / group-suggest candidates.
      *
      * @param  list<int>  $excludeItemIds
-     * @return list<array{item_id: int, source: string, avg_roas: float, reason: string}>
+     * @return list<array{item_id: int, source: string, avg_roas: float, sales_score: float, reason: string}>
      */
-    private function rankItemAdCandidates(ShopeeAdsSetting $settings, array $excludeItemIds): array
+    private function rankItemAdCandidates(ShopeeAdsSetting $settings, array $excludeItemIds, string $strategy = 'all'): array
     {
+        $strategy = $this->normalizeCandidateStrategy($strategy);
         $exclude = array_fill_keys(array_map('intval', $excludeItemIds), true);
         $candidates = [];
 
+        if (in_array($strategy, ['all', 'roas', 'sales'], true)) {
+            $candidates = $this->mergePerformanceCandidates($exclude, $candidates);
+        }
+
+        if (in_array($strategy, ['all', 'recommended'], true)) {
+            $candidates = $this->mergeRecommendedCandidates($exclude, $candidates);
+        }
+
+        if ($strategy === 'sales' && $candidates === []) {
+            $candidates = $this->mergeTransactionSalesCandidates($exclude, $candidates);
+        }
+
+        return $this->sortItemAdCandidates($candidates, $strategy);
+    }
+
+    private function normalizeCandidateStrategy(string $strategy): string
+    {
+        $strategy = strtolower(trim($strategy));
+
+        return in_array($strategy, ['roas', 'sales', 'recommended', 'all'], true) ? $strategy : 'all';
+    }
+
+    /**
+     * @param  array<int, array{item_id: int, source: string, avg_roas: float, sales_score: float, reason: string}>  $candidates
+     * @return array<int, array{item_id: int, source: string, avg_roas: float, sales_score: float, reason: string}>
+     */
+    private function mergePerformanceCandidates(array $exclude, array $candidates): array
+    {
         $since = $this->jakartaNow()->copy()->subDays(6)->toDateString();
         $history = ShopeeAdsItemPerformanceSnapshot::query()
             ->where('snapshot_date', '>=', $since)
@@ -1260,31 +1296,294 @@ class ShopeeAdsEngineService
             }
 
             $avgRoas = round((float) $rows->avg('roas'), 4);
-            $candidates[$itemId] = [
+            $this->upsertCandidate($candidates, [
                 'item_id' => $itemId,
                 'source' => 'performance_history',
                 'avg_roas' => $avgRoas,
+                'sales_score' => round((float) $rows->sum('spend'), 2),
                 'reason' => sprintf('7-day avg ROAS %.2f (%d snapshots)', $avgRoas, $rows->count()),
-            ];
+            ], preferHigherRoas: true);
         }
 
+        foreach ($this->api->getGmsItemPerformance(daysBack: 7, limit: 100) as $row) {
+            $itemId = (int) ($row['item_id'] ?? 0);
+            if ($itemId <= 0 || isset($exclude[$itemId])) {
+                continue;
+            }
+
+            $orders = (int) ($row['orders'] ?? 0);
+            $gmv = (float) ($row['gmv'] ?? 0);
+            $roas = round((float) ($row['roas'] ?? 0), 4);
+            $salesScore = ($orders * 1000) + $gmv;
+
+            $reasonParts = [];
+            if ($orders > 0) {
+                $reasonParts[] = sprintf('%d GMS orders', $orders);
+            }
+            if ($gmv > 0) {
+                $reasonParts[] = sprintf('GMV Rp %s', number_format($gmv, 0, ',', '.'));
+            }
+            if ($roas > 0) {
+                $reasonParts[] = sprintf('ROAS %.2f', $roas);
+            }
+
+            $this->upsertCandidate($candidates, [
+                'item_id' => $itemId,
+                'source' => $salesScore > 0 ? 'gms_sales' : 'gms_roas',
+                'avg_roas' => $roas,
+                'sales_score' => $salesScore,
+                'reason' => $reasonParts !== [] ? implode('; ', $reasonParts) : 'GMS item performance (7d)',
+            ], preferHigherRoas: false, preferHigherSales: true);
+        }
+
+        return $candidates;
+    }
+
+    /**
+     * @param  array<int, array{item_id: int, source: string, avg_roas: float, sales_score: float, reason: string}>  $candidates
+     * @return array<int, array{item_id: int, source: string, avg_roas: float, sales_score: float, reason: string}>
+     */
+    private function mergeRecommendedCandidates(array $exclude, array $candidates): array
+    {
         foreach ($this->api->getRecommendedItems() as $row) {
             $itemId = (int) ($row['item_id'] ?? 0);
-            if ($itemId <= 0 || isset($exclude[$itemId]) || isset($candidates[$itemId])) {
+            if ($itemId <= 0 || isset($exclude[$itemId])) {
                 continue;
             }
 
             $tags = $row['sku_tags'] ?? [];
-            $candidates[$itemId] = [
+            $tagScore = $this->recommendedTagScore($tags);
+            if ($tagScore === 0) {
+                continue;
+            }
+
+            $statuses = $row['item_status'] ?? [];
+            if ($statuses !== [] && ! collect($statuses)->contains(fn ($status) => in_array($status, ['normal', 'eligible', ''], true))) {
+                continue;
+            }
+
+            $ongoing = collect($row['ongoing_ad_types'] ?? [])
+                ->filter(fn ($type) => $type !== '' && ! str_contains($type, 'no ongoing'))
+                ->values()
+                ->all();
+            if ($ongoing !== [] && $tagScore < 3) {
+                continue;
+            }
+
+            $source = $this->recommendedSourceFromTags($tags);
+            $this->upsertCandidate($candidates, [
                 'item_id' => $itemId,
-                'source' => 'recommended',
+                'source' => $source,
                 'avg_roas' => 0.0,
-                'reason' => $tags !== [] ? 'Shopee tags: '.implode(', ', $tags) : 'Shopee recommended',
-            ];
+                'sales_score' => (float) $tagScore,
+                'reason' => 'Shopee tags: '.implode(', ', $tags),
+            ], preferHigherRoas: false, preferHigherSales: true);
         }
 
+        return $candidates;
+    }
+
+    /**
+     * @param  array<int, array{item_id: int, source: string, avg_roas: float, sales_score: float, reason: string}>  $candidates
+     * @return array<int, array{item_id: int, source: string, avg_roas: float, sales_score: float, reason: string}>
+     */
+    private function mergeTransactionSalesCandidates(array $exclude, array $candidates): array
+    {
+        $since = $this->jakartaNow()->copy()->subDays(6)->toDateString();
+
+        $rows = DB::table('transaction_details')
+            ->join('transactions', 'transactions.id', '=', 'transaction_details.transaction_id')
+            ->join('items', 'items.id', '=', 'transaction_details.item_id')
+            ->where('transactions.type', TransactionType::Sell->value)
+            ->where('transactions.date', '>=', $since)
+            ->where('items.jubelio_item_id', '>', 0)
+            ->whereNull('items.deleted_at')
+            ->groupBy('items.jubelio_item_id')
+            ->selectRaw('items.jubelio_item_id as item_id, SUM(ABS(transaction_details.quantity)) as sales_qty, SUM(ABS(transaction_details.total)) as sales_value')
+            ->get();
+
+        foreach ($rows as $row) {
+            $itemId = (int) $row->item_id;
+            if ($itemId <= 0 || isset($exclude[$itemId])) {
+                continue;
+            }
+
+            $salesQty = (float) ($row->sales_qty ?? 0);
+            $salesValue = (float) ($row->sales_value ?? 0);
+            $salesScore = ($salesQty * 1000) + $salesValue;
+
+            $this->upsertCandidate($candidates, [
+                'item_id' => $itemId,
+                'source' => 'transaction_sales',
+                'avg_roas' => 0.0,
+                'sales_score' => $salesScore,
+                'reason' => sprintf('7-day sell qty %.0f (Rp %s)', $salesQty, number_format($salesValue, 0, ',', '.')),
+            ], preferHigherRoas: false, preferHigherSales: true);
+        }
+
+        return $candidates;
+    }
+
+    /**
+     * @param  array<int, array{item_id: int, source: string, avg_roas: float, sales_score: float, reason: string}>  $candidates
+     * @return list<array{item_id: int, source: string, avg_roas: float, sales_score: float, reason: string}>
+     */
+    private function sortItemAdCandidates(array $candidates, string $strategy): array
+    {
         return collect($candidates)
-            ->sortByDesc(fn (array $row) => [$row['avg_roas'], str_contains($row['source'], 'performance') ? 1 : 0])
+            ->values()
+            ->sort(function (array $a, array $b) use ($strategy) {
+                return match ($strategy) {
+                    'roas' => [$b['avg_roas'], $b['sales_score'], $this->recommendedTagScoreFromSource($b['source'])]
+                        <=> [$a['avg_roas'], $a['sales_score'], $this->recommendedTagScoreFromSource($a['source'])],
+                    'sales' => [$b['sales_score'], $b['avg_roas'], $this->recommendedTagScoreFromSource($b['source'])]
+                        <=> [$a['sales_score'], $a['avg_roas'], $this->recommendedTagScoreFromSource($a['source'])],
+                    'recommended' => [$this->recommendedTagScoreFromSource($b['source']), $b['sales_score'], $b['avg_roas']]
+                        <=> [$this->recommendedTagScoreFromSource($a['source']), $a['sales_score'], $a['avg_roas']],
+                    default => [
+                        $this->candidatePriority($b),
+                        $b['avg_roas'],
+                        $b['sales_score'],
+                    ] <=> [
+                        $this->candidatePriority($a),
+                        $a['avg_roas'],
+                        $a['sales_score'],
+                    ],
+                };
+            })
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  array<int, array{item_id: int, source: string, avg_roas: float, sales_score: float, reason: string}>  $candidates
+     * @param  array{item_id: int, source: string, avg_roas: float, sales_score: float, reason: string}  $entry
+     */
+    private function upsertCandidate(
+        array &$candidates,
+        array $entry,
+        bool $preferHigherRoas = true,
+        bool $preferHigherSales = false,
+    ): void {
+        $itemId = (int) $entry['item_id'];
+        $existing = $candidates[$itemId] ?? null;
+
+        if ($existing === null) {
+            $candidates[$itemId] = $entry;
+
+            return;
+        }
+
+        $existingScore = $preferHigherSales
+            ? [(float) $existing['sales_score'], (float) $existing['avg_roas']]
+            : [(float) $existing['avg_roas'], (float) $existing['sales_score']];
+        $entryScore = $preferHigherSales
+            ? [(float) $entry['sales_score'], (float) $entry['avg_roas']]
+            : [(float) $entry['avg_roas'], (float) $entry['sales_score']];
+
+        if ($entryScore > $existingScore) {
+            $candidates[$itemId] = $entry;
+        }
+    }
+
+    private function candidatePriority(array $row): int
+    {
+        return match ($row['source']) {
+            'performance_history', 'gms_roas' => 400,
+            'gms_sales', 'transaction_sales' => 350,
+            'best_roi' => 300,
+            'best_selling' => 250,
+            'top_search' => 200,
+            default => 100,
+        };
+    }
+
+    /**
+     * @param  list<string>  $tags
+     */
+    private function recommendedTagScore(array $tags): int
+    {
+        $priorities = [
+            'best roi' => 3,
+            'best_roi' => 3,
+            'best selling' => 2,
+            'best_selling' => 2,
+            'top search' => 1,
+            'top_search' => 1,
+        ];
+
+        $scores = collect($tags)
+            ->map(fn ($tag) => $priorities[strtolower(trim((string) $tag))] ?? 0)
+            ->filter(fn ($score) => $score > 0);
+
+        return $scores->isEmpty() ? 0 : $scores->max();
+    }
+
+    /**
+     * @param  list<string>  $tags
+     */
+    private function recommendedSourceFromTags(array $tags): string
+    {
+        if ($this->recommendedTagScore($tags) >= 3) {
+            return 'best_roi';
+        }
+
+        foreach ($tags as $tag) {
+            $normalized = strtolower(trim((string) $tag));
+            if (in_array($normalized, ['best selling', 'best_selling'], true)) {
+                return 'best_selling';
+            }
+        }
+
+        foreach ($tags as $tag) {
+            $normalized = strtolower(trim((string) $tag));
+            if (in_array($normalized, ['top search', 'top_search'], true)) {
+                return 'top_search';
+            }
+        }
+
+        return 'recommended';
+    }
+
+    private function recommendedTagScoreFromSource(string $source): int
+    {
+        return match ($source) {
+            'best_roi' => 3,
+            'best_selling' => 2,
+            'top_search' => 1,
+            default => 0,
+        };
+    }
+
+    /**
+     * Batch-resolve Aria items for suggestion rows (used by controller/view).
+     *
+     * @param  list<array{item_id: int, source?: string, avg_roas?: float, sales_score?: float, reason?: string}>  $suggestions
+     * @return list<array{item_id: int, aria_item_id: int|null, item_name: string|null, item_code: string|null, source: string, avg_roas: float, sales_score: float, reason: string}>
+     */
+    public function enrichGroupAdSuggestions(array $suggestions): array
+    {
+        $shopeeIds = collect($suggestions)->pluck('item_id')->map(fn ($id) => (int) $id)->unique()->all();
+        $itemsByJubelioId = Item::query()
+            ->whereIn('jubelio_item_id', $shopeeIds)
+            ->get(['id', 'name', 'code', 'pcode', 'jubelio_item_id'])
+            ->keyBy('jubelio_item_id');
+
+        return collect($suggestions)
+            ->map(function (array $row) use ($itemsByJubelioId) {
+                $item = $itemsByJubelioId->get((int) $row['item_id']);
+
+                return [
+                    'item_id' => (int) $row['item_id'],
+                    'aria_item_id' => $item?->id,
+                    'item_name' => $item?->name,
+                    'item_code' => $item?->code ?: $item?->pcode,
+                    'source' => (string) ($row['source'] ?? 'recommended'),
+                    'avg_roas' => (float) ($row['avg_roas'] ?? 0),
+                    'sales_score' => (float) ($row['sales_score'] ?? 0),
+                    'reason' => (string) ($row['reason'] ?? ''),
+                ];
+            })
             ->values()
             ->all();
     }

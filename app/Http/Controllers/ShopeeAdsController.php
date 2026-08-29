@@ -272,14 +272,21 @@ class ShopeeAdsController extends Controller
         return back()->with('success', $result['message']);
     }
 
-    public function suggestGroupAds(ShopeeAdsEngineService $engine): RedirectResponse
+    public function suggestGroupAds(Request $request, ShopeeAdsEngineService $engine): RedirectResponse
     {
         Gate::authorize(ShopeeAds::getPermissions()['view']);
 
-        $settings = ShopeeAdsSetting::current();
-        $suggestions = $engine->suggestGroupAds($settings, 15);
+        $validated = $request->validate([
+            'strategy' => ['nullable', 'string', 'in:all,roas,sales,recommended'],
+        ]);
 
-        return back()->with('group_ad_suggestions', $suggestions);
+        $settings = ShopeeAdsSetting::current();
+        $strategy = (string) ($validated['strategy'] ?? 'all');
+        $suggestions = $engine->suggestGroupAds($settings, 15, $strategy);
+
+        return back()
+            ->with('group_ad_suggestions', $suggestions)
+            ->with('group_ad_strategy', $strategy);
     }
 
     /**
