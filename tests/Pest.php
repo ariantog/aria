@@ -67,3 +67,19 @@ function mockJubelioSalesReturn(string $jubelioOrderId, array $payload): void
             ->andReturn($payload);
     });
 }
+
+/**
+ * Shopee recommended-item row shape for ShopeeAdsApiService mocks.
+ *
+ * @param  list<string>  $tags
+ * @return array{item_id: int, sku_tags: list<string>, item_status: list<string>, ongoing_ad_types: list<string>}
+ */
+function shopeeRecommendedItem(int $itemId, array $tags = ['best selling']): array
+{
+    return [
+        'item_id' => $itemId,
+        'sku_tags' => $tags,
+        'item_status' => ['normal'],
+        'ongoing_ad_types' => [],
+    ];
+}

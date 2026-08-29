@@ -168,10 +168,11 @@ it('replenishes item ads after automated daily reset when enabled', function () 
     $api->shouldReceive('setGmsBudget')->once()->with('gmv-reset', Mockery::type('int'))->andReturn(true);
     $api->shouldReceive('listManualProductAds')->andReturn([]);
     $api->shouldReceive('getRecommendedItems')->andReturn([
-        ['item_id' => 501, 'source' => 'recommended'],
-        ['item_id' => 502, 'source' => 'recommended'],
-        ['item_id' => 503, 'source' => 'recommended'],
+        shopeeRecommendedItem(501),
+        shopeeRecommendedItem(502),
+        shopeeRecommendedItem(503),
     ]);
+    $api->shouldReceive('getGmsItemPerformance')->andReturn([]);
     $api->shouldReceive('createManualProductAd')
         ->times(3)
         ->andReturnUsing(fn ($itemId) => 'camp-'.$itemId);
