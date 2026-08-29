@@ -649,6 +649,61 @@ it('converts a single legacy item from the converter page', function () {
         ->and($item->legacy_code)->toBe('AJJPL2512906XL');
 });
 
+it('converts a single SKU when GREYWHITE already exists under a different code', function () {
+    $existing = Tag::withoutEvents(fn () => Tag::query()->create([
+        'type' => Tag::TYPE_WARNA,
+        'code' => 'GW',
+        'name' => 'GREYWHITE',
+        'item_type' => 0,
+    ]));
+
+    $item = Item::factory()->create([
+        'type' => ItemType::ASSET_LANCAR,
+        'group_id' => null,
+        'code' => 'YOGASTRAP-01-GREYWHITE',
+        'legacy_code' => null,
+        'pcode' => 'YOGASTRAP-01',
+        'name' => 'YOGA STRAP - GREYWHITE',
+    ]);
+
+    $run = $this->service->runItems(ItemType::ASSET_LANCAR, collect([$item]), $this->user);
+
+    expect($run->success_count)->toBe(1)
+        ->and($run->failed_count)->toBe(0)
+        ->and(Tag::query()->whereRaw('UPPER(TRIM(name)) = ?', ['GREYWHITE'])->count())->toBe(1);
+
+    $item->refresh()->load('tags');
+
+    expect($item->code)->toBe('YOGASTRAP-01-GW')
+        ->and($item->legacy_code)->toBe('YOGASTRAP-01-GREYWHITE')
+        ->and($item->group_id)->not->toBeNull()
+        ->and($item->tags->contains(fn (Tag $tag) => $tag->id === $existing->id))->toBeTrue();
+});
+
+it('does not throw when converting GREYWHITE and that name is owned by another tag type', function () {
+    Tag::factory()->create([
+        'type' => Tag::TYPE_NORMAL,
+        'code' => 'OTHER',
+        'name' => 'GREYWHITE',
+        'item_type' => 0,
+    ]);
+
+    $item = Item::factory()->create([
+        'type' => ItemType::ASSET_LANCAR,
+        'group_id' => null,
+        'code' => 'YOGASTRAP-01-GREYWHITE',
+        'legacy_code' => null,
+        'pcode' => 'YOGASTRAP-01',
+        'name' => 'YOGA STRAP - GREYWHITE',
+    ]);
+
+    $run = $this->service->runItems(ItemType::ASSET_LANCAR, collect([$item]), $this->user);
+
+    expect($run->success_count)->toBe(0)
+        ->and($run->failed_count)->toBe(1)
+        ->and(Tag::query()->whereRaw('UPPER(TRIM(name)) = ?', ['GREYWHITE'])->count())->toBe(1);
+});
+
 it('shows per-row convert action on legacy converter pending table', function () {
     $item = Item::factory()->create([
         'type' => ItemType::ASSET_LANCAR,

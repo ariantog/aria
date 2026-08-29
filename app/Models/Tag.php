@@ -8,8 +8,10 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use InvalidArgumentException;
 
 class Tag extends Model
 {
@@ -131,8 +133,8 @@ class Tag extends Model
         return static::query()
             ->where('type', self::TYPE_SIZE)
             ->where(function ($query) use ($normalized) {
-                $query->whereRaw('UPPER(code) = ?', [$normalized])
-                    ->orWhereRaw('UPPER(name) = ?', [$normalized]);
+                $query->whereRaw('UPPER(TRIM(code)) = ?', [$normalized])
+                    ->orWhereRaw('UPPER(TRIM(name)) = ?', [$normalized]);
             })
             ->first();
     }
@@ -152,8 +154,8 @@ class Tag extends Model
             $found = static::query()
                 ->where('type', self::TYPE_WARNA)
                 ->where(function ($query) use ($normalized) {
-                    $query->whereRaw('UPPER(code) = ?', [$normalized])
-                        ->orWhereRaw('UPPER(name) = ?', [$normalized]);
+                    $query->whereRaw('UPPER(TRIM(code)) = ?', [$normalized])
+                        ->orWhereRaw('UPPER(TRIM(name)) = ?', [$normalized]);
                 })
                 ->first();
 
@@ -181,26 +183,24 @@ class Tag extends Model
             'item_type' => 0,
         ]);
 
-        $owner = static::query()
-            ->whereRaw('UPPER(name) = ?', [$attributes['name']])
-            ->first();
+        $owner = self::findByName($attributes['name']);
 
         if ($owner) {
             if ((int) $owner->type === self::TYPE_WARNA) {
                 return $owner;
             }
 
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Warna tag {$normalized} not found; name already used by tag #{$owner->id} (type {$owner->type})."
             );
         }
 
-        return static::query()->create([
+        return self::createUniqueByName([
             'type' => self::TYPE_WARNA,
             'code' => $attributes['code'],
             'name' => $attributes['name'],
             'item_type' => 0,
-        ]);
+        ], self::TYPE_WARNA, 'Warna');
     }
 
     public static function findOrCreateSizeTag(string $code): self
@@ -212,26 +212,63 @@ class Tag extends Model
         }
 
         $normalized = strtoupper(trim($code));
-        $owner = static::query()
-            ->whereRaw('UPPER(name) = ?', [$normalized])
-            ->first();
+        $owner = self::findByName($normalized);
 
         if ($owner) {
             if ((int) $owner->type === self::TYPE_SIZE) {
                 return $owner;
             }
 
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Size tag {$normalized} not found; name already used by tag #{$owner->id} (type {$owner->type})."
             );
         }
 
-        return static::query()->create([
+        return self::createUniqueByName([
             'type' => self::TYPE_SIZE,
             'code' => $normalized,
             'name' => $normalized,
             'item_type' => 0,
-        ]);
+        ], self::TYPE_SIZE, 'Size');
+    }
+
+    public static function findByName(string $name): ?self
+    {
+        $normalized = strtoupper(trim($name));
+
+        if ($normalized === '') {
+            return null;
+        }
+
+        return static::query()
+            ->whereRaw('UPPER(TRIM(name)) = ?', [$normalized])
+            ->first();
+    }
+
+    /**
+     * @param  array{type: int, code: string, name: string, item_type: int}  $attributes
+     */
+    protected static function createUniqueByName(array $attributes, int $expectedType, string $label): self
+    {
+        $name = strtoupper(trim((string) $attributes['name']));
+
+        try {
+            return static::query()->create($attributes);
+        } catch (UniqueConstraintViolationException $e) {
+            $existing = self::findByName($name);
+
+            if ($existing && (int) $existing->type === $expectedType) {
+                return $existing;
+            }
+
+            if ($existing) {
+                throw new InvalidArgumentException(
+                    "{$label} tag {$name} not found; name already used by tag #{$existing->id} (type {$existing->type})."
+                );
+            }
+
+            throw $e;
+        }
     }
 
     /**

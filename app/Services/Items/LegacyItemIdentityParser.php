@@ -5,6 +5,7 @@ namespace App\Services\Items;
 use App\Enums\ItemType;
 use App\Models\Item;
 use App\Models\Tag;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Collection;
 use InvalidArgumentException;
 
@@ -79,7 +80,21 @@ class LegacyItemIdentityParser
             ->sortByDesc(fn (Tag $tag) => strlen((string) $tag->code))
             ->values();
 
-        $this->warnaTagsByCode = $warnaTags->keyBy(fn (Tag $tag) => strtoupper($tag->code));
+        $this->warnaTagsByCode = $warnaTags->flatMap(function (Tag $tag) {
+            $entries = [];
+            $code = strtoupper(trim((string) $tag->code));
+            $name = strtoupper(trim((string) $tag->name));
+
+            if ($code !== '') {
+                $entries[$code] = $tag;
+            }
+
+            if ($name !== '') {
+                $entries[$name] = $tag;
+            }
+
+            return $entries;
+        });
         $this->warnaTagsByCodeLength = $warnaTags
             ->sortByDesc(fn (Tag $tag) => strlen((string) $tag->code))
             ->values();
@@ -118,15 +133,27 @@ class LegacyItemIdentityParser
 
         $itemType = $this->resolveItemType($item);
 
-        return match ($itemType) {
-            ItemType::ASSET_LANCAR => $this->parseAsset($item, $code),
-            ItemType::ITEM => $this->parseManufactured($item, $code),
-            default => LegacyParseResult::failure(
-                self::FAILURE_SKU_UNPARSEABLE,
-                'Unsupported item type for conversion.',
-                ['type' => $itemType?->value ?? $item->getAttributes()['type'] ?? null],
-            ),
-        };
+        try {
+            return match ($itemType) {
+                ItemType::ASSET_LANCAR => $this->parseAsset($item, $code),
+                ItemType::ITEM => $this->parseManufactured($item, $code),
+                default => LegacyParseResult::failure(
+                    self::FAILURE_SKU_UNPARSEABLE,
+                    'Unsupported item type for conversion.',
+                    ['type' => $itemType?->value ?? $item->getAttributes()['type'] ?? null],
+                ),
+            };
+        } catch (InvalidArgumentException|UniqueConstraintViolationException $e) {
+            $failureCode = str_contains($e->getMessage(), 'Warna')
+                ? self::FAILURE_COLOR_NOT_FOUND
+                : self::FAILURE_SKU_UNPARSEABLE;
+
+            return LegacyParseResult::failure(
+                $failureCode,
+                $e->getMessage(),
+                ['code' => $code],
+            );
+        }
     }
 
     public function matchSizeFromSuffix(string $remainder): ?Tag
@@ -506,16 +533,16 @@ class LegacyItemIdentityParser
     {
         $code = strtoupper(trim($code));
 
-        $existing = $this->sizeTags->first(fn (Tag $tag) => strtoupper((string) $tag->code) === $code);
+        $existing = $this->sizeTags->first(
+            fn (Tag $tag) => strtoupper(trim((string) $tag->code)) === $code
+                || strtoupper(trim((string) $tag->name)) === $code
+        ) ?? Tag::findSizeTag($code);
 
         if ($existing) {
             return $existing;
         }
 
-        $tag = Tag::query()->firstOrCreate(
-            ['type' => Tag::TYPE_SIZE, 'code' => $code],
-            ['name' => $code, 'item_type' => 0],
-        );
+        $tag = Tag::findOrCreateSizeTag($code);
 
         $this->sizeTags->prepend($tag);
 
@@ -542,19 +569,10 @@ class LegacyItemIdentityParser
             throw new InvalidArgumentException("Invalid warna code: {$warnaCode}");
         }
 
-        $attributes = Tag::normalizeWarnaAttributes([
-            'type' => Tag::TYPE_WARNA,
-            'name' => $createCode,
-            'code' => $createCode,
-            'item_type' => 0,
-        ]);
+        $tag = Tag::findWarnaTag($createCode) ?? Tag::findOrCreateWarnaTag($createCode);
 
-        $tag = Tag::query()->firstOrCreate(
-            ['type' => Tag::TYPE_WARNA, 'code' => $attributes['code']],
-            ['name' => $attributes['name'], 'item_type' => 0],
-        );
-
-        $this->warnaTagsByCode->put(strtoupper($tag->code), $tag);
+        $this->warnaTagsByCode->put(strtoupper(trim((string) $tag->code)), $tag);
+        $this->warnaTagsByCode->put(strtoupper(trim((string) $tag->name)), $tag);
 
         return $tag;
     }
