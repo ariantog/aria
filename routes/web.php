@@ -50,6 +50,7 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::post('items/legacy-converter/preview', [App\Http\Controllers\LegacyItemConverterController::class, 'preview'])->name('items.legacy-converter.preview');
     Route::post('items/legacy-converter/purge-useless', [App\Http\Controllers\LegacyItemConverterController::class, 'purgeUseless'])->name('items.legacy-converter.purge-useless');
     Route::post('items/legacy-converter/run', [App\Http\Controllers\LegacyItemConverterController::class, 'run'])->name('items.legacy-converter.run');
+    Route::post('items/legacy-converter/{item}/run', [App\Http\Controllers\LegacyItemConverterController::class, 'runItem'])->name('items.legacy-converter.run-item');
     Route::get('items/special-converter', [App\Http\Controllers\SpecialSkuConverterController::class, 'index'])->name('items.special-converter');
     Route::post('items/special-converter/preview', [App\Http\Controllers\SpecialSkuConverterController::class, 'preview'])->name('items.special-converter.preview');
     Route::post('items/special-converter/run', [App\Http\Controllers\SpecialSkuConverterController::class, 'run'])->name('items.special-converter.run');

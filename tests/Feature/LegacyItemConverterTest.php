@@ -358,9 +358,12 @@ it('does not re-queue items already marked skipped as canonical', function () {
         Tag::where('code', 'S')->first()->id,
     ]);
 
+    expect($this->service->countEligible(ItemType::ASSET_LANCAR))->toBe(0)
+        ->and($this->service->isStructurallyEligible($item->fresh(['tags', 'group'])))->toBeFalse();
+
     $firstRun = $this->service->runBatch(ItemType::ASSET_LANCAR, $this->user);
 
-    expect($firstRun->skipped_count)->toBe(1)
+    expect($firstRun->processed_count)->toBe(0)
         ->and($this->service->countEligible(ItemType::ASSET_LANCAR))->toBe(0);
 });
 
@@ -554,4 +557,110 @@ it('converts multiple colors of the same asset product without duplicate group n
         ->and($glove->fresh()->name)->toBe('MICROFIBER STRAP GYM GLOVE - GREY - M')
         ->and($bag->fresh()->code)->toBe('BAG-16-03-BLACK')
         ->and($bag->fresh()->pcode)->toBe('BAG-16-03');
+});
+
+it('does not queue newly created manufactured items that are already canonical', function () {
+    Tag::factory()->create([
+        'type' => Tag::TYPE_TYPE,
+        'item_type' => ItemType::ITEM->value,
+        'code' => 'AJD',
+        'name' => 'Jacket',
+    ]);
+    Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'M', 'name' => 'M']);
+    Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'BLUE', 'name' => 'BLUE']);
+
+    $group = \App\Models\ItemGroup::factory()->create([
+        'master' => 'CX90151',
+        'variant' => '01',
+        'name' => 'NEW SHIRT',
+    ]);
+
+    $newItem = Item::factory()->create([
+        'type' => ItemType::ITEM,
+        'group_id' => $group->id,
+        'code' => 'AJD-CX90151-01-M',
+        'legacy_code' => null,
+        'pcode' => 'CX90151-01',
+        'name' => 'NEW SHIRT - BLUE - M',
+    ]);
+    $newItem->tags()->sync([
+        Tag::where('code', 'AJD')->first()->id,
+        Tag::where('code', 'M')->first()->id,
+        Tag::where('code', 'BLUE')->first()->id,
+        $this->jahitTag->id,
+    ]);
+
+    $legacyItem = Item::factory()->create([
+        'type' => ItemType::ITEM,
+        'group_id' => null,
+        'code' => 'AJJPL2512906XL',
+        'legacy_code' => null,
+        'pcode' => 'PL25129-06',
+        'name' => 'JACKET',
+    ]);
+    $legacyItem->tags()->sync([
+        $this->typeTag->id,
+        $this->warnaTag->id,
+        $this->jahitTag->id,
+        Tag::where('code', 'XL')->first()->id,
+    ]);
+
+    expect($this->service->countEligible(ItemType::ITEM))->toBe(1)
+        ->and($this->service->eligibleItemsForPage(ItemType::ITEM, 1)->pluck('id')->all())->toBe([$legacyItem->id]);
+
+    $this->actingAs($this->user)
+        ->get(route('items.legacy-converter', ['type' => ItemType::ITEM->value]))
+        ->assertOk()
+        ->assertSee('AJJPL2512906XL', false)
+        ->assertDontSee('AJD-CX90151-01-M', false);
+});
+
+it('converts a single legacy item from the converter page', function () {
+    $item = Item::factory()->create([
+        'type' => ItemType::ITEM,
+        'group_id' => null,
+        'code' => 'AJJPL2512906XL',
+        'legacy_code' => null,
+        'pcode' => 'PL25129-06',
+        'name' => 'JACKET',
+    ]);
+    $item->tags()->sync([
+        $this->typeTag->id,
+        $this->warnaTag->id,
+        $this->jahitTag->id,
+        Tag::where('code', 'XL')->first()->id,
+    ]);
+
+    $this->actingAs($this->user)
+        ->post(route('items.legacy-converter.run-item', $item), [
+            'type' => ItemType::ITEM->value,
+            'page' => 1,
+        ])
+        ->assertRedirect(route('items.legacy-converter', [
+            'tab' => 'pending',
+            'type' => ItemType::ITEM->value,
+            'page' => 1,
+        ]))
+        ->assertSessionHas('success');
+
+    $item->refresh();
+
+    expect($item->code)->toBe('AJJ-PL25129-06-XL')
+        ->and($item->legacy_code)->toBe('AJJPL2512906XL');
+});
+
+it('shows per-row convert action on legacy converter pending table', function () {
+    $item = Item::factory()->create([
+        'type' => ItemType::ASSET_LANCAR,
+        'group_id' => null,
+        'code' => 'GLOVE-01-BLACK-S',
+        'pcode' => 'GLOVE-01',
+        'name' => 'BOXING GLOVE - BLACK - S',
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('items.legacy-converter', ['type' => ItemType::ASSET_LANCAR->value]))
+        ->assertOk()
+        ->assertSee('data-testid="legacy-converter-convert-'.$item->id.'"', false)
+        ->assertSee(route('items.legacy-converter.run-item', $item), false);
 });

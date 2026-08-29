@@ -122,16 +122,45 @@ class LegacyItemConverterService
         return $this->candidateQuery($itemType);
     }
 
+    /**
+     * True when the item belongs on the legacy converter queue (parseable legacy row, not already canonical).
+     */
     public function isStructurallyEligible(Item $item, ?LegacyItemIdentityParser $parser = null): bool
     {
         $parser ??= $this->makeParser();
+
+        $item = Item::query()->with(['tags', 'group'])->find($item->getKey());
+
+        if ($item === null) {
+            return false;
+        }
+
         $itemType = $parser->resolveItemType($item);
 
         if ($itemType === null) {
             return false;
         }
 
-        return $parser->hasMinimumIdentityStructure((string) $item->code, $itemType);
+        if (! $this->isPendingConversion($item)) {
+            return false;
+        }
+
+        if (! $parser->hasMinimumIdentityStructure((string) $item->code, $itemType)) {
+            return false;
+        }
+
+        $specialRules = new SpecialSkuConverterRules;
+        if ($specialRules->matchingFamilyPrefix((string) $item->code) !== null) {
+            return false;
+        }
+
+        $parse = $parser->parse($item);
+
+        if ($parse->success && $this->isAlreadyCanonical($item, $parse)) {
+            return false;
+        }
+
+        return true;
     }
 
     /**
@@ -150,9 +179,9 @@ class LegacyItemConverterService
                 foreach ($items as $item) {
                     $candidates++;
 
-                    if ($parser->hasMinimumIdentityStructure((string) $item->code, $itemType)) {
+                    if ($this->isStructurallyEligible($item, $parser)) {
                         $eligible++;
-                    } else {
+                    } elseif (! $parser->hasMinimumIdentityStructure((string) $item->code, $itemType)) {
                         $unparseable++;
                     }
                 }
@@ -218,7 +247,7 @@ class LegacyItemConverterService
                 &$pageItemIds,
             ) {
                 foreach ($items as $item) {
-                    if (! $parser->hasMinimumIdentityStructure((string) $item->code, $itemType)) {
+                    if (! $this->isStructurallyEligible($item, $parser)) {
                         continue;
                     }
 
@@ -255,7 +284,7 @@ class LegacyItemConverterService
             ->select(['id', 'code', 'type'])
             ->chunkByIdDesc(500, function ($items) use ($parser, $itemType, $limit, &$batchIds) {
             foreach ($items as $item) {
-                if (! $parser->hasMinimumIdentityStructure((string) $item->code, $itemType)) {
+                if (! $this->isStructurallyEligible($item, $parser)) {
                     continue;
                 }
 
@@ -904,7 +933,21 @@ class LegacyItemConverterService
         }
 
         $itemType = $context['item_type'] ?? ItemType::ITEM;
+
+        return $this->runItem($item, $itemType, $user);
+    }
+
+    public function runItem(Item $item, ItemType $itemType, User $user): ItemIdentityConversionResult
+    {
         $parser = $this->makeParser();
+
+        if ($parser->resolveItemType($item) !== $itemType) {
+            throw new \RuntimeException('Item type does not match the selected converter tab.');
+        }
+
+        if (! $this->isStructurallyEligible($item->fresh(['tags', 'group']), $parser)) {
+            throw new \RuntimeException('Item is not eligible for legacy conversion.');
+        }
 
         $run = ItemIdentityConversionRun::query()->create([
             'item_type' => $itemType,
