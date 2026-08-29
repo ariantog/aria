@@ -85,14 +85,20 @@ it('renders the cash in page', function () {
     $this->actingAs($this->user)
         ->get('/transactions/cash-in')
         ->assertOk()
-        ->assertSee('Cash Entries', false);
+        ->assertSee('Cash Entries', false)
+        ->assertSee('data-testid="cash-entry-row"', false)
+        ->assertSee('data-testid="cash-entry-ledger-hint"', false)
+        ->assertSee('sm:items-start', false);
 });
 
 it('renders the cash out page', function () {
     $this->actingAs($this->user)
         ->get('/transactions/cash-out')
         ->assertOk()
-        ->assertSee('Cash Entries', false);
+        ->assertSee('Cash Entries', false)
+        ->assertSee('data-testid="cash-entry-row"', false)
+        ->assertSee('data-testid="cash-entry-ledger-hint"', false)
+        ->assertSee('sm:items-start', false);
 });
 
 it('renders the transfer page', function () {
