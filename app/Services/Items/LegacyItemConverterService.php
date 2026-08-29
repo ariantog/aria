@@ -129,11 +129,7 @@ class LegacyItemConverterService
     {
         $parser ??= $this->makeParser();
 
-        $item = Item::query()->with(['tags', 'group'])->find($item->getKey());
-
-        if ($item === null) {
-            return false;
-        }
+        $item->loadMissing(['tags', 'group']);
 
         $itemType = $parser->resolveItemType($item);
 
@@ -154,13 +150,14 @@ class LegacyItemConverterService
             return false;
         }
 
-        $parse = $parser->parse($item);
-
-        if ($parse->success && $this->isAlreadyCanonical($item, $parse)) {
-            return false;
+        // Ungrouped legacy rows cannot be fully canonical — skip the expensive parse pass.
+        if (! $this->hasProductGroup($item)) {
+            return true;
         }
 
-        return true;
+        $parse = $parser->parse($item);
+
+        return ! ($parse->success && $this->isAlreadyCanonical($item, $parse));
     }
 
     /**
@@ -174,7 +171,8 @@ class LegacyItemConverterService
         $candidates = 0;
 
         $this->candidateBaseQuery($itemType)
-            ->select(['id', 'code', 'type'])
+            ->with(['tags', 'group'])
+            ->select(['items.id', 'items.code', 'items.type', 'items.group_id', 'items.legacy_code'])
             ->chunkByIdDesc(500, function ($items) use ($parser, $itemType, &$eligible, &$unparseable, &$candidates) {
                 foreach ($items as $item) {
                     $candidates++;
@@ -211,7 +209,11 @@ class LegacyItemConverterService
         ?int $total = null,
     ): LengthAwarePaginator {
         $page = max(1, (int) request()->query('page', 1));
-        $total ??= $this->countEligible($itemType);
+
+        if ($total === null) {
+            return $this->pendingIndexData($itemType, $perPage, $page)['paginator'];
+        }
+
         $pageItems = $this->eligibleItemsForPage($itemType, $page, $perPage);
 
         return new LengthAwarePaginator(
@@ -221,6 +223,80 @@ class LegacyItemConverterService
             $page,
             ['path' => request()->url(), 'query' => request()->query()],
         );
+    }
+
+    /**
+     * Single-pass pending tab data: queue stats + paginated eligible items.
+     *
+     * @return array{
+     *     stats: array{eligible: int, unparseable: int, candidates: int},
+     *     paginator: LengthAwarePaginator
+     * }
+     */
+    public function pendingIndexData(
+        ItemType $itemType,
+        int $perPage = self::PENDING_PAGE_SIZE,
+        ?int $page = null,
+    ): array {
+        $parser = $this->makeParser();
+        $page = max(1, $page ?? (int) request()->query('page', 1));
+        $start = ($page - 1) * $perPage;
+        $eligible = 0;
+        $unparseable = 0;
+        $candidates = 0;
+        $eligibleIndex = 0;
+        $pageItemIds = [];
+
+        $this->candidateBaseQuery($itemType)
+            ->with(['tags', 'group'])
+            ->select(['items.id', 'items.code', 'items.type', 'items.group_id', 'items.legacy_code'])
+            ->chunkByIdDesc(500, function ($items) use (
+                $parser,
+                $itemType,
+                $start,
+                $perPage,
+                &$eligible,
+                &$unparseable,
+                &$candidates,
+                &$eligibleIndex,
+                &$pageItemIds,
+            ) {
+                foreach ($items as $item) {
+                    $candidates++;
+
+                    if ($this->isStructurallyEligible($item, $parser)) {
+                        if ($eligibleIndex >= $start && count($pageItemIds) < $perPage) {
+                            $pageItemIds[] = $item->id;
+                        }
+
+                        $eligibleIndex++;
+                        $eligible++;
+                    } elseif (! $parser->hasMinimumIdentityStructure((string) $item->code, $itemType)) {
+                        $unparseable++;
+                    }
+                }
+
+                return count($pageItemIds) < $perPage;
+            }, 'id');
+
+        $pageItems = $pageItemIds === []
+            ? collect()
+            : $this->candidateQuery($itemType, withRelations: true)
+                ->whereIn('items.id', $pageItemIds)
+                ->get()
+                ->sortBy(fn (Item $item) => array_search($item->id, $pageItemIds, true))
+                ->values();
+
+        return [
+            'stats' => compact('eligible', 'unparseable', 'candidates'),
+            'paginator' => new LengthAwarePaginator(
+                $pageItems,
+                $eligible,
+                $perPage,
+                $page,
+                ['path' => request()->url(), 'query' => request()->query()],
+            ),
+        ];
     }
 
     /**
@@ -237,7 +313,8 @@ class LegacyItemConverterService
         $pageItemIds = [];
 
         $this->candidateBaseQuery($itemType)
-            ->select(['id', 'code', 'type'])
+            ->with(['tags', 'group'])
+            ->select(['items.id', 'items.code', 'items.type', 'items.group_id', 'items.legacy_code'])
             ->chunkByIdDesc(500, function ($items) use (
                 $parser,
                 $itemType,
@@ -281,7 +358,8 @@ class LegacyItemConverterService
         $batchIds = [];
 
         $this->candidateBaseQuery($itemType)
-            ->select(['id', 'code', 'type'])
+            ->with(['tags', 'group'])
+            ->select(['items.id', 'items.code', 'items.type', 'items.group_id', 'items.legacy_code'])
             ->chunkByIdDesc(500, function ($items) use ($parser, $itemType, $limit, &$batchIds) {
             foreach ($items as $item) {
                 if (! $this->isStructurallyEligible($item, $parser)) {

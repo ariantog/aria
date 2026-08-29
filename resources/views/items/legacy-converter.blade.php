@@ -175,7 +175,7 @@
                         @php
                             $showUrl = $itemShowUrl($item);
                             $legacy = $preservedLegacyCode($item);
-                            $preview = $previews[$item->id]['parse'] ?? null;
+                            $preview = ($previews->get($item->id) ?? [])['parse'] ?? null;
                             $canConvert = $legacy === null && ($preview?->success ?? false);
                         @endphp
                         <tr class="hover:bg-gray-50 {{ $legacy ? 'bg-gray-50/80' : '' }}">
