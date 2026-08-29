@@ -31,6 +31,16 @@ it('installs reporting summary tables via dedicated migration path', function ()
         ->and(Schema::hasTable('monthly_tax_summaries'))->toBeTrue();
 });
 
+it('installs neraca snapshot and persediaan tables via dedicated migration path', function () {
+    Artisan::call('migrate', [
+        '--path' => 'database/migrations/2026_08_29_100000_install_reporting_neraca_tables.php',
+        '--force' => true,
+    ]);
+
+    expect(Schema::hasTable('reporting_monthly_inventory_values'))->toBeTrue()
+        ->and(Schema::hasTable('reporting_balance_snapshots'))->toBeTrue();
+});
+
 it('uses integer columns for customer references in reporting tables', function () {
     if (Schema::getConnection()->getDriverName() !== 'sqlite') {
         $this->markTestSkipped('SQLite column introspection only in this test.');
