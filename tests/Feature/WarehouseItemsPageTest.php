@@ -74,6 +74,36 @@ it('links warehouse items to item or asset lancar show pages', function () {
         ->assertSee('Export Excel', false);
 });
 
+it('filters warehouse stock by group product title', function () {
+    User::factory()->create();
+    $user = User::factory()->create();
+    $user->givePermissionTo('addrbook-warehouse-items');
+
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    $group = \App\Models\ItemGroup::factory()->create(['name' => 'ENERGY']);
+    $match = Item::factory()->create([
+        'group_id' => $group->id,
+        'name' => 'hj00022',
+        'code' => 'WH-ENERGY-HJ-M',
+    ]);
+    $other = Item::factory()->create(['name' => 'other-item', 'code' => 'WH-OTHER-M']);
+
+    foreach ([$match, $other] as $item) {
+        WarehouseItem::create([
+            'warehouse_id' => $warehouse->id,
+            'item_id' => $item->id,
+            'warehouse_type' => Addrbook::TYPE_WAREHOUSE,
+            'quantity' => 5,
+        ]);
+    }
+
+    $this->actingAs($user)
+        ->get(route('addrbook.type.items', ['warehouse', $warehouse->id, 'name' => 'energy']))
+        ->assertOk()
+        ->assertSee('WH-ENERGY-HJ-M', false)
+        ->assertDontSee('WH-OTHER-M', false);
+});
+
 it('shows shared item list filters on warehouse stock page', function () {
     User::factory()->create();
     $user = User::factory()->create();

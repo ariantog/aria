@@ -90,6 +90,49 @@ test('items index name filter searches item name and group name', function () {
         ->assertDontSee('AJD-DISPLAY-FILTER-M', false);
 });
 
+test('items index name filter finds item by group product title energy', function () {
+    $group = \App\Models\ItemGroup::factory()->create(['name' => 'ENERGY']);
+    Item::factory()->create([
+        'group_id' => $group->id,
+        'name' => 'hj00022',
+        'code' => 'AJD-ENERGY-HJ-M',
+    ]);
+    Item::factory()->create([
+        'name' => 'other-item',
+        'code' => 'AJD-OTHER-ITEM-M',
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('items.index', ['name' => 'energy']))
+        ->assertOk()
+        ->assertSee('AJD-ENERGY-HJ-M', false)
+        ->assertDontSee('AJD-OTHER-ITEM-M', false);
+});
+
+test('items index name filter searches group alias when product title is stored there', function () {
+    if (! \Illuminate\Support\Facades\Schema::hasColumn('item_group', 'alias')) {
+        \Illuminate\Support\Facades\Schema::table('item_group', function (\Illuminate\Database\Schema\Blueprint $table) {
+            $table->string('alias')->nullable();
+        });
+    }
+
+    $group = \App\Models\ItemGroup::factory()->create(['name' => 'HJ00022']);
+    \Illuminate\Support\Facades\DB::table('item_group')
+        ->where('id', $group->id)
+        ->update(['alias' => 'energy']);
+
+    Item::factory()->create([
+        'group_id' => $group->id,
+        'name' => 'hj00022',
+        'code' => 'AJD-ENERGY-ALIAS-M',
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('items.index', ['name' => 'energy']))
+        ->assertOk()
+        ->assertSee('AJD-ENERGY-ALIAS-M', false);
+});
+
 test('getItemName prefers non-empty group alias for manufactured items', function () {
     $group = \App\Models\ItemGroup::factory()->make(['name' => 'GROUP PRODUCT NAME']);
     $group->setRawAttributes(array_merge($group->getAttributes(), ['alias' => 'GROUP ALIAS NAME']));

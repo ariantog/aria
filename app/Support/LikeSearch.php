@@ -27,6 +27,13 @@ class LikeSearch
         return $normalized === '' ? '%' : "%{$normalized}%";
     }
 
+    public static function containsInsensitive(string $term): string
+    {
+        $normalized = strtolower(self::normalize($term));
+
+        return $normalized === '' ? '%' : "%{$normalized}%";
+    }
+
     public static function prefix(string $term): string
     {
         $normalized = self::normalize($term);
