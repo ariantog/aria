@@ -17,6 +17,7 @@ use Illuminate\Database\Migrations\Migration;
  * 8. `2026_08_24_120000_install_reporting_summary_tables` — reporting aggregate tables
  * 9. `2026_08_24_130000_install_monthly_tax_summaries_table` — per-entity tax rollups
  * 10. `2026_08_29_100000_install_reporting_neraca_tables` — persediaan roll-forward + balance snapshots
+ * 10b. `2026_08_29_140000_add_manufactured_cogs_to_reporting_monthly_inventory_values` — HPP produksi columns
  * 11. `2026_08_25_100000_bootstrap_shopee_ads_tables` — Shopee Ads bot tables
  * 12. `2026_08_13_120000_add_production_not_null_column_defaults` — MySQL `DEFAULT` on NOT NULL columns
  * 13. `2026_08_13_130000_fix_production_bigint_columns_to_int` — INT FK types for prod PKs
@@ -44,6 +45,7 @@ return new class extends Migration
         (require __DIR__.'/2026_08_24_120000_install_reporting_summary_tables.php')->up();
         (require __DIR__.'/2026_08_24_130000_install_monthly_tax_summaries_table.php')->up();
         (require __DIR__.'/2026_08_29_100000_install_reporting_neraca_tables.php')->up();
+        (require __DIR__.'/2026_08_29_140000_add_manufactured_cogs_to_reporting_monthly_inventory_values.php')->up();
         (require __DIR__.'/2026_08_25_100000_install_tax_faktur_imports_table.php')->up();
         (require __DIR__.'/2026_08_25_100100_add_payment_schedule_to_customers_table.php')->up();
         (require __DIR__.'/2026_08_25_100200_add_variance_transaction_id_to_tax_faktur_imports_table.php')->up();

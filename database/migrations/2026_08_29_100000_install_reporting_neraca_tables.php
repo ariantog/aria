@@ -39,6 +39,12 @@ return new class extends Migration
             $table->decimal('material_purchases', 15, 2)->default(0);
             $table->decimal('material_cash_out', 15, 2)->default(0);
             $table->decimal('production_cost', 15, 2)->default(0);
+            $table->decimal('pcs_manufactured', 15, 2)->default(0);
+            $table->decimal('borongan_labor', 15, 2)->default(0);
+            $table->decimal('manufactured_unit_cost', 15, 4)->default(0);
+            $table->decimal('manufactured_qty_sold', 15, 2)->default(0);
+            $table->decimal('manufactured_cogs', 15, 2)->default(0);
+            $table->decimal('purchased_cogs', 15, 2)->default(0);
             $table->decimal('cogs', 15, 2)->default(0);
             $table->decimal('adjustment', 15, 2)->default(0);
             $table->decimal('closing_balance', 15, 2)->default(0);
