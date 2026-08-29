@@ -22,6 +22,9 @@
             @if($itemView['showName'])
                 <th style="text-align:left;{{ $forPdf ? '' : ' padding:6px 8px; border:1px solid #ccc;' }}">Item Name</th>
             @endif
+            @if($itemView['showDescription'])
+                <th style="text-align:left;{{ $forPdf ? '' : ' padding:6px 8px; border:1px solid #ccc;' }}">Desc</th>
+            @endif
             <th style="text-align:right;{{ $forPdf ? '' : ' padding:6px 8px; border:1px solid #ccc;' }}">Qty</th>
             <th style="text-align:right;{{ $forPdf ? '' : ' padding:6px 8px; border:1px solid #ccc;' }}">Price</th>
             <th style="text-align:right;{{ $forPdf ? '' : ' padding:6px 8px; border:1px solid #ccc;' }}">Disc(%)</th>
@@ -49,7 +52,7 @@
                 @endif
                 @if($itemView['showName'])
                     <td style="{{ $forPdf ? '' : ' padding:6px 8px; border:1px solid #ccc;' }}">
-                        <div style="font-weight:bold;">{{ $item?->name ?? '-' }}</div>
+                        <div style="font-weight:bold;">{{ $item?->getItemName() ?? '-' }}</div>
                         @if($item?->code)
                             <div style="margin-top:2px; font-family:monospace; font-size:10px; color:#666;">{{ $item->code }}</div>
                         @endif
@@ -57,6 +60,9 @@
                             <div style="margin-top:4px; font-size:11px; font-style:italic; color:#666;">{{ $detail->notes }}</div>
                         @endif
                     </td>
+                @endif
+                @if($itemView['showDescription'])
+                    <td style="{{ $forPdf ? '' : ' padding:6px 8px; border:1px solid #ccc;' }}">{{ $item?->description ?: '-' }}</td>
                 @endif
                 <td style="text-align:right;{{ $forPdf ? '' : ' padding:6px 8px; border:1px solid #ccc;' }}">{{ $fmt($detail->quantity) }}</td>
                 <td style="text-align:right;{{ $forPdf ? '' : ' padding:6px 8px; border:1px solid #ccc;' }}">{{ $fmt($detail->price) }}</td>

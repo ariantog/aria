@@ -767,6 +767,7 @@ function transactionShowPage(transactionId, initialNote, canEditNote, canEditPpn
             params.set('barcode', this.showBarcode ? '1' : '0');
             params.set('sku', this.showSku ? '1' : '0');
             params.set('name', this.showName ? '1' : '0');
+            params.set('desc', this.showDescription ? '1' : '0');
 
             return params.toString();
         },
