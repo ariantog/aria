@@ -54,7 +54,7 @@ class ShopeeAdsController extends Controller
             'automationTimezone' => $automationTimezone,
             'nowWib' => $nowWib,
             'oauthErrorHint' => $api->formatOAuthErrorForUser($api->getLastOAuthError()),
-            'planned' => $this->plannedEndOfDay($settings, $schedules, $specialRules, $engine, $api),
+            'planned' => $this->plannedEndOfDay($settings, $schedules, $specialRules, $engine),
             'ruleStatus' => $ruleStatus,
             'canEdit' => request()->user()?->can(ShopeeAds::getPermissions()['edit']) ?? false,
             'canBoost' => request()->user()?->can(ShopeeAds::getPermissions()['boost']) ?? false,
@@ -357,7 +357,6 @@ class ShopeeAdsController extends Controller
         $schedules,
         ShopeeAdsSpecialRulesService $specialRules,
         ShopeeAdsEngineService $engine,
-        ShopeeAdsApiService $api,
     ): array
     {
         $multipliers = $specialRules->resolveForToday($settings);
@@ -373,13 +372,11 @@ class ShopeeAdsController extends Controller
         $itemStartPool = $engine->itemAdsStartingPoolTotal($settings, $multipliers);
         $itemStartPerAd = $engine->itemAdBudgetPerSlot($settings, $multipliers);
         $slotCount = $engine->itemAdsSlotCount($settings, $multipliers);
-        $liveCount = $api->hasShopAuthorization() ? count($api->listManualProductAds(true)) : 0;
-        $activeItemAds = $liveCount > 0
-            ? $liveCount
-            : ShopeeAdsItemAd::query()
-                ->where('turned_off', false)
-                ->whereNotIn('status', ['ended', 'closed', 'berakhir'])
-                ->count();
+        // Planned-budget display uses DB only — listManualProductAds() paginates Shopee on every GET.
+        $activeItemAds = ShopeeAdsItemAd::query()
+            ->where('turned_off', false)
+            ->whereNotIn('status', ['ended', 'closed', 'berakhir'])
+            ->count();
         $effectiveMaxAds = $slotCount;
         $itemStart = $itemStartPerAd * $activeItemAds;
         $itemInc = (int) $schedules
@@ -418,7 +415,7 @@ class ShopeeAdsController extends Controller
                 'planned' => $itemPlanned,
                 'active_ads' => $activeItemAds,
                 'effective_max_ads' => $effectiveMaxAds,
-                'note' => 'Starting pool ÷ max item ads per slot; increment schedules = total pool per run (split by ROAS)',
+                'note' => 'Starting pool ÷ max item ads per slot; increment schedules = total pool per run (split by ROAS). Active count from DB — Sync Item Ads for live Shopee data.',
             ],
         ];
     }
