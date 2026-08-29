@@ -349,6 +349,8 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::post('karyawan/{karyawan}/cuti', [\App\Http\Controllers\CutiController::class, 'store'])->name('karyawan.cuti.store');
 
     Route::get('gaji', [\App\Http\Controllers\GajiController::class, 'index'])->name('gaji.index');
+    Route::get('gaji/{gaji}/edit', [\App\Http\Controllers\GajiController::class, 'edit'])->name('gaji.edit');
+    Route::put('gaji/{gaji}', [\App\Http\Controllers\GajiController::class, 'update'])->name('gaji.update');
     Route::delete('gaji/{gaji}', [\App\Http\Controllers\GajiController::class, 'destroy'])->name('gaji.destroy');
     Route::get('karyawan/{karyawan}/gaji/create', [\App\Http\Controllers\GajiController::class, 'create'])->name('karyawan.gaji.create');
     Route::post('karyawan/{karyawan}/gaji', [\App\Http\Controllers\GajiController::class, 'store'])->name('karyawan.gaji.store');

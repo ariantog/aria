@@ -6,7 +6,7 @@
 @php
 $breadcrumbs = [['title' => 'Karyawan', 'href' => route('karyawan.index')]];
 $user = auth()->user();
-$isSuper = $user && $user->hasRole('superadmin');
+$isSuper = $user && $user->is_superadmin;
 $now = now();
 $currentMonth = $now->month;
 $currentYear = $now->year;

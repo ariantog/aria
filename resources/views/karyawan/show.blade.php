@@ -9,7 +9,8 @@ $breadcrumbs = [
     ['title' => $karyawan->nama, 'href' => route('karyawan.show', $karyawan->id)],
 ];
 $user = auth()->user();
-$isSuper = $user && $user->hasRole('superadmin');
+$isSuper = $user && $user->is_superadmin;
+$canEditGaji = $user && ($isSuper || $user->can('karyawan-gaji-edit'));
 $fmt = fn($v) => format_amount($v ?? 0, 0);
 $tipeCuti = [1 => ['Tahunan','text-blue-600'], 2 => ['Sakit','text-orange-600'], 3 => ['Mendadak/Izin','text-red-600']];
 @endphp
@@ -71,6 +72,7 @@ $tipeCuti = [1 => ['Tahunan','text-blue-600'], 2 => ['Sakit','text-orange-600'],
                                 <th class="h-10 px-4 text-left font-medium text-gray-500">Periode</th>
                                 <th class="h-10 px-4 text-right font-medium text-gray-500">Total Gaji</th>
                                 <th class="h-10 px-4 text-center font-medium text-gray-500">Cuti (T/S/M)</th>
+                                @if($canEditGaji)<th class="h-10 px-4 text-right font-medium text-gray-500"></th>@endif
                             </tr>
                         </thead>
                         <tbody>
@@ -79,9 +81,14 @@ $tipeCuti = [1 => ['Tahunan','text-blue-600'], 2 => ['Sakit','text-orange-600'],
                                 <td class="p-4 font-medium">Bulan {{ $gaji->bulan }} / {{ $gaji->tahun }}</td>
                                 <td class="p-4 text-right font-bold text-green-700">{{ $fmt($gaji->total_gaji) }}</td>
                                 <td class="p-4 text-center text-gray-500">{{ (int)($gaji->cuti_tahunan ?? 0) }} / {{ (int)($gaji->cuti_sakit ?? 0) }} / {{ (int)($gaji->cuti_mendadak ?? 0) }}</td>
+                                @if($canEditGaji)
+                                <td class="p-4 text-right">
+                                    <a href="{{ route('gaji.edit', $gaji) }}" class="text-sm font-medium text-blue-600 hover:underline">Edit</a>
+                                </td>
+                                @endif
                             </tr>
                             @empty
-                            <tr><td colspan="3" class="p-4 text-center text-gray-500">Belum ada histori gaji.</td></tr>
+                            <tr><td colspan="{{ $canEditGaji ? 4 : 3 }}" class="p-4 text-center text-gray-500">Belum ada histori gaji.</td></tr>
                             @endforelse
                         </tbody>
                     </table>

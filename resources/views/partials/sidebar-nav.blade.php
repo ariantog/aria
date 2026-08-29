@@ -208,6 +208,14 @@
         $userNavLabels[] = 'Locations';
     }
 
+    $hrNavLabels = ['HR / Payroll'];
+    if ($hasPerm('karyawan-list') || $isSuperAdmin) {
+        $hrNavLabels[] = 'Karyawan';
+    }
+    if ($hasPerm('karyawan-gaji-list') || $isSuperAdmin) {
+        $hrNavLabels[] = 'Gaji';
+    }
+
     $sidebarFavorites = $_sidebar['favorites'] ?? [];
     $favoriteNavLabels = ['Favorites', ...collect($sidebarFavorites)->pluck('label')->all()];
     $favoritesActive = collect($sidebarFavorites)->contains(
@@ -682,6 +690,31 @@
         @if($isSuperAdmin)
         <a href="{{ route('data-retention.index') }}" x-show="navLinkVisible('Data Retention', 'System Settings')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/data-retention') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Data Retention</a>
         <a href="{{ route('data-retention.item-purge.index') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/data-retention/item-purge') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Selective Item Purge</a>
+        @endif
+    </div>
+</div>
+@endif
+
+{{-- ── HR / Payroll ──────────────────────────────────────────────────── --}}
+@if($hasPerm('karyawan-list') || $hasPerm('karyawan-gaji-list') || $isSuperAdmin)
+@php $hrActive = $isActive('/karyawan') || $isActive('/gaji'); @endphp
+<div x-data="{ open: {{ $hrActive ? 'true' : 'false' }} }"
+     class="mb-1"
+     x-show="navGroupVisible(@js($hrNavLabels))"
+     x-effect="syncNavGroupOpen($data, {{ $hrActive ? 'true' : 'false' }}, @js($hrNavLabels))">
+    <button @click="open = !open"
+            class="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors
+                   {{ $hrActive ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100' }}">
+        <svg class="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+        <span x-show="sidebarOpen" x-cloak class="flex-1 text-left">HR / Payroll</span>
+        <svg x-show="sidebarOpen" x-cloak :class="open ? 'rotate-90' : ''" class="h-3.5 w-3.5 flex-shrink-0 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+    </button>
+    <div x-show="open && sidebarOpen" x-cloak class="ml-6 mt-1 space-y-0.5">
+        @if($hasPerm('karyawan-list') || $isSuperAdmin)
+        <a href="{{ route('karyawan.index') }}" x-show="navLinkVisible('Karyawan', 'HR / Payroll')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/karyawan') && ! $isActive('/gaji') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Karyawan</a>
+        @endif
+        @if($hasPerm('karyawan-gaji-list') || $isSuperAdmin)
+        <a href="{{ route('gaji.index') }}" x-show="navLinkVisible('Gaji', 'HR / Payroll')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/gaji') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Gaji</a>
         @endif
     </div>
 </div>
