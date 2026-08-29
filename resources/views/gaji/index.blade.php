@@ -9,8 +9,9 @@ $breadcrumbs = [
     ['title' => 'Monthly Salary', 'href' => route('gaji.index')],
 ];
 $user = auth()->user();
-$isSuper = $user && $user->hasRole('superadmin');
+$isSuper = $user && $user->is_superadmin;
 $canDelete = $isSuper || $user->can('karyawan-gaji-delete');
+$canEdit = $isSuper || $user->can('karyawan-gaji-edit');
 $fmt = fn($v) => format_amount($v ?? 0, 0);
 $monthNames = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
 $grandTotalBank = $gajiPerBank->sum('total_gaji');
@@ -78,7 +79,7 @@ $search = $filters['karyawan'] ?? '';
                         <th class="px-4 py-3 text-right font-bold">Sanksi</th>
                         <th class="px-4 py-3 text-right font-bold">Total Gaji</th>
                         <th class="px-4 py-3 font-bold">Account Bank</th>
-                        @if($canDelete)<th class="px-4 py-3 text-center font-bold">Actions</th>@endif
+                        @if($canDelete)<th class="px-4 py-3 text-center font-bold">Actions</th>@elseif($canEdit)<th class="px-4 py-3 text-center font-bold">Actions</th>@endif
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100">
@@ -96,24 +97,28 @@ $search = $filters['karyawan'] ?? '';
                         <td class="px-4 py-3">
                             <span class="whitespace-nowrap rounded-full border px-2 py-0.5 text-xs {{ $item->bankSingle?->name ? 'border-gray-200' : 'border-amber-200 bg-amber-50 text-amber-700' }}">{{ $item->bankSingle->name ?? 'Kas Tunai' }}</span>
                         </td>
-                        @if($canDelete)
+                        @if($canDelete || $canEdit)
                         <td class="px-4 py-3">
                             <div class="flex items-center justify-center gap-1">
-                                <a href="/gaji/cetak/{{ $item->id }}" target="_blank" title="Print Slip" class="flex h-8 w-8 items-center justify-center rounded text-zinc-400 hover:text-zinc-900">
-                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+                                @if($canEdit)
+                                <a href="{{ route('gaji.edit', $item) }}" title="Edit" class="flex h-8 w-8 items-center justify-center rounded text-zinc-400 hover:text-blue-600">
+                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                                 </a>
+                                @endif
+                                @if($canDelete)
                                 <form method="POST" action="{{ route('gaji.destroy', $item->id) }}" onsubmit="return confirm('Are you sure you want to delete this payroll record?')">
                                     @csrf @method('DELETE')
                                     <button type="submit" title="Delete Record" class="flex h-8 w-8 items-center justify-center rounded text-zinc-400 hover:text-rose-600">
                                         <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
                                     </button>
                                 </form>
+                                @endif
                             </div>
                         </td>
                         @endif
                     </tr>
                     @empty
-                    <tr><td colspan="{{ $canDelete ? 11 : 10 }}" class="h-32 px-4 py-8 text-center text-gray-500">No payroll records found for this period.</td></tr>
+                    <tr><td colspan="{{ ($canDelete || $canEdit) ? 11 : 10 }}" class="h-32 px-4 py-8 text-center text-gray-500">No payroll records found for this period.</td></tr>
                     @endforelse
                 </tbody>
             </table>
