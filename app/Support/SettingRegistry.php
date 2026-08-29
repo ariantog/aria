@@ -84,6 +84,13 @@ class SettingRegistry
                 'default' => null,
                 'hint' => 'Default warehouse when sending finished production to stock.',
             ],
+            'reporting.persediaan_awal' => [
+                'group' => 'Reporting',
+                'name' => 'Persediaan Awal (Jan 2026)',
+                'type' => 'number',
+                'default' => 0,
+                'hint' => 'Opening inventory value for the January 2026 roll-forward. Later months open from the previous closing.',
+            ],
         ];
     }
 

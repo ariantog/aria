@@ -38,4 +38,16 @@ return [
     |
     */
 
+    /*
+    |--------------------------------------------------------------------------
+    | Persediaan roll-forward
+    |--------------------------------------------------------------------------
+    |
+    | Company-wide inventory ledger starts January 2026. Opening seed is the
+    | `reporting.persediaan_awal` setting (this config is the fallback).
+    |
+    */
+    'persediaan_start' => '2026-01-01',
+    'persediaan_awal' => 0,
+
 ];

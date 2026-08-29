@@ -19,4 +19,18 @@ class ReportingLedgerRole extends Model
     {
         return $this->belongsTo(Addrbook::class, 'customer_id');
     }
+
+    /**
+     * @return list<int>
+     */
+    public static function customerIdsFor(ReportingLedgerRoleEnum $role): array
+    {
+        return static::query()
+            ->where('role', $role->value)
+            ->pluck('customer_id')
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+    }
 }
