@@ -360,6 +360,9 @@
                 <label class="flex cursor-pointer items-center gap-2 text-xs font-bold">
                     <input type="checkbox" x-model="showName" class="h-4 w-4 rounded border-gray-300"> Name
                 </label>
+                <label class="flex cursor-pointer items-center gap-2 text-xs font-bold">
+                    <input type="checkbox" x-model="showDescription" class="h-4 w-4 rounded border-gray-300"> Desc
+                </label>
                 </div>
             </div>
         </div>
@@ -373,6 +376,7 @@
                             ['col' => 'barcode', 'label' => 'Barcode', 'align' => 'text-left'],
                             ['col' => 'sku', 'label' => 'SKU', 'align' => 'text-left'],
                             ['col' => 'name', 'label' => 'Item Name', 'align' => 'text-left min-w-[12rem]'],
+                            ['col' => 'desc', 'label' => 'Desc', 'align' => 'text-left min-w-[10rem]'],
                             ['col' => 'qty', 'label' => 'Qty', 'align' => 'text-center'],
                             ['col' => 'price', 'label' => 'Price', 'align' => 'text-right'],
                             ['col' => 'disc', 'label' => 'Disc(%)', 'align' => 'text-right'],
@@ -380,7 +384,7 @@
                         ] as $sortCol)
                         <th class="px-3 py-2.5 font-black {{ $sortCol['align'] }}"
                             data-copy-col="{{ $sortCol['col'] }}"
-                            @if(in_array($sortCol['col'], ['barcode', 'sku', 'name'], true)) x-show="{{ $sortCol['col'] === 'barcode' ? 'showBarcode' : ($sortCol['col'] === 'sku' ? 'showSku' : 'showName') }}" @endif>
+                            @if(in_array($sortCol['col'], ['barcode', 'sku', 'name', 'desc'], true)) x-show="{{ match($sortCol['col']) { 'barcode' => 'showBarcode', 'sku' => 'showSku', 'name' => 'showName', 'desc' => 'showDescription', default => 'true' } }}" @endif>
                             <button type="button"
                                     @click="sortItems('{{ $sortCol['col'] }}')"
                                     class="inline-flex w-full items-center gap-1 hover:text-gray-900 {{ str_contains($sortCol['align'], 'text-right') ? 'justify-end' : (str_contains($sortCol['align'], 'text-center') ? 'justify-center' : 'justify-start') }}">
@@ -398,7 +402,7 @@
                         <td class="px-3 py-2.5 text-center align-middle" data-copy-col="image" x-show="showImage">
                             <div class="relative mx-auto flex h-12 w-12 items-center justify-center overflow-hidden rounded border bg-white shadow-sm transition-transform duration-200 group-hover:scale-105">
                                 @if($item?->image_url)
-                                    <img src="{{ $item->image_url }}" alt="{{ $item?->name }}" class="h-full w-full object-cover">
+                                    <img src="{{ $item->image_url }}" alt="{{ $item?->getItemName() }}" class="h-full w-full object-cover">
                                 @else
                                     <svg class="h-6 w-6 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
                                 @endif
@@ -408,8 +412,8 @@
                             <a href="{{ $item ? route('items.show', $item->id) : '#' }}" class="text-blue-600 hover:underline">{{ $item?->id }}</a>
                         </td>
                         <td class="whitespace-nowrap px-3 py-2.5 align-middle font-mono text-xs italic text-gray-500" data-copy-col="sku" data-sort-value="{{ $item?->code ?: '' }}" x-show="showSku">{{ $item?->code ?: '-' }}</td>
-                        <td class="px-3 py-2.5 align-middle" data-copy-col="name" data-sort-value="{{ $item?->name ?: '' }}" x-show="showName">
-                            <div class="font-bold text-gray-900">{{ $item?->name }}</div>
+                        <td class="px-3 py-2.5 align-middle" data-copy-col="name" data-sort-value="{{ $item?->getItemName() ?: '' }}" x-show="showName">
+                            <div class="font-bold text-gray-900">{{ $item?->getItemName() }}</div>
                             @if($item?->code)
                             <div class="mt-0.5 font-mono text-[10px] leading-tight text-gray-500">{{ $item?->code }}</div>
                             @endif
@@ -417,6 +421,7 @@
                             <div class="mt-1 text-xs italic text-gray-500">📝 {{ $detail->notes }}</div>
                             @endif
                         </td>
+                        <td class="px-3 py-2.5 align-middle text-gray-600" data-copy-col="desc" data-sort-value="{{ $item?->description ?: '' }}" x-show="showDescription">{{ $item?->description ?: '-' }}</td>
                         <td class="whitespace-nowrap px-3 py-2.5 text-center align-middle font-black tabular-nums" data-copy-col="qty" data-sort-value="{{ $detail->quantity }}">{{ $detail->quantity }}</td>
                         <td class="whitespace-nowrap px-3 py-2.5 text-right align-middle font-medium tabular-nums" data-copy-col="price" data-sort-value="{{ $detail->price }}">{{ $fmt($detail->price) }}</td>
                         <td class="whitespace-nowrap px-3 py-2.5 text-right align-middle tabular-nums" data-copy-col="disc" data-sort-value="{{ (float) $detail->discount }}">
@@ -550,7 +555,7 @@
 <script>
 function transactionShowPage(transactionId, initialNote, canEditNote, canEditPpn, initialPpn, initialPpnDpp, initialPph, ppnRate, pphRate, transactionTotal) {
     const storageKey = 'aria-transaction-show-view';
-    const defaults = { showImage: true, showBarcode: true, showSku: false, showName: true };
+    const defaults = { showImage: true, showBarcode: true, showSku: false, showName: true, showDescription: false };
     let saved = {};
 
     try {
@@ -564,6 +569,7 @@ function transactionShowPage(transactionId, initialNote, canEditNote, canEditPpn
         showBarcode: typeof saved.showBarcode === 'boolean' ? saved.showBarcode : defaults.showBarcode,
         showSku: typeof saved.showSku === 'boolean' ? saved.showSku : defaults.showSku,
         showName: typeof saved.showName === 'boolean' ? saved.showName : defaults.showName,
+        showDescription: typeof saved.showDescription === 'boolean' ? saved.showDescription : defaults.showDescription,
         copyFeedback: false,
         copyFeedbackTimer: null,
         sortCol: null,
@@ -742,6 +748,7 @@ function transactionShowPage(transactionId, initialNote, canEditNote, canEditPpn
             this.$watch('showBarcode', () => this.persistViewPrefs());
             this.$watch('showSku', () => this.persistViewPrefs());
             this.$watch('showName', () => this.persistViewPrefs());
+            this.$watch('showDescription', () => this.persistViewPrefs());
         },
         persistViewPrefs() {
             localStorage.setItem(storageKey, JSON.stringify({
@@ -749,6 +756,7 @@ function transactionShowPage(transactionId, initialNote, canEditNote, canEditPpn
                 showBarcode: this.showBarcode,
                 showSku: this.showSku,
                 showName: this.showName,
+                showDescription: this.showDescription,
             }));
         },
         showCopyFeedback() {
@@ -763,6 +771,7 @@ function transactionShowPage(transactionId, initialNote, canEditNote, canEditPpn
             if (col === 'barcode') return this.showBarcode;
             if (col === 'sku') return this.showSku;
             if (col === 'name') return this.showName;
+            if (col === 'desc') return this.showDescription;
 
             return true;
         },
