@@ -109,10 +109,12 @@ $config = [
                 @endphp
                 <div class="divide-y divide-gray-100 px-0">
                     <template x-for="(row, idx) in form.items" :key="row.id">
-                        <div class="flex flex-col gap-3 px-5 py-4 text-sm hover:bg-gray-50 sm:grid sm:grid-cols-12 sm:items-center sm:gap-2 sm:py-2"
+                        {{-- Ledger hint is its own grid cell so the input row stays even. --}}
+                        <div class="flex flex-col gap-3 px-5 py-4 text-sm hover:bg-gray-50 sm:grid sm:grid-cols-12 sm:items-start sm:gap-x-2 sm:gap-y-1 sm:py-2"
+                             data-testid="cash-entry-row"
                              :class="rowInvalid(row) ? 'bg-red-50' : ''">
                             {{-- Source / recipient autocomplete --}}
-                            <div class="relative sm:col-span-4"
+                            <div class="relative order-1 sm:col-span-4"
                                  x-data="asyncCombobox({
                                      endpoint: @js($config['lookupEndpoint']),
                                      placeholder: '{{ $config['sourcePlaceholder'] }}',
@@ -137,9 +139,13 @@ $config = [
                                         </div>
                                     </template>
                                 </div>
-                                <p x-show="row.customer && row.customer.ledger_hint" x-cloak class="mt-1 text-xs text-gray-500 sm:col-span-4" x-text="row.customer.ledger_hint"></p>
                             </div>
-                            <div class="sm:col-span-3">
+                            <p x-show="row.customer && row.customer.ledger_hint"
+                               x-cloak
+                               data-testid="cash-entry-ledger-hint"
+                               class="order-2 text-xs leading-4 text-gray-500 sm:order-6 sm:col-span-4 sm:col-start-1"
+                               x-text="row.customer.ledger_hint"></p>
+                            <div class="order-3 sm:order-2 sm:col-span-3">
                                 <label class="mb-1 block text-xs font-medium text-gray-500 sm:hidden">Invoice #</label>
                                 <input type="text" x-model="row.invoice" placeholder="Invoice #"
                                        @keydown="fieldKeydown(idx, 'invoice', $event)"
@@ -147,7 +153,7 @@ $config = [
                                        :id="'invoice_' + idx"
                                        class="{{ $rowInput }}">
                             </div>
-                            <div class="sm:col-span-2">
+                            <div class="order-4 sm:order-3 sm:col-span-2">
                                 <label class="mb-1 block text-xs font-medium text-gray-500 sm:hidden">Note</label>
                                 <input type="text" x-model="row.note" placeholder="Note"
                                        @keydown="fieldKeydown(idx, 'note', $event)"
@@ -155,7 +161,7 @@ $config = [
                                        :id="'note_' + idx"
                                        class="{{ $rowInput }}">
                             </div>
-                            <div class="sm:col-span-2">
+                            <div class="order-5 sm:order-4 sm:col-span-2">
                                 <label class="mb-1 block text-xs font-medium text-gray-500 sm:hidden">Total (Rp)</label>
                                 <input type="number" x-model.number="row.total" placeholder="0" min="0" step="any"
                                        @input="onTotalChange(row)"
@@ -165,14 +171,14 @@ $config = [
                                        class="{{ $rowInput }} text-right"
                                        :class="rowInvalid(row) && !(Number(row.total) >= 0.01) ? 'border-red-400 bg-red-50' : ''">
                             </div>
-                            <div class="sm:col-span-1 sm:text-center">
+                            <div class="order-6 sm:order-5 sm:col-span-1 sm:text-center">
                                 <button type="button" @click="removeRow(idx)" :disabled="form.items.length === 1"
                                         class="inline-flex h-8 w-full items-center justify-center gap-1.5 rounded border border-red-200 text-sm text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-30 sm:w-8 sm:border-0 sm:text-gray-400">
                                     <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                                     <span class="sm:hidden">Remove</span>
                                 </button>
                             </div>
-                            <div x-show="isPkpBank()" x-cloak class="sm:col-span-12 rounded-lg border border-dashed border-gray-200 bg-gray-50/80 px-3 py-2.5">
+                            <div x-show="isPkpBank()" x-cloak class="order-7 sm:col-span-12 rounded-lg border border-dashed border-gray-200 bg-gray-50/80 px-3 py-2.5">
                                 <label class="inline-flex items-center gap-2 text-xs font-medium text-gray-700">
                                     <input type="checkbox"
                                            x-model="row.record_ppn"
