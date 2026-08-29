@@ -934,18 +934,25 @@ class LegacyItemConverterService
 
         $itemType = $context['item_type'] ?? ItemType::ITEM;
 
-        return $this->runItem($item, $itemType, $user);
+        return $this->runItem($item, $itemType, $user, forDetailRepair: true);
     }
 
-    public function runItem(Item $item, ItemType $itemType, User $user): ItemIdentityConversionResult
+    public function runItem(Item $item, ItemType $itemType, User $user, bool $forDetailRepair = false): ItemIdentityConversionResult
     {
         $parser = $this->makeParser();
+        $item = $item->fresh(['tags', 'group']);
 
         if ($parser->resolveItemType($item) !== $itemType) {
             throw new \RuntimeException('Item type does not match the selected converter tab.');
         }
 
-        if (! $this->isStructurallyEligible($item->fresh(['tags', 'group']), $parser)) {
+        if ($forDetailRepair) {
+            $parse = $parser->parse($item);
+
+            if (! $parse->success || $this->isDetailConversionComplete($item, $parse)) {
+                throw new \RuntimeException('Item is not eligible for legacy conversion.');
+            }
+        } elseif (! $this->isStructurallyEligible($item, $parser)) {
             throw new \RuntimeException('Item is not eligible for legacy conversion.');
         }
 
