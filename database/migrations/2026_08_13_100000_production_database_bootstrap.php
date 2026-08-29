@@ -50,6 +50,8 @@ return new class extends Migration
         (require __DIR__.'/2026_08_26_120000_widen_shopee_ads_item_id_column.php')->up();
         (require __DIR__.'/2026_08_28_100000_add_shopee_ads_item_performance_and_topup.php')->up();
         (require __DIR__.'/2026_08_28_120000_create_data_retention_runs_table.php')->up();
+        (require __DIR__.'/2026_08_29_100000_install_karyawan_gaji_table.php')->up();
+        (require __DIR__.'/2026_08_29_100100_add_payroll_attendance_fields_to_karyawans_table.php')->up();
         (require __DIR__.'/2026_08_13_120000_add_production_not_null_column_defaults.php')->up();
         (require __DIR__.'/2026_08_13_130000_fix_production_bigint_columns_to_int.php')->up();
         (require __DIR__.'/2026_08_24_100000_install_user_preferences_table.php')->up();
