@@ -31,7 +31,8 @@ it('allows transaction users without items-list to lookup an item by id', functi
     $response->assertSuccessful()
         ->assertJsonPath('item.id', $item->id)
         ->assertJsonPath('item.code', 'AJD-SCAN-01-S')
-        ->assertJsonPath('item.name', 'Scanned Product');
+        ->assertJsonPath('item.name', 'Scanned Product')
+        ->assertJsonPath('item.jubelio_item_id', 0);
 });
 
 it('returns null item when barcode id does not exist', function () {

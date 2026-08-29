@@ -74,7 +74,7 @@ class TransactionsController extends Controller
         return $exportService->download($rows, $hideBank);
     }
 
-    public function create(string $type, Request $request, BookClosingService $bookClosingService, TransactionReturnDraftService $draftService, UserPreferenceService $userPreferences)
+    public function create(string $type, Request $request, BookClosingService $bookClosingService, TransactionReturnDraftService $draftService, UserPreferenceService $userPreferences, JubelioTransactionSyncPresenter $jubelioSyncPresenter)
     {
         Transaction::authorizeTypeAccess($type);
         $config = config("transaction_rules.{$type}");
@@ -103,6 +103,7 @@ class TransactionsController extends Controller
             'ppn_rate' => (float) \App\Models\Setting::getValue('ppn_rate', 11),
             'min_date' => $bookClosingService->getMinAllowedDate()->toDateString(),
             'prefill' => $this->resolveCreatePrefill($type, $request, $draftService, $userPreferences),
+            'jubelio_sync' => $jubelioSyncPresenter->createFormSyncConfig($type),
         ]);
     }
 
@@ -161,6 +162,7 @@ class TransactionsController extends Controller
             'type' => $item->type->value,
             'price' => (float) $item->price,
             'cost' => (float) $item->cost,
+            'jubelio_item_id' => (int) ($item->jubelio_item_id ?? 0),
             'warehouse_item' => $item->warehouseItems->map(fn ($wi) => [
                 'warehouse_id' => (string) $wi->warehouse_id,
                 'quantity' => (float) $wi->quantity,
