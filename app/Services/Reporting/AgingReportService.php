@@ -265,25 +265,29 @@ class AgingReportService
     {
         $buckets = array_fill_keys(self::BUCKETS, 0.0);
         $openInvoices = [];
+        $invoiced = (float) $invoices->sum(fn (Transaction $invoice) => abs((float) $invoice->total));
+        $payments = max(0, round($invoiced - $outstanding, 2));
         $remaining = $outstanding;
 
         foreach ($invoices as $invoice) {
-            if ($remaining < 0.01) {
-                break;
-            }
-
             $invoiceAmount = abs((float) $invoice->total);
             if ($invoiceAmount < 0.01) {
                 continue;
             }
 
-            $openAmount = min($invoiceAmount, $remaining);
-            $due = $this->dueDate($invoice->date, $dueDay);
+            $applied = min($invoiceAmount, $payments);
+            $payments = max(0, round($payments - $applied, 2));
+            $openAmount = max(0, round($invoiceAmount - $applied, 2));
+            if ($openAmount < 0.01) {
+                continue;
+            }
+
+            $due = $this->dueDate(Carbon::parse($invoice->date), $dueDay);
             $days = $this->daysOverdue($due, $asOf);
             $bucket = $this->bucketForDays($days);
 
             $buckets[$bucket] += $openAmount;
-            $remaining -= $openAmount;
+            $remaining = max(0, round($remaining - $openAmount, 2));
 
             $openInvoices[] = [
                 'id' => $invoice->id,
@@ -320,7 +324,9 @@ class AgingReportService
 
     private function dueDate(Carbon $invoiceDate, ?int $dueDay): Carbon
     {
-        return $this->dueDates->fromFakturDate($invoiceDate, $dueDay)
-            ?? $invoiceDate->copy()->startOfDay();
+        $date = $invoiceDate->copy()->startOfDay();
+
+        return $this->dueDates->fromFakturDate($date, $dueDay)
+            ?? $date;
     }
 }
