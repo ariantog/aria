@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Addrbook;
+use App\Services\ItemListFilter;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Http\Request;
 
@@ -10,17 +11,20 @@ class WarehouseStockQueryService
 {
     public const PER_PAGE = 1000;
 
+    public function __construct(
+        protected ItemListFilter $itemListFilter,
+    ) {}
+
     public function buildItemsQuery(Addrbook $addrbook, Request $request): BelongsToMany
     {
-        $query = $addrbook->items()->with('group')
-            ->when($request->input('name'), fn ($q, $v) => $q->where(fn ($sq) => $sq
-                ->where('items.name', 'like', '%'.$v.'%')
-                ->orWhere('items.code', 'like', '%'.$v.'%')
-            ))
-            ->when(
-                $request->input('show0') !== 'show',
-                fn ($q) => $q->where('warehouse_item.quantity', '>=', 1),
-            );
+        $query = $addrbook->items()->with('group');
+
+        $this->itemListFilter->apply($query, $request);
+
+        $query->when(
+            $request->input('show0') !== 'show',
+            fn ($q) => $q->where('warehouse_item.quantity', '>=', 1),
+        );
 
         $sort = $request->input('sort', 'qtydesc');
         match ($sort) {

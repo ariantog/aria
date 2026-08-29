@@ -74,6 +74,32 @@ it('links warehouse items to item or asset lancar show pages', function () {
         ->assertSee('Export Excel', false);
 });
 
+it('shows shared item list filters on warehouse stock page', function () {
+    User::factory()->create();
+    $user = User::factory()->create();
+    $user->givePermissionTo('addrbook-warehouse-items');
+
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    $match = Item::factory()->create(['code' => 'WH-90151-M', 'legacy_code' => null]);
+    $other = Item::factory()->create(['code' => 'WH-OTHER-M', 'legacy_code' => null]);
+
+    foreach ([$match, $other] as $item) {
+        WarehouseItem::create([
+            'warehouse_id' => $warehouse->id,
+            'item_id' => $item->id,
+            'warehouse_type' => Addrbook::TYPE_WAREHOUSE,
+            'quantity' => 5,
+        ]);
+    }
+
+    $this->actingAs($user)
+        ->get(route('addrbook.type.items', ['warehouse', $warehouse->id, 'code' => '90151']))
+        ->assertOk()
+        ->assertSee('data-testid="warehouse-items-filters-toggle"', false)
+        ->assertSee('WH-90151-M', false)
+        ->assertDontSee('WH-OTHER-M', false);
+});
+
 it('hides stock below one unless show empty is checked', function () {
     User::factory()->create();
     $user = User::factory()->create();

@@ -13,10 +13,27 @@ $breadcrumbs = [
     ['title' => $addrbook->name, 'href' => '/' . $addrbook->type_slug . '/' . $addrbook->id],
     ['title' => 'Items', 'href' => $baseUrl],
 ];
+$typeTags = ($tags[\App\Models\Tag::TYPE_TYPE] ?? collect());
+$sizeTags = ($tags[\App\Models\Tag::TYPE_SIZE] ?? collect());
+$warnaTags = ($tags[\App\Models\Tag::TYPE_WARNA] ?? collect());
+$jahitTags = ($tags[\App\Models\Tag::TYPE_JAHIT] ?? collect());
+$filtersStorageKey = 'aria-warehouse-items-filters-open-' . $addrbook->id;
 $idr = fn ($v) => 'IDR ' . format_amount($v, 0);
 @endphp
 
-<div class="flex flex-col gap-4 p-3 sm:p-4" x-data="{ showImage: false, onlineName: false }">
+<div class="flex flex-col gap-4 p-3 sm:p-4" x-data="{
+    showImage: false,
+    onlineName: false,
+    filtersOpen: true,
+    filtersStorageKey: @js($filtersStorageKey),
+    init() {
+        const saved = localStorage.getItem(this.filtersStorageKey);
+        this.filtersOpen = saved === null ? true : saved === '1';
+        this.$watch('filtersOpen', (value) => {
+            localStorage.setItem(this.filtersStorageKey, value ? '1' : '0');
+        });
+    },
+}">
     {{-- Header --}}
     <div class="flex flex-col justify-between gap-4 md:flex-row md:items-end">
         <div>
@@ -52,36 +69,22 @@ $idr = fn ($v) => 'IDR ' . format_amount($v, 0);
         </div>
     @endif
 
-    {{-- Filters --}}
-    <div class="space-y-4 rounded-xl border border-gray-200 bg-white p-4">
-        <form method="GET" action="{{ $baseUrl }}" class="flex flex-wrap items-end gap-2 border-b border-gray-100 pb-4">
-            <div class="flex flex-1 min-w-[220px] flex-col gap-1">
-                <label class="text-xs font-medium uppercase text-gray-500">Item Name / Code</label>
-                <div class="relative">
-                    <svg class="absolute left-3 top-2.5 h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-                    <input type="text" name="name" value="{{ $filters['name'] ?? '' }}" placeholder="Search…" class="w-full rounded-md border border-gray-300 py-1.5 pl-9 pr-3 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
-                </div>
-            </div>
-            <div class="flex flex-col gap-1">
-                <label class="text-xs font-medium uppercase text-gray-500">Sort By</label>
-                <select name="sort" class="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
-                    @foreach(['qtydesc' => 'Quantity (High to Low)', 'qtyasc' => 'Quantity (Low to High)', 'namedesc' => 'Name (Z-A)', 'nameasc' => 'Name (A-Z)', 'codedesc' => 'Code (Z-A)', 'codeasc' => 'Code (A-Z)'] as $val => $lbl)
-                        <option value="{{ $val }}" @selected(($filters['sort'] ?? 'qtydesc') === $val)>{{ $lbl }}</option>
-                    @endforeach
-                </select>
-            </div>
-            <div class="flex items-center gap-2 py-2">
-                <label class="flex cursor-pointer items-center gap-2 text-sm font-medium text-gray-600">
-                    <input type="checkbox" name="show0" value="show" @checked(($filters['show0'] ?? '') === 'show') class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
-                    Show empty stock (&lt; 1)
-                </label>
-            </div>
-            <div class="flex gap-2">
-                <button type="submit" class="rounded-lg bg-blue-700 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-800">Apply Filter</button>
-                <a href="{{ $baseUrl }}" class="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-50">Reset</a>
-            </div>
-        </form>
+    @include('items.partials.list-filters', [
+        'formAction' => $baseUrl,
+        'resetUrl' => $baseUrl,
+        'filters' => $filters,
+        'typeTags' => $typeTags,
+        'sizeTags' => $sizeTags,
+        'warnaTags' => $warnaTags,
+        'jahitTags' => $jahitTags,
+        'showTagFilters' => true,
+        'filtersStorageKey' => $filtersStorageKey,
+        'testId' => 'warehouse-items-filters',
+        'additionalFieldsView' => 'addrbook.partials.warehouse-items-filter-extra',
+        'additionalFieldsData' => ['filters' => $filters],
+    ])
 
+    <div class="rounded-xl border border-gray-200 bg-white p-4">
         <div class="flex flex-wrap items-center justify-between gap-3">
             <div class="flex flex-wrap items-center gap-4">
             <span class="text-[10px] font-bold uppercase text-gray-500">Display Options:</span>
