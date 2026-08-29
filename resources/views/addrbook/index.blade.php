@@ -57,79 +57,93 @@ $tableColumnCount = $showArrangementColumn ? 6 : 5;
 
     {{-- Table --}}
     <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-        <table class="w-full table-fixed text-left text-sm">
-            <thead class="border-b border-gray-200 bg-gray-50 text-[10px] uppercase tracking-wider text-gray-500">
-                <tr>
-                    <th class="px-3 py-3 font-bold">Name / ID</th>
-                    <th class="px-3 py-3 font-bold">Contact Info</th>
-                    <th class="w-32 px-3 py-3 text-right font-bold">Connectivity</th>
-                    @if($showArrangementColumn)
-                    <th class="w-28 px-3 py-3 text-center font-bold">Arrangement</th>
-                    @endif
-                    <th class="w-36 px-3 py-3 text-right font-bold">Balance</th>
-                    <th class="w-24 px-3 py-3 text-right font-bold">Actions</th>
-                </tr>
-            </thead>
-            <tbody class="divide-y divide-gray-100">
-                @forelse($customers as $a)
-                    @php
-                        $bal = (float) ($a->stat->balance ?? 0);
-                        if (($can['bank_hidden_balance'] ?? false) && $a->type_slug === 'bank') $bal = 0;
-                    @endphp
-                    <tr class="align-top hover:bg-gray-50">
-                        <td class="px-3 py-3">
-                            <a href="/{{ $a->type_slug }}/{{ $a->id }}" class="font-semibold text-blue-600 hover:text-blue-800">{{ $a->name }}</a>
-                            <div class="flex items-center gap-2 text-xs text-gray-500">
-                                ID: {{ $a->id }}
-                                @if($a->deleted_at)<span class="rounded bg-rose-100 px-1 text-[10px] font-bold uppercase text-rose-700">Deleted</span>@endif
-                            </div>
-                            @if($a->contact_person)
-                                <div class="mt-0.5 truncate text-xs text-gray-500" title="{{ $a->contact_person }}">{{ $a->contact_person }}</div>
-                            @endif
-                        </td>
-                        <td class="px-3 py-3 text-xs text-gray-500">
-                            @if($a->phone)<div class="truncate" title="{{ $a->phone }}">☎ {{ $a->phone }}</div>@endif
-                            @if($a->email)<div class="truncate" title="{{ $a->email }}">✉ {{ $a->email }}</div>@endif
-                            @if($a->address)<div class="truncate" title="{{ $a->address }}">⚲ {{ $a->address }}</div>@endif
-                            @if(! $a->phone && ! $a->email && ! $a->address)<span class="text-gray-300">—</span>@endif
-                        </td>
-                        <td class="px-3 py-3 text-right">
-                            <div class="flex items-center justify-end gap-1.5">
-                                <span class="h-2 w-2 rounded-full {{ $a->is_online ? 'bg-emerald-500' : 'bg-gray-300' }}"></span>
-                                <span class="font-medium text-gray-700">{{ $a->is_online ? 'Online' : 'Offline' }}</span>
-                            </div>
-                            @if($a->ppn)<span class="mt-1 inline-block rounded bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-700">PPN {{ $ppn_rate }}%</span>@endif
-                        </td>
+        <div class="overflow-x-auto">
+            <table class="w-full min-w-[760px] text-left text-sm">
+                <thead class="border-b border-gray-200 bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
+                    <tr>
+                        <th class="px-3 py-2.5 text-left font-medium">Name / ID</th>
+                        <th class="hidden px-3 py-2.5 text-left font-medium md:table-cell">Contact Info</th>
+                        <th class="hidden px-3 py-2.5 text-right font-medium sm:table-cell">Connectivity</th>
                         @if($showArrangementColumn)
-                        <td class="px-3 py-3 text-center">
-                            @if($a->arrangement_enabled)
-                                <span class="inline-block rounded bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">Destination</span>
-                            @else
-                                <span class="text-gray-300">—</span>
-                            @endif
-                        </td>
+                        <th class="px-3 py-2.5 text-center font-medium">Arrangement</th>
                         @endif
-                        <td class="whitespace-nowrap px-3 py-3 text-right font-medium text-gray-900">IDR {{ format_amount($bal) }}</td>
-                        <td class="px-3 py-3">
-                            <div class="flex justify-end gap-1">
-                                @if($can['edit'])
-                                <a href="/{{ $a->type_slug }}/{{ $a->id }}/edit" class="inline-flex items-center justify-center rounded-md p-2 text-gray-400 hover:bg-blue-50 hover:text-blue-500">
-                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
-                                </a>
-                                @endif
-                                @if($can['delete'] && ! $a->deleted_at)
-                                <button type="button" onclick="deleteAddrbook({{ $a->id }})" class="inline-flex items-center justify-center rounded-md p-2 text-gray-400 hover:bg-rose-50 hover:text-rose-500">
-                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                                </button>
-                                @endif
-                            </div>
-                        </td>
+                        <th class="px-3 py-2.5 text-right font-medium">Balance</th>
+                        <th class="w-20 px-3 py-2.5 text-center font-medium"></th>
                     </tr>
-                @empty
-                    <tr><td colspan="{{ $tableColumnCount }}" class="px-4 py-12 text-center text-sm italic text-gray-500">No address book entries found.</td></tr>
-                @endforelse
-            </tbody>
-        </table>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    @forelse($customers as $a)
+                        @php
+                            $bal = (float) ($a->stat->balance ?? 0);
+                            if (($can['bank_hidden_balance'] ?? false) && $a->type_slug === 'bank') $bal = 0;
+                        @endphp
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-3 py-2.5">
+                                <a href="/{{ $a->type_slug }}/{{ $a->id }}" class="font-semibold text-blue-600 hover:text-blue-800">{{ $a->name }}</a>
+                                <div class="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-gray-500">
+                                    <span>ID: {{ $a->id }}</span>
+                                    @if($a->deleted_at)<span class="rounded bg-rose-100 px-1 text-[10px] font-bold uppercase text-rose-700">Deleted</span>@endif
+                                </div>
+                                @if($a->contact_person)
+                                    <div class="mt-0.5 truncate text-xs text-gray-500" title="{{ $a->contact_person }}">{{ $a->contact_person }}</div>
+                                @endif
+                                <div class="mt-1 space-y-0.5 text-xs text-gray-500 md:hidden">
+                                    @if($a->phone)<div class="truncate" title="{{ $a->phone }}">☎ {{ $a->phone }}</div>@endif
+                                    @if($a->email)<div class="truncate" title="{{ $a->email }}">✉ {{ $a->email }}</div>@endif
+                                    @if($a->address)<div class="truncate" title="{{ $a->address }}">⚲ {{ $a->address }}</div>@endif
+                                </div>
+                                <div class="mt-1 flex flex-wrap items-center gap-2 sm:hidden">
+                                    <span class="inline-flex items-center gap-1 text-xs text-gray-600">
+                                        <span class="h-1.5 w-1.5 rounded-full {{ $a->is_online ? 'bg-emerald-500' : 'bg-gray-300' }}"></span>
+                                        {{ $a->is_online ? 'Online' : 'Offline' }}
+                                    </span>
+                                    @if($a->ppn)<span class="rounded bg-purple-100 px-1.5 py-0.5 text-[10px] font-medium text-purple-700">PPN {{ $ppn_rate }}%</span>@endif
+                                </div>
+                            </td>
+                            <td class="hidden max-w-[220px] px-3 py-2.5 text-xs text-gray-500 md:table-cell">
+                                @if($a->phone)<div class="truncate" title="{{ $a->phone }}">☎ {{ $a->phone }}</div>@endif
+                                @if($a->email)<div class="truncate" title="{{ $a->email }}">✉ {{ $a->email }}</div>@endif
+                                @if($a->address)<div class="truncate" title="{{ $a->address }}">⚲ {{ $a->address }}</div>@endif
+                                @if(! $a->phone && ! $a->email && ! $a->address)<span class="text-gray-300">—</span>@endif
+                            </td>
+                            <td class="hidden whitespace-nowrap px-3 py-2.5 text-right sm:table-cell">
+                                <div class="flex items-center justify-end gap-1.5">
+                                    <span class="h-2 w-2 rounded-full {{ $a->is_online ? 'bg-emerald-500' : 'bg-gray-300' }}"></span>
+                                    <span class="font-medium text-gray-700">{{ $a->is_online ? 'Online' : 'Offline' }}</span>
+                                </div>
+                                @if($a->ppn)<span class="mt-1 inline-block rounded bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-700">PPN {{ $ppn_rate }}%</span>@endif
+                            </td>
+                            @if($showArrangementColumn)
+                            <td class="px-3 py-2.5 text-center">
+                                @if($a->arrangement_enabled)
+                                    <span class="inline-block rounded bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">Destination</span>
+                                @else
+                                    <span class="text-gray-300">—</span>
+                                @endif
+                            </td>
+                            @endif
+                            <td class="whitespace-nowrap px-3 py-2.5 text-right font-medium tabular-nums text-gray-900">IDR {{ format_amount($bal) }}</td>
+                            <td class="px-3 py-2.5 text-center">
+                                <div class="flex justify-center gap-1">
+                                    @if($can['edit'])
+                                    <a href="/{{ $a->type_slug }}/{{ $a->id }}/edit" class="inline-flex h-8 w-8 items-center justify-center rounded text-gray-500 hover:bg-gray-100 hover:text-blue-600">
+                                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                                    </a>
+                                    @endif
+                                    @if($can['delete'] && ! $a->deleted_at)
+                                    <button type="button" onclick="deleteAddrbook({{ $a->id }})" class="inline-flex h-8 w-8 items-center justify-center rounded text-gray-500 hover:bg-gray-100 hover:text-rose-600">
+                                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                    </button>
+                                    @endif
+                                </div>
+                            </td>
+                        </tr>
+                    @empty
+                        <tr><td colspan="{{ $tableColumnCount }}" class="px-4 py-12 text-center text-sm italic text-gray-500">No address book entries found.</td></tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
         @include('partials.pagination', ['paginator' => $customers, 'label' => 'entries'])
     </div>
 </div>
