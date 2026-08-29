@@ -42,7 +42,7 @@ $saInnerCardWhite = 'space-y-3 rounded-lg border border-gray-200 bg-white p-4';
             </p>
         </div>
         @if($canEdit)
-        <div class="flex flex-wrap gap-2">
+        <div class="flex flex-wrap items-center gap-2">
             <form method="POST" action="{{ route('shopee-ads.toggle-pause') }}">
                 @csrf
                 @if($settings->isPaused())
@@ -59,11 +59,11 @@ $saInnerCardWhite = 'space-y-3 rounded-lg border border-gray-200 bg-white p-4';
                 @csrf
                 <button type="submit" class="{{ $saBtnSecondary }}">Replenish Item Ads</button>
             </form>
-            <form method="POST" action="{{ route('shopee-ads.suggest-group-ads') }}" class="flex flex-wrap items-end gap-2">
+            <form method="POST" action="{{ route('shopee-ads.suggest-group-ads') }}" class="flex flex-wrap items-center gap-2">
                 @csrf
-                <label class="text-sm">
-                    <span class="block text-xs font-medium text-gray-600">Sumber saran</span>
-                    <select name="strategy" class="mt-1 rounded-lg border border-gray-300 px-3 py-2 text-sm" data-testid="shopee-ads-group-strategy">
+                <label class="flex items-center gap-2 text-sm">
+                    <span class="shrink-0 text-xs font-medium text-gray-600">Sumber saran</span>
+                    <select name="strategy" class="rounded-lg border border-gray-300 px-3 py-2 text-sm" data-testid="shopee-ads-group-strategy">
                         <option value="all" @selected(session('group_ad_strategy', 'all') === 'all')>Semua (ROAS + sales + Shopee)</option>
                         <option value="roas" @selected(session('group_ad_strategy') === 'roas')>ROAS (performa iklan)</option>
                         <option value="sales" @selected(session('group_ad_strategy') === 'sales')>Sales (GMS / transaksi)</option>
