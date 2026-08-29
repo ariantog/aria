@@ -138,9 +138,9 @@ class NeracaService
     /**
      * @return list<int>
      */
-    public function yearOptions(?Carbon $now = null): array
+    public function yearOptions(?\DateTimeInterface $now = null): array
     {
-        $currentYear = (int) ($now ?? now())->year;
+        $currentYear = (int) Carbon::parse($now ?? now())->year;
         $start = min(self::MIN_YEAR, $currentYear);
 
         return range($currentYear, $start);

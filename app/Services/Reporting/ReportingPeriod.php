@@ -19,9 +19,9 @@ class ReportingPeriod
     /**
      * Month-end as-of date. The current calendar month uses today (partial month).
      */
-    public static function asOf(int $year, int $month, ?Carbon $now = null): Carbon
+    public static function asOf(int $year, int $month, ?\DateTimeInterface $now = null): Carbon
     {
-        $now = ($now ?? now())->copy()->startOfDay();
+        $now = Carbon::parse($now ?? now())->startOfDay();
         $end = self::monthEnd($year, $month);
 
         if ($now->year === $year && $now->month === $month) {

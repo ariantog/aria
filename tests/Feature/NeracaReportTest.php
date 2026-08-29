@@ -220,3 +220,9 @@ it('uses month-end as-of dates for past months', function () {
     expect(ReportingPeriod::asOf(2026, 1, Carbon::parse('2026-08-29'))->toDateString())->toBe('2026-01-31')
         ->and(ReportingPeriod::asOf(2026, 8, Carbon::parse('2026-08-29'))->toDateString())->toBe('2026-08-29');
 });
+
+it('returns an illuminate carbon instance for the current month', function () {
+    $asOf = ReportingPeriod::asOf((int) now()->year, (int) now()->month);
+
+    expect($asOf)->toBeInstanceOf(Carbon::class);
+});
