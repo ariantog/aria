@@ -51,10 +51,25 @@
         body { font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
         [x-cloak] { display: none !important; }
 
-        /* Sidebar transition (desktop only — mobile closes instantly on navigation) */
+        /* Sidebar transition (desktop only — mobile opens/closes instantly) */
         @media (min-width: 1024px) {
             #sidebar { transition: width 0.2s ease, transform 0.2s ease; }
             #main-content.anim-ready { transition: margin-left 0.2s ease; }
+        }
+
+        /*
+         * Mobile first paint: keep the drawer off-screen before Alpine hydrates.
+         * Without this, sidebarOpen starts from the desktop localStorage preference
+         * and init() then sets it false — the user sees the drawer hide itself.
+         */
+        @media (max-width: 1023px) {
+            #sidebar:not(.is-open) {
+                width: 0 !important;
+                transform: translateX(-100%);
+                visibility: hidden;
+                pointer-events: none;
+                border-right-width: 0;
+            }
         }
 
         /* Autocomplete dropdown */
@@ -131,7 +146,7 @@
 
     {{-- SIDEBAR --}}
     <aside id="sidebar"
-           :class="sidebarOpen ? 'w-64' : (isMobile ? 'w-0 -translate-x-full' : 'w-14')"
+           :class="sidebarClass()"
            class="fixed left-0 top-0 z-30 flex h-full flex-col border-r border-gray-200 bg-white overflow-hidden">
 
         {{-- Sidebar header --}}
@@ -292,10 +307,28 @@ function formatNumberId(value) {
 }
 
 function appShell() {
+    const isMobileViewport = () => window.innerWidth < 1024;
+    const savedDesktopOpen = () => localStorage.getItem('sidebarOpen') !== 'false';
+
     return {
-        sidebarOpen: localStorage.getItem('sidebarOpen') !== 'false',
-        isMobile: window.innerWidth < 1024,
+        // Mobile always starts closed so Alpine never paints open-then-hide.
+        // Desktop honors the saved preference; do not seed from localStorage on mobile
+        // or a prior desktop session would flash the drawer on every phone page load.
+        isMobile: isMobileViewport(),
+        sidebarOpen: isMobileViewport() ? false : savedDesktopOpen(),
         menuSearch: '',
+        sidebarClass() {
+            if (this.sidebarOpen) {
+                return 'w-64 is-open';
+            }
+
+            return this.isMobile ? 'w-0 -translate-x-full' : 'w-14';
+        },
+        persistSidebarOpen() {
+            if (!this.isMobile) {
+                localStorage.setItem('sidebarOpen', this.sidebarOpen);
+            }
+        },
         matchesNav(...labels) {
             const q = this.menuSearch.trim().toLowerCase();
             if (!q) {
@@ -326,13 +359,19 @@ function appShell() {
             }
         },
         init() {
-            this.isMobile = window.innerWidth < 1024;
-            if (this.isMobile) this.sidebarOpen = false;
+            this.isMobile = isMobileViewport();
+            if (this.isMobile) {
+                this.sidebarOpen = false;
+            }
             window.addEventListener('resize', () => {
-                this.isMobile = window.innerWidth < 1024;
-                if (this.isMobile) this.sidebarOpen = false;
+                const nowMobile = isMobileViewport();
+                if (nowMobile === this.isMobile) {
+                    return;
+                }
+                this.isMobile = nowMobile;
+                this.sidebarOpen = nowMobile ? false : savedDesktopOpen();
             });
-            this.$watch('sidebarOpen', val => localStorage.setItem('sidebarOpen', val));
+            this.$watch('sidebarOpen', () => this.persistSidebarOpen());
             this.$nextTick(() => {
                 const main = document.getElementById('app-main-scroll');
                 if (main) main.scrollTop = 0;
