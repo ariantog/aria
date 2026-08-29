@@ -28,10 +28,10 @@ $tipeCuti = [1 => ['Tahunan','text-blue-600'], 2 => ['Sakit','text-orange-600'],
         </div>
         <div class="flex items-center gap-2">
             @if($isSuper || ($user->can('karyawan-edit') && $karyawan->flag != 2))
-            <a href="{{ route('karyawan.edit', $karyawan->id) }}" class="inline-flex items-center gap-2 rounded-md border border-gray-300 px-4 py-2 text-sm hover:bg-gray-50">Edit</a>
+            <a href="{{ route('karyawan.edit', $karyawan->id) }}" class="inline-flex items-center gap-2 rounded-md border border-gray-300 px-4 py-2 text-sm hover:bg-gray-50">Edit Profil</a>
             @endif
             @if($isSuper || ($user->can('karyawan-gaji-create') && ($isSuper || $karyawan->flag != 2)))
-            <a href="{{ route('karyawan.gaji.create', $karyawan->id) }}" class="inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Bikin Gaji</a>
+            <a href="{{ route('karyawan.gaji.create', $karyawan->id) }}" class="inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Buat Gaji</a>
             @endif
             @if($isSuper || ($user->can('karyawan-cuti-create') && ($isSuper || $karyawan->flag != 2)))
             <a href="{{ route('karyawan.cuti.create', $karyawan->id) }}" class="inline-flex items-center gap-2 rounded-md bg-gray-100 px-4 py-2 text-sm font-medium text-gray-800 hover:bg-gray-200">Tambah Cuti</a>
@@ -49,12 +49,12 @@ $tipeCuti = [1 => ['Tahunan','text-blue-600'], 2 => ['Sakit','text-orange-600'],
                 </div>
                 <div class="grid grid-cols-2 gap-4 border-t border-gray-100 pt-4">
                     <div><h4 class="text-sm font-medium text-gray-500">Bank</h4><p class="mt-1 font-medium">{{ $karyawan->bank->name ?? 'Kas Tunai' }}</p></div>
-                    <div><h4 class="text-sm font-medium text-gray-500">Privasi</h4><p class="mt-1 font-medium">{{ $karyawan->flag == 1 ? 'Publik' : 'Private' }}</p></div>
+                    <div><h4 class="text-sm font-medium text-gray-500">Privasi</h4><p class="mt-1 font-medium">{{ $karyawan->flag == 1 ? 'Publik' : 'Privasi' }}</p></div>
                 </div>
                 <div class="space-y-2 border-t border-gray-100 pt-4">
                     <div class="flex justify-between"><span class="text-sm text-gray-500">Gaji Bulanan</span><span class="font-medium">{{ $fmt($karyawan->bulanan) }}</span></div>
-                    <div class="flex justify-between"><span class="text-sm text-gray-500">Gaji Harian</span><span class="font-medium">{{ $fmt($karyawan->harian) }}</span></div>
-                    <div class="flex justify-between"><span class="text-sm text-gray-500">Premi / Tunjangan</span><span class="font-medium">{{ $fmt($karyawan->premi) }}</span></div>
+                    <div class="flex justify-between"><span class="text-sm text-gray-500">Tarif Harian</span><span class="font-medium">{{ $fmt($karyawan->harian) }}</span></div>
+                    <div class="flex justify-between"><span class="text-sm text-gray-500">Jam Masuk</span><span class="font-medium">{{ ($karyawan->waktu_dibatasi ?? true) ? ($karyawan->jam_masuk ?? '08:00') : 'Fleksibel' }}</span></div>
                 </div>
             </div>
         </div>

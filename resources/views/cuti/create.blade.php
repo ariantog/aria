@@ -16,22 +16,22 @@ $breadcrumbs = [
         <a href="{{ route('karyawan.show', $karyawan->id) }}" class="flex h-9 w-9 items-center justify-center rounded-md border border-gray-300 hover:bg-gray-50">
             <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
         </a>
-        <h1 class="text-2xl font-bold">Tambah Cuti - {{ $karyawan->nama }}</h1>
+        <h1 class="text-2xl font-bold">Tambah Cuti — {{ $karyawan->nama }}</h1>
     </div>
 
     <div class="max-w-2xl rounded-xl border border-gray-200 bg-white shadow-sm">
-        <div class="border-b border-gray-100 px-6 py-4"><h2 class="font-semibold">Formulir Cuti Baru</h2></div>
+        <div class="border-b border-gray-100 px-6 py-4"><h2 class="font-semibold">Formulir Cuti</h2></div>
         <div class="p-6">
             <form method="POST" action="{{ route('karyawan.cuti.store', $karyawan->id) }}" class="space-y-6">
                 @csrf
                 <div class="space-y-2">
                     <label class="text-sm font-medium">Tipe Cuti</label>
                     <select name="tipe" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
-                        <option value="1" @selected(old('tipe','1')==='1')>Cuti Tahunan (kuota tahunan)</option>
-                        <option value="2" @selected(old('tipe')==='2')>Cuti Sakit (kuota sakit)</option>
-                        <option value="3" @selected(old('tipe')==='3')>Mendadak / izin (potong harian + premi hangus)</option>
+                        <option value="1" @selected(old('tipe','1')==='1')>Cuti Tahunan (dalam kuota, tidak potong harian)</option>
+                        <option value="2" @selected(old('tipe')==='2')>Cuti Sakit (dalam kuota, tidak potong harian)</option>
+                        <option value="3" @selected(old('tipe')==='3')>Mendadak (potong tarif harian)</option>
                     </select>
-                    <p class="text-xs text-gray-500">Kuota tahunan &amp; sakit diatur di System Settings → HR. Mendadak selalu kena potong gaji harian; premi bulan itu hangus jika ada cuti apapun.</p>
+                    <p class="text-xs text-gray-500">Kuota diatur di Pengaturan Sistem → HR. Izin disetujui dicatat langsung di form gaji bulanan.</p>
                     @error('tipe')<p class="text-sm text-red-600">{{ $message }}</p>@enderror
                 </div>
                 <div class="grid grid-cols-2 gap-4">
