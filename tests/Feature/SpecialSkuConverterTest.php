@@ -78,6 +78,29 @@ it('resolves grey warna via gray alias tag', function () {
         ->and($result->canonicalCode)->toBe('FABRICBAND-03-GRAY-HEAVY');
 });
 
+it('reuses GREYWHITE warna when that name already exists under a different code', function () {
+    $existing = Tag::withoutEvents(fn () => Tag::query()->create([
+        'type' => Tag::TYPE_WARNA,
+        'code' => 'GW',
+        'name' => 'GREYWHITE',
+        'item_type' => 0,
+    ]));
+
+    $parser = new SpecialSkuIdentityParser($this->rules, new ItemIdentityBuilder);
+    $item = Item::factory()->make([
+        'type' => ItemType::ASSET_LANCAR->value,
+        'code' => 'FABRICBAND-03-LIGHT-GREYWHITE',
+    ]);
+
+    $result = $parser->parse($item);
+
+    expect($result->success)->toBeTrue()
+        ->and($result->warnaCode)->toBe('GW')
+        ->and($result->canonicalCode)->toBe('FABRICBAND-03-GW-LIGHT')
+        ->and(Tag::query()->whereRaw('UPPER(TRIM(name)) = ?', ['GREYWHITE'])->count())->toBe(1)
+        ->and(Tag::query()->find($existing->id)?->name)->toBe('GREYWHITE');
+});
+
 it('resolves size tags by name when production code differs', function () {
     Tag::query()->where('type', Tag::TYPE_SIZE)->whereRaw('UPPER(name) = ?', ['HEAVY'])->delete();
 

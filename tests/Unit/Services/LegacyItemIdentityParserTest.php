@@ -285,3 +285,55 @@ describe('warna extraction from legacy asset remainders', function () {
             ->and($result->failureCode)->toBe(LegacyItemIdentityParser::FAILURE_WARNA_MISSING);
     });
 });
+
+describe('warna tag name uniqueness', function () {
+    it('reuses an existing GREYWHITE tag whose code differs', function () {
+        $existing = Tag::withoutEvents(fn () => Tag::query()->create([
+            'type' => Tag::TYPE_WARNA,
+            'code' => 'GW',
+            'name' => 'GREYWHITE',
+            'item_type' => 0,
+        ]));
+
+        $parser = new LegacyItemIdentityParser(
+            $this->builder,
+            $this->sizeTags,
+            $this->warnaTags->push($existing),
+            $this->typeTags,
+            $this->sizeTags->firstWhere('code', 'AS'),
+        );
+
+        $item = makeAssetItem('YOGASTRAP-01-GREYWHITE', 'YOGA STRAP - GREYWHITE');
+        $result = $parser->parse($item);
+
+        expect($result->success)->toBeTrue()
+            ->and($result->warnaCode)->toBe('GW')
+            ->and(Tag::query()->whereRaw('UPPER(TRIM(name)) = ?', ['GREYWHITE'])->count())->toBe(1)
+            ->and(Tag::query()->where('name', 'GREYWHITE')->where('type', Tag::TYPE_WARNA)->first()?->id)
+            ->toBe($existing->id);
+    });
+
+    it('does not insert GREYWHITE when that name belongs to another tag type', function () {
+        Tag::factory()->create([
+            'type' => Tag::TYPE_NORMAL,
+            'code' => 'OTHER',
+            'name' => 'GREYWHITE',
+            'item_type' => 0,
+        ]);
+
+        $parser = new LegacyItemIdentityParser(
+            $this->builder,
+            $this->sizeTags,
+            $this->warnaTags,
+            $this->typeTags,
+            $this->sizeTags->firstWhere('code', 'AS'),
+        );
+
+        $item = makeAssetItem('YOGASTRAP-01-GREYWHITE', 'YOGA STRAP - GREYWHITE');
+        $result = $parser->parse($item);
+
+        expect($result->success)->toBeFalse()
+            ->and($result->failureCode)->toBe(LegacyItemIdentityParser::FAILURE_COLOR_NOT_FOUND)
+            ->and(Tag::query()->whereRaw('UPPER(TRIM(name)) = ?', ['GREYWHITE'])->count())->toBe(1);
+    });
+});
