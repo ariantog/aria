@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Cuti;
 use App\Models\Karyawan;
+use App\Support\KaryawanVisibility;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -13,6 +14,7 @@ class CutiController extends Controller
     public function create(Karyawan $karyawan)
     {
         Gate::authorize(Karyawan::getPermissions()['cuti-create']);
+        $this->authorizeKaryawan(request(), $karyawan);
 
         return view('cuti.create', [
             'karyawan' => $karyawan,
@@ -22,6 +24,7 @@ class CutiController extends Controller
     public function store(Request $request, Karyawan $karyawan)
     {
         Gate::authorize(Karyawan::getPermissions()['cuti-create']);
+        $this->authorizeKaryawan($request, $karyawan);
 
         $validated = $request->validate([
             'tgl_mulai' => 'required|date',
@@ -54,5 +57,12 @@ class CutiController extends Controller
         $cuti->save();
 
         return redirect()->route('karyawan.show', $karyawan->id)->with('success', 'Cuti created.');
+    }
+
+    protected function authorizeKaryawan($user, Karyawan $karyawan): void
+    {
+        if (! KaryawanVisibility::canViewKaryawanRecord($user, $karyawan)) {
+            abort(404);
+        }
     }
 }
