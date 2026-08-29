@@ -31,6 +31,9 @@ class Report
             'view-tax-faktur' => 'report-tax-faktur',
             'import-tax-faktur' => 'report-tax-faktur-import',
             'view-neraca' => 'report-neraca',
+            'view-laba-rugi' => 'report-laba-rugi',
+            'view-receivables' => 'report-receivables',
+            'view-payables' => 'report-payables',
         ];
     }
 }
