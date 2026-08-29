@@ -39,6 +39,13 @@ it('returns empty array for unknown legacy ACL rows', function () {
     expect($mapper->map(9999, 'index'))->toBe([]);
 });
 
+it('maps asset tetap ACL to dedicated permissions', function () {
+    $mapper = new LegacyAclMapper;
+
+    expect($mapper->map(LegacyAclMapper::ASSET_TETAP, 'index'))->toBe(['assetTetap-list'])
+        ->and($mapper->map(LegacyAclMapper::ASSET_TETAP, 'create'))->toBe(['assetTetap-create']);
+});
+
 it('maps legacy cron runner settings ACL to cron manager permissions', function () {
     $mapper = new LegacyAclMapper;
 

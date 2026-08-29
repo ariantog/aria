@@ -26,6 +26,7 @@ test('TransactionType hasItems identifies stock-moving types', function () {
     expect(TransactionType::Sell->hasItems())->toBeTrue();
     expect(TransactionType::Move->hasItems())->toBeTrue();
     expect(TransactionType::CashIn->hasItems())->toBeFalse();
+    expect(TransactionType::Depreciation->hasItems())->toBeFalse();
 });
 
 test('TransactionType priceSource returns cost for buy types', function () {
