@@ -103,7 +103,7 @@ class TransactionsController extends Controller
             'ppn_rate' => (float) \App\Models\Setting::getValue('ppn_rate', 11),
             'min_date' => $bookClosingService->getMinAllowedDate()->toDateString(),
             'prefill' => $this->resolveCreatePrefill($type, $request, $draftService, $userPreferences),
-            'jubelio_sync' => $jubelioSyncPresenter->createFormSyncConfig($type),
+            'jubelio_sync' => $jubelioSyncPresenter->createFormSyncConfig(),
         ]);
     }
 
@@ -466,6 +466,7 @@ class TransactionsController extends Controller
                     'item_id' => (string) $item->id,
                     'code' => $item->code,
                     'name' => $item->name,
+                    'jubelio_item_id' => (int) ($item->jubelio_item_id ?? 0),
                     'quantity' => (float) $row['qty'],
                     'warehouse_stock' => $whQty,
                     'warehouse_item' => $warehouseItem,

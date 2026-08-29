@@ -23,6 +23,7 @@ function seedJubelioSyncRow(Addrbook $warehouse, int $locationId = 10, string $l
 beforeEach(function () {
     Permission::firstOrCreate(['name' => 'transactions-type-sell']);
     Permission::firstOrCreate(['name' => 'transactions-type-buy']);
+    Permission::firstOrCreate(['name' => 'transactions-type-move']);
 
     User::factory()->create();
     $this->user = User::factory()->create();
@@ -45,24 +46,18 @@ it('exposes jubelio_item_id from the database in item lookup payloads', function
         ->assertJsonPath('item.jubelio_item_id', 0);
 });
 
-it('builds create-form jubelio sync config from jubeliosyncs table only', function () {
-    $warehouse = Addrbook::factory()->warehouse()->create();
-    $otherWarehouse = Addrbook::factory()->warehouse()->create();
+it('lists every jubeliosyncs warehouse_id for create-form warnings regardless of location id', function () {
+    $mapped = Addrbook::factory()->warehouse()->create();
+    $locationZero = Addrbook::factory()->warehouse()->create();
+    $unsynced = Addrbook::factory()->warehouse()->create();
 
-    seedJubelioSyncRow($warehouse);
-    seedJubelioSyncRow($otherWarehouse, locationId: 0, locationName: 'Unmapped');
+    seedJubelioSyncRow($mapped);
+    seedJubelioSyncRow($locationZero, locationId: 0, locationName: 'Pending location');
 
-    $presenter = app(JubelioTransactionSyncPresenter::class);
+    $ids = app(JubelioTransactionSyncPresenter::class)->createFormSyncConfig()['synced_warehouse_ids'];
 
-    expect($presenter->createFormSyncConfig('sell'))->toMatchArray([
-        'sync_sender' => true,
-        'sync_receiver' => false,
-        'synced_warehouse_ids' => [$warehouse->id],
-    ])->and($presenter->createFormSyncConfig('buy'))->toMatchArray([
-        'sync_sender' => false,
-        'sync_receiver' => true,
-        'synced_warehouse_ids' => [$warehouse->id],
-    ]);
+    expect($ids)->toContain($mapped->id, $locationZero->id)
+        ->not->toContain($unsynced->id);
 });
 
 it('embeds db-backed jubelio sync config and warning hooks on the sell create form', function () {
@@ -75,7 +70,21 @@ it('embeds db-backed jubelio sync config and warning hooks on the sell create fo
         ->get(route('transactions.create', ['type' => 'sell']))
         ->assertOk()
         ->assertSee('data-testid="jubelio-unlinked-warning"', false)
-        ->assertSee('"sync_sender":true', false)
         ->assertSee('"synced_warehouse_ids":['.$warehouse->id.']', false)
-        ->assertSee('hasJubelioUnlinkedWarning()', false);
+        ->assertSee('jubelioWarehouseMapped()', false)
+        ->assertSee("_TxType === 'sell'", false);
+});
+
+it('embeds move-specific sender-or-receiver jubelio check on the move create form', function () {
+    $this->user->givePermissionTo('transactions-type-move');
+
+    $syncedReceiver = Addrbook::factory()->warehouse()->create(['name' => 'Synced Dest']);
+    seedJubelioSyncRow($syncedReceiver);
+
+    $this->actingAs($this->user)
+        ->get(route('transactions.create', ['type' => 'move']))
+        ->assertOk()
+        ->assertSee("_TxType === 'move'", false)
+        ->assertSee('mapped(this.form.sender_id) || mapped(this.form.receiver_id)', false)
+        ->assertSee('"synced_warehouse_ids":['.$syncedReceiver->id.']', false);
 });
