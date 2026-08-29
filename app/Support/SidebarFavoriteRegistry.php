@@ -169,6 +169,15 @@ class SidebarFavoriteRegistry
                 'active_prefix' => '/assetlancar',
             ],
             [
+                'key' => 'assettetap-list',
+                'label' => 'Asset Tetap',
+                'group' => 'Stuff',
+                'permission' => 'assetTetap-list',
+                'route' => 'assettetap.index',
+                'params' => [],
+                'active_prefix' => '/assettetap',
+            ],
+            [
                 'key' => 'stuff-group-list',
                 'label' => 'Group',
                 'group' => 'Stuff',
@@ -302,6 +311,15 @@ class SidebarFavoriteRegistry
                 'route' => 'reports.expense',
                 'params' => [],
                 'active_prefix' => '/reports/expense',
+            ],
+            [
+                'key' => 'report-asset-tetap',
+                'label' => 'Nilai Buku Asset Tetap',
+                'group' => 'Reports',
+                'permission' => 'report-asset-tetap',
+                'route' => 'reports.asset-tetap',
+                'params' => [],
+                'active_prefix' => '/reports/asset-tetap',
             ],
             [
                 'key' => 'report-tax-ppn',
