@@ -11,7 +11,8 @@ use Illuminate\Support\Facades\Log;
 class JubelioStockCheckCommand extends Command
 {
     protected $signature = 'app:jubelio-stock-check
-                            {--sync : Process all remaining synced warehouses in one run}';
+                            {--sync : Process all remaining synced warehouses in one run}
+                            {--single : Deprecated legacy Cron Manager flag; one warehouse per run is now the default}';
 
     protected $description = 'Compare Aria warehouse stock with Jubelio available for linked SKUs';
 
