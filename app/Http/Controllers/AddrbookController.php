@@ -12,8 +12,10 @@ use App\Models\Location;
 use App\Models\Operation;
 use App\Models\ReportingEntity;
 use App\Models\StatSell;
+use App\Models\Tag;
 use App\Services\ExportSellExportService;
 use App\Services\ExportSellQueryService;
+use App\Services\ItemListFilter;
 use App\Services\WarehouseJubelioStockService;
 use App\Services\WarehouseStockExportService;
 use App\Services\WarehouseStockQueryService;
@@ -300,7 +302,8 @@ class AddrbookController extends Controller
             'addrbook' => $a,
             'items' => $items,
             'perPage' => $queryService->resolvePerPage($request),
-            'filters' => $request->only(['name', 'sort', 'show0']),
+            'filters' => $request->only(array_merge(app(ItemListFilter::class)->filterKeys(), ['sort', 'show0'])),
+            'tags' => $this->tagGroupsForWarehouseItems(),
             'jubelioSync' => $jubelioSync,
             'jubelioStocks' => $jubelioStocks,
             'jubelioFetchFailed' => $jubelioFetchFailed,
@@ -452,6 +455,14 @@ class AddrbookController extends Controller
         $a->delete();
 
         return redirect()->to(Addrbook::typeIndexRoute((int) $a->type))->with('success', 'Deleted.');
+    }
+
+    private function tagGroupsForWarehouseItems(): \Illuminate\Support\Collection
+    {
+        $tags = Tag::all()->groupBy('type');
+        $tags[Tag::TYPE_TYPE] = Tag::typeTagsForItem(ItemType::ITEM);
+
+        return $tags;
     }
 
     private function authorizeAddrbookLocation(Addrbook $addrbook): void

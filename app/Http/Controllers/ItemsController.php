@@ -12,6 +12,7 @@ use App\Models\Report;
 use App\Models\Tag;
 use App\Models\TransactionDetail;
 use App\Models\WarehouseItem;
+use App\Services\ItemListFilter;
 use App\Services\ItemService;
 use App\Services\Items\ItemGroupHierarchyService;
 use App\Services\Items\ItemGroupParentExportService;
@@ -30,6 +31,7 @@ class ItemsController extends Controller
         protected ItemGroupHierarchyService $groupHierarchy,
         protected ItemIdentityBuilder $identityBuilder,
         protected LegacyItemConverterService $legacyConverter,
+        protected ItemListFilter $itemListFilter,
     ) {}
 
     public function index(Request $request, ?ItemType $type = null)
@@ -55,13 +57,11 @@ class ItemsController extends Controller
 
         $q->when($request->filled('search'), fn ($q) => $q->search($request->search))
             ->when($request->filled('id'), fn ($q) => $q->where('id', $request->id))
-            ->when($request->filled('brand'), fn ($q) => $q->where('brand', $request->brand))
-            ->when($request->filled('barcode'), fn ($q) => $q->filterIndexBarcode($request->barcode))
-            ->when($request->filled('code'), fn ($q) => $q->filterIndexCode($request->code))
-            ->when($request->filled('name'), fn ($q) => $q->filterDisplayName($request->name))
-            ->when($request->filled('desc'), fn ($q) => $q->filterDescription($request->desc));
+            ->when($request->filled('brand'), fn ($q) => $q->where('brand', $request->brand));
 
-        $this->applyTagFilters($q, $request);
+        if (! $this->isJson($request)) {
+            $this->itemListFilter->apply($q, $request);
+        }
 
         // Combobox / autocomplete JSON (unpaginated, limited) — used by asyncCombobox.
         if ($this->isJson($request) && ! $request->boolean('table')) {
@@ -118,7 +118,7 @@ class ItemsController extends Controller
 
         return view('items.index', [
             'items' => $items,
-            'filters' => $request->only(['search', 'brand', 'type', 'jahit', 'size', 'warna', 'item_type', 'barcode', 'code', 'name', 'desc']),
+            'filters' => $request->only(array_merge($this->itemListFilter->filterKeys(), ['search', 'brand', 'type'])),
             'brands' => $this->brandOptions(),
             'types' => $this->typeOptions(),
             'tags' => $this->tagGroupsForList($type),
@@ -532,25 +532,6 @@ class ItemsController extends Controller
     private function isJson(Request $r): bool
     {
         return ($r->wantsJson() || $r->has('json')) && ! $r->header('X-Inertia');
-    }
-
-    private function applyTagFilters($q, Request $r): void
-    {
-        $tags = collect([
-            $r->input('jahit'),
-            $r->input('size'),
-            $r->input('warna'),
-            $r->input('item_type'),
-        ])->flatten()->filter()->toArray();
-
-        $explicit = $r->input('tag_ids', []);
-        if (is_array($explicit)) {
-            $tags = array_unique(array_merge($tags, $explicit));
-        }
-
-        if (! empty($tags)) {
-            $q->filterByTags($tags);
-        }
     }
 
     private function formProps(ItemType $t): array

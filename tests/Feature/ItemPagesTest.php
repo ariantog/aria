@@ -28,8 +28,7 @@ test('items index shows database columns and collapsible filters', function () {
     $this->actingAs($this->user)
         ->get(route('items.index'))
         ->assertOk()
-        ->assertSee('>Barcode<', false)
-        ->assertSee('>Code<', false)
+        ->assertSee('>Barcode / Code<', false)
         ->assertSee('>Name<', false)
         ->assertSee('>Desc<', false)
         ->assertSee((string) $item->id, false)
@@ -41,28 +40,10 @@ test('items index shows database columns and collapsible filters', function () {
         ->assertSee('aria-items-index-filters-open', false);
 });
 
-test('items index barcode filter matches id and code', function () {
-    $byCode = Item::factory()->create(['code' => 'AJD-BARCODE-MATCH-S', 'legacy_code' => null]);
-    $byId = Item::factory()->create(['code' => 'AJD-ID-BARCODE-S', 'legacy_code' => null]);
-    $other = Item::factory()->create(['code' => 'AJD-OTHER-BARCODE-S', 'legacy_code' => 'OLD-BARCODE-SKU']);
-
-    $this->actingAs($this->user)
-        ->get(route('items.index', ['barcode' => 'AJD-BARCODE-MATCH']))
-        ->assertOk()
-        ->assertSee('AJD-BARCODE-MATCH-S', false)
-        ->assertDontSee('AJD-ID-BARCODE-S', false)
-        ->assertDontSee('AJD-OTHER-BARCODE-S', false);
-
-    $this->actingAs($this->user)
-        ->get(route('items.index', ['barcode' => (string) $byId->id]))
-        ->assertOk()
-        ->assertSee('AJD-ID-BARCODE-S', false)
-        ->assertDontSee('AJD-BARCODE-MATCH-S', false);
-});
-
-test('items index code filter matches substring in code and legacy_code', function () {
+test('items index lookup filter matches id code and legacy_code substrings', function () {
     $byCode = Item::factory()->create(['code' => 'AJD-CX90151-01-M', 'legacy_code' => null]);
     $byLegacy = Item::factory()->create(['code' => 'AJD-NEW-SKU-S', 'legacy_code' => 'OLD-90151-LEGACY']);
+    $byId = Item::factory()->create(['code' => 'AJD-ID-LOOKUP-S', 'legacy_code' => null]);
     $other = Item::factory()->create(['code' => 'AJD-OTHER-CODE-S', 'legacy_code' => null]);
 
     $this->actingAs($this->user)
@@ -73,23 +54,25 @@ test('items index code filter matches substring in code and legacy_code', functi
         ->assertDontSee('AJD-OTHER-CODE-S', false);
 
     $this->actingAs($this->user)
-        ->get(route('items.index', ['code' => 'OLD-90151']))
+        ->get(route('items.index', ['code' => (string) $byId->id]))
         ->assertOk()
-        ->assertSee('AJD-NEW-SKU-S', false)
+        ->assertSee('AJD-ID-LOOKUP-S', false)
         ->assertDontSee('AJD-CX90151-01-M', false);
-
-    $this->actingAs($this->user)
-        ->get(route('items.index', ['code' => (string) $other->id]))
-        ->assertOk()
-        ->assertDontSee('AJD-OTHER-CODE-S', false);
 });
 
-test('items index name filter searches item name', function () {
-    $match = Item::factory()->create([
+test('items index name filter searches item name and group name', function () {
+    $group = \App\Models\ItemGroup::factory()->create(['name' => 'GROUP TITLE MATCH']);
+    Item::factory()->create([
+        'group_id' => $group->id,
         'name' => 'DISPLAY FILTER MATCH - BLUE - M',
         'code' => 'AJD-DISPLAY-FILTER-M',
     ]);
-    $other = Item::factory()->create([
+    Item::factory()->create([
+        'group_id' => \App\Models\ItemGroup::factory()->create(['name' => 'GROUP TITLE MATCH ONLY']),
+        'name' => 'OTHER ITEM NAME - RED - L',
+        'code' => 'AJD-GROUP-FILTER-L',
+    ]);
+    Item::factory()->create([
         'name' => 'OTHER ITEM - RED - L',
         'code' => 'AJD-OTHER-FILTER-L',
     ]);
@@ -99,6 +82,12 @@ test('items index name filter searches item name', function () {
         ->assertOk()
         ->assertSee('AJD-DISPLAY-FILTER-M', false)
         ->assertDontSee('AJD-OTHER-FILTER-L', false);
+
+    $this->actingAs($this->user)
+        ->get(route('items.index', ['name' => 'GROUP TITLE MATCH ONLY']))
+        ->assertOk()
+        ->assertSee('AJD-GROUP-FILTER-L', false)
+        ->assertDontSee('AJD-DISPLAY-FILTER-M', false);
 });
 
 test('getItemName prefers non-empty group alias for manufactured items', function () {

@@ -120,7 +120,7 @@ class Item extends Model
         });
     }
 
-    public function scopeFilterIndexBarcode(Builder $query, string $term): void
+    public function scopeFilterIndexLookup(Builder $query, string $term): void
     {
         $term = trim($term);
         if ($term === '') {
@@ -130,27 +130,12 @@ class Item extends Model
         $contains = LikeSearch::contains($term);
 
         $query->where(function ($q) use ($term, $contains) {
-            $q->where('code', 'like', $contains)
-                ->orWhere('legacy_code', 'like', $contains);
+            $q->where($q->qualifyColumn('code'), 'like', $contains)
+                ->orWhere($q->qualifyColumn('legacy_code'), 'like', $contains);
 
             if (ctype_digit($term)) {
-                $q->orWhere('id', (int) $term);
+                $q->orWhere($q->qualifyColumn('id'), (int) $term);
             }
-        });
-    }
-
-    public function scopeFilterIndexCode(Builder $query, string $term): void
-    {
-        $term = trim($term);
-        if ($term === '') {
-            return;
-        }
-
-        $contains = LikeSearch::contains($term);
-
-        $query->where(function ($q) use ($contains) {
-            $q->where('code', 'like', $contains)
-                ->orWhere('legacy_code', 'like', $contains);
         });
     }
 
@@ -161,7 +146,10 @@ class Item extends Model
             return;
         }
 
-        $query->where('name', 'like', $contains);
+        $query->where(function ($q) use ($contains) {
+            $q->where($q->qualifyColumn('name'), 'like', $contains)
+                ->orWhereHas('group', fn ($group) => $group->where('name', 'like', $contains));
+        });
     }
 
     public function scopeFilterDescription(Builder $query, string $term): void
@@ -171,7 +159,7 @@ class Item extends Model
             return;
         }
 
-        $query->where('description', 'like', $contains);
+        $query->where($query->qualifyColumn('description'), 'like', $contains);
     }
 
     public function scopeFilterByTags(Builder $query, array $tagIds): void
