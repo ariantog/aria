@@ -1,7 +1,8 @@
 # Reporting System — Planning Hub
 
-Branch: `cursor/reporting-d945`  
-Status: **Phase 0 implemented** — schema + mapping UI.
+Status: **Phase 2 done** on `main` (tax 1a–1d + persediaan/neraca `#476`).
+
+Next: **[Phase 3 kickoff](./09-phase3-kickoff.md)** — Laba Rugi + piutang/hutang aging.
 
 ## Production deploy (schema only)
 
@@ -29,7 +30,8 @@ The install migration is idempotent (`hasTable` / `hasColumn`), uses `INT(11)` f
 | [05-pre-implementation-questions.md](./05-pre-implementation-questions.md) | Answered — see 06 |
 | [06-answered-decisions.md](./06-answered-decisions.md) | Locked maintainer decisions |
 | [07-phase0-addrbook-mapping.md](./07-phase0-addrbook-mapping.md) | Superseded in part by 08 |
-| [08-ledger-simplification-plan.md](./08-ledger-simplification-plan.md) | **Current priority:** simplify ledgers; reporting in separate tables |
+| [08-ledger-simplification-plan.md](./08-ledger-simplification-plan.md) | Ledger/category simplification (mostly applied) |
+| [09-phase3-kickoff.md](./09-phase3-kickoff.md) | **Paste-ready Phase 3 kickoff** — Laba Rugi + piutang/hutang aging |
 
 ## Context (read first)
 
@@ -42,4 +44,4 @@ Transaction `grand_total` signs: Buy/Return/CashIn positive; Sell/ReturnSupplier
 
 PPN is already calculated at transaction time (`tax_amount`, `grand_total`) and gated by `addrbooks.ppn` (supplier on Buy, customer on Sell). Rate from `settings.ppn_rate` (default 11%).
 
-Current reports (`/reports/*`) are operational (cash flow, purchases, warehouse valuation) — they aggregate `transaction.total` (pre-tax subtotal), **not** `tax_amount`. No tax or financial-statement reports exist.
+Operational reports (`/reports/*` cash flow, purchases, warehouse valuation) still aggregate `transaction.total` (pre-tax). Tax lives at `/reports/tax/ppn` and `/reports/tax/faktur`. Neraca + persediaan roll-forward live at `/reports/neraca`. Laba rugi and aging are not built yet — see [09-phase3-kickoff.md](./09-phase3-kickoff.md).
