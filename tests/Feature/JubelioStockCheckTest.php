@@ -421,6 +421,30 @@ it('records cron heartbeat even when no stock check job is due', function () {
     expect(ScheduledTask::query()->where('command', 'app:jubelio-stock-check')->value('last_run_at'))->not->toBeNull();
 });
 
+it('dispatches legacy cron manager command with --single flag', function () {
+    ScheduledTask::create([
+        'name' => 'Jubelio Stock Check',
+        'command' => 'app:jubelio-stock-check --single',
+        'frequency' => 'everyMinute',
+        'active' => true,
+        'description' => 'test',
+    ]);
+
+    JubelioStockCheck::create([
+        'sync_cursor' => 1,
+        'per_type_limit' => 50,
+        'demand_days' => 90,
+        'target_discrepancies' => 50,
+        'scan_round' => 0,
+        'status' => 'completed',
+        'created_at' => now(),
+    ]);
+
+    $this->artisan('app:dispatch-scheduled-tasks')->assertSuccessful();
+
+    expect(ScheduledTask::query()->where('command', 'app:jubelio-stock-check --single')->value('last_run_at'))->not->toBeNull();
+});
+
 it('recovers stale processing jobs so a new daily check can start', function () {
     $warehouse = Addrbook::factory()->warehouse()->create();
     seedStockCheckSync($warehouse);
