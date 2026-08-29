@@ -103,7 +103,7 @@ class SettingRegistry
                 'name' => 'Persediaan Awal (Jan 2026)',
                 'type' => 'number',
                 'default' => 0,
-                'hint' => 'Opening inventory value for the January 2026 roll-forward. Later months open from the previous closing.',
+                'hint' => 'Opening inventory value for the January 2026 roll-forward. Later months open from the previous closing. Manufactured HPP uses gudang pcs + borongan + Material Produksi.',
             ],
         ];
     }

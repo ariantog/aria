@@ -44,12 +44,17 @@ class RebuildInventoryRollForwardCommand extends Command
         while ($cursor->lte($end)) {
             $row = $inventory->forMonth($cursor->year, $cursor->month);
             $this->line(sprintf(
-                '  %04d-%02d  open %s  buy %s  cogs %s  gaji %s  material-out %s  close %s',
+                '  %04d-%02d  open %s  buy %s  cogs %s (mfg %s / beli %s)  pcs %s  hpp/pcs %s  borongan %s  gaji %s  material %s  close %s',
                 $row['year'],
                 $row['month'],
                 $this->money($row['opening']),
                 $this->money($row['material_purchases']),
                 $this->money($row['cogs']),
+                $this->money($row['manufactured_cogs']),
+                $this->money($row['purchased_cogs']),
+                number_format($row['pcs_manufactured'], 0, '.', ''),
+                $this->money($row['manufactured_unit_cost']),
+                $this->money($row['borongan_labor']),
                 $this->money($row['production_cost']),
                 $this->money($row['material_cash_out']),
                 $this->money($row['closing']),

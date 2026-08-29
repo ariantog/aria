@@ -16,6 +16,10 @@ use Illuminate\Support\Facades\DB;
 
 class InventoryRollForwardService
 {
+    public function __construct(
+        private readonly ManufacturedCogsEstimator $cogsEstimator,
+    ) {}
+
     public function startDate(): Carbon
     {
         return Carbon::parse((string) config('reporting.persediaan_start', '2026-01-01'))->startOfDay();
@@ -64,7 +68,20 @@ class InventoryRollForwardService
      *     material_purchases: float,
      *     material_cash_out: float,
      *     production_cost: float,
+     *     pcs_manufactured: float,
+     *     pcs_manufactured_ytd: float,
+     *     pcs_manufactured_week: float,
+     *     borongan_labor: float,
+     *     borongan_labor_ytd: float,
+     *     manufactured_unit_cost: float,
+     *     unit_cost_source: string,
+     *     labor_source: string,
+     *     manufactured_qty_sold: float,
+     *     purchased_qty_sold: float,
+     *     manufactured_cogs: float,
+     *     purchased_cogs: float,
      *     cogs: float,
+     *     capitalize_conversion: bool,
      *     adjustment: float,
      *     closing: float,
      *     production_cost_by_entity: array<int, float>,
@@ -77,13 +94,13 @@ class InventoryRollForwardService
             return $this->emptyMonth($year, $month);
         }
 
+        $opening = $this->openingFor($year, $month);
         $existing = ReportingMonthlyInventoryValue::query()
             ->where('year', $year)
             ->where('month', $month)
             ->first();
 
         $flows = $this->flowForMonth($year, $month);
-        $opening = $this->openingFor($year, $month);
         $adjustment = $existing ? (float) $existing->adjustment : 0.0;
         $closing = $this->closingFrom($opening, $flows, $adjustment);
 
@@ -94,6 +111,12 @@ class InventoryRollForwardService
                 'material_purchases' => $flows['material_purchases'],
                 'material_cash_out' => $flows['material_cash_out'],
                 'production_cost' => $flows['production_cost'],
+                'pcs_manufactured' => $flows['pcs_manufactured'],
+                'borongan_labor' => $flows['borongan_labor'],
+                'manufactured_unit_cost' => $flows['manufactured_unit_cost'],
+                'manufactured_qty_sold' => $flows['manufactured_qty_sold'],
+                'manufactured_cogs' => $flows['manufactured_cogs'],
+                'purchased_cogs' => $flows['purchased_cogs'],
                 'cogs' => $flows['cogs'],
                 'adjustment' => $adjustment,
                 'closing_balance' => $closing,
@@ -107,7 +130,20 @@ class InventoryRollForwardService
             'material_purchases' => (float) $row->material_purchases,
             'material_cash_out' => (float) $row->material_cash_out,
             'production_cost' => (float) $row->production_cost,
+            'pcs_manufactured' => (float) $row->pcs_manufactured,
+            'pcs_manufactured_ytd' => $flows['pcs_manufactured_ytd'],
+            'pcs_manufactured_week' => $flows['pcs_manufactured_week'],
+            'borongan_labor' => (float) $row->borongan_labor,
+            'borongan_labor_ytd' => $flows['borongan_labor_ytd'],
+            'manufactured_unit_cost' => (float) $row->manufactured_unit_cost,
+            'unit_cost_source' => $flows['unit_cost_source'],
+            'labor_source' => $flows['labor_source'],
+            'manufactured_qty_sold' => (float) $row->manufactured_qty_sold,
+            'purchased_qty_sold' => $flows['purchased_qty_sold'],
+            'manufactured_cogs' => (float) $row->manufactured_cogs,
+            'purchased_cogs' => (float) $row->purchased_cogs,
             'cogs' => (float) $row->cogs,
+            'capitalize_conversion' => $flows['capitalize_conversion'],
             'adjustment' => (float) $row->adjustment,
             'closing' => (float) $row->closing_balance,
             'production_cost_by_entity' => $flows['production_cost_by_entity'],
@@ -120,7 +156,21 @@ class InventoryRollForwardService
      *     material_purchases: float,
      *     material_cash_out: float,
      *     production_cost: float,
+     *     pcs_manufactured: float,
+     *     pcs_manufactured_ytd: float,
+     *     pcs_manufactured_week: float,
+     *     borongan_labor: float,
+     *     borongan_labor_ytd: float,
+     *     manufactured_unit_cost: float,
+     *     unit_cost_source: string,
+     *     labor_source: string,
+     *     manufactured_qty_sold: float,
+     *     purchased_qty_sold: float,
+     *     manufactured_cogs: float,
+     *     purchased_cogs: float,
      *     cogs: float,
+     *     capitalize_conversion: bool,
+     *     capitalized_labor: float,
      *     production_cost_by_entity: array<int, float>,
      *     material_cash_out_by_entity: array<int, float>,
      * }
@@ -139,26 +189,60 @@ class InventoryRollForwardService
             $end,
         );
 
-        $cogs = $this->cogsTotal($start, $end);
-
         $materialCash = $this->cashOutToLedgers($materialIds, $start, $end);
         $productionCash = $this->cashOutToLedgers($productionIds, $start, $end);
+        $estimate = $this->cogsEstimator->estimate(
+            $year,
+            $month,
+            $materialCash['total'],
+            $productionCash['total'],
+        );
 
         return [
             'material_purchases' => $purchases,
             'material_cash_out' => $materialCash['total'],
             'production_cost' => $productionCash['total'],
-            'cogs' => $cogs,
+            'pcs_manufactured' => $estimate['pcs_manufactured'],
+            'pcs_manufactured_ytd' => $estimate['pcs_manufactured_ytd'],
+            'pcs_manufactured_week' => $estimate['pcs_manufactured_week'],
+            'borongan_labor' => $estimate['borongan_labor'],
+            'borongan_labor_ytd' => $estimate['borongan_labor_ytd'],
+            'manufactured_unit_cost' => $estimate['unit_cost'],
+            'unit_cost_source' => $estimate['unit_cost_source'],
+            'labor_source' => $estimate['labor_source'],
+            'manufactured_qty_sold' => $estimate['manufactured_qty_sold'],
+            'purchased_qty_sold' => $estimate['purchased_qty_sold'],
+            'manufactured_cogs' => $estimate['manufactured_cogs'],
+            'purchased_cogs' => $estimate['purchased_cogs'],
+            'cogs' => $estimate['cogs'],
+            'capitalize_conversion' => $estimate['capitalize_conversion'],
+            'capitalized_labor' => $estimate['capitalized_labor'],
             'production_cost_by_entity' => $productionCash['by_entity'],
             'material_cash_out_by_entity' => $materialCash['by_entity'],
         ];
     }
 
     /**
-     * @param  array{material_purchases: float, material_cash_out: float, production_cost: float, cogs: float}  $flows
+     * @param  array{
+     *     material_purchases: float,
+     *     material_cash_out: float,
+     *     production_cost: float,
+     *     cogs: float,
+     *     capitalize_conversion?: bool,
+     *     capitalized_labor?: float,
+     * }  $flows
      */
     public function closingFrom(float $opening, array $flows, float $adjustment = 0.0): float
     {
+        if (! empty($flows['capitalize_conversion'])) {
+            return $opening
+                + $flows['material_purchases']
+                + (float) ($flows['capitalized_labor'] ?? 0)
+                + $flows['material_cash_out']
+                - $flows['cogs']
+                + $adjustment;
+        }
+
         return $opening
             + $flows['material_purchases']
             - $flows['material_cash_out']
@@ -218,27 +302,6 @@ class InventoryRollForwardService
         return $sumFor($addTypes) - $sumFor($subtractTypes);
     }
 
-    private function cogsTotal(string $start, string $end): float
-    {
-        $inventoryTypes = [ItemType::ITEM->value, ItemType::ASSET_LANCAR->value];
-
-        $sumFor = function (int $type) use ($inventoryTypes, $start, $end): float {
-            $row = DB::table('transaction_details as td')
-                ->join('transactions as t', 't.id', '=', 'td.transaction_id')
-                ->join('items as i', 'i.id', '=', 'td.item_id')
-                ->where('t.status', Transaction::STATUS_COMPLETED)
-                ->where('t.type', $type)
-                ->whereIn('i.type', $inventoryTypes)
-                ->whereBetween('t.date', [$start, $end])
-                ->selectRaw('COALESCE(SUM(td.quantity * COALESCE(i.cost, 0)), 0) as amount')
-                ->first();
-
-            return (float) $row->amount;
-        };
-
-        return $sumFor(Transaction::TYPE_SELL) - $sumFor(Transaction::TYPE_RETURN);
-    }
-
     /**
      * @param  list<int>  $ledgerIds
      * @return array{total: float, by_entity: array<int, float>}
@@ -283,7 +346,20 @@ class InventoryRollForwardService
      *     material_purchases: float,
      *     material_cash_out: float,
      *     production_cost: float,
+     *     pcs_manufactured: float,
+     *     pcs_manufactured_ytd: float,
+     *     pcs_manufactured_week: float,
+     *     borongan_labor: float,
+     *     borongan_labor_ytd: float,
+     *     manufactured_unit_cost: float,
+     *     unit_cost_source: string,
+     *     labor_source: string,
+     *     manufactured_qty_sold: float,
+     *     purchased_qty_sold: float,
+     *     manufactured_cogs: float,
+     *     purchased_cogs: float,
      *     cogs: float,
+     *     capitalize_conversion: bool,
      *     adjustment: float,
      *     closing: float,
      *     production_cost_by_entity: array<int, float>,
@@ -299,7 +375,20 @@ class InventoryRollForwardService
             'material_purchases' => 0.0,
             'material_cash_out' => 0.0,
             'production_cost' => 0.0,
+            'pcs_manufactured' => 0.0,
+            'pcs_manufactured_ytd' => 0.0,
+            'pcs_manufactured_week' => 0.0,
+            'borongan_labor' => 0.0,
+            'borongan_labor_ytd' => 0.0,
+            'manufactured_unit_cost' => 0.0,
+            'unit_cost_source' => 'none',
+            'labor_source' => 'none',
+            'manufactured_qty_sold' => 0.0,
+            'purchased_qty_sold' => 0.0,
+            'manufactured_cogs' => 0.0,
+            'purchased_cogs' => 0.0,
             'cogs' => 0.0,
+            'capitalize_conversion' => false,
             'adjustment' => 0.0,
             'closing' => 0.0,
             'production_cost_by_entity' => [],
