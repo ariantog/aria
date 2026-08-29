@@ -1,8 +1,8 @@
 # Reporting System — Planning Hub
 
-Status: **Phase 2 done** on `main` (tax 1a–1d + persediaan/neraca `#476`).
+Status: **Phase 3 done** on `main` (tax 1a–1d, neraca `#476`, laba rugi + aging `#481`).
 
-Next: **[Phase 3 kickoff](./09-phase3-kickoff.md)** — Laba Rugi + piutang/hutang aging.
+Next: **[Phase 4 kickoff](./10-phase4-kickoff.md)** — Excel pack, PPh Final, mapping UI.
 
 ## Production deploy (schema only)
 
@@ -31,7 +31,8 @@ The install migration is idempotent (`hasTable` / `hasColumn`), uses `INT(11)` f
 | [06-answered-decisions.md](./06-answered-decisions.md) | Locked maintainer decisions |
 | [07-phase0-addrbook-mapping.md](./07-phase0-addrbook-mapping.md) | Superseded in part by 08 |
 | [08-ledger-simplification-plan.md](./08-ledger-simplification-plan.md) | Ledger/category simplification (mostly applied) |
-| [09-phase3-kickoff.md](./09-phase3-kickoff.md) | **Paste-ready Phase 3 kickoff** — Laba Rugi + piutang/hutang aging |
+| [09-phase3-kickoff.md](./09-phase3-kickoff.md) | Phase 3 kickoff — Laba Rugi + aging (**shipped** `#481`) |
+| [10-phase4-kickoff.md](./10-phase4-kickoff.md) | **Paste-ready Phase 4 kickoff** — Excel, PPh Final, mapping UI |
 
 ## Context (read first)
 
@@ -44,4 +45,4 @@ Transaction `grand_total` signs: Buy/Return/CashIn positive; Sell/ReturnSupplier
 
 PPN is already calculated at transaction time (`tax_amount`, `grand_total`) and gated by `addrbooks.ppn` (supplier on Buy, customer on Sell). Rate from `settings.ppn_rate` (default 11%).
 
-Operational reports (`/reports/*` cash flow, purchases, warehouse valuation) still aggregate `transaction.total` (pre-tax). Tax lives at `/reports/tax/ppn` and `/reports/tax/faktur`. Neraca + persediaan roll-forward live at `/reports/neraca`. Laba rugi and aging are not built yet — see [09-phase3-kickoff.md](./09-phase3-kickoff.md).
+Operational reports (`/reports/*` cash flow, purchases, warehouse valuation) still aggregate `transaction.total` (pre-tax). Tax lives at `/reports/tax/ppn` and `/reports/tax/faktur`. Neraca is `/reports/neraca`. Laba rugi / piutang / hutang are `/reports/laba-rugi`, `/reports/receivables`, `/reports/payables` (CSV only). Excel, PPh Final, and mapping UI are next — see [10-phase4-kickoff.md](./10-phase4-kickoff.md).
