@@ -173,6 +173,7 @@ it('renders migrated GET pages with a 200', function (string $route) {
     'report produksi potong' => 'reports/produksi-potong',
     'report produksi qc' => 'reports/produksi-qc',
     'report tax ppn' => 'reports/tax/ppn',
+    'report neraca' => 'reports/neraca',
     'report tax faktur' => 'reports/tax/faktur',
     'reporting entities' => 'reports/entities',
 

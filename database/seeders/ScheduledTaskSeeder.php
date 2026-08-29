@@ -85,6 +85,26 @@ class ScheduledTaskSeeder extends Seeder
         );
 
         \App\Models\ScheduledTask::updateOrCreate(
+            ['command' => 'reporting:snapshot-balances'],
+            [
+                'name' => 'Snapshot Reporting Balances',
+                'frequency' => 'daily',
+                'active' => true,
+                'description' => 'Persists the previous month-end addrbook balances from transaction running balances for historical neraca.',
+            ]
+        );
+
+        \App\Models\ScheduledTask::updateOrCreate(
+            ['command' => 'reporting:rebuild-inventory'],
+            [
+                'name' => 'Rebuild Persediaan Roll-Forward',
+                'frequency' => 'daily',
+                'active' => true,
+                'description' => 'Recomputes company-wide persediaan opening→closing from January 2026 through the current month.',
+            ]
+        );
+
+        \App\Models\ScheduledTask::updateOrCreate(
             ['command' => 'app:sync-product-performance'],
             [
                 'name' => 'Sync Product Performance',

@@ -1129,7 +1129,7 @@ class DataRetentionService
             DB::table('location_customer')->where('customer_id', $id)->delete();
         }
 
-        foreach (['reporting_channel_banks', 'reporting_warehouse_fulfillment', 'reporting_ledger_roles'] as $table) {
+        foreach (['reporting_channel_banks', 'reporting_warehouse_fulfillment', 'reporting_ledger_roles', 'reporting_balance_snapshots'] as $table) {
             if (Schema::hasTable($table)) {
                 DB::table($table)->where('customer_id', $id)->delete();
             }
