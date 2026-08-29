@@ -46,6 +46,11 @@ return [
     | Company-wide inventory ledger starts January 2026. Opening seed is the
     | `reporting.persediaan_awal` setting (this config is the fallback).
     |
+    | Manufactured COGS uses pcs that entered gudang, borongan labour (Gaji
+    | Mingguan if borongan is 0), and Material Produksi cash-out. Purchased
+    | items still use qty × items.cost. Conversion costs are capitalized
+    | only in months that have produksi / borongan / manufactured sales.
+    |
     */
     'persediaan_start' => '2026-01-01',
     'persediaan_awal' => 0,
