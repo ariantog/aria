@@ -179,6 +179,7 @@ it('ranks replenish candidates from performance history snapshots', function () 
     $api->shouldReceive('hasShopAuthorization')->andReturn(true);
     $api->shouldReceive('listManualProductAds')->andReturn([]);
     $api->shouldReceive('getRecommendedItems')->andReturn([]);
+    $api->shouldReceive('getGmsItemPerformance')->andReturn([]);
     $api->shouldReceive('createManualProductAd')
         ->once()
         ->with(5551, Mockery::type('int'), Mockery::type('float'))
@@ -207,6 +208,7 @@ it('returns group ad suggestions without calling create API', function () {
     $api = Mockery::mock(ShopeeAdsApiService::class);
     $api->shouldReceive('listManualProductAds')->andReturn([]);
     $api->shouldReceive('getRecommendedItems')->andReturn([]);
+    $api->shouldReceive('getGmsItemPerformance')->andReturn([]);
     $api->shouldNotReceive('createManualProductAd');
 
     $engine = new ShopeeAdsEngineService(

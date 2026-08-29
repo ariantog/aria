@@ -22,11 +22,12 @@ it('divides item ads starting pool across max item ad slots', function () {
     $api->shouldReceive('hasShopAuthorization')->andReturn(true);
     $api->shouldReceive('listManualProductAds')->andReturn([]);
     $api->shouldReceive('getRecommendedItems')->andReturn([
-        ['item_id' => 101, 'source' => 'recommended'],
-        ['item_id' => 102, 'source' => 'recommended'],
-        ['item_id' => 103, 'source' => 'recommended'],
-        ['item_id' => 104, 'source' => 'recommended'],
+        shopeeRecommendedItem(101),
+        shopeeRecommendedItem(102),
+        shopeeRecommendedItem(103),
+        shopeeRecommendedItem(104),
     ]);
+    $api->shouldReceive('getGmsItemPerformance')->andReturn([]);
     $api->shouldReceive('createManualProductAd')
         ->times(4)
         ->withArgs(fn ($itemId, $budget) => $budget === 25000)

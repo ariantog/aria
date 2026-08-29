@@ -28,8 +28,9 @@ it('fills to max item ads on daily reset regardless of max per run', function ()
     $api->shouldReceive('hasShopAuthorization')->andReturn(true);
     $api->shouldReceive('listManualProductAds')->andReturn([]);
     $api->shouldReceive('getRecommendedItems')->andReturn(
-        collect(range(1, 10))->map(fn ($i) => ['item_id' => 1000 + $i, 'source' => 'recommended'])->all(),
+        collect(range(1, 10))->map(fn ($i) => shopeeRecommendedItem(1000 + $i))->all(),
     );
+    $api->shouldReceive('getGmsItemPerformance')->andReturn([]);
     $api->shouldReceive('createManualProductAd')
         ->times(10)
         ->andReturnUsing(fn ($itemId) => 'camp-'.$itemId);
@@ -78,12 +79,13 @@ it('top-ups at most max per run after item increment schedule', function () {
         ])->all(),
     );
     $api->shouldReceive('getRecommendedItems')->andReturn([
-        ['item_id' => 3001, 'source' => 'recommended'],
-        ['item_id' => 3002, 'source' => 'recommended'],
-        ['item_id' => 3003, 'source' => 'recommended'],
-        ['item_id' => 3004, 'source' => 'recommended'],
-        ['item_id' => 3005, 'source' => 'recommended'],
+        shopeeRecommendedItem(3001),
+        shopeeRecommendedItem(3002),
+        shopeeRecommendedItem(3003),
+        shopeeRecommendedItem(3004),
+        shopeeRecommendedItem(3005),
     ]);
+    $api->shouldReceive('getGmsItemPerformance')->andReturn([]);
     $api->shouldReceive('createManualProductAd')
         ->times(4)
         ->andReturnUsing(fn ($itemId) => 'new-'.$itemId);
@@ -154,11 +156,12 @@ it('runs increment then top-up on produk_manual schedule tick', function () {
         'applied_increment' => 5000,
     ]);
     $api->shouldReceive('getRecommendedItems')->andReturn([
-        ['item_id' => 3001, 'source' => 'recommended'],
-        ['item_id' => 3002, 'source' => 'recommended'],
-        ['item_id' => 3003, 'source' => 'recommended'],
-        ['item_id' => 3004, 'source' => 'recommended'],
+        shopeeRecommendedItem(3001),
+        shopeeRecommendedItem(3002),
+        shopeeRecommendedItem(3003),
+        shopeeRecommendedItem(3004),
     ]);
+    $api->shouldReceive('getGmsItemPerformance')->andReturn([]);
     $api->shouldReceive('createManualProductAd')
         ->times(4)
         ->andReturnUsing(fn ($itemId) => 'new-'.$itemId);
