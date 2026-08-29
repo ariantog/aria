@@ -27,20 +27,31 @@ class LegacyItemConverterController extends Controller
             ?? ItemType::ASSET_LANCAR;
         $currentPage = max(1, (int) $request->query('page', 1));
 
-        $queueStats = $this->converterService->queueStats($itemType);
         $uselessCount = $this->converterService->uselessQuery($itemType)->count();
         $superOldCount = $this->converterService->superOldQuery($itemType)->count();
-        $unparseableCount = $queueStats['unparseable'];
         $latestRun = ItemIdentityConversionRun::query()
             ->where('item_type', $itemType)
             ->latest('id')
             ->first();
 
-        $data = match ($tab) {
-            'completed' => $this->completedResults($itemType),
-            'failed' => $this->failedResults($itemType),
-            default => $this->pendingItems($itemType, $queueStats['eligible']),
-        };
+        if ($tab === 'pending') {
+            $pendingData = $this->converterService->pendingIndexData(
+                $itemType,
+                LegacyItemConverterService::PENDING_PAGE_SIZE,
+                $currentPage,
+            );
+            $queueStats = $pendingData['stats'];
+            $data = $pendingData['paginator']->withQueryString();
+        } else {
+            $queueStats = $this->converterService->queueStats($itemType);
+            $data = match ($tab) {
+                'completed' => $this->completedResults($itemType),
+                'failed' => $this->failedResults($itemType),
+                default => $this->pendingItems($itemType, $queueStats['eligible']),
+            };
+        }
+
+        $unparseableCount = $queueStats['unparseable'];
 
         $previews = $tab === 'pending'
             ? $this->converterService->previewItems(collect($data->items()))->keyBy(fn (array $row) => $row['item']->id)
