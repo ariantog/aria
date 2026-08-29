@@ -36,9 +36,16 @@ it('installs neraca snapshot and persediaan tables via dedicated migration path'
         '--path' => 'database/migrations/2026_08_29_100000_install_reporting_neraca_tables.php',
         '--force' => true,
     ]);
+    Artisan::call('migrate', [
+        '--path' => 'database/migrations/2026_08_29_140000_add_manufactured_cogs_to_reporting_monthly_inventory_values.php',
+        '--force' => true,
+    ]);
 
     expect(Schema::hasTable('reporting_monthly_inventory_values'))->toBeTrue()
-        ->and(Schema::hasTable('reporting_balance_snapshots'))->toBeTrue();
+        ->and(Schema::hasTable('reporting_balance_snapshots'))->toBeTrue()
+        ->and(Schema::hasColumn('reporting_monthly_inventory_values', 'pcs_manufactured'))->toBeTrue()
+        ->and(Schema::hasColumn('reporting_monthly_inventory_values', 'borongan_labor'))->toBeTrue()
+        ->and(Schema::hasColumn('reporting_monthly_inventory_values', 'manufactured_unit_cost'))->toBeTrue();
 });
 
 it('uses integer columns for customer references in reporting tables', function () {

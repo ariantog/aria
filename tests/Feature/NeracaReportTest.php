@@ -50,6 +50,8 @@ it('renders the neraca page for an authorized user', function () {
         ->assertOk()
         ->assertSee('Neraca', false)
         ->assertSee('Persediaan', false)
+        ->assertSee('HPP / pcs produksi', false)
+        ->assertSee('COGS produksi', false)
         ->assertSee('data-testid="neraca-page"', false);
 });
 
