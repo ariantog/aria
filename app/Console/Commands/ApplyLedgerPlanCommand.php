@@ -3,10 +3,10 @@
 namespace App\Console\Commands;
 
 use App\Models\Addrbook;
-use App\Models\LedgerMergeMap;
 use App\Models\Operation;
 use App\Models\ReportingEntity;
 use App\Models\ReportingTaxAccount;
+use App\Support\LedgerDuplicateMergePlan;
 use App\Support\OperationSimplificationPlan;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -21,22 +21,6 @@ class ApplyLedgerPlanCommand extends Command
     {
         $dry = $this->option('dry-run');
 
-        $renames = [
-            2889 => ['name' => 'Biaya Toko WTC'],
-            2842 => ['name' => 'Biaya Toko Citos'],
-            2273 => ['name' => 'Biaya Tokopedia'],
-            2099 => ['name' => 'Biaya Metro'],
-            2178 => ['name' => 'Biaya Sogo'],
-            2633 => ['name' => 'Biaya Central'],
-            2959 => ['name' => 'Biaya Sewa Gedung'],
-        ];
-
-        $merges = [
-            2184 => 2889, // WTC Transport → WTC Toko
-            2844 => 2842, // Sewa Citos → Citos Toko
-            2854 => 2842, // FX Cost → Citos Toko
-        ];
-
         $softDelete = [
             817, 1644, 2731, // Gaji Harian, Plotter, Pendapatan FitBox
             2805, 2806, 2808, 2809, // PT Core tax ledgers (entity retired)
@@ -46,31 +30,10 @@ class ApplyLedgerPlanCommand extends Command
             $this->info('Dry run — no changes applied.');
         }
 
-        DB::transaction(function () use ($dry, $renames, $merges, $softDelete) {
-            foreach ($renames as $id => $data) {
-                $a = Addrbook::find($id);
-                if (! $a) {
-                    continue;
-                }
-                $this->line("Rename {$id}: {$a->name} → {$data['name']}");
-                if (! $dry) {
-                    $a->update($data);
-                }
-            }
-
-            foreach ($merges as $oldId => $newId) {
-                if (! Addrbook::find($oldId) || ! Addrbook::find($newId)) {
-                    continue;
-                }
-                $this->line("Merge map {$oldId} → {$newId}");
-                if (! $dry) {
-                    LedgerMergeMap::updateOrCreate(
-                        ['old_customer_id' => $oldId],
-                        ['new_customer_id' => $newId],
-                    );
-                    Addrbook::where('id', $oldId)->delete();
-                }
-            }
+        DB::transaction(function () use ($dry, $softDelete) {
+            LedgerDuplicateMergePlan::apply($dry, function (string $message): void {
+                $this->line($message);
+            });
 
             foreach ($softDelete as $id) {
                 $a = Addrbook::find($id);
