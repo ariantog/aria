@@ -5,6 +5,31 @@ use App\Models\ShopeeAdsSchedule;
 use App\Models\ShopeeAdsSetting;
 use App\Models\User;
 
+it('does not call Shopee API on index page load', function () {
+    $user = User::factory()->create();
+
+    $this->mock(\App\Services\ShopeeAds\ShopeeAdsApiService::class, function ($mock) {
+        $mock->shouldReceive('isConfigured')->andReturn(true);
+        $mock->shouldReceive('getConnectionStatus')->andReturn([
+            'configured' => true,
+            'has_token' => true,
+            'is_expired' => false,
+            'shop_id' => 123,
+            'last_error' => null,
+        ]);
+        $mock->shouldReceive('hasShopAuthorization')->andReturn(true);
+        $mock->shouldReceive('formatOAuthErrorForUser')->andReturn(null);
+        $mock->shouldReceive('getLastOAuthError')->andReturn(null);
+        $mock->shouldNotReceive('listManualProductAds');
+        $mock->shouldNotReceive('getGmsItemPerformance');
+        $mock->shouldNotReceive('getRecommendedItems');
+    });
+
+    $this->actingAs($user)
+        ->get(route('shopee-ads.index'))
+        ->assertOk();
+});
+
 it('includes item ad starting budget in the end-of-day plan', function () {
     $user = User::factory()->create();
 
