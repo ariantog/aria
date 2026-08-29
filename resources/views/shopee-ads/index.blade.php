@@ -42,47 +42,93 @@ $saInnerCardWhite = 'space-y-3 rounded-lg border border-gray-200 bg-white p-4';
             </p>
         </div>
         @if($canEdit)
-        <div class="flex flex-wrap items-center gap-2">
-            <form method="POST" action="{{ route('shopee-ads.toggle-pause') }}">
-                @csrf
-                @if($settings->isPaused())
-                <button type="submit" class="{{ $saBtnPrimary }}">Continue</button>
-                @else
-                <button type="submit" class="{{ $saBtnSecondary }}">Pause</button>
-                @endif
-            </form>
-            <form method="POST" action="{{ route('shopee-ads.sync-item-ads') }}">
-                @csrf
-                <button type="submit" class="{{ $saBtnSecondary }}">Sync Item Ads</button>
-            </form>
-            <form method="POST" action="{{ route('shopee-ads.replenish') }}">
-                @csrf
-                <button type="submit" class="{{ $saBtnSecondary }}">Replenish Item Ads</button>
-            </form>
-            <form method="POST" action="{{ route('shopee-ads.suggest-group-ads') }}" class="flex flex-wrap items-center gap-2">
-                @csrf
-                <label class="flex items-center gap-2 text-sm">
-                    <span class="shrink-0 text-xs font-medium text-gray-600">Sumber saran</span>
-                    <select name="strategy" class="rounded-lg border border-gray-300 px-3 py-2 text-sm" data-testid="shopee-ads-group-strategy">
-                        <option value="all" @selected(session('group_ad_strategy', 'all') === 'all')>Semua (ROAS + sales + Shopee)</option>
-                        <option value="roas" @selected(session('group_ad_strategy') === 'roas')>ROAS (performa iklan)</option>
-                        <option value="sales" @selected(session('group_ad_strategy') === 'sales')>Sales (GMS / transaksi)</option>
-                        <option value="recommended" @selected(session('group_ad_strategy') === 'recommended')>Shopee recommended (best ROI / selling)</option>
-                    </select>
-                </label>
-                <button type="submit" class="{{ $saBtnBlueOutline }}" data-testid="shopee-ads-suggest-group">Suggest Group Ads</button>
-            </form>
-            <form method="POST" action="{{ route('shopee-ads.daily-reset') }}">
-                @csrf
-                <button type="submit" class="{{ $saBtnAmber }}">Daily Reset Now</button>
-            </form>
-            @if($canBoost)
-            <form method="POST" action="{{ route('shopee-ads.boost') }}" onsubmit="return confirm('Boost semua budget iklan ×{{ $settings->manual_boost_multiplier }}?')">
-                @csrf
-                <button type="submit" class="{{ $saBtnPurple }}">Boost ×{{ $settings->manual_boost_multiplier }}</button>
-            </form>
-            @endif
-            <a href="{{ route('shopee-ads.authorize') }}" class="{{ $saBtnOrange }}">Authorize Shopee</a>
+        <div
+            class="w-full min-w-[18rem] max-w-xl shrink-0 {{ $saCard }}"
+            x-data="{ activeTab: 'item-ads' }"
+            data-testid="shopee-ads-action-tabs"
+        >
+            <div class="border-b border-gray-200 px-3 pt-2">
+                <nav class="-mb-px flex flex-wrap gap-x-1" aria-label="Shopee Ads actions">
+                    <button
+                        type="button"
+                        @click="activeTab = 'item-ads'"
+                        :class="activeTab === 'item-ads' ? 'border-blue-600 text-blue-700' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'"
+                        class="border-b-2 px-3 py-2 text-sm font-medium transition-colors"
+                        data-testid="shopee-ads-tab-item-ads"
+                    >Item Ads</button>
+                    <button
+                        type="button"
+                        @click="activeTab = 'group-ads'"
+                        :class="activeTab === 'group-ads' ? 'border-blue-600 text-blue-700' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'"
+                        class="border-b-2 px-3 py-2 text-sm font-medium transition-colors"
+                        data-testid="shopee-ads-tab-group-ads"
+                    >Group Ads</button>
+                    <button
+                        type="button"
+                        @click="activeTab = 'maintenance'"
+                        :class="activeTab === 'maintenance' ? 'border-blue-600 text-blue-700' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'"
+                        class="border-b-2 px-3 py-2 text-sm font-medium transition-colors"
+                        data-testid="shopee-ads-tab-maintenance"
+                    >Maintenance</button>
+                    <button
+                        type="button"
+                        @click="activeTab = 'account'"
+                        :class="activeTab === 'account' ? 'border-blue-600 text-blue-700' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'"
+                        class="border-b-2 px-3 py-2 text-sm font-medium transition-colors"
+                        data-testid="shopee-ads-tab-account"
+                    >Account</button>
+                </nav>
+            </div>
+            <div class="px-4 py-3">
+                <div x-show="activeTab === 'item-ads'" x-cloak class="flex flex-wrap items-center gap-2">
+                    <form method="POST" action="{{ route('shopee-ads.sync-item-ads') }}">
+                        @csrf
+                        <button type="submit" class="{{ $saBtnSecondary }}">Sync Item Ads</button>
+                    </form>
+                    <form method="POST" action="{{ route('shopee-ads.replenish') }}">
+                        @csrf
+                        <button type="submit" class="{{ $saBtnSecondary }}">Replenish Item Ads</button>
+                    </form>
+                    <form method="POST" action="{{ route('shopee-ads.toggle-pause') }}">
+                        @csrf
+                        @if($settings->isPaused())
+                        <button type="submit" class="{{ $saBtnPrimary }}">Continue</button>
+                        @else
+                        <button type="submit" class="{{ $saBtnSecondary }}">Pause</button>
+                        @endif
+                    </form>
+                </div>
+                <div x-show="activeTab === 'group-ads'" x-cloak>
+                    <form method="POST" action="{{ route('shopee-ads.suggest-group-ads') }}" class="flex flex-wrap items-center gap-2">
+                        @csrf
+                        <label class="flex items-center gap-2 text-sm">
+                            <span class="shrink-0 text-xs font-medium text-gray-600">Sumber saran</span>
+                            <select name="strategy" class="rounded-lg border border-gray-300 px-3 py-2 text-sm" data-testid="shopee-ads-group-strategy">
+                                <option value="all" @selected(session('group_ad_strategy', 'all') === 'all')>Semua (ROAS + sales + Shopee)</option>
+                                <option value="roas" @selected(session('group_ad_strategy') === 'roas')>ROAS (performa iklan)</option>
+                                <option value="sales" @selected(session('group_ad_strategy') === 'sales')>Sales (GMS / transaksi)</option>
+                                <option value="recommended" @selected(session('group_ad_strategy') === 'recommended')>Shopee recommended (best ROI / selling)</option>
+                            </select>
+                        </label>
+                        <button type="submit" class="{{ $saBtnBlueOutline }}" data-testid="shopee-ads-suggest-group">Suggest Group Ads</button>
+                    </form>
+                </div>
+                <div x-show="activeTab === 'maintenance'" x-cloak class="flex flex-wrap items-center gap-2">
+                    <form method="POST" action="{{ route('shopee-ads.daily-reset') }}">
+                        @csrf
+                        <button type="submit" class="{{ $saBtnAmber }}">Daily Reset Now</button>
+                    </form>
+                    @if($canBoost)
+                    <form method="POST" action="{{ route('shopee-ads.boost') }}" onsubmit="return confirm('Boost semua budget iklan ×{{ $settings->manual_boost_multiplier }}?')">
+                        @csrf
+                        <button type="submit" class="{{ $saBtnPurple }}">Boost ×{{ $settings->manual_boost_multiplier }}</button>
+                    </form>
+                    @endif
+                </div>
+                <div x-show="activeTab === 'account'" x-cloak class="flex flex-wrap items-center gap-2">
+                    <a href="{{ route('shopee-ads.authorize') }}" class="{{ $saBtnOrange }}">Authorize Shopee</a>
+                </div>
+            </div>
         </div>
         @endif
     </div>
