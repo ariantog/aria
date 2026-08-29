@@ -42,21 +42,45 @@ function makeKaryawan(array $overrides = []): Karyawan
         'no_telp' => '08123456789',
         'bulanan' => 3_000_000,
         'harian' => 100_000,
-        'premi' => 500_000,
+        'premi' => 0,
         'bank_id' => test()->bank->id,
         'flag' => KaryawanVisibility::FLAG_PUBLIC,
+        'waktu_dibatasi' => true,
+        'jam_masuk' => '08:00',
     ], $overrides));
 }
 
-it('calculates salary with the 26-day formula and premi forfeiture', function () {
+function payrollPayload(array $overrides = []): array
+{
+    return array_merge([
+        'bulan' => now()->month,
+        'tahun' => now()->year,
+        'bulanan' => 3_000_000,
+        'harian_rate' => 100_000,
+        'total_cuti_tahunan' => 0,
+        'total_cuti_sakit' => 0,
+        'total_cuti_mendadak' => 0,
+        'hari_izin' => 0,
+        'potong_harian' => 0,
+        'menit_telat' => 0,
+        'potong_telat' => 0,
+        'jam_lembur' => 0,
+        'upah_lembur' => 0,
+        'bonus' => 0,
+        'sanksi' => 0,
+        'privasi' => KaryawanVisibility::FLAG_PUBLIC,
+    ], $overrides);
+}
+
+it('calculates salary with the 26-day formula without premi', function () {
     $karyawan = makeKaryawan();
     $calculator = app(GajiSalaryCalculator::class);
 
     Cuti::create([
         'karyawan_id' => $karyawan->id,
         'tipe' => 3,
-        'tgl_mulai' => now()->subMonth()->startOfMonth()->toDateString(),
-        'tgl_akhir' => now()->subMonth()->startOfMonth()->toDateString(),
+        'tgl_mulai' => now()->startOfMonth()->toDateString(),
+        'tgl_akhir' => now()->startOfMonth()->toDateString(),
         'mendadak' => 1,
     ]);
 
@@ -64,9 +88,34 @@ it('calculates salary with the 26-day formula and premi forfeiture', function ()
 
     expect($result['harian_total'])->toBe(2_600_000)
         ->and($result['cuti_mendadak'])->toBe(1)
-        ->and($result['potongan_cuti_bulanan'])->toBe(100_000)
-        ->and($result['potongan_cuti_premi'])->toBe(500_000)
+        ->and($result['potongan_harian'])->toBe(100_000)
         ->and($result['total_gaji'])->toBe(5_500_000);
+});
+
+it('calculates lembur and telat deductions', function () {
+    $karyawan = makeKaryawan();
+    $calculator = app(GajiSalaryCalculator::class);
+
+    expect($calculator->calculateUpahLembur(2, 100_000))->toBe(37_500)
+        ->and($calculator->calculateTelatPotongan($karyawan, 75, 100_000, 15, 8))->toBe(12_500);
+
+    $karyawan->update(['waktu_dibatasi' => false]);
+    expect($calculator->calculateTelatPotongan($karyawan->fresh(), 120, 100_000))->toBe(0);
+});
+
+it('includes izin days in harian potongan', function () {
+    $karyawan = makeKaryawan();
+    $calculator = app(GajiSalaryCalculator::class);
+
+    $result = $calculator->calculate(
+        $karyawan,
+        now()->month,
+        now()->year,
+        overrideHariIzin: 2,
+    );
+
+    expect($result['hari_izin'])->toBe(2)
+        ->and($result['potongan_harian'])->toBe(200_000);
 });
 
 it('hides private karyawan from payroll users', function () {
@@ -86,27 +135,18 @@ it('creates editable payroll for a public karyawan', function () {
     $karyawan = makeKaryawan();
 
     $response = $this->actingAs($this->payrollUser)
-        ->post(route('karyawan.gaji.store', $karyawan), [
-            'bulan' => now()->month,
-            'tahun' => now()->year,
-            'bulanan' => 3_000_000,
-            'harian_rate' => 100_000,
-            'premi' => 500_000,
-            'total_cuti_tahunan' => 0,
-            'total_cuti_sakit' => 0,
-            'total_cuti_mendadak' => 0,
-            'potong_bulanan' => 0,
-            'potong_premi' => 0,
+        ->post(route('karyawan.gaji.store', $karyawan), payrollPayload([
             'bonus' => 100_000,
-            'sanksi' => 50_000,
-            'privasi' => KaryawanVisibility::FLAG_PUBLIC,
-        ]);
+            'jam_lembur' => 2,
+            'upah_lembur' => 37_500,
+        ]));
 
     $response->assertRedirect(route('karyawan.show', $karyawan));
 
     $gaji = Gaji::first();
     expect($gaji)->not->toBeNull()
-        ->and($gaji->total_gaji)->toBe(6_150_000)
+        ->and($gaji->total_gaji)->toBe(5_737_500)
+        ->and($gaji->upah_lembur)->toBe(37_500)
         ->and($gaji->bonus)->toBe(100_000);
 });
 
@@ -114,21 +154,9 @@ it('allows superadmin to store private payroll and blocks others from viewing it
     $karyawan = makeKaryawan();
 
     $this->actingAs($this->superadmin)
-        ->post(route('karyawan.gaji.store', $karyawan), [
-            'bulan' => now()->month,
-            'tahun' => now()->year,
-            'bulanan' => 3_000_000,
-            'harian_rate' => 100_000,
-            'premi' => 500_000,
-            'total_cuti_tahunan' => 0,
-            'total_cuti_sakit' => 0,
-            'total_cuti_mendadak' => 0,
-            'potong_bulanan' => 0,
-            'potong_premi' => 0,
-            'bonus' => 0,
-            'sanksi' => 0,
+        ->post(route('karyawan.gaji.store', $karyawan), payrollPayload([
             'privasi' => KaryawanVisibility::FLAG_PRIVATE,
-        ])
+        ]))
         ->assertRedirect();
 
     $gaji = Gaji::first();
@@ -150,57 +178,51 @@ it('updates payroll totals when dispute fields change', function () {
         'tahun' => now()->year,
         'bulanan' => 3_000_000,
         'harian' => 2_600_000,
-        'premi' => 500_000,
         'cuti_sakit' => 0,
         'cuti_tahunan' => 0,
         'cuti_mendadak' => 0,
-        'total_cuti' => 0,
-        'potongan_cuti_bulanan' => 0,
-        'potongan_cuti_premi' => 0,
+        'hari_izin' => 0,
+        'potongan_harian' => 0,
+        'menit_telat' => 0,
+        'potongan_telat' => 0,
+        'jam_lembur' => 0,
+        'upah_lembur' => 0,
         'total_potongan' => 0,
         'bonus' => 0,
         'sanksi' => 0,
-        'total_gaji' => 6_100_000,
+        'total_gaji' => 5_600_000,
         'bank_id' => $karyawan->bank_id,
         'flag' => KaryawanVisibility::FLAG_PUBLIC,
     ]);
 
     $this->actingAs($this->payrollUser)
-        ->put(route('gaji.update', $gaji), [
-            'bulan' => $gaji->bulan,
-            'tahun' => $gaji->tahun,
-            'bulanan' => 3_000_000,
-            'harian_rate' => 100_000,
-            'premi' => 500_000,
-            'total_cuti_tahunan' => 0,
-            'total_cuti_sakit' => 0,
-            'total_cuti_mendadak' => 0,
-            'potong_bulanan' => 0,
-            'potong_premi' => 0,
-            'bonus' => 0,
+        ->put(route('gaji.update', $gaji), payrollPayload([
             'sanksi' => 200_000,
-            'privasi' => KaryawanVisibility::FLAG_PUBLIC,
-        ])
+        ]))
         ->assertRedirect(route('karyawan.show', $karyawan));
 
-    expect($gaji->fresh()->total_gaji)->toBe(5_900_000);
+    expect($gaji->fresh()->total_gaji)->toBe(5_400_000);
 });
 
-it('renders payroll pages in the sidebar smoke paths', function () {
+it('renders payroll pages in bahasa indonesia', function () {
     $karyawan = makeKaryawan();
 
     $this->actingAs($this->superadmin)
         ->get(route('karyawan.index'))
         ->assertOk()
-        ->assertSee('Karyawan List', false);
+        ->assertSee('Daftar Karyawan', false);
 
     $this->actingAs($this->superadmin)
         ->get(route('gaji.index'))
         ->assertOk()
-        ->assertSee('Monthly Salary Management', false);
+        ->assertSee('Kelola Gaji Bulanan', false);
 
     $this->actingAs($this->superadmin)
         ->get(route('karyawan.gaji.create', $karyawan))
         ->assertOk()
-        ->assertSee('Bikin Gaji', false);
+        ->assertSee('Buat Gaji', false);
+});
+
+it('uses the karyawan_gaji table', function () {
+    expect((new Gaji)->getTable())->toBe('karyawan_gaji');
 });

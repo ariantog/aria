@@ -10,6 +10,7 @@ $breadcrumbs = [
     ['title' => $isEdit ? 'Edit Karyawan' : 'Tambah Karyawan', 'href' => '#'],
 ];
 $val = fn($k, $d = '') => old($k, $isEdit ? ($karyawan->$k ?? $d) : $d);
+$waktuDibatasi = filter_var(old('waktu_dibatasi', $isEdit ? ($karyawan->waktu_dibatasi ?? true) : true), FILTER_VALIDATE_BOOLEAN);
 @endphp
 
 <div class="flex flex-col gap-4 p-4">
@@ -29,7 +30,7 @@ $val = fn($k, $d = '') => old($k, $isEdit ? ($karyawan->$k ?? $d) : $d);
                 <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
                     <div class="space-y-2">
                         <label class="text-sm font-medium">Nama Lengkap</label>
-                        <input name="nama" value="{{ $val('nama') }}" placeholder="Nama Karyawan" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
+                        <input name="nama" value="{{ $val('nama') }}" placeholder="Nama karyawan" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
                         @error('nama')<p class="text-sm text-red-600">{{ $message }}</p>@enderror
                     </div>
                     <div class="space-y-2">
@@ -44,23 +45,19 @@ $val = fn($k, $d = '') => old($k, $isEdit ? ($karyawan->$k ?? $d) : $d);
                     </div>
                     <div class="space-y-2">
                         <label class="text-sm font-medium">Gaji Bulanan (Rp)</label>
-                        <input name="bulanan" type="number" value="{{ $val('bulanan') }}" placeholder="Misal: 3000000" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
+                        <input name="bulanan" type="number" value="{{ $val('bulanan') }}" placeholder="Contoh: 3000000" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
                         @error('bulanan')<p class="text-sm text-red-600">{{ $message }}</p>@enderror
                     </div>
                     <div class="space-y-2">
-                        <label class="text-sm font-medium">Gaji Harian (Rp)</label>
-                        <input name="harian" type="number" value="{{ $val('harian') }}" placeholder="Misal: 100000" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
+                        <label class="text-sm font-medium">Tarif Harian (Rp)</label>
+                        <input name="harian" type="number" value="{{ $val('harian') }}" placeholder="Contoh: 100000" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
+                        <p class="text-xs text-gray-500">Tarif per hari × 26 hari kerja. Sudah termasuk insentif harian (premi lama digabung ke sini).</p>
                         @error('harian')<p class="text-sm text-red-600">{{ $message }}</p>@enderror
-                    </div>
-                    <div class="space-y-2">
-                        <label class="text-sm font-medium">Premi (Rp)</label>
-                        <input name="premi" type="number" value="{{ $val('premi') }}" placeholder="Misal: 500000" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
-                        @error('premi')<p class="text-sm text-red-600">{{ $message }}</p>@enderror
                     </div>
                     <div class="space-y-2">
                         <label class="text-sm font-medium">Rekening Bank</label>
                         <select name="bank_id" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
-                            <option value="">Pilih Akun Bank</option>
+                            <option value="">Pilih rekening bank</option>
                             @foreach($banks as $bank)
                             <option value="{{ $bank->id }}" @selected((string)$val('bank_id') === (string)$bank->id)>{{ $bank->name }}</option>
                             @endforeach
@@ -68,18 +65,41 @@ $val = fn($k, $d = '') => old($k, $isEdit ? ($karyawan->$k ?? $d) : $d);
                         @error('bank_id')<p class="text-sm text-red-600">{{ $message }}</p>@enderror
                     </div>
                     <div class="space-y-2">
-                        <label class="text-sm font-medium">Status Publikasi / Privasi</label>
+                        <label class="text-sm font-medium">Privasi</label>
                         <select name="flag" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
-                            <option value="1" @selected((string)$val('flag','1') === '1')>Publik (Bisa Dilihat Kasir)</option>
-                            <option value="2" @selected((string)$val('flag','1') === '2')>Private (Hanya Admin)</option>
+                            <option value="1" @selected((string)$val('flag','1') === '1')>Publik (role payroll)</option>
+                            <option value="2" @selected((string)$val('flag','1') === '2')>Privasi (hanya superadmin)</option>
                         </select>
                         @error('flag')<p class="text-sm text-red-600">{{ $message }}</p>@enderror
                     </div>
                 </div>
+
+                <div class="space-y-4 border-t border-gray-100 pt-4">
+                    <h3 class="text-sm font-semibold text-gray-900">Kehadiran & Jam Kerja</h3>
+                    <div class="grid grid-cols-1 gap-6 md:grid-cols-3">
+                        <div class="space-y-2">
+                            <label class="flex items-center gap-2 text-sm font-medium">
+                                <input type="checkbox" name="waktu_dibatasi" value="1" class="rounded border-gray-300" @checked($waktuDibatasi)>
+                                Waktu dibatasi
+                            </label>
+                            <p class="text-xs text-gray-500">Nonaktifkan untuk penjahit borongan / jam fleksibel (tidak kena potong telat).</p>
+                        </div>
+                        <div class="space-y-2">
+                            <label class="text-sm font-medium">Jam Masuk</label>
+                            <input type="time" name="jam_masuk" value="{{ $val('jam_masuk', '08:00') }}" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
+                            @error('jam_masuk')<p class="text-sm text-red-600">{{ $message }}</p>@enderror
+                        </div>
+                        <div class="space-y-2">
+                            <label class="text-sm font-medium">Grace Period (menit)</label>
+                            <input type="number" name="grace_period_menit" value="{{ $val('grace_period_menit') }}" min="0" max="180" placeholder="Kosong = pakai setting global" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
+                            @error('grace_period_menit')<p class="text-sm text-red-600">{{ $message }}</p>@enderror
+                        </div>
+                    </div>
+                </div>
+
                 <div class="flex justify-end gap-2 border-t border-gray-100 pt-4">
                     <a href="{{ route('karyawan.index') }}" class="rounded-md border border-gray-300 px-4 py-2 text-sm hover:bg-gray-50">Batal</a>
                     <button type="submit" class="inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
-                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"/></svg>
                         Simpan Karyawan
                     </button>
                 </div>
