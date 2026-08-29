@@ -263,3 +263,45 @@ it('shows item description toggle and column on transaction detail', function ()
         ->assertSee('ITEM DESCRIPTION FOR TX SHOW', false)
         ->assertSee('data-copy-col="desc"', false);
 });
+
+it('print invoice respects view column query params', function () {
+    $item = Item::factory()->create([
+        'name' => 'RAW ITEM NAME',
+        'code' => 'AJD-PRINT-COL-M',
+        'description' => 'PRINT DESCRIPTION COLUMN',
+    ]);
+
+    $transaction = Transaction::factory()->create(['invoice' => 'TX-PRINT-COLS']);
+    TransactionDetail::factory()->create([
+        'transaction_id' => $transaction->id,
+        'item_id' => $item->id,
+        'quantity' => 1,
+        'price' => 10_000,
+        'total' => 10_000,
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('transactions.print', [
+            'transaction' => $transaction,
+            'image' => '0',
+            'barcode' => '0',
+            'sku' => '1',
+            'name' => '0',
+            'desc' => '1',
+        ]))
+        ->assertOk()
+        ->assertSee('AJD-PRINT-COL-M', false)
+        ->assertSee('PRINT DESCRIPTION COLUMN', false)
+        ->assertDontSee('RAW ITEM NAME', false)
+        ->assertDontSee('>Img<', false)
+        ->assertDontSee('>Barcode<', false);
+});
+
+it('transaction show page builds print invoice href from view checkboxes', function () {
+    $transaction = Transaction::factory()->create(['invoice' => 'TX-PRINT-HREF']);
+
+    $this->actingAs($this->user)
+        ->get(route('transactions.show', $transaction))
+        ->assertOk()
+        ->assertSee('printInvoiceHref()', false);
+});

@@ -371,14 +371,15 @@ class TransactionsController extends Controller
         return view('transactions.receipt', compact('transaction'));
     }
 
-    public function printInvoice(Transaction $transaction, \App\Services\InvoiceBrandingService $brandingService)
+    public function printInvoice(Request $request, Transaction $transaction, \App\Services\InvoiceBrandingService $brandingService)
     {
         $this->authorizeTransactionView($transaction);
         $transaction->load(['details.item.group', 'sender', 'receiver']);
         $typeLabel = $transaction->getTypeLabel();
         $branding = $brandingService->forTransaction($transaction);
+        $viewColumns = \App\Support\TransactionItemViewColumns::fromRequest($request);
 
-        return view('transactions.print', compact('transaction', 'typeLabel', 'branding'));
+        return view('transactions.print', compact('transaction', 'typeLabel', 'branding', 'viewColumns'));
     }
 
     public function sendWhatsapp(Request $request, Transaction $transaction, TransactionInvoiceService $invoiceService)

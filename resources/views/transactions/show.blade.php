@@ -766,6 +766,17 @@ function transactionShowPage(transactionId, initialNote, canEditNote, canEditPpn
                 this.copyFeedback = false;
             }, 2000);
         },
+        printInvoiceHref() {
+            const params = new URLSearchParams({
+                image: this.showImage ? '1' : '0',
+                barcode: this.showBarcode ? '1' : '0',
+                sku: this.showSku ? '1' : '0',
+                name: this.showName ? '1' : '0',
+                desc: this.showDescription ? '1' : '0',
+            });
+
+            return `/transactions/${transactionId}/print?${params.toString()}`;
+        },
         isCopyColumnVisible(col) {
             if (col === 'image') return this.showImage;
             if (col === 'barcode') return this.showBarcode;
