@@ -2,10 +2,11 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Schema;
 
 class Gaji extends Model
 {
@@ -13,23 +14,52 @@ class Gaji extends Model
 
     protected $guarded = ['id'];
 
-    public function karyawan()
+    public function getTable()
     {
-        $data = $this->belongsTo(Karyawan::class, 'karyawan_id', 'id');
+        static $resolved = null;
 
-        // User ID 1 is the one and only superadmin; other users with a role only see active karyawan.
-        if (Auth::user() && ! Auth::user()->is_superadmin && count(Auth::user()->getRoleNames()) > 0) {
-            $data = $data->where('flag', 1);
+        if ($resolved === null) {
+            $resolved = Schema::hasTable('gajihs') ? 'gajihs' : 'gajis';
         }
 
-        return $data;
+        return $resolved;
+    }
+
+    public static function totalColumn(): string
+    {
+        $table = (new static)->getTable();
+
+        return Schema::hasColumn($table, 'total_gajih') ? 'total_gajih' : 'total_gaji';
+    }
+
+    protected function totalGaji(): Attribute
+    {
+        $column = self::totalColumn();
+
+        return Attribute::make(
+            get: fn ($value) => (int) ($value ?? $this->attributes[$column] ?? 0),
+            set: function ($value) {
+                $intValue = (int) $value;
+                if (Schema::hasColumn($this->getTable(), 'total_gajih')) {
+                    $this->attributes['total_gajih'] = $intValue;
+                }
+                if (Schema::hasColumn($this->getTable(), 'total_gaji')) {
+                    $this->attributes['total_gaji'] = $intValue;
+                }
+
+                return $intValue;
+            },
+        );
+    }
+
+    public function karyawan()
+    {
+        return $this->belongsTo(Karyawan::class, 'karyawan_id', 'id');
     }
 
     public function getGpuAttribute()
     {
-        $gpuTotal = $this->bulanan + $this->harian + $this->premi;
-
-        return $gpuTotal;
+        return (int) $this->bulanan + (int) $this->harian + (int) $this->premi;
     }
 
     public function bank()

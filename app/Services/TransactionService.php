@@ -92,6 +92,10 @@ class TransactionService
 
     protected function updateStock(Transaction $transaction, bool $revert = false)
     {
+        if ((int) $transaction->type === Transaction::TYPE_DEPRECIATION) {
+            return;
+        }
+
         foreach ($transaction->details as $detail) {
             $qty = $revert ? -$detail->quantity : $detail->quantity;
 
@@ -181,6 +185,11 @@ class TransactionService
         } elseif ($type === Transaction::TYPE_ADJUST) {
             $this->updateEntityBalance($transaction, 'sender', -$amount);
             $this->updateDailyReports($transaction, 'sender', -$amount);
+            $this->updateEntityBalance($transaction, 'receiver', $amount);
+            $this->updateDailyReports($transaction, 'receiver', $amount);
+        } elseif ($type === Transaction::TYPE_DEPRECIATION) {
+            $this->updateEntityBalance($transaction, 'sender', $amount);
+            $this->updateDailyReports($transaction, 'sender', $amount);
             $this->updateEntityBalance($transaction, 'receiver', $amount);
             $this->updateDailyReports($transaction, 'receiver', $amount);
         }

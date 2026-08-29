@@ -32,4 +32,12 @@ class ItemFactory extends Factory
             'description' => $this->faker->sentence(),
         ];
     }
+
+    public function assetTetap(): static
+    {
+        return $this->state(fn () => [
+            'type' => ItemType::ASSET_TETAP,
+            'group_id' => null,
+        ]);
+    }
 }

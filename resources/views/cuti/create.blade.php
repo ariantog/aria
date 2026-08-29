@@ -27,10 +27,11 @@ $breadcrumbs = [
                 <div class="space-y-2">
                     <label class="text-sm font-medium">Tipe Cuti</label>
                     <select name="tipe" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
-                        <option value="1" @selected(old('tipe','1')==='1')>Cuti Tahunan</option>
-                        <option value="2" @selected(old('tipe')==='2')>Cuti Sakit</option>
-                        <option value="3" @selected(old('tipe')==='3')>Cuti Mendadak / Izin</option>
+                        <option value="1" @selected(old('tipe','1')==='1')>Cuti Tahunan (kuota tahunan)</option>
+                        <option value="2" @selected(old('tipe')==='2')>Cuti Sakit (kuota sakit)</option>
+                        <option value="3" @selected(old('tipe')==='3')>Mendadak / izin (potong harian + premi hangus)</option>
                     </select>
+                    <p class="text-xs text-gray-500">Kuota tahunan &amp; sakit diatur di System Settings → HR. Mendadak selalu kena potong gaji harian; premi bulan itu hangus jika ada cuti apapun.</p>
                     @error('tipe')<p class="text-sm text-red-600">{{ $message }}</p>@enderror
                 </div>
                 <div class="grid grid-cols-2 gap-4">

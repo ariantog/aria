@@ -2,33 +2,34 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Cuti;
 use App\Models\Gaji;
 use App\Models\Karyawan;
-use App\Models\Setting;
-use Carbon\Carbon;
+use App\Services\Payroll\GajiSalaryCalculator;
+use App\Support\KaryawanVisibility;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\ValidationException;
 
 class GajiController extends Controller
 {
+    public function __construct(
+        protected GajiSalaryCalculator $calculator,
+    ) {}
+
     public function index(Request $request)
     {
         Gate::authorize(Karyawan::getPermissions()['gaji-list']);
 
-        $now = Carbon::now();
-        $bulanSelect = $request->bulan ?: $now->month;
-        $yearSelect = $request->tahun ?: $now->year;
+        $user = $request->user();
+        $bulanSelect = (int) ($request->bulan ?: now()->month);
+        $yearSelect = (int) ($request->tahun ?: now()->year);
 
-        $query = Gaji::with(['karyawan', 'bankSingle'])
+        $query = Gaji::query()
+            ->with(['karyawan', 'bankSingle'])
             ->orderBy('tahun', 'desc')
             ->orderBy('bulan', 'desc');
 
-        if (auth()->user() && ! auth()->user()->is_superadmin) {
-            $query->whereHas('karyawan', function ($q) {
-                $q->where('flag', 1);
-            });
-        }
+        KaryawanVisibility::scopeVisibleGaji($query, $user);
 
         $query->where('bulan', $bulanSelect)->where('tahun', $yearSelect);
 
@@ -40,11 +41,15 @@ class GajiController extends Controller
 
         $gajiList = $query->paginate(20)->withQueryString();
 
-        $gajiPerBank = Gaji::with('bank')
+        $bankQuery = Gaji::query()
             ->where('bulan', $bulanSelect)
-            ->where('tahun', $yearSelect)
-            ->selectRaw('bank_id, SUM(total_gaji) as total_gaji')
+            ->where('tahun', $yearSelect);
+        KaryawanVisibility::scopeVisibleGaji($bankQuery, $user);
+
+        $gajiPerBank = (clone $bankQuery)
+            ->selectRaw('bank_id, SUM('.Gaji::totalColumn().') as total_gaji')
             ->groupBy('bank_id')
+            ->with('bank')
             ->get();
 
         return view('gaji.index', [
@@ -57,145 +62,220 @@ class GajiController extends Controller
         ]);
     }
 
-    public function create(Karyawan $karyawan)
+    public function create(Request $request, Karyawan $karyawan)
     {
         Gate::authorize(Karyawan::getPermissions()['gaji-create']);
+        $this->authorizeKaryawanAccess($request->user(), $karyawan);
 
-        if (auth()->user() && ! auth()->user()->is_superadmin && $karyawan->flag == 2) {
-            abort(404);
-        }
+        $bulan = (int) ($request->query('bulan') ?: now()->month);
+        $tahun = (int) ($request->query('tahun') ?: now()->year);
 
-        $limitTahunan = (int) Setting::getValue('batas_cuti_tahunan', 0);
-        $limitSakit = (int) Setting::getValue('batas_cuti_sakit', 0);
-
-        $now = Carbon::now();
-        $lastmonth = Carbon::now()->subMonth();
-
-        $gajiData = Gaji::where('karyawan_id', $karyawan->id)
-            ->where('bulan', $now->month)
-            ->where('tahun', $now->year)
+        $existing = Gaji::query()
+            ->where('karyawan_id', $karyawan->id)
+            ->where('bulan', $bulan)
+            ->where('tahun', $tahun)
             ->first();
 
-        // Previous month's Cuti accumulation from Gaji
-        $gajiKemarin = Gaji::where('karyawan_id', $karyawan->id)
-            ->where('bulan', $lastmonth->month)
-            ->where('tahun', $lastmonth->year)
-            ->first();
-
-        $kemarinTahunan = $gajiKemarin ? (int) $gajiKemarin->cuti_tahunan : 0;
-        $kemarinSakit = $gajiKemarin ? (int) $gajiKemarin->cuti_sakit : 0;
-
-        // Current month's actual Cuti count
-        $totalCuti = Cuti::where('karyawan_id', $karyawan->id)
-            ->whereYear('tgl_mulai', $lastmonth->year) // legacy logic used last month's cuti
-            ->whereMonth('tgl_mulai', $lastmonth->month)
-            ->selectRaw('SUM(sakit) as total_sakit, SUM(tahunan) as total_tahunan, SUM(mendadak) as total_mendadak')
-            ->first();
-
-        $bulaniniSakit = (int) $totalCuti->total_sakit;
-        $bulaniniTahunan = (int) $totalCuti->total_tahunan;
-        $bulaniniMendadak = (int) $totalCuti->total_mendadak;
-
-        $totalTahunan = $kemarinTahunan + $bulaniniTahunan;
-        $totalSakit = $kemarinSakit + $bulaniniSakit;
-
-        $dendaCutiTahunan = 0;
-        if ($totalTahunan > $limitTahunan) {
-            $dendaCutiTahunan = $kemarinTahunan > $limitTahunan ? $bulaniniTahunan : abs(($limitTahunan - $kemarinTahunan) - $bulaniniTahunan);
+        if ($existing) {
+            return redirect()->route('gaji.edit', $existing);
         }
 
-        $dendaCutiSakit = 0;
-        if ($totalSakit > $limitSakit) {
-            $dendaCutiSakit = $kemarinSakit > $limitSakit ? $bulaniniSakit : abs(($limitSakit - $kemarinSakit) - $bulaniniSakit);
-        }
+        $calculation = $this->calculator->calculate($karyawan, $bulan, $tahun);
 
-        $rupiahDendaTahunan = $karyawan->harian * $dendaCutiTahunan;
-        $rupiahDendaSakit = $karyawan->harian * $dendaCutiSakit;
-        $rupiahDendaMendadak = $karyawan->harian * $bulaniniMendadak;
-
-        $grandTotalCuti = $bulaniniTahunan + $bulaniniSakit + $bulaniniMendadak;
-        $potongPremi = $grandTotalCuti > 0 ? $karyawan->premi : 0;
-
-        $grandTotalDendaCuti = $dendaCutiTahunan + $dendaCutiSakit + $bulaniniMendadak;
-        $grandTotalDendaCutiRupiah = $rupiahDendaTahunan + $rupiahDendaSakit + $rupiahDendaMendadak;
-
-        return view('gaji.create', [
+        return view('gaji.form', [
             'karyawan' => $karyawan,
-            'now' => ['month' => $now->month, 'year' => $now->year],
-            'gajiData' => $gajiData,
-            'cutiBulanIni' => [
-                'tahunan' => $bulaniniTahunan,
-                'sakit' => $bulaniniSakit,
-                'mendadak' => $bulaniniMendadak,
-            ],
-            'dendaCutiTahunan' => $dendaCutiTahunan,
-            'dendaCutiSakit' => $dendaCutiSakit,
-            'grandTotalCuti' => $grandTotalCuti,
-            'potongPremi' => $potongPremi,
-            'grandTotalDendaCuti' => $grandTotalDendaCuti,
-            'grandTotalDendaCutiRupiah' => $grandTotalDendaCutiRupiah,
+            'gaji' => null,
+            'calculation' => $calculation,
+            'mode' => 'create',
         ]);
     }
 
     public function store(Request $request, Karyawan $karyawan)
     {
         Gate::authorize(Karyawan::getPermissions()['gaji-create']);
+        $this->authorizeKaryawanAccess($request->user(), $karyawan);
 
-        if (auth()->user() && ! auth()->user()->is_superadmin && $karyawan->flag == 2) {
+        $payload = $this->validatedPayload($request, $karyawan);
+        $this->assertUniquePeriod($karyawan, $payload['bulan'], $payload['tahun']);
+
+        Gaji::create($this->buildGajiAttributes($karyawan, $payload));
+
+        return redirect()
+            ->route('karyawan.show', $karyawan)
+            ->with('success', 'Gaji '.$karyawan->nama.' saved.');
+    }
+
+    public function edit(Request $request, Gaji $gaji)
+    {
+        Gate::authorize(Karyawan::getPermissions()['gaji-edit']);
+        $this->authorizeGajiAccess($request->user(), $gaji);
+
+        $gaji->load('karyawan');
+        $karyawan = $gaji->karyawan;
+
+        if (! $karyawan) {
             abort(404);
         }
 
-        $validated = $request->validate([
-            'bulan' => 'required|integer',
-            'tahun' => 'required|integer',
-            'total_cuti_tahunan' => 'required|numeric',
-            'total_cuti_sakit' => 'required|numeric',
-            'total_cuti_mendadak' => 'required|numeric',
-            'potong_bulanan' => 'required|numeric',
-            'potong_premi' => 'required|numeric',
-            'bonus' => 'required|numeric',
-            'sanksi' => 'required|numeric',
-            'privasi' => 'required|integer',
+        $calculation = $this->calculator->calculate(
+            $karyawan,
+            (int) $gaji->bulan,
+            (int) $gaji->tahun,
+            (int) $gaji->bonus,
+            (int) $gaji->sanksi,
+            (int) $gaji->potongan_cuti_bulanan,
+            (int) $gaji->potongan_cuti_premi,
+            (int) $gaji->cuti_tahunan,
+            (int) $gaji->cuti_sakit,
+            (int) $gaji->cuti_mendadak,
+        );
+
+        return view('gaji.form', [
+            'karyawan' => $karyawan,
+            'gaji' => $gaji,
+            'calculation' => $calculation,
+            'mode' => 'edit',
         ]);
+    }
 
-        $totalCuti = $validated['total_cuti_tahunan'] + $validated['total_cuti_sakit'] + $validated['total_cuti_mendadak'];
-        $totalPotongan = $validated['potong_bulanan'] + $validated['potong_premi'];
+    public function update(Request $request, Gaji $gaji)
+    {
+        Gate::authorize(Karyawan::getPermissions()['gaji-edit']);
+        $this->authorizeGajiAccess($request->user(), $gaji);
 
-        $rupiahHarian = $karyawan->harian * 26;
-        $totalGajiHk = $rupiahHarian + $karyawan->bulanan + $karyawan->premi + $validated['bonus'];
-        $totalSanksi = $totalPotongan + $validated['sanksi'];
-        $gajiAkhir = $totalGajiHk - $totalSanksi;
+        $karyawan = $gaji->karyawan;
+        if (! $karyawan) {
+            abort(404);
+        }
 
-        Gaji::create([
-            'karyawan_id' => $karyawan->id,
-            'bulan' => $validated['bulan'],
-            'tahun' => $validated['tahun'],
-            'bulanan' => $karyawan->bulanan,
-            'harian' => $rupiahHarian,
-            'premi' => $karyawan->premi,
-            'cuti_sakit' => $validated['total_cuti_sakit'],
-            'cuti_tahunan' => $validated['total_cuti_tahunan'],
-            'cuti_mendadak' => $validated['total_cuti_mendadak'],
-            'total_cuti' => $totalCuti,
-            'potongan_cuti_bulanan' => $validated['potong_bulanan'],
-            'potongan_cuti_premi' => $validated['potong_premi'],
-            'total_potongan' => $totalPotongan,
-            'bonus' => $validated['bonus'],
-            'sanksi' => $validated['sanksi'],
-            'total_gaji' => $gajiAkhir,
-            'bank_id' => $karyawan->bank_id,
-            'flag' => $validated['privasi'],
-        ]);
+        $payload = $this->validatedPayload($request, $karyawan, $gaji);
+        $gaji->update($this->buildGajiAttributes($karyawan, $payload));
 
-        return redirect()->route('karyawan.show', $karyawan->id)->with('success', 'Gaji '.$karyawan->nama.' created');
+        return redirect()
+            ->route('karyawan.show', $karyawan)
+            ->with('success', 'Gaji '.$karyawan->nama.' updated.');
     }
 
     public function destroy(Gaji $gaji)
     {
         Gate::authorize(Karyawan::getPermissions()['gaji-delete']);
+        $this->authorizeGajiAccess(auth()->user(), $gaji);
 
         $gaji->delete();
 
         return redirect()->route('gaji.index')->with('success', 'Gaji deleted');
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    protected function validatedPayload(Request $request, Karyawan $karyawan, ?Gaji $existing = null): array
+    {
+        $user = $request->user();
+        $canSetPrivate = KaryawanVisibility::isSuperadmin($user);
+
+        $validated = $request->validate([
+            'bulan' => 'required|integer|min:1|max:12',
+            'tahun' => 'required|integer|min:2000|max:2100',
+            'bulanan' => 'required|numeric|min:0',
+            'harian_rate' => 'required|numeric|min:0',
+            'premi' => 'required|numeric|min:0',
+            'total_cuti_tahunan' => 'required|integer|min:0',
+            'total_cuti_sakit' => 'required|integer|min:0',
+            'total_cuti_mendadak' => 'required|integer|min:0',
+            'potong_bulanan' => 'required|numeric|min:0',
+            'potong_premi' => 'required|numeric|min:0',
+            'bonus' => 'required|numeric|min:0',
+            'sanksi' => 'required|numeric|min:0',
+            'privasi' => 'required|integer|in:1,2',
+        ]);
+
+        if (! $canSetPrivate && (int) $validated['privasi'] === KaryawanVisibility::FLAG_PRIVATE) {
+            throw ValidationException::withMessages([
+                'privasi' => 'Only the superadmin can mark payroll as private.',
+            ]);
+        }
+
+        if ($existing && ((int) $existing->bulan !== (int) $validated['bulan'] || (int) $existing->tahun !== (int) $validated['tahun'])) {
+            $this->assertUniquePeriod($karyawan, (int) $validated['bulan'], (int) $validated['tahun'], $existing->id);
+        }
+
+        $calculation = $this->calculator->calculate(
+            $karyawan,
+            (int) $validated['bulan'],
+            (int) $validated['tahun'],
+            (int) $validated['bonus'],
+            (int) $validated['sanksi'],
+            (int) $validated['potong_bulanan'],
+            (int) $validated['potong_premi'],
+            (int) $validated['total_cuti_tahunan'],
+            (int) $validated['total_cuti_sakit'],
+            (int) $validated['total_cuti_mendadak'],
+        );
+
+        $validated['total_gaji'] = $calculation['total_gaji'];
+        $validated['total_cuti'] = $calculation['total_cuti'];
+        $validated['total_potongan'] = $calculation['total_potongan'];
+        $validated['harian_total'] = (int) $validated['harian_rate'] * GajiSalaryCalculator::WORKING_DAYS_PER_MONTH;
+
+        return $validated;
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @return array<string, mixed>
+     */
+    protected function buildGajiAttributes(Karyawan $karyawan, array $payload): array
+    {
+        return [
+            'karyawan_id' => $karyawan->id,
+            'bulan' => (int) $payload['bulan'],
+            'tahun' => (int) $payload['tahun'],
+            'bulanan' => (int) $payload['bulanan'],
+            'harian' => (int) $payload['harian_total'],
+            'premi' => (int) $payload['premi'],
+            'cuti_sakit' => (int) $payload['total_cuti_sakit'],
+            'cuti_tahunan' => (int) $payload['total_cuti_tahunan'],
+            'cuti_mendadak' => (int) $payload['total_cuti_mendadak'],
+            'total_cuti' => (int) $payload['total_cuti'],
+            'potongan_cuti_bulanan' => (int) $payload['potong_bulanan'],
+            'potongan_cuti_premi' => (int) $payload['potong_premi'],
+            'total_potongan' => (int) $payload['total_potongan'],
+            'bonus' => (int) $payload['bonus'],
+            'sanksi' => (int) $payload['sanksi'],
+            'total_gaji' => (int) $payload['total_gaji'],
+            'bank_id' => $karyawan->bank_id,
+            'flag' => (int) $payload['privasi'],
+        ];
+    }
+
+    protected function assertUniquePeriod(Karyawan $karyawan, int $bulan, int $tahun, ?int $ignoreId = null): void
+    {
+        $exists = Gaji::query()
+            ->where('karyawan_id', $karyawan->id)
+            ->where('bulan', $bulan)
+            ->where('tahun', $tahun)
+            ->when($ignoreId, fn ($q) => $q->where('id', '!=', $ignoreId))
+            ->exists();
+
+        if ($exists) {
+            throw ValidationException::withMessages([
+                'bulan' => 'Payroll for this period already exists.',
+            ]);
+        }
+    }
+
+    protected function authorizeKaryawanAccess($user, Karyawan $karyawan): void
+    {
+        if (! KaryawanVisibility::canViewKaryawanRecord($user, $karyawan)) {
+            abort(404);
+        }
+    }
+
+    protected function authorizeGajiAccess($user, Gaji $gaji): void
+    {
+        if (! KaryawanVisibility::canViewGajiRecord($user, $gaji)) {
+            abort(404);
+        }
     }
 }

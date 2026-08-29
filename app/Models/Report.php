@@ -20,6 +20,7 @@ class Report
             'view-purchase' => 'report-purchase',
             'view-export-sell' => 'report-export-sell',
             'view-expense' => 'report-expense',
+            'view-asset-tetap' => 'report-asset-tetap',
             'view-warehouse-item' => 'report-warehouse-item',
             'view-item-sales' => 'report-item-sales',
             'view-warehouse-arrangement' => 'report-warehouse-arrangement',

@@ -150,6 +150,7 @@ class Transaction extends Model
             self::TYPE_PRODUCTION => 'use',
             self::TYPE_CASH_IN => 'sell',
             self::TYPE_CASH_OUT => 'buy',
+            self::TYPE_DEPRECIATION => 'depreciation',
             default => null,
         };
     }
@@ -241,6 +242,7 @@ class Transaction extends Model
             'type-cash-out' => 'transactions-type-cash-out', 'type-transfer' => 'transactions-type-transfer',
             'type-adjust' => 'transactions-type-adjust', 'type-return' => 'transactions-type-return',
             'type-return-supplier' => 'transactions-type-return-supplier',
+            'type-depreciation' => 'transactions-type-depreciation',
             'transaction-sync' => 'transactions-transaction-sync',
         ];
     }

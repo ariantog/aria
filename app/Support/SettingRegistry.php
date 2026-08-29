@@ -77,6 +77,20 @@ class SettingRegistry
                 'default' => [],
                 'hint' => 'Stock column on the restock sheet sums qty from these warehouses only. Leave all unchecked to sum every warehouse.',
             ],
+            'asset_tetap.depreciation_expense_account_id' => [
+                'group' => 'Accounting',
+                'name' => 'Akun Beban Penyusutan',
+                'type' => 'account',
+                'default' => null,
+                'hint' => 'Sender on monthly depreciation (type 18) transactions.',
+            ],
+            'asset_tetap.depreciation_contra_account_id' => [
+                'group' => 'Accounting',
+                'name' => 'Akun Akumulasi Penyusutan',
+                'type' => 'account',
+                'default' => null,
+                'hint' => 'Receiver on monthly depreciation (type 18) transactions.',
+            ],
             'produksi.default_warehouse_id' => [
                 'group' => 'Produksi',
                 'name' => 'Default Gudang (Warehouse)',

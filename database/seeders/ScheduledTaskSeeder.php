@@ -125,6 +125,16 @@ class ScheduledTaskSeeder extends Seeder
         );
 
         \App\Models\ScheduledTask::updateOrCreate(
+            ['command' => 'app:run-monthly-depreciation'],
+            [
+                'name' => 'Post Monthly Asset Tetap Depreciation',
+                'frequency' => 'monthly',
+                'active' => false,
+                'description' => 'Posts type-18 depreciation for the previous month. Enable after setting akun beban and akumulasi penyusutan.',
+            ]
+        );
+
+        \App\Models\ScheduledTask::updateOrCreate(
             ['command' => 'app:process-data-retention-archive'],
             [
                 'name' => 'Archive Eligible Transaction Year',
