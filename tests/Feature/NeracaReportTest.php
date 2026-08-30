@@ -52,7 +52,9 @@ it('renders the neraca page for an authorized user', function () {
         ->assertSee('Persediaan', false)
         ->assertSee('HPP / pcs produksi', false)
         ->assertSee('COGS produksi', false)
-        ->assertSee('data-testid="neraca-page"', false);
+        ->assertSee('data-testid="neraca-page"', false)
+        ->assertSee('Jual − cash in customer/reseller', false)
+        ->assertSee('Beli dari Supplier Umum', false);
 });
 
 it('forbids users without report-neraca permission', function () {
@@ -64,7 +66,7 @@ it('forbids users without report-neraca permission', function () {
         ->assertForbidden();
 });
 
-it('uses replayed running balances as of month-end instead of current addrbook stats', function () {
+it('uses replayed bank balances as of month-end instead of current addrbook stats', function () {
     $bank = Addrbook::create(['name' => 'BCA Replay', 'type' => Addrbook::TYPE_BANK]);
     $customer = Addrbook::factory()->customer()->create(['name' => 'Customer Replay']);
 
@@ -101,13 +103,130 @@ it('uses replayed running balances as of month-end instead of current addrbook s
 
     expect($january['as_of'])->toBe('2026-01-31')
         ->and($january['source'])->toBeIn(['replay', 'snapshot'])
+        ->and($january['trade_source'])->toBe('year_activity')
         ->and($january['aktiva_lancar']['kas'])->toBe(1_000_000.0)
-        ->and($january['aktiva_lancar']['piutang'])->toBe(1_000_000.0)
-        ->and($january['aktiva_lancar']['kas'])->not->toBe(9_999_999.0);
+        ->and($january['aktiva_lancar']['kas'])->not->toBe(9_999_999.0)
+        ->and($january['aktiva_lancar']['piutang'])->toBe(0.0);
 
     $february = app(NeracaService::class)->build(2026, 2, NeracaService::CONSOLIDATED_ENTITY);
     expect($february['aktiva_lancar']['kas'])->toBe(1_500_000.0)
-        ->and($february['aktiva_lancar']['piutang'])->toBe(500_000.0);
+        ->and($february['aktiva_lancar']['piutang'])->toBe(0.0);
+});
+
+it('computes piutang from year sell minus cash in not addrbook stats', function () {
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    $bank = Addrbook::create(['name' => 'BCA Piutang', 'type' => Addrbook::TYPE_BANK]);
+    $customer = Addrbook::factory()->customer()->create(['name' => 'Toko Piutang']);
+    $reseller = Addrbook::factory()->create(['name' => 'Reseller Piutang', 'type' => Addrbook::TYPE_RESELLER]);
+
+    createBalanceTransaction([
+        'date' => '2026-01-08',
+        'type' => Transaction::TYPE_SELL,
+        'sender_type' => Addrbook::TYPE_WAREHOUSE,
+        'sender_id' => $warehouse->id,
+        'receiver_type' => Addrbook::TYPE_CUSTOMER,
+        'receiver_id' => $customer->id,
+        'total' => -400_000,
+        'real_total' => -400_000,
+        'sender_balance' => 0,
+        'receiver_balance' => -9_999_999,
+    ]);
+    createBalanceTransaction([
+        'date' => '2026-01-09',
+        'type' => Transaction::TYPE_SELL,
+        'sender_type' => Addrbook::TYPE_WAREHOUSE,
+        'sender_id' => $warehouse->id,
+        'receiver_type' => Addrbook::TYPE_RESELLER,
+        'receiver_id' => $reseller->id,
+        'total' => -250_000,
+        'real_total' => -250_000,
+        'sender_balance' => 0,
+        'receiver_balance' => -1,
+    ]);
+    createBalanceTransaction([
+        'date' => '2026-01-20',
+        'sender_id' => $customer->id,
+        'receiver_id' => $bank->id,
+        'total' => 150_000,
+        'real_total' => 150_000,
+        'sender_balance' => 0,
+        'receiver_balance' => 150_000,
+    ]);
+    createBalanceTransaction([
+        'date' => '2025-06-15',
+        'type' => Transaction::TYPE_SELL,
+        'sender_type' => Addrbook::TYPE_WAREHOUSE,
+        'sender_id' => $warehouse->id,
+        'receiver_type' => Addrbook::TYPE_CUSTOMER,
+        'receiver_id' => $customer->id,
+        'total' => -80_000,
+        'real_total' => -80_000,
+        'sender_balance' => 0,
+        'receiver_balance' => -80_000,
+    ]);
+
+    AddrbookStat::query()->updateOrCreate(
+        ['customer_id' => $customer->id],
+        ['balance' => -9_999_999],
+    );
+
+    $january = app(NeracaService::class)->build(2026, 1, NeracaService::CONSOLIDATED_ENTITY);
+    $names = collect($january['drilldown']['piutang'])->pluck('name');
+
+    expect($january['year_start'])->toBe('2026-01-01')
+        ->and($january['year_end'])->toBe('2026-01-31')
+        ->and($january['aktiva_lancar']['piutang'])->toBe(500_000.0)
+        ->and($january['aktiva_lancar']['piutang'])->not->toBe(9_999_999.0)
+        ->and($names->all())->toContain('Toko Piutang')
+        ->and($names->all())->toContain('Reseller Piutang');
+
+    $twentyFive = app(NeracaService::class)->build(2025, 12, NeracaService::CONSOLIDATED_ENTITY);
+    expect($twentyFive['year_start'])->toBe('2025-01-01')
+        ->and($twentyFive['aktiva_lancar']['piutang'])->toBe(80_000.0);
+});
+
+it('excludes internal lending and fully paid customers from year piutang', function () {
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    $bank = Addrbook::create(['name' => 'BCA Paid', 'type' => Addrbook::TYPE_BANK]);
+    $lender = Addrbook::factory()->customer()->create([
+        'name' => 'Investor Internal',
+        'is_internal_lending' => true,
+    ]);
+    $paid = Addrbook::factory()->customer()->create(['name' => 'Lunas 2026']);
+
+    createBalanceTransaction([
+        'date' => '2026-01-05',
+        'type' => Transaction::TYPE_SELL,
+        'sender_type' => Addrbook::TYPE_WAREHOUSE,
+        'sender_id' => $warehouse->id,
+        'receiver_type' => Addrbook::TYPE_CUSTOMER,
+        'receiver_id' => $lender->id,
+        'total' => -200_000,
+        'real_total' => -200_000,
+    ]);
+    createBalanceTransaction([
+        'date' => '2026-01-06',
+        'type' => Transaction::TYPE_SELL,
+        'sender_type' => Addrbook::TYPE_WAREHOUSE,
+        'sender_id' => $warehouse->id,
+        'receiver_type' => Addrbook::TYPE_CUSTOMER,
+        'receiver_id' => $paid->id,
+        'total' => -50_000,
+        'real_total' => -50_000,
+    ]);
+    createBalanceTransaction([
+        'date' => '2026-01-07',
+        'sender_id' => $paid->id,
+        'receiver_id' => $bank->id,
+        'total' => 50_000,
+        'real_total' => 50_000,
+        'receiver_balance' => 50_000,
+    ]);
+
+    $report = app(NeracaService::class)->build(2026, 1, NeracaService::CONSOLIDATED_ENTITY);
+
+    expect($report['aktiva_lancar']['piutang'])->toBe(0.0)
+        ->and($report['drilldown']['piutang'])->toBe([]);
 });
 
 it('splits kas by reporting entity and sums them on konsolidasi', function () {
@@ -149,28 +268,77 @@ it('splits kas by reporting entity and sums them on konsolidasi', function () {
         ->and($konsolidasi['total_aktiva'])->toBe($konsolidasi['total_pasiva']);
 });
 
-it('treats positive supplier balances as hutang and plugs laba ditahan', function () {
-    $supplier = Addrbook::factory()->supplier()->create(['name' => 'Supplier Hutang']);
+it('treats year buys from supplier umum as hutang and ignores other suppliers and stats', function () {
+    $umum = Addrbook::factory()->supplier()->create(['name' => 'Supplier Umum - PT CORE']);
+    $other = Addrbook::factory()->supplier()->create(['name' => 'PT Kain Lain']);
     $warehouse = Addrbook::factory()->warehouse()->create();
 
     createBalanceTransaction([
         'date' => '2026-01-08',
         'type' => Transaction::TYPE_BUY,
         'sender_type' => Addrbook::TYPE_SUPPLIER,
-        'sender_id' => $supplier->id,
+        'sender_id' => $umum->id,
         'receiver_type' => Addrbook::TYPE_WAREHOUSE,
         'receiver_id' => $warehouse->id,
         'total' => 75_000,
         'real_total' => 75_000,
-        'sender_balance' => 75_000,
+        'sender_balance' => 9_999_999,
+        'receiver_balance' => 0,
+    ]);
+    createBalanceTransaction([
+        'date' => '2026-02-03',
+        'type' => Transaction::TYPE_BUY,
+        'sender_type' => Addrbook::TYPE_SUPPLIER,
+        'sender_id' => $umum->id,
+        'receiver_type' => Addrbook::TYPE_WAREHOUSE,
+        'receiver_id' => $warehouse->id,
+        'total' => 25_000,
+        'real_total' => 25_000,
+        'sender_balance' => 100_000,
+        'receiver_balance' => 0,
+    ]);
+    createBalanceTransaction([
+        'date' => '2026-01-09',
+        'type' => Transaction::TYPE_BUY,
+        'sender_type' => Addrbook::TYPE_SUPPLIER,
+        'sender_id' => $other->id,
+        'receiver_type' => Addrbook::TYPE_WAREHOUSE,
+        'receiver_id' => $warehouse->id,
+        'total' => 40_000,
+        'real_total' => 40_000,
+        'sender_balance' => 40_000,
+        'receiver_balance' => 0,
+    ]);
+    createBalanceTransaction([
+        'date' => '2025-11-12',
+        'type' => Transaction::TYPE_BUY,
+        'sender_type' => Addrbook::TYPE_SUPPLIER,
+        'sender_id' => $umum->id,
+        'receiver_type' => Addrbook::TYPE_WAREHOUSE,
+        'receiver_id' => $warehouse->id,
+        'total' => 12_000,
+        'real_total' => 12_000,
+        'sender_balance' => 12_000,
         'receiver_balance' => 0,
     ]);
 
-    $report = app(NeracaService::class)->build(2026, 1, NeracaService::CONSOLIDATED_ENTITY);
+    AddrbookStat::query()->updateOrCreate(
+        ['customer_id' => $umum->id],
+        ['balance' => 1_000_000],
+    );
 
-    expect($report['kewajiban']['hutang_usaha'])->toBe(75_000.0)
-        ->and($report['total_aktiva'])->toBe($report['total_pasiva'])
-        ->and(abs($report['balance_check']))->toBeLessThan(0.01);
+    $january = app(NeracaService::class)->build(2026, 1, NeracaService::CONSOLIDATED_ENTITY);
+    $february = app(NeracaService::class)->build(2026, 2, NeracaService::CONSOLIDATED_ENTITY);
+    $twentyFive = app(NeracaService::class)->build(2025, 12, NeracaService::CONSOLIDATED_ENTITY);
+
+    expect($january['kewajiban']['hutang_usaha'])->toBe(75_000.0)
+        ->and($february['kewajiban']['hutang_usaha'])->toBe(100_000.0)
+        ->and($twentyFive['kewajiban']['hutang_usaha'])->toBe(12_000.0)
+        ->and($january['total_aktiva'])->toBe($january['total_pasiva'])
+        ->and(abs($january['balance_check']))->toBeLessThan(0.01)
+        ->and(collect($january['drilldown']['hutang'])->pluck('name')->all())
+        ->toContain('Supplier Umum - PT CORE')
+        ->not->toContain('PT Kain Lain');
 });
 
 it('includes persisted persediaan closing on konsolidasi and excludes it per entity', function () {
