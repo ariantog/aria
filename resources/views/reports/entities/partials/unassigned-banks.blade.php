@@ -8,6 +8,7 @@
                     <a
                         href="{{ route('addrbook.type.edit', ['type' => 'bank', 'addrbook' => $bank]) }}"
                         class="inline-flex items-center rounded-full bg-white px-2.5 py-1 text-xs font-medium text-amber-900 ring-1 ring-amber-200 hover:bg-amber-100"
+                        data-testid="unassigned-bank-{{ $bank->id }}"
                     >
                         {{ $bank->name }}
                     </a>

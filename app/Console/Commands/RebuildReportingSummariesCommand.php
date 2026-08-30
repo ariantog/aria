@@ -75,8 +75,8 @@ class RebuildReportingSummariesCommand extends Command
 
         if ($months = $this->option('months')) {
             $count = max(1, (int) $months);
-            $from = now()->startOfMonth()->subMonths($count - 1);
-            $to = now()->endOfMonth();
+            $from = Carbon::parse(now())->startOfMonth()->subMonths($count - 1);
+            $to = Carbon::parse(now())->endOfMonth();
             if ($from->lessThan($cutover)) {
                 $from = $cutover->copy();
             }

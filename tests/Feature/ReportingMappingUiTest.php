@@ -6,7 +6,6 @@ use App\Models\ReportingEntity;
 use App\Models\ReportingLedgerRole as ReportingLedgerRoleModel;
 use App\Models\ReportingWarehouseFulfillment;
 use App\Models\User;
-use Illuminate\Support\Str;
 use Spatie\Permission\Models\Permission;
 
 beforeEach(function () {
@@ -30,14 +29,10 @@ it('lists unassigned operating banks and hides assigned or inactive banks', func
         ->get(route('reports.entities.index'))
         ->assertOk()
         ->assertSee('data-testid="entities-unassigned-banks"', false)
+        ->assertSee('data-testid="unassigned-bank-'.$unassigned->id.'"', false)
         ->assertSee('BCA Unassigned', false)
+        ->assertDontSee('data-testid="unassigned-bank-'.$assigned->id.'"', false)
         ->assertDontSee('Transfer Pending', false);
-
-    $html = $this->actingAs($this->user)->get(route('reports.entities.index'))->getContent();
-    $banner = Str::between($html, 'data-testid="entities-unassigned-banks"', '</div>');
-
-    expect($banner)->toContain('BCA Unassigned')
-        ->and($banner)->not->toContain('BCA Assigned');
 });
 
 it('saves a ledger role from the entities mapping ui', function () {

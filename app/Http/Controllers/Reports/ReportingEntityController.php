@@ -221,15 +221,16 @@ class ReportingEntityController extends Controller
      */
     private function unassignedOperatingBanks()
     {
+        $assignedBankIds = DB::table('reporting_entity_banks')
+            ->where('is_active', true)
+            ->pluck('bank_id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
         return Addrbook::query()
             ->where('type', Addrbook::TYPE_BANK)
             ->where('is_active_in_reports', true)
-            ->whereNotExists(function ($query) {
-                $query->selectRaw('1')
-                    ->from('reporting_entity_banks')
-                    ->whereColumn('reporting_entity_banks.bank_id', 'customers.id')
-                    ->where('reporting_entity_banks.is_active', true);
-            })
+            ->when($assignedBankIds !== [], fn ($query) => $query->whereNotIn('id', $assignedBankIds))
             ->orderBy('name')
             ->get(['id', 'name']);
     }
