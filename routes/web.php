@@ -381,6 +381,7 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
         Route::get('/receivables', \App\Http\Controllers\Reports\ReceivablesReportController::class)->name('receivables');
         Route::get('/payables', \App\Http\Controllers\Reports\PayablesReportController::class)->name('payables');
         Route::get('/tax/ppn', \App\Http\Controllers\Reports\TaxPpnReportController::class)->name('tax.ppn');
+        Route::get('/tax/pph', \App\Http\Controllers\Reports\TaxPphReportController::class)->name('tax.pph');
         Route::get('/tax/faktur', [\App\Http\Controllers\Reports\TaxFakturImportController::class, 'index'])->name('tax.faktur.index');
         Route::get('/tax/faktur/create', [\App\Http\Controllers\Reports\TaxFakturImportController::class, 'create'])->name('tax.faktur.create');
         Route::post('/tax/faktur/parse', [\App\Http\Controllers\Reports\TaxFakturImportController::class, 'parse'])->name('tax.faktur.parse');
@@ -396,6 +397,10 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
         Route::post('/entities', [\App\Http\Controllers\Reports\ReportingEntityController::class, 'store'])->name('entities.store');
         Route::get('/entities/{entity}/edit', [\App\Http\Controllers\Reports\ReportingEntityController::class, 'edit'])->name('entities.edit');
         Route::put('/entities/{entity}', [\App\Http\Controllers\Reports\ReportingEntityController::class, 'update'])->name('entities.update');
+        Route::post('/entities/ledger-roles', [\App\Http\Controllers\Reports\ReportingEntityController::class, 'storeLedgerRole'])->name('entities.ledger-roles.store');
+        Route::delete('/entities/ledger-roles/{role}', [\App\Http\Controllers\Reports\ReportingEntityController::class, 'destroyLedgerRole'])->name('entities.ledger-roles.destroy');
+        Route::post('/entities/fulfillment', [\App\Http\Controllers\Reports\ReportingEntityController::class, 'storeFulfillment'])->name('entities.fulfillment.store');
+        Route::delete('/entities/fulfillment/{fulfillment}', [\App\Http\Controllers\Reports\ReportingEntityController::class, 'destroyFulfillment'])->name('entities.fulfillment.destroy');
     });
 
     Route::prefix('stock-notifications')->name('stock-notifications.')->group(function () {
