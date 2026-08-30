@@ -224,11 +224,6 @@ class Addrbook extends Model
         return $this->hasOne(AddrbookStat::class, 'customer_id');
     }
 
-    public function reportingLedgerRole(): HasOne
-    {
-        return $this->hasOne(ReportingLedgerRole::class, 'customer_id');
-    }
-
     public function dailies()
     {
         return $this->hasMany(AddrbookDaily::class, 'customer_id');
@@ -272,7 +267,7 @@ class Addrbook extends Model
         return $this->belongsTo(Addrbook::class, 'default_bank_id');
     }
 
-    public function reportingLedgerRole()
+    public function reportingLedgerRole(): HasOne
     {
         return $this->hasOne(ReportingLedgerRole::class, 'customer_id');
     }
