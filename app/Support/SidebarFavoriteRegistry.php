@@ -250,15 +250,6 @@ class SidebarFavoriteRegistry
                 'active_prefix' => '/reports/warehouse-item',
             ],
             [
-                'key' => 'report-compare',
-                'label' => 'Compare',
-                'group' => 'Reports',
-                'permission' => 'report-compare',
-                'route' => 'reports.compare',
-                'params' => [],
-                'active_prefix' => '/reports/compare',
-            ],
-            [
                 'key' => 'report-warehouse-arrangement',
                 'label' => 'Warehouse Arrangement',
                 'group' => 'Reports',
