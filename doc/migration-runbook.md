@@ -49,7 +49,6 @@ php artisan app:sync-stat-sells --refresh
 php artisan app:recalculate-warehouse-item-stats
 php artisan app:recalculate-item-sales
 php artisan app:recalculate-nett-cash
-php artisan app:recalculate-cash-flow
 php artisan app:recalculate-inventory-health
 ```
 

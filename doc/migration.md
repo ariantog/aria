@@ -15,7 +15,6 @@ php artisan app:reset-legacy-items-migration --force
 php artisan app:delete-transactions --year=2026
 
 php artisan app:recalculate-nett-cash
-php artisan app:recalculate-cash-flow
 php artisan app:recalculate-inventory-health
 php artisan app:recalculate-item-sales
 
