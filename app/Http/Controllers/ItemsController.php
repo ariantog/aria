@@ -18,7 +18,7 @@ use App\Services\Items\ItemGroupHierarchyService;
 use App\Services\Items\ItemGroupParentExportService;
 use App\Services\Items\ItemIdentityBuilder;
 use App\Services\Items\LegacyItemConverterService;
-use App\Services\ProductPerformanceService;
+use App\Services\ItemStatsService;
 use App\Services\JubelioService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -27,7 +27,7 @@ class ItemsController extends Controller
 {
     public function __construct(
         protected ItemService $itemService,
-        protected ProductPerformanceService $performance,
+        protected ItemStatsService $itemStats,
         protected ItemGroupHierarchyService $groupHierarchy,
         protected ItemIdentityBuilder $identityBuilder,
         protected LegacyItemConverterService $legacyConverter,
@@ -508,19 +508,17 @@ class ItemsController extends Controller
         $p = Item::getPermissions();
         Gate::authorize($item->type === ItemType::ASSET_LANCAR ? $p['asset-lancar-view'] : $p['view']);
 
-        $periodDays = $this->performance->normalizePeriodDays($request->query('period', 90));
+        $periodDays = $this->itemStats->normalizePeriodDays($request->query('period', 90));
         $warehouseId = $request->query('warehouse_id') ? (int) $request->query('warehouse_id') : null;
-        $stats = $this->performance->itemMonthlyBreakdown($item->id, $periodDays, $warehouseId);
+        $stats = $this->itemStats->monthlyBreakdown($item->id, $periodDays, $warehouseId);
 
         return view('items.item-stats', [
             'item' => $item->load('group'),
             'months' => $stats['months'],
             'totals' => $stats['totals'],
-            'syncedAt' => $stats['synced_at'],
-            'stale' => $stats['stale'],
             'hasData' => $stats['has_data'],
-            'warehouses' => $this->performance->warehouses(),
-            'periodOptions' => ProductPerformanceService::periodOptions(),
+            'warehouses' => $this->itemStats->warehouses(),
+            'periodOptions' => ItemStatsService::periodOptions(),
             'filters' => [
                 'period' => $periodDays,
                 'warehouse_id' => $warehouseId,
