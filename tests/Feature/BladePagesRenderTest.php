@@ -170,12 +170,10 @@ it('renders migrated GET pages with a 200', function (string $route) {
     // Reports
     'report warehouse-item' => 'reports/warehouse-item',
     'report purchase' => 'reports/purchase',
-    'report expense' => 'reports/expense',
     'report asset tetap' => 'reports/asset-tetap',
     'asset tetap' => 'assettetap',
     'asset tetap create' => 'assettetap/create',
     'asset tetap depreciate' => 'assettetap/depreciate',
-    'report cash-flow' => 'reports/cash-flow',
     'report nett-cash-sby' => 'reports/nett-cash-sby',
     'report warehouse-arrangement' => 'reports/warehouse-arrangement',
     'stock notifications' => 'stock-notifications',

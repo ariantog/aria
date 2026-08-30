@@ -110,12 +110,6 @@
     if ($hasPerm('report-nett-cash') || $isSuperAdmin) {
         $reportNavLabels[] = 'Nett Cash';
     }
-    if ($hasPerm('report-cash-flow') || $isSuperAdmin) {
-        $reportNavLabels[] = 'Cash Flow';
-    }
-    if ($hasPerm('report-expense') || $isSuperAdmin) {
-        $reportNavLabels[] = 'Laporan Biaya';
-    }
     if ($hasPerm('report-neraca') || $isSuperAdmin) {
         $reportNavLabels[] = 'Neraca';
     }
@@ -423,8 +417,6 @@
     || $hasPerm('report-warehouse-arrangement')
     || $hasPerm('report-product-performance')
     || $hasPerm('report-nett-cash')
-    || $hasPerm('report-cash-flow')
-    || $hasPerm('report-expense')
     || $hasPerm('report-neraca')
     || $hasPerm('report-laba-rugi')
     || $hasPerm('report-receivables')
@@ -443,8 +435,6 @@
         || $isActive('/reports/warehouse-arrangement')
         || $isActive('/reports/product-performance')
         || $isActive('/reports/nett-cash-sby')
-        || $isActive('/reports/cash-flow')
-        || $isActive('/reports/expense')
         || $isActive('/reports/neraca')
         || $isActive('/reports/laba-rugi')
         || $isActive('/reports/receivables')
@@ -482,17 +472,11 @@
         <a href="{{ route('reports.product-performance') }}" x-show="navLinkVisible('Product Performance', 'Reports')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/product-performance') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Product Performance</a>
         @endif
 
-        @if($hasPerm('report-nett-cash') || $hasPerm('report-cash-flow') || $hasPerm('report-expense') || $hasPerm('report-neraca') || $hasPerm('report-laba-rugi') || $hasPerm('report-receivables') || $hasPerm('report-payables') || $hasPerm('report-asset-tetap') || $isSuperAdmin)
+        @if($hasPerm('report-nett-cash') || $hasPerm('report-neraca') || $hasPerm('report-laba-rugi') || $hasPerm('report-receivables') || $hasPerm('report-payables') || $hasPerm('report-asset-tetap') || $isSuperAdmin)
         <p class="px-2.5 pt-2 pb-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-400">Finance</p>
         @endif
         @if($hasPerm('report-nett-cash') || $isSuperAdmin)
         <a href="{{ route('reports.nett-cash-sby') }}" x-show="navLinkVisible('Nett Cash', 'Reports')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/nett-cash-sby') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Nett Cash</a>
-        @endif
-        @if($hasPerm('report-cash-flow') || $isSuperAdmin)
-        <a href="{{ route('reports.cash-flow') }}" x-show="navLinkVisible('Cash Flow', 'Reports')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/cash-flow') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Cash Flow</a>
-        @endif
-        @if($hasPerm('report-expense') || $isSuperAdmin)
-        <a href="{{ route('reports.expense') }}" x-show="navLinkVisible('Laporan Biaya', 'Reports')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/expense') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Laporan Biaya</a>
         @endif
         @if($hasPerm('report-neraca') || $isSuperAdmin)
         <a href="{{ route('reports.neraca') }}" x-show="navLinkVisible('Neraca', 'Reports')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/neraca') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Neraca</a>
