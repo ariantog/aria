@@ -105,6 +105,16 @@ class ScheduledTaskSeeder extends Seeder
         );
 
         \App\Models\ScheduledTask::updateOrCreate(
+            ['command' => 'reporting:rebuild-summaries --months=2'],
+            [
+                'name' => 'Rebuild Recent Reporting Summaries',
+                'frequency' => 'daily',
+                'active' => true,
+                'description' => 'Replays entity, operation, and tax summaries for the current and previous month. Full history stays a manual artisan command.',
+            ]
+        );
+
+        \App\Models\ScheduledTask::updateOrCreate(
             ['command' => 'app:sync-product-performance'],
             [
                 'name' => 'Sync Product Performance',
