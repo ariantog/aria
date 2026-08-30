@@ -41,6 +41,6 @@ Berikut adalah faktor-faktor teknis yang sempat menyebabkan perbedaan angka sebe
 ---
 
 ## 3. Status Saat Ini
-Sistem pelaporan di project baru (`ReportController`) dan proses sinkronisasi (`RecalculateNettCash`, `TransactionObserver`) sudah diperbarui untuk mengikuti aturan di atas.
+Sistem pelaporan di project baru dan proses sinkronisasi (`TransactionObserver`) sudah diperbarui untuk mengikuti aturan di atas.
 
 **Data sekarang 100% konsisten dengan data mentah yang ada di database legacy.**
