@@ -14,7 +14,6 @@ class Report
     {
         return [
             'view-nett-cash' => 'report-nett-cash',
-            'view-purchase' => 'report-purchase',
             'view-export-sell' => 'report-export-sell',
             'view-asset-tetap' => 'report-asset-tetap',
             'view-warehouse-item' => 'report-warehouse-item',

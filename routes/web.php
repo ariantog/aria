@@ -357,7 +357,6 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
 
     Route::prefix('reports')->name('reports.')->group(function () {
         Route::get('/nett-cash-sby', \App\Http\Controllers\Reports\NettCashController::class)->name('nett-cash-sby');
-        Route::get('/purchase', \App\Http\Controllers\Reports\PurchaseReportController::class)->name('purchase');
         Route::get('/asset-tetap', \App\Http\Controllers\Reports\AssetTetapReportController::class)->name('asset-tetap');
         Route::get('/warehouse-item', [\App\Http\Controllers\Reports\WarehouseItemReportController::class, 'index'])->name('warehouse-item');
         Route::redirect('/item-sales', '/transactions/export-sell');

@@ -124,15 +124,6 @@ class SidebarFavoriteRegistry
                 'active_prefix' => '/transactions/return-supplier/',
             ],
             [
-                'key' => 'report-purchase',
-                'label' => 'Pembelian',
-                'group' => 'Transactions',
-                'permission' => 'report-purchase',
-                'route' => 'reports.purchase',
-                'params' => [],
-                'active_prefix' => '/reports/purchase',
-            ],
-            [
                 'key' => 'report-export-sell',
                 'label' => 'Export Sell',
                 'group' => 'Transactions',

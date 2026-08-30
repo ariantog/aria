@@ -61,9 +61,6 @@
     if ($hasPerm('transactions-type-return-supplier') || $isSuperAdmin) {
         $txNavLabels[] = 'Return Supplier';
     }
-    if ($hasPerm('report-purchase') || $isSuperAdmin) {
-        $txNavLabels[] = 'Pembelian';
-    }
     if ($hasPerm('report-export-sell') || $isSuperAdmin) {
         $txNavLabels[] = 'Export Sell';
     }
@@ -271,11 +268,10 @@
     || $hasPerm('transactions-type-adjust')
     || $hasPerm('transactions-type-return')
     || $hasPerm('transactions-type-return-supplier')
-    || $hasPerm('report-purchase')
     || $hasPerm('report-export-sell')
     || $isSuperAdmin
 )
-@php $txActive = $isActive('/transactions') || $isActive('/reports/purchase'); @endphp
+@php $txActive = $isActive('/transactions'); @endphp
 <div x-data="{ open: {{ $txActive ? 'true' : 'false' }} }"
      class="mb-1"
      x-show="navGroupVisible(@js($txNavLabels))"
@@ -317,9 +313,6 @@
         @endif
         @if($hasPerm('transactions-type-return-supplier') || $isSuperAdmin)
         <a href="{{ route('transactions.create', 'return-supplier') }}" x-show="navLinkVisible('Return Supplier', 'Transactions')" class="block rounded-md px-2.5 py-1.5 text-sm {{ str_starts_with($currentUrl,'transactions/return-supplier/') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Return Supplier</a>
-        @endif
-        @if($hasPerm('report-purchase') || $isSuperAdmin)
-        <a href="{{ route('reports.purchase') }}" x-show="navLinkVisible('Pembelian', 'Transactions')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/purchase') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Pembelian</a>
         @endif
         @if($hasPerm('report-export-sell') || $isSuperAdmin)
         <a href="{{ route('transactions.export-sell') }}" x-show="navLinkVisible('Export Sell', 'Transactions')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/transactions/export-sell') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Export Sell</a>
@@ -411,8 +404,7 @@
 
 {{-- ── Reports ───────────────────────────────────────────────────────── --}}
 @if(
-    $hasPerm('report-purchase')
-    || $hasPerm('report-export-sell')
+    $hasPerm('report-export-sell')
     || $hasPerm('report-warehouse-item')
     || $hasPerm('report-warehouse-arrangement')
     || $hasPerm('report-product-performance')
@@ -430,8 +422,7 @@
     || $isSuperAdmin
 )
 @php
-    $repActive = $isActive('/reports/purchase')
-        || $isActive('/reports/warehouse-item')
+    $repActive = $isActive('/reports/warehouse-item')
         || $isActive('/reports/warehouse-arrangement')
         || $isActive('/reports/product-performance')
         || $isActive('/reports/nett-cash-sby')
