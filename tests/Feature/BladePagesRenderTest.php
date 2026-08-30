@@ -167,6 +167,7 @@ it('renders migrated GET pages with a 200', function (string $route) {
     'asset tetap' => 'assettetap',
     'asset tetap create' => 'assettetap/create',
     'asset tetap depreciate' => 'assettetap/depreciate',
+    'report nett-cash-sby' => 'reports/nett-cash-sby',
     'report item-sales' => 'reports/item-sales',
     'report compare' => 'reports/compare',
     'report inventory-health' => 'reports/inventory-health',
