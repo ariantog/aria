@@ -8,6 +8,11 @@ use App\Models\TransactionDetail;
 use App\Models\User;
 use App\Services\ItemStatsService;
 
+beforeEach(function () {
+    $this->user = User::factory()->create();
+    expect($this->user->is_superadmin)->toBeTrue();
+});
+
 function seedItemStatLine(
     Item $item,
     Addrbook $warehouse,
@@ -55,7 +60,7 @@ it('renders item stats from live sell and return lines without monthly-stat cach
     seedItemStatLine($item, $warehouse, $customer, Transaction::TYPE_SELL, now()->toDateString(), 2, 20000, 10);
     seedItemStatLine($item, $warehouse, $customer, Transaction::TYPE_RETURN, now()->toDateString(), 1, 5000, 0);
 
-    $this->actingAs(User::factory()->create())
+    $this->actingAs($this->user)
         ->get(route('items.stats', ['item' => $item, 'period' => 90]))
         ->assertOk()
         ->assertSee('Item Statistics', false)
@@ -79,7 +84,7 @@ it('renders asset lancar stats from live transaction details', function () {
 
     seedItemStatLine($item, $warehouse, $customer, Transaction::TYPE_SELL, now()->toDateString(), 3, 30000);
 
-    $this->actingAs(User::factory()->create())
+    $this->actingAs($this->user)
         ->get(route('assetlancar.stats', ['item' => $item, 'period' => 90]))
         ->assertOk()
         ->assertSee('Item Statistics', false)
@@ -105,7 +110,7 @@ it('excludes sell lines older than the selected period', function () {
         90000,
     );
 
-    $this->actingAs(User::factory()->create())
+    $this->actingAs($this->user)
         ->get(route('items.stats', ['item' => $item, 'period' => 90]))
         ->assertOk()
         ->assertSee('20,000', false)
@@ -121,7 +126,7 @@ it('filters item stats by warehouse party', function () {
     seedItemStatLine($item, $gudangA, $customer, Transaction::TYPE_SELL, now()->toDateString(), 2, 20000);
     seedItemStatLine($item, $gudangB, $customer, Transaction::TYPE_SELL, now()->toDateString(), 7, 70000);
 
-    $this->actingAs(User::factory()->create())
+    $this->actingAs($this->user)
         ->get(route('items.stats', ['item' => $item, 'period' => 90, 'warehouse_id' => $gudangA->id]))
         ->assertOk()
         ->assertSee('20,000', false)
@@ -131,7 +136,7 @@ it('filters item stats by warehouse party', function () {
 it('shows an empty state when the item has no sell or return lines', function () {
     $item = Item::factory()->create(['name' => 'Empty SKU']);
 
-    $this->actingAs(User::factory()->create())
+    $this->actingAs($this->user)
         ->get(route('items.stats', $item))
         ->assertOk()
         ->assertSee('No sell or return lines in this period.', false)
