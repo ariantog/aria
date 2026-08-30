@@ -98,9 +98,6 @@
     }
 
     $reportNavLabels = ['Reports'];
-    if ($hasPerm('report-item-sales') || $isSuperAdmin) {
-        $reportNavLabels[] = 'Item Sale';
-    }
     if ($hasPerm('report-warehouse-item') || $isSuperAdmin) {
         $reportNavLabels[] = 'Item Gudang';
     }
@@ -425,7 +422,6 @@
 @if(
     $hasPerm('report-purchase')
     || $hasPerm('report-export-sell')
-    || $hasPerm('report-item-sales')
     || $hasPerm('report-warehouse-item')
     || $hasPerm('report-warehouse-arrangement')
     || $hasPerm('report-product-performance')
@@ -447,7 +443,6 @@
 )
 @php
     $repActive = $isActive('/reports/purchase')
-        || $isActive('/reports/item-sales')
         || $isActive('/reports/warehouse-item')
         || $isActive('/reports/warehouse-arrangement')
         || $isActive('/reports/product-performance')
@@ -479,11 +474,8 @@
         <svg x-show="sidebarOpen" x-cloak :class="open ? 'rotate-90' : ''" class="h-3.5 w-3.5 flex-shrink-0 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
     </button>
     <div x-show="open && sidebarOpen" x-cloak class="ml-6 mt-1 space-y-0.5">
-        @if($hasPerm('report-item-sales') || $hasPerm('report-warehouse-item') || $hasPerm('report-warehouse-arrangement') || $hasPerm('report-product-performance') || $hasPerm('report-inventory-health') || $isSuperAdmin)
+        @if($hasPerm('report-warehouse-item') || $hasPerm('report-warehouse-arrangement') || $hasPerm('report-product-performance') || $hasPerm('report-inventory-health') || $isSuperAdmin)
         <p class="px-2.5 pt-2 pb-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-400">Inventory</p>
-        @endif
-        @if($hasPerm('report-item-sales') || $isSuperAdmin)
-        <a href="{{ route('reports.item-sales') }}" x-show="navLinkVisible('Item Sale', 'Reports')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/item-sales') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Item Sale</a>
         @endif
         @if($hasPerm('report-warehouse-item') || $isSuperAdmin)
         <a href="{{ route('reports.warehouse-item') }}" x-show="navLinkVisible('Item Gudang', 'Reports')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/warehouse-item') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Item Gudang</a>
