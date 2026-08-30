@@ -16,6 +16,12 @@ beforeEach(function () {
     $this->user->givePermissionTo('report-export-sell');
 });
 
+it('redirects the retired item-sales report to export sell', function () {
+    $this->actingAs($this->user)
+        ->get('/reports/item-sales')
+        ->assertRedirect('/transactions/export-sell');
+});
+
 it('renders export sell page for authorized users', function () {
     $this->actingAs($this->user)
         ->get(route('transactions.export-sell'))

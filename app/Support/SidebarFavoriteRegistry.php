@@ -232,15 +232,6 @@ class SidebarFavoriteRegistry
                 'active_prefix' => '/stock-notifications',
             ],
             [
-                'key' => 'report-item-sales',
-                'label' => 'Item Sale',
-                'group' => 'Reports',
-                'permission' => 'report-item-sales',
-                'route' => 'reports.item-sales',
-                'params' => [],
-                'active_prefix' => '/reports/item-sales',
-            ],
-            [
                 'key' => 'report-warehouse-item',
                 'label' => 'Item Gudang',
                 'group' => 'Reports',
