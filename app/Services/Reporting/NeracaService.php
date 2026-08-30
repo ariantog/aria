@@ -20,6 +20,7 @@ class NeracaService
     public function __construct(
         private readonly InventoryRollForwardService $inventory,
         private readonly BalanceAsOfService $balances,
+        private readonly YearTradeBalanceService $tradeBalances,
         private readonly ReportingContactFilter $contacts,
     ) {}
 
@@ -32,6 +33,9 @@ class NeracaService
      *     entity_label: string,
      *     is_consolidated: bool,
      *     source: string,
+     *     trade_source: string,
+     *     year_start: string,
+     *     year_end: string,
      *     persediaan: array<string, mixed>,
      *     aktiva_lancar: array<string, float>,
      *     aktiva_tetap: float,
@@ -56,6 +60,8 @@ class NeracaService
             : $this->inventory->ensureThrough($year, $month)->last();
 
         $hadSnapshot = $this->balances->hasSnapshot($asOf->toDateString());
+        [$yearStart, $yearEnd] = $this->tradeBalances->yearRange($year, $asOf);
+
         $rows = $this->balances->balancesAsOf($asOf, persist: true, refresh: $refresh)
             ->filter(fn (object $row) => $this->contacts->include($row))
             ->values();
@@ -65,11 +71,19 @@ class NeracaService
             : $rows->filter(fn (object $row) => (int) $row->reporting_entity_id === $resolvedEntityId);
 
         $kasRows = $scoped->where('customer_type', Addrbook::TYPE_BANK)->values();
-        $piutangRows = $this->contacts->receivables($isConsolidated ? $rows : $scoped);
-        $hutangRows = $this->contacts->payables($isConsolidated ? $rows : $scoped);
+        $piutangRows = $this->scopeTradeRows(
+            $this->tradeBalances->receivables($yearStart, $yearEnd),
+            $isConsolidated,
+            $resolvedEntityId,
+        );
+        $hutangRows = $this->scopeTradeRows(
+            $this->tradeBalances->payables($yearStart, $yearEnd),
+            $isConsolidated,
+            $resolvedEntityId,
+        );
 
         $kas = (float) $kasRows->sum('balance');
-        $piutang = (float) $piutangRows->sum(fn (object $row) => abs((float) $row->balance));
+        $piutang = (float) $piutangRows->sum(fn (object $row) => (float) $row->balance);
         $hutang = (float) $hutangRows->sum(fn (object $row) => (float) $row->balance);
 
         $persediaanClosing = $isConsolidated ? (float) ($persediaan['closing'] ?? 0) : 0.0;
@@ -109,6 +123,9 @@ class NeracaService
             'entity_label' => $this->entityLabel($resolvedEntityId),
             'is_consolidated' => $isConsolidated,
             'source' => ($hadSnapshot && ! $refresh) ? 'snapshot' : 'replay',
+            'trade_source' => 'year_activity',
+            'year_start' => $yearStart,
+            'year_end' => $yearEnd,
             'persediaan' => $persediaan,
             'aktiva_lancar' => $aktivaLancar,
             'aktiva_tetap' => $aktivaTetap,
@@ -130,10 +147,24 @@ class NeracaService
 
     public function exportXlsx(array $report): StreamedResponse
     {
-        $drillHeaders = ['Nama', 'Entitas', 'Saldo', 'Ref'];
-        $mapDrill = fn (array $row) => [
+        $mapKas = fn (array $row) => [
             $row['name'],
             $row['entity_name'],
+            $row['balance'],
+            'addrbook:'.$row['id'],
+        ];
+        $mapPiutang = fn (array $row) => [
+            $row['name'],
+            $row['entity_name'],
+            $row['sell'] ?? 0,
+            $row['cash_in'] ?? 0,
+            $row['balance'],
+            'addrbook:'.$row['id'],
+        ];
+        $mapHutang = fn (array $row) => [
+            $row['name'],
+            $row['entity_name'],
+            $row['buy'] ?? $row['balance'],
             $row['balance'],
             'addrbook:'.$row['id'],
         ];
@@ -151,7 +182,8 @@ class NeracaService
                     'rows' => [
                         ['Entitas', $report['entity_label']],
                         ['As of', $report['as_of']],
-                        ['Sumber', $report['source']],
+                        ['Sumber kas', $report['source']],
+                        ['Piutang/hutang', 'aktivitas '.$report['year_start'].' – '.$report['year_end']],
                     ],
                 ],
                 [
@@ -176,18 +208,18 @@ class NeracaService
                 ],
                 [
                     'title' => 'Kas / Bank',
-                    'headers' => $drillHeaders,
-                    'rows' => array_map($mapDrill, $report['drilldown']['kas']),
+                    'headers' => ['Nama', 'Entitas', 'Saldo', 'Ref'],
+                    'rows' => array_map($mapKas, $report['drilldown']['kas']),
                 ],
                 [
-                    'title' => 'Piutang',
-                    'headers' => $drillHeaders,
-                    'rows' => array_map($mapDrill, $report['drilldown']['piutang']),
+                    'title' => 'Piutang (jual − cash in tahun '.$report['year'].')',
+                    'headers' => ['Nama', 'Entitas', 'Jual', 'Cash In', 'Piutang', 'Ref'],
+                    'rows' => array_map($mapPiutang, $report['drilldown']['piutang']),
                 ],
                 [
-                    'title' => 'Hutang',
-                    'headers' => $drillHeaders,
-                    'rows' => array_map($mapDrill, $report['drilldown']['hutang']),
+                    'title' => 'Hutang (beli Supplier Umum tahun '.$report['year'].')',
+                    'headers' => ['Nama', 'Entitas', 'Beli', 'Hutang', 'Ref'],
+                    'rows' => array_map($mapHutang, $report['drilldown']['hutang']),
                 ],
             ],
         );
@@ -254,21 +286,49 @@ class NeracaService
 
     /**
      * @param  Collection<int, object>  $rows
+     * @return Collection<int, object>
+     */
+    private function scopeTradeRows(Collection $rows, bool $isConsolidated, int $entityId): Collection
+    {
+        return $rows
+            ->filter(fn (object $row) => $this->contacts->include($row))
+            ->when(
+                ! $isConsolidated,
+                fn (Collection $collection) => $collection->filter(
+                    fn (object $row) => (int) $row->reporting_entity_id === $entityId
+                ),
+            )
+            ->values();
+    }
+
+    /**
+     * @param  Collection<int, object>  $rows
      * @param  Collection<int|string, string>  $entityNames
-     * @return list<array{id: int, name: string, balance: float, entity_name: string|null}>
+     * @return list<array{id: int, name: string, balance: float, entity_name: string|null, sell?: float, cash_in?: float, buy?: float}>
      */
     private function formatDrilldown(Collection $rows, Collection $entityNames): array
     {
         return $rows
             ->sortBy(fn (object $row) => $row->name ?? '')
-            ->map(fn (object $row) => [
-                'id' => (int) $row->customer_id,
-                'name' => (string) ($row->name ?? '#'.$row->customer_id),
-                'balance' => (float) $row->balance,
-                'entity_name' => $row->reporting_entity_id
-                    ? ($entityNames[(int) $row->reporting_entity_id] ?? null)
-                    : null,
-            ])
+            ->map(function (object $row) use ($entityNames) {
+                $item = [
+                    'id' => (int) $row->customer_id,
+                    'name' => (string) ($row->name ?? '#'.$row->customer_id),
+                    'balance' => (float) $row->balance,
+                    'entity_name' => $row->reporting_entity_id
+                        ? ($entityNames[(int) $row->reporting_entity_id] ?? null)
+                        : null,
+                ];
+                if (isset($row->sell) || isset($row->cash_in)) {
+                    $item['sell'] = (float) ($row->sell ?? 0);
+                    $item['cash_in'] = (float) ($row->cash_in ?? 0);
+                }
+                if (isset($row->buy)) {
+                    $item['buy'] = (float) $row->buy;
+                }
+
+                return $item;
+            })
             ->values()
             ->all();
     }

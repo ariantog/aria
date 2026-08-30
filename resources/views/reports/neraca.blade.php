@@ -38,7 +38,8 @@ $xlsxQuery = http_build_query([
             <h2 class="text-2xl font-bold text-gray-900">Neraca</h2>
             <p class="mt-1 text-sm text-gray-500">
                 {{ $report['entity_label'] }} — posisi {{ $monthNames[$filters['month']] }} {{ $filters['year'] }}
-                (as of {{ $report['as_of'] }}, {{ $report['source'] === 'snapshot' ? 'snapshot' : 'replay as-of' }})
+                (as of {{ $report['as_of'] }}, kas {{ $report['source'] === 'snapshot' ? 'snapshot' : 'replay as-of' }};
+                piutang/hutang aktivitas {{ $report['year_start'] }} – {{ $report['year_end'] }})
             </p>
         </div>
         <div class="flex flex-wrap gap-2">
@@ -217,6 +218,7 @@ $xlsxQuery = http_build_query([
                     <tr>
                         <td class="py-2">
                             <button type="button" class="text-left text-blue-700 hover:underline" @click="togglePiutang()">Piutang usaha</button>
+                            <p class="text-[11px] text-gray-400">Jual − cash in customer/reseller, {{ $report['year'] }} s/d {{ $report['as_of'] }}</p>
                         </td>
                         <td class="py-2 text-right tabular-nums" data-testid="neraca-piutang">{{ $fmt($report['aktiva_lancar']['piutang']) }}</td>
                     </tr>
@@ -225,11 +227,16 @@ $xlsxQuery = http_build_query([
                             <ul class="space-y-1 rounded-lg bg-gray-50 p-3 text-xs text-gray-600">
                                 @forelse($report['drilldown']['piutang'] as $row)
                                     <li class="flex justify-between gap-3">
-                                        <span>{{ $row['name'] }}</span>
-                                        <span class="tabular-nums">{{ $fmt(abs($row['balance'])) }}</span>
+                                        <span>
+                                            {{ $row['name'] }}
+                                            @if(isset($row['sell']))
+                                                <span class="text-gray-400">jual {{ $fmt($row['sell']) }} − cash in {{ $fmt($row['cash_in'] ?? 0) }}</span>
+                                            @endif
+                                        </span>
+                                        <span class="tabular-nums">{{ $fmt($row['balance']) }}</span>
                                     </li>
                                 @empty
-                                    <li>Tidak ada piutang pada tanggal ini.</li>
+                                    <li>Tidak ada piutang (jual &gt; cash in) tahun ini.</li>
                                 @endforelse
                             </ul>
                         </td>
@@ -267,6 +274,7 @@ $xlsxQuery = http_build_query([
                     <tr>
                         <td class="py-2">
                             <button type="button" class="text-left text-blue-700 hover:underline" @click="toggleHutang()">Hutang usaha</button>
+                            <p class="text-[11px] text-gray-400">Beli dari Supplier Umum, {{ $report['year'] }} s/d {{ $report['as_of'] }}</p>
                         </td>
                         <td class="py-2 text-right tabular-nums" data-testid="neraca-hutang">{{ $fmt($report['kewajiban']['hutang_usaha']) }}</td>
                     </tr>
@@ -275,11 +283,16 @@ $xlsxQuery = http_build_query([
                             <ul class="space-y-1 rounded-lg bg-gray-50 p-3 text-xs text-gray-600">
                                 @forelse($report['drilldown']['hutang'] as $row)
                                     <li class="flex justify-between gap-3">
-                                        <span>{{ $row['name'] }}</span>
+                                        <span>
+                                            {{ $row['name'] }}
+                                            @if(isset($row['buy']))
+                                                <span class="text-gray-400">beli {{ $fmt($row['buy']) }}</span>
+                                            @endif
+                                        </span>
                                         <span class="tabular-nums">{{ $fmt($row['balance']) }}</span>
                                     </li>
                                 @empty
-                                    <li>Tidak ada hutang pada tanggal ini.</li>
+                                    <li>Tidak ada beli Supplier Umum tahun ini.</li>
                                 @endforelse
                             </ul>
                         </td>
