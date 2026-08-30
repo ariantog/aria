@@ -14,13 +14,10 @@ class Report
     {
         return [
             'view-nett-cash' => 'report-nett-cash',
-            'view-compare' => 'report-compare',
-            'view-inventory-health' => 'report-inventory-health',
             'view-purchase' => 'report-purchase',
             'view-export-sell' => 'report-export-sell',
             'view-asset-tetap' => 'report-asset-tetap',
             'view-warehouse-item' => 'report-warehouse-item',
-            'view-item-sales' => 'report-item-sales',
             'view-warehouse-arrangement' => 'report-warehouse-arrangement',
             'view-product-performance' => 'report-product-performance',
             'view-produksi-potong' => 'report-produksi-potong',

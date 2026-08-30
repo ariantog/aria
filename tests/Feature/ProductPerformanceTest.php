@@ -137,25 +137,3 @@ it('nulls orphaned group_id values when the item_group row is missing', function
     expect($dims['group_id'])->toBeNull();
 });
 
-it('renders item stats from cached warehouse monthly stats with period presets', function () {
-    $warehouse = Addrbook::factory()->warehouse()->create();
-    $item = Item::factory()->create(['name' => 'Stats SKU', 'code' => 'STAT-01']);
-
-    WarehouseItemMonthlyStat::create([
-        'warehouse_id' => $warehouse->id,
-        'item_id' => $item->id,
-        'month' => now()->month,
-        'year' => now()->year,
-        'sold_qty' => 5,
-        'returned_qty' => 1,
-        'sold_value' => 50000,
-        'returned_value' => 5000,
-    ]);
-
-    $this->actingAs(User::factory()->create())
-        ->get(route('items.stats', ['item' => $item, 'period' => 90]))
-        ->assertOk()
-        ->assertSee('Item Statistics', false)
-        ->assertSee('Sold qty', false)
-        ->assertSee(now()->format('F Y'), false);
-});

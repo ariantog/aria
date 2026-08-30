@@ -40,6 +40,20 @@ it('shows export sell when permission is granted through a role', function () {
         ->assertSee('Transactions', false);
 });
 
+it('does not list the retired item sale report in the sidebar', function () {
+    Permission::firstOrCreate(['name' => 'report-export-sell']);
+
+    $user = User::factory()->create();
+    expect($user->is_superadmin)->toBeTrue();
+
+    $this->actingAs($user)
+        ->get(route('dashboard'))
+        ->assertOk()
+        ->assertSee('Export Sell', false)
+        ->assertDontSee('/reports/item-sales', false)
+        ->assertDontSee("navLinkVisible('Item Sale', 'Reports')", false);
+});
+
 it('shows export sell in transactions section when user also has transactions-list', function () {
     Permission::firstOrCreate(['name' => 'report-export-sell']);
     Permission::firstOrCreate(['name' => 'transactions-list']);

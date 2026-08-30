@@ -23,47 +23,40 @@ $fmt = fn ($n) => format_amount($n, 0);
                 <span class="font-mono text-sm text-gray-400">#{{ $item->code }}</span>
             </div>
             <h1 class="mb-1 text-2xl font-bold text-gray-900">Item Statistics</h1>
-            <p class="text-sm text-gray-500">Sell / return demand for <span class="text-blue-600">{{ $item->name }}</span> (cached product-performance data, net of returns, after invoice discount).</p>
+            <p class="text-sm text-gray-500">Sell / return demand for <span class="text-blue-600">{{ $item->name }}</span> (net of returns, after invoice discount).</p>
         </div>
 
-        <form method="GET" action="{{ $base }}/{{ $item->id }}/stats" class="flex flex-wrap items-end gap-3 rounded-xl border border-gray-200 bg-white p-4">
+        <form method="GET" action="{{ $base }}/{{ $item->id }}/stats" class="flex flex-wrap items-end gap-3 rounded-xl border border-gray-200 bg-white p-4" data-testid="item-stats-filters">
             <div class="flex flex-col gap-1">
-                <label class="text-xs font-medium uppercase text-gray-500">Period</label>
-                <select name="period" class="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm">
+                <label class="text-xs font-medium uppercase text-gray-500" for="item-stats-period">Period</label>
+                <select id="item-stats-period" name="period" data-testid="item-stats-period" class="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm">
                     @foreach($periodOptions as $days => $label)
                         <option value="{{ $days }}" @selected((int) $filters['period'] === (int) $days)>{{ $label }}</option>
                     @endforeach
                 </select>
             </div>
             <div class="flex flex-col gap-1">
-                <label class="text-xs font-medium uppercase text-gray-500">Warehouse</label>
-                <select name="warehouse_id" class="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm">
+                <label class="text-xs font-medium uppercase text-gray-500" for="item-stats-warehouse">Warehouse</label>
+                <select id="item-stats-warehouse" name="warehouse_id" data-testid="item-stats-warehouse" class="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm">
                     <option value="">All warehouses</option>
                     @foreach($warehouses as $wh)
                         <option value="{{ $wh->id }}" @selected((int) ($filters['warehouse_id'] ?? 0) === (int) $wh->id)>{{ $wh->name }}</option>
                     @endforeach
                 </select>
             </div>
-            <button type="submit" class="rounded-lg bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700">Apply</button>
+            <button type="submit" data-testid="item-stats-apply" class="rounded-lg bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700">Apply</button>
         </form>
     </div>
 
-    <div class="mb-4 text-xs text-gray-500">
-        @if($syncedAt)
-            Stats last updated {{ $syncedAt->diffForHumans() }}.
-            @if($stale)
-                <span class="text-amber-700">May be stale — run <code class="text-xs">app:recalculate-warehouse-item-stats</code>.</span>
-            @endif
-        @elseif(! $hasData)
-            <span class="text-amber-700">No cached stats yet. Run <code class="text-xs">php artisan app:recalculate-warehouse-item-stats</code>.</span>
-        @endif
-    </div>
+    @if(! $hasData)
+        <p class="mb-4 text-xs text-gray-500">No sell or return lines in this period.</p>
+    @endif
 
     @include('items.partials.item-tabs', ['active' => 'Stats'])
 
     <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
         <div class="overflow-x-auto">
-            <table class="w-full text-left text-sm">
+            <table class="w-full text-left text-sm" data-testid="item-stats-table">
                 <thead>
                     <tr class="border-b border-gray-200 bg-gray-50 text-[10px] uppercase tracking-widest text-gray-500">
                         <th class="px-6 py-3 font-bold">Month</th>

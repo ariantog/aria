@@ -232,15 +232,6 @@ class SidebarFavoriteRegistry
                 'active_prefix' => '/stock-notifications',
             ],
             [
-                'key' => 'report-item-sales',
-                'label' => 'Item Sale',
-                'group' => 'Reports',
-                'permission' => 'report-item-sales',
-                'route' => 'reports.item-sales',
-                'params' => [],
-                'active_prefix' => '/reports/item-sales',
-            ],
-            [
                 'key' => 'report-warehouse-item',
                 'label' => 'Item Gudang',
                 'group' => 'Reports',
@@ -248,15 +239,6 @@ class SidebarFavoriteRegistry
                 'route' => 'reports.warehouse-item',
                 'params' => [],
                 'active_prefix' => '/reports/warehouse-item',
-            ],
-            [
-                'key' => 'report-compare',
-                'label' => 'Compare',
-                'group' => 'Reports',
-                'permission' => 'report-compare',
-                'route' => 'reports.compare',
-                'params' => [],
-                'active_prefix' => '/reports/compare',
             ],
             [
                 'key' => 'report-warehouse-arrangement',
@@ -275,15 +257,6 @@ class SidebarFavoriteRegistry
                 'route' => 'reports.product-performance',
                 'params' => [],
                 'active_prefix' => '/reports/product-performance',
-            ],
-            [
-                'key' => 'report-inventory-health',
-                'label' => 'Inventory Health',
-                'group' => 'Reports',
-                'permission' => 'report-inventory-health',
-                'route' => 'reports.inventory-health',
-                'params' => [],
-                'active_prefix' => '/reports/inventory-health',
             ],
             [
                 'key' => 'report-nett-cash',

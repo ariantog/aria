@@ -38,7 +38,14 @@ it('renders the dashboard', function () {
         ->get('/dashboard')
         ->assertOk()
         ->assertSee('Dashboard', false)
-        ->assertSee('data-testid="sidebar-menu-search"', false);
+        ->assertSee('data-testid="sidebar-menu-search"', false)
+        ->assertDontSee('Inventory Health', false);
+});
+
+it('does not expose the removed inventory-health report', function () {
+    $this->actingAs($this->user)
+        ->get('/reports/inventory-health')
+        ->assertNotFound();
 });
 
 it('renders the transactions index with its rows', function () {
@@ -168,9 +175,6 @@ it('renders migrated GET pages with a 200', function (string $route) {
     'asset tetap create' => 'assettetap/create',
     'asset tetap depreciate' => 'assettetap/depreciate',
     'report nett-cash-sby' => 'reports/nett-cash-sby',
-    'report item-sales' => 'reports/item-sales',
-    'report compare' => 'reports/compare',
-    'report inventory-health' => 'reports/inventory-health',
     'report warehouse-arrangement' => 'reports/warehouse-arrangement',
     'stock notifications' => 'stock-notifications',
     'report product-performance' => 'reports/product-performance',
@@ -203,3 +207,9 @@ it('renders migrated GET pages with a 200', function (string $route) {
     'shopee ads' => 'shopee-ads',
     'restock index' => 'restock',
 ]);
+
+it('does not expose the removed warehouse compare report', function () {
+    $this->actingAs($this->user)
+        ->get('/reports/compare')
+        ->assertNotFound();
+});
