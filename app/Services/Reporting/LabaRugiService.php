@@ -243,6 +243,86 @@ class LabaRugiService
         ]);
     }
 
+    public function exportXlsx(array $report): StreamedResponse
+    {
+        $monthKeys = $report['month_keys'];
+        $monthHeaders = array_map(fn ($key) => $report['month_labels'][$key], $monthKeys);
+        $headers = array_merge(['Akun'], $monthHeaders, ['Total']);
+        $line = function (string $label, array $months, float $total) use ($monthKeys): array {
+            return array_merge([$label], array_map(fn ($key) => $months[$key] ?? 0, $monthKeys), [$total]);
+        };
+
+        $statementRows = [
+            $line('Pendapatan usaha', $report['pendapatan'], $report['pendapatan_total']),
+            $line('HPP (roll-forward)', $report['hpp'], $report['hpp_total']),
+            $line('Laba kotor', $report['laba_kotor'], $report['laba_kotor_total']),
+        ];
+        foreach ($report['beban'] as $bebanLine) {
+            $statementRows[] = $line($bebanLine['label'], $bebanLine['months'], $bebanLine['total']);
+        }
+        $statementRows[] = $line('Jumlah beban usaha', $report['beban_total'], $report['beban_grand_total']);
+        $statementRows[] = $line('Laba usaha', $report['laba_usaha'], $report['laba_usaha_total']);
+        $statementRows[] = $line('Beban pajak', $report['pajak'], $report['pajak_total']);
+        $statementRows[] = $line('Laba bersih', $report['laba_bersih'], $report['laba_bersih_total']);
+
+        if ($report['internal_lending_total'] > 0) {
+            $statementRows[] = $line(
+                'Internal lending (excluded)',
+                $report['internal_lending_excluded'],
+                $report['internal_lending_total'],
+            );
+        }
+
+        return app(ReportingExcelExport::class)->download(
+            sprintf(
+                'laba-rugi-%s-%04d-%02d-%dmo.xlsx',
+                str($report['entity_label'])->slug(),
+                $report['year'],
+                $report['month'],
+                $report['months'],
+            ),
+            'Laba Rugi',
+            [
+                [
+                    'title' => 'Laporan Laba Rugi',
+                    'rows' => [
+                        ['Entitas', $report['entity_label']],
+                        ['Periode', $report['period_start'].' — '.$report['period_end']],
+                    ],
+                ],
+                [
+                    'title' => 'Ringkasan',
+                    'headers' => $headers,
+                    'rows' => $statementRows,
+                ],
+                [
+                    'title' => 'Drill-down pendapatan',
+                    'headers' => ['Tanggal', 'Invoice', 'Pihak', 'Entitas', 'Jumlah', 'Ref'],
+                    'rows' => array_map(fn (array $row) => [
+                        $row['date'],
+                        $row['invoice'],
+                        $row['party'],
+                        $row['entity_name'],
+                        $row['amount'],
+                        'tx:'.$row['id'],
+                    ], $report['drilldown']['pendapatan']),
+                ],
+                [
+                    'title' => 'Drill-down beban',
+                    'headers' => ['Tanggal', 'Kategori', 'Ledger', 'Entitas', 'Jumlah', 'Ref'],
+                    'rows' => array_map(fn (array $row) => [
+                        $row['date'],
+                        $row['label'],
+                        $row['party'],
+                        $row['entity_name'],
+                        $row['amount'],
+                        'tx:'.$row['id'],
+                    ], $report['drilldown']['beban']),
+                ],
+            ],
+        );
+    }
+
     public function yearOptions(?\DateTimeInterface $now = null): array
     {
         $currentYear = (int) Carbon::parse($now ?? now())->year;

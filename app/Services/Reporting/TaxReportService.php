@@ -450,6 +450,70 @@ class TaxReportService
         ]);
     }
 
+    public function exportXlsx(
+        int $year,
+        int $month,
+        ?int $entityId,
+        string $entityLabel,
+    ): StreamedResponse {
+        $ringkasan = $this->ringkasan($year, $month, $entityId);
+        $keluaran = $this->keluaranRows($year, $month, $entityId);
+        $masukan = $this->masukanRows($year, $month, $entityId);
+        $period = sprintf('%04d-%02d', $year, $month);
+
+        $detailHeaders = ['Tanggal', 'Invoice', 'Tipe', 'Sumber', 'Pihak', 'Entitas', 'DPP', 'PPN', 'Ref'];
+        $mapDetail = fn (array $row) => [
+            $row['date'],
+            $row['invoice'],
+            $row['type_label'],
+            $row['source_label'] ?? '',
+            $row['party'],
+            $row['entity_name'],
+            $row['dpp'],
+            $row['ppn'],
+            ($row['link_type'] ?? 'transaction') === 'faktur'
+                ? 'faktur:'.$row['link_id']
+                : 'tx:'.$row['link_id'],
+        ];
+
+        return app(ReportingExcelExport::class)->download(
+            sprintf('ppn-report-%s-%s.xlsx', str($entityLabel)->slug(), $period),
+            'Laporan PPN',
+            [
+                [
+                    'title' => 'Laporan PPN',
+                    'rows' => [
+                        ['Entitas', $entityLabel],
+                        ['Periode', $period],
+                    ],
+                ],
+                [
+                    'title' => 'Ringkasan',
+                    'headers' => ['Akun', 'Jumlah'],
+                    'rows' => [
+                        ['Keluaran DPP', $ringkasan['keluaran_dpp']],
+                        ['Keluaran PPN', $ringkasan['keluaran_tax']],
+                        ['Masukan DPP', $ringkasan['masukan_dpp']],
+                        ['Masukan PPN', $ringkasan['masukan_tax']],
+                        ['Net PPN', $ringkasan['net_ppn']],
+                        ['PPh Final', $ringkasan['pph_final']],
+                        ['Tax Paid', $ringkasan['tax_paid']],
+                    ],
+                ],
+                [
+                    'title' => 'Keluaran',
+                    'headers' => $detailHeaders,
+                    'rows' => $keluaran->map($mapDetail)->all(),
+                ],
+                [
+                    'title' => 'Masukan',
+                    'headers' => $detailHeaders,
+                    'rows' => $masukan->map($mapDetail)->all(),
+                ],
+            ],
+        );
+    }
+
     public function yearOptions(): array
     {
         $currentYear = (int) now()->year;

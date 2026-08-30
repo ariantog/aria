@@ -32,6 +32,10 @@ class NeracaReportController extends Controller
         $isConsolidated = $entityId === null || $entityId === NeracaService::CONSOLIDATED_ENTITY;
         $report = $neraca->build($year, $month, $entityId, $refresh);
 
+        if ($request->query('export') === 'xlsx') {
+            return $neraca->exportXlsx($report);
+        }
+
         return view('reports.neraca', [
             'entities' => $entities,
             'report' => $report,

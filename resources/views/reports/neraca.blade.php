@@ -13,6 +13,12 @@ $refreshQuery = http_build_query([
     'entity' => $filters['entity'],
     'refresh' => 1,
 ]);
+$xlsxQuery = http_build_query([
+    'year' => $filters['year'],
+    'month' => $filters['month'],
+    'entity' => $filters['entity'],
+    'export' => 'xlsx',
+]);
 @endphp
 
 <div
@@ -35,13 +41,22 @@ $refreshQuery = http_build_query([
                 (as of {{ $report['as_of'] }}, {{ $report['source'] === 'snapshot' ? 'snapshot' : 'replay as-of' }})
             </p>
         </div>
-        <a
-            href="{{ route('reports.neraca') }}?{{ $refreshQuery }}"
-            class="inline-flex items-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-            data-testid="neraca-refresh"
-        >
-            Recalculate as-of
-        </a>
+        <div class="flex flex-wrap gap-2">
+            <a
+                href="{{ route('reports.neraca') }}?{{ $refreshQuery }}"
+                class="inline-flex items-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                data-testid="neraca-refresh"
+            >
+                Recalculate as-of
+            </a>
+            <a
+                href="{{ route('reports.neraca') }}?{{ $xlsxQuery }}"
+                class="inline-flex items-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                data-testid="neraca-export-xlsx"
+            >
+                Export Excel
+            </a>
+        </div>
     </div>
 
     <div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">

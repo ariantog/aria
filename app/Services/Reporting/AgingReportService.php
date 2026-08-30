@@ -160,6 +160,52 @@ class AgingReportService
         ]);
     }
 
+    public function exportXlsx(array $report): StreamedResponse
+    {
+        $title = $report['kind'] === self::KIND_PAYABLE ? 'Hutang Usaha' : 'Piutang Usaha';
+        $slug = $report['kind'] === self::KIND_PAYABLE ? 'hutang-aging' : 'piutang-aging';
+
+        $rows = array_map(fn (array $row) => [
+            $row['name'],
+            $row['entity_name'],
+            $row['payment_due_day'],
+            $row['buckets']['0-30'],
+            $row['buckets']['31-60'],
+            $row['buckets']['61-90'],
+            $row['buckets']['90+'],
+            $row['outstanding'],
+        ], $report['rows']);
+
+        $rows[] = [
+            'Total',
+            '',
+            '',
+            $report['totals']['0-30'],
+            $report['totals']['31-60'],
+            $report['totals']['61-90'],
+            $report['totals']['90+'],
+            $report['outstanding_total'],
+        ];
+
+        return app(ReportingExcelExport::class)->download(
+            sprintf('%s-%s-%s.xlsx', $slug, str($report['entity_label'])->slug(), $report['as_of']),
+            $title,
+            [
+                [
+                    'title' => $title,
+                    'rows' => [
+                        ['Entitas', $report['entity_label']],
+                        ['As of', $report['as_of']],
+                    ],
+                ],
+                [
+                    'headers' => ['Kontak', 'Entitas', 'Due day', '0-30', '31-60', '61-90', '90+', 'Total'],
+                    'rows' => $rows,
+                ],
+            ],
+        );
+    }
+
     public function yearOptions(?\DateTimeInterface $now = null): array
     {
         $currentYear = (int) Carbon::parse($now ?? now())->year;

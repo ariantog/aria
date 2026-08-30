@@ -30,6 +30,10 @@ class LabaRugiReportController extends Controller
             return $labaRugi->exportCsv($report);
         }
 
+        if ($request->query('export') === 'xlsx') {
+            return $labaRugi->exportXlsx($report);
+        }
+
         $entities = ReportingEntity::query()
             ->where('is_active', true)
             ->orderBy('name')
