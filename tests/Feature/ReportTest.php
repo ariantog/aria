@@ -1,6 +1,12 @@
 <?php
 
+use App\Models\Report;
 use App\Models\User;
+
+it('no longer registers the purchase report permission', function () {
+    expect(Report::getPermissions())->not->toHaveKey('view-purchase')
+        ->and(Report::getPermissions())->not->toContain('report-purchase');
+});
 
 it('returns 404 for the removed leftover finance reports', function (string $path) {
     $user = User::factory()->create([
@@ -14,6 +20,7 @@ it('returns 404 for the removed leftover finance reports', function (string $pat
 })->with([
     'expense' => '/reports/expense',
     'cash-flow' => '/reports/cash-flow',
+    'purchase' => '/reports/purchase',
 ]);
 
 it('does not list the removed reports in the sidebar', function () {
@@ -28,5 +35,7 @@ it('does not list the removed reports in the sidebar', function () {
         ->assertSee('Laba Rugi', false)
         ->assertSee('Piutang Usaha', false)
         ->assertDontSee('>Cash Flow<', false)
-        ->assertDontSee('Laporan Biaya', false);
+        ->assertDontSee('Laporan Biaya', false)
+        ->assertDontSee('/reports/purchase', false)
+        ->assertDontSee('>Pembelian<', false);
 });
