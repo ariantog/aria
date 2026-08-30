@@ -38,7 +38,14 @@ it('renders the dashboard', function () {
         ->get('/dashboard')
         ->assertOk()
         ->assertSee('Dashboard', false)
-        ->assertSee('data-testid="sidebar-menu-search"', false);
+        ->assertSee('data-testid="sidebar-menu-search"', false)
+        ->assertDontSee('Inventory Health', false);
+});
+
+it('does not expose the removed inventory-health report', function () {
+    $this->actingAs($this->user)
+        ->get('/reports/inventory-health')
+        ->assertNotFound();
 });
 
 it('renders the transactions index with its rows', function () {
