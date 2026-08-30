@@ -32,6 +32,9 @@
                 'selectedReceiver' => $selectedReceiver ?? null,
                 'itemLookupUrl' => $itemLookupUrl ?? route('items.index'),
                 'selectedItem' => $selectedItem ?? null,
+                'showStatusFilter' => $showStatusFilter ?? false,
+                'statusOptions' => $statusOptions ?? [],
+                'selectedStatus' => $selectedStatus ?? ($filters['status'] ?? ''),
             ])
         </form>
     </div>

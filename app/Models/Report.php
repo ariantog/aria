@@ -19,6 +19,7 @@ class Report
             'view-warehouse-item' => 'report-warehouse-item',
             'view-warehouse-arrangement' => 'report-warehouse-arrangement',
             'view-product-performance' => 'report-product-performance',
+            'view-inventory-health' => 'report-inventory-health',
             'view-produksi-potong' => 'report-produksi-potong',
             'view-produksi-qc' => 'report-produksi-qc',
             'view-tax-ppn' => 'report-tax-ppn',
