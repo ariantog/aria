@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Addrbook extends Model
@@ -221,6 +222,11 @@ class Addrbook extends Model
     public function stat()
     {
         return $this->hasOne(AddrbookStat::class, 'customer_id');
+    }
+
+    public function reportingLedgerRole(): HasOne
+    {
+        return $this->hasOne(ReportingLedgerRole::class, 'customer_id');
     }
 
     public function dailies()
