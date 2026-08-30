@@ -16,6 +16,18 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Supplier Umum (neraca hutang usaha)
+    |--------------------------------------------------------------------------
+    |
+    | Catch-all supplier contacts whose year-to-date Buy totals are the
+    | hutang usaha line. Matches production names "Supplier Umum" and
+    | "Supplier Umum - PT CORE". Addrbook running balances are not used.
+    |
+    */
+    'supplier_umum_name_needle' => 'supplier umum',
+
+    /*
+    |--------------------------------------------------------------------------
     | PPh Final rate (non-PKP entity CashIn)
     |--------------------------------------------------------------------------
     */
