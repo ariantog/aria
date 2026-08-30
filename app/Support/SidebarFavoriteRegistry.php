@@ -277,15 +277,6 @@ class SidebarFavoriteRegistry
                 'active_prefix' => '/reports/product-performance',
             ],
             [
-                'key' => 'report-inventory-health',
-                'label' => 'Inventory Health',
-                'group' => 'Reports',
-                'permission' => 'report-inventory-health',
-                'route' => 'reports.inventory-health',
-                'params' => [],
-                'active_prefix' => '/reports/inventory-health',
-            ],
-            [
                 'key' => 'report-nett-cash',
                 'label' => 'Nett Cash',
                 'group' => 'Reports',

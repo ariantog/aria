@@ -365,7 +365,6 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
         Route::get('/compare', [\App\Http\Controllers\Reports\CompareReportController::class, 'index'])->name('compare');
         Route::post('/compare', [\App\Http\Controllers\Reports\CompareReportController::class, 'store'])->name('compare.store');
         Route::delete('/compare/{compare}', [\App\Http\Controllers\Reports\CompareReportController::class, 'destroy'])->name('compare.destroy');
-        Route::get('/inventory-health', [\App\Http\Controllers\ReportController::class, 'inventoryHealth'])->name('inventory-health');
         Route::get('/item-sales', \App\Http\Controllers\Reports\ItemSaleReportController::class)->name('item-sales');
         Route::get('/warehouse-arrangement', [\App\Http\Controllers\Reports\WarehouseArrangementController::class, 'index'])->name('warehouse-arrangement');
         Route::get('/warehouse-arrangement/export', [\App\Http\Controllers\Reports\WarehouseArrangementController::class, 'export'])->name('warehouse-arrangement.export');

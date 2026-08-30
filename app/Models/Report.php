@@ -16,7 +16,6 @@ class Report
             'view-nett-cash' => 'report-nett-cash',
             'view-cash-flow' => 'report-cash-flow',
             'view-compare' => 'report-compare',
-            'view-inventory-health' => 'report-inventory-health',
             'view-purchase' => 'report-purchase',
             'view-export-sell' => 'report-export-sell',
             'view-expense' => 'report-expense',
