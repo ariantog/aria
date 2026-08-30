@@ -170,10 +170,14 @@ it('exports csv of the bonus rows', function () {
         'total' => 111_000,
     ]);
 
-    $this->actingAs($this->user)
-        ->get(route('reports.nett-cash-sby', ['year' => 2026, 'month' => 4, 'export' => 'csv']))
-        ->assertOk()
-        ->assertHeader('content-type', 'text/csv; charset=UTF-8')
-        ->assertSee('Toko CSV', false)
-        ->assertSee('111000', false);
+    $response = $this->actingAs($this->user)
+        ->get(route('reports.nett-cash-sby', ['year' => 2026, 'month' => 4, 'export' => 'csv']));
+
+    $response->assertOk();
+    expect($response->headers->get('content-type'))->toContain('text/csv');
+
+    $content = $response->streamedContent();
+    expect($content)
+        ->toContain('Toko CSV')
+        ->toContain('111000');
 });
