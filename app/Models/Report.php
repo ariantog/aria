@@ -22,7 +22,6 @@ class Report
             'view-expense' => 'report-expense',
             'view-asset-tetap' => 'report-asset-tetap',
             'view-warehouse-item' => 'report-warehouse-item',
-            'view-item-sales' => 'report-item-sales',
             'view-warehouse-arrangement' => 'report-warehouse-arrangement',
             'view-product-performance' => 'report-product-performance',
             'view-produksi-potong' => 'report-produksi-potong',
