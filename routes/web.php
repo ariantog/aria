@@ -356,7 +356,6 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::post('karyawan/{karyawan}/gaji', [\App\Http\Controllers\GajiController::class, 'store'])->name('karyawan.gaji.store');
 
     Route::prefix('reports')->name('reports.')->group(function () {
-        Route::get('/nett-cash-sby', \App\Http\Controllers\Reports\NettCashController::class)->name('nett-cash-sby');
         Route::get('/purchase', \App\Http\Controllers\Reports\PurchaseReportController::class)->name('purchase');
         Route::get('/asset-tetap', \App\Http\Controllers\Reports\AssetTetapReportController::class)->name('asset-tetap');
         Route::get('/warehouse-item', [\App\Http\Controllers\Reports\WarehouseItemReportController::class, 'index'])->name('warehouse-item');

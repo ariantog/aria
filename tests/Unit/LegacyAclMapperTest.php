@@ -58,8 +58,8 @@ it('maps legacy cron runner settings ACL to cron manager permissions', function 
 it('maps removed legacy report ACL rows to the replacement reports', function () {
     $mapper = new LegacyAclMapper;
 
-    expect($mapper->map(LegacyAclMapper::REPORTS, 'cash'))->toBe(['report-nett-cash'])
-        ->and($mapper->map(LegacyAclMapper::REPORTS, 'cash-flow'))->toBe(['report-nett-cash'])
+    expect($mapper->map(LegacyAclMapper::REPORTS, 'cash'))->toBe(['report-laba-rugi'])
+        ->and($mapper->map(LegacyAclMapper::REPORTS, 'cash-flow'))->toBe(['report-laba-rugi'])
         ->and($mapper->map(LegacyAclMapper::REPORTS, 'profit-loss'))->toBe(['report-laba-rugi'])
         ->and($mapper->map(LegacyAclMapper::REPORTS, 'revenue'))->toBe(['report-laba-rugi']);
 });

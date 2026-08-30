@@ -2,7 +2,7 @@
 
 use App\Models\User;
 
-it('returns 404 for the removed expense and cash-flow reports', function (string $path) {
+it('returns 404 for the removed leftover finance reports', function (string $path) {
     $user = User::factory()->create([
         'active' => true,
         'email_verified_at' => now(),
@@ -14,6 +14,7 @@ it('returns 404 for the removed expense and cash-flow reports', function (string
 })->with([
     'expense' => '/reports/expense',
     'cash-flow' => '/reports/cash-flow',
+    'nett-cash-sby' => '/reports/nett-cash-sby',
 ]);
 
 it('does not list the removed reports in the sidebar', function () {
@@ -24,8 +25,9 @@ it('does not list the removed reports in the sidebar', function () {
     $this->actingAs($user)
         ->get(route('dashboard'))
         ->assertOk()
-        ->assertSee('Nett Cash', false)
         ->assertSee('Laba Rugi', false)
+        ->assertSee('Piutang Usaha', false)
         ->assertDontSee('>Cash Flow<', false)
-        ->assertDontSee('Laporan Biaya', false);
+        ->assertDontSee('Laporan Biaya', false)
+        ->assertDontSee('Nett Cash', false);
 });

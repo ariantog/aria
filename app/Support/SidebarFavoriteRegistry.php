@@ -286,15 +286,6 @@ class SidebarFavoriteRegistry
                 'active_prefix' => '/reports/inventory-health',
             ],
             [
-                'key' => 'report-nett-cash',
-                'label' => 'Nett Cash',
-                'group' => 'Reports',
-                'permission' => 'report-nett-cash',
-                'route' => 'reports.nett-cash-sby',
-                'params' => [],
-                'active_prefix' => '/reports/nett-cash-sby',
-            ],
-            [
                 'key' => 'report-neraca',
                 'label' => 'Neraca',
                 'group' => 'Reports',

@@ -316,9 +316,7 @@ class LegacyAclMapper
     private function mapReports(string $action): array
     {
         return match ($action) {
-            'cash' => ['report-nett-cash'],
-            'cash-flow' => ['report-nett-cash'],
-            'profit-loss', 'revenue', 'aspc', 'customer-class', 'geo', 'balance' => ['report-laba-rugi'],
+            'cash', 'cash-flow', 'profit-loss', 'revenue', 'aspc', 'customer-class', 'geo', 'balance' => ['report-laba-rugi'],
             default => [],
         };
     }

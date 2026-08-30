@@ -13,7 +13,6 @@ class Report
     public static function getPermissions(): array
     {
         return [
-            'view-nett-cash' => 'report-nett-cash',
             'view-compare' => 'report-compare',
             'view-inventory-health' => 'report-inventory-health',
             'view-purchase' => 'report-purchase',
