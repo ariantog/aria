@@ -177,8 +177,6 @@ it('renders migrated GET pages with a 200', function (string $route) {
     'asset tetap depreciate' => 'assettetap/depreciate',
     'report cash-flow' => 'reports/cash-flow',
     'report nett-cash-sby' => 'reports/nett-cash-sby',
-    'report item-sales' => 'reports/item-sales',
-    'report compare' => 'reports/compare',
     'report warehouse-arrangement' => 'reports/warehouse-arrangement',
     'stock notifications' => 'stock-notifications',
     'report product-performance' => 'reports/product-performance',
@@ -211,3 +209,9 @@ it('renders migrated GET pages with a 200', function (string $route) {
     'shopee ads' => 'shopee-ads',
     'restock index' => 'restock',
 ]);
+
+it('does not expose the removed warehouse compare report', function () {
+    $this->actingAs($this->user)
+        ->get('/reports/compare')
+        ->assertNotFound();
+});
