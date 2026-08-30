@@ -9,6 +9,7 @@ use App\Models\ReportingEntity;
 use App\Models\WarehouseItem;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class NeracaService
 {
@@ -125,6 +126,71 @@ class NeracaService
                 'hutang' => $this->formatDrilldown($hutangRows, $entityNames),
             ],
         ];
+    }
+
+    public function exportXlsx(array $report): StreamedResponse
+    {
+        $drillHeaders = ['Nama', 'Entitas', 'Saldo', 'Ref'];
+        $mapDrill = fn (array $row) => [
+            $row['name'],
+            $row['entity_name'],
+            $row['balance'],
+            'addrbook:'.$row['id'],
+        ];
+
+        return app(ReportingExcelExport::class)->download(
+            sprintf(
+                'neraca-%s-%s.xlsx',
+                str($report['entity_label'])->slug(),
+                $report['as_of'],
+            ),
+            'Neraca',
+            [
+                [
+                    'title' => 'Neraca',
+                    'rows' => [
+                        ['Entitas', $report['entity_label']],
+                        ['As of', $report['as_of']],
+                        ['Sumber', $report['source']],
+                    ],
+                ],
+                [
+                    'title' => 'Ringkasan',
+                    'headers' => ['Akun', 'Jumlah'],
+                    'rows' => [
+                        ['Kas / Bank', $report['aktiva_lancar']['kas']],
+                        ['Piutang usaha', $report['aktiva_lancar']['piutang']],
+                        ['Persediaan', $report['aktiva_lancar']['persediaan']],
+                        ['Aktiva lancar', $report['total_aktiva_lancar']],
+                        ['Aktiva tetap', $report['aktiva_tetap']],
+                        ['Total aktiva', $report['total_aktiva']],
+                        ['Hutang usaha', $report['kewajiban']['hutang_usaha']],
+                        ['Total kewajiban', $report['total_kewajiban']],
+                        ['Modal', $report['ekuitas']['modal']],
+                        ['Laba ditahan awal', $report['ekuitas']['laba_ditahan_awal']],
+                        ['Laba ditahan', $report['ekuitas']['laba_ditahan']],
+                        ['Total ekuitas', $report['total_ekuitas']],
+                        ['Total pasiva', $report['total_pasiva']],
+                        ['Balance check', $report['balance_check']],
+                    ],
+                ],
+                [
+                    'title' => 'Kas / Bank',
+                    'headers' => $drillHeaders,
+                    'rows' => array_map($mapDrill, $report['drilldown']['kas']),
+                ],
+                [
+                    'title' => 'Piutang',
+                    'headers' => $drillHeaders,
+                    'rows' => array_map($mapDrill, $report['drilldown']['piutang']),
+                ],
+                [
+                    'title' => 'Hutang',
+                    'headers' => $drillHeaders,
+                    'rows' => array_map($mapDrill, $report['drilldown']['hutang']),
+                ],
+            ],
+        );
     }
 
     public function entityLabel(?int $entityId): string

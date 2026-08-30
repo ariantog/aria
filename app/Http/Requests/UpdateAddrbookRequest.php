@@ -2,7 +2,9 @@
 
 namespace App\Http\Requests;
 
+use App\Enums\ReportingLedgerRole;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class UpdateAddrbookRequest extends FormRequest
 {
@@ -39,6 +41,7 @@ class UpdateAddrbookRequest extends FormRequest
             'npwp' => ['nullable', 'string', 'max:20'],
             'operation_id' => ['nullable', 'integer', 'exists:operations,id'],
             'ledger_hint' => ['nullable', 'string', 'max:2000'],
+            'ledger_role' => ['nullable', 'string', Rule::enum(ReportingLedgerRole::class)],
             'reporting_role' => ['nullable', 'string', 'max:30'],
             'is_internal_lending' => ['boolean'],
             'is_active_in_reports' => ['boolean'],

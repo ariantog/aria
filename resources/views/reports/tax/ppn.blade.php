@@ -6,11 +6,17 @@
 @php
 $fmt = fn ($v) => format_amount($v);
 $monthNames = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
-$exportQuery = http_build_query([
+$csvQuery = http_build_query([
     'year' => $filters['year'],
     'month' => $filters['month'],
     'entity' => $filters['entity'],
     'export' => 'csv',
+]);
+$xlsxQuery = http_build_query([
+    'year' => $filters['year'],
+    'month' => $filters['month'],
+    'entity' => $filters['entity'],
+    'export' => 'xlsx',
 ]);
 @endphp
 
@@ -39,11 +45,18 @@ $exportQuery = http_build_query([
             </a>
             @endcan
             <a
-                href="{{ route('reports.tax.ppn') }}?{{ $exportQuery }}"
+                href="{{ route('reports.tax.ppn') }}?{{ $csvQuery }}"
                 class="inline-flex items-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
                 data-testid="ppn-export-csv"
             >
                 Export CSV
+            </a>
+            <a
+                href="{{ route('reports.tax.ppn') }}?{{ $xlsxQuery }}"
+                class="inline-flex items-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                data-testid="ppn-export-xlsx"
+            >
+                Export Excel
             </a>
         </div>
     </div>

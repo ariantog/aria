@@ -2,9 +2,12 @@
 
 namespace App\Http\Controllers\Reports;
 
+use App\Enums\ReportingLedgerRole as ReportingLedgerRoleEnum;
 use App\Http\Controllers\Controller;
 use App\Models\Addrbook;
 use App\Models\ReportingEntity;
+use App\Models\ReportingLedgerRole;
+use App\Models\ReportingWarehouseFulfillment;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -25,6 +28,31 @@ class ReportingEntityController extends Controller
         return view('reports.entities.index', [
             'activeEntities' => $entities->where('is_active', true)->values(),
             'retiredEntities' => $entities->where('is_active', false)->values(),
+            'unassignedBanks' => $this->unassignedOperatingBanks(),
+            'ledgerRoles' => ReportingLedgerRole::query()
+                ->with(['customer' => fn ($query) => $query->withTrashed()->select('id', 'name')])
+                ->orderBy('role')
+                ->get(),
+            'ledgerRoleOptions' => ReportingLedgerRoleEnum::cases(),
+            'accounts' => Addrbook::query()
+                ->where('type', Addrbook::TYPE_ACCOUNT)
+                ->orderBy('name')
+                ->get(['id', 'name']),
+            'fulfillments' => ReportingWarehouseFulfillment::query()
+                ->with([
+                    'warehouse' => fn ($query) => $query->withTrashed()->select('id', 'name'),
+                    'customer' => fn ($query) => $query->withTrashed()->select('id', 'name'),
+                ])
+                ->orderBy('id')
+                ->get(),
+            'warehouses' => Addrbook::query()
+                ->whereIn('type', [Addrbook::TYPE_WAREHOUSE, Addrbook::TYPE_V_WAREHOUSE])
+                ->orderBy('name')
+                ->get(['id', 'name']),
+            'fulfillmentCustomers' => Addrbook::query()
+                ->whereIn('type', [Addrbook::TYPE_CUSTOMER, Addrbook::TYPE_RESELLER])
+                ->orderBy('name')
+                ->get(['id', 'name']),
             'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
     }
@@ -108,9 +136,103 @@ class ReportingEntityController extends Controller
         return redirect()->route('reports.entities.index')->with('success', 'Entity created.');
     }
 
+    public function storeLedgerRole(Request $request)
+    {
+        $this->authorizeSuperadmin();
+
+        $data = $request->validate([
+            'customer_id' => ['required', 'integer', 'exists:customers,id'],
+            'role' => ['required', Rule::enum(ReportingLedgerRoleEnum::class)],
+        ]);
+
+        $account = Addrbook::query()->findOrFail((int) $data['customer_id']);
+        abort_unless((int) $account->type === Addrbook::TYPE_ACCOUNT, 422, 'Ledger role can only be assigned to an account.');
+
+        ReportingLedgerRole::updateOrCreate(
+            ['customer_id' => (int) $data['customer_id']],
+            ['role' => $data['role']],
+        );
+
+        return redirect()->route('reports.entities.index')->with('success', 'Ledger role saved.');
+    }
+
+    public function destroyLedgerRole(ReportingLedgerRole $role)
+    {
+        $this->authorizeSuperadmin();
+
+        $role->delete();
+
+        return redirect()->route('reports.entities.index')->with('success', 'Ledger role removed.');
+    }
+
+    public function storeFulfillment(Request $request)
+    {
+        $this->authorizeSuperadmin();
+
+        $data = $request->validate([
+            'warehouse_id' => ['required', 'integer', 'exists:customers,id'],
+            'customer_id' => ['required', 'integer', 'exists:customers,id'],
+            'notes' => ['nullable', 'string', 'max:2000'],
+        ]);
+
+        $warehouse = Addrbook::query()->findOrFail((int) $data['warehouse_id']);
+        $customer = Addrbook::query()->findOrFail((int) $data['customer_id']);
+
+        abort_unless(
+            in_array((int) $warehouse->type, [Addrbook::TYPE_WAREHOUSE, Addrbook::TYPE_V_WAREHOUSE], true),
+            422,
+            'Fulfillment warehouse must be a warehouse.',
+        );
+        abort_unless(
+            in_array((int) $customer->type, [Addrbook::TYPE_CUSTOMER, Addrbook::TYPE_RESELLER], true),
+            422,
+            'Fulfillment channel must be a customer or reseller.',
+        );
+
+        ReportingWarehouseFulfillment::updateOrCreate(
+            [
+                'warehouse_id' => (int) $data['warehouse_id'],
+                'customer_id' => (int) $data['customer_id'],
+            ],
+            ['notes' => $data['notes'] ?? null],
+        );
+
+        return redirect()->route('reports.entities.index')->with('success', 'Warehouse fulfillment saved.');
+    }
+
+    public function destroyFulfillment(ReportingWarehouseFulfillment $fulfillment)
+    {
+        $this->authorizeSuperadmin();
+
+        $fulfillment->delete();
+
+        return redirect()->route('reports.entities.index')->with('success', 'Warehouse fulfillment removed.');
+    }
+
     private function authorizeSuperadmin(): void
     {
         abort_unless(request()->user()?->is_superadmin, 403);
+    }
+
+    /**
+     * Active operating banks that are not on any active reporting_entity_banks row.
+     *
+     * @return \Illuminate\Support\Collection<int, Addrbook>
+     */
+    private function unassignedOperatingBanks()
+    {
+        $assignedBankIds = DB::table('reporting_entity_banks')
+            ->where('is_active', true)
+            ->pluck('bank_id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        return Addrbook::query()
+            ->where('type', Addrbook::TYPE_BANK)
+            ->where('is_active_in_reports', true)
+            ->when($assignedBankIds !== [], fn ($query) => $query->whereNotIn('id', $assignedBankIds))
+            ->orderBy('name')
+            ->get(['id', 'name']);
     }
 
     /**

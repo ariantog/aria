@@ -4,11 +4,17 @@ $monthNames = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli
 $kindLabel = $report['kind'] === \App\Services\Reporting\AgingReportService::KIND_PAYABLE ? 'Hutang Usaha' : 'Piutang Usaha';
 $routeName = $report['kind'] === \App\Services\Reporting\AgingReportService::KIND_PAYABLE ? 'reports.payables' : 'reports.receivables';
 $pageTestId = $report['kind'] === \App\Services\Reporting\AgingReportService::KIND_PAYABLE ? 'payables-page' : 'receivables-page';
-$exportQuery = http_build_query([
+$csvQuery = http_build_query([
     'year' => $filters['year'],
     'month' => $filters['month'],
     'entity' => $filters['entity'],
     'export' => 'csv',
+]);
+$xlsxQuery = http_build_query([
+    'year' => $filters['year'],
+    'month' => $filters['month'],
+    'entity' => $filters['entity'],
+    'export' => 'xlsx',
 ]);
 $refreshQuery = http_build_query([
     'year' => $filters['year'],
@@ -44,11 +50,18 @@ $refreshQuery = http_build_query([
                 Recalculate as-of
             </a>
             <a
-                href="{{ route($routeName) }}?{{ $exportQuery }}"
+                href="{{ route($routeName) }}?{{ $csvQuery }}"
                 class="inline-flex items-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
                 data-testid="aging-export-csv"
             >
                 Export CSV
+            </a>
+            <a
+                href="{{ route($routeName) }}?{{ $xlsxQuery }}"
+                class="inline-flex items-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                data-testid="aging-export-xlsx"
+            >
+                Export Excel
             </a>
         </div>
     </div>

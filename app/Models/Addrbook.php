@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Addrbook extends Model
@@ -266,7 +267,7 @@ class Addrbook extends Model
         return $this->belongsTo(Addrbook::class, 'default_bank_id');
     }
 
-    public function reportingLedgerRole()
+    public function reportingLedgerRole(): HasOne
     {
         return $this->hasOne(ReportingLedgerRole::class, 'customer_id');
     }

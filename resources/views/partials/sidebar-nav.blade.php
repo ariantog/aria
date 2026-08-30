@@ -143,6 +143,9 @@
     if ($hasPerm('report-tax-ppn') || $isSuperAdmin) {
         $reportNavLabels[] = 'Laporan PPN';
     }
+    if ($hasPerm('report-tax-pph') || $isSuperAdmin) {
+        $reportNavLabels[] = 'Laporan PPh Final';
+    }
     if ($hasPerm('report-tax-faktur') || $hasPerm('report-tax-faktur-import') || $isSuperAdmin) {
         $reportNavLabels[] = 'Faktur Pajak';
     }
@@ -458,8 +461,12 @@
         || $isActive('/reports/cash-flow')
         || $isActive('/reports/expense')
         || $isActive('/reports/neraca')
+        || $isActive('/reports/laba-rugi')
+        || $isActive('/reports/receivables')
+        || $isActive('/reports/payables')
         || $isActive('/reports/asset-tetap')
         || $isActive('/reports/tax/ppn')
+        || $isActive('/reports/tax/pph')
         || $isActive('/reports/tax/faktur')
         || $isActive('/reports/produksi-potong')
         || $isActive('/reports/produksi-qc')
@@ -527,11 +534,14 @@
         <a href="{{ route('reports.asset-tetap') }}" x-show="navLinkVisible('Nilai Buku Asset Tetap', 'Reports')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/asset-tetap') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Nilai Buku Asset Tetap</a>
         @endif
 
-        @if($hasPerm('report-tax-ppn') || $hasPerm('report-tax-faktur') || $hasPerm('report-tax-faktur-import') || $isSuperAdmin)
+        @if($hasPerm('report-tax-ppn') || $hasPerm('report-tax-pph') || $hasPerm('report-tax-faktur') || $hasPerm('report-tax-faktur-import') || $isSuperAdmin)
         <p class="px-2.5 pt-2 pb-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-400">Tax</p>
         @endif
         @if($hasPerm('report-tax-ppn') || $isSuperAdmin)
         <a href="{{ route('reports.tax.ppn') }}" x-show="navLinkVisible('Laporan PPN', 'Reports')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/tax/ppn') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Laporan PPN</a>
+        @endif
+        @if($hasPerm('report-tax-pph') || $isSuperAdmin)
+        <a href="{{ route('reports.tax.pph') }}" x-show="navLinkVisible('Laporan PPh Final', 'Reports')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/tax/pph') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Laporan PPh Final</a>
         @endif
         @if($hasPerm('report-tax-faktur') || $hasPerm('report-tax-faktur-import') || $isSuperAdmin)
         <a href="{{ route('reports.tax.faktur.index') }}" x-show="navLinkVisible('Faktur Pajak', 'Reports')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/tax/faktur') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Faktur Pajak</a>

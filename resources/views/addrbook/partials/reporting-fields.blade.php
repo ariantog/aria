@@ -7,6 +7,7 @@
     $isInternalLending = (bool) old('is_internal_lending', $isEdit && $addrbook ? $addrbook->is_internal_lending : false);
     $isActiveInReports = (bool) old('is_active_in_reports', $isEdit && $addrbook ? ($addrbook->is_active_in_reports ?? true) : true);
     $reportingRole = old('reporting_role', $addrbook?->reporting_role ?? '');
+    $ledgerRole = old('ledger_role', $ledgerRole ?? $addrbook?->reportingLedgerRole?->role?->value ?? '');
 @endphp
 
 <div class="rounded-xl border border-gray-200 bg-white shadow-sm md:col-span-2"
@@ -40,6 +41,16 @@
                 <label for="ledger_hint" class="mb-1 block text-sm font-medium text-gray-700">Cash entry hint</label>
                 <textarea id="ledger_hint" name="ledger_hint" rows="2" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
                           placeholder="Shown when staff select this ledger on Cash In/Out">{{ old('ledger_hint', $addrbook?->ledger_hint ?? '') }}</textarea>
+            </div>
+            <div>
+                <label for="ledger_role" class="mb-1 block text-sm font-medium text-gray-700">Ledger role</label>
+                <select id="ledger_role" name="ledger_role" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" data-testid="addrbook-ledger-role">
+                    <option value="" @selected($ledgerRole === '')>No special role (opex)</option>
+                    @foreach(\App\Enums\ReportingLedgerRole::cases() as $option)
+                        <option value="{{ $option->value }}" @selected($ledgerRole === $option->value)>{{ $option->label() }}</option>
+                    @endforeach
+                </select>
+                <p class="mt-1 text-xs text-gray-500">Material / gaji mingguan / tax payment are excluded from Laba Rugi opex.</p>
             </div>
         </div>
 

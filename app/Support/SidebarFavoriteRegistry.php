@@ -367,6 +367,15 @@ class SidebarFavoriteRegistry
                 'active_prefix' => '/reports/tax/ppn',
             ],
             [
+                'key' => 'report-tax-pph',
+                'label' => 'Laporan PPh Final',
+                'group' => 'Reports',
+                'permission' => 'report-tax-pph',
+                'route' => 'reports.tax.pph',
+                'params' => [],
+                'active_prefix' => '/reports/tax/pph',
+            ],
+            [
                 'key' => 'report-tax-faktur',
                 'label' => 'Faktur Pajak',
                 'group' => 'Reports',

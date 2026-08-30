@@ -32,6 +32,8 @@
         </div>
     </form>
 
+    @include('reports.entities.partials.unassigned-banks')
+
     @include('reports.entities.partials.entity-table', ['entities' => $activeEntities, 'emptyMessage' => 'No active entities yet. Run `php artisan db:seed --class=ReportingBootstrapSeeder` or add one above.'])
 
     @if($retiredEntities->isNotEmpty())
@@ -40,5 +42,8 @@
         @include('reports.entities.partials.entity-table', ['entities' => $retiredEntities, 'retired' => true, 'emptyMessage' => null])
     </div>
     @endif
+
+    @include('reports.entities.partials.ledger-roles')
+    @include('reports.entities.partials.warehouse-fulfillment')
 </div>
 @endsection

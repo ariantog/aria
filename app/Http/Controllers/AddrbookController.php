@@ -11,6 +11,7 @@ use App\Models\Addrbook;
 use App\Models\Location;
 use App\Models\Operation;
 use App\Models\ReportingEntity;
+use App\Models\ReportingLedgerRole;
 use App\Models\StatSell;
 use App\Models\Tag;
 use App\Services\ExportSellExportService;
@@ -121,10 +122,11 @@ class AddrbookController extends Controller
         $td = collect(Addrbook::getTypes())->firstWhere('id', $r->type);
         Gate::authorize(Addrbook::getPermissions($td['slug'] ?? null)['create']);
 
-        $a = Addrbook::create($r->safe()->except(['location_ids', 'arrangement_source_ids', 'initial_balance']));
+        $a = Addrbook::create($r->safe()->except(['location_ids', 'arrangement_source_ids', 'initial_balance', 'ledger_role']));
         $a->stat()->create(['balance' => $r->input('initial_balance', 0)]);
         $this->syncAddrbookLocations($a, $r->input('location_ids', []));
         $this->syncArrangementSources($a, $r->input('arrangement_source_ids', []));
+        $this->syncLedgerRole($a, $r->input('ledger_role'));
 
         return redirect()->to(Addrbook::typeIndexRoute((int) $a->type))->with('success', 'Created.');
     }
@@ -203,7 +205,7 @@ class AddrbookController extends Controller
         $this->authorizeAddrbookLocation($a);
 
         return view('addrbook.edit', [
-            'addrbook' => $a->load(['stat', 'locations', 'arrangementSources']),
+            'addrbook' => $a->load(['stat', 'locations', 'arrangementSources', 'reportingLedgerRole']),
             'types' => Addrbook::getTypes(),
             'ppn_rate' => (float) \App\Models\Setting::getValue('ppn_rate', 11),
             ...$this->locationFormProps($a),
@@ -221,9 +223,10 @@ class AddrbookController extends Controller
     {
         $a = $addrbook;
         Gate::authorize(Addrbook::getPermissions($this->addrbookTypeSlug($a))['edit']);
-        $a->update($r->safe()->except(['location_ids', 'arrangement_source_ids']));
+        $a->update($r->safe()->except(['location_ids', 'arrangement_source_ids', 'ledger_role']));
         $this->syncAddrbookLocations($a, $r->input('location_ids', []));
         $this->syncArrangementSources($a, $r->input('arrangement_source_ids', []));
+        $this->syncLedgerRole($a, $r->input('ledger_role'));
 
         return redirect()->to(Addrbook::typeIndexRoute((int) $a->type))->with('success', 'Updated.');
     }
@@ -599,6 +602,26 @@ class AddrbookController extends Controller
         return [
             'operations' => Operation::query()->orderBy('name')->get(['id', 'name']),
             'assignedEntity' => $assignedEntity,
+            'ledgerRole' => $addrbook?->reportingLedgerRole?->role?->value ?? '',
         ];
+    }
+
+    private function syncLedgerRole(Addrbook $addrbook, mixed $role): void
+    {
+        if ((int) $addrbook->type !== Addrbook::TYPE_ACCOUNT) {
+            return;
+        }
+
+        $role = is_string($role) ? trim($role) : '';
+        if ($role === '') {
+            ReportingLedgerRole::query()->where('customer_id', $addrbook->id)->delete();
+
+            return;
+        }
+
+        ReportingLedgerRole::updateOrCreate(
+            ['customer_id' => $addrbook->id],
+            ['role' => $role],
+        );
     }
 }

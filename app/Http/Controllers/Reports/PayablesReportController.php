@@ -30,6 +30,10 @@ class PayablesReportController extends Controller
             return $aging->exportCsv($report);
         }
 
+        if ($request->query('export') === 'xlsx') {
+            return $aging->exportXlsx($report);
+        }
+
         $entities = ReportingEntity::query()
             ->where('is_active', true)
             ->orderBy('name')

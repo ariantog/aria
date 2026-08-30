@@ -22,13 +22,14 @@ class TaxPpnReportController extends Controller
         $month = max(1, min(12, (int) $request->query('month', now()->month)));
         $entityId = $this->resolveEntityId($request->query('entity'));
 
+        $entityLabel = $taxReport->entityLabel($entityId);
+
         if ($request->query('export') === 'csv') {
-            return $taxReport->exportCsv(
-                $year,
-                $month,
-                $entityId,
-                $taxReport->entityLabel($entityId),
-            );
+            return $taxReport->exportCsv($year, $month, $entityId, $entityLabel);
+        }
+
+        if ($request->query('export') === 'xlsx') {
+            return $taxReport->exportXlsx($year, $month, $entityId, $entityLabel);
         }
 
         $entities = ReportingEntity::query()

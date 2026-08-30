@@ -312,6 +312,65 @@ it('does not infer pkp keluaran from customer cash in without sell', function ()
         ->and((float) $summary->ppn_keluaran_tax)->toBe(0.0);
 });
 
+it('rebuilds only recent months when --months is set', function () {
+    \Illuminate\Support\Carbon::setTestNow('2026-08-15');
+
+    $entity = ReportingEntity::create(['name' => 'CV Month', 'slug' => 'cv-month', 'is_pkp' => true]);
+    $bank = Addrbook::create(['name' => 'BCA Month', 'type' => Addrbook::TYPE_BANK]);
+    $entity->banks()->attach($bank->id, ['is_active' => true]);
+
+    createReportingTransaction([
+        'date' => '2025-01-10',
+        'receiver_id' => $bank->id,
+        'total' => 9_000,
+        'real_total' => 9_000,
+    ]);
+    createReportingTransaction([
+        'date' => '2026-08-02',
+        'receiver_id' => $bank->id,
+        'total' => 4_000,
+        'real_total' => 4_000,
+    ]);
+
+    ReportingEntityMonthlySummary::create([
+        'year' => 2025,
+        'month' => 1,
+        'reporting_entity_id' => $entity->id,
+        'cash_in' => 999,
+    ]);
+
+    Artisan::call('reporting:rebuild-summaries', ['--months' => 2]);
+
+    $january = ReportingEntityMonthlySummary::query()
+        ->where('reporting_entity_id', $entity->id)
+        ->where('year', 2025)
+        ->where('month', 1)
+        ->first();
+    $august = ReportingEntityMonthlySummary::query()
+        ->where('reporting_entity_id', $entity->id)
+        ->where('year', 2026)
+        ->where('month', 8)
+        ->first();
+
+    expect((float) $january->cash_in)->toBe(999.0)
+        ->and($august)->not->toBeNull()
+        ->and((float) $august->cash_in)->toBe(4_000.0);
+
+    \Illuminate\Support\Carbon::setTestNow();
+});
+
+it('seeds a daily recent-month reporting summary rebuild', function () {
+    $this->seed(\Database\Seeders\ScheduledTaskSeeder::class);
+
+    $task = \App\Models\ScheduledTask::query()
+        ->where('command', 'reporting:rebuild-summaries --months=2')
+        ->first();
+
+    expect($task)->not->toBeNull()
+        ->and($task->frequency)->toBe('daily')
+        ->and($task->active)->toBeTrue();
+});
+
 it('installs monthly tax summaries via dedicated migration path', function () {
     Artisan::call('migrate', [
         '--path' => 'database/migrations/2026_08_24_130000_install_monthly_tax_summaries_table.php',
