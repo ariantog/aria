@@ -358,10 +358,8 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::prefix('reports')->name('reports.')->group(function () {
         Route::get('/nett-cash-sby', \App\Http\Controllers\Reports\NettCashController::class)->name('nett-cash-sby');
         Route::get('/purchase', \App\Http\Controllers\Reports\PurchaseReportController::class)->name('purchase');
-        Route::get('/expense', \App\Http\Controllers\Reports\ExpenseReportController::class)->name('expense');
         Route::get('/asset-tetap', \App\Http\Controllers\Reports\AssetTetapReportController::class)->name('asset-tetap');
         Route::get('/warehouse-item', [\App\Http\Controllers\Reports\WarehouseItemReportController::class, 'index'])->name('warehouse-item');
-        Route::get('/cash-flow', \App\Http\Controllers\CashFlowController::class)->name('cash-flow');
         Route::get('/compare', [\App\Http\Controllers\Reports\CompareReportController::class, 'index'])->name('compare');
         Route::post('/compare', [\App\Http\Controllers\Reports\CompareReportController::class, 'store'])->name('compare.store');
         Route::delete('/compare/{compare}', [\App\Http\Controllers\Reports\CompareReportController::class, 'destroy'])->name('compare.destroy');
