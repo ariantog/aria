@@ -5,6 +5,7 @@ namespace App\Services\InventoryHealth;
 use App\Models\Addrbook;
 use App\Models\InventoryHealthSnapshot;
 use App\Services\Items\ItemDimensionResolver;
+use Carbon\CarbonInterface;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -18,7 +19,7 @@ class InventoryHealthSyncService
      *
      * @return array{warehouses: int, rows: int, synced_at: string}
      */
-    public function syncAll(?Carbon $asOf = null): array
+    public function syncAll(?CarbonInterface $asOf = null): array
     {
         $asOf ??= now();
         $windows = $this->windows($asOf);
@@ -54,7 +55,7 @@ class InventoryHealthSyncService
     /**
      * @return array{period_from: string, period_to: string, extended_from: string, period_days: int}
      */
-    public function windows(?Carbon $asOf = null): array
+    public function windows(?CarbonInterface $asOf = null): array
     {
         $asOf ??= now();
         $to = $asOf->toDateString();
@@ -68,7 +69,7 @@ class InventoryHealthSyncService
         ];
     }
 
-    public function latestSyncedAt(): ?Carbon
+    public function latestSyncedAt(): ?CarbonInterface
     {
         $value = InventoryHealthSnapshot::query()->max('synced_at');
 
@@ -83,7 +84,7 @@ class InventoryHealthSyncService
         array $windows,
         int $startPeriod,
         int $startExtended,
-        Carbon $syncedAt,
+        CarbonInterface $syncedAt,
     ): int {
         $sales = $this->salesByItem($warehouseId, $startPeriod, $startExtended);
         $stock = $this->stockByItem($warehouseId);
@@ -124,7 +125,7 @@ class InventoryHealthSyncService
     /**
      * @param  array{period_from: string, period_to: string, extended_from: string, period_days: int}  $windows
      */
-    private function syncCompany(array $windows, Carbon $syncedAt): int
+    private function syncCompany(array $windows, CarbonInterface $syncedAt): int
     {
         $aggregates = InventoryHealthSnapshot::query()
             ->where('warehouse_id', '>', self::COMPANY_WAREHOUSE_ID)
@@ -224,7 +225,7 @@ class InventoryHealthSyncService
         float $stock,
         mixed $lastSoldAt,
         array $windows,
-        Carbon $syncedAt,
+        CarbonInterface $syncedAt,
     ): array {
         return [
             'warehouse_id' => $warehouseId,
