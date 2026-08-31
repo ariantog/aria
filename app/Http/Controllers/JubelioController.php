@@ -360,7 +360,7 @@ class JubelioController extends Controller
 
         $validated = $request->validate([
             'side' => ['required', 'in:1,2'],
-            'reference_id' => ['nullable', 'string', 'max:255'],
+            'reference_id' => ['required', 'string', 'max:255'],
         ]);
 
         $side = (int) $validated['side'];
@@ -475,7 +475,11 @@ class JubelioController extends Controller
         try {
             $res = $a->execute($t, (int) $r->side, (int) $r->adjustType, (int) $r->whType);
 
-            return $res['success'] ? back()->with('success', $res['message']) : back()->with('errorMessage', $res['message']);
+            if ($res['success']) {
+                return back()->with('success', $res['message']);
+            }
+
+            return back()->with('error', $res['message'])->with('errorMessage', $res['message']);
         } catch (\RuntimeException $e) {
             return back()->with('errorMessage', $e->getMessage());
         }
