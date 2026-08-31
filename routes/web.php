@@ -17,6 +17,10 @@ Route::get('dashboard', App\Http\Controllers\DashboardController::class)
     ->middleware(['auth', 'verified', 'active'])
     ->name('dashboard');
 
+Route::get('my-checklist', [App\Http\Controllers\MyChecklistController::class, 'index'])
+    ->middleware(['auth', 'verified', 'active'])
+    ->name('my-checklist.index');
+
 Route::post('checklist/{checklist}/toggle', App\Http\Controllers\ChecklistCompletionController::class)
     ->middleware(['auth', 'verified', 'active'])
     ->name('checklist.toggle');

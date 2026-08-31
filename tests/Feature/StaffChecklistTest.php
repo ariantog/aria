@@ -87,5 +87,47 @@ it('groups templates by frequency in checklist service', function () {
 
     expect($data['has_checklists'])->toBeTrue()
         ->and($data['groups'])->not->toBeEmpty()
-        ->and(collect($data['groups'])->pluck('frequency')->all())->toContain('daily', 'weekly', 'biweekly', 'monthly');
+        ->and(collect($data['groups'])->pluck('frequency')->all())->toContain('daily', 'weekly', 'biweekly', 'monthly')
+        ->and($data['summary']['pending'])->toBeGreaterThan(0);
+});
+
+it('shows header checklist link with pending count for assigned user', function () {
+    $user = User::factory()->create();
+    $user->staffRoles()->sync([1]);
+
+    $pending = app(StaffChecklistService::class)->forUser($user)['summary']['pending'];
+
+    $this->actingAs($user)
+        ->get(route('dashboard'))
+        ->assertOk()
+        ->assertSee('data-testid="header-checklist-link"', false)
+        ->assertSee((string) $pending, false);
+});
+
+it('hides header checklist link when user has no staff roles', function () {
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->get(route('dashboard'))
+        ->assertOk()
+        ->assertDontSee('data-testid="header-checklist-link"', false);
+});
+
+it('renders dedicated my-checklist page for assigned user', function () {
+    $user = User::factory()->create();
+    $user->staffRoles()->sync([1]);
+
+    $this->actingAs($user)
+        ->get(route('my-checklist.index'))
+        ->assertOk()
+        ->assertSee('Checklist peran', false)
+        ->assertSee('data-testid="staff-checklist-panel"', false);
+});
+
+it('redirects my-checklist to dashboard when user has no staff roles', function () {
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->get(route('my-checklist.index'))
+        ->assertRedirect(route('dashboard'));
 });
