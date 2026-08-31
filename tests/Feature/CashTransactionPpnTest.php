@@ -8,10 +8,16 @@ use App\Models\ReportingMonthlyTaxSummary;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Services\Reporting\TaxReportService;
+use Illuminate\Support\Carbon;
 
 beforeEach(function () {
+    Carbon::setTestNow('2026-08-31 15:00:00');
     $this->user = User::factory()->create();
     $this->testDate = now()->format('Y-m-d');
+});
+
+afterEach(function () {
+    Carbon::setTestNow();
 });
 
 function createPkpCashOutFixture(): array
@@ -227,9 +233,12 @@ it('includes explicit cash out rows in PPN masukan report drill-down', function 
 
     UpdateTransactionSummaries::dispatchSync($transaction->id);
 
+    $year = (int) $transaction->date->year;
+    $month = (int) $transaction->date->month;
+
     $rows = app(TaxReportService::class)->masukanRows(
-        (int) now()->format('Y'),
-        (int) now()->format('n'),
+        $year,
+        $month,
         $data['entity']->id,
     );
 

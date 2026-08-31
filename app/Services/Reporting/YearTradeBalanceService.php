@@ -209,7 +209,7 @@ class YearTradeBalanceService
             ->where('type', $transactionType)
             ->whereIn($typeColumn, $partyTypes)
             ->where($idColumn, '>', 0)
-            ->whereBetween('date', [$start, $end])
+            ->whereBetween('date', ReportingPeriod::queryBounds($start, $end))
             ->when($restrictIds !== null, fn ($query) => $query->whereIn($idColumn, $restrictIds))
             ->selectRaw($idColumn.' as contact_id, '.$amountSql)
             ->groupBy($idColumn)

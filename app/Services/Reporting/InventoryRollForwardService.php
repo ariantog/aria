@@ -292,7 +292,7 @@ class InventoryRollForwardService
                 ->where('t.status', Transaction::STATUS_COMPLETED)
                 ->whereIn('t.type', $types)
                 ->whereIn('i.type', $inventoryTypes)
-                ->whereBetween('t.date', [$start, $end])
+                ->whereBetween('t.date', ReportingPeriod::queryBounds($start, $end))
                 ->selectRaw('COALESCE(SUM(ABS(td.total)), 0) as amount')
                 ->first();
 
@@ -317,7 +317,7 @@ class InventoryRollForwardService
             ->where('type', Transaction::TYPE_CASH_OUT)
             ->where('receiver_type', Addrbook::TYPE_ACCOUNT)
             ->whereIn('receiver_id', $ledgerIds)
-            ->whereBetween('date', [$start, $end])
+            ->whereBetween('date', ReportingPeriod::queryBounds($start, $end))
             ->get(['id', 'sender_id', 'sender_type', 'total']);
 
         $byEntity = [];

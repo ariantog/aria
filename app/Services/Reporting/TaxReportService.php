@@ -5,10 +5,9 @@ namespace App\Services\Reporting;
 use App\Models\Addrbook;
 use App\Models\ReportingEntity;
 use App\Models\ReportingMonthlyTaxSummary;
-use App\Models\TaxFakturImport;
 use App\Models\Setting;
+use App\Models\TaxFakturImport;
 use App\Models\Transaction;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -111,7 +110,7 @@ class TaxReportService
         ];
     }
 
-  /**
+    /**
      * @return Collection<int, array{
      *     id: int,
      *     date: string,
@@ -558,9 +557,7 @@ class TaxReportService
      */
     private function monthRange(int $year, int $month): array
     {
-        $start = Carbon::create($year, $month, 1)->startOfMonth();
-
-        return [$start->toDateString(), $start->copy()->endOfMonth()->toDateString()];
+        return ReportingPeriod::monthQueryRange($year, $month);
     }
 
     private function getPpnRate(): float
