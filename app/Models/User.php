@@ -170,6 +170,9 @@ class User extends Authenticatable
             // Permissions
             'permissions-view' => 'users-permissions-list',
             'permissions-generate' => 'users-permissions-generate',
+
+            // Operational staff roles (checklist assignment)
+            'staff-roles-edit' => 'users-staff-roles-edit',
         ];
     }
 

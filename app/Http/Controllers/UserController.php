@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Location;
+use App\Models\StaffRole;
 use App\Models\User;
 use App\Support\PermissionTableConfig;
 use Illuminate\Http\Request;
@@ -48,6 +49,8 @@ class UserController extends Controller
         return view('users.create', [
             'locations' => Location::all(),
             'roles' => \Spatie\Permission\Models\Role::all(),
+            'staffRoles' => $this->staffRolesForAssignment(),
+            'canAssignStaffRoles' => $this->canAssignStaffRoles(),
         ]);
     }
 
@@ -72,6 +75,7 @@ class UserController extends Controller
             'active' => $data['active'] ?? true,
         ]);
         $user->syncRoles([$data['role']]);
+        $this->syncStaffRolesIfAllowed($request, $user);
 
         return redirect()->route('users.index')->with('success', 'User created.');
     }
@@ -81,10 +85,13 @@ class UserController extends Controller
         Gate::authorize(User::getPermissions()['edit']);
 
         return view('users.edit', [
-            'editUser' => $user->load('roles'),
+            'editUser' => $user->load(['roles', 'staffRoles']),
             'userRoles' => $user->roles->pluck('name'),
             'locations' => Location::all(),
             'roles' => \Spatie\Permission\Models\Role::all(),
+            'staffRoles' => $this->staffRolesForAssignment(),
+            'assignedStaffRoleIds' => old('staff_role_ids', $user->staffRoles->pluck('id')->all()),
+            'canAssignStaffRoles' => $this->canAssignStaffRoles(),
         ]);
     }
 
@@ -117,6 +124,7 @@ class UserController extends Controller
             $user->update(['password' => bcrypt($data['password'])]);
         }
         $user->syncRoles([$data['role']]);
+        $this->syncStaffRolesIfAllowed($request, $user);
 
         return redirect()->route('users.index')->with('success', 'User updated.');
     }
@@ -153,6 +161,36 @@ class UserController extends Controller
         $user->update(['active' => true]);
 
         return redirect()->route('users.index')->with('success', 'User unbanned.');
+    }
+
+    private function canAssignStaffRoles(): bool
+    {
+        return request()->user()?->can(User::getPermissions()['staff-roles-edit']) ?? false;
+    }
+
+    /**
+     * @return \Illuminate\Database\Eloquent\Collection<int, StaffRole>
+     */
+    private function staffRolesForAssignment()
+    {
+        return StaffRole::query()
+            ->where('is_active', true)
+            ->orderBy('sort_order')
+            ->get(['id', 'name', 'description']);
+    }
+
+    private function syncStaffRolesIfAllowed(Request $request, User $user): void
+    {
+        if (! $this->canAssignStaffRoles()) {
+            return;
+        }
+
+        $data = $request->validate([
+            'staff_role_ids' => 'nullable|array',
+            'staff_role_ids.*' => 'integer|exists:staff_roles,id',
+        ]);
+
+        $user->staffRoles()->sync($data['staff_role_ids'] ?? []);
     }
 
     /**
