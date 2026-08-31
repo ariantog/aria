@@ -22,7 +22,7 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Bus;
 
 beforeEach(function () {
-    Carbon::setTestNow(Carbon::parse('2026-08-31'));
+    Bus::fake([UpdateTransactionSummaries::class]);
     $this->user = User::factory()->create();
     app(PermissionGenerator::class)->generateForModule('Report');
     $this->user->givePermissionTo([
@@ -37,10 +37,6 @@ beforeEach(function () {
     ] as $path) {
         Artisan::call('migrate', ['--path' => $path, '--force' => true]);
     }
-});
-
-afterEach(function () {
-    Carbon::setTestNow();
 });
 
 function seedConsignmentFakturSellScenario(): array
@@ -148,6 +144,8 @@ it('posts sell from keluaran faktur with faktur dpp and ppn totals', function ()
         ->value('quantity');
 
     expect((float) $stock)->toBe(99.0);
+
+    Bus::assertDispatched(UpdateTransactionSummaries::class, fn ($job) => $job->transactionId === $sell->id);
 });
 
 it('matches gross sell to faktur and treats payment gap as consignment margin', function () {
@@ -408,11 +406,14 @@ it('prefers linked cash-in bank over an earlier cash-in to another entity', func
         'summary_item_id' => $data['item']->id,
     ]);
 
-    $entity = app(ReportingSummaryRecorder::class)->resolveEntityForSellTax($sell->fresh());
+    $sell = $sell->fresh();
+    $entity = app(ReportingSummaryRecorder::class)->resolveEntityForSellTax($sell);
 
     expect($entity)->not->toBeNull()
         ->and($entity->id)->toBe($data['entity']->id)
         ->and($sell->invoice)->toBe('04002600298450234');
+
+    app(ReportingSummaryRecorder::class)->record($sell);
 
     $linkedSummary = ReportingMonthlyTaxSummary::query()
         ->where('reporting_entity_id', $data['entity']->id)
