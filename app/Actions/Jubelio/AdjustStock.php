@@ -6,17 +6,28 @@ use App\Models\Jubeliosync;
 use App\Models\Transaction;
 use App\Services\Jubelio\JubelioAdjustmentHint;
 use App\Services\Jubelio\JubelioAdjustmentResponse;
+use App\Services\Jubelio\JubelioStockSync;
 use App\Services\JubelioService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
+/**
+ * Pushes one warehouse side of a manual Aria transaction to Jubelio.
+ *
+ * @see JubelioStockSync for a_submit_by / b_submit_by and side / whType / adjustType.
+ */
 class AdjustStock
 {
+    /**
+     * @param  int  $side  JubelioStockSync::SIDE_SENDER (1) or SIDE_RECEIVER (2)
+     * @param  int  $adjustType  JubelioStockSync::ADJUST_ADD (1) or ADJUST_DEDUCT (2)
+     * @param  int  $whType  JubelioStockSync::WAREHOUSE_RECEIVER (1) or WAREHOUSE_SENDER (2)
+     */
     public function execute(Transaction $transaction, int $side, int $adjustType, int $whType): array
     {
-        if ($side === 1) {
+        if (JubelioStockSync::isSenderSide($side)) {
             if ($transaction->a_submit_by) {
                 throw new \RuntimeException('Side A already synced.');
             }
@@ -35,7 +46,7 @@ class AdjustStock
         $posted = false;
 
         try {
-            $warehouseId = $whType === 1 ? $transaction->receiver_id : $transaction->sender_id;
+            $warehouseId = JubelioStockSync::warehouseId($transaction, $whType);
             $jubSync = Jubeliosync::where('warehouse_id', $warehouseId)->first();
             if (! $jubSync) {
                 throw new \RuntimeException('Jubelio mapping not found.');
@@ -53,7 +64,7 @@ class AdjustStock
                 if (! $row->item?->jubelio_item_id) {
                     continue;
                 }
-                $qty = $adjustType === 1 ? (float) $row->quantity : -(float) $row->quantity;
+                $qty = JubelioStockSync::signedQty((float) $row->quantity, $adjustType);
                 $items[] = [
                     'item_adj_detail_id' => 0,
                     'item_id' => $row->item->jubelio_item_id,
@@ -102,7 +113,7 @@ class AdjustStock
 
             if ($parsed->created()) {
                 DB::transaction(function () use ($transaction, $side, $parsed) {
-                    if ($side === 1) {
+                    if (JubelioStockSync::isSenderSide($side)) {
                         $transaction->update([
                             'a_submit_by' => Auth::id(),
                             'a_reference_id' => $parsed->referenceId,
@@ -152,7 +163,7 @@ class AdjustStock
 
     private function markAttempt(Transaction $transaction, int $side): void
     {
-        if ($side === 1) {
+        if (JubelioStockSync::isSenderSide($side)) {
             $transaction->increment('submit_a_count');
         } else {
             $transaction->increment('submit_b_count');
@@ -161,7 +172,7 @@ class AdjustStock
 
     private function clearAttempt(Transaction $transaction, int $side): void
     {
-        if ($side === 1) {
+        if (JubelioStockSync::isSenderSide($side)) {
             if ($transaction->a_submit_by) {
                 return;
             }

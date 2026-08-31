@@ -10,6 +10,24 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Schema;
 
+/**
+ * Sales / inventory / cash document.
+ *
+ * Jubelio stock-sync columns keep L10 names. Do not rename them.
+ *
+ * a_* is the SENDER warehouse (deduct in Jubelio). b_* is the RECEIVER
+ * warehouse (add in Jubelio). "A/B" is not account / debit-credit.
+ *
+ * @property int|null $a_submit_by User who successfully pushed sender-warehouse stock to Jubelio.
+ * @property int|null $b_submit_by User who successfully pushed receiver-warehouse stock to Jubelio.
+ * @property string|null $a_reference_id Jubelio item_adj_id for the sender-warehouse adjustment.
+ * @property string|null $b_reference_id Jubelio item_adj_id for the receiver-warehouse adjustment.
+ * @property int $submit_a_count Sender-side push attempts. Warning when > 0 and a_submit_by is null.
+ * @property int $submit_b_count Receiver-side push attempts. Warning when > 0 and b_submit_by is null.
+ * @property int $submit_type 1 = Aria manual (may push to Jubelio). 2 = created from Jubelio (do not push).
+ *
+ * @see \App\Services\Jubelio\JubelioStockSync
+ */
 class Transaction extends Model
 {
     use DisplaysTransactionTotals;
@@ -207,24 +225,38 @@ class Transaction extends Model
         return $this->belongsTo(User::class);
     }
 
+    /** User who pushed/confirmed sender-warehouse (side A) stock to Jubelio. */
     public function submitByA()
     {
         return $this->belongsTo(User::class, 'a_submit_by');
     }
 
+    /** User who pushed/confirmed receiver-warehouse (side B) stock to Jubelio. */
     public function submitByB()
     {
         return $this->belongsTo(User::class, 'b_submit_by');
     }
 
+    /** Sender warehouse was pushed to Jubelio but no item_adj_id was stored. */
     public function hasSyncWarningA(): bool
     {
         return $this->submit_a_count > 0 && $this->a_submit_by === null;
     }
 
+    /** Receiver warehouse was pushed to Jubelio but no item_adj_id was stored. */
     public function hasSyncWarningB(): bool
     {
         return $this->submit_b_count > 0 && $this->b_submit_by === null;
+    }
+
+    public function isJubelioSenderSynced(): bool
+    {
+        return $this->a_submit_by !== null;
+    }
+
+    public function isJubelioReceiverSynced(): bool
+    {
+        return $this->b_submit_by !== null;
     }
 
     public function scopeVisibleToUser(Builder $query, ?User $user): Builder
