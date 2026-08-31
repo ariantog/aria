@@ -84,8 +84,8 @@ class TaxReportService
         $masukanTax = $rawMasukanTax - $returMasukanTax;
 
         // Decision: Sell.ppn is ledger truth for PPN keluaran. Imported faktur
-        // rows are reporting-only until a Sell is posted; fakturTotals() /
-        // fakturImportRows() exclude imports with sell_transaction_id so ringkasan
+        // rows are reporting-only until one or more Sells are linked (or posted);
+        // fakturTotals() / fakturImportRows() exclude those imports so ringkasan
         // and drill-down never double-count Sell + the same faktur.
         $fakturKeluaran = $this->fakturTotals($entityIds, $year, $month, TaxFakturImport::DIRECTION_KELUARAN);
         $fakturMasukan = $this->fakturTotals($entityIds, $year, $month, TaxFakturImport::DIRECTION_MASUKAN);
@@ -639,7 +639,7 @@ class TaxReportService
             ->where('report_month', $month)
             ->where('direction', $direction)
             ->whereIn('reporting_entity_id', $entityIds)
-            ->whereNull('sell_transaction_id')
+            ->withoutLinkedSells()
             ->orderBy('faktur_date')
             ->orderBy('id')
             ->get()
@@ -717,7 +717,7 @@ class TaxReportService
             ->where('report_month', $month)
             ->where('direction', $direction)
             ->whereIn('reporting_entity_id', $entityIds)
-            ->whereNull('sell_transaction_id')
+            ->withoutLinkedSells()
             ->selectRaw('COALESCE(SUM(dpp), 0) as dpp, COALESCE(SUM(ppn), 0) as ppn')
             ->first();
 

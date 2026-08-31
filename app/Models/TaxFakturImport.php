@@ -5,8 +5,10 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class TaxFakturImport extends Model
 {
@@ -63,6 +65,16 @@ class TaxFakturImport extends Model
     public function sellTransaction(): BelongsTo
     {
         return $this->belongsTo(Transaction::class, 'sell_transaction_id');
+    }
+
+    public function sellTransactions(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            Transaction::class,
+            'tax_faktur_import_sells',
+            'tax_faktur_import_id',
+            'sell_transaction_id',
+        )->withTimestamps();
     }
 
     public function user(): BelongsTo
@@ -134,11 +146,65 @@ class TaxFakturImport extends Model
             && $this->payment_received_date !== null;
     }
 
+    public function hasLinkedSells(): bool
+    {
+        if ($this->sell_transaction_id) {
+            return true;
+        }
+
+        if (! Schema::hasTable('tax_faktur_import_sells')) {
+            return false;
+        }
+
+        if ($this->relationLoaded('sellTransactions')) {
+            return $this->sellTransactions->isNotEmpty();
+        }
+
+        return $this->sellTransactions()->exists();
+    }
+
+    public function linkedSellDpp(): float
+    {
+        return round($this->linkedSells()->sum(fn (Transaction $sell) => abs((float) $sell->total)), 2);
+    }
+
+    public function linkedSellPpn(): float
+    {
+        return round($this->linkedSells()->sum(fn (Transaction $sell) => abs((float) $sell->ppn)), 2);
+    }
+
+    /**
+     * @return \Illuminate\Support\Collection<int, Transaction>
+     */
+    public function linkedSells()
+    {
+        if ($this->relationLoaded('sellTransactions')) {
+            return $this->sellTransactions;
+        }
+
+        if (! Schema::hasTable('tax_faktur_import_sells')) {
+            return collect();
+        }
+
+        return $this->sellTransactions()->orderBy('transactions.id')->get();
+    }
+
     public function canPostConsignmentSell(): bool
     {
         return $this->isConsignmentCounterparty()
             && $this->hasPaymentInfo()
-            && ! $this->sell_transaction_id;
+            && ! $this->hasLinkedSells();
+    }
+
+    public function scopeWithoutLinkedSells(Builder $query): Builder
+    {
+        $query->whereNull('tax_faktur_imports.sell_transaction_id');
+
+        if (Schema::hasTable('tax_faktur_import_sells')) {
+            $query->whereDoesntHave('sellTransactions');
+        }
+
+        return $query;
     }
 
     public function scopePaymentOverdue(Builder $query): Builder

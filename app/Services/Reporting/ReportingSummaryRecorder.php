@@ -14,6 +14,7 @@ use App\Models\Setting;
 use App\Models\TaxFakturImport;
 use App\Models\Transaction;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Schema;
 
 class ReportingSummaryRecorder
 {
@@ -373,6 +374,12 @@ class ReportingSummaryRecorder
         $import = TaxFakturImport::query()
             ->where('sell_transaction_id', $transaction->id)
             ->first();
+
+        if (! $import && Schema::hasTable('tax_faktur_import_sells')) {
+            $import = TaxFakturImport::query()
+                ->whereHas('sellTransactions', fn ($query) => $query->where('transactions.id', $transaction->id))
+                ->first();
+        }
 
         if (! $import?->cash_in_transaction_id) {
             return null;
