@@ -7,8 +7,8 @@ use App\Actions\Jubelio\ProcessJubelioOrder;
 use App\Models\Jubelio;
 use App\Models\Jubelioorder;
 use App\Models\Jubelioreturn;
-use App\Models\Jubeliosync;
 use App\Models\Transaction;
+use App\Services\Jubelio\JubelioAdjustmentHint;
 use App\Services\Jubelio\JubelioOrderShowPresenter;
 use App\Services\Jubelio\JubelioOrderWarehouseResolver;
 use App\Services\Jubelio\JubelioTransactionSyncPresenter;
@@ -456,7 +456,11 @@ class JubelioController extends Controller
             'whBName' => $sync['wh_b_name'],
             'warningA' => $sync['warning_a'],
             'warningB' => $sync['warning_b'],
-            'flash' => ['success' => session('success'), 'error' => session('errorMessage') ?? session('error')],
+            'flash' => [
+                'success' => session('success'),
+                'error' => session('errorMessage') ?? session('error'),
+                'hint' => session('errorHint'),
+            ],
         ]);
     }
 
@@ -479,10 +483,19 @@ class JubelioController extends Controller
                 return back()->with('success', $res['message']);
             }
 
-            return back()->with('error', $res['message'])->with('errorMessage', $res['message']);
+            return $this->flashAdjustFailure($res['message'], $res['hint'] ?? null);
         } catch (\RuntimeException $e) {
-            return back()->with('errorMessage', $e->getMessage());
+            return $this->flashAdjustFailure($e->getMessage());
         }
     }
 
+    private function flashAdjustFailure(string $message, ?string $hint = null): RedirectResponse
+    {
+        $hint ??= JubelioAdjustmentHint::for($message);
+
+        return back()
+            ->with('error', $message)
+            ->with('errorMessage', $message)
+            ->with('errorHint', $hint);
+    }
 }

@@ -137,7 +137,8 @@ it('does not mark a move synced when jubelio returns 200 with an error message',
         ])
         ->assertRedirect(route('transactions.show', $transaction))
         ->assertSessionHas('error', 'Qty exceeds available stock')
-        ->assertSessionHas('errorMessage', 'Qty exceeds available stock');
+        ->assertSessionHas('errorMessage', 'Qty exceeds available stock')
+        ->assertSessionHas('errorHint', 'Stok di lokasi Jubelio tidak cukup untuk pengurangan ini. Cek stok gudang pengirim di Jubelio, kurangi qty, atau sesuaikan stok di sana dulu — lalu push ulang.');
 
     $transaction->refresh();
 
@@ -209,12 +210,17 @@ it('shows the jubelio error flash on the transaction page', function () {
     $transaction = seedMoveForAdjust($item);
 
     $html = $this->actingAs($user)
-        ->withSession(['errorMessage' => 'Qty exceeds available stock'])
+        ->withSession([
+            'errorMessage' => 'Qty exceeds available stock',
+            'errorHint' => 'Stok di lokasi Jubelio tidak cukup untuk pengurangan ini.',
+        ])
         ->get(route('transactions.show', $transaction))
         ->assertSuccessful()
         ->getContent();
 
-    expect($html)->toContain('Qty exceeds available stock');
+    expect($html)->toContain('Qty exceeds available stock')
+        ->and($html)->toContain('data-testid="jubelio-sync-hint"')
+        ->and($html)->toContain('Stok di lokasi Jubelio tidak cukup');
 });
 
 it('does not leave a warning when jubelio auth fails before the push', function () {
@@ -240,7 +246,8 @@ it('does not leave a warning when jubelio auth fails before the push', function 
             'adjustType' => 2,
         ])
         ->assertRedirect()
-        ->assertSessionHas('error', 'Jubelio auth failed.');
+        ->assertSessionHas('error', 'Jubelio auth failed.')
+        ->assertSessionHas('errorHint');
 
     $transaction->refresh();
 

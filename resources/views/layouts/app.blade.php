@@ -110,11 +110,16 @@
 </div>
 @endif
 @if(isset($flash) && ($flash['error'] ?? null))
-<div x-data="{ show: true }" x-show="show" x-init="setTimeout(() => show = false, 6000)"
-     class="fixed top-4 right-4 z-50 flex items-center gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 shadow-lg">
-    <svg class="h-4 w-4 text-red-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm-1-5a1 1 0 012 0v-4a1 1 0 01-2 0v4zm1-8a1 1 0 100 2 1 1 0 000-2z" clip-rule="evenodd"/></svg>
-    {{ $flash['error'] }}
-    <button @click="show = false" class="ml-2 text-red-600 hover:text-red-800">✕</button>
+<div x-data="{ show: true }" x-show="show" x-init="setTimeout(() => show = false, {{ ($flash['hint'] ?? null) ? 12000 : 6000 }})"
+     class="fixed top-4 right-4 z-50 flex max-w-md items-start gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 shadow-lg">
+    <svg class="mt-0.5 h-4 w-4 shrink-0 text-red-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm-1-5a1 1 0 012 0v-4a1 1 0 01-2 0v4zm1-8a1 1 0 100 2 1 1 0 000-2z" clip-rule="evenodd"/></svg>
+    <div class="min-w-0">
+        <p>{{ $flash['error'] }}</p>
+        @if($flash['hint'] ?? null)
+        <p class="mt-1 text-xs text-red-700" data-testid="jubelio-sync-hint">Saran: {{ $flash['hint'] }}</p>
+        @endif
+    </div>
+    <button @click="show = false" class="ml-2 shrink-0 text-red-600 hover:text-red-800">✕</button>
 </div>
 @endif
 

@@ -4,6 +4,7 @@ namespace App\Actions\Jubelio;
 
 use App\Models\Jubeliosync;
 use App\Models\Transaction;
+use App\Services\Jubelio\JubelioAdjustmentHint;
 use App\Services\Jubelio\JubelioAdjustmentResponse;
 use App\Services\JubelioService;
 use Illuminate\Support\Facades\Auth;
@@ -89,10 +90,7 @@ class AdjustStock
             if (! $response) {
                 $this->logOutcome($transaction, $side, null, null, 'no-response');
 
-                return [
-                    'success' => false,
-                    'message' => 'Tidak ada respons dari Jubelio setelah push. Jangan tandai berhasil — konfirmasi di Jubelio atau hapus peringatan untuk coba lagi.',
-                ];
+                return $this->failure('Tidak ada respons dari Jubelio setelah push. Jangan tandai berhasil — konfirmasi di Jubelio atau hapus peringatan untuk coba lagi.');
             }
 
             $parsed = JubelioAdjustmentResponse::fromHttp(
@@ -123,16 +121,10 @@ class AdjustStock
             if ($parsed->failed()) {
                 $this->clearAttempt($transaction, $side);
 
-                return [
-                    'success' => false,
-                    'message' => $parsed->message ?? 'API Error: '.$response->status(),
-                ];
+                return $this->failure($parsed->message ?? 'API Error: '.$response->status());
             }
 
-            return [
-                'success' => false,
-                'message' => $parsed->message ?? 'Respons API Jubelio tidak jelas (tidak ada reference ID). Jangan tandai berhasil sebelum ada nomor penyesuaian di Jubelio.',
-            ];
+            return $this->failure($parsed->message ?? 'Respons API Jubelio tidak jelas (tidak ada reference ID). Jangan tandai berhasil sebelum ada nomor penyesuaian di Jubelio.');
         } catch (\Exception $e) {
             if (! $posted) {
                 $this->clearAttempt($transaction, $side);
@@ -142,8 +134,20 @@ class AdjustStock
                 $this->logOutcome($transaction, $side, null, $e->getMessage(), 'exception-after-post');
             }
 
-            return ['success' => false, 'message' => $e->getMessage()];
+            return $this->failure($e->getMessage());
         }
+    }
+
+    /**
+     * @return array{success: false, message: string, hint: string}
+     */
+    private function failure(string $message): array
+    {
+        return [
+            'success' => false,
+            'message' => $message,
+            'hint' => JubelioAdjustmentHint::for($message),
+        ];
     }
 
     private function markAttempt(Transaction $transaction, int $side): void

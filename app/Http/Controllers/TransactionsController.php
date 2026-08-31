@@ -13,7 +13,6 @@ use App\Http\Requests\StoreTransferRequest;
 use App\Models\DeletedTransaction;
 use App\Models\DeletedTransactionDetail;
 use App\Models\Transaction;
-use App\Support\PpnAmounts;
 use App\Services\BookClosingService;
 use App\Services\Jubelio\JubelioTransactionSyncPresenter;
 use App\Services\Reporting\ReportingSummaryRecorder;
@@ -22,6 +21,7 @@ use App\Services\TransactionListExportService;
 use App\Services\TransactionReturnDraftService;
 use App\Services\TransactionService;
 use App\Services\UserPreferenceService;
+use App\Support\PpnAmounts;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -310,7 +310,11 @@ class TransactionsController extends Controller
                 'return_draft' => $canDraftReturn,
                 'jubelio_transaction_sync' => Transaction::userCanJubelioTransactionSync(Auth::user()),
             ],
-            'flash' => ['success' => session('success'), 'error' => session('errorMessage') ?? session('error')],
+            'flash' => [
+                'success' => session('success'),
+                'error' => session('errorMessage') ?? session('error'),
+                'hint' => session('errorHint'),
+            ],
             'hasInvoicePdf' => $invoiceService->invoicePdfExists($transaction),
             'invoicePdfUrl' => $invoiceService->invoicePdfUrl($transaction),
             'canEditPpn' => Auth::user()->can(Transaction::getPermissions()['edit'])
