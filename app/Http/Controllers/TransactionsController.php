@@ -310,7 +310,7 @@ class TransactionsController extends Controller
                 'return_draft' => $canDraftReturn,
                 'jubelio_transaction_sync' => Transaction::userCanJubelioTransactionSync(Auth::user()),
             ],
-            'flash' => ['success' => session('success'), 'error' => session('error')],
+            'flash' => ['success' => session('success'), 'error' => session('errorMessage') ?? session('error')],
             'hasInvoicePdf' => $invoiceService->invoicePdfExists($transaction),
             'invoicePdfUrl' => $invoiceService->invoicePdfUrl($transaction),
             'canEditPpn' => Auth::user()->can(Transaction::getPermissions()['edit'])

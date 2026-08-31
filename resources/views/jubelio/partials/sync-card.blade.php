@@ -60,12 +60,12 @@
         @elseif($hasWarning)
         <div class="space-y-3">
             <p class="text-xs text-yellow-800">
-                Push ke Jubelio sudah dicoba tetapi status tidak jelas. Konfirmasi jika berhasil di Jubelio, atau hapus peringatan untuk coba lagi.
+                Push ke Jubelio sudah dicoba tetapi status tidak jelas — Aria belum punya nomor penyesuaian. Jangan tandai berhasil kecuali Anda melihat dokumennya di Jubelio.
             </p>
             <form method="POST" action="{{ route('jubelio.transaction.sync-confirm', ['transaction' => $transactionId]) }}" class="space-y-2">
                 @csrf
                 <input type="hidden" name="side" value="{{ $side }}">
-                <input type="text" name="reference_id" placeholder="Reference ID (opsional)"
+                <input type="text" name="reference_id" required placeholder="Nomor / ID penyesuaian Jubelio"
                        class="w-full rounded-md border border-yellow-300 px-2 py-1 text-xs">
                 <button type="submit" class="h-8 w-full rounded-lg bg-yellow-600 text-xs font-bold uppercase text-white hover:bg-yellow-700">
                     Konfirmasi Berhasil
