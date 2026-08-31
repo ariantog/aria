@@ -3,10 +3,15 @@
 use App\Models\Report;
 use App\Models\User;
 
-it('no longer registers the purchase report permission', function () {
+it('no longer registers leftover finance report permissions', function (string $name) {
     expect(Report::getPermissions())->not->toHaveKey('view-purchase')
-        ->and(Report::getPermissions())->not->toContain('report-purchase');
-});
+        ->and(Report::getPermissions())->not->toContain($name);
+})->with([
+    'report-cash-flow',
+    'report-expense',
+    'report-purchase',
+    'cash-flow',
+]);
 
 it('returns 404 for the removed leftover finance reports', function (string $path) {
     $user = User::factory()->create([
