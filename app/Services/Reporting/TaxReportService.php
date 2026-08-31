@@ -83,6 +83,10 @@ class TaxReportService
         $masukanDpp = $rawMasukanDpp - $returMasukanDpp;
         $masukanTax = $rawMasukanTax - $returMasukanTax;
 
+        // Decision: Sell.ppn is ledger truth for PPN keluaran. Imported faktur
+        // rows are reporting-only until a Sell is posted; fakturTotals() /
+        // fakturImportRows() exclude imports with sell_transaction_id so ringkasan
+        // and drill-down never double-count Sell + the same faktur.
         $fakturKeluaran = $this->fakturTotals($entityIds, $year, $month, TaxFakturImport::DIRECTION_KELUARAN);
         $fakturMasukan = $this->fakturTotals($entityIds, $year, $month, TaxFakturImport::DIRECTION_MASUKAN);
 
