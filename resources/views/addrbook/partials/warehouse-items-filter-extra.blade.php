@@ -1,8 +1,8 @@
 <div class="flex flex-col gap-1">
     <label class="text-xs font-medium uppercase text-gray-500">Sort By</label>
     <select name="sort" class="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
-        @foreach(['qtydesc' => 'Quantity (High to Low)', 'qtyasc' => 'Quantity (Low to High)', 'namedesc' => 'Name (Z-A)', 'nameasc' => 'Name (A-Z)', 'codedesc' => 'Code (Z-A)', 'codeasc' => 'Code (A-Z)'] as $val => $lbl)
-            <option value="{{ $val }}" @selected(($filters['sort'] ?? 'qtydesc') === $val)>{{ $lbl }}</option>
+        @foreach(['codeasc' => 'Code (A-Z)', 'codedesc' => 'Code (Z-A)', 'qtydesc' => 'Quantity (High to Low)', 'qtyasc' => 'Quantity (Low to High)', 'namedesc' => 'Name (Z-A)', 'nameasc' => 'Name (A-Z)', 'priceasc' => 'Price (Low to High)', 'pricedesc' => 'Price (High to Low)', 'idasc' => 'ID (Low to High)', 'iddesc' => 'ID (High to Low)'] as $val => $lbl)
+            <option value="{{ $val }}" @selected(($filters['sort'] ?? 'codeasc') === $val)>{{ $lbl }}</option>
         @endforeach
     </select>
 </div>

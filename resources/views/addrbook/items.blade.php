@@ -19,6 +19,18 @@ $warnaTags = ($tags[\App\Models\Tag::TYPE_WARNA] ?? collect());
 $jahitTags = ($tags[\App\Models\Tag::TYPE_JAHIT] ?? collect());
 $filtersStorageKey = 'aria-warehouse-items-filters-open-' . $addrbook->id;
 $idr = fn ($v) => 'IDR ' . format_amount($v, 0);
+$currentSort = $filters['sort'] ?? 'codeasc';
+$sortColumn = preg_replace('/(asc|desc)$/', '', $currentSort);
+$sortDirection = str_ends_with($currentSort, 'desc') ? 'desc' : 'asc';
+$sortLink = function (string $column) use ($filters, $sortColumn, $sortDirection, $baseUrl) {
+    $nextDirection = ($sortColumn === $column && $sortDirection === 'asc') ? 'desc' : 'asc';
+    $query = array_merge($filters, ['sort' => $column . $nextDirection]);
+
+    return $baseUrl . '?' . http_build_query(array_filter(
+        $query,
+        fn ($value) => $value !== null && $value !== '',
+    ));
+};
 @endphp
 
 <div class="flex flex-col gap-4 p-3 sm:p-4" x-data="{
@@ -112,13 +124,23 @@ $idr = fn ($v) => 'IDR ' . format_amount($v, 0);
         <table class="w-full min-w-[1100px] text-left text-xs">
             <thead class="border-b border-gray-200 bg-gray-50 text-[10px] uppercase tracking-wider text-gray-500">
                 <tr>
-                    <th class="w-14 px-2 py-2.5 font-bold">ID</th>
+                    <th class="w-14 px-2 py-2.5 font-bold">
+                        <a href="{{ $sortLink('id') }}" class="inline-flex items-center gap-1 hover:text-gray-900">ID @if($sortColumn === 'id')<span class="text-blue-600">{{ $sortDirection === 'asc' ? '↑' : '↓' }}</span>@endif</a>
+                    </th>
                     <th class="w-16 px-2 py-2.5 font-bold" x-show="showImage">Image</th>
-                    <th class="whitespace-nowrap px-2 py-2.5 font-bold">Item Name</th>
-                    <th class="min-w-[7rem] px-2 py-2.5 font-bold">Code</th>
+                    <th class="whitespace-nowrap px-2 py-2.5 font-bold">
+                        <a href="{{ $sortLink('name') }}" class="inline-flex items-center gap-1 hover:text-gray-900">Item Name @if($sortColumn === 'name')<span class="text-blue-600">{{ $sortDirection === 'asc' ? '↑' : '↓' }}</span>@endif</a>
+                    </th>
+                    <th class="min-w-[7rem] px-2 py-2.5 font-bold">
+                        <a href="{{ $sortLink('code') }}" class="inline-flex items-center gap-1 hover:text-gray-900">Code @if($sortColumn === 'code')<span class="text-blue-600">{{ $sortDirection === 'asc' ? '↑' : '↓' }}</span>@endif</a>
+                    </th>
                     <th class="min-w-[8rem] max-w-[14rem] px-2 py-2.5 font-bold">Description</th>
-                    <th class="whitespace-nowrap px-2 py-2.5 text-right font-bold">Price</th>
-                    <th class="whitespace-nowrap px-2 py-2.5 text-right font-bold">Stock</th>
+                    <th class="whitespace-nowrap px-2 py-2.5 text-right font-bold">
+                        <a href="{{ $sortLink('price') }}" class="inline-flex items-center gap-1 hover:text-gray-900">Price @if($sortColumn === 'price')<span class="text-blue-600">{{ $sortDirection === 'asc' ? '↑' : '↓' }}</span>@endif</a>
+                    </th>
+                    <th class="whitespace-nowrap px-2 py-2.5 text-right font-bold">
+                        <a href="{{ $sortLink('qty') }}" class="inline-flex items-center gap-1 hover:text-gray-900">Stock @if($sortColumn === 'qty')<span class="text-blue-600">{{ $sortDirection === 'asc' ? '↑' : '↓' }}</span>@endif</a>
+                    </th>
                     @if($jubelioSync ?? null)
                         <th class="whitespace-nowrap px-2 py-2.5 text-right font-bold">Jubelio</th>
                     @endif

@@ -26,16 +26,19 @@ class WarehouseStockQueryService
             fn ($q) => $q->where('warehouse_item.quantity', '>=', 1),
         );
 
-        $sort = $request->input('sort', 'qtydesc');
+        $sort = $request->input('sort', 'codeasc');
         match ($sort) {
             'qtyasc' => $query->orderByPivot('quantity', 'asc'),
+            'qtydesc' => $query->orderByPivot('quantity', 'desc'),
             'codedesc' => $query->orderBy('items.code', 'desc'),
             'codeasc' => $query->orderBy('items.code', 'asc'),
             'namedesc' => $query->orderBy('items.name', 'desc'),
             'nameasc' => $query->orderBy('items.name', 'asc'),
+            'pricedesc' => $query->orderBy('items.price', 'desc'),
+            'priceasc' => $query->orderBy('items.price', 'asc'),
             'iddesc' => $query->orderBy('items.id', 'desc'),
             'idasc' => $query->orderBy('items.id', 'asc'),
-            default => $query->orderByPivot('quantity', 'desc'),
+            default => $query->orderBy('items.code', 'asc'),
         };
 
         return $query;
