@@ -45,6 +45,7 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::resource('roles', App\Http\Controllers\RoleController::class);
     Route::post('users/{user}/ban', [\App\Http\Controllers\UserController::class, 'ban'])->name('users.ban');
     Route::post('users/{user}/unban', [\App\Http\Controllers\UserController::class, 'unban'])->name('users.unban');
+    Route::get('staff-checklists', [App\Http\Controllers\StaffChecklistOverviewController::class, 'index'])->name('staff-checklists.index');
     Route::resource('users', \App\Http\Controllers\UserController::class)->except(['destroy']);
     Route::resource('locations', \App\Http\Controllers\LocationController::class);
     Route::get('locations/{location}/customers', [\App\Http\Controllers\LocationController::class, 'customers'])->name('locations.customers');

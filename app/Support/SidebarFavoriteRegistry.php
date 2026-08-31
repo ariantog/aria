@@ -592,6 +592,15 @@ class SidebarFavoriteRegistry
                 'params' => [],
                 'active_prefix' => '/locations',
             ],
+            [
+                'key' => 'users-staff-roles-view',
+                'label' => 'Checklist Peran',
+                'group' => 'User Management',
+                'permission' => 'users-staff-roles-view',
+                'route' => 'staff-checklists.index',
+                'params' => [],
+                'active_prefix' => '/staff-checklists',
+            ],
         ];
 
         foreach (Addrbook::getTypes() as $type) {
