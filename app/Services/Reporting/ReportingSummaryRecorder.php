@@ -11,6 +11,7 @@ use App\Models\ReportingMonthlyTaxSummary;
 use App\Models\ReportingOperationMonthlySummary;
 use App\Models\ReportingTaxAccount;
 use App\Models\Setting;
+use App\Models\TaxFakturImport;
 use App\Models\Transaction;
 use Illuminate\Support\Carbon;
 
@@ -323,6 +324,14 @@ class ReportingSummaryRecorder
 
     public function resolveEntityForSellTax(Transaction $transaction): ?ReportingEntity
     {
+        $linkedCashIn = $this->linkedFakturCashIn($transaction);
+        if ($linkedCashIn && (int) $linkedCashIn->receiver_type === Addrbook::TYPE_BANK) {
+            $entity = ReportingEntity::findActiveForBank((int) $linkedCashIn->receiver_id);
+            if ($entity) {
+                return $entity;
+            }
+        }
+
         $baseQuery = Transaction::query()
             ->where('type', Transaction::TYPE_CASH_IN)
             ->where('status', Transaction::STATUS_COMPLETED)
@@ -348,6 +357,28 @@ class ReportingSummaryRecorder
         }
 
         return ReportingEntity::findActiveForBank((int) $payment->receiver_id);
+    }
+
+    /**
+     * MDS/Central consignment Sells are posted from a faktur import that already
+     * links the collecting Cash In. Tax entity must come from that bank, not the
+     * customer's first historical Cash In or a default entity on the customer.
+     */
+    private function linkedFakturCashIn(Transaction $transaction): ?Transaction
+    {
+        if (! $transaction->id) {
+            return null;
+        }
+
+        $import = TaxFakturImport::query()
+            ->where('sell_transaction_id', $transaction->id)
+            ->first();
+
+        if (! $import?->cash_in_transaction_id) {
+            return null;
+        }
+
+        return Transaction::query()->find($import->cash_in_transaction_id);
     }
 
     private function taxSummary(int $year, int $month, int $entityId): ReportingMonthlyTaxSummary

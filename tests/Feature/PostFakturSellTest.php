@@ -1,8 +1,11 @@
 <?php
 
+use App\Jobs\UpdateTransactionSummaries;
 use App\Models\Addrbook;
 use App\Models\Item;
 use App\Models\ReportingEntity;
+use App\Models\ReportingMonthlyTaxSummary;
+use App\Models\ReportingWarehouseFulfillment;
 use App\Models\TaxFakturImport;
 use App\Models\Transaction;
 use App\Models\User;
@@ -10,15 +13,16 @@ use App\Models\WarehouseItem;
 use App\Services\PermissionGenerator;
 use App\Services\Reporting\ReportingSummaryRecorder;
 use App\Services\Reporting\TaxReportService;
+use App\Services\Tax\FakturLineItemMatcher;
+use App\Services\Tax\ParsedFakturPajak;
 use App\Services\Tax\PostFakturSell;
 use App\Services\Tax\TaxFakturImportService;
-use App\Services\Tax\ParsedFakturPajak;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Bus;
-use App\Jobs\UpdateTransactionSummaries;
 
 beforeEach(function () {
+    Bus::fake([UpdateTransactionSummaries::class]);
     $this->user = User::factory()->create();
     app(PermissionGenerator::class)->generateForModule('Report');
     $this->user->givePermissionTo([
@@ -140,6 +144,8 @@ it('posts sell from keluaran faktur with faktur dpp and ppn totals', function ()
         ->value('quantity');
 
     expect((float) $stock)->toBe(99.0);
+
+    Bus::assertDispatched(UpdateTransactionSummaries::class, fn ($job) => $job->transactionId === $sell->id);
 });
 
 it('matches gross sell to faktur and treats payment gap as consignment margin', function () {
@@ -353,4 +359,191 @@ it('posts sell via faktur show form', function () {
     expect($sell)->not->toBeNull()
         ->and($sell->date->toDateString())->toBe('2026-08-15')
         ->and($sell->invoice)->toBe('04002600298450234');
+});
+
+it('prefers linked cash-in bank over an earlier cash-in to another entity', function () {
+    $data = seedConsignmentFakturSellScenario();
+    $this->actingAs($this->user);
+
+    $otherEntity = ReportingEntity::create([
+        'name' => 'PT Other',
+        'slug' => 'pt-other-sell-entity',
+        'is_pkp' => true,
+    ]);
+    $otherBank = Addrbook::create(['name' => 'Other Entity Bank', 'type' => Addrbook::TYPE_BANK]);
+    $otherEntity->banks()->attach($otherBank->id, ['is_active' => true]);
+
+    Transaction::withoutEvents(fn () => Transaction::create([
+        'date' => '2026-08-01',
+        'type' => Transaction::TYPE_CASH_IN,
+        'sender_type' => Addrbook::TYPE_CUSTOMER,
+        'sender_id' => $data['customer']->id,
+        'receiver_type' => Addrbook::TYPE_BANK,
+        'receiver_id' => $otherBank->id,
+        'invoice' => 'EARLIER-REMITTANCE',
+        'total' => 5_000_000,
+        'real_total' => 5_000_000,
+        'status' => Transaction::STATUS_COMPLETED,
+        'user_id' => $this->user->id,
+        'submit_type' => Transaction::SUBMIT_TYPE_MANUAL,
+    ]));
+
+    $data['cashIn']->update(['invoice' => 'MDS-PAY-99']);
+
+    $import = app(TaxFakturImportService::class)->storeFromParsed($data['parsed'], [
+        'direction' => TaxFakturImport::DIRECTION_KELUARAN,
+        'reporting_entity_id' => $data['entity']->id,
+        'counterparty_id' => $data['customer']->id,
+        'payment_received_amount' => 20_000_000,
+        'payment_received_date' => '2026-08-15',
+        'cash_in_transaction_id' => $data['cashIn']->id,
+    ]);
+
+    $sell = app(PostFakturSell::class)->execute($import, [
+        'warehouse_id' => $data['warehouse']->id,
+        'invoice_source' => PostFakturSell::INVOICE_SOURCE_FAKTUR,
+        'line_mode' => PostFakturSell::LINE_MODE_SUMMARY,
+        'summary_item_id' => $data['item']->id,
+    ]);
+
+    $sell = $sell->fresh();
+    $entity = app(ReportingSummaryRecorder::class)->resolveEntityForSellTax($sell);
+
+    expect($entity)->not->toBeNull()
+        ->and($entity->id)->toBe($data['entity']->id)
+        ->and($sell->invoice)->toBe('04002600298450234');
+
+    app(ReportingSummaryRecorder::class)->record($sell);
+
+    $linkedSummary = ReportingMonthlyTaxSummary::query()
+        ->where('reporting_entity_id', $data['entity']->id)
+        ->where('year', 2026)
+        ->where('month', 7)
+        ->first();
+    $otherSummary = ReportingMonthlyTaxSummary::query()
+        ->where('reporting_entity_id', $otherEntity->id)
+        ->first();
+
+    expect($linkedSummary)->not->toBeNull()
+        ->and((float) $linkedSummary->ppn_keluaran_tax)->toBe(2_334_327.0)
+        ->and($otherSummary)->toBeNull();
+});
+
+it('posts sell from review save when post_sell is checked', function () {
+    $data = seedConsignmentFakturSellScenario();
+    $this->actingAs($this->user);
+
+    $this->withSession([
+        'tax_faktur_import_preview' => [
+            'pdf_path' => null,
+            'parsed' => [
+                'faktur_number' => $data['parsed']->fakturNumber,
+                'faktur_date' => $data['parsed']->fakturDate?->toDateString(),
+                'faktur_date_place' => $data['parsed']->fakturDatePlace,
+                'seller_name' => $data['parsed']->sellerName,
+                'seller_npwp' => $data['parsed']->sellerNpwp,
+                'buyer_name' => $data['parsed']->buyerName,
+                'buyer_npwp' => $data['parsed']->buyerNpwp,
+                'gross_total' => $data['parsed']->grossTotal,
+                'discount_total' => $data['parsed']->discountTotal,
+                'dpp' => $data['parsed']->dpp,
+                'ppn' => $data['parsed']->ppn,
+                'ppnbm' => $data['parsed']->ppnbm,
+                'signatory_name' => $data['parsed']->signatoryName,
+                'source_format' => $data['parsed']->sourceFormat,
+                'line_items' => $data['parsed']->lineItems,
+            ],
+            'suggestion' => [
+                'direction' => TaxFakturImport::DIRECTION_KELUARAN,
+                'reporting_entity_id' => $data['entity']->id,
+            ],
+            'counterparty_guess_id' => $data['customer']->id,
+            'expected_payment_date' => '2026-08-15',
+        ],
+    ])->post(route('reports.tax.faktur.store'), [
+        'direction' => TaxFakturImport::DIRECTION_KELUARAN,
+        'reporting_entity_id' => $data['entity']->id,
+        'counterparty_id' => $data['customer']->id,
+        'payment_received_amount' => 20_000_000,
+        'payment_received_date' => '2026-08-15',
+        'cash_in_transaction_id' => $data['cashIn']->id,
+        'post_sell' => '1',
+        'warehouse_id' => $data['warehouse']->id,
+        'date_source' => 'faktur',
+        'invoice_source' => 'faktur',
+        'line_mode' => 'summary',
+        'summary_item_id' => $data['item']->id,
+    ])
+        ->assertRedirect(route('reports.tax.faktur.show', TaxFakturImport::query()->first()))
+        ->assertSessionHas('success');
+
+    $import = TaxFakturImport::query()->where('faktur_number', $data['parsed']->fakturNumber)->first();
+
+    expect($import)->not->toBeNull()
+        ->and($import->sell_transaction_id)->not->toBeNull();
+});
+
+it('rejects sell date inside a closed book period', function () {
+    Carbon::setTestNow(Carbon::parse('2026-10-15'));
+    $data = seedConsignmentFakturSellScenario();
+    $this->actingAs($this->user);
+
+    $import = app(TaxFakturImportService::class)->storeFromParsed($data['parsed'], [
+        'direction' => TaxFakturImport::DIRECTION_KELUARAN,
+        'reporting_entity_id' => $data['entity']->id,
+        'counterparty_id' => $data['customer']->id,
+        'payment_received_amount' => 20_000_000,
+        'payment_received_date' => '2026-08-15',
+        'cash_in_transaction_id' => $data['cashIn']->id,
+    ]);
+
+    app(PostFakturSell::class)->execute($import, [
+        'warehouse_id' => $data['warehouse']->id,
+        'date_source' => PostFakturSell::DATE_SOURCE_FAKTUR,
+        'line_mode' => PostFakturSell::LINE_MODE_SUMMARY,
+        'summary_item_id' => $data['item']->id,
+    ]);
+})->throws(InvalidArgumentException::class, 'Tanggal transaksi hanya boleh');
+
+it('prefills warehouse from customer fulfillment mapping', function () {
+    $data = seedConsignmentFakturSellScenario();
+    $fulfillmentWarehouse = Addrbook::factory()->warehouse()->create(['name' => 'MDS Fulfillment WH']);
+    ReportingWarehouseFulfillment::create([
+        'warehouse_id' => $fulfillmentWarehouse->id,
+        'customer_id' => $data['customer']->id,
+    ]);
+    $this->actingAs($this->user);
+
+    $import = app(TaxFakturImportService::class)->storeFromParsed($data['parsed'], [
+        'direction' => TaxFakturImport::DIRECTION_KELUARAN,
+        'reporting_entity_id' => $data['entity']->id,
+        'counterparty_id' => $data['customer']->id,
+        'payment_received_amount' => 20_000_000,
+        'payment_received_date' => '2026-08-15',
+        'cash_in_transaction_id' => $data['cashIn']->id,
+    ]);
+
+    $html = $this->get(route('reports.tax.faktur.show', $import))
+        ->assertOk()
+        ->assertSee('MDS Fulfillment WH', false)
+        ->assertSee('data-testid="faktur-post-sell"', false)
+        ->getContent();
+
+    expect($html)->toContain('value="'.$fulfillmentWarehouse->id.'" selected');
+});
+
+it('matches faktur lines by pcode and code', function () {
+    $item = Item::factory()->create([
+        'name' => 'Celana Panjang Navy',
+        'code' => 'CLN001',
+        'pcode' => 'P-CLN-001',
+    ]);
+
+    $matches = app(FakturLineItemMatcher::class)->propose([
+        ['line_no' => 1, 'name' => 'P-CLN-001 Extra', 'quantity' => 1, 'unit_price' => 10, 'total' => 10],
+    ]);
+
+    expect($matches[0]['best_match'])->not->toBeNull()
+        ->and($matches[0]['best_match']['id'])->toBe($item->id)
+        ->and($matches[0]['best_match']['score'])->toBeGreaterThanOrEqual(90);
 });

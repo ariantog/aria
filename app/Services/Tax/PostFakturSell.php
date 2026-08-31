@@ -2,14 +2,17 @@
 
 namespace App\Services\Tax;
 
+use App\Jobs\UpdateTransactionSummaries;
 use App\Models\Addrbook;
 use App\Models\Item;
 use App\Models\TaxFakturImport;
 use App\Models\Transaction;
 use App\Models\WarehouseItem;
+use App\Services\BookClosingService;
 use App\Services\TransactionService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use InvalidArgumentException;
 
 class PostFakturSell
@@ -28,6 +31,7 @@ class PostFakturSell
 
     public function __construct(
         private readonly TransactionService $transactionService,
+        private readonly BookClosingService $bookClosing,
     ) {}
 
     /**
@@ -42,48 +46,49 @@ class PostFakturSell
      */
     public function execute(TaxFakturImport $import, array $options): Transaction
     {
-        $import = $import->fresh(['counterparty', 'cashInTransaction']);
+        return DB::transaction(function () use ($import, $options) {
+            $import = TaxFakturImport::query()
+                ->whereKey($import->id)
+                ->lockForUpdate()
+                ->first();
 
-        $this->assertCanPost($import);
+            if (! $import) {
+                throw new InvalidArgumentException('Faktur import was not found.');
+            }
 
-        $warehouse = Addrbook::query()->findOrFail($options['warehouse_id']);
-        if (! Addrbook::typeIsWarehouse((int) $warehouse->type)) {
-            throw new InvalidArgumentException('Warehouse must be a warehouse or consignment location.');
-        }
+            $import->load(['counterparty', 'cashInTransaction']);
+            $this->assertCanPost($import);
 
-        $customer = $import->counterparty;
-        if (! $customer) {
-            throw new InvalidArgumentException('Faktur counterparty is missing.');
-        }
+            $warehouse = Addrbook::query()->findOrFail($options['warehouse_id']);
+            if (! Addrbook::typeIsWarehouse((int) $warehouse->type)) {
+                throw new InvalidArgumentException('Warehouse must be a warehouse or consignment location.');
+            }
 
-        $lineMode = $options['line_mode'] ?? self::LINE_MODE_SUMMARY;
-        $detailRows = $lineMode === self::LINE_MODE_MAPPED
-            ? $this->buildMappedDetails($import, $options['mapped_lines'] ?? [])
-            : $this->buildSummaryDetails($import, (int) ($options['summary_item_id'] ?? 0));
+            $customer = $import->counterparty;
+            if (! $customer) {
+                throw new InvalidArgumentException('Faktur counterparty is missing.');
+            }
 
-        $this->assertStockAvailable($warehouse, $detailRows);
+            $lineMode = $options['line_mode'] ?? self::LINE_MODE_SUMMARY;
+            $detailRows = $lineMode === self::LINE_MODE_MAPPED
+                ? $this->buildMappedDetails($import, $options['mapped_lines'] ?? [])
+                : $this->buildSummaryDetails($import, (int) ($options['summary_item_id'] ?? 0));
 
-        $date = $this->resolveDate($import, $options['date_source'] ?? self::DATE_SOURCE_FAKTUR);
-        $invoice = $this->resolveInvoice($import, $options['invoice_source'] ?? self::INVOICE_SOURCE_FAKTUR);
+            $this->assertStockAvailable($warehouse, $detailRows);
 
-        $dpp = (float) $import->dpp;
-        $ppn = (float) $import->ppn;
-        $grandTotal = $dpp + $ppn + (float) $import->ppnbm;
-        $totalItems = array_sum(array_column($detailRows, 'quantity'));
+            $date = $this->resolveDate($import, $options['date_source'] ?? self::DATE_SOURCE_FAKTUR);
+            $this->assertDateOpen($date);
+            $invoice = $this->resolveInvoice($import, $options['invoice_source'] ?? self::INVOICE_SOURCE_FAKTUR);
 
-        return DB::transaction(function () use (
-            $import,
-            $warehouse,
-            $customer,
-            $detailRows,
-            $date,
-            $invoice,
-            $dpp,
-            $ppn,
-            $grandTotal,
-            $totalItems,
-        ) {
-            $transaction = Transaction::create([
+            $dpp = (float) $import->dpp;
+            $ppn = (float) $import->ppn;
+            $grandTotal = $dpp + $ppn + (float) $import->ppnbm;
+            $totalItems = array_sum(array_column($detailRows, 'quantity'));
+
+            // Create without observer so UpdateTransactionSummaries runs after
+            // sell_transaction_id is stored — resolveEntityForSellTax needs the
+            // linked Cash In bank (QUEUE_CONNECTION=sync would otherwise fire first).
+            $transaction = Transaction::withoutEvents(fn () => Transaction::create([
                 'date' => $date,
                 'type' => Transaction::TYPE_SELL,
                 'sender_type' => (int) $warehouse->type,
@@ -101,7 +106,7 @@ class PostFakturSell
                 'adjustment' => 0,
                 'total_items' => $totalItems,
                 'submit_type' => Transaction::SUBMIT_TYPE_MANUAL,
-            ]);
+            ]));
 
             if (empty($transaction->invoice)) {
                 $transaction->update(['invoice' => (string) $transaction->id]);
@@ -122,13 +127,25 @@ class PostFakturSell
                 ]);
             }
 
-            $this->transactionService->handleTransaction($transaction);
-
             $import->sell_transaction_id = $transaction->id;
             $import->save();
 
+            $this->transactionService->handleTransaction($transaction);
+            UpdateTransactionSummaries::dispatch($transaction->id);
+
             return $transaction->fresh(['details', 'sender', 'receiver']);
         });
+    }
+
+    private function assertDateOpen(string $date): void
+    {
+        try {
+            $this->bookClosing->validateDate($date);
+        } catch (ValidationException $e) {
+            $messages = $e->errors()['date'] ?? [];
+
+            throw new InvalidArgumentException($messages[0] ?? $e->getMessage());
+        }
     }
 
     private function assertCanPost(TaxFakturImport $import): void
