@@ -11,7 +11,8 @@ $breadcrumbs = [
 $fmtNum = fn ($v) => format_amount($v, 0);
 @endphp
 
-<div class="flex h-full flex-1 flex-col gap-4 overflow-x-auto rounded-xl p-4">
+{{-- Do not use h-full + overflow-x-auto here: that pins height to the viewport and clips the table. --}}
+<div class="flex flex-col gap-4 p-3 sm:p-4" data-testid="stock-notifications-page">
     <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
             <h1 class="text-2xl font-bold tracking-tight">Stock Alerts</h1>
