@@ -101,7 +101,7 @@ class InventoryHealthQueryService
     }
 
     /**
-     * @return array{source: 'snapshot'|'live', synced_at: ?Carbon, stale: bool, has_snapshots: bool}
+     * @return array{source: 'snapshot'|'live', synced_at: ?\Carbon\CarbonInterface, stale: bool, has_snapshots: bool}
      */
     public function pageMeta(Request $request): array
     {
