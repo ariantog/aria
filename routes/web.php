@@ -17,6 +17,10 @@ Route::get('dashboard', App\Http\Controllers\DashboardController::class)
     ->middleware(['auth', 'verified', 'active'])
     ->name('dashboard');
 
+Route::post('checklist/{checklist}/toggle', App\Http\Controllers\ChecklistCompletionController::class)
+    ->middleware(['auth', 'verified', 'active'])
+    ->name('checklist.toggle');
+
 Route::middleware(['auth', 'active'])->get('/banned', function () {
     if (request()->user()->active) {
         return redirect('dashboard');
