@@ -32,6 +32,11 @@ class CreateItemTransaction
             $this->calculateAndSetTotals($transaction, $type, $data, $sender, $receiver);
             $this->transactionService->handleTransaction($transaction);
 
+            if (in_array($type, [Transaction::TYPE_SELL, Transaction::TYPE_CASH_IN], true)) {
+                app(\App\Services\StandaloneInvoiceSettlement::class)
+                    ->reconcileByNumber((string) $transaction->invoice, Auth::user());
+            }
+
             return $transaction->fresh(['details', 'sender', 'receiver']);
         });
     }

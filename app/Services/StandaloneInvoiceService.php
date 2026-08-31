@@ -200,7 +200,10 @@ class StandaloneInvoiceService
             $this->syncLines($invoice, $lines);
             $this->deleteInvoicePdfs($invoice->fresh());
 
-            return $invoice->fresh(['lines', 'sender']);
+            $invoice = $invoice->fresh(['lines', 'sender']) ?? $invoice;
+            app(StandaloneInvoiceSettlement::class)->reconcile($invoice, auth()->user());
+
+            return $invoice->fresh(['lines', 'sender']) ?? $invoice;
         });
     }
 
@@ -222,7 +225,10 @@ class StandaloneInvoiceService
             $this->syncLines($invoice, $lines);
             $this->deleteInvoicePdfs($invoice->fresh());
 
-            return $invoice->fresh(['lines', 'sender']);
+            $invoice = $invoice->fresh(['lines', 'sender']) ?? $invoice;
+            app(StandaloneInvoiceSettlement::class)->reconcile($invoice, auth()->user());
+
+            return $invoice->fresh(['lines', 'sender']) ?? $invoice;
         });
     }
 

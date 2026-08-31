@@ -118,6 +118,12 @@ $fmt = fn ($n) => format_currency($n);
                             <td class="px-4 py-3 text-right text-gray-500">SUB TOTAL</td>
                             <td class="px-4 py-3 text-right font-mono text-lg font-bold text-gray-900">{{ $fmt($invoice->subtotal) }}</td>
                         </tr>
+                        @if($invoice->discountAmount() > 0)
+                        <tr>
+                            <td colspan="3" class="px-4 py-3 text-right font-semibold text-gray-600">Discount</td>
+                            <td class="px-4 py-3 text-right font-mono text-lg font-bold text-gray-600">{{ $fmt($invoice->discountAmount()) }}</td>
+                        </tr>
+                        @endif
                         @if($invoice->hasDownPayment())
                         <tr>
                             <td colspan="3" class="px-4 py-3 text-right font-semibold text-red-600">DP</td>
@@ -126,7 +132,7 @@ $fmt = fn ($n) => format_currency($n);
                         @endif
                         <tr>
                             <td colspan="3" class="px-4 py-3 text-right font-semibold text-gray-900">TOTAL</td>
-                            <td class="px-4 py-3 text-right font-mono text-lg font-bold text-gray-900">{{ $fmt($invoice->balanceDue()) }}</td>
+                            <td class="px-4 py-3 text-right font-mono text-lg font-bold text-gray-900">{{ $fmt(max(0, $invoice->balanceDue() - $invoice->discountAmount())) }}</td>
                         </tr>
                     </tfoot>
                 </table>
