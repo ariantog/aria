@@ -278,3 +278,73 @@ it('does not show jubelio column when warehouse is not mapped', function () {
         ->assertDontSee('Not linked', false)
         ->assertDontSee('Jubelio location:', false);
 });
+
+it('sorts warehouse stock by code ascending by default', function () {
+    User::factory()->create();
+    $user = User::factory()->create();
+    $user->givePermissionTo('addrbook-warehouse-items');
+
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    $zebra = Item::factory()->create(['code' => 'WH-ZEBRA-M']);
+    $alpha = Item::factory()->create(['code' => 'WH-ALPHA-M']);
+
+    foreach ([$zebra, $alpha] as $item) {
+        WarehouseItem::create([
+            'warehouse_id' => $warehouse->id,
+            'item_id' => $item->id,
+            'warehouse_type' => Addrbook::TYPE_WAREHOUSE,
+            'quantity' => 5,
+        ]);
+    }
+
+    $html = $this->actingAs($user)
+        ->get(route('addrbook.type.items', ['warehouse', $warehouse->id]))
+        ->assertOk()
+        ->getContent();
+
+    expect(strpos($html, 'WH-ALPHA-M'))->toBeLessThan(strpos($html, 'WH-ZEBRA-M'));
+});
+
+it('sorts warehouse stock when sort query param is provided', function () {
+    User::factory()->create();
+    $user = User::factory()->create();
+    $user->givePermissionTo('addrbook-warehouse-items');
+
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    $lowQty = Item::factory()->create(['code' => 'WH-LOW-QTY']);
+    $highQty = Item::factory()->create(['code' => 'WH-HIGH-QTY']);
+
+    WarehouseItem::create([
+        'warehouse_id' => $warehouse->id,
+        'item_id' => $lowQty->id,
+        'warehouse_type' => Addrbook::TYPE_WAREHOUSE,
+        'quantity' => 2,
+    ]);
+    WarehouseItem::create([
+        'warehouse_id' => $warehouse->id,
+        'item_id' => $highQty->id,
+        'warehouse_type' => Addrbook::TYPE_WAREHOUSE,
+        'quantity' => 20,
+    ]);
+
+    $html = $this->actingAs($user)
+        ->get(route('addrbook.type.items', ['warehouse', $warehouse->id, 'sort' => 'qtydesc']))
+        ->assertOk()
+        ->getContent();
+
+    expect(strpos($html, 'WH-HIGH-QTY'))->toBeLessThan(strpos($html, 'WH-LOW-QTY'));
+});
+
+it('renders sortable column headers on warehouse stock page', function () {
+    User::factory()->create();
+    $user = User::factory()->create();
+    $user->givePermissionTo('addrbook-warehouse-items');
+
+    $warehouse = Addrbook::factory()->warehouse()->create();
+
+    $this->actingAs($user)
+        ->get(route('addrbook.type.items', ['warehouse', $warehouse->id]))
+        ->assertOk()
+        ->assertSee('sort=codedesc', false)
+        ->assertSee('sort=qtyasc', false);
+});
