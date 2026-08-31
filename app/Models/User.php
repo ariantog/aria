@@ -5,6 +5,7 @@ namespace App\Models;
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Models\UserPreference;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Fortify\TwoFactorAuthenticatable;
@@ -144,6 +145,13 @@ class User extends Authenticatable
     public function preferences()
     {
         return $this->hasMany(UserPreference::class);
+    }
+
+    public function staffRoles(): BelongsToMany
+    {
+        return $this->belongsToMany(StaffRole::class, 'staff_role_user', 'user_id', 'staff_role_id')
+            ->withTimestamps()
+            ->orderBy('staff_roles.sort_order');
     }
 
     public static function getPermissions(): array

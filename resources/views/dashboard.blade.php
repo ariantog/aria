@@ -17,6 +17,8 @@
     $restock = $dashboard['restock'] ?? null;
     $produksi = $dashboard['produksi'] ?? null;
     $hasDailyPanel = $dashboard['has_daily_panel'] ?? false;
+    $roleChecklist = $dashboard['role_checklist'] ?? [];
+    $hasRoleChecklist = $roleChecklist['has_checklists'] ?? false;
     $fmtNum = fn ($v) => format_amount($v, 0);
     $fmtMoney = fn ($v) => format_amount($v, 0);
 @endphp
@@ -357,6 +359,10 @@
         </ul>
     </div>
     @endif
+    @endif
+
+    @if($hasRoleChecklist)
+    @include('dashboard.partials.role-checklists', ['checklist' => $roleChecklist])
     @endif
 
     @if($hasDailyPanel)
