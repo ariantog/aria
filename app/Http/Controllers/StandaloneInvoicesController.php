@@ -6,6 +6,7 @@ use App\Models\Addrbook;
 use App\Models\StandaloneInvoice;
 use App\Services\InvoiceMakerSettingsService;
 use App\Services\StandaloneInvoiceService;
+use App\Services\StandaloneInvoiceSettlement;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\ValidationException;
@@ -25,8 +26,17 @@ class StandaloneInvoicesController extends Controller
             });
         }
 
+        $invoices = $query->orderByDesc('date')->orderByDesc('id')->paginate(25)->withQueryString();
+        $settlement = app(StandaloneInvoiceSettlement::class);
+        $paymentTotals = $settlement->paymentTotalsByNumbers($invoices->pluck('number')->all());
+        $statuses = [];
+        foreach ($invoices as $row) {
+            $statuses[$row->id] = $settlement->status($row, (float) ($paymentTotals[$row->number] ?? 0));
+        }
+
         return view('invoice-maker.index', [
-            'invoices' => $query->orderByDesc('date')->orderByDesc('id')->paginate(25)->withQueryString(),
+            'invoices' => $invoices,
+            'invoiceStatuses' => $statuses,
             'search' => $search ?? '',
             'can' => $this->permissions(),
         ]);
@@ -66,6 +76,7 @@ class StandaloneInvoicesController extends Controller
 
         return view('invoice-maker.show', [
             'invoice' => $invoice,
+            'settlement' => app(StandaloneInvoiceSettlement::class)->snapshot($invoice),
             'hasInvoicePdf' => $service->invoicePdfExists($invoice),
             'invoicePdfUrl' => $service->invoicePdfUrl($invoice),
             'invoicePdfDownloadUrl' => $service->invoicePdfDownloadUrl($invoice),
@@ -115,6 +126,51 @@ class StandaloneInvoicesController extends Controller
         return redirect()
             ->route('invoice-maker.index')
             ->with('success', 'Invoice deleted.');
+    }
+
+    public function updateDiscount(Request $request, StandaloneInvoice $invoice, StandaloneInvoiceSettlement $settlement)
+    {
+        Gate::authorize(StandaloneInvoice::getPermissions()['edit']);
+
+        $validated = $request->validate([
+            'discount_amount' => ['required', 'numeric', 'min:0'],
+        ]);
+
+        $settlement->updateDiscount($invoice, (float) $validated['discount_amount']);
+
+        return redirect()
+            ->route('invoice-maker.show', $invoice)
+            ->with('success', 'Invoice discount updated.');
+    }
+
+    public function markPaid(Request $request, StandaloneInvoice $invoice, StandaloneInvoiceSettlement $settlement)
+    {
+        Gate::authorize(StandaloneInvoice::getPermissions()['edit']);
+
+        $validated = $request->validate([
+            'discount_amount' => ['nullable', 'numeric', 'min:0'],
+        ]);
+
+        $discount = array_key_exists('discount_amount', $validated) && $validated['discount_amount'] !== null
+            ? (float) $validated['discount_amount']
+            : null;
+
+        $settlement->markPaid($invoice, $request->user(), $discount);
+
+        return redirect()
+            ->route('invoice-maker.show', $invoice)
+            ->with('success', 'Invoice marked as paid.');
+    }
+
+    public function unmarkPaid(StandaloneInvoice $invoice, StandaloneInvoiceSettlement $settlement)
+    {
+        Gate::authorize(StandaloneInvoice::getPermissions()['edit']);
+
+        $settlement->unmarkPaid($invoice);
+
+        return redirect()
+            ->route('invoice-maker.show', $invoice)
+            ->with('success', 'Invoice marked as unpaid.');
     }
 
     public function showPdf(StandaloneInvoice $invoice, StandaloneInvoiceService $service)

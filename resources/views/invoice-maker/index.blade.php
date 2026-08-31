@@ -53,6 +53,7 @@ $breadcrumbs = [
                         <th class="px-4 py-3 font-semibold">Recipient</th>
                         <th class="px-4 py-3 font-semibold">Template</th>
                         <th class="px-4 py-3 text-right font-semibold">Total</th>
+                        <th class="px-4 py-3 font-semibold">Status</th>
                         <th class="px-4 py-3 text-right font-semibold">Actions</th>
                     </tr>
                 </thead>
@@ -66,13 +67,20 @@ $breadcrumbs = [
                         <td class="px-4 py-3 text-gray-700">{{ Str::limit($row->recipient, 60) }}</td>
                         <td class="px-4 py-3 text-gray-500">{{ \App\Models\StandaloneInvoice::TEMPLATES[$row->template] ?? $row->template }}</td>
                         <td class="px-4 py-3 text-right font-mono text-gray-900">{{ format_currency($row->subtotal) }}</td>
+                        <td class="px-4 py-3">
+                            @php $rowStatus = $invoiceStatuses[$row->id] ?? \App\Models\StandaloneInvoice::STATUS_UNPAID; @endphp
+                            @include('invoice-maker.partials.status-badge', [
+                                'status' => $rowStatus,
+                                'label' => \App\Models\StandaloneInvoice::STATUSES[$rowStatus] ?? $rowStatus,
+                            ])
+                        </td>
                         <td class="px-4 py-3 text-right">
                             <a href="{{ route('invoice-maker.show', $row) }}" class="text-sm font-medium text-blue-700 hover:underline">View</a>
                         </td>
                     </tr>
                     @empty
                     <tr>
-                        <td colspan="6" class="px-4 py-12 text-center text-gray-500">No invoices yet.</td>
+                        <td colspan="7" class="px-4 py-12 text-center text-gray-500">No invoices yet.</td>
                     </tr>
                     @endforelse
                 </tbody>

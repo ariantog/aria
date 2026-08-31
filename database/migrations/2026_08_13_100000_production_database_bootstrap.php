@@ -13,6 +13,7 @@ use Illuminate\Database\Migrations\Migration;
  * 4. `2026_08_18_120000_create_warehouse_arrangement_refresh_jobs_table` — guarded CREATE
  * 5. `2026_08_19_070000_install_standalone_invoice_tables` — guarded CREATE/align
  * 6. `2026_08_19_080000_add_logo_path_to_standalone_invoices_table` — guarded column add
+ * 6b. `2026_08_31_160000_add_settlement_fields_to_standalone_invoices_table` — paid/discount columns
  * 7. `2026_08_22_110000_install_reporting_tables` — guarded reporting schema install
  * 8. `2026_08_24_120000_install_reporting_summary_tables` — reporting aggregate tables
  * 9. `2026_08_24_130000_install_monthly_tax_summaries_table` — per-entity tax rollups
@@ -41,6 +42,7 @@ return new class extends Migration
         (require __DIR__.'/2026_08_18_120000_create_warehouse_arrangement_refresh_jobs_table.php')->up();
         (require __DIR__.'/2026_08_19_070000_install_standalone_invoice_tables.php')->up();
         (require __DIR__.'/2026_08_19_080000_add_logo_path_to_standalone_invoices_table.php')->up();
+        (require __DIR__.'/2026_08_31_160000_add_settlement_fields_to_standalone_invoices_table.php')->up();
         (require __DIR__.'/2026_08_22_110000_install_reporting_tables.php')->up();
         (require __DIR__.'/2026_08_24_120000_install_reporting_summary_tables.php')->up();
         (require __DIR__.'/2026_08_24_130000_install_monthly_tax_summaries_table.php')->up();

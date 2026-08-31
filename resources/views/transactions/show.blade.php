@@ -46,6 +46,18 @@
                 <p class="flex items-center gap-1.5 text-xs text-gray-500 sm:gap-2 sm:text-sm">
                     <svg class="h-3.5 w-3.5 shrink-0 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
                     Invoice #{{ $transaction->invoice }}
+                    @if($can['edit_invoice'] ?? false)
+                    <button type="button" @click="invoiceModalOpen = true" data-testid="edit-tx-invoice"
+                            class="inline-flex items-center rounded border border-gray-300 bg-white px-1.5 py-0.5 text-[10px] font-medium text-gray-600 hover:bg-gray-50">
+                        Edit
+                    </button>
+                    @endif
+                    @if($invoiceSettlement)
+                        @include('invoice-maker.partials.status-badge', [
+                            'status' => $invoiceSettlement['status'],
+                            'label' => $invoiceSettlement['status_label'],
+                        ])
+                    @endif
                 </p>
             </div>
         </div>
@@ -179,6 +191,36 @@
                     <span x-show="ppnSaving">Saving…</span>
                 </button>
             </div>
+        </div>
+    </div>
+    @endif
+
+    @if($can['edit_invoice'] ?? false)
+    <div x-show="invoiceModalOpen" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 print:hidden"
+         @keydown.window.escape="invoiceModalOpen = false">
+        <div @click.away="invoiceModalOpen = false" class="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
+            <h3 class="text-lg font-semibold text-gray-900">Change Invoice Number</h3>
+            <p class="mt-1 text-sm text-gray-500">Matching an Invoice Maker number links this transaction as a payment or related document.</p>
+            <form method="POST" action="{{ route('transactions.update-invoice', $transaction) }}" class="mt-4 space-y-4">
+                @csrf
+                @method('PATCH')
+                <div>
+                    <label for="tx-invoice-input" class="mb-1 block text-sm font-medium text-gray-700">Invoice number</label>
+                    <input type="text" id="tx-invoice-input" name="invoice" maxlength="50" required
+                           value="{{ old('invoice', $transaction->invoice) }}"
+                           data-testid="tx-invoice-input"
+                           class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                    @error('invoice')
+                        <p class="mt-2 text-sm text-rose-600">{{ $message }}</p>
+                    @enderror
+                </div>
+                <div class="flex justify-end gap-2">
+                    <button type="button" @click="invoiceModalOpen = false"
+                            class="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Cancel</button>
+                    <button type="submit" data-testid="tx-invoice-save"
+                            class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Save</button>
+                </div>
+            </form>
         </div>
     </div>
     @endif
@@ -324,6 +366,26 @@
     </div>
 
     @include('transactions.partials.jubelio-sync', ['transaction' => $transaction, 'jubelioSync' => $jubelioSync ?? []])
+
+    @if($invoiceSettlement)
+    <div class="print:hidden">
+        <div class="mb-2 flex items-center justify-between gap-3">
+            <h2 class="text-sm font-semibold text-gray-700">Invoice Maker</h2>
+            @if($can['invoice_maker_view'] ?? false)
+            <a href="{{ route('invoice-maker.show', $invoiceSettlement['invoice']) }}"
+               class="text-sm font-medium text-blue-700 hover:underline">
+                {{ $invoiceSettlement['invoice']->number }}
+            </a>
+            @else
+            <span class="text-sm font-medium text-gray-700">{{ $invoiceSettlement['invoice']->number }}</span>
+            @endif
+        </div>
+        @include('invoice-maker.partials.settlement-card', [
+            'settlement' => $invoiceSettlement,
+            'canEdit' => $can['invoice_maker_edit'] ?? false,
+        ])
+    </div>
+    @endif
 
     {{-- Items Section --}}
     <div class="rounded-xl bg-white shadow-md print:shadow-none">
@@ -578,6 +640,7 @@ function transactionShowPage(transactionId, initialNote, canEditNote, canEditPpn
         deleteConfirmOpen: false,
         printMenuOpen: false,
         invoiceMenuOpen: false,
+        invoiceModalOpen: {{ $errors->has('invoice') ? 'true' : 'false' }},
         noteText: initialNote || '',
         noteDraft: initialNote || '',
         noteModalOpen: false,

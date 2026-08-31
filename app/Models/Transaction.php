@@ -276,6 +276,7 @@ class Transaction extends Model
             'type-return-supplier' => 'transactions-type-return-supplier',
             'type-depreciation' => 'transactions-type-depreciation',
             'transaction-sync' => 'transactions-transaction-sync',
+            'edit-invoice' => 'transactions-edit-invoice',
         ];
     }
 

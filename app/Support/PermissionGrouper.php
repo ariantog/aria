@@ -15,6 +15,7 @@ use App\Models\Report;
 use App\Models\RestockSheet;
 use App\Models\ScheduledTask;
 use App\Models\Setting;
+use App\Models\StandaloneInvoice;
 use App\Models\Tag;
 use App\Models\Transaction;
 use App\Models\User;
@@ -43,6 +44,7 @@ class PermissionGrouper
         'Asset Lancar',
         'Asset Tetap',
         'Transactions',
+        'Invoice Maker',
         'Restock',
         'Reports',
         'Journals — Operations',
@@ -119,6 +121,7 @@ class PermissionGrouper
             [ItemGroup::class, 'Item Groups'],
             [Tag::class, 'Tags'],
             [Transaction::class, 'Transactions'],
+            [StandaloneInvoice::class, 'Invoice Maker'],
             [RestockSheet::class, 'Restock'],
             [Report::class, 'Reports'],
             [Operation::class, 'Journals — Operations', [
@@ -201,6 +204,7 @@ class PermissionGrouper
                 'borongan' => 'Borongan',
                 'restock' => 'Restock',
                 'jubelio' => 'Jubelio',
+                'invoice' => 'Invoice Maker',
                 'shopee-ads' => 'Shopee Ads',
                 default => ucfirst($module),
             };
