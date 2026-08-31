@@ -183,6 +183,38 @@ not "modernize" or refactor Alpine style:
 - Addrbook `type` is polymorphic: 1 customer, 2 warehouse, 3 bank, 4 supplier, 5 v_warehouse,
   6 v_account, 7 reseller, 8 account, 99 other.
 - Connects to **Jubelio** (Indonesian omnichannel) for online stock; dormant while `JUBELIO_ACTIVE=false`.
+  See **Jubelio stock sync** below — do not guess what `a_submit_by` / `b_submit_by` mean.
+
+## Jubelio stock sync (read before touching a_*/b_* columns)
+
+Canonical map: `App\Services\Jubelio\JubelioStockSync` and the docblock on `App\Models\Transaction`.
+**Do not rename** `a_submit_by`, `b_submit_by`, `a_reference_id`, `b_reference_id`,
+`submit_a_count`, `submit_b_count` — they are live L10 production columns.
+
+Two integrations:
+
+1. **Inbound (Jubelio → Aria).** Webhooks / cron create SELL or RETURN with `submit_type = 2`.
+   Already in Jubelio. Never push those back.
+2. **Outbound (Aria → Jubelio).** Manual txn (`submit_type = 1`) + **Push to Jubelio**.
+   `AdjustStock` POSTs `https://api2.jubelio.com/inventory/adjustments/warehouse`.
+   Success = a positive Jubelio **`item_adj_id`**, not a bare HTTP 200.
+
+Column meanings (A/B is sender/receiver, not debit/credit):
+
+- **Side A / `a_*` = sender warehouse** (deduct). Sell, return-supplier, move-from.
+- **Side B / `b_*` = receiver warehouse** (add). Buy, return, move-to.
+- `*_submit_by` = users.id who successfully pushed that side (or confirmed with a real adj id).
+- `*_reference_id` = Jubelio `item_adj_id`.
+- `submit_*_count` > 0 and `*_submit_by` null = **warning** (POST sent, result unclear).
+  Confirm only with a real Jubelio adj number; otherwise clear and retry.
+
+A **move** is two independent adjustments, not a Jubelio transfer. Mapping lives in
+`jubeliosyncs` (Aria `warehouse_id` → `jubelio_location_id`); items need `jubelio_item_id`.
+
+HTTP 200 with `{message: "..."}` or a listing `{data, totalCount}` means **nothing was created**.
+The Aug 2026 move incident: Aria showed "status tidak jelas" and allowed confirm-as-success
+without an adj id. We **did not persist Jubelio's response body**, so the exact API reject
+reason is unknown. Next failure: read `laravel.log` lines `Jubelio stock adjustment`.
 
 ## Warehouse item monthly stats (three-layer updates)
 
