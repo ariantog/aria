@@ -17,6 +17,9 @@
     </div>
     <div x-show="showFilters" x-cloak class="p-3">
         <form method="GET" action="{{ $formAction }}" class="flex flex-wrap items-end gap-2">
+            @foreach(($hiddenFields ?? []) as $hiddenName => $hiddenValue)
+                <input type="hidden" name="{{ $hiddenName }}" value="{{ $hiddenValue }}">
+            @endforeach
             @include('transactions.partials.export-sell-filter-fields', [
                 'filters' => $filters,
                 'typeOptions' => $typeOptions,

@@ -92,8 +92,54 @@ it('renders export-sell style filters for authorized users', function () {
         ->assertSee('data-testid="export-sell-receiver-combobox"', false)
         ->assertSee('data-testid="export-sell-item-combobox"', false)
         ->assertSee('data-testid="inventory-health-status"', false)
+        ->assertSee('data-testid="inventory-health-sort-name"', false)
+        ->assertSee('data-testid="inventory-health-sort-stock"', false)
+        ->assertSee('sort=stock', false)
         ->assertSee('Net (Sell − Return)', false)
         ->assertSee('value="100"', false);
+});
+
+it('sorts rows by product name ascending by default', function () {
+    $zebra = healthItem('Zebra Health Sku', 'HLTH-ZEBRA');
+    $alpha = healthItem('Alpha Health Sku', 'HLTH-ALPHA');
+    healthStock($zebra, $this->warehouse, 4);
+    healthStock($alpha, $this->warehouse, 4);
+
+    $html = $this->actingAs($this->user)
+        ->get(route('reports.inventory-health'))
+        ->assertOk()
+        ->getContent();
+
+    expect(strpos($html, 'Alpha Health Sku'))->toBeLessThan(strpos($html, 'Zebra Health Sku'));
+});
+
+it('sorts rows by stock descending when requested', function () {
+    $low = healthItem('Low Stock Sort Sku', 'HLTH-SORT-LOW');
+    $high = healthItem('High Stock Sort Sku', 'HLTH-SORT-HIGH');
+    healthStock($low, $this->warehouse, 2);
+    healthStock($high, $this->warehouse, 20);
+
+    $html = $this->actingAs($this->user)
+        ->get(route('reports.inventory-health', ['sort' => 'stock', 'direction' => 'desc']))
+        ->assertOk()
+        ->assertSee('data-testid="inventory-health-sort-stock"', false)
+        ->getContent();
+
+    expect(strpos($html, 'High Stock Sort Sku'))->toBeLessThan(strpos($html, 'Low Stock Sort Sku'));
+});
+
+it('ignores unknown sort columns and keeps name order', function () {
+    $zebra = healthItem('Zebra Unknown Sort', 'HLTH-UNK-Z');
+    $alpha = healthItem('Alpha Unknown Sort', 'HLTH-UNK-A');
+    healthStock($zebra, $this->warehouse, 3);
+    healthStock($alpha, $this->warehouse, 3);
+
+    $html = $this->actingAs($this->user)
+        ->get(route('reports.inventory-health', ['sort' => 'not-a-column', 'direction' => 'sideways']))
+        ->assertOk()
+        ->getContent();
+
+    expect(strpos($html, 'Alpha Unknown Sort'))->toBeLessThan(strpos($html, 'Zebra Unknown Sort'));
 });
 
 it('does not call a single recent sale healthy when stock cover is too low', function () {
