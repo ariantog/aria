@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Addrbook;
+use App\Models\StandaloneInvoice;
 use App\Models\Transaction;
 use App\Models\User;
 
@@ -201,6 +202,19 @@ it('renders migrated GET pages with a 200', function (string $route) {
     'shopee ads' => 'shopee-ads',
     'restock index' => 'restock',
 ]);
+
+it('renders the invoice maker show page with payment status', function () {
+    $invoice = StandaloneInvoice::factory()->create([
+        'number' => 'INV/CA/2026/SMOKE',
+        'user_id' => $this->user->id,
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('invoice-maker.show', $invoice))
+        ->assertOk()
+        ->assertSee('Payment', false)
+        ->assertSee('Unpaid', false);
+});
 
 it('does not expose the removed warehouse compare report', function () {
     $this->actingAs($this->user)
