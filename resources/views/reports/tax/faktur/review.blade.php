@@ -172,6 +172,26 @@ $gross = $parsed->grossIncludingTax();
                 </div>
             </div>
 
+            <div class="border-t border-gray-100 pt-4" x-show="direction === 'keluaran'" x-cloak>
+                <p class="mb-1 text-sm font-medium text-gray-900">Link Sell yang sudah ada</p>
+                <p class="mb-2 text-xs text-gray-500">Satu faktur bisa ditutup beberapa invoice Sell. Tidak perlu input Sell ulang.</p>
+                @if(count($sellSuggestions ?? []) > 0)
+                    <div class="max-h-48 space-y-1 overflow-y-auto rounded-lg border border-gray-200 p-2">
+                        @foreach($sellSuggestions as $sell)
+                            <label class="flex items-start gap-2 text-sm">
+                                <input type="checkbox" name="sell_transaction_ids[]" value="{{ $sell['id'] }}" class="mt-0.5 rounded border-gray-300">
+                                <span>
+                                    #{{ $sell['id'] }} · {{ $sell['date'] }} · {{ $sell['invoice'] ?: 'tanpa invoice' }}
+                                    <span class="block text-xs text-gray-500">{{ $sell['warehouse_name'] }} · DPP {{ $fmt($sell['dpp']) }}</span>
+                                </span>
+                            </label>
+                        @endforeach
+                    </div>
+                @else
+                    <p class="text-xs text-gray-500">Tidak ada Sell customer ini di jendela tanggal. Link nanti dari halaman detail.</p>
+                @endif
+            </div>
+
             <div>
                 <label class="mb-1 block text-sm font-medium text-gray-700" for="notes">Catatan</label>
                 <textarea id="notes" name="notes" rows="2" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">{{ old('notes') }}</textarea>

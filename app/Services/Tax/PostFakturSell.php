@@ -127,8 +127,7 @@ class PostFakturSell
                 ]);
             }
 
-            $import->sell_transaction_id = $transaction->id;
-            $import->save();
+            app(LinkFakturSells::class)->attach($import, [$transaction->id]);
 
             $this->transactionService->handleTransaction($transaction);
             UpdateTransactionSummaries::dispatch($transaction->id);
@@ -150,7 +149,7 @@ class PostFakturSell
 
     private function assertCanPost(TaxFakturImport $import): void
     {
-        if ($import->sell_transaction_id) {
+        if ($import->hasLinkedSells()) {
             throw new InvalidArgumentException('Sell has already been posted for this faktur import.');
         }
 

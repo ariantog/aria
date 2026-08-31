@@ -14,6 +14,8 @@ use App\Services\Reporting\TaxReportService;
 use App\Services\Tax\ExpectedPaymentDateCalculator;
 use App\Services\Tax\FakturCashInMatcher;
 use App\Services\Tax\FakturLineItemMatcher;
+use App\Services\Tax\FakturSellMatcher;
+use App\Services\Tax\LinkFakturSells;
 use App\Services\Tax\FakturPajakDirectionResolver;
 use App\Services\Tax\FakturPajakPdfParser;
 use App\Services\Tax\ParsedFakturPajak;
@@ -72,7 +74,7 @@ class TaxFakturImportController extends Controller
     {
         Gate::authorize(Report::getPermissions()['view-tax-faktur']);
 
-        $import->load(['reportingEntity', 'counterparty', 'varianceExpenseAccount', 'user', 'cashInTransaction', 'varianceTransaction', 'sellTransaction']);
+        $import->load(['reportingEntity', 'counterparty', 'varianceExpenseAccount', 'user', 'cashInTransaction', 'varianceTransaction', 'sellTransaction', 'sellTransactions.sender']);
 
         $lineItemMatches = app(FakturLineItemMatcher::class)->propose($import->line_items ?? []);
 
@@ -208,6 +210,14 @@ class TaxFakturImportController extends Controller
             'counterpartyGuessId' => $preview['counterparty_guess_id'],
             'expectedPaymentDate' => $preview['expected_payment_date'],
             'cashInSuggestions' => $cashInSuggestions,
+            'sellSuggestions' => $counterpartyGuessId > 0
+                ? app(FakturSellMatcher::class)->suggest(
+                    $counterpartyGuessId,
+                    $parsed->fakturDate?->toDateString(),
+                    $parsed->fakturNumber,
+                    $parsed->dpp,
+                )->all()
+                : [],
             ...$this->sellFormContext($counterpartyGuessId ?: null, $lineItemMatches, request()->user()),
             'lineItemMatches' => $lineItemMatches,
         ]);
@@ -257,6 +267,8 @@ class TaxFakturImportController extends Controller
             'cash_in_transaction_id' => ['nullable', 'integer', 'exists:transactions,id'],
             'variance_expense_addrbook_id' => ['nullable', 'integer', 'exists:customers,id'],
             'notes' => ['nullable', 'string', 'max:2000'],
+            'sell_transaction_ids' => ['nullable', 'array'],
+            'sell_transaction_ids.*' => ['integer', 'exists:transactions,id'],
             'post_sell' => ['nullable', 'boolean'],
             ...$this->postSellRules(),
         ]);
@@ -275,7 +287,24 @@ class TaxFakturImportController extends Controller
 
         session()->forget(self::SESSION_KEY);
 
-        if ($request->boolean('post_sell')) {
+        $linkedSellIds = collect($request->input('sell_transaction_ids', []))
+            ->map(fn ($id) => (int) $id)
+            ->filter()
+            ->values()
+            ->all();
+
+        if ($linkedSellIds !== []) {
+            try {
+                app(LinkFakturSells::class)->attach($import, $linkedSellIds);
+            } catch (InvalidArgumentException $e) {
+                return redirect()
+                    ->route('reports.tax.faktur.show', $import)
+                    ->with('success', "Faktur {$import->faktur_number} imported for PPN reporting.")
+                    ->with('error', $e->getMessage());
+            }
+        }
+
+        if ($request->boolean('post_sell') && $linkedSellIds === []) {
             if (! $request->input('warehouse_id')) {
                 return redirect()
                     ->route('reports.tax.faktur.show', $import)
@@ -334,6 +363,64 @@ class TaxFakturImportController extends Controller
         return redirect()
             ->route('reports.tax.faktur.show', $import)
             ->with('success', 'Pembayaran faktur diperbarui.');
+    }
+
+    public function sellSuggestions(Request $request, FakturSellMatcher $sellMatcher)
+    {
+        Gate::authorize(Report::getPermissions()['import-tax-faktur']);
+
+        $data = $request->validate([
+            'counterparty_id' => ['required', 'integer', 'exists:customers,id'],
+            'faktur_date' => ['nullable', 'date'],
+            'faktur_number' => ['nullable', 'string', 'max:20'],
+            'remaining_dpp' => ['nullable', 'numeric'],
+            'exclude_import_id' => ['nullable', 'integer', 'exists:tax_faktur_imports,id'],
+            'invoice' => ['nullable', 'string', 'max:80'],
+        ]);
+
+        return response()->json([
+            'suggestions' => $sellMatcher->suggest(
+                (int) $data['counterparty_id'],
+                $data['faktur_date'] ?? null,
+                $data['faktur_number'] ?? null,
+                isset($data['remaining_dpp']) ? (float) $data['remaining_dpp'] : null,
+                isset($data['exclude_import_id']) ? (int) $data['exclude_import_id'] : null,
+                $data['invoice'] ?? null,
+            )->values(),
+        ]);
+    }
+
+    public function linkSells(Request $request, TaxFakturImport $import, LinkFakturSells $linkFakturSells)
+    {
+        Gate::authorize(Report::getPermissions()['import-tax-faktur']);
+
+        $data = $request->validate([
+            'sell_transaction_ids' => ['required', 'array', 'min:1'],
+            'sell_transaction_ids.*' => ['integer', 'exists:transactions,id'],
+        ]);
+
+        try {
+            $linkFakturSells->attach($import, $data['sell_transaction_ids']);
+        } catch (InvalidArgumentException $e) {
+            return back()->withInput()->with('error', $e->getMessage());
+        }
+
+        $count = count($data['sell_transaction_ids']);
+
+        return redirect()
+            ->route('reports.tax.faktur.show', $import->fresh())
+            ->with('success', $count === 1 ? 'Sell di-link ke faktur.' : "{$count} Sell di-link ke faktur.");
+    }
+
+    public function unlinkSell(TaxFakturImport $import, int $transaction, LinkFakturSells $linkFakturSells)
+    {
+        Gate::authorize(Report::getPermissions()['import-tax-faktur']);
+
+        $linkFakturSells->detach($import, $transaction);
+
+        return redirect()
+            ->route('reports.tax.faktur.show', $import->fresh())
+            ->with('success', 'Sell dilepas dari faktur.');
     }
 
     public function postSell(Request $request, TaxFakturImport $import, PostFakturSell $postFakturSell)
