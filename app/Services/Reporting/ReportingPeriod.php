@@ -83,4 +83,34 @@ class ReportingPeriod
             self::monthEnd($last[0], $last[1])->toDateString(),
         ];
     }
+
+    /**
+     * Inclusive SQL end for a calendar date. Datetime values like
+     * "Y-m-d 00:00:00" on that day compare greater than "Y-m-d" alone.
+     */
+    public static function queryEnd(string|\DateTimeInterface $date): string
+    {
+        return Carbon::parse($date)->toDateString().' 23:59:59';
+    }
+
+    /**
+     * Inclusive WHERE BETWEEN bounds for transaction date columns.
+     *
+     * @return array{0: string, 1: string}
+     */
+    public static function queryBounds(string $startDate, string $endDate): array
+    {
+        return [
+            Carbon::parse($startDate)->toDateString(),
+            self::queryEnd($endDate),
+        ];
+    }
+
+    /**
+     * @return array{0: string, 1: string}
+     */
+    public static function monthQueryRange(int $year, int $month): array
+    {
+        return self::queryBounds(...self::monthRange($year, $month));
+    }
 }

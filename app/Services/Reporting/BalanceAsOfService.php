@@ -4,7 +4,6 @@ namespace App\Services\Reporting;
 
 use App\Models\Addrbook;
 use App\Models\ReportingBalanceSnapshot;
-use App\Models\ReportingEntity;
 use App\Models\Transaction;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -98,9 +97,9 @@ class BalanceAsOfService
     {
         $placeholders = implode(',', array_fill(0, count(self::NERACA_TYPES), '?'));
         $bindings = array_merge(
-            [Transaction::STATUS_COMPLETED, $asOf->toDateString()],
+            [Transaction::STATUS_COMPLETED, ReportingPeriod::queryEnd($asOf)],
             self::NERACA_TYPES,
-            [Transaction::STATUS_COMPLETED, $asOf->toDateString()],
+            [Transaction::STATUS_COMPLETED, ReportingPeriod::queryEnd($asOf)],
             self::NERACA_TYPES,
         );
 

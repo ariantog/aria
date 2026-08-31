@@ -294,7 +294,7 @@ class ManufacturedCogsEstimator
             ->where('t.status', Transaction::STATUS_COMPLETED)
             ->where('t.type', $type)
             ->whereIn('i.type', [ItemType::ITEM->value, ItemType::ASSET_LANCAR->value])
-            ->whereBetween('t.date', [$start, $end]);
+            ->whereBetween('t.date', ReportingPeriod::queryBounds($start, $end));
     }
 
     /**

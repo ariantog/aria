@@ -272,9 +272,7 @@ class PphFinalReportService
      */
     private function monthRange(int $year, int $month): array
     {
-        $start = Carbon::create($year, $month, 1)->startOfMonth();
-
-        return [$start->toDateString(), $start->copy()->endOfMonth()->toDateString()];
+        return ReportingPeriod::monthQueryRange($year, $month);
     }
 
     private function partyName(int $addrbookId): string
