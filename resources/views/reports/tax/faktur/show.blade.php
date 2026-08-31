@@ -119,13 +119,35 @@ $gross = $import->fakturGross();
                 <div>
                     <dt class="text-gray-500">Sell terkait</dt>
                     <dd>
-                        @if($import->sellTransaction)
-                            <a href="{{ route('transactions.show', $import->sellTransaction) }}" class="text-blue-600 hover:underline">
-                                #{{ $import->sellTransaction->id }}
-                            </a>
-                            <span class="text-gray-500"> · {{ $import->sellTransaction->date?->format('Y-m-d') }} · Gross {{ $fmt(abs((float) $import->sellTransaction->real_total)) }} (DPP {{ $fmt(abs((float) $import->sellTransaction->total)) }} + PPN {{ $fmt((float) $import->sellTransaction->ppn) }})</span>
+                        @php
+                            $linkedSells = $import->linkedSells();
+                            $linkedDpp = $import->linkedSellDpp();
+                            $linkedPpn = $import->linkedSellPpn();
+                        @endphp
+                        @if($linkedSells->isNotEmpty())
+                            <ul class="space-y-1">
+                                @foreach($linkedSells as $sell)
+                                    <li>
+                                        <a href="{{ route('transactions.show', $sell) }}" class="text-blue-600 hover:underline">#{{ $sell->id }}</a>
+                                        <span class="text-gray-500"> · {{ $sell->date?->format('Y-m-d') }} · {{ $sell->invoice ?: 'tanpa invoice' }} · DPP {{ $fmt(abs((float) $sell->total)) }} + PPN {{ $fmt((float) $sell->ppn) }}</span>
+                                        @if($canImport)
+                                            <form method="POST" action="{{ route('reports.tax.faktur.unlink-sell', [$import, $sell->id]) }}" class="inline">
+                                                @csrf
+                                                @method('DELETE')
+                                                <button type="submit" class="ml-1 text-xs text-red-600 hover:underline" data-testid="faktur-unlink-sell-{{ $sell->id }}">Lepas</button>
+                                            </form>
+                                        @endif
+                                    </li>
+                                @endforeach
+                            </ul>
+                            <p class="mt-1 text-xs text-gray-600">
+                                Total Sell: DPP {{ $fmt($linkedDpp) }} + PPN {{ $fmt($linkedPpn) }}
+                                @if(abs($linkedDpp - (float) $import->dpp) > 0.02)
+                                    <span class="text-amber-800">· sisa vs faktur DPP {{ $fmt((float) $import->dpp - $linkedDpp) }}</span>
+                                @endif
+                            </p>
                         @else
-                            <span class="text-gray-400">Belum di-post</span>
+                            <span class="text-gray-400">Belum di-link</span>
                         @endif
                     </dd>
                 </div>
@@ -213,6 +235,86 @@ $gross = $import->fakturGross();
         </div>
     @endif
 
+    @if($canImport && $import->direction === 'keluaran')
+        <div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm text-sm" x-data="{
+            suggestions: [],
+            invoiceQuery: '',
+            selected: {},
+            suggestionsUrl: @js(route('reports.tax.faktur.sell-suggestions')),
+            selectedCount() {
+                return Object.keys(this.selected).filter((id) => this.selected[id]).length;
+            },
+            async refreshSuggestions() {
+                const params = new URLSearchParams({
+                    counterparty_id: @js($import->counterparty_id),
+                    faktur_number: @js($import->faktur_number),
+                    exclude_import_id: @js($import->id),
+                    remaining_dpp: @js(round((float) $import->dpp - $import->linkedSellDpp(), 2)),
+                });
+                if (@js($import->faktur_date?->format('Y-m-d'))) {
+                    params.set('faktur_date', @js($import->faktur_date?->format('Y-m-d')));
+                }
+                if (this.invoiceQuery) params.set('invoice', this.invoiceQuery);
+                const response = await fetch(this.suggestionsUrl + '?' + params.toString(), {
+                    headers: { 'Accept': 'application/json' },
+                });
+                if (!response.ok) return;
+                const data = await response.json();
+                this.suggestions = data.suggestions || [];
+            }
+        }" x-init="refreshSuggestions()">
+            <h3 class="mb-1 font-semibold text-gray-900">Link Sell yang sudah ada</h3>
+            <p class="mb-3 text-xs text-gray-600">
+                Barang di faktur MDS/Central sering beda dari Sell gudang. Link satu atau beberapa Sell yang sudah diinput (invoice bisa lebih dari satu).
+            </p>
+            <div class="mb-3 flex flex-wrap items-end gap-2">
+                <div class="min-w-[12rem] flex-1">
+                    <label class="mb-1 block text-xs text-gray-500" for="sell_invoice_query">Cari invoice / ID Sell</label>
+                    <input type="text" id="sell_invoice_query" x-model="invoiceQuery" @keydown.enter.prevent="refreshSuggestions()"
+                           class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" placeholder="INV-… atau 12345">
+                </div>
+                <button type="button" class="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50" @click="refreshSuggestions()">Cari</button>
+            </div>
+            <form method="POST" action="{{ route('reports.tax.faktur.link-sells', $import) }}" class="space-y-3">
+                @csrf
+                <div class="overflow-hidden rounded-lg border border-gray-200" x-show="suggestions.length > 0" x-cloak>
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="border-b bg-gray-50 text-left text-xs text-gray-500">
+                                <th class="px-3 py-2 font-medium"></th>
+                                <th class="px-3 py-2 font-medium">Sell</th>
+                                <th class="px-3 py-2 font-medium">Invoice</th>
+                                <th class="px-3 py-2 text-right font-medium">DPP</th>
+                                <th class="px-3 py-2 text-right font-medium">PPN</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <template x-for="item in suggestions" :key="item.id">
+                                <tr class="border-b">
+                                    <td class="px-3 py-2">
+                                        <input type="checkbox" name="sell_transaction_ids[]" :value="item.id" x-model="selected[item.id]" class="rounded border-gray-300">
+                                    </td>
+                                    <td class="px-3 py-2 tabular-nums">
+                                        #<span x-text="item.id"></span>
+                                        <span class="block text-xs text-gray-500" x-text="`${item.date} · ${item.warehouse_name}`"></span>
+                                    </td>
+                                    <td class="px-3 py-2" x-text="item.invoice || '—'"></td>
+                                    <td class="px-3 py-2 text-right tabular-nums" x-text="formatAmountId(item.dpp)"></td>
+                                    <td class="px-3 py-2 text-right tabular-nums" x-text="formatAmountId(item.ppn)"></td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+                <p class="text-xs text-gray-500" x-show="suggestions.length === 0" x-cloak>Tidak ada Sell customer ini di jendela tanggal faktur. Coba cari invoice.</p>
+                <button type="submit" class="rounded-lg bg-blue-700 px-4 py-2 text-sm font-medium text-white hover:bg-blue-800 disabled:opacity-50"
+                        :disabled="selectedCount() === 0" data-testid="faktur-link-sells">
+                    Link Sell terpilih
+                </button>
+            </form>
+        </div>
+    @endif
+
     @if($canImport && $import->canPostConsignmentSell())
         <div class="rounded-xl border border-blue-200 bg-blue-50/40 p-4 shadow-sm text-sm" x-data="{
             lineMode: '{{ old('line_mode', 'summary') }}',
@@ -221,12 +323,10 @@ $gross = $import->fakturGross();
                 return line;
             }),
         }">
-            <h3 class="mb-1 font-semibold text-gray-900">Post Sell dari faktur</h3>
+            <h3 class="mb-1 font-semibold text-gray-900">Buat Sell baru (opsional)</h3>
             <p class="mb-3 text-xs text-gray-600">
-                Konsinyasi MDS/Central: Sell = <strong>gross</strong> faktur (DPP+PPN {{ $fmt($gross) }}).
-                Cash In = nett+PPN yang diterima ({{ $import->payment_received_amount ? $fmt($import->payment_received_amount) : '—' }}).
-                Selisih = margin/biaya → sudah di-book ke akun biaya via Cash Out.
-                Default tanggal Sell = tanggal faktur (periode PPN).
+                Hanya jika Sell untuk faktur ini belum diinput. Biasanya cukup <strong>link Sell yang sudah ada</strong> di atas.
+                Sell baru = gross faktur (DPP+PPN {{ $fmt($gross) }}).
             </p>
             <form method="POST" action="{{ route('reports.tax.faktur.post-sell', $import) }}" class="space-y-3">
                 @csrf
