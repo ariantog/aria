@@ -284,7 +284,7 @@ class AgingReportService
 
         $query = Transaction::query()
             ->where('status', Transaction::STATUS_COMPLETED)
-            ->where('date', '<=', $asOf->toDateString())
+            ->where('date', '<=', ReportingPeriod::queryEnd($asOf))
             ->orderBy('date')
             ->orderBy('id');
 

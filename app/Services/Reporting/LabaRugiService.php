@@ -392,7 +392,7 @@ class LabaRugiService
             ->where('receiver_type', Addrbook::TYPE_BANK)
             ->where('sender_type', '!=', Addrbook::TYPE_ACCOUNT)
             ->whereIn('receiver_id', $bankIds)
-            ->whereBetween('date', [$start, $end])
+            ->whereBetween('date', ReportingPeriod::queryBounds($start, $end))
             ->get(['date', 'total', 'real_total']);
 
         foreach ($rows as $row) {
@@ -533,7 +533,7 @@ class LabaRugiService
             ->where('sender_type', '!=', Addrbook::TYPE_ACCOUNT)
             ->whereIn('sender_id', $lendingIds)
             ->whereIn('receiver_id', $bankIds)
-            ->whereBetween('date', [$start, $end])
+            ->whereBetween('date', ReportingPeriod::queryBounds($start, $end))
             ->get(['date', 'total', 'real_total']);
 
         $byMonth = [];
@@ -564,7 +564,7 @@ class LabaRugiService
             ->where('sender_type', '!=', Addrbook::TYPE_ACCOUNT)
             ->whereIn('receiver_id', $bankIds)
             ->when($lendingIds !== [], fn ($query) => $query->whereNotIn('sender_id', $lendingIds))
-            ->whereBetween('date', [$start, $end])
+            ->whereBetween('date', ReportingPeriod::queryBounds($start, $end))
             ->orderBy('date')
             ->orderBy('id')
             ->get();
@@ -632,7 +632,7 @@ class LabaRugiService
             ->where('sender_type', Addrbook::TYPE_BANK)
             ->where('receiver_type', Addrbook::TYPE_ACCOUNT)
             ->whereIn('sender_id', $bankIds)
-            ->whereBetween('date', [$start, $end])
+            ->whereBetween('date', ReportingPeriod::queryBounds($start, $end))
             ->orderBy('date')
             ->orderBy('id')
             ->get();

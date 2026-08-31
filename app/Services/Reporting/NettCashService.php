@@ -217,7 +217,7 @@ class NettCashService
             ->whereIn('sender_type', [Addrbook::TYPE_CUSTOMER, Addrbook::TYPE_RESELLER])
             ->where('receiver_type', Addrbook::TYPE_BANK)
             ->when(! $isConsolidated, fn ($query) => $query->whereIn('receiver_id', $bankIds))
-            ->whereBetween('date', [$start, $end])
+            ->whereBetween('date', ReportingPeriod::queryBounds($start, $end))
             ->selectRaw('sender_id, sender_type, SUM(ABS(total)) as cash_in, COUNT(*) as txn_count')
             ->groupBy('sender_id', 'sender_type')
             ->get();
@@ -249,7 +249,7 @@ class NettCashService
             ->where('type', $type)
             ->whereIn($typeColumn, [Addrbook::TYPE_CUSTOMER, Addrbook::TYPE_RESELLER])
             ->whereIn($idColumn, $contactIds)
-            ->whereBetween('date', [$start, $end])
+            ->whereBetween('date', ReportingPeriod::queryBounds($start, $end))
             ->selectRaw($idColumn.' as contact_id, SUM(ABS(total)) as amount')
             ->groupBy($idColumn)
             ->pluck('amount', 'contact_id')
