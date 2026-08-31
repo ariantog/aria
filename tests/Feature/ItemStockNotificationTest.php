@@ -250,7 +250,9 @@ it('renders the stock notifications page for authorized users', function () {
     $this->actingAs($this->user)
         ->get(route('stock-notifications.index'))
         ->assertOk()
-        ->assertSee('Stock Alerts', false);
+        ->assertSee('Stock Alerts', false)
+        ->assertSee('data-testid="stock-notifications-page"', false)
+        ->assertDontSee('flex h-full flex-1 flex-col gap-4 overflow-x-auto', false);
 });
 
 it('forbids stock notifications page without permission', function () {
