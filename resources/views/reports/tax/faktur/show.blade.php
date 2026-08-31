@@ -216,7 +216,10 @@ $gross = $import->fakturGross();
     @if($canImport && $import->canPostConsignmentSell())
         <div class="rounded-xl border border-blue-200 bg-blue-50/40 p-4 shadow-sm text-sm" x-data="{
             lineMode: '{{ old('line_mode', 'summary') }}',
-            lineMatches: @js($lineItemMatches),
+            lineMatches: @js($lineItemMatches).map(function (line) {
+                line.selected_item_id = line.best_match ? String(line.best_match.id) : '';
+                return line;
+            }),
         }">
             <h3 class="mb-1 font-semibold text-gray-900">Post Sell dari faktur</h3>
             <p class="mb-3 text-xs text-gray-600">
@@ -233,7 +236,7 @@ $gross = $import->fakturGross();
                         <select id="post_sell_warehouse_id" name="warehouse_id" required class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
                             <option value="">— Pilih —</option>
                             @foreach($warehouses as $warehouse)
-                                <option value="{{ $warehouse->id }}" @selected((int) old('warehouse_id') === $warehouse->id)>{{ $warehouse->name }}</option>
+                                <option value="{{ $warehouse->id }}" @selected((int) old('warehouse_id', $defaultWarehouseId) === $warehouse->id)>{{ $warehouse->name }}</option>
                             @endforeach
                         </select>
                     </div>
@@ -295,7 +298,7 @@ $gross = $import->fakturGross();
                                     </td>
                                     <td class="px-3 py-2">
                                         <input type="hidden" :name="`mapped_lines[${index}][line_no]`" :value="line.line_no">
-                                        <select :name="`mapped_lines[${index}][item_id]`" class="w-full rounded border border-gray-300 px-2 py-1 text-sm" required>
+                                        <select :name="`mapped_lines[${index}][item_id]`" x-model="line.selected_item_id" class="w-full rounded border border-gray-300 px-2 py-1 text-sm" required>
                                             <option value="">— Pilih —</option>
                                             @foreach($items as $item)
                                                 <option value="{{ $item->id }}">{{ $item->name }}@if($item->code) · {{ $item->code }}@endif</option>

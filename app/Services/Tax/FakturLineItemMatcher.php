@@ -56,6 +56,7 @@ class FakturLineItemMatcher
         }
 
         $normalized = $this->normalize($name);
+        $tokens = $this->extractTokens($name);
         $candidates = collect();
 
         $exact = Item::query()
@@ -64,52 +65,42 @@ class FakturLineItemMatcher
             ->get(['id', 'name', 'code', 'pcode']);
 
         foreach ($exact as $item) {
-            $candidates->push([
-                'id' => $item->id,
-                'name' => $item->name,
-                'code' => $item->code,
-                'pcode' => $item->pcode,
-                'score' => 100,
-            ]);
+            $candidates->push($this->candidate($item, 100));
         }
 
-        $token = $this->extractLeadingCode($name);
-        if ($token !== null) {
+        if ($tokens !== []) {
             $byCode = Item::query()
-                ->where(function ($query) use ($token) {
-                    $query->where('code', $token)
-                        ->orWhere('pcode', $token);
+                ->where(function ($query) use ($tokens) {
+                    $query->whereIn('code', $tokens)
+                        ->orWhereIn('pcode', $tokens);
                 })
-                ->limit(5)
+                ->limit(10)
                 ->get(['id', 'name', 'code', 'pcode']);
 
             foreach ($byCode as $item) {
-                $candidates->push([
-                    'id' => $item->id,
-                    'name' => $item->name,
-                    'code' => $item->code,
-                    'pcode' => $item->pcode,
-                    'score' => 80,
-                ]);
+                $score = 90;
+                if (strcasecmp((string) $item->pcode, $tokens[0]) === 0
+                    || strcasecmp((string) $item->code, $tokens[0]) === 0) {
+                    $score = 95;
+                }
+                $candidates->push($this->candidate($item, $score));
             }
         }
 
         $like = Item::query()
-            ->where(function ($query) use ($name, $normalized) {
+            ->where(function ($query) use ($name, $normalized, $tokens) {
                 $query->where('name', 'like', '%'.$name.'%')
                     ->orWhere('name', 'like', '%'.$normalized.'%');
+                foreach ($tokens as $token) {
+                    $query->orWhere('code', 'like', '%'.$token.'%')
+                        ->orWhere('pcode', 'like', '%'.$token.'%');
+                }
             })
             ->limit(10)
             ->get(['id', 'name', 'code', 'pcode']);
 
         foreach ($like as $item) {
-            $candidates->push([
-                'id' => $item->id,
-                'name' => $item->name,
-                'code' => $item->code,
-                'pcode' => $item->pcode,
-                'score' => 50,
-            ]);
+            $candidates->push($this->candidate($item, 50));
         }
 
         return $candidates
@@ -119,17 +110,42 @@ class FakturLineItemMatcher
             ->take(5);
     }
 
+    /**
+     * @return array{id: int, name: string, code: string|null, pcode: string|null, score: int}
+     */
+    private function candidate(Item $item, int $score): array
+    {
+        return [
+            'id' => $item->id,
+            'name' => $item->name,
+            'code' => $item->code,
+            'pcode' => $item->pcode,
+            'score' => $score,
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function extractTokens(string $name): array
+    {
+        $tokens = [];
+
+        if (preg_match('/^(\d{4,})\s+/', $name, $matches)) {
+            $tokens[] = $matches[1];
+        }
+
+        if (preg_match_all('/\b([A-Za-z0-9][A-Za-z0-9._\-]{2,})\b/', $name, $matches)) {
+            foreach ($matches[1] as $token) {
+                $tokens[] = $token;
+            }
+        }
+
+        return array_values(array_unique($tokens));
+    }
+
     private function normalize(string $value): string
     {
         return preg_replace('/\s+/', ' ', trim($value)) ?? '';
-    }
-
-    private function extractLeadingCode(string $name): ?string
-    {
-        if (preg_match('/^(\d{4,})\s+/', $name, $matches)) {
-            return $matches[1];
-        }
-
-        return null;
     }
 }
