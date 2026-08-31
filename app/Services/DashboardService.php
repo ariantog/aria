@@ -45,6 +45,7 @@ class DashboardService
     public function __construct(
         protected JubelioService $jubelioService,
         protected BookClosingService $bookClosingService,
+        protected StaffChecklistService $staffChecklistService,
     ) {}
 
     /**
@@ -140,6 +141,8 @@ class DashboardService
                 fn () => $this->produksiPanel(),
             );
         }
+
+        $data['role_checklist'] = $this->staffChecklistService->forUser($user);
 
         return $data;
     }
