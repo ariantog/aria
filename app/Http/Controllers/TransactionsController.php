@@ -544,7 +544,9 @@ class TransactionsController extends Controller
 
         if ($previous !== $invoice) {
             $invoiceService->deleteInvoicePdf($transaction);
+            app(StandaloneInvoiceSettlement::class)->reconcileByNumber($previous, Auth::user());
         }
+        app(StandaloneInvoiceSettlement::class)->reconcileByNumber($invoice, Auth::user());
 
         if ($request->expectsJson()) {
             return response()->json([
@@ -648,6 +650,7 @@ class TransactionsController extends Controller
         $transaction->load(['details', 'sender', 'receiver']);
         $sender = $transaction->sender;
         $receiver = $transaction->receiver;
+        $invoiceNumber = (string) $transaction->invoice;
         $bookClosingService->validateDate($transaction->date->format('Y-m-d'));
 
         DB::transaction(function () use ($transaction, $service, $sender, $receiver) {
@@ -680,6 +683,8 @@ class TransactionsController extends Controller
                 $service->syncStatFromLatestTransaction($receiver);
             }
         });
+
+        app(StandaloneInvoiceSettlement::class)->reconcileByNumber($invoiceNumber, Auth::user());
 
         return redirect()->route('transactions.index')->with('success', 'Transaction moved to deleted.');
     }

@@ -11,37 +11,32 @@ use Illuminate\Validation\ValidationException;
 class StandaloneInvoiceSettlement
 {
     /**
-     * Cash-in rows that share this invoice number count as payments.
-     * Several receipts can settle one invoice-maker invoice.
+     * Completed cash-in rows that share this invoice number count as payments.
+     * Sender/receiver and bank transfers are ignored.
      *
      * @return Collection<int, Transaction>
      */
-    public function payments(StandaloneInvoice $invoice): Collection
+    public function cashIns(StandaloneInvoice $invoice): Collection
     {
-        return $this->completedTransactionsQuery($invoice->number)
-            ->where('type', Transaction::TYPE_CASH_IN)
-            ->orderBy('date')
-            ->orderBy('id')
-            ->get();
+        return $this->completedTransactionsOfType($invoice->number, Transaction::TYPE_CASH_IN);
     }
 
     /**
+     * Completed sell rows that share this invoice number. Several sells can
+     * cover one invoice-maker invoice.
+     *
      * @return Collection<int, Transaction>
      */
-    public function relatedTransactions(StandaloneInvoice $invoice): Collection
+    public function sells(StandaloneInvoice $invoice): Collection
     {
-        return $this->completedTransactionsQuery($invoice->number)
-            ->where('type', '!=', Transaction::TYPE_CASH_IN)
-            ->orderBy('date')
-            ->orderBy('id')
-            ->get();
+        return $this->completedTransactionsOfType($invoice->number, Transaction::TYPE_SELL);
     }
 
     /**
      * @param  list<string>  $numbers
-     * @return array<string, float>
+     * @return array<string, array{cash_in: float, sell: float}>
      */
-    public function paymentTotalsByNumbers(array $numbers): array
+    public function totalsByNumbers(array $numbers): array
     {
         $numbers = array_values(array_unique(array_filter(array_map(
             static fn ($number) => trim((string) $number),
@@ -52,28 +47,42 @@ class StandaloneInvoiceSettlement
             return [];
         }
 
-        return Transaction::query()
-            ->where('type', Transaction::TYPE_CASH_IN)
+        $rows = Transaction::query()
+            ->whereIn('type', [Transaction::TYPE_CASH_IN, Transaction::TYPE_SELL])
             ->where('status', Transaction::STATUS_COMPLETED)
             ->whereIn('invoice', $numbers)
-            ->selectRaw('invoice, SUM(ABS(total)) as paid_total')
-            ->groupBy('invoice')
-            ->pluck('paid_total', 'invoice')
-            ->map(fn ($total) => (float) $total)
-            ->all();
+            ->selectRaw('invoice, type, SUM(ABS(total)) as amount')
+            ->groupBy('invoice', 'type')
+            ->get();
+
+        $totals = [];
+        foreach ($numbers as $number) {
+            $totals[$number] = ['cash_in' => 0.0, 'sell' => 0.0];
+        }
+
+        foreach ($rows as $row) {
+            $key = (int) $row->type === Transaction::TYPE_SELL ? 'sell' : 'cash_in';
+            $totals[(string) $row->invoice][$key] = (float) $row->amount;
+        }
+
+        return $totals;
     }
 
     /**
      * @return array{
      *     invoice: StandaloneInvoice,
+     *     invoice_amount: float,
      *     due: float,
      *     paid_total: float,
+     *     sell_total: float,
      *     discount: float,
      *     remaining: float,
      *     status: string,
      *     status_label: string,
      *     is_paid: bool,
+     *     amounts_match: bool,
      *     payments: Collection<int, Transaction>,
+     *     sells: Collection<int, Transaction>,
      *     related: Collection<int, Transaction>
      * }|null
      */
@@ -87,90 +96,114 @@ class StandaloneInvoiceSettlement
     /**
      * @return array{
      *     invoice: StandaloneInvoice,
+     *     invoice_amount: float,
      *     due: float,
      *     paid_total: float,
+     *     sell_total: float,
      *     discount: float,
      *     remaining: float,
      *     status: string,
      *     status_label: string,
      *     is_paid: bool,
+     *     amounts_match: bool,
      *     payments: Collection<int, Transaction>,
+     *     sells: Collection<int, Transaction>,
      *     related: Collection<int, Transaction>
      * }
      */
-    public function snapshot(StandaloneInvoice $invoice, ?float $paidTotal = null): array
+    public function snapshot(StandaloneInvoice $invoice, ?float $paidTotal = null, ?float $sellTotal = null): array
     {
         $invoice->loadMissing('paidBy');
-        $payments = $this->payments($invoice);
-        $paidTotal ??= (float) $payments->sum(fn (Transaction $transaction) => abs((float) $transaction->total));
-        $due = round($invoice->balanceDue(), 2);
+        $payments = $this->cashIns($invoice);
+        $sells = $this->sells($invoice);
+        $paidTotal ??= $this->sumAbsTotals($payments);
+        $sellTotal ??= $this->sumAbsTotals($sells);
+        $invoiceAmount = $invoice->billedAmount();
         $discount = round($invoice->discountAmount(), 2);
-        $remaining = round(max(0, $due - $paidTotal - $discount), 2);
-        $status = $this->status($invoice, $paidTotal);
+        $due = round($invoice->balanceDue(), 2);
+        $amountsMatch = $this->amountsMatch($invoiceAmount, $paidTotal, $sellTotal);
+        $status = $this->statusFromTotals($invoiceAmount, $paidTotal, $sellTotal);
 
         return [
             'invoice' => $invoice,
+            'invoice_amount' => $invoiceAmount,
             'due' => $due,
             'paid_total' => round($paidTotal, 2),
+            'sell_total' => round($sellTotal, 2),
             'discount' => $discount,
-            'remaining' => $remaining,
+            'remaining' => round(max(0, $invoiceAmount - $paidTotal), 2),
             'status' => $status,
             'status_label' => StandaloneInvoice::STATUSES[$status] ?? $status,
-            'is_paid' => $invoice->isMarkedPaid(),
+            'is_paid' => $amountsMatch,
+            'amounts_match' => $amountsMatch,
             'payments' => $payments,
-            'related' => $this->relatedTransactions($invoice),
+            'sells' => $sells,
+            'related' => collect(),
         ];
     }
 
-    public function status(StandaloneInvoice $invoice, float $paidTotal): string
+    public function status(StandaloneInvoice $invoice, float $paidTotal, float $sellTotal = 0.0): string
     {
-        if ($invoice->isMarkedPaid()) {
-            return StandaloneInvoice::STATUS_PAID;
-        }
-
-        return $paidTotal > 0
-            ? StandaloneInvoice::STATUS_PARTIAL
-            : StandaloneInvoice::STATUS_UNPAID;
+        return $this->statusFromTotals($invoice->billedAmount(), $paidTotal, $sellTotal);
     }
 
-    public function updateDiscount(StandaloneInvoice $invoice, float $discount): StandaloneInvoice
+    public function updateDiscount(StandaloneInvoice $invoice, float $discount, ?User $user = null): StandaloneInvoice
     {
         $this->assertDiscount($invoice, $discount);
 
         $invoice->update(['discount_amount' => round($discount, 2)]);
 
-        return $invoice->fresh() ?? $invoice;
+        return $this->reconcile($invoice->fresh() ?? $invoice, $user);
     }
 
-    public function markPaid(StandaloneInvoice $invoice, User $user, ?float $discount = null): StandaloneInvoice
+    public function reconcile(StandaloneInvoice $invoice, ?User $user = null): StandaloneInvoice
     {
-        if ($discount !== null) {
-            $invoice = $this->updateDiscount($invoice, $discount);
-        }
-
         $snapshot = $this->snapshot($invoice);
-        if ($snapshot['remaining'] > 0) {
-            throw ValidationException::withMessages([
-                'discount_amount' => 'Payments plus discount must cover the invoice balance before it can be marked paid. Remaining: '.format_currency($snapshot['remaining']).'.',
+
+        if ($snapshot['amounts_match']) {
+            if (! $invoice->isMarkedPaid()) {
+                $invoice->update([
+                    'paid_at' => now(),
+                    'paid_by' => $user?->id,
+                ]);
+            }
+        } elseif ($invoice->isMarkedPaid()) {
+            $invoice->update([
+                'paid_at' => null,
+                'paid_by' => null,
             ]);
         }
-
-        $invoice->update([
-            'paid_at' => now(),
-            'paid_by' => $user->id,
-        ]);
 
         return $invoice->fresh(['paidBy']) ?? $invoice;
     }
 
-    public function unmarkPaid(StandaloneInvoice $invoice): StandaloneInvoice
+    public function reconcileByNumber(?string $number, ?User $user = null): ?StandaloneInvoice
     {
-        $invoice->update([
-            'paid_at' => null,
-            'paid_by' => null,
-        ]);
+        $invoice = StandaloneInvoice::findByNumber($number);
 
-        return $invoice->fresh() ?? $invoice;
+        return $invoice ? $this->reconcile($invoice, $user) : null;
+    }
+
+    protected function statusFromTotals(float $invoiceAmount, float $paidTotal, float $sellTotal): string
+    {
+        if ($this->amountsMatch($invoiceAmount, $paidTotal, $sellTotal)) {
+            return StandaloneInvoice::STATUS_PAID;
+        }
+
+        return ($paidTotal > 0 || $sellTotal > 0)
+            ? StandaloneInvoice::STATUS_PARTIAL
+            : StandaloneInvoice::STATUS_UNPAID;
+    }
+
+    protected function amountsMatch(float $invoiceAmount, float $paidTotal, float $sellTotal): bool
+    {
+        $invoiceAmount = round($invoiceAmount, 2);
+        $paidTotal = round($paidTotal, 2);
+        $sellTotal = round($sellTotal, 2);
+
+        return $invoiceAmount > 0
+            && $invoiceAmount === $paidTotal
+            && $invoiceAmount === $sellTotal;
     }
 
     protected function assertDiscount(StandaloneInvoice $invoice, float $discount): void
@@ -181,19 +214,34 @@ class StandaloneInvoiceSettlement
             ]);
         }
 
-        $due = round($invoice->balanceDue(), 2);
-        if (round($discount, 2) > $due) {
+        $subtotal = round((float) $invoice->subtotal, 2);
+        if (round($discount, 2) > $subtotal) {
             throw ValidationException::withMessages([
-                'discount_amount' => 'Discount cannot exceed the invoice balance due.',
+                'discount_amount' => 'Discount cannot exceed the invoice subtotal.',
             ]);
         }
     }
 
-    protected function completedTransactionsQuery(string $number)
+    /**
+     * @return Collection<int, Transaction>
+     */
+    protected function completedTransactionsOfType(string $number, int $type): Collection
     {
         return Transaction::query()
             ->with(['sender', 'receiver'])
             ->where('invoice', $number)
-            ->where('status', Transaction::STATUS_COMPLETED);
+            ->where('type', $type)
+            ->where('status', Transaction::STATUS_COMPLETED)
+            ->orderBy('date')
+            ->orderBy('id')
+            ->get();
+    }
+
+    /**
+     * @param  Collection<int, Transaction>  $transactions
+     */
+    protected function sumAbsTotals(Collection $transactions): float
+    {
+        return (float) $transactions->sum(fn (Transaction $transaction) => abs((float) $transaction->total));
     }
 }

@@ -118,6 +118,32 @@ it('deletes the cached invoice pdf when the number changes', function () {
     File::deleteDirectory(storage_path('app/testing-tx-invoice-number'));
 });
 
+it('marks the invoice paid when a matching sell and cash-in are linked by number', function () {
+    $invoice = StandaloneInvoice::factory()->create([
+        'number' => 'INV/CA/2026/0777',
+        'subtotal' => 1_000_000,
+        'discount_amount' => 0,
+    ]);
+
+    Transaction::factory()->create([
+        'type' => Transaction::TYPE_SELL,
+        'invoice' => $invoice->number,
+        'total' => -1_000_000,
+        'real_total' => -1_000_000,
+        'status' => Transaction::STATUS_COMPLETED,
+        'user_id' => $this->user->id,
+    ]);
+
+    $this->actingAs($this->user)
+        ->patch(route('transactions.update-invoice', $this->transaction), [
+            'invoice' => $invoice->number,
+        ])
+        ->assertRedirect();
+
+    expect($this->transaction->fresh()->invoice)->toBe($invoice->number)
+        ->and($invoice->fresh()->isMarkedPaid())->toBeTrue();
+});
+
 it('shows invoice maker settlement when the number matches', function () {
     $invoice = StandaloneInvoice::factory()->create([
         'number' => 'INV/CA/2026/0444',
@@ -132,5 +158,6 @@ it('shows invoice maker settlement when the number matches', function () {
         ->assertOk()
         ->assertSee('Invoice Maker', false)
         ->assertSee($invoice->number, false)
-        ->assertSee('data-testid="invoice-mark-paid"', false);
+        ->assertSee('Linked sell', false)
+        ->assertSee('Linked cash-in', false);
 });

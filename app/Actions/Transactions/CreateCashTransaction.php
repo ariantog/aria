@@ -5,8 +5,8 @@ namespace App\Actions\Transactions;
 use App\Http\Requests\StoreCashTransactionRequest;
 use App\Models\Addrbook;
 use App\Models\Transaction;
-use App\Support\PpnAmounts;
 use App\Services\TransactionService;
+use App\Support\PpnAmounts;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
@@ -53,6 +53,8 @@ class CreateCashTransaction
                 }
                 $this->transactionService->handleTransaction($trx);
                 $createdIds[] = $trx->id;
+                app(\App\Services\StandaloneInvoiceSettlement::class)
+                    ->reconcileByNumber((string) $trx->invoice, Auth::user());
             }
         });
 

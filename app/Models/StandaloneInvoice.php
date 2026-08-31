@@ -140,6 +140,15 @@ class StandaloneInvoice extends Model
         return max(0, (float) ($this->discount_amount ?? 0));
     }
 
+    /**
+     * Invoice amount used to match linked sell and cash-in totals.
+     * Discount is a write-off; down payment is display-only on the PDF.
+     */
+    public function billedAmount(): float
+    {
+        return round(max(0, (float) $this->subtotal - $this->discountAmount()), 2);
+    }
+
     public static function generateNumber(?\DateTimeInterface $date = null): string
     {
         $date ??= now();
