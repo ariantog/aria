@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\User;
 use App\Services\PermissionGenerator;
+use App\Support\ObsoleteReportPermissions;
 use App\Support\PermissionTableConfig;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
@@ -34,6 +35,7 @@ class ProductionBootstrapSeeder extends Seeder
         $this->seedPermissions();
         $this->migrateContributorPermission();
         $this->removeObsoleteAddrbookPermissions();
+        $this->removeObsoleteReportPermissions();
         $this->syncSuperadminRolePermissions();
         $this->call(ScheduledTaskSeeder::class);
         $this->call(SettingSeeder::class);
@@ -102,6 +104,18 @@ class ProductionBootstrapSeeder extends Seeder
         DB::table($permissionTable)->whereIn('id', $ids)->delete();
         app(PermissionRegistrar::class)->forgetCachedPermissions();
         $this->command?->info('Obsolete addrbook permissions removed.');
+    }
+
+    /**
+     * Mirrors 2026_08_31_120000_remove_obsolete_report_permissions so a fresh
+     * production bootstrap needs no extra data migration.
+     */
+    private function removeObsoleteReportPermissions(): void
+    {
+        $deleted = ObsoleteReportPermissions::remove();
+        if ($deleted > 0) {
+            $this->command?->info("Obsolete report permissions removed ({$deleted}).");
+        }
     }
 
     private function syncSuperadminRolePermissions(): void
