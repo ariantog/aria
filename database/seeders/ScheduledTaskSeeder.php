@@ -124,6 +124,21 @@ class ScheduledTaskSeeder extends Seeder
             ]
         );
 
+        // Do not cron app:recalculate-inventory-health — it truncates daily_inventory_summaries
+        // and walks every year of transaction_details (the same unbounded scan that OOM'd
+        // warehouse stats). Inventory Health reads warehouse_item_monthly_stats instead.
+        \App\Models\ScheduledTask::where('command', 'app:recalculate-inventory-health')->delete();
+
+        \App\Models\ScheduledTask::updateOrCreate(
+            ['command' => 'app:sync-inventory-health'],
+            [
+                'name' => 'Sync Inventory Health',
+                'frequency' => 'daily',
+                'active' => true,
+                'description' => 'Rebuilds Inventory Health snapshots from warehouse item monthly stats and current stock, one warehouse at a time. Run after the daily warehouse-stats reconcile.',
+            ]
+        );
+
         \App\Models\ScheduledTask::updateOrCreate(
             ['command' => 'jubelio:order-jubelio-to-aria'],
             [
