@@ -25,12 +25,17 @@ class InventoryHealthController extends Controller
         $filters = $queryService->filtersFromRequest($request);
         $windows = $queryService->resolveWindows($request);
         $rows = $queryService->paginate($request, Auth::user());
+        $meta = $queryService->pageMeta($request);
         $partyLookups = self::partyLookups();
 
         return view('reports.inventory-health', [
             'rows' => $rows,
             'filters' => $filters,
             'windows' => $windows,
+            'source' => $meta['source'],
+            'syncedAt' => $meta['synced_at'],
+            'stale' => $meta['stale'],
+            'hasSnapshots' => $meta['has_snapshots'],
             'perPage' => $queryService->resolvePerPage($request),
             'typeOptions' => $queryService->typeOptions(),
             'statusOptions' => InventoryHealthClassifier::statusOptions(),
