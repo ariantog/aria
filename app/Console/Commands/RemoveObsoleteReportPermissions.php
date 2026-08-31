@@ -14,7 +14,13 @@ class RemoveObsoleteReportPermissions extends Command
 
     public function handle(): int
     {
-        $rows = ObsoleteReportPermissions::existing();
+        try {
+            $rows = ObsoleteReportPermissions::existing();
+        } catch (\Throwable $e) {
+            $this->error($e->getMessage());
+
+            return self::FAILURE;
+        }
 
         if ($rows->isEmpty()) {
             $this->info('No leftover report permissions found.');

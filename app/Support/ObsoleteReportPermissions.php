@@ -29,14 +29,25 @@ class ObsoleteReportPermissions
     public static function existing(): Collection
     {
         $permissionTable = config('permission.table_names.permissions');
-        if (! is_string($permissionTable) || ! Schema::hasTable($permissionTable)) {
+        if (! is_string($permissionTable)) {
             return collect();
         }
 
-        return DB::table($permissionTable)
-            ->whereIn('name', self::NAMES)
-            ->orderBy('name')
-            ->get(['id', 'name']);
+        try {
+            if (! Schema::hasTable($permissionTable)) {
+                return collect();
+            }
+
+            return DB::table($permissionTable)
+                ->whereIn('name', self::NAMES)
+                ->orderBy('name')
+                ->get(['id', 'name']);
+        } catch (\Throwable $e) {
+            throw new \RuntimeException(
+                'Cannot inspect the permissions table. Check the database connection. '.$e->getMessage(),
+                previous: $e,
+            );
+        }
     }
 
     public static function remove(): int
