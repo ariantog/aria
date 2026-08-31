@@ -5,10 +5,8 @@ namespace App\Services\Reporting;
 use App\Enums\ReportingLedgerRole;
 use App\Models\Addrbook;
 use App\Models\ReportingEntity;
-use App\Models\ReportingEntityMonthlySummary;
 use App\Models\ReportingLedgerRole as ReportingLedgerRoleModel;
 use App\Models\ReportingMonthlyTaxSummary;
-use App\Models\ReportingOperationMonthlySummary;
 use App\Models\Transaction;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -59,6 +57,7 @@ class LabaRugiService
      *     entity_id: int,
      *     entity_label: string,
      *     is_consolidated: bool,
+     *     source: string,
      *     month_keys: list<string>,
      *     month_labels: array<string, string>,
      *     pendapatan: array<string, float>,
@@ -101,8 +100,9 @@ class LabaRugiService
             $monthLabels[$this->monthKey($y, $m)] = $monthNames[$m].' '.$y;
         }
 
-        $lendingByMonth = $this->internalLendingCashInByMonth($periodStart, $periodEnd, $isConsolidated ? null : $resolvedEntityId);
-        $pendapatan = $this->pendapatanByMonth($periodMonths, $entityIds, $lendingByMonth, $zeroMonths);
+        $scopedEntityId = $isConsolidated ? null : $resolvedEntityId;
+        $lendingByMonth = $this->internalLendingCashInByMonth($periodStart, $periodEnd, $scopedEntityId);
+        $pendapatan = $this->pendapatanByMonth($periodStart, $periodEnd, $scopedEntityId, $lendingByMonth, $zeroMonths);
         $internalLending = array_replace($zeroMonths, $lendingByMonth);
         $hpp = $this->hppByMonth($periodMonths, $isConsolidated, $zeroMonths);
         $bebanLines = $this->bebanLines($periodMonths, $isConsolidated, $resolvedEntityId, $zeroMonths);
@@ -142,6 +142,7 @@ class LabaRugiService
             'entity_id' => $resolvedEntityId,
             'entity_label' => $this->entityLabel($resolvedEntityId),
             'is_consolidated' => $isConsolidated,
+            'source' => 'bank_cash',
             'month_keys' => $monthKeys,
             'month_labels' => $monthLabels,
             'pendapatan' => $pendapatan,
@@ -288,6 +289,7 @@ class LabaRugiService
                     'rows' => [
                         ['Entitas', $report['entity_label']],
                         ['Periode', $report['period_start'].' — '.$report['period_end']],
+                        ['Sumber', 'Cash In/Out bank (bukan saldo kontak)'],
                     ],
                 ],
                 [
@@ -369,35 +371,37 @@ class LabaRugiService
     }
 
     /**
-     * @param  list<array{0: int, 1: int}>  $periodMonths
-     * @param  list<int>  $entityIds
+     * Pendapatan from completed Cash In to entity banks — not contact balances
+     * and not reporting_entity_monthly_summaries.
+     *
      * @param  array<string, float>  $lendingByMonth
      * @param  array<string, float>  $zeroMonths
      * @return array<string, float>
      */
-    private function pendapatanByMonth(array $periodMonths, array $entityIds, array $lendingByMonth, array $zeroMonths): array
+    private function pendapatanByMonth(string $start, string $end, ?int $entityId, array $lendingByMonth, array $zeroMonths): array
     {
         $pendapatan = $zeroMonths;
-        if ($entityIds === []) {
+        $bankIds = $this->entityBankIds($entityId);
+        if ($bankIds === []) {
             return $pendapatan;
         }
 
-        $rows = ReportingEntityMonthlySummary::query()
-            ->where(function ($query) use ($periodMonths) {
-                foreach ($periodMonths as [$year, $month]) {
-                    $query->orWhere(fn ($inner) => $inner->where('year', $year)->where('month', $month));
-                }
-            })
-            ->whereIn('reporting_entity_id', $entityIds)
-            ->get(['year', 'month', 'cash_in']);
+        $rows = Transaction::query()
+            ->where('status', Transaction::STATUS_COMPLETED)
+            ->where('type', Transaction::TYPE_CASH_IN)
+            ->where('receiver_type', Addrbook::TYPE_BANK)
+            ->where('sender_type', '!=', Addrbook::TYPE_ACCOUNT)
+            ->whereIn('receiver_id', $bankIds)
+            ->whereBetween('date', [$start, $end])
+            ->get(['date', 'total', 'real_total']);
 
         foreach ($rows as $row) {
-            $key = $this->monthKey((int) $row->year, (int) $row->month);
-            $pendapatan[$key] = ($pendapatan[$key] ?? 0) + (float) $row->cash_in;
+            $key = $this->monthKey((int) $row->date->year, (int) $row->date->month);
+            $pendapatan[$key] = ($pendapatan[$key] ?? 0) + $this->transactionAmount($row);
         }
 
         foreach ($pendapatan as $key => $amount) {
-            $pendapatan[$key] = max(0, $amount - ($lendingByMonth[$key] ?? 0));
+            $pendapatan[$key] = max(0, round($amount - ($lendingByMonth[$key] ?? 0), 2));
         }
 
         return $pendapatan;
@@ -442,41 +446,18 @@ class LabaRugiService
     private function bebanLines(array $periodMonths, bool $isConsolidated, int $entityId, array $zeroMonths): array
     {
         [$periodStart, $periodEnd] = ReportingPeriod::spanRange($periodMonths);
-        $excludedBySlugMonth = $this->excludedLedgerCashOutBySlugMonth($periodStart, $periodEnd, $isConsolidated ? null : $entityId);
-
+        $excludedIds = $this->excludedLedgerIds();
         $bySlug = [];
 
-        if ($isConsolidated) {
-            $rows = ReportingOperationMonthlySummary::query()
-                ->where(function ($query) use ($periodMonths) {
-                    foreach ($periodMonths as [$year, $month]) {
-                        $query->orWhere(fn ($inner) => $inner->where('year', $year)->where('month', $month));
-                    }
-                })
-                ->get(['year', 'month', 'report_slug', 'cash_out']);
+        foreach ($this->operationCashOutRows($periodStart, $periodEnd, $isConsolidated ? null : $entityId) as $row) {
+            if (in_array($row['ledger_id'], $excludedIds, true)) {
+                continue;
+            }
 
-            foreach ($rows as $row) {
-                $slug = (string) $row->report_slug;
-                $key = $this->monthKey((int) $row->year, (int) $row->month);
-                $bySlug[$slug] ??= $zeroMonths;
-                $bySlug[$slug][$key] = ($bySlug[$slug][$key] ?? 0) + abs((float) $row->cash_out);
-            }
-        } else {
-            foreach ($this->operationCashOutRows($periodStart, $periodEnd, $entityId) as $row) {
-                $slug = $row['slug'];
-                $key = $row['month_key'];
-                $bySlug[$slug] ??= $zeroMonths;
-                $bySlug[$slug][$key] = ($bySlug[$slug][$key] ?? 0) + $row['amount'];
-            }
-        }
-
-        foreach ($excludedBySlugMonth as $slug => $months) {
-            foreach ($months as $key => $amount) {
-                if (! isset($bySlug[$slug])) {
-                    continue;
-                }
-                $bySlug[$slug][$key] = max(0, ($bySlug[$slug][$key] ?? 0) - $amount);
-            }
+            $slug = $row['slug'];
+            $key = $row['month_key'];
+            $bySlug[$slug] ??= $zeroMonths;
+            $bySlug[$slug][$key] = ($bySlug[$slug][$key] ?? 0) + $row['amount'];
         }
 
         $lines = [];
@@ -553,12 +534,12 @@ class LabaRugiService
             ->whereIn('sender_id', $lendingIds)
             ->whereIn('receiver_id', $bankIds)
             ->whereBetween('date', [$start, $end])
-            ->get(['date', 'total']);
+            ->get(['date', 'total', 'real_total']);
 
         $byMonth = [];
         foreach ($rows as $row) {
             $key = $this->monthKey((int) $row->date->year, (int) $row->date->month);
-            $byMonth[$key] = ($byMonth[$key] ?? 0) + abs((float) $row->total);
+            $byMonth[$key] = ($byMonth[$key] ?? 0) + $this->transactionAmount($row);
         }
 
         return $byMonth;
@@ -597,7 +578,7 @@ class LabaRugiService
                 'invoice' => $transaction->invoice,
                 'party' => $transaction->sender?->name ?? '—',
                 'entity_name' => $entity?->name,
-                'amount' => abs((float) $transaction->total),
+                'amount' => $this->transactionAmount($transaction),
             ];
         })->all();
     }
@@ -670,51 +651,11 @@ class LabaRugiService
                 'slug' => $slug,
                 'party' => $transaction->receiver?->name ?? '—',
                 'entity_name' => $entity?->name,
-                'amount' => abs((float) $transaction->total),
+                'amount' => $this->transactionAmount($transaction),
                 'month_key' => $this->monthKey((int) $transaction->date->year, (int) $transaction->date->month),
                 'ledger_id' => (int) $transaction->receiver_id,
             ];
         })->filter()->values();
-    }
-
-    /**
-     * Cash-outs to material / production / tax / exclude ledgers, keyed by report slug + month.
-     *
-     * @return array<string, array<string, float>>
-     */
-    private function excludedLedgerCashOutBySlugMonth(string $start, string $end, ?int $entityId): array
-    {
-        $excludedIds = $this->excludedLedgerIds();
-        if ($excludedIds === []) {
-            return [];
-        }
-
-        $bankIds = $this->entityBankIds($entityId);
-        if ($bankIds === []) {
-            return [];
-        }
-
-        $rows = Transaction::query()
-            ->where('status', Transaction::STATUS_COMPLETED)
-            ->where('type', Transaction::TYPE_CASH_OUT)
-            ->where('sender_type', Addrbook::TYPE_BANK)
-            ->where('receiver_type', Addrbook::TYPE_ACCOUNT)
-            ->whereIn('receiver_id', $excludedIds)
-            ->whereIn('sender_id', $bankIds)
-            ->whereBetween('date', [$start, $end])
-            ->get(['receiver_id', 'date', 'total']);
-
-        $bySlug = [];
-        foreach ($rows as $row) {
-            $slug = $this->recorder->resolveReportSlugForLedger((int) $row->receiver_id);
-            if (! $slug) {
-                continue;
-            }
-            $key = $this->monthKey((int) $row->date->year, (int) $row->date->month);
-            $bySlug[$slug][$key] = ($bySlug[$slug][$key] ?? 0) + abs((float) $row->total);
-        }
-
-        return $bySlug;
     }
 
     /**
@@ -760,5 +701,13 @@ class LabaRugiService
     private function monthKey(int $year, int $month): string
     {
         return sprintf('%04d-%02d', $year, $month);
+    }
+
+    private function transactionAmount(Transaction $transaction): float
+    {
+        $real = (float) $transaction->real_total;
+        $total = (float) $transaction->total;
+
+        return abs($real !== 0.0 ? $real : $total);
     }
 }

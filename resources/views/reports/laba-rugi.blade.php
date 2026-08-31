@@ -42,7 +42,8 @@ $xlsxQuery = http_build_query([
             <p class="mt-1 text-sm text-gray-500">
                 {{ $report['entity_label'] }} —
                 {{ $filters['months'] }} bulan sampai {{ $monthNames[$filters['month']] }} {{ $filters['year'] }}
-                ({{ $report['period_start'] }} — {{ $report['period_end'] }})
+                ({{ $report['period_start'] }} — {{ $report['period_end'] }};
+                pendapatan/beban dari Cash In/Out bank, bukan saldo kontak)
             </p>
         </div>
         <div class="flex flex-wrap gap-2">
@@ -141,6 +142,7 @@ $xlsxQuery = http_build_query([
                         <button type="button" class="text-left text-blue-700 hover:underline" @click="togglePendapatan()" data-testid="laba-rugi-pendapatan-toggle">
                             Pendapatan usaha
                         </button>
+                        <p class="text-[11px] text-gray-400">Cash In ke bank entitas (customer/reseller), periode ini</p>
                     </td>
                     @if($showMonths)
                         @foreach($monthKeys as $key)

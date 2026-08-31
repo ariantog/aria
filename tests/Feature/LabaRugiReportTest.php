@@ -60,7 +60,8 @@ it('renders the laba rugi page for an authorized user', function () {
         ->get(route('reports.laba-rugi', ['year' => 2026, 'month' => 1]))
         ->assertOk()
         ->assertSee('Laporan Laba Rugi', false)
-        ->assertSee('data-testid="laba-rugi-page"', false);
+        ->assertSee('data-testid="laba-rugi-page"', false)
+        ->assertSee('Cash In/Out bank, bukan saldo kontak', false);
 });
 
 it('forbids users without report-laba-rugi permission', function () {
@@ -72,9 +73,10 @@ it('forbids users without report-laba-rugi permission', function () {
         ->assertForbidden();
 });
 
-it('uses reporting entity cash-in summaries and excludes internal lending from revenue', function () {
+it('uses live bank cash-in and excludes internal lending and stale monthly summaries', function () {
     $data = seedLabaRugiEntities();
     $customer = Addrbook::factory()->customer()->create(['name' => 'Toko Regular']);
+    $other = Addrbook::factory()->customer()->create(['name' => 'Toko B']);
     $lender = Addrbook::factory()->customer()->create([
         'name' => 'Pinjaman Internal',
         'is_internal_lending' => true,
@@ -84,7 +86,7 @@ it('uses reporting entity cash-in summaries and excludes internal lending from r
         'year' => 2026,
         'month' => 1,
         'reporting_entity_id' => $data['entityA']->id,
-        'cash_in' => 2_000_000,
+        'cash_in' => 9_999_999,
     ]);
     ReportingEntityMonthlySummary::create([
         'year' => 2026,
@@ -98,6 +100,7 @@ it('uses reporting entity cash-in summaries and excludes internal lending from r
         'sender_id' => $customer->id,
         'receiver_id' => $data['bankA']->id,
         'total' => 1_600_000,
+        'real_total' => 1_600_000,
         'invoice' => 'CIN-REG-1',
     ]);
     createLabaRugiTransaction([
@@ -105,7 +108,16 @@ it('uses reporting entity cash-in summaries and excludes internal lending from r
         'sender_id' => $lender->id,
         'receiver_id' => $data['bankA']->id,
         'total' => 400_000,
+        'real_total' => 400_000,
         'invoice' => 'CIN-LEND-1',
+    ]);
+    createLabaRugiTransaction([
+        'date' => '2026-01-14',
+        'sender_id' => $other->id,
+        'receiver_id' => $data['bankB']->id,
+        'total' => 250_000,
+        'real_total' => 250_000,
+        'invoice' => 'CIN-B-1',
     ]);
 
     $service = app(LabaRugiService::class);
@@ -113,13 +125,16 @@ it('uses reporting entity cash-in summaries and excludes internal lending from r
     $onlyA = $service->build(2026, 1, 1, $data['entityA']->id);
     $onlyB = $service->build(2026, 1, 1, $data['entityB']->id);
 
-    expect($konsolidasi['pendapatan_total'])->toBe(2_100_000.0)
+    expect($konsolidasi['source'])->toBe('bank_cash')
+        ->and($konsolidasi['pendapatan_total'])->toBe(1_850_000.0)
         ->and($konsolidasi['internal_lending_total'])->toBe(400_000.0)
-        ->and($konsolidasi['laba_usaha_total'])->toBe(2_100_000.0)
+        ->and($konsolidasi['laba_usaha_total'])->toBe(1_850_000.0)
+        ->and($konsolidasi['pendapatan_total'])->not->toBe(9_999_999.0)
         ->and($onlyA['pendapatan_total'])->toBe(1_600_000.0)
-        ->and($onlyB['pendapatan_total'])->toBe(500_000.0)
+        ->and($onlyB['pendapatan_total'])->toBe(250_000.0)
         ->and(collect($konsolidasi['drilldown']['pendapatan'])->pluck('invoice')->all())
         ->toContain('CIN-REG-1')
+        ->toContain('CIN-B-1')
         ->not->toContain('CIN-LEND-1');
 });
 
@@ -129,11 +144,12 @@ it('takes HPP from inventory roll-forward cogs on konsolidasi only', function ()
     $warehouse = Addrbook::factory()->warehouse()->create();
     $customer = Addrbook::factory()->customer()->create();
 
-    ReportingEntityMonthlySummary::create([
-        'year' => 2026,
-        'month' => 1,
-        'reporting_entity_id' => $data['entityA']->id,
-        'cash_in' => 100_000,
+    createLabaRugiTransaction([
+        'date' => '2026-01-10',
+        'sender_id' => $customer->id,
+        'receiver_id' => $data['bankA']->id,
+        'total' => 100_000,
+        'real_total' => 100_000,
     ]);
 
     $sell = Transaction::withoutEvents(fn () => Transaction::create([
@@ -191,7 +207,7 @@ it('excludes production-cost ledger cash-out from beban usaha', function () {
         'year' => 2026,
         'month' => 1,
         'report_slug' => 'marketing',
-        'cash_out' => -200_000,
+        'cash_out' => -9_999_999,
     ]);
     ReportingOperationMonthlySummary::create([
         'year' => 2026,
@@ -248,24 +264,28 @@ it('adds pph final and tax paid from monthly tax summaries', function () {
 
 it('sums a 3-month period ending at the selected month', function () {
     $data = seedLabaRugiEntities();
+    $customer = Addrbook::factory()->customer()->create();
 
-    ReportingEntityMonthlySummary::create([
-        'year' => 2025,
-        'month' => 12,
-        'reporting_entity_id' => $data['entityA']->id,
-        'cash_in' => 100_000,
+    createLabaRugiTransaction([
+        'date' => '2025-12-15',
+        'sender_id' => $customer->id,
+        'receiver_id' => $data['bankA']->id,
+        'total' => 100_000,
+        'real_total' => 100_000,
     ]);
-    ReportingEntityMonthlySummary::create([
-        'year' => 2026,
-        'month' => 1,
-        'reporting_entity_id' => $data['entityA']->id,
-        'cash_in' => 200_000,
+    createLabaRugiTransaction([
+        'date' => '2026-01-15',
+        'sender_id' => $customer->id,
+        'receiver_id' => $data['bankA']->id,
+        'total' => 200_000,
+        'real_total' => 200_000,
     ]);
-    ReportingEntityMonthlySummary::create([
-        'year' => 2026,
-        'month' => 2,
-        'reporting_entity_id' => $data['entityA']->id,
-        'cash_in' => 50_000,
+    createLabaRugiTransaction([
+        'date' => '2026-02-15',
+        'sender_id' => $customer->id,
+        'receiver_id' => $data['bankA']->id,
+        'total' => 50_000,
+        'real_total' => 50_000,
     ]);
 
     expect(ReportingPeriod::monthsEnding(2026, 2, 3))->toBe([
@@ -285,11 +305,12 @@ it('sums a 3-month period ending at the selected month', function () {
 
 it('exports laba rugi as csv', function () {
     $data = seedLabaRugiEntities();
-    ReportingEntityMonthlySummary::create([
-        'year' => 2026,
-        'month' => 1,
-        'reporting_entity_id' => $data['entityA']->id,
-        'cash_in' => 75_000,
+    createLabaRugiTransaction([
+        'date' => '2026-01-08',
+        'sender_id' => Addrbook::factory()->customer()->create()->id,
+        'receiver_id' => $data['bankA']->id,
+        'total' => 75_000,
+        'real_total' => 75_000,
     ]);
 
     $response = $this->actingAs($this->user)
