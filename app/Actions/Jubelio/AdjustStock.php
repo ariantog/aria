@@ -42,6 +42,9 @@ class AdjustStock
 
             config(['services.jubelio.active' => true, 'services.jubelio.verify_ssl' => false]);
             $jubelioService = app(JubelioService::class);
+            if (! $jubelioService->authenticatedRequest()) {
+                throw new \RuntimeException('Jubelio auth failed.');
+            }
 
             $transaction->loadMissing('details.item');
             $items = [];

@@ -217,6 +217,38 @@ it('shows the jubelio error flash on the transaction page', function () {
     expect($html)->toContain('Qty exceeds available stock');
 });
 
+it('does not leave a warning when jubelio auth fails before the push', function () {
+    config([
+        'services.jubelio.active' => true,
+        'services.jubelio.url' => 'https://api.jubelio.com/login',
+        'services.jubelio.email' => 'test@example.com',
+        'services.jubelio.password' => 'secret',
+        'services.jubelio.verify_ssl' => false,
+    ]);
+    Http::fake([
+        'https://api.jubelio.com/login' => Http::response(['message' => 'Invalid credentials'], 401),
+    ]);
+
+    $user = seedAdjustStockUser();
+    $item = Item::factory()->create(['jubelio_item_id' => 906, 'code' => 'SKU-MOVE-AUTH']);
+    $transaction = seedMoveForAdjust($item);
+
+    $this->actingAs($user)
+        ->post(route('jubelio.adjustStok', $transaction), [
+            'side' => 1,
+            'whType' => 2,
+            'adjustType' => 2,
+        ])
+        ->assertRedirect()
+        ->assertSessionHas('error', 'Jubelio auth failed.');
+
+    $transaction->refresh();
+
+    expect($transaction->hasSyncWarningA())->toBeFalse()
+        ->and($transaction->a_submit_by)->toBeNull()
+        ->and($transaction->submit_a_count)->toBe(0);
+});
+
 it('requires a jubelio reference id before confirming an unclear sync', function () {
     $user = seedAdjustStockUser();
     $transaction = Transaction::factory()->create([
