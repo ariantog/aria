@@ -108,6 +108,7 @@ class PermissionGrouper
             [User::class, 'Users', [
                 'roles-' => 'Roles',
                 'permissions-' => 'Permissions',
+                'staff-roles-' => 'Users',
             ]],
             [Location::class, 'Locations'],
             [Addrbook::class, 'Addrbook'],

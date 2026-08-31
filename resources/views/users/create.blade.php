@@ -65,6 +65,12 @@ $breadcrumbs = [
                 </div>
             </div>
 
+            @include('users.partials.staff-roles', [
+                'staffRoles' => $staffRoles,
+                'assignedStaffRoleIds' => old('staff_role_ids', []),
+                'canAssignStaffRoles' => $canAssignStaffRoles ?? false,
+            ])
+
             <div class="mt-6 flex items-center justify-between border-t border-gray-100 pt-6">
                 <div>
                     <h4 class="font-medium text-gray-900">Account Status</h4>

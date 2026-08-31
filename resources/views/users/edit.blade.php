@@ -57,6 +57,12 @@ $currentRole = old('role', $userRoles->first());
                 </div>
             </div>
 
+            @include('users.partials.staff-roles', [
+                'staffRoles' => $staffRoles,
+                'assignedStaffRoleIds' => $assignedStaffRoleIds ?? [],
+                'canAssignStaffRoles' => $canAssignStaffRoles ?? false,
+            ])
+
             {{-- Danger Zone --}}
             <div class="mt-8 border-t border-gray-200 pt-6">
                 <div class="rounded-lg border border-red-200 bg-red-50 p-5">
