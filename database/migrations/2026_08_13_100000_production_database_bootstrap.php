@@ -61,6 +61,7 @@ return new class extends Migration
         (require __DIR__.'/2026_08_24_100000_install_user_preferences_table.php')->up();
         (require __DIR__.'/2026_08_29_100000_install_depreciation_register.php')->up();
         (require __DIR__.'/2026_08_31_100000_install_inventory_health_snapshots_table.php')->up();
+        (require __DIR__.'/2026_08_31_120000_install_staff_role_checklists.php')->up();
     }
 
     public function down(): void
