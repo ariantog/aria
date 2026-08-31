@@ -22,7 +22,7 @@ class StaffChecklistService
                 'has_checklists' => false,
                 'roles' => collect(),
                 'groups' => [],
-                'summary' => ['total' => 0, 'completed' => 0],
+                'summary' => ['total' => 0, 'completed' => 0, 'pending' => 0],
             ];
         }
 
@@ -86,6 +86,7 @@ class StaffChecklistService
             'summary' => [
                 'total' => $items->count(),
                 'completed' => $items->where('completed', true)->count(),
+                'pending' => $items->where('completed', false)->count(),
             ],
         ];
     }

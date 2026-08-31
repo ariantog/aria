@@ -274,6 +274,22 @@
             @endif
 
             <div class="ml-auto flex items-center gap-2">
+                @if($hasStaffChecklist ?? false)
+                <a href="{{ route('my-checklist.index') }}"
+                   class="relative flex h-8 w-8 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100"
+                   title="Checklist peran"
+                   data-testid="header-checklist-link">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
+                    </svg>
+                    @if(($staffChecklistPendingCount ?? 0) > 0)
+                    <span class="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-bold text-white">
+                        {{ $staffChecklistPendingCount > 99 ? '99+' : $staffChecklistPendingCount }}
+                    </span>
+                    @endif
+                </a>
+                @endif
                 @if(($stockNotificationUnreadCount ?? 0) > 0 || auth()->user()?->can(\App\Models\ItemStockNotification::getPermissions()['view']))
                 <a href="{{ route('stock-notifications.index') }}"
                    class="relative flex h-8 w-8 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100"
