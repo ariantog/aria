@@ -2,6 +2,9 @@
     $perPage = $perPage ?? (int) request()->query('per_page', 100);
     $selectedType = (string) ($selectedType ?? ($filters['type'] ?? ''));
     $showPartyFilters = $showPartyFilters ?? false;
+    $showStatusFilter = $showStatusFilter ?? false;
+    $statusOptions = $statusOptions ?? [];
+    $selectedStatus = (string) ($selectedStatus ?? ($filters['status'] ?? ''));
 @endphp
 
 <div class="flex flex-col gap-1">
@@ -41,6 +44,17 @@
     <input type="number" step="0.01" name="qty_max" value="{{ $filters['qty_max'] ?? '' }}"
            class="w-24 rounded-md border border-gray-300 px-2.5 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
 </div>
+@if($showStatusFilter)
+<div class="flex flex-col gap-1">
+    <label class="text-xs font-medium uppercase text-gray-500" for="inventory-health-status">Status</label>
+    <select id="inventory-health-status" name="status" data-testid="inventory-health-status"
+            class="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+        @foreach($statusOptions as $statusKey => $statusLabel)
+            <option value="{{ $statusKey }}" @selected($selectedStatus === (string) $statusKey)>{{ $statusLabel }}</option>
+        @endforeach
+    </select>
+</div>
+@endif
 @if($showPartyFilters)
     @include('transactions.partials.export-sell-party-combobox', [
         'name' => 'sender',

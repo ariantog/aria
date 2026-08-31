@@ -39,13 +39,7 @@ it('renders the dashboard', function () {
         ->assertOk()
         ->assertSee('Dashboard', false)
         ->assertSee('data-testid="sidebar-menu-search"', false)
-        ->assertDontSee('Inventory Health', false);
-});
-
-it('does not expose the removed inventory-health report', function () {
-    $this->actingAs($this->user)
-        ->get('/reports/inventory-health')
-        ->assertNotFound();
+        ->assertSee('Inventory Health', false);
 });
 
 it('renders the transactions index with its rows', function () {
@@ -177,6 +171,7 @@ it('renders migrated GET pages with a 200', function (string $route) {
     'report warehouse-arrangement' => 'reports/warehouse-arrangement',
     'stock notifications' => 'stock-notifications',
     'report product-performance' => 'reports/product-performance',
+    'report inventory-health' => 'reports/inventory-health',
     'report produksi potong' => 'reports/produksi-potong',
     'report produksi qc' => 'reports/produksi-qc',
     'report tax ppn' => 'reports/tax/ppn',
