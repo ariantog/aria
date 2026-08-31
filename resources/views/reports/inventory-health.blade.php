@@ -34,6 +34,22 @@ $fmtCover = function (?float $cover) {
             Window {{ $windows['period_from'] }} → {{ $windows['period_to'] }}
             ({{ $windows['period_days'] }} days).
         </p>
+        <p class="mt-1 text-xs text-gray-500" data-testid="inventory-health-source" data-source="{{ $source }}">
+            @if($source === 'snapshot')
+                Cached snapshot from warehouse monthly stats.
+                @if($syncedAt)
+                    Last synced {{ $syncedAt->diffForHumans() }}.
+                @endif
+                @if($stale)
+                    <span class="text-amber-700">May be stale — wait for the daily cron or run <code class="text-xs">app:sync-inventory-health</code>.</span>
+                @endif
+            @elseif($hasSnapshots)
+                Live query (invoice, receiver, non-warehouse sender, or a custom date range).
+                The default 30-day view uses the daily snapshot.
+            @else
+                <span class="text-amber-700">No snapshot yet — this page is scanning transactions. Run <code class="text-xs">php artisan app:sync-inventory-health</code> or wait for the daily cron.</span>
+            @endif
+        </p>
     </div>
 
     <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
