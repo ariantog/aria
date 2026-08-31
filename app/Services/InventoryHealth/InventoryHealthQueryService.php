@@ -3,6 +3,7 @@
 namespace App\Services\InventoryHealth;
 
 use App\Models\Addrbook;
+use App\Models\InventoryHealthSnapshot;
 use App\Models\Item;
 use App\Models\Transaction;
 use App\Models\TransactionDetail;
@@ -13,7 +14,9 @@ use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class InventoryHealthQueryService
 {
@@ -97,18 +100,123 @@ class InventoryHealthQueryService
         ];
     }
 
+    /**
+     * @return array{source: 'snapshot'|'live', synced_at: ?Carbon, stale: bool, has_snapshots: bool}
+     */
+    public function pageMeta(Request $request): array
+    {
+        if (! Schema::hasTable('inventory_health_snapshots')) {
+            return [
+                'source' => 'live',
+                'synced_at' => null,
+                'stale' => true,
+                'has_snapshots' => false,
+            ];
+        }
+
+        $syncedAt = app(InventoryHealthSyncService::class)->latestSyncedAt();
+        $hasSnapshots = InventoryHealthSnapshot::query()->exists();
+
+        return [
+            'source' => $this->canUseSnapshot($request) ? 'snapshot' : 'live',
+            'synced_at' => $syncedAt,
+            'stale' => $syncedAt ? $syncedAt->lt(now()->subDay()) : true,
+            'has_snapshots' => $hasSnapshots,
+        ];
+    }
+
+    public function canUseSnapshot(Request $request): bool
+    {
+        if (! $this->snapshotsReady()) {
+            return false;
+        }
+
+        if ($request->filled('invoice') || $request->filled('receiver')) {
+            return false;
+        }
+
+        $sender = trim((string) $request->query('sender', ''));
+        if ($sender !== '' && $this->warehouseIdFromSender($request) === null) {
+            return false;
+        }
+
+        if ($request->filled('from') || $request->filled('to')) {
+            $windows = $this->resolveWindows($request);
+            $default = app(InventoryHealthSyncService::class)->windows();
+
+            if ($windows['period_from'] !== $default['period_from'] || $windows['period_to'] !== $default['period_to']) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     public function paginate(Request $request, ?User $user): LengthAwarePaginator
     {
         $windows = $this->resolveWindows($request);
-        $perPage = $this->resolvePerPage($request);
-        $mode = $this->activityMode($request);
-        $status = (string) $request->query('status', '');
-        $validStatuses = array_filter(array_keys(InventoryHealthClassifier::statusOptions()));
+        $rows = $this->canUseSnapshot($request)
+            ? $this->snapshotItems($request)
+            : $this->liveItems($request, $user, $windows);
 
+        return $this->decorateAndPaginate($rows, $request, $windows);
+    }
+
+    private function snapshotsReady(): bool
+    {
+        return Schema::hasTable('inventory_health_snapshots')
+            && InventoryHealthSnapshot::query()->exists();
+    }
+
+    /**
+     * @return Collection<int, Item>
+     */
+    private function snapshotItems(Request $request): Collection
+    {
+        $warehouseId = $this->warehouseIdFromSender($request);
+        $snapshotWarehouseId = $warehouseId ?? InventoryHealthSyncService::COMPANY_WAREHOUSE_ID;
+
+        return Item::query()
+            ->join('inventory_health_snapshots as snap', 'snap.item_id', '=', 'items.id')
+            ->where('snap.warehouse_id', $snapshotWarehouseId)
+            ->where(function (Builder $visible) {
+                $visible
+                    ->where('snap.current_stock', '>', 0)
+                    ->orWhere('snap.sold_period', '>', 0)
+                    ->orWhere('snap.returned_period', '>', 0)
+                    ->orWhere('snap.sold_extended', '>', 0)
+                    ->orWhere('snap.returned_extended', '>', 0);
+            })
+            ->when(
+                $request->filled('item_id') && ctype_digit((string) $request->query('item_id')),
+                fn (Builder $q) => $q->where('items.id', (int) $request->query('item_id')),
+            )
+            ->select([
+                'items.id',
+                'items.name',
+                'items.code',
+                'items.type',
+            ])
+            ->selectRaw('snap.sold_period as sold_period')
+            ->selectRaw('snap.returned_period as returned_period')
+            ->selectRaw('snap.sold_extended as sold_extended')
+            ->selectRaw('snap.returned_extended as returned_extended')
+            ->selectRaw('snap.last_sold_at as last_sold_at')
+            ->selectRaw('snap.current_stock as current_stock')
+            ->orderBy('items.name')
+            ->get();
+    }
+
+    /**
+     * @param  array{period_from: string, period_to: string, extended_from: string, period_days: int}  $windows
+     * @return Collection<int, Item>
+     */
+    private function liveItems(Request $request, ?User $user, array $windows): Collection
+    {
         $sales = $this->salesSubquery($request, $user, $windows);
         $stock = $this->stockSubquery($request);
 
-        $query = Item::query()
+        return Item::query()
             ->leftJoinSub($sales, 'sales', 'sales.item_id', '=', 'items.id')
             ->leftJoinSub($stock, 'stock', 'stock.item_id', '=', 'items.id')
             ->where(function (Builder $visible) {
@@ -135,9 +243,20 @@ class InventoryHealthQueryService
             ->selectRaw('COALESCE(sales.returned_extended, 0) as returned_extended')
             ->selectRaw('sales.last_sold_at as last_sold_at')
             ->selectRaw('COALESCE(stock.current_stock, 0) as current_stock')
-            ->orderBy('items.name');
+            ->orderBy('items.name')
+            ->get();
+    }
 
-        $rows = $query->get();
+    /**
+     * @param  Collection<int, Item>  $rows
+     * @param  array{period_from: string, period_to: string, extended_from: string, period_days: int}  $windows
+     */
+    private function decorateAndPaginate(Collection $rows, Request $request, array $windows): LengthAwarePaginator
+    {
+        $perPage = $this->resolvePerPage($request);
+        $mode = $this->activityMode($request);
+        $status = (string) $request->query('status', '');
+        $validStatuses = array_filter(array_keys(InventoryHealthClassifier::statusOptions()));
 
         $decorated = $rows->map(function (Item $item) use ($windows, $mode) {
             $activity = $this->activityTotals($item, $mode);
