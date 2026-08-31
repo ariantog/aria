@@ -20,6 +20,18 @@ use Illuminate\Support\Facades\Schema;
 
 class InventoryHealthQueryService
 {
+    public const DEFAULT_SORT = 'name';
+
+    public const DEFAULT_DIRECTION = 'asc';
+
+    /**
+     * @return list<string>
+     */
+    public static function sortableColumns(): array
+    {
+        return ['name', 'sold', 'returned', 'net', 'stock', 'cover', 'last_sold', 'status'];
+    }
+
     /**
      * @return array<int|string, string>
      */
@@ -58,6 +70,7 @@ class InventoryHealthQueryService
     public function filtersFromRequest(Request $request): array
     {
         $resolved = $this->resolveWindows($request);
+        $sort = $this->resolveSort($request);
 
         return [
             'from' => $resolved['period_from'],
@@ -71,6 +84,29 @@ class InventoryHealthQueryService
             'receiver' => $request->query('receiver', ''),
             'status' => $request->query('status', ''),
             'per_page' => $this->resolvePerPage($request),
+            'sort' => $sort['column'],
+            'direction' => $sort['direction'],
+        ];
+    }
+
+    /**
+     * @return array{column: string, direction: 'asc'|'desc'}
+     */
+    public function resolveSort(Request $request): array
+    {
+        $column = (string) $request->query('sort', self::DEFAULT_SORT);
+        if (! in_array($column, self::sortableColumns(), true)) {
+            $column = self::DEFAULT_SORT;
+        }
+
+        $direction = strtolower((string) $request->query('direction', self::DEFAULT_DIRECTION));
+        if (! in_array($direction, ['asc', 'desc'], true)) {
+            $direction = self::DEFAULT_DIRECTION;
+        }
+
+        return [
+            'column' => $column,
+            'direction' => $direction,
         ];
     }
 
@@ -289,6 +325,9 @@ class InventoryHealthQueryService
             $decorated = $decorated->filter(fn (Item $item) => (float) $item->net_period <= $qtyMax)->values();
         }
 
+        $sort = $this->resolveSort($request);
+        $decorated = $this->sortRows($decorated, $sort['column'], $sort['direction']);
+
         $page = max(1, (int) $request->query('page', 1));
         $slice = $decorated->forPage($page, $perPage)->values();
 
@@ -302,6 +341,64 @@ class InventoryHealthQueryService
                 'query' => $request->query(),
             ],
         );
+    }
+
+    /**
+     * @param  Collection<int, Item>  $rows
+     * @return Collection<int, Item>
+     */
+    private function sortRows(Collection $rows, string $column, string $direction): Collection
+    {
+        $desc = $direction === 'desc';
+        $statusRank = array_flip(array_values(array_filter(
+            array_keys(InventoryHealthClassifier::statusOptions()),
+        )));
+
+        return $rows->sort(function (Item $left, Item $right) use ($column, $desc, $statusRank) {
+            [$leftValue, $leftEmpty] = $this->sortValue($left, $column, $statusRank);
+            [$rightValue, $rightEmpty] = $this->sortValue($right, $column, $statusRank);
+
+            if ($leftEmpty && $rightEmpty) {
+                return strcasecmp((string) $left->name, (string) $right->name);
+            }
+            if ($leftEmpty) {
+                return 1;
+            }
+            if ($rightEmpty) {
+                return -1;
+            }
+
+            $cmp = $leftValue <=> $rightValue;
+            if ($cmp === 0) {
+                return strcasecmp((string) $left->name, (string) $right->name);
+            }
+
+            return $desc ? -$cmp : $cmp;
+        })->values();
+    }
+
+    /**
+     * @param  array<string, int>  $statusRank
+     * @return array{0: mixed, 1: bool}
+     */
+    private function sortValue(Item $item, string $column, array $statusRank): array
+    {
+        return match ($column) {
+            'sold' => [(float) ($item->sold_period ?? 0), false],
+            'returned' => [(float) ($item->returned_period ?? 0), false],
+            'net' => [(float) ($item->net_period ?? 0), false],
+            'stock' => [(float) ($item->current_stock ?? 0), false],
+            'cover' => [
+                $item->health['days_of_cover'] ?? null,
+                ($item->health['days_of_cover'] ?? null) === null,
+            ],
+            'last_sold' => [
+                $item->last_sold_at ? Carbon::parse($item->last_sold_at)->timestamp : null,
+                $item->last_sold_at === null || $item->last_sold_at === '',
+            ],
+            'status' => [$statusRank[$item->health['key'] ?? ''] ?? PHP_INT_MAX, false],
+            default => [mb_strtolower((string) $item->name), false],
+        };
     }
 
     /**

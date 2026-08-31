@@ -8,6 +8,22 @@ use App\Enums\ItemType;
 use App\Http\Controllers\Reports\InventoryHealthController;
 use App\Services\InventoryHealth\InventoryHealthClassifier;
 
+$sort = $sort ?? 'name';
+$direction = $direction ?? 'asc';
+$sortLink = function (string $column) use ($filters, $sort, $direction) {
+    $nextDir = ($sort === $column && $direction === 'asc') ? 'desc' : 'asc';
+    $query = array_merge($filters, [
+        'sort' => $column,
+        'direction' => $nextDir,
+    ]);
+    unset($query['page']);
+
+    return route('reports.inventory-health', array_filter(
+        $query,
+        fn ($value) => $value !== null && $value !== '',
+    ));
+};
+
 $breadcrumbs = [
     ['title' => 'Dashboard', 'href' => route('dashboard')],
     ['title' => 'Reports', 'href' => '#'],
@@ -95,6 +111,10 @@ $fmtCover = function (?float $cover) {
         'selectedReceiver' => $selectedReceiver,
         'itemLookupUrl' => $itemLookupUrl,
         'selectedItem' => $selectedItem,
+        'hiddenFields' => [
+            'sort' => $sort,
+            'direction' => $direction,
+        ],
     ])
 
     <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
@@ -102,14 +122,30 @@ $fmtCover = function (?float $cover) {
             <table class="w-full text-sm" data-testid="inventory-health-table">
                 <thead>
                     <tr class="border-b bg-gray-50 text-left">
-                        <th class="px-3 py-2 font-medium text-gray-600">Product</th>
-                        <th class="px-3 py-2 text-right font-medium text-gray-600">Sold</th>
-                        <th class="px-3 py-2 text-right font-medium text-gray-600">Returned</th>
-                        <th class="px-3 py-2 text-right font-medium text-gray-600">Net</th>
-                        <th class="px-3 py-2 text-right font-medium text-gray-600">Stock</th>
-                        <th class="px-3 py-2 text-right font-medium text-gray-600">Cover</th>
-                        <th class="px-3 py-2 font-medium text-gray-600">Last Sold</th>
-                        <th class="px-3 py-2 font-medium text-gray-600">Status</th>
+                        <th class="px-3 py-2 font-medium text-gray-600">
+                            <a href="{{ $sortLink('name') }}" class="inline-flex items-center gap-1 hover:text-gray-900" data-testid="inventory-health-sort-name">Product @if($sort === 'name')<span class="text-blue-600">{{ $direction === 'asc' ? '↑' : '↓' }}</span>@endif</a>
+                        </th>
+                        <th class="px-3 py-2 text-right font-medium text-gray-600">
+                            <a href="{{ $sortLink('sold') }}" class="inline-flex items-center justify-end gap-1 hover:text-gray-900" data-testid="inventory-health-sort-sold">Sold @if($sort === 'sold')<span class="text-blue-600">{{ $direction === 'asc' ? '↑' : '↓' }}</span>@endif</a>
+                        </th>
+                        <th class="px-3 py-2 text-right font-medium text-gray-600">
+                            <a href="{{ $sortLink('returned') }}" class="inline-flex items-center justify-end gap-1 hover:text-gray-900" data-testid="inventory-health-sort-returned">Returned @if($sort === 'returned')<span class="text-blue-600">{{ $direction === 'asc' ? '↑' : '↓' }}</span>@endif</a>
+                        </th>
+                        <th class="px-3 py-2 text-right font-medium text-gray-600">
+                            <a href="{{ $sortLink('net') }}" class="inline-flex items-center justify-end gap-1 hover:text-gray-900" data-testid="inventory-health-sort-net">Net @if($sort === 'net')<span class="text-blue-600">{{ $direction === 'asc' ? '↑' : '↓' }}</span>@endif</a>
+                        </th>
+                        <th class="px-3 py-2 text-right font-medium text-gray-600">
+                            <a href="{{ $sortLink('stock') }}" class="inline-flex items-center justify-end gap-1 hover:text-gray-900" data-testid="inventory-health-sort-stock">Stock @if($sort === 'stock')<span class="text-blue-600">{{ $direction === 'asc' ? '↑' : '↓' }}</span>@endif</a>
+                        </th>
+                        <th class="px-3 py-2 text-right font-medium text-gray-600">
+                            <a href="{{ $sortLink('cover') }}" class="inline-flex items-center justify-end gap-1 hover:text-gray-900" data-testid="inventory-health-sort-cover">Cover @if($sort === 'cover')<span class="text-blue-600">{{ $direction === 'asc' ? '↑' : '↓' }}</span>@endif</a>
+                        </th>
+                        <th class="px-3 py-2 font-medium text-gray-600">
+                            <a href="{{ $sortLink('last_sold') }}" class="inline-flex items-center gap-1 hover:text-gray-900" data-testid="inventory-health-sort-last-sold">Last Sold @if($sort === 'last_sold')<span class="text-blue-600">{{ $direction === 'asc' ? '↑' : '↓' }}</span>@endif</a>
+                        </th>
+                        <th class="px-3 py-2 font-medium text-gray-600">
+                            <a href="{{ $sortLink('status') }}" class="inline-flex items-center gap-1 hover:text-gray-900" data-testid="inventory-health-sort-status">Status @if($sort === 'status')<span class="text-blue-600">{{ $direction === 'asc' ? '↑' : '↓' }}</span>@endif</a>
+                        </th>
                         <th class="px-3 py-2 font-medium text-gray-600">Recommendation</th>
                     </tr>
                 </thead>

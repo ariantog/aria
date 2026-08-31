@@ -24,6 +24,7 @@ class InventoryHealthController extends Controller
 
         $filters = $queryService->filtersFromRequest($request);
         $windows = $queryService->resolveWindows($request);
+        $sort = $queryService->resolveSort($request);
         $rows = $queryService->paginate($request, Auth::user());
         $meta = $queryService->pageMeta($request);
         $partyLookups = self::partyLookups();
@@ -32,6 +33,8 @@ class InventoryHealthController extends Controller
             'rows' => $rows,
             'filters' => $filters,
             'windows' => $windows,
+            'sort' => $sort['column'],
+            'direction' => $sort['direction'],
             'source' => $meta['source'],
             'syncedAt' => $meta['synced_at'],
             'stale' => $meta['stale'],
