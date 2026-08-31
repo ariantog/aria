@@ -26,6 +26,9 @@ class StandaloneInvoiceFactory extends Factory
             'total_qty' => 1,
             'subtotal' => 100_000,
             'dp_amount' => null,
+            'discount_amount' => 0,
+            'paid_at' => null,
+            'paid_by' => null,
             'user_id' => User::factory(),
         ];
     }

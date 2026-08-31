@@ -21,6 +21,12 @@ $fmt = fn ($n) => format_currency($n);
             <div>
                 <h1 class="text-2xl font-bold tracking-tight">Invoice Detail</h1>
                 <p class="text-sm text-gray-500">{{ $invoice->number }} · {{ $invoice->formattedDate() }}</p>
+                <div class="mt-1">
+                    @include('invoice-maker.partials.status-badge', [
+                        'status' => $settlement['status'],
+                        'label' => $settlement['status_label'],
+                    ])
+                </div>
             </div>
         </div>
 
@@ -149,6 +155,10 @@ $fmt = fn ($n) => format_currency($n);
                 <h3 class="mb-2 font-semibold text-gray-900">Signatory</h3>
                 <p class="font-medium text-gray-900">{{ $invoice->signatory_name ?: '—' }}</p>
             </div>
+            @include('invoice-maker.partials.settlement-card', [
+                'settlement' => $settlement,
+                'canEdit' => $can['edit'] ?? false,
+            ])
             @if($invoice->notes)
             <div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm text-sm">
                 <h3 class="mb-2 font-semibold text-gray-900">Notes</h3>

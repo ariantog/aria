@@ -14,6 +14,8 @@ it('maps L12 permissions to model-aware groups', function () {
     expect(PermissionGrouper::resolveGroup('setting-general-view'))->toBe('Settings');
     expect(PermissionGrouper::resolveGroup('journal-account-list'))->toBe('Journals — Accounts');
     expect(PermissionGrouper::resolveGroup('production-worker-list'))->toBe('Production — Workers');
+    expect(PermissionGrouper::resolveGroup('invoice-maker-list'))->toBe('Invoice Maker');
+    expect(PermissionGrouper::resolveGroup('transactions-edit-invoice'))->toBe('Transactions');
 });
 
 it('puts legacy orphan permission names in Other, not general', function () {

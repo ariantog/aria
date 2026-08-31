@@ -16,6 +16,7 @@ use App\Models\Transaction;
 use App\Services\BookClosingService;
 use App\Services\Jubelio\JubelioTransactionSyncPresenter;
 use App\Services\Reporting\ReportingSummaryRecorder;
+use App\Services\StandaloneInvoiceSettlement;
 use App\Services\TransactionInvoiceService;
 use App\Services\TransactionListExportService;
 use App\Services\TransactionReturnDraftService;
@@ -306,10 +307,14 @@ class TransactionsController extends Controller
             'can' => [
                 'delete_transaction' => Auth::user()->can(Transaction::getPermissions()['delete']),
                 'edit_transaction' => Auth::user()->can(Transaction::getPermissions()['edit']),
+                'edit_invoice' => Auth::user()->can(Transaction::getPermissions()['edit-invoice']),
                 'bank_hidden_balance' => ! Auth::user()->is_superadmin && Auth::user()->can('addrbook-bank-account-hidden-balance'),
                 'return_draft' => $canDraftReturn,
                 'jubelio_transaction_sync' => Transaction::userCanJubelioTransactionSync(Auth::user()),
+                'invoice_maker_view' => Auth::user()->can(\App\Models\StandaloneInvoice::getPermissions()['view']),
+                'invoice_maker_edit' => Auth::user()->can(\App\Models\StandaloneInvoice::getPermissions()['edit']),
             ],
+            'invoiceSettlement' => app(StandaloneInvoiceSettlement::class)->snapshotForTransaction($transaction),
             'flash' => [
                 'success' => session('success'),
                 'error' => session('errorMessage') ?? session('error'),
@@ -515,6 +520,40 @@ class TransactionsController extends Controller
         }
 
         return back()->with('success', 'Transaction note updated.');
+    }
+
+    public function updateInvoice(Request $request, Transaction $transaction, TransactionInvoiceService $invoiceService)
+    {
+        Gate::authorize(Transaction::getPermissions()['edit-invoice']);
+        abort_unless(
+            app(\App\Services\LocationAccessService::class)->canAccessTransaction(Auth::user(), $transaction),
+            403
+        );
+
+        $validated = $request->validate([
+            'invoice' => ['nullable', 'string', 'max:50'],
+        ]);
+
+        $invoice = trim((string) ($validated['invoice'] ?? ''));
+        if ($invoice === '') {
+            $invoice = (string) $transaction->id;
+        }
+
+        $previous = (string) $transaction->invoice;
+        $transaction->update(['invoice' => $invoice]);
+
+        if ($previous !== $invoice) {
+            $invoiceService->deleteInvoicePdf($transaction);
+        }
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'invoice' => $invoice,
+                'linked' => \App\Models\StandaloneInvoice::findByNumber($invoice) !== null,
+            ]);
+        }
+
+        return back()->with('success', 'Invoice number updated.');
     }
 
     public function updatePpn(Request $request, Transaction $transaction, ReportingSummaryRecorder $recorder)
