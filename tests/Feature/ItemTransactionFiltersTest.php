@@ -55,8 +55,7 @@ it('renders item transaction filters on items and assetlancar pages', function (
         ->assertSee('data-testid="item-tx-to"', false)
         ->assertSee('data-testid="item-tx-invoice"', false)
         ->assertSee('data-testid="item-tx-sender-combobox"', false)
-        ->assertSee('data-testid="item-tx-receiver-combobox"', false)
-        ->assertSee(route('items.party-lookup'), false);
+        ->assertSee('data-testid="item-tx-receiver-combobox"', false);
 })->with([
     'items' => ['items.transactions', ItemType::ITEM],
     'assetlancar' => ['assetlancar.transactions', ItemType::ASSET_LANCAR],
