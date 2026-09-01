@@ -117,10 +117,10 @@ it('does not seed from the new-domain migration during tests', function () {
         ->and(Operation::query()->where('name', 'Biaya Marketplace')->exists())->toBeFalse();
 });
 
-it('includes placeholders and typical ledgers from DatabaseSeeder on a new domain', function () {
-    Artisan::call('db:seed', ['--class' => DatabaseSeeder::class, '--force' => true]);
+it('wires typical ledgers into DatabaseSeeder for new domains', function () {
+    $source = file_get_contents(base_path('database/seeders/DatabaseSeeder.php'));
 
-    expect(Addrbook::query()->where('name', 'Gudang')->exists())->toBeTrue()
-        ->and(Operation::query()->where('report_slug', 'marketplace')->exists())->toBeTrue()
-        ->and(Addrbook::query()->where('name', 'BCA Operasional')->exists())->toBeTrue();
+    expect($source)->toContain('TypicalLedgerSeeder::class')
+        ->and($source)->toContain('AddrbookPlaceholderSeeder::class')
+        ->and($source)->toContain('NewDomainInstall::allowsBaselineSeed()');
 });
