@@ -16,6 +16,15 @@ class TaxFakturImport extends Model
 
     public const DIRECTION_MASUKAN = 'masukan';
 
+    public const LINK_FILTER_UNLINKED = 'unlinked';
+
+    public const LINK_FILTER_REMAINING = 'remaining';
+
+    public const LINK_FILTER_INCOMPLETE = 'incomplete';
+
+    /** Linked Sell DPP within this of faktur DPP is treated as complete. */
+    public const SELL_DPP_TOLERANCE = 0.02;
+
     protected $guarded = ['id'];
 
     protected function casts(): array
@@ -173,6 +182,17 @@ class TaxFakturImport extends Model
         return round($this->linkedSells()->sum(fn (Transaction $sell) => abs((float) $sell->ppn)), 2);
     }
 
+    public function remainingSellDpp(): float
+    {
+        return round(max(0, (float) $this->dpp - $this->linkedSellDpp()), 2);
+    }
+
+    public function hasShortLinkedDpp(): bool
+    {
+        return $this->hasLinkedSells()
+            && $this->remainingSellDpp() > self::SELL_DPP_TOLERANCE;
+    }
+
     /**
      * @return \Illuminate\Support\Collection<int, Transaction>
      */
@@ -205,6 +225,80 @@ class TaxFakturImport extends Model
         }
 
         return $query;
+    }
+
+    /**
+     * Keluaran with no Sell on the pivot or the legacy single-id column.
+     */
+    public function scopeKeluaranWithoutLinkedSells(Builder $query): Builder
+    {
+        return $query
+            ->where('tax_faktur_imports.direction', self::DIRECTION_KELUARAN)
+            ->withoutLinkedSells();
+    }
+
+    /**
+     * Keluaran that already have at least one linked Sell whose abs(total)
+     * still sums short of faktur DPP. Does not change PPN ringkasan — Sell
+     * ledger remains truth; this is a staff work-queue only.
+     */
+    public function scopeKeluaranWithShortLinkedDpp(Builder $query): Builder
+    {
+        $query->where('tax_faktur_imports.direction', self::DIRECTION_KELUARAN);
+
+        if (! Schema::hasTable('tax_faktur_import_sells')) {
+            return $query->whereRaw('0 = 1');
+        }
+
+        return $query
+            ->whereHas('sellTransactions')
+            ->whereRaw(self::shortLinkedDppSql());
+    }
+
+    /**
+     * Work queue: keluaran with no Sells, or with linked DPP still short.
+     */
+    public function scopeKeluaranNeedingSellCoverage(Builder $query): Builder
+    {
+        return $query
+            ->where('tax_faktur_imports.direction', self::DIRECTION_KELUARAN)
+            ->where(function (Builder $inner) {
+                $inner->where(function (Builder $unlinked) {
+                    $unlinked->withoutLinkedSells();
+                });
+
+                if (Schema::hasTable('tax_faktur_import_sells')) {
+                    $inner->orWhere(function (Builder $short) {
+                        $short->whereHas('sellTransactions')
+                            ->whereRaw(self::shortLinkedDppSql());
+                    });
+                }
+            });
+    }
+
+    public function scopeLinkFilter(Builder $query, ?string $link): Builder
+    {
+        return match ($link) {
+            self::LINK_FILTER_UNLINKED => $query->keluaranWithoutLinkedSells(),
+            self::LINK_FILTER_REMAINING => $query->keluaranWithShortLinkedDpp(),
+            self::LINK_FILTER_INCOMPLETE => $query->keluaranNeedingSellCoverage(),
+            default => $query,
+        };
+    }
+
+    /**
+     * Correlated SUM of abs(transactions.total) for pivot-linked Sells.
+     * No FK to transactions — the pivot stores the id + index only.
+     */
+    private static function shortLinkedDppSql(): string
+    {
+        $tolerance = self::SELL_DPP_TOLERANCE;
+
+        return "(SELECT COALESCE(SUM(ABS(tfs_sell.total)), 0)
+            FROM tax_faktur_import_sells AS tfs_dpp
+            INNER JOIN transactions AS tfs_sell ON tfs_sell.id = tfs_dpp.sell_transaction_id
+            WHERE tfs_dpp.tax_faktur_import_id = tax_faktur_imports.id
+        ) < tax_faktur_imports.dpp - {$tolerance}";
     }
 
     public function scopePaymentOverdue(Builder $query): Builder

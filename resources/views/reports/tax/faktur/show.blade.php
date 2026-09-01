@@ -142,8 +142,8 @@ $gross = $import->fakturGross();
                             </ul>
                             <p class="mt-1 text-xs text-gray-600">
                                 Total Sell: DPP {{ $fmt($linkedDpp) }} + PPN {{ $fmt($linkedPpn) }}
-                                @if(abs($linkedDpp - (float) $import->dpp) > 0.02)
-                                    <span class="text-amber-800">· sisa vs faktur DPP {{ $fmt((float) $import->dpp - $linkedDpp) }}</span>
+                                @if($import->hasShortLinkedDpp())
+                                    <span class="text-amber-800">· sisa vs faktur DPP {{ $fmt($import->remainingSellDpp()) }}</span>
                                 @endif
                             </p>
                         @else
