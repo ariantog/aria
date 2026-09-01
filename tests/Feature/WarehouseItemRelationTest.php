@@ -113,7 +113,7 @@ it('item show lists deleted warehouse stock in a collapsible section', function 
         ->get(route('items.show', $item))
         ->assertOk()
         ->assertSee('Gudang Aktif', false)
-        ->assertSee('Active Stock:', false)
+        ->assertSee('Available:', false)
         ->assertSee('8 Units', false)
         ->assertSee('3 in deleted warehouses', false)
         ->assertSee('Deleted Warehouses (3 units)', false)
