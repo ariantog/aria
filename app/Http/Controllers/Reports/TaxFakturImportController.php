@@ -35,18 +35,27 @@ class TaxFakturImportController extends Controller
     {
         Gate::authorize(Report::getPermissions()['view-tax-faktur']);
 
+        $link = $request->query('link');
+        $linkFilter = in_array($link, [
+            TaxFakturImport::LINK_FILTER_UNLINKED,
+            TaxFakturImport::LINK_FILTER_REMAINING,
+            TaxFakturImport::LINK_FILTER_INCOMPLETE,
+        ], true) ? $link : null;
+
         $filters = [
             'year' => $request->query('year'),
             'month' => $request->query('month'),
             'entity' => $request->query('entity'),
             'direction' => $request->query('direction'),
             'overdue' => $request->query('overdue') === '1',
+            'link' => $linkFilter,
         ];
 
         $imports = TaxFakturImport::query()
             ->select('tax_faktur_imports.*')
-            ->with(['reportingEntity', 'counterparty', 'varianceExpenseAccount', 'user'])
+            ->with(['reportingEntity', 'counterparty', 'varianceExpenseAccount', 'user', 'sellTransactions'])
             ->when($filters['overdue'], fn ($query) => $query->paymentOverdue())
+            ->when($filters['link'], fn ($query, $link) => $query->linkFilter($link))
             ->when($filters['year'], fn ($query, $year) => $query->where('report_year', (int) $year))
             ->when($filters['month'], fn ($query, $month) => $query->where('report_month', (int) $month))
             ->when($filters['entity'], fn ($query, $entity) => $query->where('reporting_entity_id', (int) $entity))

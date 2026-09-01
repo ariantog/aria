@@ -7,6 +7,8 @@
 $fmt = fn ($v) => format_amount($v);
 $monthNames = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
 $queryWithoutOverdue = collect($filters)->except('overdue')->filter()->all();
+$queryWithoutLink = collect($filters)->except('link')->filter()->all();
+$hasActiveFilters = collect($filters)->filter(fn ($value) => $value !== null && $value !== '' && $value !== false)->isNotEmpty();
 @endphp
 
 <div class="flex flex-col gap-4 p-4">
@@ -63,13 +65,32 @@ $queryWithoutOverdue = collect($filters)->except('overdue')->filter()->all();
                 <option value="masukan" @selected($filters['direction'] === 'masukan')>Masukan</option>
             </select>
         </div>
+        <div>
+            <label for="filter-link" class="mb-1 block text-xs font-medium text-gray-500">Status Sell</label>
+            <select id="filter-link" name="link" class="rounded-lg border border-gray-300 px-3 py-2 text-sm" data-testid="faktur-link-filter">
+                <option value="">Semua</option>
+                <option value="incomplete" @selected($filters['link'] === 'incomplete')>Perlu dilengkapi</option>
+                <option value="unlinked" @selected($filters['link'] === 'unlinked')>Belum di-link</option>
+                <option value="remaining" @selected($filters['link'] === 'remaining')>DPP kurang</option>
+            </select>
+        </div>
+        @if($filters['overdue'])
+            <input type="hidden" name="overdue" value="1">
+        @endif
         <button type="submit" class="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800">Filter</button>
         <a href="{{ route('reports.tax.faktur.index') }}" class="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50">Reset</a>
     </form>
 
-    <div class="flex gap-2">
+    <div class="flex flex-wrap gap-2">
         <a href="{{ route('reports.tax.faktur.index', $queryWithoutOverdue) }}" class="rounded-lg px-3 py-1.5 text-sm {{ !$filters['overdue'] ? 'bg-blue-100 text-blue-800 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Semua</a>
         <a href="{{ route('reports.tax.faktur.index', array_merge($queryWithoutOverdue, ['overdue' => 1])) }}" class="rounded-lg px-3 py-1.5 text-sm {{ $filters['overdue'] ? 'bg-amber-100 text-amber-900 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Terlambat bayar</a>
+    </div>
+
+    <div class="flex flex-wrap gap-2" data-testid="faktur-link-filter-tabs">
+        <a href="{{ route('reports.tax.faktur.index', $queryWithoutLink) }}" class="rounded-lg px-3 py-1.5 text-sm {{ !$filters['link'] ? 'bg-blue-100 text-blue-800 font-medium' : 'text-gray-600 hover:bg-gray-100' }}" data-testid="faktur-filter-link-all">Semua Sell</a>
+        <a href="{{ route('reports.tax.faktur.index', array_merge($queryWithoutLink, ['link' => 'incomplete'])) }}" class="rounded-lg px-3 py-1.5 text-sm {{ $filters['link'] === 'incomplete' ? 'bg-blue-100 text-blue-800 font-medium' : 'text-gray-600 hover:bg-gray-100' }}" data-testid="faktur-filter-link-incomplete">Perlu dilengkapi</a>
+        <a href="{{ route('reports.tax.faktur.index', array_merge($queryWithoutLink, ['link' => 'unlinked'])) }}" class="rounded-lg px-3 py-1.5 text-sm {{ $filters['link'] === 'unlinked' ? 'bg-blue-100 text-blue-800 font-medium' : 'text-gray-600 hover:bg-gray-100' }}" data-testid="faktur-filter-link-unlinked">Belum di-link</a>
+        <a href="{{ route('reports.tax.faktur.index', array_merge($queryWithoutLink, ['link' => 'remaining'])) }}" class="rounded-lg px-3 py-1.5 text-sm {{ $filters['link'] === 'remaining' ? 'bg-amber-100 text-amber-900 font-medium' : 'text-gray-600 hover:bg-gray-100' }}" data-testid="faktur-filter-link-remaining">DPP kurang</a>
     </div>
 
     <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
@@ -84,6 +105,7 @@ $queryWithoutOverdue = collect($filters)->except('overdue')->filter()->all();
                     <th class="px-3 py-2 font-medium">Entitas</th>
                     <th class="px-3 py-2 text-right font-medium">DPP</th>
                     <th class="px-3 py-2 text-right font-medium">PPN</th>
+                    <th class="px-3 py-2 font-medium">Sell</th>
                     <th class="px-3 py-2 font-medium">Jatuh tempo</th>
                     <th class="px-3 py-2 font-medium">Bayar</th>
                     <th class="px-3 py-2 font-medium">Diimport</th>
@@ -104,6 +126,17 @@ $queryWithoutOverdue = collect($filters)->except('overdue')->filter()->all();
                         <td class="px-3 py-2">{{ $row->reportingEntity?->name }}</td>
                         <td class="px-3 py-2 text-right tabular-nums">{{ $fmt($row->dpp) }}</td>
                         <td class="px-3 py-2 text-right tabular-nums">{{ $fmt($row->ppn) }}</td>
+                        <td class="px-3 py-2 text-xs" data-testid="faktur-sell-status-{{ $row->id }}">
+                            @if($row->direction !== 'keluaran')
+                                <span class="text-gray-400">—</span>
+                            @elseif(! $row->hasLinkedSells())
+                                <span class="text-gray-400">Belum di-link</span>
+                            @elseif($row->hasShortLinkedDpp())
+                                <span class="text-amber-800">DPP kurang · sisa {{ $fmt($row->remainingSellDpp()) }}</span>
+                            @else
+                                <span class="text-green-700">Lengkap</span>
+                            @endif
+                        </td>
                         <td class="px-3 py-2">
                             @if($row->expected_payment_date)
                                 <span class="tabular-nums">{{ $row->expected_payment_date->format('Y-m-d') }}</span>
@@ -133,7 +166,7 @@ $queryWithoutOverdue = collect($filters)->except('overdue')->filter()->all();
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="11" class="px-3 py-8 text-center text-gray-500">Belum ada faktur diimport.</td>
+                        <td colspan="12" class="px-3 py-8 text-center text-gray-500">{{ $hasActiveFilters ? 'Tidak ada faktur yang cocok dengan filter.' : 'Belum ada faktur diimport.' }}</td>
                     </tr>
                 @endforelse
             </tbody>
