@@ -14,6 +14,10 @@ function itemForm() {
         multiSize: @json($multiSize),
         multiWarna: @json($isAsset && $multiSize),
         allSizeCode: 'AS',
+        itemType: @js((int) ($itemType ?? ($isAsset ? 2 : 1))),
+        pcodeNameUrl: @js(route('items.pcode-name')),
+        autoFilledName: '',
+        pcodeLookupTimer: null,
         form: {
             pcode: @js($formItem['pcode'] ?? ''),
             product_name: @js($formItem['product_name'] ?? ''),
@@ -25,6 +29,7 @@ function itemForm() {
         sizeCodes: [],
 
         init() {
+            this.autoFilledName = (this.form.product_name || '').toUpperCase().trim();
             this.$nextTick(() => this.syncFromDom());
         },
 
@@ -117,12 +122,68 @@ function itemForm() {
         },
 
         buildDisplayName(productName, warnaCode, sizeCode) {
-            const parts = [productName, warnaCode];
+            let title = (productName || '').toUpperCase().trim();
+            const warna = (warnaCode || '').toUpperCase().trim();
+            if (warna && title.endsWith(' - ' + warna)) {
+                title = title.slice(0, -(warna.length + 3)).trim();
+            }
+            if (title.includes(' - ')) {
+                title = title.split(' - ')[0].trim();
+            }
+
+            const parts = [title];
+            if (warna && warna !== '???') {
+                parts.push(warna);
+            }
             if (sizeCode && sizeCode !== '???' && sizeCode !== this.allSizeCode) {
-                parts.push(sizeCode);
+                parts.push(sizeCode.toUpperCase());
             }
 
             return parts.join(' - ');
+        },
+
+        onPcodeInput() {
+            this.form.pcode = (this.form.pcode || '').toUpperCase();
+            this.schedulePcodeLookup();
+        },
+
+        onPcodeBlur() {
+            this.form.pcode = (this.form.pcode || '').toUpperCase().trim();
+            this.lookupProductName();
+        },
+
+        schedulePcodeLookup() {
+            if (this.pcodeLookupTimer) {
+                clearTimeout(this.pcodeLookupTimer);
+            }
+            this.pcodeLookupTimer = setTimeout(() => this.lookupProductName(), 300);
+        },
+
+        async lookupProductName() {
+            const pcode = (this.form.pcode || '').toUpperCase().trim();
+            if (!pcode || pcode.length < 3) {
+                return;
+            }
+
+            const current = (this.form.product_name || '').toUpperCase().trim();
+            if (current !== '' && current !== this.autoFilledName) {
+                return;
+            }
+
+            try {
+                const url = `${this.pcodeNameUrl}?pcode=${encodeURIComponent(pcode)}&type=${this.itemType}`;
+                const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+                if (!res.ok) {
+                    return;
+                }
+                const data = await res.json();
+                if (data.found && data.product_name) {
+                    this.form.product_name = data.product_name;
+                    this.autoFilledName = (data.product_name || '').toUpperCase().trim();
+                }
+            } catch (e) {
+                // Keep the field as-is when lookup fails.
+            }
         },
 
         appendSizeSegment(base, sizeCode) {

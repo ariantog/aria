@@ -17,6 +17,7 @@ $curWarna = optional($item->tags->firstWhere('type', \App\Models\Tag::TYPE_WARNA
 $curSizes = $item->tags->where('type', \App\Models\Tag::TYPE_SIZE)->pluck('id')->all();
 
 $itemType = $item->type->value;
+$productTitle = $productTitle ?? '';
 $legacyAssetProductName = '';
 if ($isAsset && ! $item->group) {
     $legacyAssetProductName = str_contains($item->name, ' - ')
@@ -25,10 +26,9 @@ if ($isAsset && ! $item->group) {
 }
 $formItem = [
     'pcode' => old('pcode', $item->pcode),
-    'product_name' => old('product_name', (
-        optional($item->group)->name
-        && strtoupper(optional($item->group)->name) !== strtoupper($item->pcode)
-    ) ? optional($item->group)->name : ($legacyAssetProductName ?: '')),
+    'product_name' => old('product_name', $productTitle !== '' && strtoupper($productTitle) !== strtoupper((string) $item->pcode)
+        ? $productTitle
+        : ($legacyAssetProductName ?: '')),
     'price' => old('price', $item->price),
     'cost' => old('cost', $item->cost),
     'description' => old('description', $item->description),

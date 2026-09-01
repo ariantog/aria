@@ -244,6 +244,27 @@ test('items edit page can be rendered', function () {
     $response->assertStatus(200);
 });
 
+test('asset edit form shows the bare product title not the unique group name', function () {
+    $group = \App\Models\ItemGroup::factory()->create([
+        'master' => 'ELBOWSUPPORT-02',
+        'variant' => 'BLACKWHITE',
+        'name' => 'ELBOW STRAP - BLACKWHITE (ELBOWSUPPORT-02)',
+    ]);
+    $item = Item::factory()->create([
+        'type' => \App\Enums\ItemType::ASSET_LANCAR,
+        'group_id' => $group->id,
+        'pcode' => 'ELBOWSUPPORT-02',
+        'code' => 'ELBOWSUPPORT-02-BLACKWHITE',
+        'name' => 'ELBOW STRAP - BLACKWHITE',
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('assetlancar.edit', $item))
+        ->assertOk()
+        ->assertSee('value="ELBOW STRAP"', false)
+        ->assertDontSee('ELBOW STRAP - BLACKWHITE (ELBOWSUPPORT-02) - BLACKWHITE', false);
+});
+
 test('items json lookup resolves barcode by numeric item id', function () {
     $item = Item::factory()->create([
         'name' => 'Scanned SKU',
