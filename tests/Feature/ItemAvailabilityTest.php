@@ -13,7 +13,7 @@ beforeEach(function () {
     $this->user = User::factory()->create();
 });
 
-function seedWarehouseStock(Item $item, Addrbook $warehouse, float $qty): WarehouseItem
+function seedItemAvailabilityStock(Item $item, Addrbook $warehouse, float $qty): WarehouseItem
 {
     return WarehouseItem::create([
         'warehouse_id' => $warehouse->id,
@@ -23,7 +23,7 @@ function seedWarehouseStock(Item $item, Addrbook $warehouse, float $qty): Wareho
     ]);
 }
 
-function seedCompletedMovement(
+function seedItemAvailabilityMovement(
     int $type,
     Addrbook $sender,
     Addrbook $receiver,
@@ -66,8 +66,8 @@ it('item show availability excludes virtual warehouse negatives', function () {
     ]);
     $item = Item::factory()->create(['name' => 'Avail SKU', 'qty' => 99]);
 
-    seedWarehouseStock($item, $physical, 12);
-    seedWarehouseStock($item, $virtual, -20);
+    seedItemAvailabilityStock($item, $physical, 12);
+    seedItemAvailabilityStock($item, $virtual, -20);
 
     $this->actingAs($this->user)
         ->get(route('items.show', $item))
@@ -94,8 +94,8 @@ it('assetlancar show availability excludes virtual warehouse stock', function ()
         'qty' => 5,
     ]);
 
-    seedWarehouseStock($item, $physical, 8);
-    seedWarehouseStock($item, $virtual, -30);
+    seedItemAvailabilityStock($item, $physical, 8);
+    seedItemAvailabilityStock($item, $virtual, -30);
 
     $this->actingAs($this->user)
         ->get(route('assetlancar.show', $item))
@@ -114,9 +114,9 @@ it('items index qty excludes virtual and deleted warehouses', function () {
 
     $item = Item::factory()->create(['name' => 'Index Avail SKU', 'qty' => 40]);
 
-    seedWarehouseStock($item, $physical, 9);
-    seedWarehouseStock($item, $virtual, -15);
-    seedWarehouseStock($item, $deleted, 6);
+    seedItemAvailabilityStock($item, $physical, 9);
+    seedItemAvailabilityStock($item, $virtual, -15);
+    seedItemAvailabilityStock($item, $deleted, 6);
 
     $this->actingAs($this->user)
         ->get(route('items.index'))
@@ -137,14 +137,14 @@ it('recalculates warehouse rows from transactions and writes physical qty', func
     ]);
     $item = Item::factory()->create(['qty' => 50]);
 
-    seedWarehouseStock($item, $physical, 1);
-    seedWarehouseStock($item, $virtual, -99);
+    seedItemAvailabilityStock($item, $physical, 1);
+    seedItemAvailabilityStock($item, $virtual, -99);
 
     $this->actingAs($this->user);
 
-    seedCompletedMovement(Transaction::TYPE_BUY, $supplier, $physical, $item, 10);
-    seedCompletedMovement(Transaction::TYPE_SELL, $virtual, $customer, $item, 4);
-    seedCompletedMovement(Transaction::TYPE_BUY, $supplier, $physical, $item, 3, Transaction::STATUS_CANCELLED);
+    seedItemAvailabilityMovement(Transaction::TYPE_BUY, $supplier, $physical, $item, 10);
+    seedItemAvailabilityMovement(Transaction::TYPE_SELL, $virtual, $customer, $item, 4);
+    seedItemAvailabilityMovement(Transaction::TYPE_BUY, $supplier, $physical, $item, 3, Transaction::STATUS_CANCELLED);
 
     $this->post(route('items.recalculate-qty', $item))
         ->assertRedirect(route('items.show', $item));
@@ -170,9 +170,9 @@ it('recalculates asset lancar qty from the assetlancar route', function () {
         'qty' => 0,
     ]);
 
-    seedWarehouseStock($item, $physical, 2);
+    seedItemAvailabilityStock($item, $physical, 2);
     $this->actingAs($this->user);
-    seedCompletedMovement(Transaction::TYPE_BUY, $supplier, $physical, $item, 6);
+    seedItemAvailabilityMovement(Transaction::TYPE_BUY, $supplier, $physical, $item, 6);
 
     $this->post(route('assetlancar.recalculate-qty', $item))
         ->assertRedirect(route('assetlancar.show', $item));
@@ -197,9 +197,9 @@ it('partitions warehouse items into physical virtual and deleted', function () {
     $deleted->delete();
 
     $item = Item::factory()->create();
-    seedWarehouseStock($item, $physical, 5);
-    seedWarehouseStock($item, $virtual, -8);
-    seedWarehouseStock($item, $deleted, 3);
+    seedItemAvailabilityStock($item, $physical, 5);
+    seedItemAvailabilityStock($item, $virtual, -8);
+    seedItemAvailabilityStock($item, $deleted, 3);
 
     $item->load(['warehouseItems.warehouse']);
     $stock = app(ItemAvailabilityService::class)->partitionWarehouseItems($item->warehouseItems);
