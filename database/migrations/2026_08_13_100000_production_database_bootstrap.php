@@ -22,6 +22,7 @@ use Illuminate\Database\Migrations\Migration;
  * 11. `2026_08_25_100000_bootstrap_shopee_ads_tables` — Shopee Ads bot tables
  * 12. `2026_08_13_120000_add_production_not_null_column_defaults` — MySQL `DEFAULT` on NOT NULL columns
  * 13. `2026_08_13_130000_fix_production_bigint_columns_to_int` — INT FK types for prod PKs
+ * 14. `2026_09_01_210000_install_jubelio_stock_check_columns` — sync_cursor + discrepancy qty columns
  *
  * Safe to run on a fresh prod copy in one step:
  *
@@ -72,6 +73,7 @@ return new class extends Migration
         (require __DIR__.'/2026_09_01_160200_install_absensi_tables.php')->up();
         (require __DIR__.'/2026_09_01_160300_add_jam_kerja_hours_to_karyawan_gaji_table.php')->up();
         (require __DIR__.'/2026_09_01_170000_install_karyawan_cuti_sisa_tables.php')->up();
+        (require __DIR__.'/2026_09_01_210000_install_jubelio_stock_check_columns.php')->up();
     }
 
     public function down(): void
