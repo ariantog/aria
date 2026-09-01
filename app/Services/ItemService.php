@@ -75,9 +75,8 @@ class ItemService
             $pcode = strtoupper(trim((string) $input->pcode));
             $groupName = $this->groupNameFromInput($input, $inputType, $pcode, $item->group, $item);
             $variant = $this->identityBuilder->groupVariant($inputType, $pcode, $warnaTag);
-            $storedName = $this->identityBuilder->storedGroupName($inputType, $groupName, $pcode, $variant);
-            $storedName = $this->ensureUniqueStoredGroupName(
-                $storedName,
+            $storedName = $this->identityBuilder->uniqueStoredGroupName(
+                $this->identityBuilder->storedGroupName($inputType, $groupName, $pcode, $variant),
                 $this->identityBuilder->parsePcode($inputType, $pcode)['master'],
                 $variant,
             );
@@ -131,14 +130,13 @@ class ItemService
             $itemType = $sampleItem
                 ? $this->resolveItemType($sampleItem->getAttributes()['type'] ?? $sampleItem->type)
                 : ItemType::ITEM;
-            $storedName = $this->identityBuilder->storedGroupName(
-                $itemType,
-                $productName,
-                (string) ($sampleItem?->pcode ?? ''),
-                (string) ($group->variant ?? ''),
-            );
-            $storedName = $this->ensureUniqueStoredGroupName(
-                $storedName,
+            $storedName = $this->identityBuilder->uniqueStoredGroupName(
+                $this->identityBuilder->storedGroupName(
+                    $itemType,
+                    $productName,
+                    (string) ($sampleItem?->pcode ?? ''),
+                    (string) ($group->variant ?? ''),
+                ),
                 (string) ($group->master ?? ''),
                 (string) ($group->variant ?? ''),
             );
@@ -327,8 +325,11 @@ class ItemService
     ): ItemGroup {
         $parsed = $this->identityBuilder->parsePcode($type, $pcode);
         $variant = $this->identityBuilder->groupVariant($type, $pcode, $warnaTag);
-        $storedName = $this->identityBuilder->storedGroupName($type, $groupName, $pcode, $variant);
-        $storedName = $this->ensureUniqueStoredGroupName($storedName, $parsed['master'], $variant);
+        $storedName = $this->identityBuilder->uniqueStoredGroupName(
+            $this->identityBuilder->storedGroupName($type, $groupName, $pcode, $variant),
+            $parsed['master'],
+            $variant,
+        );
 
         $group = ItemGroup::firstOrCreate(
             [
@@ -362,22 +363,6 @@ class ItemService
         $group->save();
 
         return $group;
-    }
-
-    protected function ensureUniqueStoredGroupName(string $storedName, string $master, string $variant): string
-    {
-        $existing = ItemGroup::query()->where('name', $storedName)->first();
-
-        if (! $existing) {
-            return $storedName;
-        }
-
-        if (strtoupper((string) $existing->master) === strtoupper($master)
-            && strtoupper((string) $existing->variant) === strtoupper($variant)) {
-            return $storedName;
-        }
-
-        return strtoupper(trim("{$storedName} ({$master}/{$variant})"));
     }
 
     protected function groupNameFromInput(

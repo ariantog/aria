@@ -598,6 +598,8 @@ class LegacyItemConverterService
             $failureCode = match (true) {
                 str_contains($e->getMessage(), 'JAHIT') => 'JAHIT_MISSING',
                 str_contains($e->getMessage(), 'Duplicate canonical') => 'DUPLICATE_CANONICAL',
+                str_contains($e->getMessage(), 'Data too long')
+                    || str_contains($e->getMessage(), '22001') => LegacyItemIdentityParser::FAILURE_GROUP_NAME_TOO_LONG,
                 default => LegacyItemIdentityParser::FAILURE_SKU_UNPARSEABLE,
             };
 
@@ -673,8 +675,11 @@ class LegacyItemConverterService
     {
         $parsed = $this->identityBuilder->parsePcode($type, $pcode);
         $variant = $this->identityBuilder->groupVariant($type, $pcode, $warnaTag);
-        $storedName = $this->identityBuilder->storedGroupName($type, $groupName, $pcode, $variant);
-        $storedName = $this->ensureUniqueStoredGroupName($storedName, $parsed['master'], $variant);
+        $storedName = $this->identityBuilder->uniqueStoredGroupName(
+            $this->identityBuilder->storedGroupName($type, $groupName, $pcode, $variant),
+            $parsed['master'],
+            $variant,
+        );
 
         $group = ItemGroup::query()->firstOrCreate(
             [
@@ -731,22 +736,6 @@ class LegacyItemConverterService
         }
 
         return null;
-    }
-
-    protected function ensureUniqueStoredGroupName(string $storedName, string $master, string $variant): string
-    {
-        $existing = ItemGroup::query()->where('name', $storedName)->first();
-
-        if (! $existing) {
-            return $storedName;
-        }
-
-        if (strtoupper((string) $existing->master) === strtoupper($master)
-            && strtoupper((string) $existing->variant) === strtoupper($variant)) {
-            return $storedName;
-        }
-
-        return strtoupper(trim("{$storedName} ({$master}/{$variant})"));
     }
 
     protected function preserveLegacyCode(Item $item, string $newCode, ?string $explicitLegacy = null): void
