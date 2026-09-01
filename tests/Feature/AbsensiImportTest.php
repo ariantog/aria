@@ -217,6 +217,7 @@ it('treats sunday and holiday punches as extra hours that offset weekdays', func
 
 it('subtracts leave on work days from expected hours', function () {
     $karyawan = staffWithAbsen();
+    HariLibur::create(['tanggal' => '2026-08-25', 'nama' => 'Libur pabrik']);
     Cuti::create([
         'karyawan_id' => $karyawan->id,
         'tipe' => Cuti::TYPE_TAHUNAN,
@@ -248,6 +249,7 @@ it('subtracts leave on work days from expected hours', function () {
 
 it('prefills overtime on gaji create from surplus attendance hours', function () {
     $karyawan = staffWithAbsen(['jam_kerja' => 8, 'harian' => 100_000]);
+    HariLibur::create(['tanggal' => '2026-08-25', 'nama' => 'Libur pabrik']);
 
     app(AbsensiImportService::class)->import(makeAbsensiUpload([
         [

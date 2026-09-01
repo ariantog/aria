@@ -122,8 +122,14 @@ class AbsensiImportService
             return;
         }
 
+        $dates = array_values(array_unique($dates));
+
         $existing = AbsensiHari::query()
-            ->whereIn('tanggal', $dates)
+            ->where(function ($query) use ($dates) {
+                foreach ($dates as $date) {
+                    $query->orWhereDate('tanggal', $date);
+                }
+            })
             ->get(['id', 'absen_id']);
 
         $ids = $existing

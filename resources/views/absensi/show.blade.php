@@ -53,7 +53,7 @@ $breadcrumbs = [
                             @if($row['karyawan'])
                             <a href="{{ route('karyawan.show', $row['karyawan']) }}" class="font-medium text-blue-600 hover:underline">{{ $row['karyawan']->nama }}</a>
                             @else
-                            <span class="text-amber-700">{{ $row['nama_mesin'] ?: 'Belum terhubung' }}</span>
+                            <span class="text-amber-700">{{ $row['nama_mesin'] ? $row['nama_mesin'].' · ' : '' }}Belum terhubung</span>
                             @endif
                         </td>
                         <td class="px-4 py-2 text-right font-medium">{{ number_format($row['jam_total'], 2) }}</td>
