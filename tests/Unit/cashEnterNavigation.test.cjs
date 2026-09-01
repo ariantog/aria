@@ -35,15 +35,19 @@ function extractFunction(source, name) {
 
 global.window = { _suppressFieldNavUntil: 0 };
 
+const helperNames = [
+    'normalizeNavigationKey',
+    'isImePlaceholderKey',
+    'isConfirmedEnterKey',
+    'suppressFieldNavigation',
+    'isFieldNavigationSuppressed',
+    'claimEnterFieldNavigation',
+];
+
 eval(
-    [
-        'normalizeNavigationKey',
-        'isImePlaceholderKey',
-        'isConfirmedEnterKey',
-        'suppressFieldNavigation',
-        'isFieldNavigationSuppressed',
-        'claimEnterFieldNavigation',
-    ].map((name) => extractFunction(appBlade, name)).join('\n\n'),
+    helperNames.map((name) => extractFunction(appBlade, name)).join('\n\n')
+    + '\n'
+    + helperNames.map((name) => `global.${name} = ${name};`).join('\n'),
 );
 
 function resetNavClock() {
