@@ -34,24 +34,46 @@ class StaffRoleChecklistSeeder extends Seeder
                 continue;
             }
 
-            ChecklistTemplate::query()->updateOrCreate(
-                [
-                    'staff_role_id' => $roleId,
-                    'frequency' => $templateDef['frequency'],
-                    'title' => $templateDef['title'],
-                ],
-                [
-                    'description' => $templateDef['description'] ?? null,
-                    'route_name' => $templateDef['route_name'] ?? null,
-                    'sort_order' => $templateDef['sort_order'],
-                    'is_active' => true,
-                ],
-            );
+            $existing = ChecklistTemplate::withTrashed()
+                ->where(function ($query) use ($templateDef, $roleId) {
+                    $query->where('catalog_key', $templateDef['catalog_key'])
+                        ->orWhere(function ($inner) use ($templateDef, $roleId) {
+                            $inner->whereNull('catalog_key')
+                                ->where('staff_role_id', $roleId)
+                                ->where('frequency', $templateDef['frequency'])
+                                ->where('title', $templateDef['title']);
+                        });
+                })
+                ->first();
+
+            if ($existing) {
+                if ($existing->trashed()) {
+                    continue;
+                }
+
+                if (! $existing->catalog_key) {
+                    $existing->update(['catalog_key' => $templateDef['catalog_key']]);
+                }
+
+                continue;
+            }
+
+            ChecklistTemplate::query()->create([
+                'staff_role_id' => $roleId,
+                'catalog_key' => $templateDef['catalog_key'],
+                'frequency' => $templateDef['frequency'],
+                'title' => $templateDef['title'],
+                'description' => $templateDef['description'] ?? null,
+                'route_name' => $templateDef['route_name'] ?? null,
+                'route_query' => $templateDef['route_query'] ?? null,
+                'sort_order' => $templateDef['sort_order'],
+                'is_active' => true,
+            ]);
         }
 
         $superadmin = User::find(User::SUPERADMIN_ID);
         if ($superadmin) {
-            $superadmin->staffRoles()->sync(array_values($roleIdsBySlug));
+            $superadmin->staffRoles()->sync([]);
         }
     }
 }

@@ -33,6 +33,11 @@ class User extends Authenticatable
         return $user !== null && $user->id === self::SUPERADMIN_ID;
     }
 
+    public static function needsStaffChecklist(?self $user): bool
+    {
+        return $user !== null && ! self::isSuperadmin($user);
+    }
+
 
     /**
      * User ID 1 is the one and only superadmin.
