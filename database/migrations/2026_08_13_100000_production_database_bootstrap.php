@@ -65,6 +65,12 @@ return new class extends Migration
         (require __DIR__.'/2026_08_29_100000_install_depreciation_register.php')->up();
         (require __DIR__.'/2026_08_31_100000_install_inventory_health_snapshots_table.php')->up();
         (require __DIR__.'/2026_08_31_120000_install_staff_role_checklists.php')->up();
+        (require __DIR__.'/2026_09_01_150000_add_nama_absensi_to_karyawans_table.php')->up();
+        (require __DIR__.'/2026_09_01_150100_add_izin_to_cutis_table.php')->up();
+        (require __DIR__.'/2026_09_01_160000_add_absen_id_and_jam_kerja_to_karyawans_table.php')->up();
+        (require __DIR__.'/2026_09_01_160100_install_hari_libur_table.php')->up();
+        (require __DIR__.'/2026_09_01_160200_install_absensi_tables.php')->up();
+        (require __DIR__.'/2026_09_01_160300_add_jam_kerja_hours_to_karyawan_gaji_table.php')->up();
     }
 
     public function down(): void
