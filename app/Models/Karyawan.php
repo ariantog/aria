@@ -91,6 +91,16 @@ class Karyawan extends Model
         return $this->hasMany(Cuti::class);
     }
 
+    public function cutiSisa()
+    {
+        return $this->hasMany(KaryawanCutiSisa::class);
+    }
+
+    public function cutiSisaLogs()
+    {
+        return $this->hasMany(KaryawanCutiSisaLog::class);
+    }
+
     public function bank()
     {
         return $this->belongsTo(Addrbook::class, 'bank_id');

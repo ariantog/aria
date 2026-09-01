@@ -71,6 +71,7 @@ return new class extends Migration
         (require __DIR__.'/2026_09_01_160100_install_hari_libur_table.php')->up();
         (require __DIR__.'/2026_09_01_160200_install_absensi_tables.php')->up();
         (require __DIR__.'/2026_09_01_160300_add_jam_kerja_hours_to_karyawan_gaji_table.php')->up();
+        (require __DIR__.'/2026_09_01_170000_install_karyawan_cuti_sisa_tables.php')->up();
     }
 
     public function down(): void
