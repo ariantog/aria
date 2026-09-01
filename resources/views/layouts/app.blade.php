@@ -461,11 +461,30 @@ function isConfirmedEnterKey(e) {
     return normalizeNavigationKey(e) === 'Enter';
 }
 
+// Android/Gboard needs a few hundred ms to collapse a duplicate Enter pair.
+// Desktop Chrome sends one keydown+keyup per press, so a long lock would swallow
+// the next intentional Enter (invoice → note → total).
+function enterFieldNavClaimMs() {
+    try {
+        if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) {
+            return 300;
+        }
+    } catch (e) {}
+    const ua = (typeof navigator !== 'undefined' && navigator.userAgent) ? navigator.userAgent : '';
+    if (/Android|iPhone|iPad|iPod|Mobile/i.test(ua)) {
+        return 300;
+    }
+    return 0;
+}
+
 // One successful Enter field-advance per short window. Duplicate keydown/keyup
 // pairs from Android Chrome Gboard collapse here instead of skipping a field.
 function claimEnterFieldNavigation(ms) {
     if (isFieldNavigationSuppressed()) return false;
-    suppressFieldNavigation(typeof ms === 'number' ? ms : 300);
+    const wait = typeof ms === 'number' ? ms : enterFieldNavClaimMs();
+    if (wait > 0) {
+        suppressFieldNavigation(wait);
+    }
     return true;
 }
 
