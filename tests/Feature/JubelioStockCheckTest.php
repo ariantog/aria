@@ -600,3 +600,27 @@ it('sorts stock check discrepancies by absolute quantity difference', function (
         ->assertSuccessful()
         ->assertSeeInOrder(['SKU-BIG-DIFF', 'SKU-MED-DIFF', 'SKU-SMALL-DIFF']);
 });
+
+it('stores a stock check job with the warehouse cursor columns', function () {
+    Permission::firstOrCreate(['name' => 'jubelio-stock-check']);
+    $user = User::factory()->create();
+    $user->givePermissionTo('jubelio-stock-check');
+
+    $this->actingAs($user)
+        ->post(route('jubelio-stock-checks.store'), [
+            'per_type_limit' => 50,
+            'demand_days' => 90,
+            'target_discrepancies' => 50,
+        ])
+        ->assertRedirect(route('jubelio-stock-checks.index'));
+
+    $job = JubelioStockCheck::query()->latest('id')->first();
+
+    expect($job)->not->toBeNull()
+        ->and($job->sync_cursor)->toBe(0)
+        ->and($job->per_type_limit)->toBe(50)
+        ->and($job->demand_days)->toBe(90)
+        ->and($job->target_discrepancies)->toBe(50)
+        ->and($job->scan_round)->toBe(0)
+        ->and($job->status)->toBe('created');
+});
