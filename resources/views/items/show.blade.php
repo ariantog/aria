@@ -22,6 +22,7 @@ $qtyOutOfSync = abs($storedQty - $activeStock) > 0.0001;
 $groupProductName = optional($item->group)->name ?? '-';
 $desc = optional($item->group)->description ?? ($item->description ?? '-');
 $nb = optional($item->group)->description2 ?? ($item->description2 ?? '-');
+$legacyCode = $item->distinctLegacyCode();
 @endphp
 
 <div class="p-4 sm:p-6" x-data="{ showZero: false, showVirtualWarehouses: false, showDeletedWarehouses: false }">
@@ -96,6 +97,10 @@ $nb = optional($item->group)->description2 ?? ($item->description2 ?? '-');
                         <div>
                             <p class="mb-1 text-[10px] font-bold uppercase tracking-widest text-gray-500">SKU Reference</p>
                             <span class="inline-block rounded border border-blue-200 bg-blue-50 px-2 py-1 font-mono text-sm text-blue-600">{{ $item->code }}</span>
+                            @if($legacyCode)
+                                <p class="mb-1 mt-3 text-[10px] font-bold uppercase tracking-widest text-gray-500">Legacy Code</p>
+                                <span data-testid="item-legacy-code" class="inline-block rounded border border-amber-200 bg-amber-50 px-2 py-1 font-mono text-sm text-amber-800">{{ $legacyCode }}</span>
+                            @endif
                         </div>
                     </div>
 

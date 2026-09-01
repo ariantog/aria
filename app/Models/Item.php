@@ -232,6 +232,22 @@ class Item extends Model
         return $this->getItemCode();
     }
 
+    /**
+     * Distinct preserved SKU for item detail display.
+     * Empty values and copies of the current code are hidden to avoid confusion.
+     */
+    public function distinctLegacyCode(): ?string
+    {
+        $legacy = trim((string) ($this->legacy_code ?? ''));
+        $code = trim((string) ($this->code ?? ''));
+
+        if ($legacy === '' || strcasecmp($legacy, $code) === 0) {
+            return null;
+        }
+
+        return $legacy;
+    }
+
     public function getItemName(): string
     {
         if ($this->type === ItemType::ASSET_LANCAR || $this->type === ItemType::ASSET_TETAP) {
