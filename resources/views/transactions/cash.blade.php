@@ -127,6 +127,7 @@ $config = [
                                            @keydown="handleKeydown($event)" @keyup="handleKeyup($event)"
                                            :readonly="keyboardNavLock()"
                                            :id="'source_' + idx"
+                                           :data-testid="'cash-entry-source-' + idx"
                                            :placeholder="placeholder" class="flex-1 border-none bg-transparent px-2 text-sm leading-8 outline-none" autocomplete="off">
                                     <span x-show="loading" class="flex items-center pr-1.5"><svg class="h-3.5 w-3.5 animate-spin text-gray-400" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg></span>
                                 </div>
@@ -151,6 +152,7 @@ $config = [
                                        @keydown="fieldKeydown(idx, 'invoice', $event)"
                                        @keyup="fieldKeyup(idx, 'invoice', $event)"
                                        :id="'invoice_' + idx"
+                                       :data-testid="'cash-entry-invoice-' + idx"
                                        class="{{ $rowInput }}">
                             </div>
                             <div class="order-4 sm:order-3 sm:col-span-2">
@@ -159,6 +161,7 @@ $config = [
                                        @keydown="fieldKeydown(idx, 'note', $event)"
                                        @keyup="fieldKeyup(idx, 'note', $event)"
                                        :id="'note_' + idx"
+                                       :data-testid="'cash-entry-note-' + idx"
                                        class="{{ $rowInput }}">
                             </div>
                             <div class="order-5 sm:order-4 sm:col-span-2">
@@ -168,6 +171,7 @@ $config = [
                                        @keydown="fieldKeydown(idx, 'total', $event)"
                                        @keyup="fieldKeyup(idx, 'total', $event)"
                                        :id="'total_' + idx"
+                                       :data-testid="'cash-entry-total-' + idx"
                                        class="{{ $rowInput }} text-right"
                                        :class="rowInvalid(row) && !(Number(row.total) >= 0.01) ? 'border-red-400 bg-red-50' : ''">
                             </div>
@@ -286,6 +290,8 @@ function cashForm() {
         touched: false,
         serverErrors: [],
         _fieldKeyHandled: false,
+        _pendingFieldFocus: null,
+        _pendingFocusTimer: null,
         form: {
             date: startDate,
             account_id: '',
@@ -428,8 +434,16 @@ function cashForm() {
             return this.dateValid() && this.accountValid() && rows.length >= 1 && rows.every(r => this.rowValid(r));
         },
 
+        rowTotalFilled(row) {
+            if (!row) return false;
+            const raw = row.total;
+            if (raw === null || raw === '' || raw === undefined) return false;
+            return Number(raw) >= 0.01;
+        },
+
         focusNext(idx, field) {
             if (field === 'next') {
+                if (!this.rowTotalFilled(this.form.items[idx])) return;
                 // Move to next row or add row (capped at _CashMaxRows)
                 if (idx < this.form.items.length - 1) {
                     deferFocusElement('source_' + (idx + 1), false);
@@ -442,41 +456,90 @@ function cashForm() {
             deferFocusElement(field + '_' + idx);
         },
 
+        _queueFieldFocus(idx, field) {
+            if (this._pendingFocusTimer) {
+                clearTimeout(this._pendingFocusTimer);
+                this._pendingFocusTimer = null;
+            }
+            this._pendingFieldFocus = { idx, field };
+            // Flush on keyup. This timer is only if Android swallows keyup.
+            this._pendingFocusTimer = setTimeout(() => this._flushPendingFieldFocus(), 400);
+        },
+
+        _flushPendingFieldFocus() {
+            if (this._pendingFocusTimer) {
+                clearTimeout(this._pendingFocusTimer);
+                this._pendingFocusTimer = null;
+            }
+            const pending = this._pendingFieldFocus;
+            this._pendingFieldFocus = null;
+            if (!pending) return;
+            this.focusNext(pending.idx, pending.field);
+        },
+
         // Bare keydown/keyup (not Alpine .enter) so Android/IME keyboards work.
+        // Do not reset _fieldKeyHandled on every keydown: Android Chrome often
+        // sends IME 229 then a real Enter, and resetting unlocked the keyup
+        // fallback so one press jumped invoice → note → total.
         fieldKeydown(idx, field, e) {
-            if (isFieldNavigationSuppressed()) {
+            if (e.repeat && (isConfirmedEnterKey(e) || normalizeNavigationKey(e) === 'Enter')) {
                 e.preventDefault();
+                this._fieldKeyHandled = true;
                 return;
             }
-            this._fieldKeyHandled = false;
-            if (this._processFieldKey(idx, field, e)) {
+            if (isFieldNavigationSuppressed()) {
+                if (isImePlaceholderKey(e) || isConfirmedEnterKey(e) || normalizeNavigationKey(e) === 'Enter') {
+                    e.preventDefault();
+                    this._fieldKeyHandled = true;
+                }
+                return;
+            }
+            if (this._processFieldKey(idx, field, e, false)) {
                 this._fieldKeyHandled = true;
                 e.preventDefault();
+                e.stopPropagation();
             }
         },
 
         fieldKeyup(idx, field, e) {
-            if (isFieldNavigationSuppressed()) {
-                e.preventDefault();
-                return;
-            }
             if (this._fieldKeyHandled) {
                 this._fieldKeyHandled = false;
+                if (normalizeNavigationKey(e) === 'Enter') e.preventDefault();
+                this._flushPendingFieldFocus();
                 return;
             }
-            if (this._processFieldKey(idx, field, e)) {
+            if (isFieldNavigationSuppressed()) {
+                if (normalizeNavigationKey(e) === 'Enter') e.preventDefault();
+                return;
+            }
+            if (this._processFieldKey(idx, field, e, true)) {
                 this._fieldKeyHandled = true;
                 e.preventDefault();
+                e.stopPropagation();
+                this._flushPendingFieldFocus();
             }
         },
 
-        _processFieldKey(idx, field, e) {
-            if (normalizeNavigationKey(e) !== 'Enter') return false;
-            suppressFieldNavigation(400);
-            if (field === 'invoice') { this.focusNext(idx, 'note'); return true; }
-            if (field === 'note') { this.focusNext(idx, 'total'); return true; }
-            if (field === 'total') { this.focusNext(idx, 'next'); return true; }
-            return false;
+        _processFieldKey(idx, field, e, fromKeyup) {
+            const isEnter = fromKeyup
+                ? normalizeNavigationKey(e) === 'Enter'
+                : isConfirmedEnterKey(e);
+            if (!isEnter) return false;
+            if (e.repeat) return true;
+            if (!claimEnterFieldNavigation()) return true;
+
+            let dest = null;
+            if (field === 'invoice') dest = 'note';
+            else if (field === 'note') dest = 'total';
+            else if (field === 'total') {
+                if (!this.rowTotalFilled(this.form.items[idx])) return true;
+                dest = 'next';
+            } else {
+                return false;
+            }
+
+            this._queueFieldFocus(idx, dest);
+            return true;
         },
 
         async handleSubmit() {

@@ -446,6 +446,29 @@ function isFieldNavigationSuppressed() {
     return Date.now() < (window._suppressFieldNavUntil || 0);
 }
 
+// Android Chrome IME keydown is keyCode 229 / key Unidentified while e.code still
+// names the physical key. Treating that as Enter makes the later real Enter a
+// second navigation. Callers that need a keyup fallback should use this.
+function isImePlaceholderKey(e) {
+    if (!e) return false;
+    const kc = e.keyCode || e.which;
+    return kc === 229 || e.key === 'Unidentified' || e.key === 'Process';
+}
+
+// True only for a real Enter (not the IME 229 placeholder that still has e.code).
+function isConfirmedEnterKey(e) {
+    if (!e || isImePlaceholderKey(e)) return false;
+    return normalizeNavigationKey(e) === 'Enter';
+}
+
+// One successful Enter field-advance per short window. Duplicate keydown/keyup
+// pairs from Android Chrome Gboard collapse here instead of skipping a field.
+function claimEnterFieldNavigation(ms) {
+    if (isFieldNavigationSuppressed()) return false;
+    suppressFieldNavigation(typeof ms === 'number' ? ms : 300);
+    return true;
+}
+
 // Defer focus until after keyup: $nextTick runs as a microtask before keyup on
 // Android/external keyboards, so the same Enter's keyup lands on the next field.
 function deferFocusElement(id, select = true) {
