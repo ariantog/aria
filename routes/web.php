@@ -50,6 +50,12 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::post('users/{user}/ban', [\App\Http\Controllers\UserController::class, 'ban'])->name('users.ban');
     Route::post('users/{user}/unban', [\App\Http\Controllers\UserController::class, 'unban'])->name('users.unban');
     Route::get('staff-checklists', [App\Http\Controllers\StaffChecklistOverviewController::class, 'index'])->name('staff-checklists.index');
+    Route::get('staff-checklists/templates', [App\Http\Controllers\ChecklistTemplateController::class, 'index'])->name('staff-checklists.templates.index');
+    Route::get('staff-checklists/templates/create', [App\Http\Controllers\ChecklistTemplateController::class, 'create'])->name('staff-checklists.templates.create');
+    Route::post('staff-checklists/templates', [App\Http\Controllers\ChecklistTemplateController::class, 'store'])->name('staff-checklists.templates.store');
+    Route::get('staff-checklists/templates/{template}/edit', [App\Http\Controllers\ChecklistTemplateController::class, 'edit'])->name('staff-checklists.templates.edit');
+    Route::put('staff-checklists/templates/{template}', [App\Http\Controllers\ChecklistTemplateController::class, 'update'])->name('staff-checklists.templates.update');
+    Route::delete('staff-checklists/templates/{template}', [App\Http\Controllers\ChecklistTemplateController::class, 'destroy'])->name('staff-checklists.templates.destroy');
     Route::resource('users', \App\Http\Controllers\UserController::class)->except(['destroy']);
     Route::resource('locations', \App\Http\Controllers\LocationController::class);
     Route::get('locations/{location}/customers', [\App\Http\Controllers\LocationController::class, 'customers'])->name('locations.customers');

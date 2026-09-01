@@ -28,21 +28,28 @@ class StaffChecklistCatalog
         ];
     }
 
+    public static function catalogKey(string $role, string $frequency, int $sort): string
+    {
+        return sprintf('%s.%s.%02d', $role, $frequency, $sort);
+    }
+
     /**
-     * @return list<array{role: string, frequency: string, title: string, description?: string, route_name?: string, sort_order: int}>
+     * @return list<array{role: string, frequency: string, title: string, description?: string, route_name?: string, route_query?: string, sort_order: int, catalog_key: string}>
      */
     public static function templates(): array
     {
         $items = [];
 
-        $add = function (string $role, string $frequency, string $title, int $sort, ?string $route = null, ?string $desc = null) use (&$items) {
+        $add = function (string $role, string $frequency, string $title, int $sort, ?string $route = null, ?string $desc = null, ?string $routeQuery = null) use (&$items) {
             $items[] = [
                 'role' => $role,
                 'frequency' => $frequency,
                 'title' => $title,
                 'description' => $desc,
                 'route_name' => $route,
+                'route_query' => $routeQuery,
                 'sort_order' => $sort,
+                'catalog_key' => self::catalogKey($role, $frequency, $sort),
             ];
         };
 
@@ -56,7 +63,7 @@ class StaffChecklistCatalog
         $add('pemilik', 'monthly', 'Setujui tutup buku bulan berjalan', 2);
 
         // ── Akuntansi ──
-        $add('akuntansi', 'daily', 'Posting cash in / cash out hari ini', 1, 'transactions.cash.create', 'type=cash-in');
+        $add('akuntansi', 'daily', 'Posting cash in / cash out hari ini', 1, 'transactions.cash-in');
         $add('akuntansi', 'daily', 'Cocokkan saldo bank vs transaksi', 2, 'transactions.index');
         $add('akuntansi', 'daily', 'Follow up transaksi pending / error', 3, 'transactions.index');
         $add('akuntansi', 'weekly', 'Reconcile piutang pelanggan', 1, 'reports.receivables');
@@ -78,10 +85,10 @@ class StaffChecklistCatalog
         // ── Gudang ──
         $add('gudang', 'daily', 'Cek urgent restock di dashboard', 1, 'restock.index');
         $add('gudang', 'daily', 'Tindak lanjuti stock alert (sold out di satu gudang)', 2, 'stock-notifications.index');
-        $add('gudang', 'daily', 'Terima barang buy / update stok gudang', 3, 'transactions.create', 'type=buy');
+        $add('gudang', 'daily', 'Terima barang buy / update stok gudang', 3, 'transactions.create', null, 'type=buy');
         $add('gudang', 'weekly', 'Update restock sheet & flag urgent', 1, 'restock.index');
         $add('gudang', 'weekly', 'Review inventory health report', 2, 'reports.inventory-health');
-        $add('gudang', 'biweekly', 'Mutasi stok antar gudang bila perlu', 1, 'transactions.create', 'type=move');
+        $add('gudang', 'biweekly', 'Mutasi stok antar gudang bila perlu', 1, 'transactions.create', null, 'type=move');
         $add('gudang', 'monthly', 'Jalankan warehouse arrangement refresh', 1, 'reports.warehouse-arrangement');
 
         // ── Produksi ──
@@ -101,8 +108,8 @@ class StaffChecklistCatalog
         $add('sdm', 'monthly', 'Finalisasi potongan telat, izin, lembur', 2, 'gaji.index');
 
         // ── Toko ──
-        $add('toko', 'daily', 'Input penjualan toko (sell)', 1, 'transactions.create', 'type=sell');
-        $add('toko', 'daily', 'Setor kas / cash in dari toko', 2, 'transactions.cash.create', 'type=cash-in');
+        $add('toko', 'daily', 'Input penjualan toko (sell)', 1, 'transactions.create', null, 'type=sell');
+        $add('toko', 'daily', 'Setor kas / cash in dari toko', 2, 'transactions.cash-in');
         $add('toko', 'daily', 'Cek stok display toko', 3, 'items.index');
         $add('toko', 'weekly', 'Reconcile kas toko vs transaksi', 1, 'transactions.index');
         $add('toko', 'monthly', 'Review diskon & promo toko', 1);
@@ -119,7 +126,7 @@ class StaffChecklistCatalog
         $add('admin', 'daily', 'Cek queue & cron disabled di dashboard', 1, 'scheduled-tasks.index');
         $add('admin', 'daily', 'Monitor user aktif & permission issue', 2, 'users.index');
         $add('admin', 'weekly', 'Backup review: cron berjalan normal', 1, 'scheduled-tasks.index');
-        $add('admin', 'weekly', 'Update addrbook kontak baru', 2, 'addrbook.type.index', 'type=customer');
+        $add('admin', 'weekly', 'Update addrbook kontak baru', 2, 'addrbook.type.index', null, 'type=customer');
         $add('admin', 'biweekly', 'Review pengaturan sistem (HR, restock, produksi)', 1, 'system-settings.index');
         $add('admin', 'monthly', 'Audit role & permission matrix', 1, 'roles.index');
         $add('admin', 'monthly', 'Review data retention / archive', 2, 'archive.index');

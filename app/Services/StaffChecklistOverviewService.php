@@ -8,7 +8,6 @@ use App\Models\ChecklistTemplate;
 use App\Models\StaffRole;
 use App\Models\User;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Collection;
 
 class StaffChecklistOverviewService
 {
@@ -27,21 +26,23 @@ class StaffChecklistOverviewService
         $roles = StaffRole::query()
             ->where('is_active', true)
             ->withCount([
-                'users',
+                'users' => fn ($query) => $query->where('users.id', '!=', User::SUPERADMIN_ID),
                 'checklistTemplates as active_templates_count' => fn ($query) => $query->where('is_active', true),
             ])
-            ->with(['users:id,name,username'])
+            ->with(['users' => fn ($query) => $query->where('users.id', '!=', User::SUPERADMIN_ID)->select('users.id', 'users.name', 'users.username')])
             ->orderBy('sort_order')
             ->get();
 
         $usersWithoutRoles = User::query()
             ->where('active', true)
+            ->whereKeyNot(User::SUPERADMIN_ID)
             ->whereDoesntHave('staffRoles')
             ->orderBy('name')
             ->get(['id', 'name', 'username']);
 
         $usersWithRoles = User::query()
             ->where('active', true)
+            ->whereKeyNot(User::SUPERADMIN_ID)
             ->whereHas('staffRoles')
             ->with(['staffRoles' => fn ($query) => $query->where('is_active', true)->orderBy('sort_order')])
             ->orderBy('name')

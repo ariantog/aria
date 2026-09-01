@@ -13,12 +13,12 @@ beforeEach(function () {
     $this->seed(StaffRoleChecklistSeeder::class);
 });
 
-it('seeds nine staff roles and assigns all to superadmin', function () {
+it('seeds nine staff roles without assigning them to superadmin', function () {
     expect(\App\Models\StaffRole::count())->toBe(count(StaffChecklistCatalog::roles()))
         ->and(\App\Models\ChecklistTemplate::count())->toBeGreaterThan(50);
 
     $superadmin = User::find(1);
-    expect($superadmin->staffRoles)->toHaveCount(9);
+    expect($superadmin->staffRoles)->toBeEmpty();
 });
 
 it('shows role checklists on dashboard for assigned user', function () {
@@ -42,8 +42,9 @@ it('does not show role checklists when user has no staff roles', function () {
 });
 
 it('toggles checklist completion for current period', function () {
-    $user = User::find(1);
-    $template = \App\Models\ChecklistTemplate::query()->where('frequency', 'daily')->first();
+    $user = User::factory()->create();
+    $user->staffRoles()->sync([1]);
+    $template = \App\Models\ChecklistTemplate::query()->where('staff_role_id', 1)->where('frequency', 'daily')->first();
 
     $this->actingAs($user)
         ->post(route('checklist.toggle', $template))
@@ -82,7 +83,8 @@ it('blocks toggle for templates outside user roles', function () {
 });
 
 it('groups templates by frequency in checklist service', function () {
-    $user = User::find(1);
+    $user = User::factory()->create();
+    $user->staffRoles()->sync(\App\Models\StaffRole::query()->pluck('id'));
     $data = app(StaffChecklistService::class)->forUser($user);
 
     expect($data['has_checklists'])->toBeTrue()
@@ -130,4 +132,29 @@ it('redirects my-checklist to dashboard when user has no staff roles', function 
     $this->actingAs($user)
         ->get(route('my-checklist.index'))
         ->assertRedirect(route('dashboard'));
+});
+
+it('never shows a checklist for user id 1 even when roles are assigned', function () {
+    $superadmin = User::find(1);
+    $superadmin->staffRoles()->sync(\App\Models\StaffRole::query()->pluck('id'));
+
+    expect(app(StaffChecklistService::class)->forUser($superadmin)['has_checklists'])->toBeFalse();
+
+    $this->actingAs($superadmin)
+        ->get(route('dashboard'))
+        ->assertOk()
+        ->assertDontSee('data-testid="header-checklist-link"', false)
+        ->assertDontSee('data-testid="staff-checklist-panel"', false);
+
+    $this->actingAs($superadmin)
+        ->get(route('my-checklist.index'))
+        ->assertRedirect(route('dashboard'));
+});
+
+it('blocks checklist toggles for user id 1', function () {
+    $template = \App\Models\ChecklistTemplate::query()->first();
+
+    $this->actingAs(User::find(1))
+        ->post(route('checklist.toggle', $template))
+        ->assertForbidden();
 });

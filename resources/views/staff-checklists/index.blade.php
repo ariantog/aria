@@ -21,12 +21,21 @@ $periodKeys = $overview['period_keys'] ?? [];
             <h2 class="text-2xl font-bold tracking-tight text-gray-900">Checklist Peran</h2>
             <p class="mt-0.5 text-sm text-gray-500">Lihat peran operasional, pemetaan pengguna, dan progress checklist per periode.</p>
         </div>
-        @if($canAssignStaffRoles ?? false)
-        <a href="{{ route('users.index') }}"
-           class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
-            Kelola pemetaan di Users →
-        </a>
-        @endif
+        <div class="flex flex-wrap gap-2">
+            @if($canManageTemplates ?? false)
+            <a href="{{ route('staff-checklists.templates.index') }}"
+               class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+               data-testid="manage-templates-link">
+                {{ ($canEditTemplates ?? false) ? 'Kelola template' : 'Lihat template' }}
+            </a>
+            @endif
+            @if($canAssignStaffRoles ?? false)
+            <a href="{{ route('users.index') }}"
+               class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                Kelola pemetaan di Users →
+            </a>
+            @endif
+        </div>
     </div>
 
     <form method="GET" action="{{ route('staff-checklists.index') }}" class="flex flex-wrap items-end gap-2 rounded-xl border border-gray-200 bg-white p-3">

@@ -15,6 +15,15 @@ class StaffChecklistService
      */
     public function forUser(User $user): array
     {
+        if (! User::needsStaffChecklist($user)) {
+            return [
+                'has_checklists' => false,
+                'roles' => collect(),
+                'groups' => [],
+                'summary' => ['total' => 0, 'completed' => 0, 'pending' => 0],
+            ];
+        }
+
         $roleIds = $user->staffRoles()->where('is_active', true)->pluck('staff_roles.id');
 
         if ($roleIds->isEmpty()) {
@@ -93,6 +102,10 @@ class StaffChecklistService
 
     public function toggle(User $user, ChecklistTemplate $template): bool
     {
+        if (! User::needsStaffChecklist($user)) {
+            abort(403);
+        }
+
         $roleIds = $user->staffRoles()->pluck('staff_roles.id');
         if (! $roleIds->contains($template->staff_role_id)) {
             abort(403);
@@ -159,8 +172,13 @@ class StaffChecklistService
             return null;
         }
 
+        $params = [];
+        if (filled($template->route_query)) {
+            parse_str((string) $template->route_query, $params);
+        }
+
         try {
-            return route($template->route_name);
+            return route($template->route_name, $params);
         } catch (\Throwable) {
             return null;
         }

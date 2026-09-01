@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ChecklistTemplate;
 use App\Models\User;
 use App\Services\StaffChecklistOverviewService;
 use Illuminate\Http\Request;
@@ -21,6 +22,8 @@ class StaffChecklistOverviewController extends Controller
                 'date' => $date,
             ],
             'canAssignStaffRoles' => $request->user()?->can(User::getPermissions()['staff-roles-edit']) ?? false,
+            'canManageTemplates' => $request->user()?->can(User::getPermissions()['staff-roles-view']) ?? false,
+            'canEditTemplates' => $request->user()?->can(ChecklistTemplate::getPermissions()['edit']) ?? false,
         ]);
     }
 }
