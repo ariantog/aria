@@ -224,6 +224,9 @@ it('renders migrated GET pages with a 200', function (string $route) {
     'jubelio connection' => 'jubelio/token',
     'shopee ads' => 'shopee-ads',
     'restock index' => 'restock',
+    'absensi index' => 'absensi',
+    'absensi import' => 'absensi/import',
+    'hari libur' => 'hari-libur',
 ]);
 
 it('renders the invoice maker show page with payment status', function () {
