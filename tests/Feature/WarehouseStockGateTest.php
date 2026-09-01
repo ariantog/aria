@@ -77,6 +77,40 @@ function stockGateHandle(int $type, Addrbook $sender, Addrbook $receiver, Item $
     return $transaction->fresh('details');
 }
 
+it('returns json 422 with items errors so the create form keeps its inputs', function () {
+    $warehouse = stockGateWarehouse('Gudang Ajax');
+    $customer = Addrbook::factory()->customer()->create();
+    $item = Item::factory()->create(['code' => 'AJAX-SELL', 'name' => 'Ajax Sell']);
+
+    WarehouseItem::create([
+        'warehouse_id' => $warehouse->id,
+        'item_id' => $item->id,
+        'warehouse_type' => $warehouse->type,
+        'quantity' => 1,
+    ]);
+
+    test()->postJson(route('transactions.store'), [
+        'date' => now()->toDateString(),
+        'type' => 'sell',
+        'sender_id' => $warehouse->id,
+        'receiver_id' => $customer->id,
+        'items' => [
+            [
+                'item_id' => $item->id,
+                'quantity' => 4,
+                'price' => 1000,
+                'discount' => 0,
+            ],
+        ],
+    ])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['items']);
+
+    expect(Transaction::query()->where('type', Transaction::TYPE_SELL)->count())->toBe(0)
+        ->and((float) WarehouseItem::where('warehouse_id', $warehouse->id)->where('item_id', $item->id)->value('quantity'))
+        ->toBe(1.0);
+});
+
 it('rejects a sell that would take a physical warehouse negative', function () {
     $warehouse = stockGateWarehouse('Gudang Jual');
     $customer = Addrbook::factory()->customer()->create();
@@ -199,8 +233,10 @@ it('refuses to delete a buy after the stock has already been sold', function () 
     expect((float) WarehouseItem::where('warehouse_id', $warehouse->id)->where('item_id', $item->id)->value('quantity'))
         ->toBe(0.0);
 
-    test()->delete(route('transactions.destroy', $buy))
-        ->assertRedirect()
+    test()->from(route('transactions.show', $buy))
+        ->delete(route('transactions.destroy', $buy))
+        ->assertRedirect(route('transactions.show', $buy))
+        ->assertSessionHasErrors('items')
         ->assertSessionHas('error');
 
     expect(Transaction::query()->find($buy->id))->not->toBeNull()

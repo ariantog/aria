@@ -38,7 +38,17 @@
         </div>
     </div>
 
-    {{-- Validation errors — kept client-side so entries persist on failure --}}
+    {{-- Validation errors — Alpine keeps entries on AJAX 422; Blade covers a full-page redirect --}}
+    @if ($errors->any())
+    <div class="rounded-lg border border-red-200 bg-red-50 p-3">
+        <p class="text-sm font-medium text-red-800">Please fix the following:</p>
+        <ul class="mt-1 list-disc pl-5 text-sm text-red-700">
+            @foreach ($errors->all() as $error)
+                <li>{{ $error }}</li>
+            @endforeach
+        </ul>
+    </div>
+    @endif
     <div x-show="serverErrors.length" x-cloak class="rounded-lg border border-red-200 bg-red-50 p-3">
         <p class="text-sm font-medium text-red-800">Please fix the following:</p>
         <ul class="mt-1 list-disc pl-5 text-sm text-red-700">

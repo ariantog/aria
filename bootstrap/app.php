@@ -1,5 +1,6 @@
 <?php
 
+use App\Exceptions\InsufficientWarehouseStockException;
 use App\Http\Middleware\HandleAppearance;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Application;
@@ -47,4 +48,10 @@ return Application::configure(basePath: dirname(__DIR__))
                 'sql' => Str::limit($e->getSql(), 500),
             ]);
         })->stop();
+
+        $exceptions->dontReport([InsufficientWarehouseStockException::class]);
+
+        $exceptions->renderable(function (InsufficientWarehouseStockException $e, $request) {
+            return $e->toResponse($request);
+        });
     })->create();

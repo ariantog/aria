@@ -5,6 +5,7 @@ namespace App\Exceptions;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 use RuntimeException;
 
 class InsufficientWarehouseStockException extends RuntimeException
@@ -23,16 +24,40 @@ class InsufficientWarehouseStockException extends RuntimeException
         ));
     }
 
+    /**
+     * Same shape as {@see ValidationException} so AJAX forms keep their inputs
+     * and populate `errors.items` / `serverErrors`.
+     *
+     * @return array<string, list<string>>
+     */
+    public function formErrors(): array
+    {
+        return ['items' => [$this->getMessage()]];
+    }
+
+    public function asValidationException(): ValidationException
+    {
+        return ValidationException::withMessages($this->formErrors());
+    }
+
     public function render(Request $request): JsonResponse|RedirectResponse
+    {
+        return $this->toResponse($request);
+    }
+
+    public function toResponse(Request $request): JsonResponse|RedirectResponse
     {
         if ($request->expectsJson() || $request->ajax()) {
             return response()->json([
                 'message' => $this->getMessage(),
-                'errors' => ['items' => [$this->getMessage()]],
+                'errors' => $this->formErrors(),
             ], 422);
         }
 
-        return back()->withInput()->with('error', $this->getMessage());
+        return back()
+            ->withInput()
+            ->withErrors($this->formErrors())
+            ->with('error', $this->getMessage());
     }
 
     public function report(): false
