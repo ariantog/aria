@@ -143,6 +143,39 @@ it('redirects to asset lancar detail page after update', function () {
         ->assertSessionHas('success', 'Item updated.');
 });
 
+it('stores legacy_code when asset lancar edit changes the sku', function () {
+    $sizeTag = Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'S', 'name' => 'S']);
+    $blackTag = Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'BLACK', 'name' => 'BLACK']);
+    $navyTag = Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'NAVY', 'name' => 'NAVY']);
+    $item = Item::factory()->create([
+        'type' => ItemType::ASSET_LANCAR,
+        'code' => 'GLOVE-07-BLACK-S',
+        'legacy_code' => null,
+        'pcode' => 'GLOVE-07',
+        'name' => 'GLOVE 07 - BLACK - S',
+        'cost' => 1000,
+    ]);
+    $item->tags()->attach([$sizeTag->id, $blackTag->id]);
+
+    $this->actingAs($this->user)
+        ->put(route('assetlancar.update', $item), [
+            'type' => ItemType::ASSET_LANCAR->value,
+            'pcode' => 'GLOVE-07',
+            'product_name' => 'Glove 07',
+            'cost' => 1500,
+            'tags' => [
+                'sizes' => [$sizeTag->id],
+                'warna' => $navyTag->id,
+            ],
+        ])
+        ->assertRedirect(route('assetlancar.show', $item));
+
+    $item->refresh();
+
+    expect($item->code)->toBe('GLOVE-07-NAVY-S')
+        ->and($item->legacy_code)->toBe('GLOVE-07-BLACK-S');
+});
+
 it('shows group url and item restock threshold on item detail page when set', function () {
     $group = ItemGroup::factory()->create(['url' => 'https://catalog.example.com/sku']);
     $item = Item::factory()->create([

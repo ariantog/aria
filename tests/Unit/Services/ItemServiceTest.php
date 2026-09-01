@@ -296,6 +296,84 @@ test('it snapshots legacy_code from old code on first manufactured item identity
         ->and($item->legacy_code)->toBe('LEGACY-SKU-BEFORE-MIGRATION');
 });
 
+test('it snapshots legacy_code when updating asset lancar to a new sku', function () {
+    $navyTag = Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'NAVY', 'name' => 'NAVY']);
+    $assetType = Tag::factory()->create([
+        'type' => Tag::TYPE_TYPE,
+        'item_type' => ItemType::ASSET_LANCAR->value,
+        'code' => 'GLOVE',
+        'name' => 'Glove',
+    ]);
+
+    $item = Item::factory()->create([
+        'type' => ItemType::ASSET_LANCAR,
+        'group_id' => null,
+        'code' => 'GLOVE-01-BLUE-S',
+        'legacy_code' => null,
+        'pcode' => 'GLOVE-01',
+        'name' => 'BOXING GLOVES - BLUE - S',
+        'price' => 500000,
+        'cost' => 300000,
+    ]);
+    $item->tags()->sync([$assetType->id, $this->sizeTag->id, $this->warnaTag->id]);
+
+    $this->itemService->update($item->id, (object) [
+        'pcode' => 'GLOVE-01',
+        'type' => ItemType::ASSET_LANCAR->value,
+        'product_name' => 'Boxing Gloves',
+        'price' => 500000,
+        'cost' => 300000,
+    ], [
+        'types' => [$assetType->id],
+        'sizes' => [$this->sizeTag->id],
+        'warna' => $navyTag->id,
+    ]);
+
+    $item->refresh();
+
+    expect($item->code)->toBe('GLOVE-01-NAVY-S')
+        ->and($item->legacy_code)->toBe('GLOVE-01-BLUE-S');
+});
+
+test('it does not overwrite an existing asset lancar legacy_code on edit', function () {
+    $navyTag = Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'NAVY', 'name' => 'NAVY']);
+    $assetType = Tag::factory()->create([
+        'type' => Tag::TYPE_TYPE,
+        'item_type' => ItemType::ASSET_LANCAR->value,
+        'code' => 'GLOVE',
+        'name' => 'Glove',
+    ]);
+
+    $item = Item::factory()->create([
+        'type' => ItemType::ASSET_LANCAR,
+        'group_id' => null,
+        'code' => 'GLOVE-01-BLUE-S',
+        'legacy_code' => 'OLD-GLOVE-JUBELIO',
+        'pcode' => 'GLOVE-01',
+        'name' => 'BOXING GLOVES - BLUE - S',
+        'price' => 500000,
+        'cost' => 300000,
+    ]);
+    $item->tags()->sync([$assetType->id, $this->sizeTag->id, $this->warnaTag->id]);
+
+    $this->itemService->update($item->id, (object) [
+        'pcode' => 'GLOVE-01',
+        'type' => ItemType::ASSET_LANCAR->value,
+        'product_name' => 'Boxing Gloves',
+        'price' => 500000,
+        'cost' => 300000,
+    ], [
+        'types' => [$assetType->id],
+        'sizes' => [$this->sizeTag->id],
+        'warna' => $navyTag->id,
+    ]);
+
+    $item->refresh();
+
+    expect($item->code)->toBe('GLOVE-01-NAVY-S')
+        ->and($item->legacy_code)->toBe('OLD-GLOVE-JUBELIO');
+});
+
 test('it auto creates parent group when updating legacy asset lancar without group', function () {
     $item = Item::factory()->create([
         'type' => ItemType::ASSET_LANCAR,
