@@ -649,6 +649,39 @@ it('converts a single legacy item from the converter page', function () {
         ->and($item->legacy_code)->toBe('AJJPL2512906XL');
 });
 
+it('converts ELBOWSUPPORT-02-BLACKWHITE when another group already uses the same name', function () {
+    Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'BLACKWHITE', 'name' => 'BLACKWHITE']);
+
+    \App\Models\ItemGroup::factory()->create([
+        'master' => 'ELBOWSTRAP-01',
+        'variant' => 'BLACKWHITE',
+        'name' => 'ELBOW STRAP - BLACKWHITE',
+    ]);
+
+    $item = Item::factory()->create([
+        'type' => ItemType::ASSET_LANCAR,
+        'group_id' => null,
+        'code' => 'ELBOWSUPPORT-02-BLACKWHITE',
+        'legacy_code' => null,
+        'pcode' => 'ELBOWSUPPORT-02',
+        'name' => 'ELBOW STRAP - BLACKWHITE',
+    ]);
+
+    $run = $this->service->runItems(ItemType::ASSET_LANCAR, collect([$item]), $this->user);
+
+    expect($run->success_count)->toBe(1)
+        ->and($run->failed_count)->toBe(0);
+
+    $item->refresh()->load('group');
+
+    expect($item->group)->not->toBeNull()
+        ->and($item->group->master)->toBe('ELBOWSUPPORT-02')
+        ->and($item->group->variant)->toBe('BLACKWHITE')
+        ->and($item->group->name)->toBe('ELBOW STRAP - BLACKWHITE (ELBOWSUPPORT-02)')
+        ->and(strlen((string) $item->group->name))->toBeLessThanOrEqual(ItemIdentityBuilder::GROUP_NAME_MAX_LENGTH)
+        ->and($item->code)->toBe('ELBOWSUPPORT-02-BLACKWHITE');
+});
+
 it('converts a single SKU when GREYWHITE already exists under a different code', function () {
     $existing = Tag::withoutEvents(fn () => Tag::query()->create([
         'type' => Tag::TYPE_WARNA,
