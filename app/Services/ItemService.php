@@ -297,7 +297,7 @@ class ItemService
             throw new Exception("SKU already exists: {$code}");
         }
 
-        if ($isUpdate && $itemType === ItemType::ITEM) {
+        if ($isUpdate) {
             $this->preserveLegacyCode($item, $code);
         }
 
@@ -470,8 +470,8 @@ class ItemService
     }
 
     /**
-     * Snapshot the pre-identity SKU for Jubelio before code changes on manufactured items.
-     * Never overwrites an existing legacy_code.
+     * Snapshot the previous SKU for Jubelio before code changes on edit
+     * (manufactured items and asset lancar). Never overwrites an existing legacy_code.
      */
     protected function preserveLegacyCode(Item $item, string $newCode): void
     {
