@@ -34,6 +34,12 @@ $waktuDibatasi = filter_var(old('waktu_dibatasi', $isEdit ? ($karyawan->waktu_di
                         @error('nama')<p class="text-sm text-red-600">{{ $message }}</p>@enderror
                     </div>
                     <div class="space-y-2">
+                        <label class="text-sm font-medium">Nama Absensi</label>
+                        <input name="nama_absensi" value="{{ $val('nama_absensi') }}" placeholder="Nama di mesin fingerprint" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm" data-testid="nama-absensi">
+                        <p class="text-xs text-gray-500">Nama persis seperti di mesin fingerprint, untuk mencocokkan absensi.</p>
+                        @error('nama_absensi')<p class="text-sm text-red-600">{{ $message }}</p>@enderror
+                    </div>
+                    <div class="space-y-2">
                         <label class="text-sm font-medium">No. Telepon</label>
                         <input name="no_telp" value="{{ $val('no_telp') }}" placeholder="08123456789" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
                         @error('no_telp')<p class="text-sm text-red-600">{{ $message }}</p>@enderror

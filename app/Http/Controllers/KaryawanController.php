@@ -25,7 +25,11 @@ class KaryawanController extends Controller
         KaryawanVisibility::scopeVisibleKaryawan($query, $request->user());
 
         if ($request->name) {
-            $query->where('nama', 'LIKE', "%{$request->name}%");
+            $search = (string) $request->name;
+            $query->where(function ($inner) use ($search) {
+                $inner->where('nama', 'LIKE', "%{$search}%")
+                    ->orWhere('nama_absensi', 'LIKE', "%{$search}%");
+            });
         }
 
         $karyawans = $query->paginate(50)->withQueryString();
@@ -129,6 +133,7 @@ class KaryawanController extends Controller
 
         $validated = $request->validate([
             'nama' => 'required|string|max:255',
+            'nama_absensi' => 'nullable|string|max:255',
             'alamat' => 'required|string',
             'no_telp' => 'required|string|max:255',
             'bulanan' => 'required|numeric',
@@ -140,6 +145,7 @@ class KaryawanController extends Controller
             'grace_period_menit' => 'nullable|integer|min:0|max:180',
         ], [], [
             'nama' => 'nama',
+            'nama_absensi' => 'nama absensi',
             'alamat' => 'alamat',
             'no_telp' => 'telepon',
             'bulanan' => 'gaji bulanan',
@@ -150,6 +156,9 @@ class KaryawanController extends Controller
             'grace_period_menit' => 'grace period',
         ]);
 
+        $validated['nama_absensi'] = filled($validated['nama_absensi'] ?? null)
+            ? trim((string) $validated['nama_absensi'])
+            : null;
         $validated['waktu_dibatasi'] = $request->boolean('waktu_dibatasi');
         $validated['jam_masuk'] = $validated['jam_masuk'] ?? '08:00';
         $validated['grace_period_menit'] = $validated['grace_period_menit'] ?? null;
