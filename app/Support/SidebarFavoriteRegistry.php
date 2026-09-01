@@ -601,6 +601,15 @@ class SidebarFavoriteRegistry
                 'params' => [],
                 'active_prefix' => '/staff-checklists',
             ],
+            [
+                'key' => 'checklist-templates-edit',
+                'label' => 'Template Checklist',
+                'group' => 'User Management',
+                'permission' => 'users-staff-roles-view',
+                'route' => 'staff-checklists.templates.index',
+                'params' => [],
+                'active_prefix' => '/staff-checklists/templates',
+            ],
         ];
 
         foreach (Addrbook::getTypes() as $type) {

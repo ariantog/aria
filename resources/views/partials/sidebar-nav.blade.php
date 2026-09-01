@@ -209,6 +209,7 @@
     }
     if ($hasPerm('users-staff-roles-view') || $isSuperAdmin) {
         $userNavLabels[] = 'Checklist Peran';
+        $userNavLabels[] = 'Template Checklist';
     }
 
     $hrNavLabels = ['SDM / Gaji'];
@@ -749,7 +750,8 @@
         <a href="{{ route('locations.index') }}" x-show="navLinkVisible('Locations', 'User Management')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/locations') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Locations</a>
         @endif
         @if($hasPerm('users-staff-roles-view') || $isSuperAdmin)
-        <a href="{{ route('staff-checklists.index') }}" x-show="navLinkVisible('Checklist Peran', 'User Management')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/staff-checklists') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Checklist Peran</a>
+        <a href="{{ route('staff-checklists.index') }}" x-show="navLinkVisible('Checklist Peran', 'User Management')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/staff-checklists') && ! $isActive('/staff-checklists/templates') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Checklist Peran</a>
+        <a href="{{ route('staff-checklists.templates.index') }}" x-show="navLinkVisible('Template Checklist', 'User Management')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/staff-checklists/templates') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Template Checklist</a>
         @endif
     </div>
 </div>

@@ -4,6 +4,7 @@ namespace App\Support;
 
 use App\Models\Addrbook;
 use App\Models\Borongan;
+use App\Models\ChecklistTemplate;
 use App\Models\Item;
 use App\Models\ItemGroup;
 use App\Models\Jubelio;
@@ -33,6 +34,7 @@ class PermissionGrouper
     /** @var list<string> */
     private const GROUP_ORDER = [
         'Users',
+        'Checklist Peran',
         'Roles',
         'Permissions',
         'Locations',
@@ -110,6 +112,7 @@ class PermissionGrouper
                 'permissions-' => 'Permissions',
                 'staff-roles-' => 'Users',
             ]],
+            [ChecklistTemplate::class, 'Checklist Peran'],
             [Location::class, 'Locations'],
             [Addrbook::class, 'Addrbook'],
             [Item::class, 'Items', [
@@ -187,6 +190,7 @@ class PermissionGrouper
                 'users' => str_contains($name, '-locations-') ? 'Locations'
                     : (str_contains($name, '-roles-') ? 'Roles'
                     : (str_contains($name, '-permissions-') ? 'Permissions' : 'Users')),
+                'checklist' => 'Checklist Peran',
                 'addrbook' => 'Addrbook',
                 'transactions' => 'Transactions',
                 'production' => str_contains($name, '-worker-') ? 'Production — Workers' : 'Production',
