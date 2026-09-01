@@ -3,6 +3,7 @@
 namespace App\Actions\Transactions;
 
 use App\Actions\Transactions\Concerns\CalculatesTransactionTotals;
+use App\Exceptions\InsufficientWarehouseStockException;
 use App\Http\Requests\StoreItemTransactionRequest;
 use App\Models\Addrbook;
 use App\Models\Transaction;
@@ -31,7 +32,11 @@ class CreateItemTransaction
             $transaction = $this->createTransaction($type, $data, $sender, $receiver);
             $this->createDetails($transaction, $data);
             $this->calculateAndSetTotals($transaction, $type, $data, $sender, $receiver);
-            $this->transactionService->handleTransaction($transaction);
+            try {
+                $this->transactionService->handleTransaction($transaction);
+            } catch (InsufficientWarehouseStockException $e) {
+                throw $e->asValidationException();
+            }
 
             if ($type === Transaction::TYPE_SELL && $cashInPayload) {
                 app(CreateCashInFromSell::class)->execute($transaction->fresh(['receiver']) ?? $transaction, $cashInPayload);
