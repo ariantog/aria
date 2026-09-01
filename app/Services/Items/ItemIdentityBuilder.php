@@ -4,12 +4,19 @@ namespace App\Services\Items;
 
 use App\Enums\ItemType;
 use App\Models\Item;
+use App\Models\ItemGroup;
 use App\Models\Tag;
 use InvalidArgumentException;
+use RuntimeException;
 
 class ItemIdentityBuilder
 {
     public const ALL_SIZE_CODE = 'AS';
+
+    /**
+     * Production `item_group.name` is varchar(50) UNIQUE (see database/old.sql).
+     */
+    public const GROUP_NAME_MAX_LENGTH = 50;
 
     /**
      * Manufactured item pcode: [2-3 letters][5 digits]-[2-3 digits] e.g. CX90233-23
@@ -161,6 +168,68 @@ class ItemIdentityBuilder
         }
 
         return $productName;
+    }
+
+    /**
+     * Trim a stored group name to the production column width.
+     */
+    public function fitStoredGroupName(string $name): string
+    {
+        $name = strtoupper(trim($name));
+
+        if ($name === '' || mb_strlen($name) <= self::GROUP_NAME_MAX_LENGTH) {
+            return $name;
+        }
+
+        return rtrim(mb_substr($name, 0, self::GROUP_NAME_MAX_LENGTH));
+    }
+
+    /**
+     * Return a globally unique item_group.name that fits varchar(50).
+     *
+     * When another master/variant already owns the preferred name, append the
+     * shortest disambiguator that still fits (master, then master/variant,
+     * then a numeric suffix).
+     */
+    public function uniqueStoredGroupName(string $storedName, string $master, string $variant): string
+    {
+        $storedName = $this->fitStoredGroupName($storedName);
+        $master = strtoupper(trim($master));
+        $variant = strtoupper(trim($variant));
+
+        if (! $this->storedGroupNameConflicts($storedName, $master, $variant)) {
+            return $storedName;
+        }
+
+        $suffixes = [];
+
+        if ($master !== '') {
+            $suffixes[] = ' ('.$master.')';
+        }
+
+        if ($master !== '' && $variant !== '') {
+            $suffixes[] = ' ('.$master.'/'.$variant.')';
+        }
+
+        foreach ($suffixes as $suffix) {
+            $candidate = $this->joinStoredGroupName($storedName, $suffix);
+
+            if (! $this->storedGroupNameConflicts($candidate, $master, $variant)) {
+                return $candidate;
+            }
+        }
+
+        for ($n = 2; $n <= 99; $n++) {
+            $candidate = $this->joinStoredGroupName($storedName, ' ('.$n.')');
+
+            if (! $this->storedGroupNameConflicts($candidate, $master, $variant)) {
+                return $candidate;
+            }
+        }
+
+        throw new RuntimeException(
+            'Unable to allocate a unique item_group.name within '.self::GROUP_NAME_MAX_LENGTH.' characters.',
+        );
     }
 
     /**
@@ -481,5 +550,32 @@ class ItemIdentityBuilder
         }
 
         return ItemType::tryFrom((int) $raw) ?? ItemType::ITEM;
+    }
+
+    private function joinStoredGroupName(string $name, string $suffix): string
+    {
+        $suffix = strtoupper($suffix);
+        $suffixLength = mb_strlen($suffix);
+
+        if ($suffixLength >= self::GROUP_NAME_MAX_LENGTH) {
+            $suffix = ' ('.mb_substr(md5($suffix), 0, 6).')';
+            $suffixLength = mb_strlen($suffix);
+        }
+
+        $base = rtrim(mb_substr($name, 0, self::GROUP_NAME_MAX_LENGTH - $suffixLength));
+
+        return $this->fitStoredGroupName($base.$suffix);
+    }
+
+    private function storedGroupNameConflicts(string $name, string $master, string $variant): bool
+    {
+        $existing = ItemGroup::query()->where('name', $name)->first();
+
+        if (! $existing) {
+            return false;
+        }
+
+        return strtoupper((string) $existing->master) !== $master
+            || strtoupper((string) $existing->variant) !== $variant;
     }
 }

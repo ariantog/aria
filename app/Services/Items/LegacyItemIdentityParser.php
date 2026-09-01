@@ -13,6 +13,8 @@ class LegacyItemIdentityParser
 {
     public const FAILURE_SKU_UNPARSEABLE = 'SKU_UNPARSEABLE';
 
+    public const FAILURE_GROUP_NAME_TOO_LONG = 'GROUP_NAME_TOO_LONG';
+
     public const FAILURE_PCODE_INVALID = 'PCODE_INVALID';
 
     public const FAILURE_TYPE_TAG_MISSING = 'TYPE_TAG_MISSING';
