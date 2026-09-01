@@ -2,7 +2,7 @@
 
 namespace Database\Seeders;
 
-// use Illuminate\Database\Console\Seeds\WithoutModelEvents;
+use App\Support\NewDomainInstall;
 use Illuminate\Database\Seeder;
 
 class DatabaseSeeder extends Seeder
@@ -16,7 +16,15 @@ class DatabaseSeeder extends Seeder
             SettingSeeder::class,
             SuperAdminSeeder::class,
             StaffRoleChecklistSeeder::class,
-            DemoDataSeeder::class,
         ]);
+
+        if (NewDomainInstall::allowsBaselineSeed()) {
+            $this->call([
+                TypicalLedgerSeeder::class,
+                AddrbookPlaceholderSeeder::class,
+            ]);
+        }
+
+        $this->call(DemoDataSeeder::class);
     }
 }
