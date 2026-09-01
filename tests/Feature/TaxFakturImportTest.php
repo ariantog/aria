@@ -10,6 +10,7 @@ use App\Services\Reporting\TaxReportService;
 use App\Services\Tax\ExpectedPaymentDateCalculator;
 use App\Services\Tax\FakturPajakDirectionResolver;
 use App\Services\Tax\FakturPajakPdfParser;
+use App\Services\Tax\LinkFakturSells;
 use App\Services\Tax\ParsedFakturPajak;
 use App\Services\Tax\TaxFakturImportService;
 use Illuminate\Support\Carbon;
@@ -456,4 +457,184 @@ it('posts payment variance as cash out to expense ledger', function () {
         ->and((int) $varianceTx->sender_id)->toBe($bank->id)
         ->and((int) $varianceTx->receiver_id)->toBe($expense->id)
         ->and(abs((float) $varianceTx->total))->toBe(1_787_055.0);
+});
+
+function seedKeluaranLinkFilterScenario(User $user): array
+{
+    $entity = ReportingEntity::create([
+        'name' => 'PT Link Filter',
+        'slug' => 'pt-link-filter-'.uniqid(),
+        'is_pkp' => true,
+        'npwp' => '0504330085044000',
+    ]);
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    $customer = Addrbook::factory()->customer()->create(['name' => 'MDS Filter']);
+    $supplier = Addrbook::factory()->supplier()->create(['name' => 'Supplier Filter']);
+
+    $unlinked = TaxFakturImport::create([
+        'faktur_number' => '01000UNLINKED00001',
+        'faktur_date' => '2026-07-10',
+        'direction' => TaxFakturImport::DIRECTION_KELUARAN,
+        'reporting_entity_id' => $entity->id,
+        'counterparty_id' => $customer->id,
+        'seller_name' => 'INDOSPORT',
+        'seller_npwp' => '0504330085044000',
+        'buyer_name' => 'MDS Filter',
+        'buyer_npwp' => '0013179569054000',
+        'dpp' => 5_000_000,
+        'ppn' => 550_000,
+        'report_year' => 2026,
+        'report_month' => 7,
+        'user_id' => $user->id,
+    ]);
+
+    $complete = TaxFakturImport::create([
+        'faktur_number' => '01000COMPLETE00001',
+        'faktur_date' => '2026-07-11',
+        'direction' => TaxFakturImport::DIRECTION_KELUARAN,
+        'reporting_entity_id' => $entity->id,
+        'counterparty_id' => $customer->id,
+        'seller_name' => 'INDOSPORT',
+        'seller_npwp' => '0504330085044000',
+        'buyer_name' => 'MDS Filter',
+        'buyer_npwp' => '0013179569054000',
+        'dpp' => 2_000_000,
+        'ppn' => 220_000,
+        'report_year' => 2026,
+        'report_month' => 7,
+        'user_id' => $user->id,
+    ]);
+    $completeSell = Transaction::withoutEvents(fn () => Transaction::create([
+        'date' => '2026-07-11',
+        'type' => Transaction::TYPE_SELL,
+        'sender_type' => Addrbook::TYPE_WAREHOUSE,
+        'sender_id' => $warehouse->id,
+        'receiver_type' => Addrbook::TYPE_CUSTOMER,
+        'receiver_id' => $customer->id,
+        'invoice' => 'INV-COMPLETE',
+        'total' => Transaction::signedAmount(Transaction::TYPE_SELL, 2_000_000),
+        'real_total' => Transaction::signedAmount(Transaction::TYPE_SELL, 2_220_000),
+        'ppn' => 220_000,
+        'status' => Transaction::STATUS_COMPLETED,
+        'user_id' => $user->id,
+        'submit_type' => Transaction::SUBMIT_TYPE_MANUAL,
+    ]));
+    app(LinkFakturSells::class)->attach($complete, [$completeSell->id]);
+
+    $short = TaxFakturImport::create([
+        'faktur_number' => '01000SHORTDPP00001',
+        'faktur_date' => '2026-07-12',
+        'direction' => TaxFakturImport::DIRECTION_KELUARAN,
+        'reporting_entity_id' => $entity->id,
+        'counterparty_id' => $customer->id,
+        'seller_name' => 'INDOSPORT',
+        'seller_npwp' => '0504330085044000',
+        'buyer_name' => 'MDS Filter',
+        'buyer_npwp' => '0013179569054000',
+        'dpp' => 10_000_000,
+        'ppn' => 1_100_000,
+        'report_year' => 2026,
+        'report_month' => 7,
+        'user_id' => $user->id,
+    ]);
+    $shortSell = Transaction::withoutEvents(fn () => Transaction::create([
+        'date' => '2026-07-12',
+        'type' => Transaction::TYPE_SELL,
+        'sender_type' => Addrbook::TYPE_WAREHOUSE,
+        'sender_id' => $warehouse->id,
+        'receiver_type' => Addrbook::TYPE_CUSTOMER,
+        'receiver_id' => $customer->id,
+        'invoice' => 'INV-SHORT',
+        'total' => Transaction::signedAmount(Transaction::TYPE_SELL, 4_000_000),
+        'real_total' => Transaction::signedAmount(Transaction::TYPE_SELL, 4_440_000),
+        'ppn' => 440_000,
+        'status' => Transaction::STATUS_COMPLETED,
+        'user_id' => $user->id,
+        'submit_type' => Transaction::SUBMIT_TYPE_MANUAL,
+    ]));
+    app(LinkFakturSells::class)->attach($short, [$shortSell->id]);
+
+    $masukan = TaxFakturImport::create([
+        'faktur_number' => '01000MASUKAN000001',
+        'faktur_date' => '2026-07-13',
+        'direction' => TaxFakturImport::DIRECTION_MASUKAN,
+        'reporting_entity_id' => $entity->id,
+        'counterparty_id' => $supplier->id,
+        'seller_name' => 'Supplier Filter',
+        'seller_npwp' => '0013179569054999',
+        'buyer_name' => 'INDOSPORT',
+        'buyer_npwp' => '0504330085044000',
+        'dpp' => 3_000_000,
+        'ppn' => 330_000,
+        'report_year' => 2026,
+        'report_month' => 7,
+        'user_id' => $user->id,
+    ]);
+
+    return compact('entity', 'warehouse', 'customer', 'unlinked', 'complete', 'short', 'masukan', 'completeSell', 'shortSell');
+}
+
+it('scopes keluaran without linked sells and with short linked dpp', function () {
+    $data = seedKeluaranLinkFilterScenario($this->user);
+
+    $unlinked = TaxFakturImport::query()->keluaranWithoutLinkedSells()->pluck('faktur_number')->all();
+    expect($unlinked)->toContain('01000UNLINKED00001')
+        ->and($unlinked)->not->toContain('01000COMPLETE00001', '01000SHORTDPP00001', '01000MASUKAN000001');
+
+    $remaining = TaxFakturImport::query()->keluaranWithShortLinkedDpp()->pluck('faktur_number')->all();
+    expect($remaining)->toContain('01000SHORTDPP00001')
+        ->and($remaining)->not->toContain('01000UNLINKED00001', '01000COMPLETE00001', '01000MASUKAN000001');
+
+    $incomplete = TaxFakturImport::query()->keluaranNeedingSellCoverage()->pluck('faktur_number')->all();
+    expect($incomplete)->toContain('01000UNLINKED00001', '01000SHORTDPP00001')
+        ->and($incomplete)->not->toContain('01000COMPLETE00001', '01000MASUKAN000001');
+
+    $short = $data['short']->fresh(['sellTransactions']);
+    expect($short->linkedSellDpp())->toBe(4_000_000.0)
+        ->and($short->remainingSellDpp())->toBe(6_000_000.0)
+        ->and($short->hasShortLinkedDpp())->toBeTrue();
+
+    $complete = $data['complete']->fresh(['sellTransactions']);
+    expect($complete->remainingSellDpp())->toBe(0.0)
+        ->and($complete->hasShortLinkedDpp())->toBeFalse();
+});
+
+it('lists unlinked keluaran on the faktur index', function () {
+    seedKeluaranLinkFilterScenario($this->user);
+
+    $this->actingAs($this->user)
+        ->get(route('reports.tax.faktur.index', ['link' => TaxFakturImport::LINK_FILTER_UNLINKED]))
+        ->assertOk()
+        ->assertSee('data-testid="faktur-link-filter"', false)
+        ->assertSee('data-testid="faktur-filter-link-unlinked"', false)
+        ->assertSee('01000UNLINKED00001', false)
+        ->assertSee('Belum di-link', false)
+        ->assertDontSee('01000COMPLETE00001', false)
+        ->assertDontSee('01000SHORTDPP00001', false)
+        ->assertDontSee('01000MASUKAN000001', false);
+});
+
+it('lists keluaran whose linked dpp is still short of faktur dpp', function () {
+    seedKeluaranLinkFilterScenario($this->user);
+
+    $this->actingAs($this->user)
+        ->get(route('reports.tax.faktur.index', ['link' => TaxFakturImport::LINK_FILTER_REMAINING]))
+        ->assertOk()
+        ->assertSee('01000SHORTDPP00001', false)
+        ->assertSee('DPP kurang', false)
+        ->assertDontSee('01000UNLINKED00001', false)
+        ->assertDontSee('01000COMPLETE00001', false)
+        ->assertDontSee('01000MASUKAN000001', false);
+});
+
+it('lists keluaran that still need sell coverage', function () {
+    seedKeluaranLinkFilterScenario($this->user);
+
+    $this->actingAs($this->user)
+        ->get(route('reports.tax.faktur.index', ['link' => TaxFakturImport::LINK_FILTER_INCOMPLETE]))
+        ->assertOk()
+        ->assertSee('01000UNLINKED00001', false)
+        ->assertSee('01000SHORTDPP00001', false)
+        ->assertDontSee('01000COMPLETE00001', false)
+        ->assertDontSee('01000MASUKAN000001', false);
 });
