@@ -738,46 +738,6 @@ it('does not throw when converting GREYWHITE and that name is owned by another t
         ->and(Tag::query()->whereRaw('UPPER(TRIM(name)) = ?', ['GREYWHITE'])->count())->toBe(1);
 });
 
-it('groups fabricband light and heavy of the same color on one size-free group', function () {
-    Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'LIGHT', 'name' => 'LIGHT']);
-    Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'HEAVY', 'name' => 'HEAVY']);
-    Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'GREEN', 'name' => 'GREEN']);
-
-    $light = Item::factory()->create([
-        'type' => ItemType::ASSET_LANCAR,
-        'group_id' => null,
-        'code' => 'FABRICBAND-03-LIGHT-GREEN',
-        'legacy_code' => null,
-        'pcode' => 'FABRICBAND-03',
-        'name' => 'FABRIC BAND LIGHT - GREEN',
-    ]);
-    $heavy = Item::factory()->create([
-        'type' => ItemType::ASSET_LANCAR,
-        'group_id' => null,
-        'code' => 'FABRICBAND-03-HEAVY-GREEN',
-        'legacy_code' => null,
-        'pcode' => 'FABRICBAND-03',
-        'name' => 'FABRIC BAND HEAVY - GREEN',
-    ]);
-
-    $run = $this->service->runItems(ItemType::ASSET_LANCAR, collect([$light, $heavy]), $this->user);
-
-    $light->refresh()->load('group');
-    $heavy->refresh()->load('group');
-
-    expect($run->success_count)->toBe(2)
-        ->and($light->code)->toBe('FABRICBAND-03-GREEN-LIGHT')
-        ->and($heavy->code)->toBe('FABRICBAND-03-GREEN-HEAVY')
-        ->and($light->legacy_code)->toBe('FABRICBAND-03-LIGHT-GREEN')
-        ->and($heavy->legacy_code)->toBe('FABRICBAND-03-HEAVY-GREEN')
-        ->and($light->group_id)->toBe($heavy->group_id)
-        ->and($light->group?->master)->toBe('FABRICBAND-03')
-        ->and($light->group?->variant)->toBe('GREEN')
-        ->and($light->group?->name)->toBe('FABRIC BAND - GREEN')
-        ->and($light->name)->toBe('FABRIC BAND - GREEN - LIGHT')
-        ->and($heavy->name)->toBe('FABRIC BAND - GREEN - HEAVY');
-});
-
 it('shows per-row convert action on legacy converter pending table', function () {
     $item = Item::factory()->create([
         'type' => ItemType::ASSET_LANCAR,

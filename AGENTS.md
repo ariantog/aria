@@ -127,6 +127,21 @@ asks for a specific schema change:
   (integer FKs, no FK to partitioned `transactions`, index name length, etc.) live in **Production
   database safety** below.
 
+### Do NOT remove `items.legacy_code`
+
+`items.legacy_code` is a live production column. It stores the pre-conversion SKU so Jubelio
+order matching still finds the item after `items.code` is rewritten.
+
+- **Never drop, rename, or null out the column** — not in a migration `down()`, a "cleanup"
+  after mass convert, or a refactor that treats conversion as finished.
+- **Never wipe row values** (`UPDATE items SET legacy_code = NULL`, empty-string backfills,
+  or "legacy_code is redundant now" edits).
+- **When `code` changes**, preserve the old SKU in `legacy_code` if it is still empty
+  (`ItemService` / `LegacyItemConverterService::preserveLegacyCode()`). If `legacy_code` is
+  already set, do not overwrite it.
+- Keep it on `Item` `$fillable` / forms / Jubelio lookups. Display-only UI may hide it;
+  persistence must keep it.
+
 ### Do NOT change Alpine.js patterns
 
 Alpine in this codebase has known gotchas. **Match existing conventions** in the file you edit — do

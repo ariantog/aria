@@ -175,9 +175,9 @@ class LegacyItemIdentityParser
     }
 
     /**
-     * Canonical asset SKUs put size last (COLOR-SIZE). A few legacy families
-     * (fabric band) stored size first (SIZE-COLOR). Prefer the suffix so
-     * already-canonical codes stay stable.
+     * Canonical asset SKUs put size last (COLOR-SIZE). Some leftover codes
+     * stored size first (SIZE-COLOR). Prefer the suffix so already-canonical
+     * codes stay stable.
      */
     public function matchSizeFromRemainder(string $remainder): ?Tag
     {
