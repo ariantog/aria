@@ -35,6 +35,15 @@ $typeColors = [
 
     @include('items.partials.item-tabs', ['active' => 'Transaction'])
 
+    @include('items.partials.item-transaction-filters', [
+        'filters' => $filters ?? [],
+        'formAction' => $formAction,
+        'resetUrl' => $resetUrl,
+        'partyLookupUrl' => $partyLookupUrl,
+        'selectedSender' => $selectedSender ?? null,
+        'selectedReceiver' => $selectedReceiver ?? null,
+    ])
+
     <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
         <div class="overflow-x-auto">
             <table class="w-full text-left text-sm">
@@ -82,7 +91,7 @@ $typeColors = [
                         </td>
                     </tr>
                     @empty
-                    <tr><td colspan="8" class="px-6 py-12 text-center italic text-gray-500">No transactions found for this item.</td></tr>
+                    <tr><td colspan="8" class="px-6 py-12 text-center italic text-gray-500">{{ !empty($hasActiveFilters) ? 'No transactions match these filters.' : 'No transactions found for this item.' }}</td></tr>
                     @endforelse
                 </tbody>
             </table>

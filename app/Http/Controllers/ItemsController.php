@@ -4,8 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Enums\ItemBrand;
 use App\Enums\ItemType;
-use App\Enums\TransactionType;
 use App\Http\Requests\StoreItemRequest;
+use App\Models\Addrbook;
 use App\Models\Item;
 use App\Models\ItemGroup;
 use App\Models\Report;
@@ -13,13 +13,15 @@ use App\Models\Tag;
 use App\Models\TransactionDetail;
 use App\Models\WarehouseItem;
 use App\Services\ItemListFilter;
-use App\Services\ItemService;
 use App\Services\Items\ItemGroupHierarchyService;
 use App\Services\Items\ItemGroupParentExportService;
 use App\Services\Items\ItemIdentityBuilder;
 use App\Services\Items\LegacyItemConverterService;
+use App\Services\ItemService;
 use App\Services\ItemStatsService;
+use App\Services\ItemTransactionQueryService;
 use App\Services\JubelioService;
+use App\Support\LikeSearch;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 
@@ -484,23 +486,76 @@ class ItemsController extends Controller
         ]);
     }
 
-    public function itemTransactions(Request $request, Item $item)
+    public function itemTransactions(Request $request, Item $item, ItemTransactionQueryService $queryService)
     {
         Gate::authorize(Item::getPermissions()['view']);
 
-        $transactions = TransactionDetail::with(['transaction.sender', 'transaction.receiver'])
-            ->where('item_id', $item->id)
-            ->visibleToUser($request->user())
-            ->whereHas('transaction')
-            ->orderBy('transaction_id', 'desc')
+        $filters = $queryService->filtersFromRequest($request);
+        $isAsset = $item->type === ItemType::ASSET_LANCAR;
+        $formAction = $isAsset
+            ? route('assetlancar.transactions', $item)
+            : route('items.transactions', $item);
+
+        $transactions = $queryService->apply(
+            TransactionDetail::with(['transaction.sender', 'transaction.receiver'])
+                ->where('item_id', $item->id)
+                ->visibleToUser($request->user())
+                ->whereHas('transaction')
+                ->orderBy('transaction_id', 'desc'),
+            $request,
+        )
             ->paginate(50)
             ->withQueryString();
 
         return view('items.item-transactions', [
             'item' => $item->load('group'),
             'transactions' => $transactions,
-            'isAsset' => $item->type === ItemType::ASSET_LANCAR,
+            'isAsset' => $isAsset,
+            'filters' => $filters,
+            'formAction' => $formAction,
+            'resetUrl' => $formAction,
+            'partyLookupUrl' => route('items.party-lookup'),
+            'selectedSender' => $queryService->resolveSelectedParty($filters['sender'], $request->user()),
+            'selectedReceiver' => $queryService->resolveSelectedParty($filters['receiver'], $request->user()),
+            'hasActiveFilters' => $queryService->hasActiveFilters($filters),
         ]);
+    }
+
+    public function partyLookup(Request $request)
+    {
+        $permissions = Item::getPermissions();
+        abort_unless(
+            Gate::check($permissions['view']) || Gate::check($permissions['asset-lancar-view']),
+            403
+        );
+
+        $search = trim((string) $request->query('search', ''));
+        if (strlen($search) <= 2) {
+            return response()->json([]);
+        }
+
+        $pattern = LikeSearch::contains($search);
+        $results = Addrbook::query()
+            ->visibleToUser($request->user())
+            ->whereIn('customers.type', Addrbook::itemTransactionPartyTypes())
+            ->where(function ($q) use ($pattern) {
+                $q->where('customers.name', 'like', $pattern)
+                    ->orWhere('customers.id', 'like', $pattern);
+            })
+            ->leftJoin('customerstat', 'customers.id', '=', 'customerstat.customer_id')
+            ->select(
+                'customers.id',
+                'customers.name',
+                'customers.ppn',
+                'customers.type',
+                'customers.ledger_hint',
+                'customerstat.balance'
+            )
+            ->orderBy('customers.name')
+            ->limit(8)
+            ->get();
+
+        return response()->json($results);
     }
 
     public function itemStats(Request $request, Item $item)
