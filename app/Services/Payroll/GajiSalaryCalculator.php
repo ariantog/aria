@@ -2,6 +2,7 @@
 
 namespace App\Services\Payroll;
 
+use App\Models\AbsensiHari;
 use App\Models\Cuti;
 use App\Models\Karyawan;
 use App\Models\Setting;
@@ -10,6 +11,10 @@ use Carbon\Carbon;
 class GajiSalaryCalculator
 {
     public const WORKING_DAYS_PER_MONTH = 26;
+
+    public function __construct(
+        protected WorkCalendar $calendar,
+    ) {}
 
     /**
      * @return array{
@@ -41,6 +46,15 @@ class GajiSalaryCalculator
      *   grace_period_menit: int,
      *   jam_kerja_per_hari: int,
      *   lembur_multiplier: float,
+     *   jam_kerja_aktual: float,
+     *   jam_kerja_ekspektasi: float,
+     *   jam_lebih: float,
+     *   jam_kurang: float,
+     *   hari_kerja_absensi: int,
+     *   hari_cuti_kerja: int,
+     *   absensi_tanggal_awal: ?string,
+     *   absensi_tanggal_akhir: ?string,
+     *   absensi_has_data: bool,
      * }
      */
     public function calculate(
@@ -62,8 +76,9 @@ class GajiSalaryCalculator
         $limitTahunan = (int) Setting::getValue('batas_cuti_tahunan', 12);
         $limitSakit = (int) Setting::getValue('batas_cuti_sakit', 30);
         $gracePeriod = $this->gracePeriodFor($karyawan);
-        $jamKerjaPerHari = (int) Setting::getValue('payroll.jam_kerja_per_hari', 8);
+        $jamKerjaPerHari = $this->jamKerjaPerHari($karyawan);
         $lemburMultiplier = (float) Setting::getValue('payroll.lembur_multiplier', 1.5);
+        $attendance = $this->attendanceSummary($karyawan, $tahun, $bulan);
 
         $running = $this->runningCutiTotals($karyawan, $tahun, $bulan);
 
@@ -100,7 +115,7 @@ class GajiSalaryCalculator
         $defaultPotongTelat = $this->calculateTelatPotongan($karyawan, $menitTelat, $harianRate, $gracePeriod, $jamKerjaPerHari);
         $potongTelat = $overridePotongTelat ?? $defaultPotongTelat;
 
-        $jamLembur = $overrideJamLembur ?? 0.0;
+        $jamLembur = $overrideJamLembur ?? ($attendance['has_data'] ? $attendance['jam_lebih'] : 0.0);
         $defaultUpahLembur = $this->calculateUpahLembur($jamLembur, $harianRate, $jamKerjaPerHari, $lemburMultiplier);
         $upahLembur = $overrideUpahLembur ?? $defaultUpahLembur;
 
@@ -140,6 +155,93 @@ class GajiSalaryCalculator
             'grace_period_menit' => $gracePeriod,
             'jam_kerja_per_hari' => $jamKerjaPerHari,
             'lembur_multiplier' => $lemburMultiplier,
+            'jam_kerja_aktual' => $attendance['jam_kerja_aktual'],
+            'jam_kerja_ekspektasi' => $attendance['jam_kerja_ekspektasi'],
+            'jam_lebih' => $attendance['jam_lebih'],
+            'jam_kurang' => $attendance['jam_kurang'],
+            'hari_kerja_absensi' => $attendance['hari_kerja'],
+            'hari_cuti_kerja' => $attendance['hari_cuti_kerja'],
+            'absensi_tanggal_awal' => $attendance['tanggal_awal'],
+            'absensi_tanggal_akhir' => $attendance['tanggal_akhir'],
+            'absensi_has_data' => $attendance['has_data'],
+        ];
+    }
+
+    public function jamKerjaPerHari(Karyawan $karyawan): int
+    {
+        return $karyawan->jamKerjaPerHari();
+    }
+
+    /**
+     * Hours from fingerprint imports in this payroll month.
+     *
+     * Expected hours use only dates that appear in the import for this employee
+     * (so a one-week upload does not look like a full-month absence). Sundays and
+     * hari libur are not expected; punches on those days still add to actual hours
+     * and therefore offset a missed weekday.
+     *
+     * @return array{
+     *   has_data: bool,
+     *   tanggal_awal: ?string,
+     *   tanggal_akhir: ?string,
+     *   hari_terimpor: int,
+     *   hari_kerja: int,
+     *   hari_cuti_kerja: int,
+     *   jam_kerja_per_hari: int,
+     *   jam_kerja_aktual: float,
+     *   jam_kerja_ekspektasi: float,
+     *   jam_lebih: float,
+     *   jam_kurang: float
+     * }
+     */
+    public function attendanceSummary(Karyawan $karyawan, int $year, int $month): array
+    {
+        $jamKerja = $this->jamKerjaPerHari($karyawan);
+        $empty = [
+            'has_data' => false,
+            'tanggal_awal' => null,
+            'tanggal_akhir' => null,
+            'hari_terimpor' => 0,
+            'hari_kerja' => 0,
+            'hari_cuti_kerja' => 0,
+            'jam_kerja_per_hari' => $jamKerja,
+            'jam_kerja_aktual' => 0.0,
+            'jam_kerja_ekspektasi' => 0.0,
+            'jam_lebih' => 0.0,
+            'jam_kurang' => 0.0,
+        ];
+
+        $days = AbsensiHari::query()
+            ->where('karyawan_id', $karyawan->id)
+            ->whereYear('tanggal', $year)
+            ->whereMonth('tanggal', $month)
+            ->orderBy('tanggal')
+            ->get();
+
+        if ($days->isEmpty()) {
+            return $empty;
+        }
+
+        $dates = $days->map(fn (AbsensiHari $day) => $day->tanggal->toDateString())->all();
+        $workDates = $this->calendar->workDatesAmong($dates);
+        $leaveDays = $this->calendar->leaveWorkDaysAmong($karyawan, $dates);
+        $expectedDays = max(0, count($workDates) - $leaveDays);
+        $expectedHours = round($expectedDays * $jamKerja, 2);
+        $actualHours = round((float) $days->sum('jam'), 2);
+        $delta = round($actualHours - $expectedHours, 2);
+
+        return [
+            'has_data' => true,
+            'tanggal_awal' => $days->first()?->tanggal?->toDateString(),
+            'tanggal_akhir' => $days->last()?->tanggal?->toDateString(),
+            'hari_terimpor' => $days->count(),
+            'hari_kerja' => count($workDates),
+            'hari_cuti_kerja' => $leaveDays,
+            'jam_kerja_per_hari' => $jamKerja,
+            'jam_kerja_aktual' => $actualHours,
+            'jam_kerja_ekspektasi' => $expectedHours,
+            'jam_lebih' => max(0.0, $delta),
+            'jam_kurang' => max(0.0, -$delta),
         ];
     }
 
@@ -168,8 +270,7 @@ class GajiSalaryCalculator
         }
 
         $grace = $gracePeriod ?? $this->gracePeriodFor($karyawan);
-        $hoursPerDay = $jamKerjaPerHari ?? (int) Setting::getValue('payroll.jam_kerja_per_hari', 8);
-        $hoursPerDay = max(1, $hoursPerDay);
+        $hoursPerDay = max(1, $jamKerjaPerHari ?? $this->jamKerjaPerHari($karyawan));
 
         if ($menitTelat <= $grace) {
             return 0;
