@@ -126,6 +126,22 @@ class Addrbook extends Model
         ];
     }
 
+    /**
+     * Addrbook types allowed in item / asset-lancar transaction sender/receiver filters.
+     *
+     * @return list<int>
+     */
+    public static function itemTransactionPartyTypes(): array
+    {
+        return [
+            self::TYPE_CUSTOMER,
+            self::TYPE_RESELLER,
+            self::TYPE_WAREHOUSE,
+            self::TYPE_V_WAREHOUSE,
+            self::TYPE_SUPPLIER,
+        ];
+    }
+
     /** @return list<int> */
     public static function navigableTypeIds(): array
     {
