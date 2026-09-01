@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Cuti;
 use App\Models\Karyawan;
+use App\Services\Payroll\CutiSisaService;
 use App\Support\KaryawanVisibility;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -12,6 +13,10 @@ use Illuminate\Validation\Rule;
 
 class CutiController extends Controller
 {
+    public function __construct(
+        protected CutiSisaService $cutiSisa,
+    ) {}
+
     public function index(Request $request)
     {
         Gate::authorize(Karyawan::getPermissions()['cuti-list']);
@@ -93,6 +98,7 @@ class CutiController extends Controller
         $cuti = new Cuti;
         $this->fillCuti($cuti, $karyawan, $validated);
         $cuti->save();
+        $this->cutiSisa->applyCutiChange($karyawan, null, $cuti, $request->user());
 
         return redirect()
             ->route('karyawan.show', $karyawan)
@@ -119,22 +125,28 @@ class CutiController extends Controller
         $this->authorizeKaryawan($request->user(), $cuti->karyawan);
 
         $validated = $this->validatedCuti($request, false);
+        $before = $cuti->replicate();
         $this->fillCuti($cuti, $cuti->karyawan, $validated);
         $cuti->save();
+        $this->cutiSisa->applyCutiChange($cuti->karyawan, $before, $cuti, $request->user());
 
         return redirect()
             ->route('karyawan.show', $cuti->karyawan)
             ->with('success', 'Cuti berhasil diperbarui.');
     }
 
-    public function destroy(Cuti $cuti)
+    public function destroy(Request $request, Cuti $cuti)
     {
         Gate::authorize(Karyawan::getPermissions()['cuti-delete']);
         $cuti->load('karyawan');
-        $this->authorizeKaryawan(request()->user(), $cuti->karyawan);
+        $this->authorizeKaryawan($request->user(), $cuti->karyawan);
 
         $karyawan = $cuti->karyawan;
+        $snapshot = $cuti->replicate();
         $cuti->delete();
+        if ($karyawan) {
+            $this->cutiSisa->applyCutiChange($karyawan, $snapshot, null, $request->user());
+        }
 
         return redirect()
             ->route('cuti.index')

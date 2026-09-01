@@ -60,6 +60,8 @@ $tipeCuti = \App\Models\Cuti::$typeStyles;
                     <div><h4 class="text-sm font-medium text-gray-500">Privasi</h4><p class="mt-1 font-medium">{{ $karyawan->flag == 1 ? 'Publik' : 'Privasi' }}</p></div>
                 </div>
                 <div class="space-y-2 border-t border-gray-100 pt-4">
+                    <div class="flex justify-between"><span class="text-sm text-gray-500">Sisa cuti tahunan</span><span class="font-medium text-blue-700" data-testid="show-sisa-tahunan">{{ $cutiSisa['sisa_tahunan'] }} hari</span></div>
+                    <div class="flex justify-between"><span class="text-sm text-gray-500">Sisa cuti sakit</span><span class="font-medium text-amber-700" data-testid="show-sisa-sakit">{{ $cutiSisa['sisa_sakit'] }} hari</span></div>
                     <div class="flex justify-between"><span class="text-sm text-gray-500">Gaji Bulanan</span><span class="font-medium">{{ $fmt($karyawan->bulanan) }}</span></div>
                     <div class="flex justify-between"><span class="text-sm text-gray-500">Tarif Harian</span><span class="font-medium">{{ $fmt($karyawan->harian) }}</span></div>
                     <div class="flex justify-between"><span class="text-sm text-gray-500">Jam Kerja / Hari</span><span class="font-medium">{{ (int) ($karyawan->jam_kerja ?: 8) }} jam</span></div>
@@ -69,6 +71,66 @@ $tipeCuti = \App\Models\Cuti::$typeStyles;
         </div>
 
         <div class="space-y-6 md:col-span-2">
+            <div class="rounded-xl border border-gray-200 bg-white shadow-sm" id="sisa-cuti">
+                <div class="border-b border-gray-100 px-6 py-4">
+                    <h2 class="font-semibold">Sisa cuti {{ $cutiSisa['tahun'] }}</h2>
+                    <p class="text-sm text-gray-500">Sisa kuota yang masih bisa diambil. Untuk karyawan yang sudah cuti sebelum Agustus, set angka tersisa di sini. Setiap perubahan tercatat.</p>
+                </div>
+                <div class="p-6">
+                    @if($canEditCuti || $isSuper || ($user && $user->can('karyawan-edit')))
+                    <form method="POST" action="{{ route('karyawan.cuti-sisa.update', $karyawan) }}" class="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-4" data-testid="cuti-sisa-form">
+                        @csrf
+                        @method('PATCH')
+                        <input type="hidden" name="tahun" value="{{ $cutiSisa['tahun'] }}">
+                        <div class="space-y-1">
+                            <label class="text-xs font-medium uppercase text-gray-500">Sisa tahunan</label>
+                            <input type="number" name="sisa_tahunan" min="0" max="366" value="{{ old('sisa_tahunan', $cutiSisa['sisa_tahunan']) }}" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm" data-testid="sisa-tahunan">
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-xs font-medium uppercase text-gray-500">Sisa sakit</label>
+                            <input type="number" name="sisa_sakit" min="0" max="366" value="{{ old('sisa_sakit', $cutiSisa['sisa_sakit']) }}" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm" data-testid="sisa-sakit">
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-xs font-medium uppercase text-gray-500">Catatan</label>
+                            <input type="text" name="catatan" value="{{ old('catatan') }}" placeholder="Mis. sisa per 1 Agu" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
+                        </div>
+                        <div class="flex items-end">
+                            <button type="submit" class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Simpan sisa</button>
+                        </div>
+                    </form>
+                    @endif
+                    <h3 class="mb-2 text-sm font-medium text-gray-700">Riwayat perubahan</h3>
+                    <div class="max-h-[240px] overflow-auto">
+                        <table class="w-full text-sm">
+                            <thead class="sticky top-0 bg-gray-50 text-xs uppercase text-gray-500">
+                                <tr>
+                                    <th class="px-3 py-2 text-left">Waktu</th>
+                                    <th class="px-3 py-2 text-left">Oleh</th>
+                                    <th class="px-3 py-2 text-left">Sumber</th>
+                                    <th class="px-3 py-2 text-right">Tahunan</th>
+                                    <th class="px-3 py-2 text-right">Sakit</th>
+                                    <th class="px-3 py-2 text-left">Catatan</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @forelse($karyawan->cutiSisaLogs as $log)
+                                <tr class="border-t" data-testid="cuti-sisa-log-{{ $log->id }}">
+                                    <td class="px-3 py-2 text-gray-600">{{ $log->created_at?->translatedFormat('d M Y H:i') }}</td>
+                                    <td class="px-3 py-2 font-medium">{{ $log->editorName() }}</td>
+                                    <td class="px-3 py-2 text-gray-600">{{ $log->sourceLabel() }}</td>
+                                    <td class="px-3 py-2 text-right">{{ $log->sisa_tahunan_lama }} → {{ $log->sisa_tahunan_baru }}</td>
+                                    <td class="px-3 py-2 text-right">{{ $log->sisa_sakit_lama }} → {{ $log->sisa_sakit_baru }}</td>
+                                    <td class="px-3 py-2 text-gray-500">{{ $log->catatan ?: '—' }}</td>
+                                </tr>
+                                @empty
+                                <tr><td colspan="6" class="px-3 py-6 text-center text-gray-500">Belum ada perubahan sisa cuti.</td></tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
             <div class="rounded-xl border border-gray-200 bg-white shadow-sm">
                 <div class="border-b border-gray-100 px-6 py-4">
                     <h2 class="font-semibold">Riwayat Gaji</h2>

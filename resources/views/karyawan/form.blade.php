@@ -115,6 +115,27 @@ $waktuDibatasi = filter_var(old('waktu_dibatasi', $isEdit ? ($karyawan->waktu_di
                     </div>
                 </div>
 
+                <div class="space-y-4 border-t border-gray-100 pt-4">
+                    <h3 class="text-sm font-semibold text-gray-900">Sisa Cuti {{ $cutiSisa['tahun'] ?? now()->year }}</h3>
+                    <p class="text-xs text-gray-500">Karena pencatatan mulai Agustus, isi sisa kuota yang masih ada (bukan yang sudah terpakai sebelum sistem). Kuota penuh: tahunan {{ $cutiLimits['tahunan'] ?? 12 }} / sakit {{ $cutiLimits['sakit'] ?? 30 }}. Perubahan tercatat siapa yang mengedit.</p>
+                    <div class="grid grid-cols-1 gap-6 md:grid-cols-3">
+                        <div class="space-y-2">
+                            <label class="text-sm font-medium">Sisa Cuti Tahunan</label>
+                            <input type="number" name="sisa_tahunan" min="0" max="366" value="{{ old('sisa_tahunan', $cutiSisa['sisa_tahunan'] ?? 12) }}" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm" data-testid="sisa-tahunan">
+                            @error('sisa_tahunan')<p class="text-sm text-red-600">{{ $message }}</p>@enderror
+                        </div>
+                        <div class="space-y-2">
+                            <label class="text-sm font-medium">Sisa Cuti Sakit</label>
+                            <input type="number" name="sisa_sakit" min="0" max="366" value="{{ old('sisa_sakit', $cutiSisa['sisa_sakit'] ?? 30) }}" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm" data-testid="sisa-sakit">
+                            @error('sisa_sakit')<p class="text-sm text-red-600">{{ $message }}</p>@enderror
+                        </div>
+                        <div class="space-y-2">
+                            <label class="text-sm font-medium">Catatan perubahan</label>
+                            <input type="text" name="sisa_catatan" value="{{ old('sisa_catatan') }}" placeholder="Opsional, mis. sisa per 1 Agu" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
+                        </div>
+                    </div>
+                </div>
+
                 <div class="flex justify-end gap-2 border-t border-gray-100 pt-4">
                     <a href="{{ route('karyawan.index') }}" class="rounded-md border border-gray-300 px-4 py-2 text-sm hover:bg-gray-50">Batal</a>
                     <button type="submit" class="inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">

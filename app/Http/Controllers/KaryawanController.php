@@ -4,12 +4,17 @@ namespace App\Http\Controllers;
 
 use App\Models\Addrbook;
 use App\Models\Karyawan;
+use App\Services\Payroll\CutiSisaService;
 use App\Support\KaryawanVisibility;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 
 class KaryawanController extends Controller
 {
+    public function __construct(
+        protected CutiSisaService $cutiSisa,
+    ) {}
+
     public function index(Request $request)
     {
         Gate::authorize(Karyawan::getPermissions()['list']);
@@ -34,9 +39,16 @@ class KaryawanController extends Controller
         }
 
         $karyawans = $query->paginate(50)->withQueryString();
+        $sisaByKaryawan = $this->cutiSisa->leftoverMap(
+            $karyawans->pluck('id')->map(fn ($id) => (int) $id)->all(),
+            $now->year,
+        );
 
         return view('karyawan.index', [
             'karyawans' => $karyawans,
+            'sisaByKaryawan' => $sisaByKaryawan,
+            'cutiLimits' => $this->cutiSisa->defaultLimits(),
+            'cutiYear' => $now->year,
             'filters' => $request->only('name'),
             'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
@@ -48,9 +60,18 @@ class KaryawanController extends Controller
 
         $banks = Addrbook::where('type', Addrbook::TYPE_BANK)->get(['id', 'name']);
 
+        $limits = $this->cutiSisa->defaultLimits();
+
         return view('karyawan.form', [
             'banks' => $banks,
             'karyawan' => null,
+            'cutiLimits' => $limits,
+            'cutiSisa' => [
+                'sisa_tahunan' => $limits['tahunan'],
+                'sisa_sakit' => $limits['sakit'],
+                'exists' => false,
+                'tahun' => now()->year,
+            ],
         ]);
     }
 
@@ -59,7 +80,8 @@ class KaryawanController extends Controller
         Gate::authorize(Karyawan::getPermissions()['create']);
 
         $validated = $this->validatedKaryawan($request);
-        Karyawan::create($validated);
+        $karyawan = Karyawan::create($validated);
+        $this->syncCutiSisaFromRequest($request, $karyawan);
 
         return redirect()->route('karyawan.index')->with('success', 'Karyawan '.$request->nama.' berhasil ditambahkan.');
     }
@@ -74,6 +96,8 @@ class KaryawanController extends Controller
         return view('karyawan.form', [
             'karyawan' => $karyawan,
             'banks' => $banks,
+            'cutiLimits' => $this->cutiSisa->defaultLimits(),
+            'cutiSisa' => $this->cutiSisa->leftover($karyawan, now()->year),
         ]);
     }
 
@@ -83,6 +107,7 @@ class KaryawanController extends Controller
         $this->authorizeKaryawan($request->user(), $karyawan);
 
         $karyawan->update($this->validatedKaryawan($request, $karyawan));
+        $this->syncCutiSisaFromRequest($request, $karyawan);
 
         return redirect()->route('karyawan.index')->with('success', 'Karyawan '.$karyawan->nama.' berhasil diperbarui.');
     }
@@ -97,6 +122,7 @@ class KaryawanController extends Controller
             'gaji' => fn ($q) => $q->orderBy('tahun', 'desc')->orderBy('bulan', 'desc'),
             'cuti' => fn ($q) => $q->orderBy('tgl_mulai', 'desc'),
             'absensiHari' => fn ($q) => $q->orderByDesc('tanggal')->limit(40),
+            'cutiSisaLogs' => fn ($q) => $q->with('user')->orderByDesc('id')->limit(40),
         ]);
 
         $user = request()->user();
@@ -111,6 +137,8 @@ class KaryawanController extends Controller
 
         return view('karyawan.show', [
             'karyawan' => $karyawan,
+            'cutiSisa' => $this->cutiSisa->leftover($karyawan, now()->year),
+            'cutiLimits' => $this->cutiSisa->defaultLimits(),
             'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
     }
@@ -147,6 +175,9 @@ class KaryawanController extends Controller
             'waktu_dibatasi' => 'nullable|boolean',
             'jam_masuk' => 'nullable|date_format:H:i',
             'grace_period_menit' => 'nullable|integer|min:0|max:180',
+            'sisa_tahunan' => 'nullable|integer|min:0|max:366',
+            'sisa_sakit' => 'nullable|integer|min:0|max:366',
+            'sisa_catatan' => 'nullable|string|max:255',
         ], [], [
             'nama' => 'nama',
             'nama_absensi' => 'nama absensi',
@@ -160,6 +191,8 @@ class KaryawanController extends Controller
             'flag' => 'privasi',
             'jam_masuk' => 'jam masuk',
             'grace_period_menit' => 'grace period',
+            'sisa_tahunan' => 'sisa cuti tahunan',
+            'sisa_sakit' => 'sisa cuti sakit',
         ]);
 
         $validated['nama_absensi'] = filled($validated['nama_absensi'] ?? null)
@@ -177,6 +210,7 @@ class KaryawanController extends Controller
         $validated['jam_masuk'] = $validated['jam_masuk'] ?? '08:00';
         $validated['grace_period_menit'] = $validated['grace_period_menit'] ?? null;
         $validated['premi'] = 0;
+        unset($validated['sisa_tahunan'], $validated['sisa_sakit'], $validated['sisa_catatan']);
 
         if (! $canSetPrivate && (int) $validated['flag'] === KaryawanVisibility::FLAG_PRIVATE) {
             $validated['flag'] = KaryawanVisibility::FLAG_PUBLIC;
@@ -212,5 +246,21 @@ class KaryawanController extends Controller
                 'absen_id' => 'ID absensi sudah dipakai karyawan lain (pencarian tidak membedakan huruf besar/kecil).',
             ]);
         }
+    }
+
+    protected function syncCutiSisaFromRequest(Request $request, Karyawan $karyawan): void
+    {
+        if (! $request->exists('sisa_tahunan') && ! $request->exists('sisa_sakit')) {
+            return;
+        }
+
+        $this->cutiSisa->setManual(
+            $karyawan,
+            now()->year,
+            (int) $request->input('sisa_tahunan', $this->cutiSisa->defaultLimits()['tahunan']),
+            (int) $request->input('sisa_sakit', $this->cutiSisa->defaultLimits()['sakit']),
+            $request->user(),
+            filled($request->input('sisa_catatan')) ? trim((string) $request->input('sisa_catatan')) : 'Dari formulir karyawan',
+        );
     }
 }
