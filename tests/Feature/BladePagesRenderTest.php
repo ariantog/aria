@@ -90,6 +90,7 @@ it('renders the cash in page', function () {
         ->assertSee('Cash Entries', false)
         ->assertSee('data-testid="cash-entry-row"', false)
         ->assertSee('data-testid="cash-entry-ledger-hint"', false)
+        ->assertSee('cash-entry-invoice-', false)
         ->assertSee('sm:items-start', false);
 });
 
@@ -100,6 +101,7 @@ it('renders the cash out page', function () {
         ->assertSee('Cash Entries', false)
         ->assertSee('data-testid="cash-entry-row"', false)
         ->assertSee('data-testid="cash-entry-ledger-hint"', false)
+        ->assertSee('cash-entry-invoice-', false)
         ->assertSee('sm:items-start', false);
 });
 
