@@ -64,16 +64,17 @@ $filtersStorageKey = $isAsset ? 'aria-assetlancar-index-filters-open' : 'aria-it
 
     {{-- Table --}}
     <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-        <table class="w-full table-fixed text-left text-xs">
+        <div class="overflow-x-auto">
+        <table class="w-full min-w-[1180px] text-left text-sm">
             <thead class="border-b border-gray-200 bg-gray-50 text-[10px] uppercase tracking-wider text-gray-500">
                 <tr>
                     <th class="w-16 px-2 py-2.5 font-bold" x-show="showImage">Image</th>
-                    <th class="w-14 px-2 py-2.5 font-bold">Barcode</th>
-                    <th class="w-32 px-2 py-2.5 font-bold">Code</th>
-                    <th class="px-2 py-2.5 font-bold">Name</th>
-                    <th class="px-2 py-2.5 font-bold">Desc</th>
+                    <th class="w-16 px-2 py-2.5 font-bold">Barcode</th>
+                    <th class="whitespace-nowrap px-2 py-2.5 font-bold">Code</th>
+                    <th class="min-w-[16rem] px-2 py-2.5 font-bold">Name</th>
+                    <th class="min-w-[8rem] px-2 py-2.5 font-bold">Desc</th>
                     <th class="w-28 px-2 py-2.5 text-right font-bold">Price</th>
-                    <th class="w-40 px-2 py-2.5 font-bold">NB</th>
+                    <th class="min-w-[8rem] px-2 py-2.5 font-bold">NB</th>
                     <th class="w-16 px-2 py-2.5 text-right font-bold">Qty</th>
                     <th class="w-20 px-2 py-2.5 font-bold">Jubelio</th>
                     <th class="w-12 px-2 py-2.5 text-center font-bold"></th>
@@ -94,11 +95,11 @@ $filtersStorageKey = $isAsset ? 'aria-assetlancar-index-filters-open' : 'aria-it
                         <td class="px-2 py-2">
                             <a href="{{ $baseUrl }}/{{ $item->id }}" class="font-medium text-blue-600 hover:underline">{{ $item->id }}</a>
                         </td>
-                        <td class="truncate px-2 py-2 font-mono text-gray-600" title="{{ $item->code }}">{{ $item->code ?: '-' }}</td>
-                        <td class="truncate px-2 py-2 text-gray-800" title="{{ $item->getItemName() }}">{{ $item->getItemName() ?: '-' }}</td>
-                        <td class="truncate px-2 py-2 text-gray-700" title="{{ $item->description }}">{{ $item->description ?: '-' }}</td>
+                        <td class="whitespace-nowrap px-2 py-2 font-mono text-xs text-gray-800" data-testid="item-list-code-{{ $item->id }}">{{ $item->code ?: '-' }}</td>
+                        <td class="px-2 py-2 text-gray-800" data-testid="item-list-name-{{ $item->id }}">{{ $item->name ?: '-' }}</td>
+                        <td class="max-w-[14rem] px-2 py-2 text-gray-700" title="{{ $item->description }}">{{ $item->description ?: '-' }}</td>
                         <td class="whitespace-nowrap px-2 py-2 text-right font-bold tabular-nums text-gray-800">{{ $idr($item->price) }}</td>
-                        <td class="truncate px-2 py-2 text-gray-500" title="{{ $item->description2 }}">{{ $item->description2 ?: '--' }}</td>
+                        <td class="max-w-[14rem] px-2 py-2 text-gray-500" title="{{ $item->description2 }}">{{ $item->description2 ?: '--' }}</td>
                         <td class="whitespace-nowrap px-2 py-2 text-right font-bold tabular-nums text-emerald-600">{{ format_amount((float) ($item->active_qty ?? 0), 0) }}</td>
                         <td class="px-2 py-2">
                             @if($item->jubelio_item_id)
@@ -118,6 +119,7 @@ $filtersStorageKey = $isAsset ? 'aria-assetlancar-index-filters-open' : 'aria-it
                 @endforelse
             </tbody>
         </table>
+        </div>
         @include('partials.pagination', ['paginator' => $items, 'label' => $isAsset ? 'assets' : 'items'])
     </div>
 </div>

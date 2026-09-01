@@ -146,27 +146,50 @@ test('getItemName prefers non-empty group alias for manufactured items', functio
     expect($item->getItemName())->toBe('GROUP ALIAS NAME');
 });
 
-test('items index name column prefers group alias when available', function () {
+test('items index name column shows the item display name not the group alias', function () {
     if (! \Illuminate\Support\Facades\Schema::hasColumn('item_group', 'alias')) {
-        return;
+        \Illuminate\Support\Facades\Schema::table('item_group', function (\Illuminate\Database\Schema\Blueprint $table) {
+            $table->string('alias')->nullable();
+        });
     }
 
     $group = \App\Models\ItemGroup::factory()->create(['name' => 'GROUP PRODUCT NAME']);
     \Illuminate\Support\Facades\DB::table('item_group')
         ->where('id', $group->id)
-        ->update(['alias' => 'GROUP ALIAS NAME']);
+        ->update(['alias' => 'UNBEATABLE DUAL LAYER SHORTS - BLACK']);
 
-    Item::factory()->create([
+    $item = Item::factory()->create([
         'group_id' => $group->id,
-        'name' => 'ITEM DISPLAY NAME - NAVY - S',
-        'code' => 'AJD-ALIAS-DISPLAY-S',
+        'name' => 'UNBEATABLE DUAL LAYER SHORTS - GREEN - XL',
+        'code' => 'CLN-CX90113-05-XL',
     ]);
 
     $this->actingAs($this->user)
         ->get(route('items.index'))
         ->assertOk()
-        ->assertSee('GROUP ALIAS NAME', false)
-        ->assertDontSee('ITEM DISPLAY NAME - NAVY - S', false);
+        ->assertSee('UNBEATABLE DUAL LAYER SHORTS - GREEN - XL', false)
+        ->assertDontSee('UNBEATABLE DUAL LAYER SHORTS - BLACK', false)
+        ->assertSee('CLN-CX90113-05-XL', false)
+        ->assertDontSee('CLN-CX90113-05...', false)
+        ->assertSee('data-testid="item-list-name-'.$item->id.'"', false)
+        ->assertSee('data-testid="item-list-code-'.$item->id.'"', false);
+});
+
+test('asset lancar index shows the full sku without truncating the code column', function () {
+    $item = Item::factory()->create([
+        'type' => \App\Enums\ItemType::ASSET_LANCAR,
+        'name' => 'ELBOW STRAP - BLACKWHITE',
+        'code' => 'ELBOWSUPPORT-02-BLACKWHITE',
+        'pcode' => 'ELBOWSUPPORT-02',
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('assetlancar.index'))
+        ->assertOk()
+        ->assertSee('ELBOWSUPPORT-02-BLACKWHITE', false)
+        ->assertSee('ELBOW STRAP - BLACKWHITE', false)
+        ->assertSee('data-testid="item-list-code-'.$item->id.'"', false)
+        ->assertDontSee('ELBOWSUPPORT-02-BLACKW...', false);
 });
 
 test('items index desc filter searches item description only', function () {
