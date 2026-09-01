@@ -78,6 +78,23 @@ class Cuti extends Model
         return (int) $clipStart->diffInDays($clipEnd) + 1;
     }
 
+    public function daysInYear(int $year): int
+    {
+        $yearStart = Carbon::create($year, 1, 1)->startOfDay();
+        $yearEnd = Carbon::create($year, 12, 31)->startOfDay();
+        $start = Carbon::parse($this->tgl_mulai)->startOfDay();
+        $end = Carbon::parse($this->tgl_akhir)->startOfDay();
+
+        $clipStart = $start->greaterThan($yearStart) ? $start : $yearStart;
+        $clipEnd = $end->lessThan($yearEnd) ? $end : $yearEnd;
+
+        if ($clipStart->greaterThan($clipEnd)) {
+            return 0;
+        }
+
+        return (int) $clipStart->diffInDays($clipEnd) + 1;
+    }
+
     public function typeKey(): string
     {
         return match ((int) $this->tipe) {

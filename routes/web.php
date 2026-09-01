@@ -372,6 +372,7 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::delete('cuti/{cuti}', [\App\Http\Controllers\CutiController::class, 'destroy'])->name('cuti.destroy');
     Route::get('karyawan/{karyawan}/cuti/create', [\App\Http\Controllers\CutiController::class, 'create'])->name('karyawan.cuti.create');
     Route::post('karyawan/{karyawan}/cuti', [\App\Http\Controllers\CutiController::class, 'store'])->name('karyawan.cuti.store');
+    Route::patch('karyawan/{karyawan}/cuti-sisa', [\App\Http\Controllers\CutiSisaController::class, 'update'])->name('karyawan.cuti-sisa.update');
 
     Route::get('gaji', [\App\Http\Controllers\GajiController::class, 'index'])->name('gaji.index');
     Route::get('gaji/{gaji}/edit', [\App\Http\Controllers\GajiController::class, 'edit'])->name('gaji.edit');

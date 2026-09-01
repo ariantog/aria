@@ -35,10 +35,11 @@ $currentYear = $now->year;
         <a href="{{ route('karyawan.index') }}" class="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-50">Reset</a>
     </form>
 
-    <div class="flex flex-col gap-2 text-sm md:flex-row md:space-x-3">
-        <div class="flex items-center gap-2"><span class="h-3 w-3 rounded-full bg-blue-500"></span><span class="text-gray-600">Cuti Tahunan</span></div>
-        <div class="flex items-center gap-2"><span class="h-3 w-3 rounded-full bg-yellow-400"></span><span class="text-gray-600">Cuti Sakit</span></div>
-        <div class="flex items-center gap-2"><span class="h-3 w-3 rounded-full bg-red-500"></span><span class="text-gray-600">Cuti Mendadak</span></div>
+    <div class="flex flex-col gap-2 text-sm md:flex-row md:flex-wrap md:space-x-3">
+        <div class="flex items-center gap-2"><span class="h-3 w-3 rounded-full bg-blue-500"></span><span class="text-gray-600">Terpakai tahunan (gaji)</span></div>
+        <div class="flex items-center gap-2"><span class="h-3 w-3 rounded-full bg-yellow-400"></span><span class="text-gray-600">Terpakai sakit (gaji)</span></div>
+        <div class="flex items-center gap-2"><span class="h-3 w-3 rounded-full bg-red-500"></span><span class="text-gray-600">Cuti mendadak</span></div>
+        <div class="text-gray-500">Sisa T / S = kuota tersisa {{ $cutiYear }} (default {{ $cutiLimits['tahunan'] }}/{{ $cutiLimits['sakit'] }}). Isi sisa untuk orang yang sudah mengambil cuti sebelum Agustus.</div>
     </div>
 
     <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
@@ -50,7 +51,7 @@ $currentYear = $now->year;
                         <th class="px-6 py-4 font-bold tracking-wider">Kontak</th>
                         <th class="px-6 py-4 text-right font-bold tracking-wider text-gray-900">Gaji {{ $currentMonth }}/{{ $currentYear }}</th>
                         <th class="px-6 py-4 text-right font-bold tracking-wider text-gray-900">Upah Pokok {{ $currentMonth }}/{{ $currentYear }}</th>
-                        <th class="px-6 py-4 text-center font-bold tracking-wider text-gray-900">Cuti {{ $currentYear }}</th>
+                        <th class="px-6 py-4 text-center font-bold tracking-wider text-gray-900">Cuti / Sisa {{ $currentYear }}</th>
                         <th class="px-6 py-4 text-right font-bold italic tracking-wider text-gray-900">Aksi</th>
                     </tr>
                 </thead>
@@ -97,11 +98,38 @@ $currentYear = $now->year;
                                 </div>
                             </td>
                             <td class="px-6 py-4 text-center">
+                                @php
+                                    $sisa = $sisaByKaryawan[$item->id] ?? ['sisa_tahunan' => $cutiLimits['tahunan'], 'sisa_sakit' => $cutiLimits['sakit'], 'exists' => false];
+                                    $canEditSisa = $isSuper || $user->can('karyawan-cuti-edit') || $user->can('karyawan-edit');
+                                @endphp
                                 <div class="flex items-center justify-center gap-1.5">
-                                    <span title="Cuti Tahunan" class="flex h-7 w-7 items-center justify-center rounded-full bg-blue-500 text-xs font-medium text-white">{{ (int)($item->total_cuti_tahunan ?? 0) }}</span>
-                                    <span title="Cuti Sakit" class="flex h-7 w-7 items-center justify-center rounded-full bg-yellow-400 text-xs font-medium text-yellow-950">{{ (int)($item->total_cuti_sakit ?? 0) }}</span>
+                                    <span title="Cuti Tahunan terpakai (gaji)" class="flex h-7 w-7 items-center justify-center rounded-full bg-blue-500 text-xs font-medium text-white">{{ (int)($item->total_cuti_tahunan ?? 0) }}</span>
+                                    <span title="Cuti Sakit terpakai (gaji)" class="flex h-7 w-7 items-center justify-center rounded-full bg-yellow-400 text-xs font-medium text-yellow-950">{{ (int)($item->total_cuti_sakit ?? 0) }}</span>
                                     <span title="Cuti Mendadak" class="flex h-7 w-7 items-center justify-center rounded-full bg-red-500 text-xs font-medium text-white">{{ (int)($item->total_cuti_mendadak ?? 0) }}</span>
                                 </div>
+                                @if($canEditSisa)
+                                <form method="POST" action="{{ route('karyawan.cuti-sisa.update', $item) }}" class="mt-2 flex flex-wrap items-center justify-center gap-1.5" data-testid="cuti-sisa-row-{{ $item->id }}">
+                                    @csrf
+                                    @method('PATCH')
+                                    <input type="hidden" name="tahun" value="{{ $cutiYear }}">
+                                    <input type="hidden" name="redirect" value="index">
+                                    <label class="text-[10px] font-medium uppercase text-blue-700">Sisa T</label>
+                                    <input type="number" name="sisa_tahunan" min="0" max="366" value="{{ $sisa['sisa_tahunan'] }}"
+                                           class="w-14 rounded border border-blue-200 px-1 py-0.5 text-center text-xs" data-testid="sisa-tahunan-{{ $item->id }}">
+                                    <label class="text-[10px] font-medium uppercase text-amber-700">Sisa S</label>
+                                    <input type="number" name="sisa_sakit" min="0" max="366" value="{{ $sisa['sisa_sakit'] }}"
+                                           class="w-14 rounded border border-amber-200 px-1 py-0.5 text-center text-xs" data-testid="sisa-sakit-{{ $item->id }}">
+                                    <button type="submit" class="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-700 hover:bg-gray-200">Simpan</button>
+                                    @unless($sisa['exists'])
+                                    <span class="w-full text-[10px] text-gray-400">Belum diisi — default kuota</span>
+                                    @endunless
+                                </form>
+                                @else
+                                <div class="mt-1 text-[11px] text-gray-600" data-testid="cuti-sisa-row-{{ $item->id }}">
+                                    Sisa T {{ $sisa['sisa_tahunan'] }} · S {{ $sisa['sisa_sakit'] }}
+                                    @unless($sisa['exists'])<span class="text-gray-400">(default)</span>@endunless
+                                </div>
+                                @endif
                             </td>
                             <td class="px-6 py-4 text-right">
                                 <div class="flex justify-end gap-2 text-xs">
