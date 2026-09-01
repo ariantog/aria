@@ -10,7 +10,7 @@ class BackfillItemsQty extends Command
 {
     protected $signature = 'app:backfill-items-qty {--chunk=500 : Rows per chunk}';
 
-    protected $description = 'Backfill items.qty from per-warehouse stock (warehouse_item / warehouse_item).';
+    protected $description = 'Backfill items.qty from non-deleted physical warehouse stock (virtual excluded).';
 
     public function handle(): int
     {
@@ -30,12 +30,18 @@ class BackfillItemsQty extends Command
             return self::FAILURE;
         }
 
-        $this->info("Backfilling items.qty from {$warehouseTable}...");
+        $this->info("Backfilling items.qty from {$warehouseTable} (non-deleted warehouses, virtual excluded)...");
 
+        $physicalType = \App\Models\Addrbook::TYPE_WAREHOUSE;
         $updated = DB::update("
             UPDATE items
             SET qty = COALESCE((
-                SELECT SUM(quantity) FROM {$warehouseTable} wi WHERE wi.item_id = items.id
+                SELECT SUM(wi.quantity)
+                FROM {$warehouseTable} wi
+                INNER JOIN customers c ON c.id = wi.warehouse_id
+                WHERE wi.item_id = items.id
+                  AND c.type = {$physicalType}
+                  AND c.deleted_at IS NULL
             ), 0)
         ");
 

@@ -10,22 +10,40 @@ $breadcrumbs = [
     ['title' => 'Detail', 'href' => '#'],
 ];
 $warehouseItems = $activeWarehouseItems ?? collect();
+$virtualWarehouseItems = $virtualWarehouseItems ?? collect();
 $deletedWarehouseItems = $deletedWarehouseItems ?? collect();
 $activeStock = (float) ($activeStock ?? $warehouseItems->sum('quantity'));
+$virtualStock = (float) ($virtualStock ?? $virtualWarehouseItems->sum('quantity'));
 $deletedStock = (float) ($deletedStock ?? $deletedWarehouseItems->sum('quantity'));
+$canRecalculateQty = $canRecalculateQty ?? false;
+$recalculateQtyRoute = $isAsset ? route('assetlancar.recalculate-qty', $item) : route('items.recalculate-qty', $item);
+$storedQty = (float) $item->qty;
+$qtyOutOfSync = abs($storedQty - $activeStock) > 0.0001;
 $groupProductName = optional($item->group)->name ?? '-';
 $desc = optional($item->group)->description ?? ($item->description ?? '-');
 $nb = optional($item->group)->description2 ?? ($item->description2 ?? '-');
 @endphp
 
-<div class="p-4 sm:p-6" x-data="{ showZero: false, showDeletedWarehouses: false }">
+<div class="p-4 sm:p-6" x-data="{ showZero: false, showVirtualWarehouses: false, showDeletedWarehouses: false }">
     {{-- Header --}}
     <div class="mb-6 flex flex-col justify-between gap-4 md:flex-row md:items-end">
         <div>
             <h1 class="mb-1 text-2xl font-bold text-gray-900">Detail Item #{{ $item->code }}</h1>
             <p class="text-sm text-gray-500">Last updated {{ optional($item->updated_at)->format('d/m/Y H:i') ?? 'recently' }}</p>
         </div>
-        <div class="flex gap-3">
+        <div class="flex flex-wrap gap-3">
+            @if($canRecalculateQty)
+            <form method="POST" action="{{ $recalculateQtyRoute }}" class="inline">
+                @csrf
+                <button type="submit"
+                        id="recalculate-qty"
+                        data-testid="recalculate-qty"
+                        class="inline-flex items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-900 hover:bg-amber-100">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                    Recalculate qty
+                </button>
+            </form>
+            @endif
             <button type="button" onclick="window.print()" class="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
                 <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
                 Print Label
@@ -152,9 +170,17 @@ $nb = optional($item->group)->description2 ?? ($item->description2 ?? '-');
                         <input type="checkbox" x-model="showZero" class="rounded border-gray-300"> Show empty warehouses
                     </label>
                     <div class="text-xs font-medium text-gray-500">
-                        Active Stock:
-                        <span class="text-gray-900">{{ format_amount($activeStock, 0) }} Units</span>
-                        @if($deletedStock > 0)
+                        Available:
+                        <span class="text-gray-900" data-testid="available-stock">{{ format_amount($activeStock, 0) }} Units</span>
+                        @if($qtyOutOfSync)
+                            <span class="text-gray-400">·</span>
+                            <span class="text-amber-700" data-testid="stored-qty">Stored qty {{ format_amount($storedQty, 0) }}</span>
+                        @endif
+                        @if($virtualStock != 0)
+                            <span class="text-gray-400">·</span>
+                            <span class="text-violet-700">{{ format_amount($virtualStock, 0) }} in virtual warehouses</span>
+                        @endif
+                        @if($deletedStock != 0)
                             <span class="text-gray-400">·</span>
                             <span class="text-rose-700">{{ format_amount($deletedStock, 0) }} in deleted warehouses</span>
                         @endif
@@ -165,8 +191,26 @@ $nb = optional($item->group)->description2 ?? ($item->description2 ?? '-');
                 @include('items.partials.warehouse-stock-grid', [
                     'warehouseItems' => $warehouseItems,
                     'showZero' => 'showZero',
-                    'deleted' => false,
+                    'variant' => 'physical',
                 ])
+
+                @if($virtualWarehouseItems->isNotEmpty())
+                <div class="mt-6 border-t border-gray-100 pt-4">
+                    <button type="button"
+                            @click="showVirtualWarehouses = !showVirtualWarehouses"
+                            class="flex w-full items-center justify-between rounded-lg border border-violet-200 bg-violet-50 px-4 py-3 text-left text-sm font-semibold text-violet-800 hover:bg-violet-100">
+                        <span>Virtual Warehouses ({{ format_amount($virtualStock, 0) }} units, excluded from available)</span>
+                        <svg class="h-4 w-4 transition-transform" :class="showVirtualWarehouses ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    </button>
+                    <div x-show="showVirtualWarehouses" x-cloak class="mt-4">
+                        @include('items.partials.warehouse-stock-grid', [
+                            'warehouseItems' => $virtualWarehouseItems,
+                            'showZero' => 'showZero',
+                            'variant' => 'virtual',
+                        ])
+                    </div>
+                </div>
+                @endif
 
                 @if($deletedWarehouseItems->isNotEmpty())
                 <div class="mt-6 border-t border-gray-100 pt-4">
