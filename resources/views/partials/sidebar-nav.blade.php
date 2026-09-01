@@ -219,6 +219,9 @@
     if ($hasPerm('karyawan-gaji-list') || $isSuperAdmin) {
         $hrNavLabels[] = 'Gaji';
     }
+    if ($hasPerm('karyawan-cuti-list') || $isSuperAdmin) {
+        $hrNavLabels[] = 'Cuti';
+    }
 
     $sidebarFavorites = $_sidebar['favorites'] ?? [];
     $favoriteNavLabels = ['Favorites', ...collect($sidebarFavorites)->pluck('label')->all()];
@@ -698,8 +701,8 @@
 @endif
 
 {{-- ── SDM / Gaji ─────────────────────────────────────────────────────── --}}
-@if($hasPerm('karyawan-list') || $hasPerm('karyawan-gaji-list') || $isSuperAdmin)
-@php $hrActive = $isActive('/karyawan') || $isActive('/gaji'); @endphp
+@if($hasPerm('karyawan-list') || $hasPerm('karyawan-gaji-list') || $hasPerm('karyawan-cuti-list') || $isSuperAdmin)
+@php $hrActive = $isActive('/karyawan') || $isActive('/gaji') || $isActive('/cuti'); @endphp
 <div x-data="{ open: {{ $hrActive ? 'true' : 'false' }} }"
      class="mb-1"
      x-show="navGroupVisible(@js($hrNavLabels))"
@@ -717,6 +720,9 @@
         @endif
         @if($hasPerm('karyawan-gaji-list') || $isSuperAdmin)
         <a href="{{ route('gaji.index') }}" x-show="navLinkVisible('Gaji', 'SDM / Gaji')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/gaji') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Gaji Bulanan</a>
+        @endif
+        @if($hasPerm('karyawan-cuti-list') || $isSuperAdmin)
+        <a href="{{ route('cuti.index') }}" x-show="navLinkVisible('Cuti', 'SDM / Gaji')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/cuti') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Cuti</a>
         @endif
     </div>
 </div>

@@ -181,7 +181,7 @@ $defaults = [
                         <div class="space-y-2">
                             <label class="text-sm font-medium">Hari izin (potong harian)</label>
                             <input type="number" name="hari_izin" value="{{ $defaults['hari_izin'] }}" min="0" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
-                            <p class="text-xs text-gray-500">Izin disetujui tetap kena potong tarif harian.</p>
+                            <p class="text-xs text-gray-500">Terisi otomatis dari catatan izin di menu Cuti. Tetap bisa disesuaikan.</p>
                         </div>
                         <div class="space-y-2">
                             <label class="text-sm font-medium">Potongan harian (Rp)</label>

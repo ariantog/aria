@@ -363,6 +363,12 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
 
     // Modul Karyawan, Cuti, dan Gaji
     Route::resource('karyawan', \App\Http\Controllers\KaryawanController::class);
+    Route::get('cuti', [\App\Http\Controllers\CutiController::class, 'index'])->name('cuti.index');
+    Route::get('cuti/create', [\App\Http\Controllers\CutiController::class, 'create'])->name('cuti.create');
+    Route::post('cuti', [\App\Http\Controllers\CutiController::class, 'store'])->name('cuti.store');
+    Route::get('cuti/{cuti}/edit', [\App\Http\Controllers\CutiController::class, 'edit'])->name('cuti.edit');
+    Route::put('cuti/{cuti}', [\App\Http\Controllers\CutiController::class, 'update'])->name('cuti.update');
+    Route::delete('cuti/{cuti}', [\App\Http\Controllers\CutiController::class, 'destroy'])->name('cuti.destroy');
     Route::get('karyawan/{karyawan}/cuti/create', [\App\Http\Controllers\CutiController::class, 'create'])->name('karyawan.cuti.create');
     Route::post('karyawan/{karyawan}/cuti', [\App\Http\Controllers\CutiController::class, 'store'])->name('karyawan.cuti.store');
 
