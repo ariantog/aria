@@ -29,7 +29,8 @@ class CutiController extends Controller
             $search = (string) $request->query('karyawan');
             $query->whereHas('karyawan', function ($karyawanQuery) use ($search) {
                 $karyawanQuery->where('nama', 'like', "%{$search}%")
-                    ->orWhere('nama_absensi', 'like', "%{$search}%");
+                    ->orWhere('nama_absensi', 'like', "%{$search}%")
+                    ->orWhere('absen_id', 'like', "%{$search}%");
             });
         }
 

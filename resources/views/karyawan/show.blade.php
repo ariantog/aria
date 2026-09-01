@@ -29,6 +29,9 @@ $tipeCuti = \App\Models\Cuti::$typeStyles;
                 @if($karyawan->nama_absensi)
                 <p class="text-sm text-gray-500">Nama absensi: <span class="font-medium text-gray-700">{{ $karyawan->nama_absensi }}</span></p>
                 @endif
+                @if($karyawan->absen_id)
+                <p class="text-sm text-gray-500">ID absensi: <span class="font-medium text-gray-700">{{ $karyawan->absen_id }}</span></p>
+                @endif
             </div>
         </div>
         <div class="flex items-center gap-2">
@@ -59,6 +62,7 @@ $tipeCuti = \App\Models\Cuti::$typeStyles;
                 <div class="space-y-2 border-t border-gray-100 pt-4">
                     <div class="flex justify-between"><span class="text-sm text-gray-500">Gaji Bulanan</span><span class="font-medium">{{ $fmt($karyawan->bulanan) }}</span></div>
                     <div class="flex justify-between"><span class="text-sm text-gray-500">Tarif Harian</span><span class="font-medium">{{ $fmt($karyawan->harian) }}</span></div>
+                    <div class="flex justify-between"><span class="text-sm text-gray-500">Jam Kerja / Hari</span><span class="font-medium">{{ (int) ($karyawan->jam_kerja ?: 8) }} jam</span></div>
                     <div class="flex justify-between"><span class="text-sm text-gray-500">Jam Masuk</span><span class="font-medium">{{ ($karyawan->waktu_dibatasi ?? true) ? ($karyawan->jam_masuk ?? '08:00') : 'Fleksibel' }}</span></div>
                 </div>
             </div>
@@ -146,6 +150,40 @@ $tipeCuti = \App\Models\Cuti::$typeStyles;
                             </tr>
                             @empty
                             <tr><td colspan="{{ ($canEditCuti || $canDeleteCuti) ? 4 : 3 }}" class="p-4 text-center text-gray-500">Belum ada catatan cuti.</td></tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="rounded-xl border border-gray-200 bg-white shadow-sm">
+                <div class="border-b border-gray-100 px-6 py-4">
+                    <h2 class="font-semibold">Absensi terbaru</h2>
+                    <p class="text-sm text-gray-500">Jam kerja = jam pulang − jam masuk. Keterlambatan tidak dihitung.</p>
+                </div>
+                <div class="max-h-[300px] overflow-auto">
+                    <table class="w-full text-sm">
+                        <thead class="sticky top-0 z-10 bg-gray-100">
+                            <tr class="border-b">
+                                <th class="h-10 px-4 text-left font-medium text-gray-500">Tanggal</th>
+                                <th class="h-10 px-4 text-left font-medium text-gray-500">Masuk</th>
+                                <th class="h-10 px-4 text-left font-medium text-gray-500">Pulang</th>
+                                <th class="h-10 px-4 text-right font-medium text-gray-500">Jam</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @forelse($karyawan->absensiHari as $hari)
+                            <tr class="border-b hover:bg-gray-50">
+                                <td class="p-4">{{ $hari->tanggal->translatedFormat('d M Y') }}</td>
+                                <td class="p-4">{{ $hari->masuk ?: '—' }}</td>
+                                <td class="p-4">{{ $hari->pulang ?: '—' }}</td>
+                                <td class="p-4 text-right {{ $hari->incomplete ? 'text-amber-700' : '' }}">
+                                    {{ number_format((float) $hari->jam, 2) }}
+                                    @if($hari->incomplete)<span class="ml-1 text-xs">tidak lengkap</span>@endif
+                                </td>
+                            </tr>
+                            @empty
+                            <tr><td colspan="4" class="p-4 text-center text-gray-500">Belum ada absensi. Unggah file fingerprint di menu Absensi.</td></tr>
                             @endforelse
                         </tbody>
                     </table>

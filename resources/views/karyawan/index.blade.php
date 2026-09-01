@@ -67,6 +67,9 @@ $currentYear = $now->year;
                                     @if($item->nama_absensi)
                                     <div class="text-xs text-gray-500">Absensi: {{ $item->nama_absensi }}</div>
                                     @endif
+                                    @if($item->absen_id)
+                                    <div class="text-xs text-gray-500">ID mesin: {{ $item->absen_id }}</div>
+                                    @endif
                                     <div class="mt-1 flex items-center gap-2">
                                         <span class="text-xs text-gray-500 opacity-80">ID: {{ $item->id }}</span>
                                         @if($item->flag == 2)

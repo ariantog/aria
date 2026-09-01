@@ -380,6 +380,15 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::get('karyawan/{karyawan}/gaji/create', [\App\Http\Controllers\GajiController::class, 'create'])->name('karyawan.gaji.create');
     Route::post('karyawan/{karyawan}/gaji', [\App\Http\Controllers\GajiController::class, 'store'])->name('karyawan.gaji.store');
 
+    Route::get('hari-libur', [\App\Http\Controllers\HariLiburController::class, 'index'])->name('hari-libur.index');
+    Route::post('hari-libur', [\App\Http\Controllers\HariLiburController::class, 'store'])->name('hari-libur.store');
+    Route::delete('hari-libur/{hari_libur}', [\App\Http\Controllers\HariLiburController::class, 'destroy'])->name('hari-libur.destroy');
+
+    Route::get('absensi', [\App\Http\Controllers\AbsensiController::class, 'index'])->name('absensi.index');
+    Route::get('absensi/import', [\App\Http\Controllers\AbsensiController::class, 'create'])->name('absensi.create');
+    Route::post('absensi/import', [\App\Http\Controllers\AbsensiController::class, 'store'])->name('absensi.store');
+    Route::get('absensi/{absensi}', [\App\Http\Controllers\AbsensiController::class, 'show'])->name('absensi.show');
+
     Route::prefix('reports')->name('reports.')->group(function () {
         Route::get('/nett-cash-sby', \App\Http\Controllers\Reports\NettCashController::class)->name('nett-cash-sby');
         Route::get('/asset-tetap', \App\Http\Controllers\Reports\AssetTetapReportController::class)->name('asset-tetap');
