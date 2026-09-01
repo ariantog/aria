@@ -36,8 +36,14 @@ $waktuDibatasi = filter_var(old('waktu_dibatasi', $isEdit ? ($karyawan->waktu_di
                     <div class="space-y-2">
                         <label class="text-sm font-medium">Nama Absensi</label>
                         <input name="nama_absensi" value="{{ $val('nama_absensi') }}" placeholder="Nama di mesin fingerprint" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm" data-testid="nama-absensi">
-                        <p class="text-xs text-gray-500">Nama persis seperti di mesin fingerprint, untuk mencocokkan absensi.</p>
+                        <p class="text-xs text-gray-500">Nama persis seperti di mesin fingerprint (opsional, untuk referensi).</p>
                         @error('nama_absensi')<p class="text-sm text-red-600">{{ $message }}</p>@enderror
+                    </div>
+                    <div class="space-y-2">
+                        <label class="text-sm font-medium">ID Absensi</label>
+                        <input name="absen_id" value="{{ $val('absen_id') }}" placeholder="Core-001" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm" data-testid="absen-id">
+                        <p class="text-xs text-gray-500">ID di mesin fingerprint. Pencarian tidak membedakan huruf besar/kecil (Core-001 = core-001).</p>
+                        @error('absen_id')<p class="text-sm text-red-600">{{ $message }}</p>@enderror
                     </div>
                     <div class="space-y-2">
                         <label class="text-sm font-medium">No. Telepon</label>
@@ -82,7 +88,7 @@ $waktuDibatasi = filter_var(old('waktu_dibatasi', $isEdit ? ($karyawan->waktu_di
 
                 <div class="space-y-4 border-t border-gray-100 pt-4">
                     <h3 class="text-sm font-semibold text-gray-900">Kehadiran & Jam Kerja</h3>
-                    <div class="grid grid-cols-1 gap-6 md:grid-cols-3">
+                    <div class="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
                         <div class="space-y-2">
                             <label class="flex items-center gap-2 text-sm font-medium">
                                 <input type="checkbox" name="waktu_dibatasi" value="1" class="rounded border-gray-300" @checked($waktuDibatasi)>
@@ -94,6 +100,12 @@ $waktuDibatasi = filter_var(old('waktu_dibatasi', $isEdit ? ($karyawan->waktu_di
                             <label class="text-sm font-medium">Jam Masuk</label>
                             <input type="time" name="jam_masuk" value="{{ $val('jam_masuk', '08:00') }}" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
                             @error('jam_masuk')<p class="text-sm text-red-600">{{ $message }}</p>@enderror
+                        </div>
+                        <div class="space-y-2">
+                            <label class="text-sm font-medium">Jam Kerja / Hari</label>
+                            <input type="number" name="jam_kerja" value="{{ $val('jam_kerja', 8) }}" min="1" max="16" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm" data-testid="jam-kerja">
+                            <p class="text-xs text-gray-500">Default 8. Beberapa orang 7 atau 10. Keterlambatan tidak dihitung dari file absensi — hanya total jam (pulang − masuk).</p>
+                            @error('jam_kerja')<p class="text-sm text-red-600">{{ $message }}</p>@enderror
                         </div>
                         <div class="space-y-2">
                             <label class="text-sm font-medium">Grace Period (menit)</label>

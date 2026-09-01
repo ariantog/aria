@@ -28,7 +28,8 @@ class KaryawanController extends Controller
             $search = (string) $request->name;
             $query->where(function ($inner) use ($search) {
                 $inner->where('nama', 'LIKE', "%{$search}%")
-                    ->orWhere('nama_absensi', 'LIKE', "%{$search}%");
+                    ->orWhere('nama_absensi', 'LIKE', "%{$search}%")
+                    ->orWhere('absen_id', 'LIKE', "%{$search}%");
             });
         }
 
@@ -95,6 +96,7 @@ class KaryawanController extends Controller
             'bank',
             'gaji' => fn ($q) => $q->orderBy('tahun', 'desc')->orderBy('bulan', 'desc'),
             'cuti' => fn ($q) => $q->orderBy('tgl_mulai', 'desc'),
+            'absensiHari' => fn ($q) => $q->orderByDesc('tanggal')->limit(40),
         ]);
 
         $user = request()->user();
@@ -134,6 +136,8 @@ class KaryawanController extends Controller
         $validated = $request->validate([
             'nama' => 'required|string|max:255',
             'nama_absensi' => 'nullable|string|max:255',
+            'absen_id' => 'nullable|string|max:64',
+            'jam_kerja' => 'nullable|integer|min:1|max:16',
             'alamat' => 'required|string',
             'no_telp' => 'required|string|max:255',
             'bulanan' => 'required|numeric',
@@ -146,6 +150,8 @@ class KaryawanController extends Controller
         ], [], [
             'nama' => 'nama',
             'nama_absensi' => 'nama absensi',
+            'absen_id' => 'ID absensi',
+            'jam_kerja' => 'jam kerja',
             'alamat' => 'alamat',
             'no_telp' => 'telepon',
             'bulanan' => 'gaji bulanan',
@@ -159,6 +165,14 @@ class KaryawanController extends Controller
         $validated['nama_absensi'] = filled($validated['nama_absensi'] ?? null)
             ? trim((string) $validated['nama_absensi'])
             : null;
+        $validated['absen_id'] = filled($validated['absen_id'] ?? null)
+            ? trim((string) $validated['absen_id'])
+            : null;
+        $this->assertUniqueAbsenId($validated['absen_id'], $karyawan);
+        $validated['jam_kerja'] = (int) ($validated['jam_kerja'] ?? 8);
+        if ($validated['jam_kerja'] < 1) {
+            $validated['jam_kerja'] = 8;
+        }
         $validated['waktu_dibatasi'] = $request->boolean('waktu_dibatasi');
         $validated['jam_masuk'] = $validated['jam_masuk'] ?? '08:00';
         $validated['grace_period_menit'] = $validated['grace_period_menit'] ?? null;
@@ -179,6 +193,24 @@ class KaryawanController extends Controller
     {
         if (! KaryawanVisibility::canViewKaryawanRecord($user, $karyawan)) {
             abort(404);
+        }
+    }
+
+    protected function assertUniqueAbsenId(?string $absenId, ?Karyawan $karyawan = null): void
+    {
+        if (! filled($absenId)) {
+            return;
+        }
+
+        $exists = Karyawan::query()
+            ->whereRaw('LOWER(absen_id) = ?', [mb_strtolower($absenId)])
+            ->when($karyawan, fn ($query) => $query->where('id', '!=', $karyawan->id))
+            ->exists();
+
+        if ($exists) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'absen_id' => 'ID absensi sudah dipakai karyawan lain (pencarian tidak membedakan huruf besar/kecil).',
+            ]);
         }
     }
 }

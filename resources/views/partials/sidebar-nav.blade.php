@@ -222,6 +222,12 @@
     if ($hasPerm('karyawan-cuti-list') || $isSuperAdmin) {
         $hrNavLabels[] = 'Cuti';
     }
+    if ($hasPerm('karyawan-absensi-list') || $isSuperAdmin) {
+        $hrNavLabels[] = 'Absensi';
+    }
+    if ($hasPerm('karyawan-hari-libur-list') || $isSuperAdmin) {
+        $hrNavLabels[] = 'Hari Libur';
+    }
 
     $sidebarFavorites = $_sidebar['favorites'] ?? [];
     $favoriteNavLabels = ['Favorites', ...collect($sidebarFavorites)->pluck('label')->all()];
@@ -701,8 +707,8 @@
 @endif
 
 {{-- ── SDM / Gaji ─────────────────────────────────────────────────────── --}}
-@if($hasPerm('karyawan-list') || $hasPerm('karyawan-gaji-list') || $hasPerm('karyawan-cuti-list') || $isSuperAdmin)
-@php $hrActive = $isActive('/karyawan') || $isActive('/gaji') || $isActive('/cuti'); @endphp
+@if($hasPerm('karyawan-list') || $hasPerm('karyawan-gaji-list') || $hasPerm('karyawan-cuti-list') || $hasPerm('karyawan-absensi-list') || $hasPerm('karyawan-hari-libur-list') || $isSuperAdmin)
+@php $hrActive = $isActive('/karyawan') || $isActive('/gaji') || $isActive('/cuti') || $isActive('/absensi') || $isActive('/hari-libur'); @endphp
 <div x-data="{ open: {{ $hrActive ? 'true' : 'false' }} }"
      class="mb-1"
      x-show="navGroupVisible(@js($hrNavLabels))"
@@ -723,6 +729,12 @@
         @endif
         @if($hasPerm('karyawan-cuti-list') || $isSuperAdmin)
         <a href="{{ route('cuti.index') }}" x-show="navLinkVisible('Cuti', 'SDM / Gaji')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/cuti') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Cuti</a>
+        @endif
+        @if($hasPerm('karyawan-absensi-list') || $isSuperAdmin)
+        <a href="{{ route('absensi.index') }}" x-show="navLinkVisible('Absensi', 'SDM / Gaji')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/absensi') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Absensi Fingerprint</a>
+        @endif
+        @if($hasPerm('karyawan-hari-libur-list') || $isSuperAdmin)
+        <a href="{{ route('hari-libur.index') }}" x-show="navLinkVisible('Hari Libur', 'SDM / Gaji')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/hari-libur') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Hari Libur</a>
         @endif
     </div>
 </div>

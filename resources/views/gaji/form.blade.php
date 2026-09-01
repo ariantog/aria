@@ -37,6 +37,8 @@ $defaults = [
     'bonus' => old('bonus', $gaji->bonus ?? 0),
     'sanksi' => old('sanksi', $gaji->sanksi ?? 0),
     'privasi' => old('privasi', $gaji->flag ?? KaryawanVisibility::FLAG_PUBLIC),
+    'jam_kerja_aktual' => old('jam_kerja_aktual', $gaji->jam_kerja_aktual ?? $calculation['jam_kerja_aktual']),
+    'jam_kerja_ekspektasi' => old('jam_kerja_ekspektasi', $gaji->jam_kerja_ekspektasi ?? $calculation['jam_kerja_ekspektasi']),
 ];
 @endphp
 
@@ -47,7 +49,7 @@ $defaults = [
         </a>
         <div>
             <h1 class="text-2xl font-bold">{{ $mode === 'edit' ? 'Edit' : 'Buat' }} Gaji: {{ $karyawan->nama }}</h1>
-            <p class="text-sm text-gray-500">Formula: bulanan + (26 × harian) + bonus + lembur − potongan harian − potongan telat − sanksi. Semua angka bisa disesuaikan untuk sanggahan.</p>
+            <p class="text-sm text-gray-500">Formula: bulanan + (26 × harian) + bonus + lembur − potongan harian − potongan telat − sanksi. Jam absensi (pulang − masuk) mengisi lembur jika jam aktual &gt; jam wajib. Minggu / hari libur yang diisi absen menambah jam aktual tanpa menambah jam wajib (tukar hari).</p>
         </div>
     </div>
 
@@ -99,6 +101,25 @@ $defaults = [
                         <div class="flex justify-between"><span>Mendadak</span><span>{{ $calculation['cuti_mendadak'] }} hari</span></div>
                     </div>
                     <p class="mt-2 text-xs text-gray-500">Cuti tahunan & sakit dalam kuota tidak kena potong harian. Batas tahunan: {{ $calculation['limit_tahunan'] }} hari · sakit: {{ $calculation['limit_sakit'] }} hari.</p>
+                </div>
+                <div class="mt-2 border-t border-blue-200 pt-4">
+                    <h4 class="mb-2 font-medium">Jam kerja dari absensi</h4>
+                    @if($calculation['absensi_has_data'])
+                    <div class="space-y-1 text-gray-600">
+                        <div class="flex justify-between"><span>Periode impor</span><span>{{ \Carbon\Carbon::parse($calculation['absensi_tanggal_awal'])->format('d/m') }}–{{ \Carbon\Carbon::parse($calculation['absensi_tanggal_akhir'])->format('d/m') }}</span></div>
+                        <div class="flex justify-between"><span>Jam wajib ({{ $calculation['jam_kerja_per_hari'] }}j × hari kerja − cuti)</span><span>{{ number_format($calculation['jam_kerja_ekspektasi'], 2) }}</span></div>
+                        <div class="flex justify-between"><span>Jam aktual</span><span>{{ number_format($calculation['jam_kerja_aktual'], 2) }}</span></div>
+                        @if($calculation['jam_lebih'] > 0)
+                        <div class="flex justify-between text-green-700"><span>Lebih (usul lembur)</span><span>{{ number_format($calculation['jam_lebih'], 2) }} jam</span></div>
+                        @endif
+                        @if($calculation['jam_kurang'] > 0)
+                        <div class="flex justify-between text-amber-700"><span>Kurang</span><span>{{ number_format($calculation['jam_kurang'], 2) }} jam</span></div>
+                        <p class="text-xs text-gray-500">Jam kurang tidak dipotong otomatis (hindari dobel dengan cuti/izin). Sesuaikan potongan manual jika perlu.</p>
+                        @endif
+                    </div>
+                    @else
+                    <p class="text-xs text-gray-500">Belum ada impor absensi untuk bulan ini. Unggah file fingerprint di menu Absensi.</p>
+                    @endif
                 </div>
                 <div class="mt-2 border-t border-red-100 pt-4">
                     <h4 class="mb-2 font-medium text-red-600">Potongan otomatis</h4>
@@ -186,6 +207,18 @@ $defaults = [
                         <div class="space-y-2">
                             <label class="text-sm font-medium">Potongan harian (Rp)</label>
                             <input type="number" name="potong_harian" x-model.number="potongHarian" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 gap-4 border-t pt-4 sm:grid-cols-2">
+                        <div class="space-y-2">
+                            <label class="text-sm font-medium">Jam kerja aktual</label>
+                            <input type="number" name="jam_kerja_aktual" step="0.01" min="0" value="{{ $defaults['jam_kerja_aktual'] }}" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm" data-testid="jam-kerja-aktual">
+                        </div>
+                        <div class="space-y-2">
+                            <label class="text-sm font-medium">Jam kerja wajib</label>
+                            <input type="number" name="jam_kerja_ekspektasi" step="0.01" min="0" value="{{ $defaults['jam_kerja_ekspektasi'] }}" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm" data-testid="jam-kerja-ekspektasi">
+                            <p class="text-xs text-gray-500">Wajib = hari kerja di periode impor (Senin–Sabtu, minus hari libur &amp; cuti) × jam kerja karyawan. Kerja Minggu menambah aktual saja.</p>
                         </div>
                     </div>
 
