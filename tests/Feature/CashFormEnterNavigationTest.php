@@ -18,6 +18,7 @@ it('renders cash in and cash out with Enter navigation hooks', function (string 
         ->assertSee('rowTotalFilled', false)
         ->assertSee('isConfirmedEnterKey', false)
         ->assertSee('claimEnterFieldNavigation', false)
+        ->assertSee('enterFieldNavClaimMs', false)
         ->assertSee('if (!this.rowTotalFilled(this.form.items[idx])) return true;', false)
         ->getContent();
 

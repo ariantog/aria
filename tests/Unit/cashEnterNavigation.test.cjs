@@ -33,7 +33,18 @@ function extractFunction(source, name) {
     throw new Error(`unclosed function ${name}`);
 }
 
-global.window = { _suppressFieldNavUntil: 0 };
+const DESKTOP_CHROME_UA = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+const ANDROID_CHROME_UA = 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36';
+
+global.window = {
+    _suppressFieldNavUntil: 0,
+    matchMedia: () => ({ matches: false }),
+};
+Object.defineProperty(globalThis, 'navigator', {
+    configurable: true,
+    writable: true,
+    value: { userAgent: DESKTOP_CHROME_UA },
+});
 
 const helperNames = [
     'normalizeNavigationKey',
@@ -41,6 +52,7 @@ const helperNames = [
     'isConfirmedEnterKey',
     'suppressFieldNavigation',
     'isFieldNavigationSuppressed',
+    'enterFieldNavClaimMs',
     'claimEnterFieldNavigation',
 ];
 
@@ -52,6 +64,19 @@ eval(
 
 function resetNavClock() {
     global.window._suppressFieldNavUntil = 0;
+}
+
+function setClient(kind) {
+    const android = kind === 'android';
+    Object.defineProperty(globalThis, 'navigator', {
+        configurable: true,
+        writable: true,
+        value: { userAgent: android ? ANDROID_CHROME_UA : DESKTOP_CHROME_UA },
+    });
+    global.window.matchMedia = (query) => ({
+        matches: android && String(query).includes('coarse'),
+    });
+    resetNavClock();
 }
 
 function makeCashNav(total = null) {
@@ -123,8 +148,18 @@ test('IME 229 with e.code Enter is not a confirmed keydown Enter', () => {
     assert.equal(isConfirmedEnterKey(realEnter), true);
 });
 
+test('desktop Chrome claim window is 0 so sequential Enters are not locked', () => {
+    setClient('desktop');
+    assert.equal(enterFieldNavClaimMs(), 0);
+});
+
+test('Android Chrome claim window collapses duplicate Enter pairs', () => {
+    setClient('android');
+    assert.equal(enterFieldNavClaimMs(), 300);
+});
+
 test('one Android Chrome Enter on invoice advances only to note', () => {
-    resetNavClock();
+    setClient('android');
     const nav = makeCashNav();
     nav.keydown(0, 'invoice', imeEnterDown);
     nav.keydown(0, 'invoice', realEnter);
@@ -132,8 +167,8 @@ test('one Android Chrome Enter on invoice advances only to note', () => {
     assert.deepEqual(nav.dests, ['note']);
 });
 
-test('duplicate Enter after focus moves does not skip note', () => {
-    resetNavClock();
+test('Android duplicate Enter after focus moves does not skip note', () => {
+    setClient('android');
     const nav = makeCashNav();
     nav.keydown(0, 'invoice', realEnter);
     nav.keyup(0, 'invoice', realEnter);
@@ -142,8 +177,26 @@ test('duplicate Enter after focus moves does not skip note', () => {
     assert.deepEqual(nav.dests, ['note']);
 });
 
+test('desktop Chrome sequential Enters move invoice → note → total', () => {
+    setClient('desktop');
+    const nav = makeCashNav();
+    nav.keydown(0, 'invoice', realEnter);
+    nav.keyup(0, 'invoice', realEnter);
+    nav.keydown(0, 'note', realEnter);
+    nav.keyup(0, 'note', realEnter);
+    assert.deepEqual(nav.dests, ['note', 'total']);
+});
+
+test('desktop Chrome one Enter on invoice stays on note', () => {
+    setClient('desktop');
+    const nav = makeCashNav();
+    nav.keydown(0, 'invoice', realEnter);
+    nav.keyup(0, 'invoice', realEnter);
+    assert.deepEqual(nav.dests, ['note']);
+});
+
 test('empty total Enter does not add a row', () => {
-    resetNavClock();
+    setClient('desktop');
     const nav = makeCashNav(null);
     nav.keydown(0, 'total', realEnter);
     nav.keyup(0, 'total', realEnter);
@@ -152,7 +205,7 @@ test('empty total Enter does not add a row', () => {
 });
 
 test('zero total Enter does not add a row', () => {
-    resetNavClock();
+    setClient('desktop');
     const nav = makeCashNav(0);
     nav.keydown(0, 'total', realEnter);
     nav.keyup(0, 'total', realEnter);
@@ -160,7 +213,7 @@ test('zero total Enter does not add a row', () => {
 });
 
 test('filled total Enter advances to the next row', () => {
-    resetNavClock();
+    setClient('desktop');
     const nav = makeCashNav(15000);
     nav.keydown(0, 'total', realEnter);
     nav.keyup(0, 'total', realEnter);
@@ -169,6 +222,7 @@ test('filled total Enter advances to the next row', () => {
 
 test('cash form keeps the Android Enter guards in source', () => {
     assert.match(cashBlade, /isConfirmedEnterKey\(e\)/);
+    assert.match(appBlade, /enterFieldNavClaimMs/);
     assert.match(cashBlade, /claimEnterFieldNavigation\(\)/);
     assert.match(cashBlade, /rowTotalFilled/);
     assert.match(cashBlade, /_queueFieldFocus/);
