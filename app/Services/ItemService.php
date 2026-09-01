@@ -130,6 +130,12 @@ class ItemService
             $itemType = $sampleItem
                 ? $this->resolveItemType($sampleItem->getAttributes()['type'] ?? $sampleItem->type)
                 : ItemType::ITEM;
+            $productName = $this->identityBuilder->productDisplayName(
+                $itemType,
+                $productName,
+                (string) ($group->variant ?? ''),
+                (string) ($group->master ?? ''),
+            );
             $storedName = $this->identityBuilder->uniqueStoredGroupName(
                 $this->identityBuilder->storedGroupName(
                     $itemType,
@@ -295,10 +301,11 @@ class ItemService
             $this->preserveLegacyCode($item, $code);
         }
 
-        $displayName = $productName ?? $this->identityBuilder->productDisplayName(
+        $displayName = $this->identityBuilder->productDisplayName(
             $itemType,
-            (string) $group->name,
+            $productName ?? (string) $group->name,
             (string) ($group->variant ?? ''),
+            (string) ($group->master ?? ''),
         );
 
         $item->pcode = $pcode;
@@ -375,7 +382,18 @@ class ItemService
         $name = trim((string) ($input->product_name ?? $input->alias ?? $input->name ?? ''));
 
         if ($name !== '') {
-            return $name;
+            return $this->identityBuilder->productDisplayName(
+                $type,
+                $name,
+                (string) ($existing?->variant ?? ''),
+                (string) ($existing?->master ?? ''),
+            );
+        }
+
+        $fromPcode = $this->productNameForPcode($type, $pcode);
+
+        if ($fromPcode !== null) {
+            return $fromPcode;
         }
 
         if ($type === ItemType::ITEM) {
@@ -385,18 +403,70 @@ class ItemService
         $fallback = trim((string) ($existing?->name ?? ''));
 
         if ($fallback !== '') {
-            return $fallback;
+            return $this->identityBuilder->productDisplayName(
+                $type,
+                $fallback,
+                (string) ($existing?->variant ?? ''),
+                (string) ($existing?->master ?? ''),
+            );
         }
 
         if ($item !== null) {
             $derived = $this->deriveLegacyAssetProductName($item);
 
             if ($derived !== '') {
-                return $derived;
+                return $this->identityBuilder->productDisplayName($type, $derived, '', '');
             }
         }
 
         throw new Exception('Product name is required.');
+    }
+
+    /**
+     * Bare product title already stored for this pcode, if any.
+     */
+    public function productNameForPcode(ItemType $type, string $pcode): ?string
+    {
+        $pcode = strtoupper(trim($pcode));
+
+        if ($pcode === '') {
+            return null;
+        }
+
+        $item = Item::query()
+            ->where('type', $type)
+            ->whereRaw('UPPER(TRIM(pcode)) = ?', [$pcode])
+            ->whereNull('deleted_at')
+            ->with('group')
+            ->orderByDesc('id')
+            ->first();
+
+        if (! $item) {
+            return null;
+        }
+
+        if ($item->group) {
+            $fromGroup = $this->identityBuilder->productDisplayName(
+                $type,
+                (string) $item->group->name,
+                (string) ($item->group->variant ?? ''),
+                (string) ($item->group->master ?? ''),
+            );
+
+            if ($fromGroup !== '' && $fromGroup !== $pcode) {
+                return $fromGroup;
+            }
+        }
+
+        $fromItem = $type === ItemType::ASSET_LANCAR
+            ? $this->deriveLegacyAssetProductName($item)
+            : strtoupper(trim(explode(' - ', (string) $item->name, 2)[0]));
+
+        if ($fromItem === '' || $fromItem === $pcode) {
+            return null;
+        }
+
+        return $this->identityBuilder->productDisplayName($type, $fromItem, '', '');
     }
 
     /**
@@ -471,6 +541,7 @@ class ItemService
             $sampleType,
             (string) $group->name,
             (string) ($group->variant ?? ''),
+            (string) ($group->master ?? ''),
         );
 
         foreach ($items as $item) {

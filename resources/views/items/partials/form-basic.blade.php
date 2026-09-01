@@ -16,28 +16,11 @@
     </div>
     <div class="grid grid-cols-1 gap-6 p-5 md:grid-cols-2">
         <div>
-            <label class="mb-1 block text-sm font-medium text-gray-700">
-                Product Name
-                @if($isAsset)<span class="text-red-500">*</span>@endif
-            </label>
-            <input type="text" name="product_name" x-model="form.product_name" value="{{ $fi['product_name'] }}"
-                   @unless($isAsset) :placeholder="(form.pcode || '').toUpperCase() || 'CX90233-23'" @endunless
-                   placeholder="{{ $isAsset ? 'e.g. Boxing Gloves' : '' }}"
-                   @if($isAsset) required @endif
-                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 @error('product_name') border-red-500 @enderror">
-            @error('product_name')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
-            <p class="mt-1 text-xs text-gray-500">
-                @if($isAsset)
-                    Stored on the item group; sizes/colors append to this in the display name.
-                @else
-                    Optional until the product is named. Leave blank to use the pcode (e.g. CX93249-03) as a placeholder.
-                @endif
-            </p>
-        </div>
-        <div>
-            <label class="mb-1 block text-sm font-medium text-gray-700">Production Code (PCode) <span class="text-red-500">*</span></label>
-            <input type="text" name="pcode" x-model="form.pcode" value="{{ $fi['pcode'] }}" required
+            <label class="mb-1 block text-sm font-medium text-gray-700" for="item-form-pcode">Production Code (PCode) <span class="text-red-500">*</span></label>
+            <input type="text" id="item-form-pcode" name="pcode" x-model="form.pcode" value="{{ $fi['pcode'] }}" required
+                   data-testid="item-form-pcode"
                    placeholder="{{ $pcodePlaceholder }}" list="{{ $isAsset ? 'asset-pcode-suggestions' : '' }}"
+                   @input="onPcodeInput()" @blur="onPcodeBlur()" @change="onPcodeBlur()"
                    class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono focus:border-blue-500 focus:ring-1 focus:ring-blue-500 @error('pcode') border-red-500 @enderror">
             @if($isAsset && !empty($assetPcodeSuggestions ?? []))
             <datalist id="asset-pcode-suggestions">
@@ -49,10 +32,25 @@
             @error('pcode')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
             <p class="mt-1 text-xs text-gray-500">
                 @if($isAsset)
-                    Format: <span class="font-mono">TYPE-VARIANT</span> (e.g. GLOVE-01). Type manually or pick a suggestion.
+                    Format: <span class="font-mono">TYPE-VARIANT</span> (e.g. GLOVE-01). Enter pcode first; the product name fills in when it already exists.
                 @else
-                    Format: <span class="font-mono">XX12345-23</span> — color number is in the pcode suffix.
+                    Format: <span class="font-mono">XX12345-23</span> — color number is in the pcode suffix. Existing pcodes load the product name.
                 @endif
+            </p>
+        </div>
+        <div>
+            <label class="mb-1 block text-sm font-medium text-gray-700" for="item-form-product-name">
+                Product Name
+                @if($isAsset)<span class="text-red-500">*</span>@endif
+            </label>
+            <input type="text" id="item-form-product-name" name="product_name" x-model="form.product_name" value="{{ $fi['product_name'] }}"
+                   data-testid="item-form-product-name"
+                   @unless($isAsset) :placeholder="(form.pcode || '').toUpperCase() || 'CX90233-23'" @endunless
+                   placeholder="{{ $isAsset ? 'e.g. Elbow Strap' : '' }}"
+                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 @error('product_name') border-red-500 @enderror">
+            @error('product_name')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
+            <p class="mt-1 text-xs text-gray-500">
+                SKU display name is <span class="font-mono">name - color - size</span>. All-size is <span class="font-mono">name - color</span>.
             </p>
         </div>
         <div>

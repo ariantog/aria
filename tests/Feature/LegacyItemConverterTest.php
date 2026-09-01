@@ -679,6 +679,7 @@ it('converts ELBOWSUPPORT-02-BLACKWHITE when another group already uses the same
         ->and($item->group->variant)->toBe('BLACKWHITE')
         ->and($item->group->name)->toBe('ELBOW STRAP - BLACKWHITE (ELBOWSUPPORT-02)')
         ->and(strlen((string) $item->group->name))->toBeLessThanOrEqual(ItemIdentityBuilder::GROUP_NAME_MAX_LENGTH)
+        ->and($item->name)->toBe('ELBOW STRAP - BLACKWHITE')
         ->and($item->code)->toBe('ELBOWSUPPORT-02-BLACKWHITE');
 });
 

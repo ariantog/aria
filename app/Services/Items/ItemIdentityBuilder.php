@@ -127,15 +127,23 @@ class ItemIdentityBuilder
     }
 
     /**
-     * Display name: {group.name} - {warna code} - {size code}
-     * e.g. SLASH RUNNING SHIRT - BLUE - S
+     * Display name: {product title} - {warna} - {size}
+     * All-size omits the size segment: {product title} - {warna}
+     * e.g. ELBOW STRAP - BLACKWHITE, SLASH RUNNING SHIRT - BLUE - S
      */
     public function buildName(string $groupName, ?Tag $warnaTag, ?Tag $sizeTag): string
     {
-        $parts = [strtoupper(trim($groupName))];
+        $warna = $warnaTag ? strtoupper(trim((string) $warnaTag->code)) : '';
+        $product = $this->productDisplayName(
+            ItemType::ASSET_LANCAR,
+            $groupName,
+            $warna,
+        );
 
-        if ($warnaTag) {
-            $parts[] = strtoupper($warnaTag->code);
+        $parts = [$product];
+
+        if ($warna !== '') {
+            $parts[] = $warna;
         }
 
         if ($sizeTag && ! $this->isAllSize($sizeTag)) {
@@ -234,21 +242,33 @@ class ItemIdentityBuilder
 
     /**
      * Reverse storedGroupName for item display names (buildName expects the bare product title).
+     *
+     * Unique item_group.name values may include a color segment and a
+     * uniqueness suffix, e.g. "ELBOW STRAP - BLACKWHITE (ELBOWSUPPORT-02)".
+     * Those must not leak into the item display name.
      */
-    public function productDisplayName(ItemType $type, string $storedGroupName, string $groupVariant): string
-    {
-        $storedGroupName = strtoupper(trim($storedGroupName));
+    public function productDisplayName(
+        ItemType $type,
+        string $storedGroupName,
+        string $groupVariant,
+        string $master = '',
+    ): string {
+        $name = $this->stripUniquenessSuffix(strtoupper(trim($storedGroupName)), strtoupper(trim($master)));
         $groupVariant = strtoupper(trim($groupVariant));
 
-        if ($type === ItemType::ASSET_LANCAR && $groupVariant !== '') {
+        if ($groupVariant !== '') {
             $suffix = ' - '.$groupVariant;
 
-            if (str_ends_with($storedGroupName, $suffix)) {
-                return substr($storedGroupName, 0, -strlen($suffix));
+            while (str_ends_with($name, $suffix)) {
+                $name = strtoupper(trim(substr($name, 0, -strlen($suffix))));
             }
         }
 
-        return $storedGroupName;
+        if ($type === ItemType::ASSET_LANCAR && str_contains($name, ' - ')) {
+            return strtoupper(trim(explode(' - ', $name, 2)[0]));
+        }
+
+        return $name;
     }
 
     /**
@@ -565,6 +585,30 @@ class ItemIdentityBuilder
         $base = rtrim(mb_substr($name, 0, self::GROUP_NAME_MAX_LENGTH - $suffixLength));
 
         return $this->fitStoredGroupName($base.$suffix);
+    }
+
+    /**
+     * Remove uniqueness suffixes we append: " (MASTER)", " (MASTER/VARIANT)", " (2)".
+     */
+    public function stripUniquenessSuffix(string $name, string $master = ''): string
+    {
+        $name = strtoupper(trim($name));
+        $master = strtoupper(trim($master));
+
+        return (string) preg_replace_callback(
+            '/\s+\(([^)]+)\)/',
+            function (array $match) use ($master) {
+                $inside = strtoupper(trim($match[1]));
+
+                $looksLikeDisambiguator = ctype_digit($inside)
+                    || str_contains($inside, '/')
+                    || str_contains($inside, '-')
+                    || ($master !== '' && str_starts_with($inside, $master));
+
+                return $looksLikeDisambiguator ? '' : $match[0];
+            },
+            $name,
+        );
     }
 
     private function storedGroupNameConflicts(string $name, string $master, string $variant): bool

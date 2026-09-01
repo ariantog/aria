@@ -241,9 +241,18 @@ class ItemsController extends Controller
         $p = Item::getPermissions();
         Gate::authorize($item->type === ItemType::ASSET_LANCAR ? $p['asset-lancar-edit'] : $p['edit']);
 
+        $item->load(['group', 'tags']);
+        $productTitle = $this->identityBuilder->productDisplayName(
+            $item->type,
+            (string) ($item->group?->name ?: $item->name),
+            (string) ($item->group?->variant ?? ''),
+            (string) ($item->group?->master ?? ''),
+        );
+
         return view('items.edit', array_merge($this->formProps($item->type), [
-            'item' => $item->load(['group', 'tags']),
+            'item' => $item,
             'types' => $this->typeOptions(),
+            'productTitle' => $productTitle,
         ]));
     }
 
@@ -518,6 +527,30 @@ class ItemsController extends Controller
             'selectedSender' => $queryService->resolveSelectedParty($filters['sender'], $request->user()),
             'selectedReceiver' => $queryService->resolveSelectedParty($filters['receiver'], $request->user()),
             'hasActiveFilters' => $queryService->hasActiveFilters($filters),
+        ]);
+    }
+
+    public function pcodeName(Request $request)
+    {
+        $type = ItemType::tryFrom((int) $request->query('type', ItemType::ITEM->value))
+            ?? ItemType::ITEM;
+        $permissions = Item::getPermissions();
+        $create = $type === ItemType::ASSET_LANCAR
+            ? $permissions['asset-lancar-create']
+            : $permissions['create'];
+        $edit = $type === ItemType::ASSET_LANCAR
+            ? $permissions['asset-lancar-edit']
+            : $permissions['edit'];
+
+        abort_unless(Gate::check($create) || Gate::check($edit), 403);
+
+        $pcode = strtoupper(trim((string) $request->query('pcode', '')));
+        $productName = $this->itemService->productNameForPcode($type, $pcode);
+
+        return response()->json([
+            'pcode' => $pcode,
+            'product_name' => $productName,
+            'found' => $productName !== null,
         ]);
     }
 

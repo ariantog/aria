@@ -330,3 +330,91 @@ test('it auto creates parent group when updating legacy asset lancar without gro
     expect($item->code)->toBe('GLOVE-01-BLUE-S')
         ->and($item->price)->toBe('550000.00');
 });
+
+test('it loads the product name from an existing pcode when the form leaves it blank', function () {
+    $assetType = Tag::factory()->create([
+        'type' => Tag::TYPE_TYPE,
+        'item_type' => ItemType::ASSET_LANCAR->value,
+        'code' => 'ELBOW',
+        'name' => 'Elbow',
+    ]);
+    $blackWhite = Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'NAVY', 'name' => 'NAVY']);
+
+    $existing = Item::factory()->create([
+        'type' => ItemType::ASSET_LANCAR,
+        'pcode' => 'ELBOWSUPPORT-02',
+        'code' => 'ELBOWSUPPORT-02-BLACKWHITE',
+        'name' => 'ELBOW STRAP - BLACKWHITE',
+        'group_id' => ItemGroup::factory()->create([
+            'master' => 'ELBOWSUPPORT-02',
+            'variant' => 'BLACKWHITE',
+            'name' => 'ELBOW STRAP - BLACKWHITE (ELBOWSUPPORT-02)',
+        ])->id,
+    ]);
+
+    expect($this->itemService->productNameForPcode(ItemType::ASSET_LANCAR, 'ELBOWSUPPORT-02'))
+        ->toBe('ELBOW STRAP');
+
+    $this->itemService->create((object) [
+        'pcode' => 'ELBOWSUPPORT-02',
+        'type' => ItemType::ASSET_LANCAR->value,
+        'product_name' => '',
+        'price' => 100000,
+        'cost' => 50000,
+    ], [
+        'types' => [$assetType->id],
+        'sizes' => [$this->sizeTag->id],
+        'warna' => [$blackWhite->id],
+    ]);
+
+    $this->assertDatabaseHas('items', [
+        'code' => 'ELBOWSUPPORT-02-NAVY-S',
+        'name' => 'ELBOW STRAP - NAVY - S',
+    ]);
+
+    expect($existing->fresh()->name)->toBe('ELBOW STRAP - BLACKWHITE');
+});
+
+test('it does not append color twice when the submitted name is a unique stored group name', function () {
+    $assetType = Tag::factory()->create([
+        'type' => Tag::TYPE_TYPE,
+        'item_type' => ItemType::ASSET_LANCAR->value,
+        'code' => 'ELBOW',
+        'name' => 'Elbow',
+    ]);
+    $blackWhite = Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'BLACKWHITE', 'name' => 'BLACKWHITE']);
+    $allSize = Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'AS', 'name' => 'All Size']);
+
+    $group = ItemGroup::factory()->create([
+        'master' => 'ELBOWSUPPORT-02',
+        'variant' => 'BLACKWHITE',
+        'name' => 'ELBOW STRAP - BLACKWHITE (ELBOWSUPPORT-02)',
+    ]);
+
+    $item = Item::factory()->create([
+        'type' => ItemType::ASSET_LANCAR,
+        'group_id' => $group->id,
+        'pcode' => 'ELBOWSUPPORT-02',
+        'code' => 'ELBOWSUPPORT-02-BLACKWHITE',
+        'name' => 'ELBOW STRAP - BLACKWHITE',
+        'cost' => 50000,
+    ]);
+    $item->tags()->sync([$assetType->id, $blackWhite->id, $allSize->id]);
+
+    $this->itemService->update($item->id, (object) [
+        'pcode' => 'ELBOWSUPPORT-02',
+        'type' => ItemType::ASSET_LANCAR->value,
+        'product_name' => 'ELBOW STRAP - BLACKWHITE (ELBOWSUPPORT-02)',
+        'price' => 100000,
+        'cost' => 50000,
+    ], [
+        'types' => [$assetType->id],
+        'sizes' => [$allSize->id],
+        'warna' => $blackWhite->id,
+    ]);
+
+    $item->refresh();
+
+    expect($item->name)->toBe('ELBOW STRAP - BLACKWHITE')
+        ->and($item->name)->not->toBe('ELBOW STRAP - BLACKWHITE (ELBOWSUPPORT-02) - BLACKWHITE');
+});

@@ -71,6 +71,7 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::post('items/special-converter/run', [App\Http\Controllers\SpecialSkuConverterController::class, 'run'])->name('items.special-converter.run');
     Route::post('items/special-converter/{item}/run', [App\Http\Controllers\SpecialSkuConverterController::class, 'runItem'])->name('items.special-converter.run-item');
     Route::get('items/party-lookup', [App\Http\Controllers\ItemsController::class, 'partyLookup'])->name('items.party-lookup');
+    Route::get('items/pcode-name', [App\Http\Controllers\ItemsController::class, 'pcodeName'])->name('items.pcode-name');
     Route::get('items/{item}/transactions', [App\Http\Controllers\ItemsController::class, 'itemTransactions'])->name('items.transactions');
     Route::get('items/{item}/stats', [App\Http\Controllers\ItemsController::class, 'itemStats'])->name('items.stats');
     Route::get('items/{item}/jubelio', [App\Http\Controllers\ItemsController::class, 'jubelio'])->name('items.jubelio');

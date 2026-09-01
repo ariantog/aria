@@ -190,6 +190,38 @@ describe('stored group names', function () {
         ))->toBe('HIP THRUST PAD');
     });
 
+    it('strips uniqueness suffixes and color from stored group names', function () {
+        expect($this->builder->productDisplayName(
+            ItemType::ASSET_LANCAR,
+            'ELBOW STRAP - BLACKWHITE (ELBOWSUPPORT-02)',
+            'BLACKWHITE',
+            'ELBOWSUPPORT-02',
+        ))->toBe('ELBOW STRAP');
+
+        expect($this->builder->productDisplayName(
+            ItemType::ASSET_LANCAR,
+            'ELBOW STRAP - BLACKWHITE (ELBOWSUPPORT-02) - BLACKWHITE',
+            'BLACKWHITE',
+            'ELBOWSUPPORT-02',
+        ))->toBe('ELBOW STRAP');
+    });
+
+    it('builds item names as title color and optional size', function () {
+        $warna = Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'BLACKWHITE', 'name' => 'BLACKWHITE']);
+
+        expect($this->builder->buildName(
+            'ELBOW STRAP - BLACKWHITE (ELBOWSUPPORT-02)',
+            $warna,
+            $this->allSizeTag,
+        ))->toBe('ELBOW STRAP - BLACKWHITE');
+
+        expect($this->builder->buildName(
+            'ELBOW STRAP',
+            $warna,
+            $this->sizeTag,
+        ))->toBe('ELBOW STRAP - BLACKWHITE - S');
+    });
+
     it('fits stored group names to the production varchar(50) column', function () {
         $long = 'ELBOW STRAP - BLACKWHITE (ELBOWSUPPORT-02/BLACKWHITE)';
 
