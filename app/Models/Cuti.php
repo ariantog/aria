@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -10,32 +11,82 @@ class Cuti extends Model
 {
     use HasFactory, SoftDeletes;
 
-    protected $guarded = ['id'];
+    public const TYPE_TAHUNAN = 1;
 
-    public static $types = [
-        1 => 'Tahunan',
-        2 => 'Sakit',
-        3 => 'Mendadak',
+    public const TYPE_SAKIT = 2;
+
+    public const TYPE_MENDADAK = 3;
+
+    public const TYPE_IZIN = 4;
+
+    public static array $types = [
+        self::TYPE_TAHUNAN => 'Tahunan',
+        self::TYPE_SAKIT => 'Sakit',
+        self::TYPE_MENDADAK => 'Mendadak',
+        self::TYPE_IZIN => 'Izin',
     ];
 
-    public function getTypeNameAttribute()
+    public static array $typeStyles = [
+        self::TYPE_TAHUNAN => ['Tahunan', 'text-blue-600'],
+        self::TYPE_SAKIT => ['Sakit', 'text-orange-600'],
+        self::TYPE_MENDADAK => ['Mendadak', 'text-red-600'],
+        self::TYPE_IZIN => ['Izin', 'text-amber-700'],
+    ];
+
+    protected $guarded = ['id'];
+
+    public function getTypeNameAttribute(): string
     {
         return self::$types[$this->tipe] ?? '-';
     }
 
-    public function getTotalCutiAttribute()
+    public function getTotalCutiAttribute(): int
     {
-        if ($this->tipe == 1) {
-            $tc = $this->tahunan;
-        } elseif ($this->tipe == 2) {
-            $tc = $this->sakit;
-        } elseif ($this->tipe == 3) {
-            $tc = $this->mendadak;
-        } else {
-            $tc = 0;
+        return (int) $this->tahunan + (int) $this->sakit + (int) $this->mendadak + (int) $this->izin;
+    }
+
+    public function applyTypeDays(int $days): void
+    {
+        $this->tahunan = 0;
+        $this->sakit = 0;
+        $this->mendadak = 0;
+        $this->izin = 0;
+
+        match ((int) $this->tipe) {
+            self::TYPE_TAHUNAN => $this->tahunan = $days,
+            self::TYPE_SAKIT => $this->sakit = $days,
+            self::TYPE_MENDADAK => $this->mendadak = $days,
+            self::TYPE_IZIN => $this->izin = $days,
+            default => null,
+        };
+    }
+
+    public function daysInMonth(int $year, int $month): int
+    {
+        $monthStart = Carbon::create($year, $month, 1)->startOfDay();
+        $monthEnd = $monthStart->copy()->endOfMonth()->startOfDay();
+        $start = Carbon::parse($this->tgl_mulai)->startOfDay();
+        $end = Carbon::parse($this->tgl_akhir)->startOfDay();
+
+        $clipStart = $start->greaterThan($monthStart) ? $start : $monthStart;
+        $clipEnd = $end->lessThan($monthEnd) ? $end : $monthEnd;
+
+        if ($clipStart->greaterThan($clipEnd)) {
+            return 0;
         }
 
-        return $tc;
+        return (int) $clipStart->diffInDays($clipEnd) + 1;
+    }
+
+    public function typeKey(): string
+    {
+        return match ((int) $this->tipe) {
+            self::TYPE_TAHUNAN => 'tahunan',
+            self::TYPE_SAKIT => 'sakit',
+            self::TYPE_MENDADAK => 'mendadak',
+            self::TYPE_IZIN => 'izin',
+            default => 'lainnya',
+        };
     }
 
     public function karyawan()

@@ -79,7 +79,7 @@ class GajiSalaryCalculator
             $cutiCounts['mendadak'] = max(0, $overrideCutiMendadak);
         }
 
-        $hariIzin = $overrideHariIzin ?? 0;
+        $hariIzin = $overrideHariIzin ?? $cutiCounts['izin'];
 
         $dendaTahunan = $this->excessCutiDays(
             $running['tahunan'],
@@ -217,22 +217,36 @@ class GajiSalaryCalculator
     }
 
     /**
-     * @return array{tahunan: int, sakit: int, mendadak: int}
+     * @return array{tahunan: int, sakit: int, mendadak: int, izin: int}
      */
     public function cutiDaysForMonth(Karyawan $karyawan, int $year, int $month): array
     {
-        $totals = Cuti::query()
-            ->where('karyawan_id', $karyawan->id)
-            ->whereYear('tgl_mulai', $year)
-            ->whereMonth('tgl_mulai', $month)
-            ->selectRaw('COALESCE(SUM(tahunan), 0) as total_tahunan, COALESCE(SUM(sakit), 0) as total_sakit, COALESCE(SUM(mendadak), 0) as total_mendadak')
-            ->first();
+        $monthStart = Carbon::create($year, $month, 1)->toDateString();
+        $monthEnd = Carbon::create($year, $month, 1)->endOfMonth()->toDateString();
 
-        return [
-            'tahunan' => (int) ($totals->total_tahunan ?? 0),
-            'sakit' => (int) ($totals->total_sakit ?? 0),
-            'mendadak' => (int) ($totals->total_mendadak ?? 0),
+        $cutis = Cuti::query()
+            ->where('karyawan_id', $karyawan->id)
+            ->whereDate('tgl_mulai', '<=', $monthEnd)
+            ->whereDate('tgl_akhir', '>=', $monthStart)
+            ->get();
+
+        $totals = [
+            'tahunan' => 0,
+            'sakit' => 0,
+            'mendadak' => 0,
+            'izin' => 0,
         ];
+
+        foreach ($cutis as $cuti) {
+            $key = $cuti->typeKey();
+            if (! array_key_exists($key, $totals)) {
+                continue;
+            }
+
+            $totals[$key] += $cuti->daysInMonth($year, $month);
+        }
+
+        return $totals;
     }
 
     public function excessCutiDays(int $runningBefore, int $daysThisMonth, int $limit): int

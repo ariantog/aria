@@ -12,7 +12,9 @@ $user = auth()->user();
 $isSuper = $user && $user->is_superadmin;
 $canEditGaji = $user && ($isSuper || $user->can('karyawan-gaji-edit'));
 $fmt = fn($v) => format_amount($v ?? 0, 0);
-$tipeCuti = [1 => ['Tahunan','text-blue-600'], 2 => ['Sakit','text-orange-600'], 3 => ['Mendadak/Izin','text-red-600']];
+$canEditCuti = $user && ($isSuper || $user->can('karyawan-cuti-edit'));
+$canDeleteCuti = $user && ($isSuper || $user->can('karyawan-cuti-delete'));
+$tipeCuti = \App\Models\Cuti::$typeStyles;
 @endphp
 
 <div class="flex flex-col gap-6 p-4">
@@ -24,6 +26,9 @@ $tipeCuti = [1 => ['Tahunan','text-blue-600'], 2 => ['Sakit','text-orange-600'],
             <div>
                 <h1 class="text-2xl font-bold">{{ $karyawan->nama }}</h1>
                 <p class="text-gray-500">{{ $karyawan->no_telp }}</p>
+                @if($karyawan->nama_absensi)
+                <p class="text-sm text-gray-500">Nama absensi: <span class="font-medium text-gray-700">{{ $karyawan->nama_absensi }}</span></p>
+                @endif
             </div>
         </div>
         <div class="flex items-center gap-2">
@@ -107,6 +112,9 @@ $tipeCuti = [1 => ['Tahunan','text-blue-600'], 2 => ['Sakit','text-orange-600'],
                                 <th class="h-10 px-4 text-left font-medium text-gray-500">Tanggal</th>
                                 <th class="h-10 px-4 text-left font-medium text-gray-500">Tipe</th>
                                 <th class="h-10 px-4 text-center font-medium text-gray-500">Lama</th>
+                                @if($canEditCuti || $canDeleteCuti)
+                                <th class="h-10 px-4 text-right font-medium text-gray-500"></th>
+                                @endif
                             </tr>
                         </thead>
                         <tbody>
@@ -118,10 +126,26 @@ $tipeCuti = [1 => ['Tahunan','text-blue-600'], 2 => ['Sakit','text-orange-600'],
                                     @if($cuti->tgl_mulai != $cuti->tgl_akhir) - {{ \Carbon\Carbon::parse($cuti->tgl_akhir)->translatedFormat('d M Y') }}@endif
                                 </td>
                                 <td class="p-4 font-medium {{ $color }}">{{ $label }}</td>
-                                <td class="p-4 text-center">{{ (int)($cuti->tahunan ?? 0) + (int)($cuti->sakit ?? 0) + (int)($cuti->mendadak ?? 0) }} Hari</td>
+                                <td class="p-4 text-center">{{ $cuti->total_cuti }} Hari</td>
+                                @if($canEditCuti || $canDeleteCuti)
+                                <td class="p-4 text-right">
+                                    <div class="flex justify-end gap-2">
+                                        @if($canEditCuti)
+                                        <a href="{{ route('cuti.edit', $cuti) }}" class="text-sm font-medium text-blue-600 hover:underline">Edit</a>
+                                        @endif
+                                        @if($canDeleteCuti)
+                                        <form method="POST" action="{{ route('cuti.destroy', $cuti) }}" onsubmit="return confirm('Hapus catatan cuti ini?')">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit" class="text-sm font-medium text-red-600 hover:underline">Hapus</button>
+                                        </form>
+                                        @endif
+                                    </div>
+                                </td>
+                                @endif
                             </tr>
                             @empty
-                            <tr><td colspan="3" class="p-4 text-center text-gray-500">Belum history pernah cuti.</td></tr>
+                            <tr><td colspan="{{ ($canEditCuti || $canDeleteCuti) ? 4 : 3 }}" class="p-4 text-center text-gray-500">Belum ada catatan cuti.</td></tr>
                             @endforelse
                         </tbody>
                     </table>
