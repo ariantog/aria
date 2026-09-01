@@ -11,7 +11,7 @@ use App\Models\ItemGroup;
 use App\Models\Report;
 use App\Models\Tag;
 use App\Models\TransactionDetail;
-use App\Models\WarehouseItem;
+use App\Services\ItemAvailabilityService;
 use App\Services\ItemListFilter;
 use App\Services\Items\ItemGroupHierarchyService;
 use App\Services\Items\ItemGroupParentExportService;
@@ -34,6 +34,7 @@ class ItemsController extends Controller
         protected ItemIdentityBuilder $identityBuilder,
         protected LegacyItemConverterService $legacyConverter,
         protected ItemListFilter $itemListFilter,
+        protected ItemAvailabilityService $itemAvailability,
     ) {}
 
     public function index(Request $request, ?ItemType $type = null)
@@ -113,7 +114,7 @@ class ItemsController extends Controller
         }
 
         $items = $q->with('group')
-            ->withSum(['warehouseItems as active_qty' => fn ($query) => $query->forActiveWarehouseAddrbooks()], 'quantity')
+            ->withSum(['warehouseItems as active_qty' => fn ($query) => $query->forAvailableStock()], 'quantity')
             ->orderBy('id', 'desc')
             ->paginate(50)
             ->withQueryString();
@@ -184,19 +185,17 @@ class ItemsController extends Controller
                 ->orderBy('warehouse_id'),
         ]);
 
-        $activeWarehouseItems = $item->warehouseItems
-            ->filter(fn (WarehouseItem $row) => $row->warehouse && ! $row->warehouse->trashed())
-            ->values();
-        $deletedWarehouseItems = $item->warehouseItems
-            ->filter(fn (WarehouseItem $row) => $row->warehouse && $row->warehouse->trashed())
-            ->values();
+        $stock = $this->itemAvailability->partitionWarehouseItems($item->warehouseItems);
 
         return view('items.show', [
             'item' => $item,
-            'activeWarehouseItems' => $activeWarehouseItems,
-            'deletedWarehouseItems' => $deletedWarehouseItems,
-            'activeStock' => (float) $activeWarehouseItems->sum('quantity'),
-            'deletedStock' => (float) $deletedWarehouseItems->sum('quantity'),
+            'activeWarehouseItems' => $stock['physical'],
+            'virtualWarehouseItems' => $stock['virtual'],
+            'deletedWarehouseItems' => $stock['deleted'],
+            'activeStock' => $stock['available'],
+            'virtualStock' => $stock['virtual_stock'],
+            'deletedStock' => $stock['deleted_stock'],
+            'canRecalculateQty' => $this->canRecalculateQty($item),
             'isAsset' => $item->type === ItemType::ASSET_LANCAR,
             'groupUrl' => $this->legacyConverter->hasProductGroup($item)
                 ? route('items.group-parent-detail', $this->identityBuilder->parentKeyToSlug(
@@ -205,6 +204,31 @@ class ItemsController extends Controller
                 : null,
             'identityConvert' => $this->detailIdentityConvertContext($item),
         ]);
+    }
+
+    public function recalculateQuantity(Item $item)
+    {
+        Gate::authorize($item->type === ItemType::ASSET_LANCAR
+            ? Item::getPermissions()['asset-lancar-edit']
+            : Item::getPermissions()['edit']
+        );
+
+        $result = $this->itemAvailability->recalculate($item);
+        $available = format_amount($result['available'], 0);
+
+        return redirect($item->showUrl())->with(
+            'success',
+            "Quantity recalculated. Available stock is {$available} units (non-deleted warehouses, virtual excluded).",
+        );
+    }
+
+    protected function canRecalculateQty(Item $item): bool
+    {
+        $permission = $item->type === ItemType::ASSET_LANCAR
+            ? Item::getPermissions()['asset-lancar-edit']
+            : Item::getPermissions()['edit'];
+
+        return Gate::check($permission);
     }
 
     protected function detailIdentityConvertContext(Item $item): ?array

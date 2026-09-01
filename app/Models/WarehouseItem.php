@@ -34,13 +34,28 @@ class WarehouseItem extends Model
         ];
     }
 
+    /** Physical warehouses only — sellable availability excludes virtual stock. */
+    public static function physicalWarehouseAddrbookTypes(): array
+    {
+        return [AddrbookType::Warehouse->value];
+    }
+
+    public static function virtualWarehouseAddrbookTypes(): array
+    {
+        return [AddrbookType::VirtualWarehouse->value];
+    }
+
     public function scopeForWarehouseAddrbooks(Builder $query, bool $withTrashed = false): Builder
     {
-        $addrbooks = $withTrashed ? Addrbook::withTrashed() : Addrbook::query();
+        return $this->constrainToAddrbookTypes($query, self::warehouseAddrbookTypes(), $withTrashed);
+    }
 
-        return $query->whereIn('warehouse_id', $addrbooks
-            ->whereIn('type', self::warehouseAddrbookTypes())
-            ->select('id'));
+    /**
+     * Non-deleted physical warehouses. Used for availability / items.qty.
+     */
+    public function scopeForAvailableStock(Builder $query): Builder
+    {
+        return $this->constrainToAddrbookTypes($query, self::physicalWarehouseAddrbookTypes(), false);
     }
 
     public function scopeForActiveWarehouseAddrbooks(Builder $query): Builder
@@ -48,10 +63,27 @@ class WarehouseItem extends Model
         return $query->forWarehouseAddrbooks(withTrashed: false);
     }
 
+    public function scopeForVirtualWarehouseAddrbooks(Builder $query, bool $withTrashed = false): Builder
+    {
+        return $this->constrainToAddrbookTypes($query, self::virtualWarehouseAddrbookTypes(), $withTrashed);
+    }
+
     public function scopeForDeletedWarehouseAddrbooks(Builder $query): Builder
     {
         return $query->whereIn('warehouse_id', Addrbook::onlyTrashed()
             ->whereIn('type', self::warehouseAddrbookTypes())
+            ->select('id'));
+    }
+
+    /**
+     * @param  list<int>  $types
+     */
+    protected function constrainToAddrbookTypes(Builder $query, array $types, bool $withTrashed): Builder
+    {
+        $addrbooks = $withTrashed ? Addrbook::withTrashed() : Addrbook::query();
+
+        return $query->whereIn('warehouse_id', $addrbooks
+            ->whereIn('type', $types)
             ->select('id'));
     }
 
