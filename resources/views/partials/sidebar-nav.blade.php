@@ -88,7 +88,6 @@
     }
     if ($hasPerm('items-convert-legacy') || $isSuperAdmin) {
         $stuffNavLabels[] = 'Legacy Converter';
-        $stuffNavLabels[] = 'Special Converter';
     }
     if ($hasPerm('stock-notification-list') || $isSuperAdmin) {
         $stuffNavLabels[] = 'Stock Alerts';
@@ -409,7 +408,6 @@
         @endif
         @if($hasPerm('items-convert-legacy') || $isSuperAdmin)
         <a href="{{ route('items.legacy-converter') }}" x-show="navLinkVisible('Legacy Converter', 'Stuff')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/items/legacy-converter') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Legacy Converter</a>
-        <a href="{{ route('items.special-converter') }}" x-show="navLinkVisible('Special Converter', 'Stuff')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/items/special-converter') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Special Converter</a>
         @endif
         @if($hasPerm('stock-notification-list') || $isSuperAdmin)
         <a href="{{ route('stock-notifications.index') }}" x-show="navLinkVisible('Stock Alerts', 'Stuff')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/stock-notifications') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Stock Alerts</a>

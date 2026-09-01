@@ -58,10 +58,6 @@
                class="rounded-lg px-3 py-1.5 text-sm font-medium {{ $itemType === \App\Enums\ItemType::ITEM ? 'bg-blue-600 text-white' : 'border border-gray-300 text-gray-700 hover:bg-gray-50' }}">
                 Manufactured
             </a>
-            <a href="{{ route('items.special-converter') }}"
-               class="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
-                Special SKU Converter
-            </a>
         </div>
     </div>
 

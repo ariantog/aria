@@ -205,15 +205,6 @@ class SidebarFavoriteRegistry
                 'active_prefix' => '/items/legacy-converter',
             ],
             [
-                'key' => 'items-special-converter',
-                'label' => 'Special Converter',
-                'group' => 'Stuff',
-                'permission' => 'items-convert-legacy',
-                'route' => 'items.special-converter',
-                'params' => [],
-                'active_prefix' => '/items/special-converter',
-            ],
-            [
                 'key' => 'stock-notification-list',
                 'label' => 'Stock Alerts',
                 'group' => 'Stuff',
