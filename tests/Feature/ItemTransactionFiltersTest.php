@@ -43,7 +43,7 @@ it('lists customer reseller warehouse vwarehouse and supplier as item transactio
     ]);
 });
 
-it('renders item transaction filters on items and assetlancar pages', function (string $routeName, ItemType $itemType) {
+it('renders item transaction filters on items and assetlancar pages', function (string $routeName, ItemType $itemType, string $storageKey) {
     $item = Item::factory()->create(['type' => $itemType, 'name' => 'Filter SKU']);
 
     $this->actingAs($this->user)
@@ -55,10 +55,13 @@ it('renders item transaction filters on items and assetlancar pages', function (
         ->assertSee('data-testid="item-tx-to"', false)
         ->assertSee('data-testid="item-tx-invoice"', false)
         ->assertSee('data-testid="item-tx-sender-combobox"', false)
-        ->assertSee('data-testid="item-tx-receiver-combobox"', false);
+        ->assertSee('data-testid="item-tx-receiver-combobox"', false)
+        ->assertSee($storageKey, false)
+        ->assertSee('localStorage.getItem(this.filtersStorageKey)', false)
+        ->assertSee("localStorage.setItem(this.filtersStorageKey, value ? '1' : '0')", false);
 })->with([
-    'items' => ['items.transactions', ItemType::ITEM],
-    'assetlancar' => ['assetlancar.transactions', ItemType::ASSET_LANCAR],
+    'items' => ['items.transactions', ItemType::ITEM, 'aria-items-transaction-filters-open'],
+    'assetlancar' => ['assetlancar.transactions', ItemType::ASSET_LANCAR, 'aria-assetlancar-transaction-filters-open'],
 ]);
 
 it('filters item transactions by date range', function () {

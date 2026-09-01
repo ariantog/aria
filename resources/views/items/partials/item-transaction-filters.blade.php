@@ -1,22 +1,37 @@
 @php
     $defaultOpen = $defaultOpen ?? true;
     $partyLookupUrl = $partyLookupUrl ?? route('items.party-lookup');
+    $filtersStorageKey = $filtersStorageKey ?? (($isAsset ?? false)
+        ? 'aria-assetlancar-transaction-filters-open'
+        : 'aria-items-transaction-filters-open');
 @endphp
 
-<div class="mb-4 rounded-xl border border-gray-200 bg-white" x-data="{ showFilters: {{ $defaultOpen ? 'true' : 'false' }} }" data-testid="item-transaction-filters">
+<div class="mb-4 rounded-xl border border-gray-200 bg-white"
+     x-data="{
+        filtersOpen: {{ $defaultOpen ? 'true' : 'false' }},
+        filtersStorageKey: @js($filtersStorageKey),
+        init() {
+            const saved = localStorage.getItem(this.filtersStorageKey);
+            this.filtersOpen = saved === null ? this.filtersOpen : saved === '1';
+            this.$watch('filtersOpen', (value) => {
+                localStorage.setItem(this.filtersStorageKey, value ? '1' : '0');
+            });
+        },
+     }"
+     data-testid="item-transaction-filters">
     <div class="flex items-center justify-between gap-2 border-b border-gray-100 px-3 py-2.5">
         <span class="text-sm font-medium text-gray-700">Filters</span>
         <button type="button"
-                @click="showFilters = !showFilters"
+                @click="filtersOpen = !filtersOpen"
                 class="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-sm font-medium text-gray-600 hover:bg-gray-50"
                 data-testid="toggle-item-transaction-filters">
-            <span x-text="showFilters ? 'Hide' : 'Show'"></span>
-            <svg class="h-4 w-4 transition-transform" :class="showFilters ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <span x-text="filtersOpen ? 'Hide' : 'Show'"></span>
+            <svg class="h-4 w-4 transition-transform" :class="filtersOpen ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
             </svg>
         </button>
     </div>
-    <div x-show="showFilters" x-cloak class="p-3">
+    <div x-show="filtersOpen" x-cloak class="p-3">
         <form method="GET" action="{{ $formAction }}" class="flex flex-wrap items-end gap-2">
             <div class="flex flex-col gap-1">
                 <label for="item-tx-from" class="text-xs font-medium uppercase text-gray-500">From</label>
