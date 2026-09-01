@@ -744,10 +744,8 @@ class TransactionsController extends Controller
         $minDate = app(BookClosingService::class)->getMinAllowedDate()->toDateString();
 
         return [
-            'can_create' => $user !== null && (
-                $user->is_superadmin
-                || $user->can(Transaction::getPermissions()['type-cash-in'])
-            ),
+            'can_create' => $user !== null
+                && $user->can(Transaction::getPermissions()['type-cash-in']),
             'banks' => \App\Models\Addrbook::query()
                 ->where('type', \App\Models\Addrbook::TYPE_BANK)
                 ->orderBy('name')

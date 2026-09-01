@@ -182,6 +182,45 @@ it('forbids creating cash in from a sell without cash-in permission', function (
     expect(Transaction::query()->where('type', Transaction::TYPE_CASH_IN)->count())->toBe(0);
 });
 
+it('hides the cash in switch and submit without transactions-type-cash-in', function () {
+    $staff = User::factory()->create();
+    Permission::firstOrCreate(['name' => 'transactions-show']);
+    Permission::firstOrCreate(['name' => 'transactions-type-sell']);
+    Permission::firstOrCreate(['name' => 'transactions-type-cash-in']);
+    $staff->givePermissionTo(['transactions-show', 'transactions-type-sell']);
+
+    $this->actingAs($staff)
+        ->get(route('transactions.show', $this->sell))
+        ->assertOk()
+        ->assertDontSee('data-testid="sell-cash-in-switch"', false)
+        ->assertDontSee('data-testid="sell-cash-in-submit"', false);
+
+    $this->actingAs($staff)
+        ->get(route('transactions.create', 'sell'))
+        ->assertOk()
+        ->assertDontSee('data-testid="sell-cash-in-switch"', false)
+        ->assertDontSee('data-testid="sell-cash-in-submit"', false);
+});
+
+it('shows the cash in switch for staff with transactions-type-cash-in', function () {
+    $staff = User::factory()->create();
+    Permission::firstOrCreate(['name' => 'transactions-show']);
+    Permission::firstOrCreate(['name' => 'transactions-type-sell']);
+    Permission::firstOrCreate(['name' => 'transactions-type-cash-in']);
+    $staff->givePermissionTo(['transactions-show', 'transactions-type-sell', 'transactions-type-cash-in']);
+
+    $this->actingAs($staff)
+        ->get(route('transactions.show', $this->sell))
+        ->assertOk()
+        ->assertSee('data-testid="sell-cash-in-switch"', false)
+        ->assertSee('data-testid="sell-cash-in-submit"', false);
+
+    $this->actingAs($staff)
+        ->get(route('transactions.create', 'sell'))
+        ->assertOk()
+        ->assertSee('data-testid="sell-cash-in-switch"', false);
+});
+
 it('rejects cash in from a non-sell transaction', function () {
     $buy = Transaction::factory()->create([
         'type' => Transaction::TYPE_BUY,
