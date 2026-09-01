@@ -66,10 +66,6 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::post('items/legacy-converter/purge-useless', [App\Http\Controllers\LegacyItemConverterController::class, 'purgeUseless'])->name('items.legacy-converter.purge-useless');
     Route::post('items/legacy-converter/run', [App\Http\Controllers\LegacyItemConverterController::class, 'run'])->name('items.legacy-converter.run');
     Route::post('items/legacy-converter/{item}/run', [App\Http\Controllers\LegacyItemConverterController::class, 'runItem'])->name('items.legacy-converter.run-item');
-    Route::get('items/special-converter', [App\Http\Controllers\SpecialSkuConverterController::class, 'index'])->name('items.special-converter');
-    Route::post('items/special-converter/preview', [App\Http\Controllers\SpecialSkuConverterController::class, 'preview'])->name('items.special-converter.preview');
-    Route::post('items/special-converter/run', [App\Http\Controllers\SpecialSkuConverterController::class, 'run'])->name('items.special-converter.run');
-    Route::post('items/special-converter/{item}/run', [App\Http\Controllers\SpecialSkuConverterController::class, 'runItem'])->name('items.special-converter.run-item');
     Route::get('items/party-lookup', [App\Http\Controllers\ItemsController::class, 'partyLookup'])->name('items.party-lookup');
     Route::get('items/pcode-name', [App\Http\Controllers\ItemsController::class, 'pcodeName'])->name('items.pcode-name');
     Route::get('items/{item}/transactions', [App\Http\Controllers\ItemsController::class, 'itemTransactions'])->name('items.transactions');

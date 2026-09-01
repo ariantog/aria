@@ -145,11 +145,6 @@ class LegacyItemConverterService
             return false;
         }
 
-        $specialRules = new SpecialSkuConverterRules;
-        if ($specialRules->matchingFamilyPrefix((string) $item->code) !== null) {
-            return false;
-        }
-
         // Ungrouped legacy rows cannot be fully canonical — skip the expensive parse pass.
         if (! $this->hasProductGroup($item)) {
             return true;
@@ -880,7 +875,6 @@ class LegacyItemConverterService
      * @return array{
      *     visible: bool,
      *     convertible: bool,
-     *     special_family: ?array,
      *     parse: ?LegacyParseResult,
      *     message: ?string,
      *     item_type: ?ItemType
@@ -893,7 +887,6 @@ class LegacyItemConverterService
         $hidden = [
             'visible' => false,
             'convertible' => false,
-            'special_family' => null,
             'parse' => null,
             'message' => null,
             'item_type' => $itemType,
@@ -903,23 +896,8 @@ class LegacyItemConverterService
             return array_merge($hidden, ['message' => 'Unsupported item type for identity conversion.']);
         }
 
-        $specialRules = new SpecialSkuConverterRules;
-        $specialFamily = $specialRules->matchingFamilyPrefix((string) $item->code);
-
         $item->loadMissing(['tags', 'group']);
         $parse = $parser->parse($item);
-
-        if ($specialFamily !== null) {
-            return [
-                'visible' => true,
-                'convertible' => false,
-                'special_family' => $specialFamily,
-                'parse' => $parse,
-                'message' => "This SKU uses the {$specialFamily['label']} special-code family. "
-                    .'Use the Special SKU Converter — the generic legacy converter will produce wrong results.',
-                'item_type' => $itemType,
-            ];
-        }
 
         if ($parse->success && $this->isDetailConversionComplete($item, $parse)) {
             return array_merge($hidden, ['message' => 'Item is already converted and linked to its product group.']);
@@ -929,7 +907,6 @@ class LegacyItemConverterService
             return [
                 'visible' => true,
                 'convertible' => false,
-                'special_family' => null,
                 'parse' => $parse,
                 'message' => $parse->detail ?? 'SKU cannot be parsed for conversion.',
                 'item_type' => $itemType,
@@ -939,7 +916,6 @@ class LegacyItemConverterService
         return [
             'visible' => true,
             'convertible' => true,
-            'special_family' => null,
             'parse' => $parse,
             'message' => $this->detailConversionRepairMessage($item, $parse, $itemType),
             'item_type' => $itemType,

@@ -212,15 +212,19 @@ it('relinks a mis-grouped item from the detail page', function () {
         ->and($item->legacy_code)->toBe('OLD-GLOVE-CODE');
 });
 
-it('warns about special sku families without a convert button', function () {
-    $item = makeLegacyAssetItem('FABRICBAND-03-LIGHT-BABYBLUE', 'FABRIC BAND - LIGHT - BABYBLUE');
+it('shows convert panel for leftover fabricband size-before-color skus', function () {
+    Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'HEAVY', 'name' => 'HEAVY']);
+
+    $item = makeLegacyAssetItem('FABRICBAND-03-HEAVY-GREEN', 'FABRIC BAND HEAVY - GREEN');
+    Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'GREEN', 'name' => 'GREEN']);
 
     $this->actingAs($this->user)
         ->get(route('assetlancar.show', $item))
         ->assertOk()
-        ->assertSee('Special SKU — do not use generic conversion', false)
-        ->assertSee('Open Special SKU Converter', false)
-        ->assertDontSee('Convert to new SKU', false);
+        ->assertSee('Legacy SKU Conversion', false)
+        ->assertSee('Convert to new SKU', false)
+        ->assertSee('FABRICBAND-03-GREEN-HEAVY', false)
+        ->assertDontSee('Special SKU', false);
 });
 
 it('converts a single asset lancar item from the detail page', function () {
@@ -280,15 +284,64 @@ it('links converted asset lancar items to parent group and restock type', functi
         ->and($method->invoke($restockQuery, $gloveType)->where('items.id', $item->id)->exists())->toBeTrue();
 });
 
-it('rejects generic convert for special sku posts', function () {
-    $item = makeLegacyAssetItem('FABRICBAND-03-LIGHT-BABYBLUE', 'FABRIC BAND - LIGHT - BABYBLUE');
+it('converts leftover fabricband size-before-color skus from the detail page', function () {
+    $bandType = Tag::factory()->create([
+        'type' => Tag::TYPE_TYPE,
+        'item_type' => ItemType::ASSET_LANCAR->value,
+        'code' => 'FABRICBAND',
+        'name' => 'Fabric Band',
+    ]);
+    Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'HEAVY', 'name' => 'HEAVY']);
+    Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'GREEN', 'name' => 'GREEN']);
+
+    $item = makeLegacyAssetItem('FABRICBAND-03-HEAVY-GREEN', 'FABRIC BAND HEAVY - GREEN');
+    $item->update(['genre' => $bandType->id, 'pcode' => 'FABRICBAND-03']);
+    $item->tags()->sync([$bandType->id]);
 
     $this->actingAs($this->user)
         ->post(route('assetlancar.convert-identity', $item))
         ->assertRedirect(route('assetlancar.show', $item))
-        ->assertSessionHas('error');
+        ->assertSessionHas('success');
 
-    expect($item->fresh()->group_id)->toBeNull();
+    $item->refresh()->load('group');
+
+    expect($item->code)->toBe('FABRICBAND-03-GREEN-HEAVY')
+        ->and($item->legacy_code)->toBe('FABRICBAND-03-HEAVY-GREEN')
+        ->and($item->group?->master)->toBe('FABRICBAND-03')
+        ->and($item->group?->variant)->toBe('GREEN')
+        ->and($item->group?->name)->toBe('FABRIC BAND - GREEN');
+});
+
+it('hides convert panel for already-canonical fabricband items', function () {
+    $bandType = Tag::factory()->create([
+        'type' => Tag::TYPE_TYPE,
+        'item_type' => ItemType::ASSET_LANCAR->value,
+        'code' => 'FABRICBAND',
+        'name' => 'Fabric Band',
+    ]);
+    $heavy = Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'HEAVY', 'name' => 'HEAVY']);
+    $green = Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'GREEN', 'name' => 'GREEN']);
+    $group = \App\Models\ItemGroup::factory()->create([
+        'master' => 'FABRICBAND-03',
+        'variant' => 'GREEN',
+        'name' => 'FABRIC BAND - GREEN',
+    ]);
+
+    $item = Item::factory()->create([
+        'type' => ItemType::ASSET_LANCAR,
+        'group_id' => $group->id,
+        'code' => 'FABRICBAND-03-GREEN-HEAVY',
+        'legacy_code' => 'FABRICBAND-03-HEAVY-GREEN',
+        'pcode' => 'FABRICBAND-03',
+        'name' => 'FABRIC BAND - GREEN - HEAVY',
+        'genre' => $bandType->id,
+    ]);
+    $item->tags()->sync([$bandType->id, $green->id, $heavy->id]);
+
+    $this->actingAs($this->user)
+        ->get(route('assetlancar.show', $item))
+        ->assertOk()
+        ->assertDontSee('Legacy SKU Conversion', false);
 });
 
 it('detail convert context treats legacy group_id zero as ungrouped', function () {

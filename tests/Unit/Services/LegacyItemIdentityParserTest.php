@@ -337,3 +337,61 @@ describe('warna tag name uniqueness', function () {
             ->and(Tag::query()->whereRaw('UPPER(TRIM(name)) = ?', ['GREYWHITE'])->count())->toBe(1);
     });
 });
+
+describe('fabricband size-before-color leftovers', function () {
+    beforeEach(function () {
+        $this->sizeTags = $this->sizeTags->concat(collect([
+            Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'LIGHT', 'name' => 'LIGHT']),
+            Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'MEDIUM', 'name' => 'MEDIUM']),
+            Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'HEAVY', 'name' => 'HEAVY']),
+        ]))->sortByDesc(fn (Tag $tag) => strlen((string) $tag->code))->values();
+
+        $this->warnaTags = $this->warnaTags->concat(collect([
+            Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'BABYBLUE', 'name' => 'BABYBLUE']),
+            Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'GREEN', 'name' => 'GREEN']),
+            Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'GRAY', 'name' => 'GRAY']),
+        ]));
+
+        $this->parser = new LegacyItemIdentityParser(
+            $this->builder,
+            $this->sizeTags,
+            $this->warnaTags,
+            $this->typeTags,
+            $this->sizeTags->firstWhere('code', 'AS'),
+        );
+    });
+
+    it('rewrites legacy size-before-color fabricband skus', function () {
+        $item = makeAssetItem('FABRICBAND-03-LIGHT-BABYBLUE', 'FABRIC BAND LIGHT - BABYBLUE');
+        $result = $this->parser->parse($item);
+
+        expect($result->success)->toBeTrue()
+            ->and($result->pcode)->toBe('FABRICBAND-03')
+            ->and($result->warnaCode)->toBe('BABYBLUE')
+            ->and($result->sizeCode)->toBe('LIGHT')
+            ->and($result->canonicalCode)->toBe('FABRICBAND-03-BABYBLUE-LIGHT')
+            ->and($result->groupName)->toBe('FABRIC BAND')
+            ->and($result->codeUnchanged)->toBeFalse();
+    });
+
+    it('keeps already-canonical fabricband color-before-size skus', function () {
+        $item = makeAssetItem('FABRICBAND-03-GREEN-HEAVY', 'FABRIC BAND HEAVY - GREEN - HEAVY');
+        $result = $this->parser->parse($item);
+
+        expect($result->success)->toBeTrue()
+            ->and($result->warnaCode)->toBe('GREEN')
+            ->and($result->sizeCode)->toBe('HEAVY')
+            ->and($result->canonicalCode)->toBe('FABRICBAND-03-GREEN-HEAVY')
+            ->and($result->groupName)->toBe('FABRIC BAND')
+            ->and($result->codeUnchanged)->toBeTrue();
+    });
+
+    it('resolves GREY via the GRAY warna alias', function () {
+        $item = makeAssetItem('FABRICBAND-03-HEAVY-GREY', 'FABRIC BAND HEAVY - GREY');
+        $result = $this->parser->parse($item);
+
+        expect($result->success)->toBeTrue()
+            ->and($result->warnaCode)->toBe('GRAY')
+            ->and($result->canonicalCode)->toBe('FABRICBAND-03-GRAY-HEAVY');
+    });
+});
