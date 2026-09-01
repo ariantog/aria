@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Addrbook;
 use App\Models\AddrbookDaily;
 use App\Models\AddrbookStat;
+use App\Models\Item;
 use App\Models\Transaction;
 use App\Models\WarehouseItem;
 use Illuminate\Support\Facades\DB;
@@ -134,17 +135,21 @@ class TransactionService
 
     protected function adjustStock($warehouseId, $warehouseType, $itemId, $quantity)
     {
-        $wi = WarehouseItem::firstOrNew([
-            'warehouse_id' => $warehouseId,
-            'item_id' => $itemId,
-        ]);
-
-        if ($warehouseType) {
-            $wi->warehouse_type = $warehouseType;
+        if (! $warehouseId || (float) $quantity === 0.0) {
+            return;
         }
 
-        $wi->quantity = ($wi->quantity ?? 0) + $quantity;
-        $wi->save();
+        $item = Item::query()->find($itemId);
+        if ($item && (int) $item->getRawOriginal('type') === Item::TYPE_SERVICE) {
+            return;
+        }
+
+        WarehouseItem::applyDelta(
+            (int) $warehouseId,
+            (int) $itemId,
+            (float) $quantity,
+            $warehouseType !== null && $warehouseType !== '' ? (int) $warehouseType : null,
+        );
     }
 
     protected function updateBalances(Transaction $transaction, bool $revert = false)
