@@ -127,6 +127,29 @@ it('renders the transaction show page', function () {
         ->assertSee('data-testid="delete-transaction-button"', false);
 });
 
+it('renders the cash in switch on a sell transaction show page', function () {
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    $customer = Addrbook::factory()->customer()->create();
+    $sell = Transaction::factory()->create([
+        'type' => Transaction::TYPE_SELL,
+        'invoice' => 'INV-SELL-SMOKE',
+        'sender_type' => (string) Addrbook::TYPE_WAREHOUSE,
+        'sender_id' => $warehouse->id,
+        'receiver_type' => (string) Addrbook::TYPE_CUSTOMER,
+        'receiver_id' => $customer->id,
+        'total' => -1000,
+        'real_total' => -1000,
+        'status' => Transaction::STATUS_COMPLETED,
+        'user_id' => $this->user->id,
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('transactions.show', $sell))
+        ->assertOk()
+        ->assertSee('data-testid="sell-cash-in-switch"', false)
+        ->assertSee('data-testid="sell-cash-in-amount"', false);
+});
+
 it('renders the addrbook item sales page', function () {
     $customer = Addrbook::factory()->customer()->create(['name' => 'Smoke Customer']);
 

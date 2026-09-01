@@ -285,6 +285,7 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::resource('invoice-maker', App\Http\Controllers\StandaloneInvoicesController::class)
         ->parameters(['invoice-maker' => 'invoice']);
 
+    Route::post('transactions/{transaction}/cash-in', [App\Http\Controllers\TransactionsController::class, 'storeSellCashIn'])->middleware('prevent.duplicate')->name('transactions.sell-cash-in.store');
     Route::patch('transactions/{transaction}/note', [App\Http\Controllers\TransactionsController::class, 'updateNote'])->name('transactions.update-note');
     Route::patch('transactions/{transaction}/invoice', [App\Http\Controllers\TransactionsController::class, 'updateInvoice'])->name('transactions.update-invoice');
     Route::patch('transactions/{transaction}/ppn', [App\Http\Controllers\TransactionsController::class, 'updatePpn'])->name('transactions.update-ppn');

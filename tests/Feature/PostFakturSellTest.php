@@ -22,6 +22,9 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Bus;
 
 beforeEach(function () {
+    // Faktur fixtures use 2026-07-31. Freeze "now" in August so book-closing
+    // still treats that date as open (current + previous month only).
+    Carbon::setTestNow(Carbon::parse('2026-08-31 15:00:00'));
     Bus::fake([UpdateTransactionSummaries::class]);
     $this->user = User::factory()->create();
     app(PermissionGenerator::class)->generateForModule('Report');
@@ -38,6 +41,10 @@ beforeEach(function () {
     ] as $path) {
         Artisan::call('migrate', ['--path' => $path, '--force' => true]);
     }
+});
+
+afterEach(function () {
+    Carbon::setTestNow();
 });
 
 function seedConsignmentFakturSellScenario(): array

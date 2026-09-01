@@ -2,13 +2,17 @@
 
 namespace App\Http\Requests;
 
+use App\Models\Addrbook;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 
 class StoreItemTransactionRequest extends FormRequest
 {
     public function rules(): array
     {
+        $creatingCashIn = $this->boolean('create_cash_in');
+
         return [
             'date' => ['required', 'date'],
             'due' => ['nullable', 'date'],
@@ -25,6 +29,10 @@ class StoreItemTransactionRequest extends FormRequest
             'items.*.note' => ['nullable', 'string', 'max:1000'],
             'discount_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'adjustment' => ['nullable', 'numeric'],
+            'create_cash_in' => ['sometimes', 'boolean'],
+            'cash_in_amount' => [$creatingCashIn ? 'required' : 'nullable', 'numeric', 'min:0.01'],
+            'cash_in_account_id' => [$creatingCashIn ? 'required' : 'nullable', 'integer', 'exists:customers,id'],
+            'cash_in_date' => ['nullable', 'date'],
         ];
     }
 
@@ -43,6 +51,54 @@ class StoreItemTransactionRequest extends FormRequest
     public function authorize(): bool
     {
         return true;
+    }
+
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(function (Validator $validator) {
+            if (! $this->boolean('create_cash_in')) {
+                return;
+            }
+
+            if ($this->input('type') !== 'sell') {
+                $validator->errors()->add('create_cash_in', 'Cash in can only be created with a sell transaction.');
+
+                return;
+            }
+
+            $accountId = (int) $this->input('cash_in_account_id');
+            if ($accountId < 1) {
+                return;
+            }
+
+            $account = Addrbook::query()->find($accountId);
+            if (! $account || (int) $account->type !== Addrbook::TYPE_BANK) {
+                $validator->errors()->add('cash_in_account_id', 'Select a bank account.');
+            }
+        });
+    }
+
+    public function wantsCashIn(): bool
+    {
+        return $this->boolean('create_cash_in');
+    }
+
+    /**
+     * @return array{date: string|null, account_id: int, amount: float}|null
+     */
+    public function cashInPayload(): ?array
+    {
+        if (! $this->wantsCashIn()) {
+            return null;
+        }
+
+        $data = $this->validated();
+
+        return [
+            'date' => $data['cash_in_date'] ?? null,
+            'account_id' => (int) $data['cash_in_account_id'],
+            'amount' => (float) $data['cash_in_amount'],
+        ];
     }
 
     public function validatedType(): int
