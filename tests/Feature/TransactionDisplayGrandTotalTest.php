@@ -383,6 +383,42 @@ it('flags old sells whose stored total omitted the invoice discount', function (
     expect($html)->toContain('data-testid="legacy-total-mismatch"');
 });
 
+it('does not invent PPN when reconstructing a non-tax sell', function () {
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    $customer = Addrbook::factory()->create(['type' => Addrbook::TYPE_CUSTOMER, 'ppn' => false]);
+    $item = Item::factory()->create();
+
+    $transaction = Transaction::factory()->create([
+        'type' => Transaction::TYPE_SELL,
+        'submit_type' => Transaction::SUBMIT_TYPE_MANUAL,
+        'total' => -18_000,
+        'discount' => 10,
+        'adjustment' => 0,
+        'ppn' => 0,
+        'sender_id' => $warehouse->id,
+        'sender_type' => (string) Addrbook::TYPE_WAREHOUSE,
+        'receiver_id' => $customer->id,
+        'receiver_type' => (string) Addrbook::TYPE_CUSTOMER,
+    ]);
+    TransactionDetail::create([
+        'transaction_id' => $transaction->id,
+        'date' => $transaction->date,
+        'transaction_type' => Transaction::TYPE_SELL,
+        'sender_id' => $warehouse->id,
+        'receiver_id' => $customer->id,
+        'item_id' => $item->id,
+        'quantity' => 2,
+        'price' => 10_000,
+        'discount' => 0,
+        'total' => 20_000,
+    ]);
+    $transaction->load('details');
+
+    expect($transaction->displaySignedPpn())->toBe(0.0)
+        ->and($transaction->displayReconstructedSignedTotal())->toBe(-18_000.0)
+        ->and($transaction->hasLegacyTotalMismatch())->toBeFalse();
+});
+
 it('does not flag faktur sells that store DPP on total and PPN separately', function () {
     $transaction = Transaction::factory()->create([
         'type' => Transaction::TYPE_SELL,
