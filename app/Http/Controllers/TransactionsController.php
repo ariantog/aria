@@ -670,7 +670,7 @@ class TransactionsController extends Controller
                 'pph' => $transaction->pph !== null ? (float) $transaction->pph : null,
                 'record_ppn' => (float) $transaction->ppn > 0,
                 'record_pph' => (float) ($transaction->pph ?? 0) > 0,
-                'display_ppn' => format_amount($transaction->ppn),
+                'display_ppn' => format_amount($transaction->displaySignedPpn()),
                 'display_dpp' => $transaction->ppn_dpp !== null ? format_amount($transaction->ppn_dpp) : '-',
                 'display_pph' => $transaction->pph !== null ? format_amount($transaction->pph) : '-',
             ]);

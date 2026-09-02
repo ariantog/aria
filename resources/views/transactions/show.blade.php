@@ -32,7 +32,7 @@
 @endphp
 
 <div class="flex h-full flex-1 flex-col gap-3 overflow-x-auto rounded-xl p-3 sm:gap-4 sm:p-4"
-     x-data="transactionShowPage({{ $transaction->id }}, @js($noteText), @js((bool) ($can['edit_transaction'] ?? false)), @js((bool) ($canEditPpn ?? false)), @js((float) $transaction->ppn), @js($transaction->ppn_dpp !== null ? (float) $transaction->ppn_dpp : null), @js($transaction->pph !== null ? (float) $transaction->pph : null), @js((float) ($ppn_rate ?? 11)), @js((float) ($pph_rate ?? 10)), @js($cashTotalAbs))">
+     x-data="transactionShowPage({{ $transaction->id }}, @js($noteText), @js((bool) ($can['edit_transaction'] ?? false)), @js((bool) ($canEditPpn ?? false)), @js((float) $transaction->ppn), @js($transaction->ppn_dpp !== null ? (float) $transaction->ppn_dpp : null), @js($transaction->pph !== null ? (float) $transaction->pph : null), @js((float) ($ppn_rate ?? 11)), @js((float) ($pph_rate ?? 10)), @js($cashTotalAbs), @js($transaction->displaySignedPpn()))">
 
     {{-- Top Action Bar --}}
     <div class="flex flex-col gap-3 print:hidden md:flex-row md:items-start md:justify-between">
@@ -543,12 +543,14 @@
                 </div>
                 <div class="flex items-center justify-between text-sm">
                     <span class="text-gray-500">Invoice Discount ({{ $transaction->discount ?? 0 }}%)</span>
-                    <span data-testid="tx-invoice-discount-amount" class="font-bold text-red-600">-{{ $fmt($transaction->displayInvoiceDiscountAmount()) }}</span>
+                    @php $signedDiscount = $transaction->displaySignedInvoiceDiscount(); @endphp
+                    <span data-testid="tx-invoice-discount-amount" class="font-bold {{ $signedDiscount < 0 ? 'text-red-600' : 'text-green-600' }}">{{ $signedDiscount > 0 ? '+' : '' }}{{ $fmt($signedDiscount) }}</span>
                 </div>
                 <hr class="border-dashed">
                 <div class="flex items-center justify-between text-sm">
                     <span class="text-gray-500 italic underline decoration-dotted">Adjustment</span>
-                    <span class="font-bold {{ $transaction->adjustment < 0 ? 'text-red-500' : 'text-green-500' }}">{{ $transaction->adjustment > 0 ? '+' : '' }}{{ $fmt($transaction->adjustment) }}</span>
+                    @php $signedAdjustment = $transaction->displaySignedAdjustment(); @endphp
+                    <span data-testid="tx-adjustment-amount" class="font-bold {{ $signedAdjustment < 0 ? 'text-red-500' : 'text-green-500' }}">{{ $signedAdjustment > 0 ? '+' : '' }}{{ $fmt($signedAdjustment) }}</span>
                 </div>
                 <div class="flex items-center justify-between text-sm">
                     <span class="text-gray-500">PPN / Tax</span>
@@ -572,6 +574,13 @@
                     <span>PPh withheld</span>
                     <span x-text="pphDisplay"></span>
                 </div>
+                @if($transaction->hasLegacyTotalMismatch())
+                    <p class="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900" data-testid="legacy-total-mismatch">
+                        Stored total ({{ $fmt($transaction->displaySignedGrandTotal()) }}) does not match
+                        lines − discount + adjustment ({{ $fmt($transaction->displayReconstructedSignedTotal()) }}).
+                        This is leftover from an older write — delete and recreate if the payable should follow the discount.
+                    </p>
+                @endif
                 <div class="pt-2">
                     <div class="flex items-center justify-between gap-3 rounded-lg bg-blue-600 p-4 text-white shadow-lg shadow-blue-500/20">
                         <div class="flex min-w-0 flex-shrink-0 flex-col">
@@ -620,7 +629,7 @@
 
 @push('scripts')
 <script>
-function transactionShowPage(transactionId, initialNote, canEditNote, canEditPpn, initialPpn, initialPpnDpp, initialPph, ppnRate, pphRate, transactionTotal) {
+function transactionShowPage(transactionId, initialNote, canEditNote, canEditPpn, initialPpn, initialPpnDpp, initialPph, ppnRate, pphRate, transactionTotal, initialSignedPpn) {
     const storageKey = 'aria-transaction-show-view';
     const defaults = { showImage: true, showBarcode: true, showSku: false, showName: true, showDescription: false };
     let saved = {};
@@ -662,7 +671,7 @@ function transactionShowPage(transactionId, initialNote, canEditNote, canEditPpn
         pphAmount: initialPph !== null ? Number(initialPph) : null,
         ppnRecord: Number(initialPpn || 0) > 0,
         pphRecord: Number(initialPph || 0) > 0,
-        ppnDisplay: formatAmountId(Number(initialPpn || 0)),
+        ppnDisplay: formatAmountId(Number(initialSignedPpn ?? initialPpn || 0)),
         ppnDppDisplay: initialPpnDpp !== null ? formatAmountId(Number(initialPpnDpp)) : '-',
         pphDisplay: initialPph !== null ? formatAmountId(Number(initialPph)) : '-',
         ppnModalOpen: false,

@@ -170,7 +170,9 @@ it('treats a 100 percent invoice discount as a full write-off of the line subtot
 
     expect($transaction->invoiceDiscountPercent())->toBe(100.0)
         ->and($transaction->displayInvoiceDiscountAmount())->toBe(1_591_000.0)
+        ->and($transaction->displaySignedInvoiceDiscount())->toBe(1_591_000.0)
         ->and($transaction->displaySummarySubtotal())->toBe(-1_591_000.0)
+        ->and($transaction->displayReconstructedSignedTotal())->toBe(0.0)
         ->and($transaction->displayGrandTotal())->toBe(0.0)
         ->and($transaction->displaySignedGrandTotal())->toBe(0.0);
 });
@@ -214,8 +216,9 @@ it('shows 100 percent invoice discount as the full amount and a zero payable', f
         ->assertOk()
         ->getContent();
 
-    expect(preg_match('/data-testid="tx-invoice-discount-amount"[^>]*>(-?[^<]+)/', $html, $discountMatch))->toBe(1)
-        ->and(trim($discountMatch[1]))->toBe('-1,591,000')
+    expect($html)->not->toContain('data-testid="legacy-total-mismatch"')
+        ->and(preg_match('/data-testid="tx-invoice-discount-amount"[^>]*>(-?[^<]+)/', $html, $discountMatch))->toBe(1)
+        ->and(trim($discountMatch[1]))->toBe('+1,591,000')
         ->and(preg_match('/data-testid="tx-grand-total"[^>]*>IDR ([^<]+)/', $html, $totalMatch))->toBe(1)
         ->and(trim($totalMatch[1]))->toBe('0');
 
@@ -252,4 +255,158 @@ it('exposes display helpers on deleted transactions and renders deleted show', f
         ->get(route('transactions.deleted.show', $deleted->id))
         ->assertOk()
         ->assertSee('-82,350', false);
+});
+
+it('reconstructs sell payable from signed discount and adjustment contributions', function () {
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    $customer = Addrbook::factory()->create(['type' => Addrbook::TYPE_CUSTOMER]);
+    $item = Item::factory()->create();
+
+    $transaction = Transaction::factory()->create([
+        'type' => Transaction::TYPE_SELL,
+        'submit_type' => Transaction::SUBMIT_TYPE_MANUAL,
+        'total' => -17_000,
+        'discount' => 10,
+        'adjustment' => -1_000,
+        'ppn' => 0,
+        'sender_id' => $warehouse->id,
+        'sender_type' => (string) Addrbook::TYPE_WAREHOUSE,
+        'receiver_id' => $customer->id,
+        'receiver_type' => (string) Addrbook::TYPE_CUSTOMER,
+    ]);
+    TransactionDetail::create([
+        'transaction_id' => $transaction->id,
+        'date' => $transaction->date,
+        'transaction_type' => Transaction::TYPE_SELL,
+        'sender_id' => $warehouse->id,
+        'receiver_id' => $customer->id,
+        'item_id' => $item->id,
+        'quantity' => 2,
+        'price' => 10_000,
+        'discount' => 0,
+        'total' => 20_000,
+    ]);
+    $transaction->load('details');
+
+    expect($transaction->displaySummarySubtotal())->toBe(-20_000.0)
+        ->and($transaction->displaySignedInvoiceDiscount())->toBe(2_000.0)
+        ->and($transaction->displaySignedAdjustment())->toBe(1_000.0)
+        ->and($transaction->displayReconstructedSignedTotal())->toBe(-17_000.0)
+        ->and($transaction->hasLegacyTotalMismatch())->toBeFalse()
+        ->and($transaction->displayReconstructedSignedTotal())->toBe($transaction->displaySignedGrandTotal());
+
+    $html = $this->actingAs($this->user)
+        ->get(route('transactions.show', $transaction))
+        ->assertOk()
+        ->getContent();
+
+    expect($html)->not->toContain('data-testid="legacy-total-mismatch"')
+        ->and(preg_match('/data-testid="tx-invoice-discount-amount"[^>]*>(-?[^<]+)/', $html, $discountMatch))->toBe(1)
+        ->and(trim($discountMatch[1]))->toBe('+2,000')
+        ->and(preg_match('/data-testid="tx-adjustment-amount"[^>]*>(-?[^<]+)/', $html, $adjMatch))->toBe(1)
+        ->and(trim($adjMatch[1]))->toBe('+1,000');
+});
+
+it('reconstructs jubelio sell receivable from a negative marketplace adjustment', function () {
+    $transaction = Transaction::factory()->create([
+        'type' => Transaction::TYPE_SELL,
+        'submit_type' => Transaction::SUBMIT_TYPE_JUBELIO,
+        'total' => -42935,
+        'adjustment' => -21065,
+        'discount' => 0,
+        'ppn' => 0,
+    ]);
+    $item = Item::factory()->create();
+    TransactionDetail::create([
+        'transaction_id' => $transaction->id,
+        'date' => $transaction->date,
+        'transaction_type' => Transaction::TYPE_SELL,
+        'sender_id' => 1,
+        'receiver_id' => 1,
+        'item_id' => $item->id,
+        'quantity' => 1,
+        'price' => 64000,
+        'discount' => 0,
+        'total' => 64000,
+    ]);
+    $transaction->load('details');
+
+    expect($transaction->displaySignedAdjustment())->toBe(21065.0)
+        ->and($transaction->displayReconstructedSignedTotal())->toBe(-42935.0)
+        ->and($transaction->hasLegacyTotalMismatch())->toBeFalse()
+        ->and($transaction->displayReconstructedSignedTotal())->toBe($transaction->displaySignedGrandTotal());
+});
+
+it('flags old sells whose stored total omitted the invoice discount', function () {
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    $customer = Addrbook::factory()->create(['type' => Addrbook::TYPE_CUSTOMER]);
+    $item = Item::factory()->create();
+
+    $transaction = Transaction::factory()->create([
+        'type' => Transaction::TYPE_SELL,
+        'submit_type' => Transaction::SUBMIT_TYPE_MANUAL,
+        'invoice' => 'INV-OLD-DISC',
+        'total' => -1_591_000,
+        'discount' => 100,
+        'adjustment' => 0,
+        'ppn' => 0,
+        'sender_id' => $warehouse->id,
+        'sender_type' => (string) Addrbook::TYPE_WAREHOUSE,
+        'receiver_id' => $customer->id,
+        'receiver_type' => (string) Addrbook::TYPE_CUSTOMER,
+        'user_id' => $this->user->id,
+    ]);
+    TransactionDetail::create([
+        'transaction_id' => $transaction->id,
+        'date' => $transaction->date,
+        'transaction_type' => Transaction::TYPE_SELL,
+        'sender_id' => $warehouse->id,
+        'receiver_id' => $customer->id,
+        'item_id' => $item->id,
+        'quantity' => 1,
+        'price' => 1_591_000,
+        'discount' => 0,
+        'total' => 1_591_000,
+    ]);
+    $transaction->load('details');
+
+    expect($transaction->displayReconstructedSignedTotal())->toBe(0.0)
+        ->and($transaction->displaySignedGrandTotal())->toBe(-1_591_000.0)
+        ->and($transaction->hasLegacyTotalMismatch())->toBeTrue()
+        ->and($transaction->displayReconstructedSignedTotal())->not->toBe($transaction->displaySignedGrandTotal());
+
+    $html = $this->actingAs($this->user)
+        ->get(route('transactions.show', $transaction))
+        ->assertOk()
+        ->getContent();
+
+    expect($html)->toContain('data-testid="legacy-total-mismatch"');
+});
+
+it('does not flag faktur sells that store DPP on total and PPN separately', function () {
+    $transaction = Transaction::factory()->create([
+        'type' => Transaction::TYPE_SELL,
+        'total' => -100_000,
+        'discount' => 0,
+        'adjustment' => 0,
+        'ppn' => 11_000,
+    ]);
+    $item = Item::factory()->create();
+    TransactionDetail::create([
+        'transaction_id' => $transaction->id,
+        'date' => $transaction->date,
+        'transaction_type' => Transaction::TYPE_SELL,
+        'sender_id' => 1,
+        'receiver_id' => 1,
+        'item_id' => $item->id,
+        'quantity' => 1,
+        'price' => 100_000,
+        'discount' => 0,
+        'total' => 100_000,
+    ]);
+    $transaction->load('details');
+
+    expect($transaction->displayReconstructedSignedTotal())->toBe(-111_000.0)
+        ->and($transaction->displaySignedGrandTotal())->toBe(-100_000.0)
+        ->and($transaction->hasLegacyTotalMismatch())->toBeFalse();
 });

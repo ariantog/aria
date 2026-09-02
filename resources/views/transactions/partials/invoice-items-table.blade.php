@@ -82,7 +82,7 @@
         <tr><td colspan="{{ $totalCols }}"><hr></td></tr>
         <tr>
             <td colspan="{{ $labelColspan }}" style="text-align:right;">Subtotal</td>
-            <td style="text-align:right;">{{ $fmt($transaction->displaySummarySubtotal()) }}</td>
+            <td style="text-align:right;">{{ $fmt($transaction->itemsSubtotalAmount()) }}</td>
         </tr>
         @if((float) $transaction->discount > 0)
             <tr>
