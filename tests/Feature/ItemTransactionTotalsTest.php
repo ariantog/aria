@@ -187,6 +187,36 @@ it('keeps total as line subtotal while real_total reflects header discount on se
     ]);
 });
 
+it('stores a zero real_total when sell invoice discount is 100 percent', function () {
+    $user = User::factory()->create();
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    $customer = Addrbook::factory()->customer()->create(['ppn' => false]);
+    $item = Item::factory()->create(['price' => 1_591_000, 'cost' => 800_000]);
+    seedWarehouseStock($warehouse, $item);
+
+    postItemTransaction($user, [
+        'date' => now()->toDateString(),
+        'type' => 'sell',
+        'sender_id' => $warehouse->id,
+        'receiver_id' => $customer->id,
+        'discount_percent' => 100,
+        'items' => [[
+            'item_id' => $item->id,
+            'quantity' => 1,
+            'price' => 1_591_000,
+            'discount' => 0,
+        ]],
+    ])->assertRedirect();
+
+    $this->assertDatabaseHas('transactions', [
+        'type' => Transaction::TYPE_SELL,
+        'total' => -1_591_000,
+        'real_total' => 0,
+        'discount' => 100,
+        'ppn' => 0,
+    ]);
+});
+
 it('stores move transactions with informational line totals on the header', function () {
     $user = User::factory()->create();
     $source = Addrbook::factory()->warehouse()->create();
