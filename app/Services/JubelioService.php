@@ -545,12 +545,17 @@ class JubelioService
     public function fetchSalesOrders(int $page, int $pageSize, string $dateFrom, string $dateTo): ?array
     {
         try {
-            $response = $this->get('https://api2.jubelio.com/sales/orders/', [
-                'page' => $page,
-                'pageSize' => $pageSize,
-                'transactionDateFrom' => $dateFrom,
-                'transactionDateTo' => $dateTo,
-            ]);
+            $response = $this->sendAuthenticated(
+                fn (PendingRequest $http) => $http->timeout(20)->connectTimeout(5)->get(
+                    'https://api2.jubelio.com/sales/orders/',
+                    [
+                        'page' => $page,
+                        'pageSize' => $pageSize,
+                        'transactionDateFrom' => $dateFrom,
+                        'transactionDateTo' => $dateTo,
+                    ],
+                ),
+            );
 
             if (! $response) {
                 return null;

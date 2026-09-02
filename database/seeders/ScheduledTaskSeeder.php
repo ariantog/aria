@@ -195,7 +195,7 @@ class ScheduledTaskSeeder extends Seeder
                 'name' => 'Jubelio Get Orders (legacy resume)',
                 'frequency' => 'everyMinute',
                 'active' => false,
-                'description' => 'Legacy fallback to resume interrupted manual imports. Prefer the queued sync job from Get Orders UI.',
+                'description' => 'Resumes a running manual Get Orders import one short batch per minute. Enabled automatically while an import is in progress.',
             ]
         );
 

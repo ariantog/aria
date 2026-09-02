@@ -62,10 +62,25 @@ class JubelioGetOrderController extends Controller
             'to' => $daySpan,
         ]);
 
-        SyncJubelioMissingOrders::dispatch($import->id);
+        $this->resumeImport($import);
 
         return redirect()->route('jubelio.get-orders.index')
             ->with('success', 'Sinkronisasi dimulai. Order yang belum ada di Aria akan langsung masuk antrian Jubelio Orders.');
+    }
+
+    public function resume(): RedirectResponse
+    {
+        Gate::authorize(Jubelio::getPermissions()['view']);
+
+        $import = Crongetorder::orderByDesc('created_at')->first();
+        if (! $import || ! $import->isRunning()) {
+            return back()->with('error', 'Tidak ada sinkronisasi yang bisa dilanjutkan.');
+        }
+
+        $this->resumeImport($import);
+
+        return redirect()->route('jubelio.get-orders.index')
+            ->with('success', 'Sinkronisasi dilanjutkan dari halaman '.($import->count + 1).'.');
     }
 
     public function reset(): RedirectResponse
@@ -80,5 +95,11 @@ class JubelioGetOrderController extends Controller
         ScheduledTask::where('command', 'jubelio:get-orders')->update(['active' => false]);
 
         return back()->with('success', 'Sinkronisasi direset.');
+    }
+
+    protected function resumeImport(Crongetorder $import): void
+    {
+        ScheduledTask::where('command', 'jubelio:get-orders')->update(['active' => true]);
+        SyncJubelioMissingOrders::dispatch($import->id);
     }
 }
