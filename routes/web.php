@@ -421,6 +421,7 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
         Route::get('/tax/faktur/{import}', [\App\Http\Controllers\Reports\TaxFakturImportController::class, 'show'])->name('tax.faktur.show');
         Route::delete('/tax/faktur/{import}', [\App\Http\Controllers\Reports\TaxFakturImportController::class, 'destroy'])->name('tax.faktur.destroy');
         Route::patch('/tax/faktur/{import}/payment', [\App\Http\Controllers\Reports\TaxFakturImportController::class, 'updatePayment'])->name('tax.faktur.payment.update');
+        Route::post('/tax/faktur/{import}/cash-in', [\App\Http\Controllers\Reports\TaxFakturImportController::class, 'storeCashIn'])->middleware('prevent.duplicate')->name('tax.faktur.cash-in.store');
         Route::post('/tax/faktur/{import}/link-sells', [\App\Http\Controllers\Reports\TaxFakturImportController::class, 'linkSells'])->name('tax.faktur.link-sells');
         Route::delete('/tax/faktur/{import}/sells/{transaction}', [\App\Http\Controllers\Reports\TaxFakturImportController::class, 'unlinkSell'])->name('tax.faktur.unlink-sell');
         Route::post('/tax/faktur/{import}/post-sell', [\App\Http\Controllers\Reports\TaxFakturImportController::class, 'postSell'])->name('tax.faktur.post-sell');

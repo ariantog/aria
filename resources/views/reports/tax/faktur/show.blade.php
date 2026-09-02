@@ -213,6 +213,67 @@ $gross = $import->fakturGross();
             @if(session('error'))
                 <div class="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-800">{{ session('error') }}</div>
             @endif
+
+            @if($canCreateCashIn ?? false)
+                <form method="POST" action="{{ route('reports.tax.faktur.cash-in.store', $import) }}" class="mb-4 space-y-3 rounded-lg border border-blue-100 bg-blue-50/40 p-3" data-testid="faktur-create-cash-in">
+                    @csrf
+                    <p class="text-sm font-medium text-gray-900">Buat Cash In dari faktur</p>
+                    <p class="text-xs text-gray-500">Otomatis di-link. Sender = lawan transaksi. Invoice = nomor faktur. PPN tidak dicatat (sudah di faktur).</p>
+                    <div class="grid gap-3 sm:grid-cols-3">
+                        <div>
+                            <label class="mb-1 block text-xs text-gray-500" for="create_cash_in_amount">Jumlah (Rp)</label>
+                            <input type="number" step="0.01" min="0.01" id="create_cash_in_amount" name="amount"
+                                   value="{{ old('amount', $defaultCashInAmount ?? '') }}"
+                                   required
+                                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm tabular-nums"
+                                   data-testid="faktur-create-cash-in-amount">
+                            @error('amount')
+                                <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                            @enderror
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-xs text-gray-500" for="create_cash_in_date">Tanggal</label>
+                            <input type="date" id="create_cash_in_date" name="date"
+                                   value="{{ old('date', $defaultCashInDate ?? now()->toDateString()) }}"
+                                   min="{{ $cashInMinDate ?? '' }}"
+                                   required
+                                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                                   data-testid="faktur-create-cash-in-date">
+                            @error('date')
+                                <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                            @enderror
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-xs text-gray-500" for="create_cash_in_bank">Bank</label>
+                            <select id="create_cash_in_bank" name="account_id" required
+                                    class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                                    data-testid="faktur-create-cash-in-bank">
+                                <option value="">— Pilih —</option>
+                                @foreach($cashInBanks ?? [] as $bank)
+                                    <option value="{{ $bank->id }}" @selected((int) old('account_id', $defaultCashInBankId ?? null) === (int) $bank->id)>{{ $bank->name }}</option>
+                                @endforeach
+                            </select>
+                            @error('account_id')
+                                <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                            @enderror
+                        </div>
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-xs text-gray-500" for="create_cash_in_variance">Akun biaya selisih (opsional)</label>
+                        <select id="create_cash_in_variance" name="variance_expense_addrbook_id" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                            <option value="">— Tidak ada —</option>
+                            @foreach($expenseAccounts as $account)
+                                <option value="{{ $account->id }}" @selected((int) old('variance_expense_addrbook_id', $import->variance_expense_addrbook_id) === $account->id)>{{ $account->name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <button type="submit" class="rounded-lg bg-blue-700 px-4 py-2 text-sm font-medium text-white hover:bg-blue-800" data-testid="faktur-create-cash-in-submit">
+                        Buat &amp; link Cash In
+                    </button>
+                </form>
+                <p class="mb-3 text-xs font-medium uppercase tracking-wide text-gray-400">Atau link Cash In yang sudah ada</p>
+            @endif
+
             <form method="POST" action="{{ route('reports.tax.faktur.payment.update', $import) }}" class="space-y-3">
                 @csrf
                 @method('PATCH')

@@ -3,7 +3,9 @@
 namespace App\Http\Controllers\Reports;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\StoreFakturCashInRequest;
 use App\Models\Addrbook;
+use App\Models\Transaction;
 use App\Models\Item;
 use App\Models\Report;
 use App\Models\ReportingEntity;
@@ -21,6 +23,7 @@ use App\Services\Tax\FakturPajakPdfParser;
 use App\Services\Tax\ParsedFakturPajak;
 use App\Services\Tax\PostFakturSell;
 use App\Services\Tax\TaxFakturImportService;
+use App\Services\BookClosingService;
 use App\Services\UserPreferenceService;
 use App\Support\LikeSearch;
 use Illuminate\Http\JsonResponse;
@@ -85,7 +88,7 @@ class TaxFakturImportController extends Controller
     {
         Gate::authorize(Report::getPermissions()['view-tax-faktur']);
 
-        $import->load(['reportingEntity', 'counterparty', 'varianceExpenseAccount', 'user', 'cashInTransaction', 'varianceTransaction', 'sellTransaction', 'sellTransactions.sender']);
+        $import->load(['reportingEntity.banks', 'counterparty', 'varianceExpenseAccount', 'user', 'cashInTransaction', 'varianceTransaction', 'sellTransaction', 'sellTransactions.sender']);
 
         $lineItemMatches = app(FakturLineItemMatcher::class)->propose($import->line_items ?? []);
 
@@ -98,6 +101,7 @@ class TaxFakturImportController extends Controller
                 ->orderBy('name')
                 ->get(['id', 'name']),
             ...$this->sellFormContext($import->counterparty_id, $lineItemMatches, request()->user()),
+            ...$this->cashInFormContext($import, request()->user()),
         ]);
     }
 
@@ -407,6 +411,33 @@ class TaxFakturImportController extends Controller
             ->with('success', 'Pembayaran faktur diperbarui.');
     }
 
+    public function storeCashIn(
+        StoreFakturCashInRequest $request,
+        TaxFakturImport $import,
+        TaxFakturImportService $importService,
+        BookClosingService $bookClosing,
+    ) {
+        Gate::authorize(Report::getPermissions()['import-tax-faktur']);
+        Gate::authorize(Transaction::getPermissions()['type-cash-in']);
+
+        $data = $request->validated();
+        $bookClosing->validateDate($data['date']);
+
+        try {
+            $import = $importService->createAndLinkCashIn($import, $data);
+        } catch (InvalidArgumentException $e) {
+            return back()->withInput()->with('error', $e->getMessage());
+        }
+
+        $cashInId = $import->cash_in_transaction_id;
+
+        return redirect()
+            ->route('reports.tax.faktur.show', $import)
+            ->with('success', $cashInId
+                ? "Cash In #{$cashInId} dibuat dan di-link ke faktur {$import->faktur_number}."
+                : 'Cash In dibuat dan di-link ke faktur.');
+    }
+
     public function sellSuggestions(Request $request, FakturSellMatcher $sellMatcher)
     {
         Gate::authorize(Report::getPermissions()['import-tax-faktur']);
@@ -642,6 +673,63 @@ class TaxFakturImportController extends Controller
             'items' => $items,
             'defaultWarehouseId' => $this->defaultWarehouseId($counterpartyId, $user),
             'lineItemMatches' => $lineItemMatches,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     canCreateCashIn: bool,
+     *     cashInBanks: \Illuminate\Support\Collection<int, Addrbook>,
+     *     defaultCashInBankId: int|null,
+     *     cashInMinDate: string,
+     *     defaultCashInAmount: float,
+     *     defaultCashInDate: string,
+     * }
+     */
+    private function cashInFormContext(TaxFakturImport $import, ?User $user): array
+    {
+        $entityBanks = $import->reportingEntity?->banks
+            ? $import->reportingEntity->banks
+                ->filter(fn (Addrbook $bank) => (bool) ($bank->pivot->is_active ?? true))
+                ->sortBy('name')
+                ->values()
+            : collect();
+
+        $banks = $entityBanks->isNotEmpty()
+            ? $entityBanks
+            : Addrbook::query()
+                ->where('type', Addrbook::TYPE_BANK)
+                ->orderBy('name')
+                ->get(['id', 'name']);
+
+        $preferred = $user
+            ? app(UserPreferenceService::class)->defaultCashAccount($user, true)
+            : null;
+        $preferredId = $preferred['id'] ?? null;
+        $defaultBankId = $preferredId && $banks->contains(fn (Addrbook $bank) => (int) $bank->id === (int) $preferredId)
+            ? (int) $preferredId
+            : ($banks->first()?->id ? (int) $banks->first()->id : null);
+
+        $counterparty = $import->counterparty;
+        $canCreateCashIn = (bool) $user?->can(Report::getPermissions()['import-tax-faktur'])
+            && (bool) $user?->can(Transaction::getPermissions()['type-cash-in'])
+            && $import->direction === TaxFakturImport::DIRECTION_KELUARAN
+            && ! $import->cash_in_transaction_id
+            && $counterparty
+            && in_array((int) $counterparty->type, Addrbook::cashPartyTypes(), true)
+            && $banks->isNotEmpty();
+
+        $paymentDate = $import->payment_received_date?->toDateString();
+
+        return [
+            'canCreateCashIn' => $canCreateCashIn,
+            'cashInBanks' => $banks,
+            'defaultCashInBankId' => $defaultBankId,
+            'cashInMinDate' => app(BookClosingService::class)->getMinAllowedDate()->toDateString(),
+            'defaultCashInAmount' => $import->payment_received_amount !== null
+                ? (float) $import->payment_received_amount
+                : $import->fakturGross(),
+            'defaultCashInDate' => $paymentDate ?: now()->toDateString(),
         ];
     }
 

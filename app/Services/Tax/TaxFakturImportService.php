@@ -2,6 +2,7 @@
 
 namespace App\Services\Tax;
 
+use App\Actions\Transactions\CreateCashInFromFaktur;
 use App\Models\Addrbook;
 use App\Models\TaxFakturImport;
 use App\Models\Transaction;
@@ -158,6 +159,26 @@ class TaxFakturImportService
         $import->save();
 
         return $import->fresh();
+    }
+
+    /**
+     * @param  array{date: string, account_id: int, amount: float, variance_expense_addrbook_id?: int|null}  $data
+     */
+    public function createAndLinkCashIn(TaxFakturImport $import, array $data): TaxFakturImport
+    {
+        return DB::transaction(function () use ($import, $data) {
+            $cashIn = app(CreateCashInFromFaktur::class)->execute($import, $data);
+
+            return $this->recordPayment(
+                $import->fresh(),
+                (float) $data['amount'],
+                $data['date'] ?? now()->toDateString(),
+                $cashIn->id,
+                isset($data['variance_expense_addrbook_id']) && $data['variance_expense_addrbook_id']
+                    ? (int) $data['variance_expense_addrbook_id']
+                    : $import->variance_expense_addrbook_id,
+            );
+        });
     }
 
     public function recordPayment(
