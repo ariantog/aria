@@ -36,6 +36,21 @@ trait DisplaysTransactionTotals
     }
 
     /**
+     * Invoice-level discount percent stored on `transactions.discount`
+     * (production column is decimal(5,2) — a percent, not a money amount).
+     */
+    public function invoiceDiscountPercent(): float
+    {
+        return max(0.0, min(100.0, (float) $this->discount));
+    }
+
+    /** Positive invoice-discount money amount (percent of line subtotal). */
+    public function displayInvoiceDiscountAmount(): float
+    {
+        return round($this->itemsSubtotalAmount() * ($this->invoiceDiscountPercent() / 100), 2);
+    }
+
+    /**
      * Positive net payable for PDF export and print (unsigned).
      *
      * Manual Aria rows store net on `real_total` and gross line sum on `total`.
@@ -59,5 +74,11 @@ trait DisplaysTransactionTotals
         }
 
         return $real;
+    }
+
+    /** Signed net payable for on-screen totals (sell stays negative). */
+    public function displaySignedGrandTotal(): float
+    {
+        return Transaction::signedAmount((int) $this->type, $this->displayGrandTotal());
     }
 }
