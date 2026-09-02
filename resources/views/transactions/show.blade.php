@@ -489,16 +489,16 @@
                             @endif
                         </td>
                         <td class="px-3 py-2.5 align-middle text-gray-600" data-copy-col="desc" data-sort-value="{{ $item?->description ?: '' }}" x-show="showDescription">{{ $item?->description ?: '-' }}</td>
-                        <td class="whitespace-nowrap px-3 py-2.5 text-center align-middle font-black tabular-nums" data-copy-col="qty" data-sort-value="{{ $detail->quantity }}">{{ $detail->quantity }}</td>
-                        <td class="whitespace-nowrap px-3 py-2.5 text-right align-middle font-medium tabular-nums" data-copy-col="price" data-sort-value="{{ $detail->price }}">{{ $fmt($detail->price) }}</td>
-                        <td class="whitespace-nowrap px-3 py-2.5 text-right align-middle tabular-nums" data-copy-col="disc" data-sort-value="{{ (float) $detail->discount }}">
+                        <td class="whitespace-nowrap px-3 py-2.5 text-center align-middle font-black tabular-nums" data-copy-col="qty" data-copy-value="{{ format_copy_number($detail->quantity) }}" data-sort-value="{{ $detail->quantity }}">{{ $detail->quantity }}</td>
+                        <td class="whitespace-nowrap px-3 py-2.5 text-right align-middle font-medium tabular-nums" data-copy-col="price" data-copy-value="{{ format_copy_number($detail->price) }}" data-sort-value="{{ $detail->price }}">{{ $fmt($detail->price) }}</td>
+                        <td class="whitespace-nowrap px-3 py-2.5 text-right align-middle tabular-nums" data-copy-col="disc" data-copy-value="{{ format_copy_number((float) $detail->discount) }}" data-sort-value="{{ (float) $detail->discount }}">
                             @if($detail->discount > 0)
                                 <span class="inline-flex h-5 items-center rounded-md border border-dashed border-red-300 bg-red-50 px-1.5 text-[10px] font-bold text-red-600">-{{ format_amount((float) $detail->discount) }}%</span>
                             @else
                                 <span class="text-gray-400">-</span>
                             @endif
                         </td>
-                        <td class="whitespace-nowrap px-3 py-2.5 text-right align-middle font-black text-blue-700 tabular-nums" data-copy-col="subtotal" data-sort-value="{{ $detail->total }}">{{ $fmt($detail->total) }}</td>
+                        <td class="whitespace-nowrap px-3 py-2.5 text-right align-middle font-black text-blue-700 tabular-nums" data-copy-col="subtotal" data-copy-value="{{ format_copy_number($detail->total) }}" data-sort-value="{{ $detail->total }}">{{ $fmt($detail->total) }}</td>
                     </tr>
                     @endforeach
                 </tbody>
@@ -903,76 +903,9 @@ function transactionShowPage(transactionId, initialNote, canEditNote, canEditPpn
 
             rows.forEach((row) => tbody.appendChild(row));
         },
-        cellCopyValue(cell) {
-            const img = cell.querySelector('img');
-            if (img) {
-                return (img.getAttribute('alt') || img.getAttribute('src') || '').trim();
-            }
-
-            const link = cell.querySelector('a');
-            if (link) {
-                return link.textContent.trim();
-            }
-
-            return cell.innerText.replace(/\s+/g, ' ').trim();
-        },
-        tableNodeToTsv(table) {
-            const rows = [];
-
-            table.querySelectorAll('thead tr, tbody tr').forEach((row) => {
-                const values = [];
-
-                row.querySelectorAll('[data-copy-col]').forEach((cell) => {
-                    if (!this.isCopyColumnVisible(cell.dataset.copyCol)) {
-                        return;
-                    }
-
-                    values.push(this.cellCopyValue(cell));
-                });
-
-                if (values.length) {
-                    rows.push(values.join('\t'));
-                }
-            });
-
-            return rows.join('\n');
-        },
         async copyItemsTable() {
-            const table = this.$refs.itemsTable;
-            if (!table) {
-                return;
-            }
-
-            const clone = table.cloneNode(true);
-            clone.querySelectorAll('[data-copy-col]').forEach((cell) => {
-                if (!this.isCopyColumnVisible(cell.dataset.copyCol)) {
-                    cell.remove();
-                }
-            });
-
-            const plain = this.tableNodeToTsv(clone);
-            const html = clone.outerHTML;
-
-            try {
-                if (window.ClipboardItem && navigator.clipboard?.write) {
-                    await navigator.clipboard.write([
-                        new ClipboardItem({
-                            'text/plain': new Blob([plain], { type: 'text/plain' }),
-                            'text/html': new Blob([html], { type: 'text/html' }),
-                        }),
-                    ]);
-                } else {
-                    await navigator.clipboard.writeText(plain);
-                }
-
+            if (await ariaCopyTable(this.$refs.itemsTable, (col) => this.isCopyColumnVisible(col))) {
                 this.showCopyFeedback();
-            } catch (e) {
-                try {
-                    await navigator.clipboard.writeText(plain);
-                    this.showCopyFeedback();
-                } catch (fallbackError) {
-                    console.error('Failed to copy items table', fallbackError);
-                }
             }
         },
     };

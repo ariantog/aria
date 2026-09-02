@@ -35,71 +35,39 @@
 @endphp
 
 <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm"
-     x-data="{
-        noteModalOpen: false,
-        noteTxId: null,
-        noteText: '',
-        noteSaving: false,
-        noteError: '',
-        openNoteEdit(id, text) {
-            this.noteTxId = id;
-            this.noteText = (text && text !== '-') ? text : '';
-            this.noteError = '';
-            this.noteModalOpen = true;
-            this.$nextTick(() => this.$refs.noteTextarea?.focus());
-        },
-        async saveNote() {
-            if (!this.noteTxId || this.noteSaving) return;
-            this.noteSaving = true;
-            this.noteError = '';
-            try {
-                const res = await fetch(`/transactions/${this.noteTxId}/note`, {
-                    method: 'PATCH',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json',
-                        'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]')?.content ?? '',
-                        'X-Requested-With': 'XMLHttpRequest',
-                    },
-                    body: JSON.stringify({ note: this.noteText }),
-                });
-                const data = await res.json().catch(() => ({}));
-                if (!res.ok) {
-                    this.noteError = data.message || (data.errors?.note?.[0] ?? 'Failed to save note.');
-                    return;
-                }
-                const cell = document.querySelector(`[data-tx-note='${this.noteTxId}']`);
-                if (cell) cell.textContent = data.display ?? '-';
-                this.noteModalOpen = false;
-            } catch (e) {
-                this.noteError = 'Failed to save note.';
-            } finally {
-                this.noteSaving = false;
-            }
-        }
-     }">
+     x-data="transactionListTable()">
+    <div class="flex items-center justify-end border-b border-gray-100 px-3 py-2">
+        <button type="button"
+                @click="copyRowsTable()"
+                data-testid="copy-transactions-table"
+                title="Copy table for Excel"
+                class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+            <span x-text="copyFeedback ? 'Copied!' : 'Copy rows'"></span>
+        </button>
+    </div>
     <div class="overflow-x-auto">
-        <table class="w-full min-w-[980px] text-sm">
+        <table x-ref="listTable" class="w-full min-w-[980px] text-sm">
             <thead class="border-b border-gray-200 bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
                 <tr>
-                    <th class="px-3 py-2.5 text-left font-medium">
+                    <th class="px-3 py-2.5 text-left font-medium" data-copy-col="date">
                         @if($sortLink)<a href="{{ $sortLink('date') }}" class="inline-flex items-center gap-1 hover:text-gray-900">Date @if($sort==='date')<span class="text-blue-600">{{ $direction==='asc'?'↑':'↓' }}</span>@endif</a>@else Date @endif
                     </th>
-                    <th class="px-3 py-2.5 text-left font-medium">
+                    <th class="px-3 py-2.5 text-left font-medium" data-copy-col="type">
                         @if($sortLink)<a href="{{ $sortLink('type') }}" class="inline-flex items-center gap-1 hover:text-gray-900">Type @if($sort==='type')<span class="text-blue-600">{{ $direction==='asc'?'↑':'↓' }}</span>@endif</a>@else Type @endif
                     </th>
-                    <th class="px-3 py-2.5 text-left font-medium">
+                    <th class="px-3 py-2.5 text-left font-medium" data-copy-col="invoice">
                         @if($sortLink)<a href="{{ $sortLink('invoice') }}" class="inline-flex items-center gap-1 hover:text-gray-900">Invoice @if($sort==='invoice')<span class="text-blue-600">{{ $direction==='asc'?'↑':'↓' }}</span>@endif</a>@else Invoice @endif
                     </th>
-                    <th class="hidden px-3 py-2.5 text-left font-medium md:table-cell">Description</th>
-                    <th class="px-3 py-2.5 text-right font-medium">
+                    <th class="hidden px-3 py-2.5 text-left font-medium md:table-cell" data-copy-col="description">Description</th>
+                    <th class="px-3 py-2.5 text-right font-medium" data-copy-col="total">
                         @if($sortLink)<a href="{{ $sortLink('total') }}" class="inline-flex items-center gap-1 hover:text-gray-900">Total @if($sort==='total')<span class="text-blue-600">{{ $direction==='asc'?'↑':'↓' }}</span>@endif</a>@else Total @endif
                     </th>
-                    <th class="px-3 py-2.5 text-right font-medium">
+                    <th class="px-3 py-2.5 text-right font-medium" data-copy-col="total_items">
                         @if($sortLink)<a href="{{ $sortLink('total_items') }}" class="inline-flex items-center gap-1 hover:text-gray-900">Total Items @if($sort==='total_items')<span class="text-blue-600">{{ $direction==='asc'?'↑':'↓' }}</span>@endif</a>@else Total Items @endif
                     </th>
-                    <th class="hidden px-3 py-2.5 text-left font-medium lg:table-cell">Sender</th>
-                    <th class="hidden px-3 py-2.5 text-left font-medium lg:table-cell">Receiver</th>
+                    <th class="hidden px-3 py-2.5 text-left font-medium lg:table-cell" data-copy-col="sender">Sender</th>
+                    <th class="hidden px-3 py-2.5 text-left font-medium lg:table-cell" data-copy-col="receiver">Receiver</th>
                     <th class="w-12 px-3 py-2.5 text-center font-medium"></th>
                 </tr>
             </thead>
@@ -111,19 +79,19 @@
                         $noteText = $tx->description ?: ($tx->notes ?: '-');
                     @endphp
                     <tr class="hover:bg-gray-50">
-                        <td class="whitespace-nowrap px-3 py-2.5 text-gray-600">
+                        <td class="whitespace-nowrap px-3 py-2.5 text-gray-600" data-copy-col="date">
                             {{ $tx->date ? \Carbon\Carbon::parse($tx->date)->format('d/m/y') : '-' }}
                         </td>
-                        <td class="whitespace-nowrap px-3 py-2.5">
+                        <td class="whitespace-nowrap px-3 py-2.5" data-copy-col="type">
                             <span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium {{ $badgeCls }}">
                                 <span class="h-1.5 w-1.5 flex-shrink-0 rounded-full {{ $dotCls }}"></span>{{ $label }}
                             </span>
                         </td>
-                        <td class="px-3 py-2.5">
+                        <td class="px-3 py-2.5" data-copy-col="invoice">
                             <a href="{{ route('transactions.show', $tx->id) }}" class="font-mono text-xs text-blue-600 hover:underline">{{ $tx->invoice ?: '—' }}</a>
                             <div class="mt-0.5 text-xs text-gray-400 lg:hidden">{{ $tx->sender->name ?? '—' }} → {{ $tx->receiver->name ?? '—' }}</div>
                         </td>
-                        <td class="hidden max-w-[200px] px-3 py-2.5 md:table-cell">
+                        <td class="hidden max-w-[200px] px-3 py-2.5 md:table-cell" data-copy-col="description">
                             <div class="flex items-start gap-1">
                                 <span data-tx-note="{{ $tx->id }}" class="min-w-0 flex-1 truncate text-xs leading-tight text-gray-500" title="{{ $noteText !== '-' ? $noteText : '' }}">{{ $noteText }}</span>
                                 @if($canEditNote)
@@ -137,13 +105,13 @@
                                 @endif
                             </div>
                         </td>
-                        <td class="whitespace-nowrap px-3 py-2.5 text-right font-semibold tabular-nums text-gray-900">
+                        <td class="whitespace-nowrap px-3 py-2.5 text-right font-semibold tabular-nums text-gray-900" data-copy-col="total" data-copy-value="{{ format_copy_number($tx->total) }}">
                             {{ format_amount($tx->total) }}
                         </td>
-                        <td class="whitespace-nowrap px-3 py-2.5 text-right tabular-nums text-gray-500">
+                        <td class="whitespace-nowrap px-3 py-2.5 text-right tabular-nums text-gray-500" data-copy-col="total_items" data-copy-value="{{ format_copy_number($tx->total_items) }}">
                             {{ format_amount($tx->total_items) }}
                         </td>
-                        <td class="hidden max-w-[180px] px-3 py-2.5 lg:table-cell">
+                        <td class="hidden max-w-[180px] px-3 py-2.5 lg:table-cell" data-copy-col="sender">
                             @if($tx->sender)
                                 <a href="{{ url('/'.$tx->sender->type_slug.'/'.$tx->sender->id) }}" class="block truncate hover:underline {{ $highlightId && $tx->sender->id === $highlightId ? 'font-bold text-blue-700' : 'text-blue-600' }}">{{ $tx->sender->name }}</a>
                                 @unless($hideBank && $tx->sender->type_slug === 'bank')
@@ -153,7 +121,7 @@
                                 <span class="text-gray-400">—</span>
                             @endif
                         </td>
-                        <td class="hidden max-w-[180px] px-3 py-2.5 lg:table-cell">
+                        <td class="hidden max-w-[180px] px-3 py-2.5 lg:table-cell" data-copy-col="receiver">
                             @if($tx->receiver)
                                 <a href="{{ url('/'.$tx->receiver->type_slug.'/'.$tx->receiver->id) }}" class="block truncate hover:underline {{ $highlightId && $tx->receiver->id === $highlightId ? 'font-bold text-blue-700' : 'text-blue-600' }}">{{ $tx->receiver->name }}</a>
                                 @unless($hideBank && $tx->receiver->type_slug === 'bank')
@@ -236,3 +204,76 @@
     </div>
     @endif
 </div>
+
+@once
+    @push('scripts')
+    <script>
+    function transactionListTable() {
+        return {
+            noteModalOpen: false,
+            noteTxId: null,
+            noteText: '',
+            noteSaving: false,
+            noteError: '',
+            copyFeedback: false,
+            copyFeedbackTimer: null,
+            openNoteEdit(id, text) {
+                this.noteTxId = id;
+                this.noteText = (text && text !== '-') ? text : '';
+                this.noteError = '';
+                this.noteModalOpen = true;
+                this.$nextTick(() => this.$refs.noteTextarea?.focus());
+            },
+            async saveNote() {
+                if (!this.noteTxId || this.noteSaving) {
+                    return;
+                }
+                this.noteSaving = true;
+                this.noteError = '';
+                try {
+                    const res = await fetch(`/transactions/${this.noteTxId}/note`, {
+                        method: 'PATCH',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]')?.content ?? '',
+                            'X-Requested-With': 'XMLHttpRequest',
+                        },
+                        body: JSON.stringify({ note: this.noteText }),
+                    });
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok) {
+                        this.noteError = data.message || (data.errors?.note?.[0] ?? 'Failed to save note.');
+                        return;
+                    }
+                    const cell = document.querySelector(`[data-tx-note='${this.noteTxId}']`);
+                    if (cell) {
+                        cell.textContent = data.display ?? '-';
+                    }
+                    this.noteModalOpen = false;
+                } catch (e) {
+                    this.noteError = 'Failed to save note.';
+                } finally {
+                    this.noteSaving = false;
+                }
+            },
+            showCopyFeedback() {
+                this.copyFeedback = true;
+                clearTimeout(this.copyFeedbackTimer);
+                this.copyFeedbackTimer = setTimeout(() => {
+                    this.copyFeedback = false;
+                }, 2000);
+            },
+            isCopyColumnVisible(col) {
+                return true;
+            },
+            async copyRowsTable() {
+                if (await ariaCopyTable(this.$refs.listTable, (col) => this.isCopyColumnVisible(col))) {
+                    this.showCopyFeedback();
+                }
+            },
+        };
+    }
+    </script>
+    @endpush
+@endonce

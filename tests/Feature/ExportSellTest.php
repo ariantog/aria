@@ -246,6 +246,7 @@ it('lists sell transaction detail lines with links', function () {
         ->assertSee('data-copy-col="qty"', false)
         ->assertSee('data-copy-col="sender"', false)
         ->assertSee('data-copy-col="receiver"', false)
+        ->assertSee('data-copy-value="270000"', false)
         ->assertSee('copyRowsTable()', false);
 });
 

@@ -106,10 +106,10 @@
                                     <span class="text-gray-400">—</span>
                                 @endif
                             </td>
-                            <td class="whitespace-nowrap px-3 py-2 text-right font-mono" data-copy-col="qty">{{ format_amount($row->quantity) }}</td>
-                            <td class="whitespace-nowrap px-3 py-2 text-right font-mono" data-copy-col="item_discount">{{ format_amount($row->discount) }}%</td>
-                            <td class="whitespace-nowrap px-3 py-2 text-right font-mono" data-copy-col="subtotal">{{ format_currency($row->total) }}</td>
-                            <td class="whitespace-nowrap px-3 py-2 text-right font-mono" data-copy-col="adjustment" x-show="showTxAdjustment">
+                            <td class="whitespace-nowrap px-3 py-2 text-right font-mono" data-copy-col="qty" data-copy-value="{{ format_copy_number($row->quantity) }}">{{ format_amount($row->quantity) }}</td>
+                            <td class="whitespace-nowrap px-3 py-2 text-right font-mono" data-copy-col="item_discount" data-copy-value="{{ format_copy_number($row->discount) }}">{{ format_amount($row->discount) }}%</td>
+                            <td class="whitespace-nowrap px-3 py-2 text-right font-mono" data-copy-col="subtotal" data-copy-value="{{ format_copy_number($row->total) }}">{{ format_currency($row->total) }}</td>
+                            <td class="whitespace-nowrap px-3 py-2 text-right font-mono" data-copy-col="adjustment" data-copy-value="{{ $isFirstLineForTransaction ? format_copy_number($transaction?->adjustment ?? 0) : '' }}" x-show="showTxAdjustment">
                                 @if($isFirstLineForTransaction)
                                     <span class="{{ ($transaction?->adjustment ?? 0) < 0 ? 'text-red-600' : (($transaction?->adjustment ?? 0) > 0 ? 'text-green-600' : 'text-gray-700') }}">
                                         {{ format_currency($transaction?->adjustment ?? 0) }}
@@ -118,14 +118,14 @@
                                     <span class="text-gray-400">—</span>
                                 @endif
                             </td>
-                            <td class="whitespace-nowrap px-3 py-2 text-right font-mono" data-copy-col="discount" x-show="showTxDiscount">
+                            <td class="whitespace-nowrap px-3 py-2 text-right font-mono" data-copy-col="discount" data-copy-value="{{ $isFirstLineForTransaction ? format_copy_number($transaction?->discount ?? 0) : '' }}" x-show="showTxDiscount">
                                 @if($isFirstLineForTransaction)
                                     {{ format_amount($transaction?->discount ?? 0) }}%
                                 @else
                                     <span class="text-gray-400">—</span>
                                 @endif
                             </td>
-                            <td class="whitespace-nowrap px-3 py-2 text-right font-mono" data-copy-col="total" x-show="showTxTotal">
+                            <td class="whitespace-nowrap px-3 py-2 text-right font-mono" data-copy-col="total" data-copy-value="{{ $isFirstLineForTransaction ? format_copy_number($transaction?->total ?? 0) : '' }}" x-show="showTxTotal">
                                 @if($isFirstLineForTransaction)
                                     {{ format_currency($transaction?->total ?? 0) }}
                                 @else
@@ -267,76 +267,9 @@
 
                 return true;
             },
-            cellCopyValue(cell) {
-                const img = cell.querySelector('img');
-                if (img) {
-                    return (img.getAttribute('alt') || img.getAttribute('src') || '').trim();
-                }
-
-                const link = cell.querySelector('a');
-                if (link) {
-                    return link.textContent.trim();
-                }
-
-                return cell.innerText.replace(/\s+/g, ' ').trim();
-            },
-            tableNodeToTsv(table) {
-                const rows = [];
-
-                table.querySelectorAll('thead tr, tbody tr').forEach((row) => {
-                    const values = [];
-
-                    row.querySelectorAll('[data-copy-col]').forEach((cell) => {
-                        if (!this.isCopyColumnVisible(cell.dataset.copyCol)) {
-                            return;
-                        }
-
-                        values.push(this.cellCopyValue(cell));
-                    });
-
-                    if (values.length) {
-                        rows.push(values.join('\t'));
-                    }
-                });
-
-                return rows.join('\n');
-            },
             async copyRowsTable() {
-                const table = this.$refs.exportSellTable;
-                if (!table) {
-                    return;
-                }
-
-                const clone = table.cloneNode(true);
-                clone.querySelectorAll('[data-copy-col]').forEach((cell) => {
-                    if (!this.isCopyColumnVisible(cell.dataset.copyCol)) {
-                        cell.remove();
-                    }
-                });
-
-                const plain = this.tableNodeToTsv(clone);
-                const html = clone.outerHTML;
-
-                try {
-                    if (window.ClipboardItem && navigator.clipboard?.write) {
-                        await navigator.clipboard.write([
-                            new ClipboardItem({
-                                'text/plain': new Blob([plain], { type: 'text/plain' }),
-                                'text/html': new Blob([html], { type: 'text/html' }),
-                            }),
-                        ]);
-                    } else {
-                        await navigator.clipboard.writeText(plain);
-                    }
-
+                if (await ariaCopyTable(this.$refs.exportSellTable, (col) => this.isCopyColumnVisible(col))) {
                     this.showCopyFeedback();
-                } catch (e) {
-                    try {
-                        await navigator.clipboard.writeText(plain);
-                        this.showCopyFeedback();
-                    } catch (fallbackError) {
-                        console.error('Failed to copy export sell table', fallbackError);
-                    }
                 }
             },
         };

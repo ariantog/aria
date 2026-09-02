@@ -358,6 +358,8 @@ it('shows item description toggle and column on transaction detail', function ()
     TransactionDetail::factory()->create([
         'transaction_id' => $transaction->id,
         'item_id' => $item->id,
+        'price' => 214500,
+        'total' => 214500,
     ]);
 
     $this->actingAs($this->user)
@@ -365,7 +367,8 @@ it('shows item description toggle and column on transaction detail', function ()
         ->assertOk()
         ->assertSee('x-model="showDescription"', false)
         ->assertSee('ITEM DESCRIPTION FOR TX SHOW', false)
-        ->assertSee('data-copy-col="desc"', false);
+        ->assertSee('data-copy-col="desc"', false)
+        ->assertSee('data-copy-value="214500"', false);
 });
 
 it('print invoice respects view column query params', function () {

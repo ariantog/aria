@@ -34,6 +34,26 @@ class AmountFormatter
     }
 
     /**
+     * Format a numeric amount without currency prefix or thousands grouping.
+     * Used when copying table cells into a spreadsheet.
+     */
+    public static function plain(float|int|string|null $value, int $maxDecimals = 2): string
+    {
+        $formatted = number_format(
+            (float) ($value ?? 0),
+            $maxDecimals,
+            self::DECIMAL_SEPARATOR,
+            '',
+        );
+
+        if ($maxDecimals === 0 || ! str_contains($formatted, self::DECIMAL_SEPARATOR)) {
+            return $formatted;
+        }
+
+        return rtrim(rtrim($formatted, '0'), self::DECIMAL_SEPARATOR);
+    }
+
+    /**
      * Tailwind text-size classes for displaying formatted IDR amounts without overflow.
      *
      * @param  'hero'|'compact'  $scale
