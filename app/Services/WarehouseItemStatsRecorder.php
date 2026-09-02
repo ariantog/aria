@@ -12,14 +12,33 @@ class WarehouseItemStatsRecorder
 
     public function recordDetail(Transaction $transaction, object $detail): void
     {
+        $this->applyDetail($transaction, $detail, revert: false);
+    }
+
+    public function revertDetail(Transaction $transaction, object $detail): void
+    {
+        $this->applyDetail($transaction, $detail, revert: true);
+    }
+
+    public function revertTransaction(Transaction $transaction): void
+    {
+        $transaction->loadMissing('details');
+
+        foreach ($transaction->details as $detail) {
+            $this->revertDetail($transaction, $detail);
+        }
+    }
+
+    protected function applyDetail(Transaction $transaction, object $detail, bool $revert): void
+    {
         $type = (int) $transaction->type;
         if (! in_array($type, [Transaction::TYPE_SELL, Transaction::TYPE_RETURN], true)) {
             return;
         }
 
         $warehouseId = match ($type) {
-            Transaction::TYPE_SELL => (int) $transaction->sender_id,
-            Transaction::TYPE_RETURN => (int) $transaction->receiver_id,
+            Transaction::TYPE_SELL => (int) ($detail->sender_id ?: $transaction->sender_id),
+            Transaction::TYPE_RETURN => (int) ($detail->receiver_id ?: $transaction->receiver_id),
         };
 
         if ($warehouseId <= 0) {
@@ -41,22 +60,28 @@ class WarehouseItemStatsRecorder
 
         $dims = $this->dimensions->resolve($item);
 
-        $stat = WarehouseItemMonthlyStat::updateOrCreate(
-            [
-                'warehouse_id' => $warehouseId,
-                'item_id' => (int) $detail->item_id,
-                'month' => $date->month,
-                'year' => $date->year,
-            ],
-            $dims,
-        );
+        $keys = [
+            'warehouse_id' => $warehouseId,
+            'item_id' => (int) $detail->item_id,
+            'month' => $date->month,
+            'year' => $date->year,
+        ];
 
-        if ($type === Transaction::TYPE_SELL) {
-            $stat->increment('sold_qty', $qty);
-            $stat->increment('sold_value', $netValue);
+        if ($revert) {
+            $stat = WarehouseItemMonthlyStat::query()->where($keys)->first();
+            if (! $stat) {
+                return;
+            }
         } else {
-            $stat->increment('returned_qty', $qty);
-            $stat->increment('returned_value', $netValue);
+            $stat = WarehouseItemMonthlyStat::updateOrCreate($keys, $dims);
         }
+
+        $qtyColumn = $type === Transaction::TYPE_SELL ? 'sold_qty' : 'returned_qty';
+        $valueColumn = $type === Transaction::TYPE_SELL ? 'sold_value' : 'returned_value';
+        $direction = $revert ? -1.0 : 1.0;
+
+        $stat->{$qtyColumn} = max(0, (float) ($stat->{$qtyColumn} ?? 0) + ($direction * $qty));
+        $stat->{$valueColumn} = max(0, (float) ($stat->{$valueColumn} ?? 0) + ($direction * $netValue));
+        $stat->save();
     }
 }
