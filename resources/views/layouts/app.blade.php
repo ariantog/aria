@@ -446,6 +446,48 @@ function isFieldNavigationSuppressed() {
     return Date.now() < (window._suppressFieldNavUntil || 0);
 }
 
+// Android Chrome IME keydown is keyCode 229 / key Unidentified while e.code still
+// names the physical key. Treating that as Enter makes the later real Enter a
+// second navigation. Callers that need a keyup fallback should use this.
+function isImePlaceholderKey(e) {
+    if (!e) return false;
+    const kc = e.keyCode || e.which;
+    return kc === 229 || e.key === 'Unidentified' || e.key === 'Process';
+}
+
+// True only for a real Enter (not the IME 229 placeholder that still has e.code).
+function isConfirmedEnterKey(e) {
+    if (!e || isImePlaceholderKey(e)) return false;
+    return normalizeNavigationKey(e) === 'Enter';
+}
+
+// Android/Gboard needs a few hundred ms to collapse a duplicate Enter pair.
+// Desktop Chrome sends one keydown+keyup per press, so a long lock would swallow
+// the next intentional Enter (invoice → note → total).
+function enterFieldNavClaimMs() {
+    try {
+        if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) {
+            return 300;
+        }
+    } catch (e) {}
+    const ua = (typeof navigator !== 'undefined' && navigator.userAgent) ? navigator.userAgent : '';
+    if (/Android|iPhone|iPad|iPod|Mobile/i.test(ua)) {
+        return 300;
+    }
+    return 0;
+}
+
+// One successful Enter field-advance per short window. Duplicate keydown/keyup
+// pairs from Android Chrome Gboard collapse here instead of skipping a field.
+function claimEnterFieldNavigation(ms) {
+    if (isFieldNavigationSuppressed()) return false;
+    const wait = typeof ms === 'number' ? ms : enterFieldNavClaimMs();
+    if (wait > 0) {
+        suppressFieldNavigation(wait);
+    }
+    return true;
+}
+
 // Defer focus until after keyup: $nextTick runs as a microtask before keyup on
 // Android/external keyboards, so the same Enter's keyup lands on the next field.
 function deferFocusElement(id, select = true) {
