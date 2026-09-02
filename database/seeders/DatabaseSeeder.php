@@ -22,6 +22,7 @@ class DatabaseSeeder extends Seeder
             $this->call([
                 TypicalLedgerSeeder::class,
                 AddrbookPlaceholderSeeder::class,
+                NewDomainSettingsSeeder::class,
             ]);
         }
 

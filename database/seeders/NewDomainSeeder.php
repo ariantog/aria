@@ -30,6 +30,7 @@ class NewDomainSeeder extends Seeder
             ProductionBootstrapSeeder::class,
             TypicalLedgerSeeder::class,
             AddrbookPlaceholderSeeder::class,
+            NewDomainSettingsSeeder::class,
         ]);
     }
 }
