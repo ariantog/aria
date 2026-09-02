@@ -10,27 +10,47 @@
     $minDate = $sellCashIn['min_date'] ?? '';
     $hasCashInErrors = $errors->has('amount') || $errors->has('account_id') || $errors->has('date');
     $fmt = fn ($n) => format_amount($n);
+    $initialEnabled = $hasCashInErrors ? 'true' : 'false';
+    $initialAmount = $hasCashInErrors && old('amount') !== null ? (float) old('amount') : $defaultAmount;
 @endphp
 @if($sellCashIn && $transaction && ($canCreate || $linked->isNotEmpty()))
 <div class="print:hidden rounded-xl border border-gray-200 bg-white shadow-sm"
      data-testid="sell-cash-in-card"
-     x-data="sellCashInCard({
-        enabled: {{ $hasCashInErrors ? 'true' : 'false' }},
-        amount: {{ $hasCashInErrors ? (old('amount') !== null ? (float) old('amount') : $defaultAmount) : $defaultAmount }},
+     x-data="{
+        enabled: {{ $initialEnabled }},
+        amount: {{ $initialAmount }},
         accountId: @js((string) old('account_id', $defaultAccount['id'] ?? '')),
         date: @js(old('date', $defaultDate)),
         minDate: @js($minDate),
-     })">
+        dateValid() {
+            if (!this.date) return false;
+            if (this.minDate && this.date < this.minDate) return false;
+            return true;
+        },
+        amountValid() {
+            return Number(this.amount) >= 0.01;
+        },
+        accountValid() {
+            return !!this.accountId;
+        },
+        canSubmit() {
+            return this.enabled && this.dateValid() && this.amountValid() && this.accountValid();
+        },
+     }">
     <div class="flex items-start justify-between gap-3 border-b border-gray-100 px-4 py-3 sm:px-5">
         <div>
             <h2 class="text-sm font-semibold text-gray-900">Cash In</h2>
             <p class="mt-0.5 text-xs text-gray-500">Record payment from {{ $transaction->receiver?->name ?: 'the receiver' }} with the same invoice.</p>
         </div>
         @if($canCreate)
-        <label class="relative inline-flex cursor-pointer items-center" title="Create cash in">
-            <input type="checkbox" x-model="enabled" data-testid="sell-cash-in-switch"
-                   class="peer sr-only">
-            <span class="h-6 w-11 rounded-full bg-gray-300 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all peer-checked:bg-blue-600 peer-checked:after:translate-x-full peer-checked:after:border-white"></span>
+        <label class="inline-flex cursor-pointer items-center gap-2" title="Create cash in">
+            <span class="text-xs font-medium text-gray-600" x-text="enabled ? 'On' : 'Off'">Off</span>
+            <span class="relative inline-flex h-6 w-11 shrink-0 items-center">
+                <input type="checkbox" x-model="enabled" data-testid="sell-cash-in-switch"
+                       class="peer sr-only">
+                <span class="absolute inset-0 rounded-full bg-gray-300 peer-checked:bg-blue-600"></span>
+                <span class="absolute left-0.5 h-5 w-5 rounded-full bg-white shadow transition peer-checked:translate-x-5"></span>
+            </span>
         </label>
         @endif
     </div>
@@ -108,31 +128,3 @@
     @endif
 </div>
 @endif
-
-@push('scripts')
-<script>
-function sellCashInCard(initial) {
-    return {
-        enabled: !!initial.enabled,
-        amount: Number(initial.amount || 0),
-        accountId: initial.accountId ? String(initial.accountId) : '',
-        date: initial.date || '',
-        minDate: initial.minDate || '',
-        dateValid() {
-            if (!this.date) return false;
-            if (this.minDate && this.date < this.minDate) return false;
-            return true;
-        },
-        amountValid() {
-            return Number(this.amount) >= 0.01;
-        },
-        accountValid() {
-            return !!this.accountId;
-        },
-        canSubmit() {
-            return this.enabled && this.dateValid() && this.amountValid() && this.accountValid();
-        },
-    };
-}
-</script>
-@endpush
