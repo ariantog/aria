@@ -35,7 +35,6 @@ class CreateTransferTransaction
                 'user_id' => Auth::id(),
                 'status' => Transaction::STATUS_COMPLETED,
                 'total' => $amount,
-                'real_total' => $amount,
                 'total_items' => 0,
                 'adjustment' => 0,
                 'discount' => 0,

@@ -33,7 +33,6 @@ class CreateAdjustTransaction
                 'user_id' => Auth::id(),
                 'status' => Transaction::STATUS_COMPLETED,
                 'total' => Transaction::signedAmount(Transaction::TYPE_ADJUST, (float) $data['total']),
-                'real_total' => Transaction::signedAmount(Transaction::TYPE_ADJUST, (float) $data['total']),
                 'total_items' => 0,
                 'adjustment' => 0,
                 'discount' => 0,

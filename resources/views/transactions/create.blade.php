@@ -410,7 +410,7 @@
                     </div>
                     <div class="border-t border-gray-100 pt-3 flex justify-between">
                         <span class="font-bold text-gray-900">Grand Total</span>
-                        <span class="text-lg font-bold tabular-nums text-blue-700" x-text="'Rp ' + formatAmountId(form.real_total)"></span>
+                        <span class="text-lg font-bold tabular-nums text-blue-700" x-text="'Rp ' + formatAmountId(form.grand_total)"></span>
                     </div>
                     @if($type === 'sell' && ($sellCashIn['can_create'] ?? false))
                     <div class="mt-4 rounded-lg border border-gray-100 bg-gray-50 p-3" data-testid="sell-cash-in-card">
@@ -602,7 +602,7 @@ function createTransaction() {
             total_before_discount: 0,
             total_before_ppn: 0,
             ppn_amount: 0,
-            real_total: 0,
+            grand_total: 0,
             cash_in_enabled: false,
             cash_in_amount: null,
             cash_in_account_id: '',
@@ -657,7 +657,7 @@ function createTransaction() {
             // PPN depends on the counterparty's ppn flag.
             this.$watch('form.sender', () => this.recalcTotals());
             this.$watch('form.receiver', () => this.recalcTotals());
-            this.$watch('form.real_total', () => this.syncCashInAmountFromTotal());
+            this.$watch('form.grand_total', () => this.syncCashInAmountFromTotal());
         },
 
         // Warehouse whose on-hand stock is relevant: receiver for buy/return, sender otherwise.
@@ -709,7 +709,7 @@ function createTransaction() {
             if (!_CanSellCashIn || !this.form.cash_in_enabled || this.cashInAmountManual) {
                 return;
             }
-            this.form.cash_in_amount = Number(this.form.real_total || 0);
+            this.form.cash_in_amount = Number(this.form.grand_total || 0);
         },
         canSubmit() {
             return this.senderValid() && this.receiverValid() && this.dateValid()
@@ -1257,7 +1257,7 @@ function createTransaction() {
             this.form.total_before_discount = afterRowDisc;
             this.form.total_before_ppn = withAdj;
             this.form.ppn_amount = ppn;
-            this.form.real_total = withAdj + ppn;
+            this.form.grand_total = withAdj + ppn;
         },
 
         isOverStock(item) {

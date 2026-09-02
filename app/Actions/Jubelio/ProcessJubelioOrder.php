@@ -441,8 +441,6 @@ class ProcessJubelioOrder
                 }
 
                 $grandTotal = $subTotal + (float) $transaction->adjustment;
-                // Match manual Aria / L10: real_total = gross subtotal, total = net receivable.
-                $transaction->real_total = Transaction::signedAmount($type, $subTotal);
                 $transaction->total = Transaction::signedAmount($type, $grandTotal);
                 $transaction->total_items = $totalQty;
                 $transaction->save();

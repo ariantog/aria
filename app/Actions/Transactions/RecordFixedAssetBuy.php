@@ -94,7 +94,6 @@ class RecordFixedAssetBuy
                 'user_id' => Auth::id(),
                 'status' => Transaction::STATUS_COMPLETED,
                 'total' => $signed,
-                'real_total' => $signed,
                 'total_items' => 1,
                 'adjustment' => 0,
                 'discount' => 0,

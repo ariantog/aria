@@ -419,7 +419,7 @@ class AddrbookController extends Controller
             }
 
             $cat = $this->categorizeAddrbook($op);
-            $amt = (float) $t->real_total;
+            $amt = (float) $t->total;
             $txType = $t->type instanceof TransactionType ? $t->type->value : $t->type;
 
             if ($txType == TransactionType::CashIn->value) {

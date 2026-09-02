@@ -357,7 +357,7 @@ class DashboardService
                 Transaction::TYPE_CASH_IN,
                 Transaction::TYPE_CASH_OUT,
             ])
-            ->selectRaw('date, type, COUNT(*) as row_count, SUM(ABS(COALESCE(real_total, total, 0))) as amount_total')
+            ->selectRaw('date, type, COUNT(*) as row_count, SUM(ABS(COALESCE(total, 0))) as amount_total')
             ->groupBy('date', 'type')
             ->get();
 

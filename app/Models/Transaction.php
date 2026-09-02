@@ -134,7 +134,7 @@ class Transaction extends Model
     }
 
     /**
-     * Signed monetary amount for header total / real_total per transaction type.
+     * Signed monetary amount for header `total` per transaction type.
      * Negative: sell, return-supplier, cash out, transfer, move.
      * Positive: buy, return, cash in, adjustment.
      */

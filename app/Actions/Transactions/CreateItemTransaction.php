@@ -88,7 +88,7 @@ class CreateItemTransaction
             'receiver_id' => $receiver->id,
             'notes' => $data['note'] ?? null, 'user_id' => Auth::id(),
             'status' => Transaction::STATUS_COMPLETED,
-            'real_total' => 0, 'total_items' => 0,
+            'total_items' => 0,
             'adjustment' => $data['adjustment'] ?? 0,
             'submit_type' => Transaction::SUBMIT_TYPE_MANUAL,
             'invoice' => ! empty($data['invoice']) ? $data['invoice'] : null,
@@ -124,7 +124,6 @@ class CreateItemTransaction
             $signedSubtotal = Transaction::signedAmount($type, $itemsTotal);
             $transaction->update([
                 'total' => $signedSubtotal,
-                'real_total' => $signedSubtotal,
                 'discount' => 0,
                 'adjustment' => 0,
                 'ppn' => 0,
@@ -142,7 +141,6 @@ class CreateItemTransaction
         $taxAmount = $isPpn ? ($totalBeforeTax * $this->getPpnRate()) : 0;
         $grandTotal = $totalBeforeTax + $taxAmount;
         $transaction->update([
-            'real_total' => Transaction::signedAmount($type, $itemsTotal),
             'discount' => $discountPercent,
             'adjustment' => $adjustment,
             'ppn' => $taxAmount,
