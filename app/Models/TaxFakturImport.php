@@ -91,9 +91,28 @@ class TaxFakturImport extends Model
         return $this->belongsTo(User::class);
     }
 
+    /**
+     * Invoice total payable: Harga Jual/Penggantian (minus potongan) + PPN + PPnBM.
+     * DPP Nilai Lain is the tax base only — adding it to PPN understates the invoice.
+     */
     public function fakturGross(): float
     {
-        return (float) $this->dpp + (float) $this->ppn + (float) $this->ppnbm;
+        $netSellingPrice = (float) $this->gross_total - (float) $this->discount_total;
+
+        return round(max(0, $netSellingPrice) + (float) $this->ppn + (float) $this->ppnbm, 2);
+    }
+
+    /**
+     * Recompute selisih from stored payment vs current invoice total so older
+     * imports (saved when total was DPP+PPN) display the correct gap.
+     */
+    public function computedPaymentVariance(): ?float
+    {
+        if ($this->payment_received_amount === null) {
+            return $this->payment_variance !== null ? (float) $this->payment_variance : null;
+        }
+
+        return round((float) $this->payment_received_amount - $this->fakturGross(), 2);
     }
 
     public function paymentGraceDays(): int

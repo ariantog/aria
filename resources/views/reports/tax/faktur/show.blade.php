@@ -28,6 +28,15 @@ $gross = $import->fakturGross();
                 @endif
                 @if($canImport)
                     <a href="{{ route('reports.tax.faktur.create') }}" class="rounded-lg bg-blue-700 px-4 py-2 text-sm font-medium text-white hover:bg-blue-800">Upload baru</a>
+                    <form method="POST" action="{{ route('reports.tax.faktur.destroy', $import) }}" class="inline"
+                          data-testid="faktur-delete-form"
+                          onsubmit="return confirm('Hapus faktur {{ $import->faktur_number }} dari laporan PPN? Sell dan Cash In yang sudah di-link tidak ikut terhapus. Nomor ini bisa diimport ulang.')">
+                        @csrf
+                        @method('DELETE')
+                        <button type="submit" class="rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50" data-testid="faktur-delete-btn">
+                            Hapus faktur
+                        </button>
+                    </form>
                 @endif
             </div>
         </div>
@@ -49,8 +58,9 @@ $gross = $import->fakturGross();
                 <div><dt class="text-gray-500">Pembeli</dt><dd>{{ $import->buyer_name }} <span class="text-xs text-gray-400">{{ $import->buyer_npwp }}</span></dd></div>
                 <div><dt class="text-gray-500">Reporting entity</dt><dd>{{ $import->reportingEntity?->name }}</dd></div>
                 <div><dt class="text-gray-500">Lawan transaksi</dt><dd>{{ $import->counterparty?->name }}</dd></div>
+                <div><dt class="text-gray-500">Harga jual / penggantian</dt><dd class="tabular-nums">{{ $fmt($import->gross_total) }}@if((float) $import->discount_total > 0) <span class="text-xs text-gray-400">− potongan {{ $fmt($import->discount_total) }}</span>@endif</dd></div>
                 <div><dt class="text-gray-500">DPP / PPN / PPnBM</dt><dd class="tabular-nums">{{ $fmt($import->dpp) }} / {{ $fmt($import->ppn) }} / {{ $fmt($import->ppnbm) }}</dd></div>
-                <div><dt class="text-gray-500">Gross faktur (DPP+PPN) — dasar Sell</dt><dd class="tabular-nums font-medium">{{ $fmt($gross) }}</dd></div>
+                <div><dt class="text-gray-500">Total faktur (harga jual + PPN)</dt><dd class="tabular-nums font-medium">{{ $fmt($gross) }}</dd></div>
                 @if($import->signatory_name)
                     <div><dt class="text-gray-500">Penandatangan</dt><dd>{{ $import->signatory_name }}</dd></div>
                 @endif
@@ -87,11 +97,12 @@ $gross = $import->fakturGross();
                         @endif
                     </dd>
                 </div>
-                @if($import->payment_variance && abs((float) $import->payment_variance) > 0.01)
+                @php $paymentVariance = $import->computedPaymentVariance(); @endphp
+                @if($paymentVariance !== null && abs($paymentVariance) > 0.01)
                     <div>
                         <dt class="text-gray-500">Margin / biaya konsinyasi (gross − bayar)</dt>
-                        <dd class="tabular-nums">{{ $fmt(abs((float) $import->payment_variance)) }}
-                            @if((float) $import->payment_variance < 0)
+                        <dd class="tabular-nums">{{ $fmt(abs($paymentVariance)) }}
+                            @if($paymentVariance < 0)
                                 <span class="text-xs text-gray-500">(MDS/Central potong)</span>
                             @endif
                             @if($import->varianceExpenseAccount)
@@ -337,7 +348,7 @@ $gross = $import->fakturGross();
             <h3 class="mb-1 font-semibold text-gray-900">Buat Sell baru (opsional)</h3>
             <p class="mb-3 text-xs text-gray-600">
                 Hanya jika Sell untuk faktur ini belum diinput. Biasanya cukup <strong>link Sell yang sudah ada</strong> di atas.
-                Sell baru = gross faktur (DPP+PPN {{ $fmt($gross) }}).
+                Sell baru = harga jual + PPN ({{ $fmt($gross) }}).
             </p>
             <form method="POST" action="{{ route('reports.tax.faktur.post-sell', $import) }}" class="space-y-3">
                 @csrf

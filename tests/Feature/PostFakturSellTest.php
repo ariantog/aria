@@ -102,7 +102,7 @@ function seedConsignmentFakturSellScenario(): array
         sellerNpwp: '0504330085044000',
         buyerName: 'MDS RETAILING TBK',
         buyerNpwp: '0013179569054000',
-        grossTotal: 21_787_055.0,
+        grossTotal: 21_221_157.0,
         discountTotal: 0,
         dpp: 19_452_728.0,
         ppn: 2_334_327.0,
@@ -142,7 +142,7 @@ it('posts sell from keluaran faktur with faktur dpp and ppn totals', function ()
         ->and((int) $sell->type)->toBe(Transaction::TYPE_SELL)
         ->and((float) $sell->total)->toBe(-19_452_728.0)
         ->and((float) $sell->ppn)->toBe(2_334_327.0)
-        ->and((float) $sell->real_total)->toBe(-21_787_055.0)
+        ->and((float) $sell->real_total)->toBe(-23_555_484.0)
         ->and($sell->invoice)->toBe('04002600298450234')
         ->and($sell->date->toDateString())->toBe('2026-07-31');
 
