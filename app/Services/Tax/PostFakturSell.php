@@ -82,7 +82,6 @@ class PostFakturSell
 
             $dpp = (float) $import->dpp;
             $ppn = (float) $import->ppn;
-            $grandTotal = $dpp + $ppn + (float) $import->ppnbm;
             $totalItems = array_sum(array_column($detailRows, 'quantity'));
 
             // Create without observer so UpdateTransactionSummaries runs after
@@ -99,7 +98,7 @@ class PostFakturSell
                 'notes' => sprintf('Gross sell from faktur %s (DPP+PPN)', $import->faktur_number),
                 'user_id' => Auth::id(),
                 'status' => Transaction::STATUS_COMPLETED,
-                'total' => Transaction::signedAmount(Transaction::TYPE_SELL, $grandTotal),
+                'total' => Transaction::signedAmount(Transaction::TYPE_SELL, $dpp),
                 'ppn' => $ppn,
                 'discount' => 0,
                 'adjustment' => 0,

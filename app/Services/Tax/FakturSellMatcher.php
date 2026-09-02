@@ -69,9 +69,7 @@ class FakturSellMatcher
         return $candidates
             ->map(function (Transaction $transaction) use ($fakturDate, $fakturNumber, $remainingDpp, $warehouseNames) {
                 $score = 0;
-                $gross = abs((float) $transaction->total);
-                $ppn = abs((float) $transaction->ppn);
-                $dpp = $ppn > 0.00001 ? max(0.0, round($gross - $ppn, 2)) : $gross;
+                $dpp = abs((float) $transaction->total);
 
                 if ($fakturNumber && $transaction->invoice && strcasecmp((string) $transaction->invoice, $fakturNumber) === 0) {
                     $score += 40;
