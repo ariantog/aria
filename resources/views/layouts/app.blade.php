@@ -327,6 +327,105 @@ function formatNumberId(value) {
     return Number(value || 0).toLocaleString('en-US', { maximumFractionDigits: 0 });
 }
 
+function ariaFormatCopyNumber(raw) {
+    return raw == null ? '' : String(raw);
+}
+
+function ariaCopyCellText(cell) {
+    if (cell.hasAttribute('data-copy-value')) {
+        return ariaFormatCopyNumber(cell.getAttribute('data-copy-value'));
+    }
+
+    const img = cell.querySelector('img');
+    if (img && cell.querySelectorAll('a').length === 0) {
+        return (img.getAttribute('alt') || img.getAttribute('src') || '').trim();
+    }
+
+    const link = cell.querySelector('a');
+    if (link) {
+        return link.textContent.trim();
+    }
+
+    return cell.innerText.replace(/\s+/g, ' ').trim();
+}
+
+function ariaPrepareCopyTable(table, isColumnVisible) {
+    const clone = table.cloneNode(true);
+
+    clone.querySelectorAll('[data-copy-col]').forEach((cell) => {
+        if (typeof isColumnVisible === 'function' && !isColumnVisible(cell.dataset.copyCol)) {
+            cell.remove();
+            return;
+        }
+
+        if (cell.hasAttribute('data-copy-value')) {
+            cell.textContent = ariaFormatCopyNumber(cell.getAttribute('data-copy-value'));
+            return;
+        }
+
+        cell.querySelectorAll('a').forEach((anchor) => {
+            anchor.replaceWith(document.createTextNode(anchor.textContent.trim()));
+        });
+    });
+
+    return clone;
+}
+
+function ariaTableToTsv(table, isColumnVisible) {
+    const rows = [];
+
+    table.querySelectorAll('thead tr, tbody tr').forEach((row) => {
+        const values = [];
+
+        row.querySelectorAll('[data-copy-col]').forEach((cell) => {
+            if (typeof isColumnVisible === 'function' && !isColumnVisible(cell.dataset.copyCol)) {
+                return;
+            }
+
+            values.push(ariaCopyCellText(cell));
+        });
+
+        if (values.length) {
+            rows.push(values.join('\t'));
+        }
+    });
+
+    return rows.join('\n');
+}
+
+async function ariaCopyTable(table, isColumnVisible) {
+    if (!table) {
+        return false;
+    }
+
+    const clone = ariaPrepareCopyTable(table, isColumnVisible);
+    const plain = ariaTableToTsv(clone, isColumnVisible);
+    const html = clone.outerHTML;
+
+    try {
+        if (window.ClipboardItem && navigator.clipboard?.write) {
+            await navigator.clipboard.write([
+                new ClipboardItem({
+                    'text/plain': new Blob([plain], { type: 'text/plain' }),
+                    'text/html': new Blob([html], { type: 'text/html' }),
+                }),
+            ]);
+        } else {
+            await navigator.clipboard.writeText(plain);
+        }
+
+        return true;
+    } catch (e) {
+        try {
+            await navigator.clipboard.writeText(plain);
+            return true;
+        } catch (fallbackError) {
+            console.error('Failed to copy table', fallbackError);
+            return false;
+        }
+    }
+}
+
 function appShell() {
     const isMobileViewport = () => window.innerWidth < 1024;
     const savedDesktopOpen = () => localStorage.getItem('sidebarOpen') !== 'false';

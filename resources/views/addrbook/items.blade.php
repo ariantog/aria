@@ -175,10 +175,10 @@ $sortLink = function (string $column) use ($filters, $sortColumn, $sortDirection
                             <a href="{{ $itemShowUrl }}" onclick="event.stopPropagation()" class="text-blue-600 hover:underline" title="{{ $item->code }}">{{ $item->code }}</a>
                         </td>
                         <td class="min-w-[8rem] max-w-[14rem] break-words px-2 py-2 text-gray-500 whitespace-pre-line" data-copy-col="description">{{ $desc }}</td>
-                        <td class="whitespace-nowrap px-2 py-2 text-right font-semibold text-gray-700" data-copy-col="price">{{ $idr($item->price) }}</td>
-                        <td class="whitespace-nowrap px-2 py-2 text-right font-mono font-bold {{ $qty > 0 ? 'text-emerald-600' : 'text-gray-400' }}" data-copy-col="qty">{{ format_amount($qty, 0) }}</td>
+                        <td class="whitespace-nowrap px-2 py-2 text-right font-semibold text-gray-700" data-copy-col="price" data-copy-value="{{ format_copy_number($item->price) }}">{{ $idr($item->price) }}</td>
+                        <td class="whitespace-nowrap px-2 py-2 text-right font-mono font-bold {{ $qty > 0 ? 'text-emerald-600' : 'text-gray-400' }}" data-copy-col="qty" data-copy-value="{{ format_copy_number($qty) }}">{{ format_amount($qty, 0) }}</td>
                         @if($jubelioSync ?? null)
-                            <td class="whitespace-nowrap px-2 py-2 text-right" data-copy-col="jubelio">
+                            <td class="whitespace-nowrap px-2 py-2 text-right" data-copy-col="jubelio" @if($jubelio && ($jubelio['linked'] ?? false) && $jubelio['on_hand'] !== null) data-copy-value="{{ format_copy_number($jubelio['on_hand']) }}" @endif>
                                 @if(! $jubelio || ! ($jubelio['linked'] ?? false))
                                     <span class="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700" title="Item is not linked to Jubelio">
                                         Not linked
@@ -239,73 +239,9 @@ function warehouseItemsPage(filtersStorageKey) {
 
             return true;
         },
-        cellCopyValue(cell) {
-            if (cell.dataset.copyCol === 'image') {
-                const img = cell.querySelector('img');
-                if (img) {
-                    return (img.getAttribute('alt') || img.getAttribute('src') || '').trim();
-                }
-            }
-
-            return cell.innerText.replace(/\s+/g, ' ').trim();
-        },
-        tableNodeToTsv(table) {
-            const rows = [];
-
-            table.querySelectorAll('thead tr, tbody tr').forEach((row) => {
-                const values = [];
-
-                row.querySelectorAll('[data-copy-col]').forEach((cell) => {
-                    if (!this.isCopyColumnVisible(cell.dataset.copyCol)) {
-                        return;
-                    }
-
-                    values.push(this.cellCopyValue(cell));
-                });
-
-                if (values.length) {
-                    rows.push(values.join('\t'));
-                }
-            });
-
-            return rows.join('\n');
-        },
         async copyRowsTable() {
-            const table = this.$refs.itemsTable;
-            if (!table) {
-                return;
-            }
-
-            const clone = table.cloneNode(true);
-            clone.querySelectorAll('[data-copy-col]').forEach((cell) => {
-                if (!this.isCopyColumnVisible(cell.dataset.copyCol)) {
-                    cell.remove();
-                }
-            });
-
-            const plain = this.tableNodeToTsv(clone);
-            const html = clone.outerHTML;
-
-            try {
-                if (window.ClipboardItem && navigator.clipboard?.write) {
-                    await navigator.clipboard.write([
-                        new ClipboardItem({
-                            'text/plain': new Blob([plain], { type: 'text/plain' }),
-                            'text/html': new Blob([html], { type: 'text/html' }),
-                        }),
-                    ]);
-                } else {
-                    await navigator.clipboard.writeText(plain);
-                }
-
+            if (await ariaCopyTable(this.$refs.itemsTable, (col) => this.isCopyColumnVisible(col))) {
                 this.showCopyFeedback();
-            } catch (e) {
-                try {
-                    await navigator.clipboard.writeText(plain);
-                    this.showCopyFeedback();
-                } catch (fallbackError) {
-                    console.error('Failed to copy warehouse items table', fallbackError);
-                }
             }
         },
     };

@@ -105,10 +105,10 @@
                                 @endif
                             </div>
                         </td>
-                        <td class="whitespace-nowrap px-3 py-2.5 text-right font-semibold tabular-nums text-gray-900" data-copy-col="total">
+                        <td class="whitespace-nowrap px-3 py-2.5 text-right font-semibold tabular-nums text-gray-900" data-copy-col="total" data-copy-value="{{ format_copy_number($tx->total) }}">
                             {{ format_amount($tx->total) }}
                         </td>
-                        <td class="whitespace-nowrap px-3 py-2.5 text-right tabular-nums text-gray-500" data-copy-col="total_items">
+                        <td class="whitespace-nowrap px-3 py-2.5 text-right tabular-nums text-gray-500" data-copy-col="total_items" data-copy-value="{{ format_copy_number($tx->total_items) }}">
                             {{ format_amount($tx->total_items) }}
                         </td>
                         <td class="hidden max-w-[180px] px-3 py-2.5 lg:table-cell" data-copy-col="sender">
@@ -267,76 +267,9 @@
             isCopyColumnVisible(col) {
                 return true;
             },
-            cellCopyValue(cell) {
-                const img = cell.querySelector('img');
-                if (img) {
-                    return (img.getAttribute('alt') || img.getAttribute('src') || '').trim();
-                }
-
-                const link = cell.querySelector('a');
-                if (link) {
-                    return link.textContent.trim();
-                }
-
-                return cell.innerText.replace(/\s+/g, ' ').trim();
-            },
-            tableNodeToTsv(table) {
-                const rows = [];
-
-                table.querySelectorAll('thead tr, tbody tr').forEach((row) => {
-                    const values = [];
-
-                    row.querySelectorAll('[data-copy-col]').forEach((cell) => {
-                        if (!this.isCopyColumnVisible(cell.dataset.copyCol)) {
-                            return;
-                        }
-
-                        values.push(this.cellCopyValue(cell));
-                    });
-
-                    if (values.length) {
-                        rows.push(values.join('\t'));
-                    }
-                });
-
-                return rows.join('\n');
-            },
             async copyRowsTable() {
-                const table = this.$refs.listTable;
-                if (!table) {
-                    return;
-                }
-
-                const clone = table.cloneNode(true);
-                clone.querySelectorAll('[data-copy-col]').forEach((cell) => {
-                    if (!this.isCopyColumnVisible(cell.dataset.copyCol)) {
-                        cell.remove();
-                    }
-                });
-
-                const plain = this.tableNodeToTsv(clone);
-                const html = clone.outerHTML;
-
-                try {
-                    if (window.ClipboardItem && navigator.clipboard?.write) {
-                        await navigator.clipboard.write([
-                            new ClipboardItem({
-                                'text/plain': new Blob([plain], { type: 'text/plain' }),
-                                'text/html': new Blob([html], { type: 'text/html' }),
-                            }),
-                        ]);
-                    } else {
-                        await navigator.clipboard.writeText(plain);
-                    }
-
+                if (await ariaCopyTable(this.$refs.listTable, (col) => this.isCopyColumnVisible(col))) {
                     this.showCopyFeedback();
-                } catch (e) {
-                    try {
-                        await navigator.clipboard.writeText(plain);
-                        this.showCopyFeedback();
-                    } catch (fallbackError) {
-                        console.error('Failed to copy transactions table', fallbackError);
-                    }
                 }
             },
         };
