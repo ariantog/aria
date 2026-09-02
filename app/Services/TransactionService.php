@@ -42,6 +42,7 @@ class TransactionService
     public function revertTransaction(Transaction $transaction)
     {
         DB::transaction(function () use ($transaction) {
+            $transaction->loadMissing('details');
             $this->updateStock($transaction, true);
             $this->updateBalances($transaction, true);
         });
@@ -97,19 +98,37 @@ class TransactionService
             return;
         }
 
-        foreach ($transaction->details as $detail) {
-            $qty = $revert ? -$detail->quantity : $detail->quantity;
+        $transaction->loadMissing('details');
 
-            if ($transaction->sender_id) {
-                $this->adjustStock($transaction->sender_id, $transaction->sender_type, $detail->item_id, -$qty);
+        foreach ($transaction->details as $detail) {
+            $qty = $revert ? -(float) $detail->quantity : (float) $detail->quantity;
+
+            $senderId = (int) ($detail->sender_id ?: $transaction->sender_id);
+            $receiverId = (int) ($detail->receiver_id ?: $transaction->receiver_id);
+
+            if ($senderId) {
+                $senderType = $senderId === (int) $transaction->sender_id
+                    ? $transaction->sender_type
+                    : $this->partyType($senderId);
+                $this->adjustStock($senderId, $senderType, (int) $detail->item_id, -$qty);
             }
 
-            if ($transaction->receiver_id) {
-                $this->adjustStock($transaction->receiver_id, $transaction->receiver_type, $detail->item_id, $qty);
+            if ($receiverId) {
+                $receiverType = $receiverId === (int) $transaction->receiver_id
+                    ? $transaction->receiver_type
+                    : $this->partyType($receiverId);
+                $this->adjustStock($receiverId, $receiverType, (int) $detail->item_id, $qty);
             }
 
             $this->updateGlobalStock($transaction, $detail, $revert);
         }
+    }
+
+    protected function partyType(int $partyId): ?int
+    {
+        $type = Addrbook::withTrashed()->whereKey($partyId)->value('type');
+
+        return $type !== null ? (int) $type : null;
     }
 
     protected function updateGlobalStock(Transaction $transaction, $detail, bool $revert = false)
