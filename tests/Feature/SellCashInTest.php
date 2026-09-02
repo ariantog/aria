@@ -301,6 +301,78 @@ it('creates a matching cash in when the sell form switch is on', function () {
         ->and($cashIn->date->toDateString())->toBe('2026-08-20');
 });
 
+it('shows the cash in switch when the sell receiver is soft-deleted', function () {
+    $this->customer->delete();
+
+    $this->actingAs($this->user)
+        ->get(route('transactions.show', $this->sell->fresh()))
+        ->assertOk()
+        ->assertSee('data-testid="sell-cash-in-switch"', false)
+        ->assertSee('data-testid="sell-cash-in-card"', false);
+});
+
+it('shows the cash in switch on a pending sell', function () {
+    $this->sell->update(['status' => Transaction::STATUS_PENDING]);
+
+    $this->actingAs($this->user)
+        ->get(route('transactions.show', $this->sell->fresh()))
+        ->assertOk()
+        ->assertSee('data-testid="sell-cash-in-switch"', false);
+});
+
+it('hides the cash in switch on a cancelled sell', function () {
+    $this->sell->update(['status' => Transaction::STATUS_CANCELLED]);
+
+    $this->actingAs($this->user)
+        ->get(route('transactions.show', $this->sell->fresh()))
+        ->assertOk()
+        ->assertDontSee('data-testid="sell-cash-in-switch"', false);
+});
+
+it('creates a cash in from a pending sell and a soft-deleted receiver', function () {
+    $this->sell->update(['status' => Transaction::STATUS_PENDING]);
+    $this->customer->delete();
+
+    $this->actingAs($this->user)
+        ->post(route('transactions.sell-cash-in.store', $this->sell->fresh()), [
+            'amount' => 250_000,
+            'account_id' => $this->bank->id,
+            'date' => '2026-08-18',
+        ])
+        ->assertRedirect(route('transactions.show', $this->sell));
+
+    $cashIn = Transaction::query()
+        ->where('type', Transaction::TYPE_CASH_IN)
+        ->where('invoice', $this->sell->invoice)
+        ->first();
+
+    expect($cashIn)->not->toBeNull()
+        ->and((int) $cashIn->sender_id)->toBe($this->customer->id)
+        ->and((int) $cashIn->sender_type)->toBe(Addrbook::TYPE_CUSTOMER)
+        ->and((float) $cashIn->total)->toBe(250_000.0);
+});
+
+it('shows the cash in switch on invoice maker when a sell is linked', function () {
+    $invoice = StandaloneInvoice::factory()->create([
+        'number' => $this->sell->invoice,
+        'subtotal' => 1_500_000,
+        'discount_amount' => 0,
+        'user_id' => $this->user->id,
+    ]);
+    StandaloneInvoiceLine::factory()->create([
+        'standalone_invoice_id' => $invoice->id,
+        'quantity' => 1,
+        'price' => 1_500_000,
+        'total' => 1_500_000,
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('invoice-maker.show', $invoice))
+        ->assertOk()
+        ->assertSee('data-testid="sell-cash-in-switch"', false)
+        ->assertSee('data-testid="sell-cash-in-card"', false);
+});
+
 it('does not create cash in when the sell form switch is off', function () {
     $item = Item::factory()->create(['price' => 50_000, 'cost' => 20_000]);
     WarehouseItem::create([
