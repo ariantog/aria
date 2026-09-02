@@ -130,7 +130,11 @@ test('deleting a sell transaction adds each sold qty back to the sender warehous
     ])->assertRedirect();
 
     $sell = Transaction::query()->where('type', Transaction::TYPE_SELL)->latest('id')->first();
-    expect($sell)->not->toBeNull();
+    expect($sell)->not->toBeNull()
+        ->and((float) $sell->real_total)->toBe(-1_100_000.0)
+        ->and((float) $sell->total)->toBe(0.0)
+        ->and((float) $sell->receiver_balance)->toBe(0.0)
+        ->and((float) (AddrbookStat::where('customer_id', $customer->id)->value('balance') ?? 0))->toBe(0.0);
 
     expect((float) WarehouseItem::where('warehouse_id', $warehouse->id)->where('item_id', $shirt->id)->value('quantity'))->toBe(17.0)
         ->and((float) WarehouseItem::where('warehouse_id', $warehouse->id)->where('item_id', $pants->id)->value('quantity'))->toBe(11.0)
@@ -172,7 +176,65 @@ test('deleting a sell transaction adds each sold qty back to the sender warehous
         ->and((float) WarehouseItemMonthlyStat::query()
             ->where('warehouse_id', $warehouse->id)
             ->where('item_id', $pants->id)
-            ->value('sold_qty'))->toBe(0.0);
+            ->value('sold_qty'))->toBe(0.0)
+        ->and((float) (AddrbookStat::where('customer_id', $customer->id)->value('balance') ?? 0))->toBe(0.0);
+});
+
+test('deleting a swapped 100 percent sell restores warehouse qty and receiver balance', function () {
+    $user = User::factory()->create();
+    $this->actingAs($user);
+
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    $customer = Addrbook::factory()->customer()->create(['ppn' => false]);
+    $item = Item::factory()->create(['qty' => 10, 'price' => 1_591_000, 'cost' => 800_000]);
+
+    WarehouseItem::create([
+        'warehouse_id' => $warehouse->id,
+        'item_id' => $item->id,
+        'warehouse_type' => $warehouse->type,
+        'quantity' => 10,
+    ]);
+
+    $sell = Transaction::factory()->create([
+        'type' => Transaction::TYPE_SELL,
+        'date' => now()->toDateString(),
+        'sender_id' => $warehouse->id,
+        'sender_type' => $warehouse->type,
+        'receiver_id' => $customer->id,
+        'receiver_type' => $customer->type,
+        'discount' => 100,
+        'total' => -1_591_000,
+        'real_total' => 0,
+        'ppn' => 0,
+        'status' => Transaction::STATUS_COMPLETED,
+        'user_id' => $user->id,
+    ]);
+    $sell->details()->create([
+        'item_id' => $item->id,
+        'date' => $sell->date,
+        'transaction_type' => Transaction::TYPE_SELL,
+        'sender_id' => $warehouse->id,
+        'receiver_id' => $customer->id,
+        'quantity' => 1,
+        'price' => 1_591_000,
+        'discount' => 0,
+        'total' => 1_591_000,
+    ]);
+
+    app(\App\Services\TransactionService::class)->handleTransaction($sell->fresh('details'));
+
+    expect((float) WarehouseItem::where('warehouse_id', $warehouse->id)->where('item_id', $item->id)->value('quantity'))->toBe(9.0)
+        ->and((float) $sell->fresh()->receiver_balance)->toBe(-1_591_000.0)
+        ->and((float) AddrbookStat::where('customer_id', $customer->id)->value('balance'))->toBe(-1_591_000.0);
+
+    $this->delete(route('transactions.destroy', $sell))
+        ->assertRedirect(route('transactions.index'))
+        ->assertSessionHas('success');
+
+    expect(Transaction::find($sell->id))->toBeNull()
+        ->and((float) WarehouseItem::where('warehouse_id', $warehouse->id)->where('item_id', $item->id)->value('quantity'))->toBe(10.0)
+        ->and((float) $item->fresh()->qty)->toBe(10.0)
+        ->and((float) (AddrbookStat::where('customer_id', $customer->id)->value('balance') ?? 0))->toBe(0.0);
 });
 
 test('deleting a transaction with legacy invalid due date still archives to deleted', function () {
