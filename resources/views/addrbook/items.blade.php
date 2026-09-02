@@ -33,19 +33,7 @@ $sortLink = function (string $column) use ($filters, $sortColumn, $sortDirection
 };
 @endphp
 
-<div class="flex flex-col gap-4 p-3 sm:p-4" x-data="{
-    showImage: false,
-    onlineName: false,
-    filtersOpen: true,
-    filtersStorageKey: @js($filtersStorageKey),
-    init() {
-        const saved = localStorage.getItem(this.filtersStorageKey);
-        this.filtersOpen = saved === null ? true : saved === '1';
-        this.$watch('filtersOpen', (value) => {
-            localStorage.setItem(this.filtersStorageKey, value ? '1' : '0');
-        });
-    },
-}">
+<div class="flex flex-col gap-4 p-3 sm:p-4" x-data="warehouseItemsPage(@js($filtersStorageKey))">
     {{-- Header --}}
     <div class="flex flex-col justify-between gap-4 md:flex-row md:items-end">
         <div>
@@ -110,39 +98,49 @@ $sortLink = function (string $column) use ($filters, $sortColumn, $sortDirection
                 <button type="button" @click="onlineName = true" :class="onlineName ? 'bg-gray-800 text-white' : 'text-gray-500'" class="rounded-md px-3 py-1 text-[10px] font-bold uppercase">Online Name</button>
             </div>
             </div>
-            <a href="{{ $exportUrl . (count($exportQuery) ? '?' . http_build_query($exportQuery) : '') }}"
-               class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
-                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-                Export Excel
-            </a>
+            <div class="flex flex-wrap items-center gap-2">
+                <button type="button"
+                        @click="copyRowsTable()"
+                        data-testid="copy-warehouse-items-table"
+                        title="Copy table for Excel"
+                        class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                    <span x-text="copyFeedback ? 'Copied!' : 'Copy rows'"></span>
+                </button>
+                <a href="{{ $exportUrl . (count($exportQuery) ? '?' . http_build_query($exportQuery) : '') }}"
+                   class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                    Export Excel
+                </a>
+            </div>
         </div>
     </div>
 
     {{-- Table --}}
     <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
         <div class="overflow-x-auto">
-        <table class="w-full min-w-[1100px] text-left text-xs">
+        <table x-ref="itemsTable" class="w-full min-w-[1100px] text-left text-xs">
             <thead class="border-b border-gray-200 bg-gray-50 text-[10px] uppercase tracking-wider text-gray-500">
                 <tr>
-                    <th class="w-14 px-2 py-2.5 font-bold">
+                    <th class="w-14 px-2 py-2.5 font-bold" data-copy-col="id">
                         <a href="{{ $sortLink('id') }}" class="inline-flex items-center gap-1 hover:text-gray-900">ID @if($sortColumn === 'id')<span class="text-blue-600">{{ $sortDirection === 'asc' ? '↑' : '↓' }}</span>@endif</a>
                     </th>
-                    <th class="w-16 px-2 py-2.5 font-bold" x-show="showImage">Image</th>
-                    <th class="whitespace-nowrap px-2 py-2.5 font-bold">
+                    <th class="w-16 px-2 py-2.5 font-bold" data-copy-col="image" x-show="showImage">Image</th>
+                    <th class="whitespace-nowrap px-2 py-2.5 font-bold" data-copy-col="name">
                         <a href="{{ $sortLink('name') }}" class="inline-flex items-center gap-1 hover:text-gray-900">Item Name @if($sortColumn === 'name')<span class="text-blue-600">{{ $sortDirection === 'asc' ? '↑' : '↓' }}</span>@endif</a>
                     </th>
-                    <th class="min-w-[7rem] px-2 py-2.5 font-bold">
+                    <th class="min-w-[7rem] px-2 py-2.5 font-bold" data-copy-col="code">
                         <a href="{{ $sortLink('code') }}" class="inline-flex items-center gap-1 hover:text-gray-900">Code @if($sortColumn === 'code')<span class="text-blue-600">{{ $sortDirection === 'asc' ? '↑' : '↓' }}</span>@endif</a>
                     </th>
-                    <th class="min-w-[8rem] max-w-[14rem] px-2 py-2.5 font-bold">Description</th>
-                    <th class="whitespace-nowrap px-2 py-2.5 text-right font-bold">
+                    <th class="min-w-[8rem] max-w-[14rem] px-2 py-2.5 font-bold" data-copy-col="description">Description</th>
+                    <th class="whitespace-nowrap px-2 py-2.5 text-right font-bold" data-copy-col="price">
                         <a href="{{ $sortLink('price') }}" class="inline-flex items-center gap-1 hover:text-gray-900">Price @if($sortColumn === 'price')<span class="text-blue-600">{{ $sortDirection === 'asc' ? '↑' : '↓' }}</span>@endif</a>
                     </th>
-                    <th class="whitespace-nowrap px-2 py-2.5 text-right font-bold">
+                    <th class="whitespace-nowrap px-2 py-2.5 text-right font-bold" data-copy-col="qty">
                         <a href="{{ $sortLink('qty') }}" class="inline-flex items-center gap-1 hover:text-gray-900">Stock @if($sortColumn === 'qty')<span class="text-blue-600">{{ $sortDirection === 'asc' ? '↑' : '↓' }}</span>@endif</a>
                     </th>
                     @if($jubelioSync ?? null)
-                        <th class="whitespace-nowrap px-2 py-2.5 text-right font-bold">Jubelio</th>
+                        <th class="whitespace-nowrap px-2 py-2.5 text-right font-bold" data-copy-col="jubelio">Jubelio</th>
                     @endif
                     <th class="w-14 px-2 py-2.5 text-center font-bold"></th>
                 </tr>
@@ -160,27 +158,27 @@ $sortLink = function (string $column) use ($filters, $sortColumn, $sortDirection
                         $itemEditUrl = $item->editUrl();
                     @endphp
                     <tr class="cursor-pointer align-top hover:bg-gray-50" onclick="window.location='{{ $itemShowUrl }}'">
-                        <td class="px-2 py-2 font-mono">
+                        <td class="px-2 py-2 font-mono" data-copy-col="id">
                             <a href="{{ $itemShowUrl }}" onclick="event.stopPropagation()" class="text-blue-600 hover:underline">#{{ $item->id }}</a>
                         </td>
-                        <td class="px-2 py-2" x-show="showImage">
-                            <img src="{{ $item->image_url ?: '/images/default-item.png' }}" onerror="this.src='/images/default-item.png'" class="h-10 w-10 rounded-md border border-gray-200 object-cover">
+                        <td class="px-2 py-2" data-copy-col="image" x-show="showImage">
+                            <img src="{{ $item->image_url ?: '/images/default-item.png' }}" alt="{{ $item->name }}" onerror="this.src='/images/default-item.png'" class="h-10 w-10 rounded-md border border-gray-200 object-cover">
                         </td>
-                        <td class="min-w-[10rem] max-w-[16rem] px-2 py-2">
+                        <td class="min-w-[10rem] max-w-[16rem] px-2 py-2" data-copy-col="name">
                             <a href="{{ $itemShowUrl }}" onclick="event.stopPropagation()" class="block truncate font-medium text-gray-800 hover:text-blue-600" title="{{ $onlineName ?? $normalName }}">
                                 <span x-show="!onlineName">{{ $normalName }}</span>
                                 <span x-show="onlineName" x-cloak>{{ $onlineNm }}</span>
                             </a>
                             <div class="truncate font-mono text-[10px] text-gray-400">{{ $item->name }}</div>
                         </td>
-                        <td class="truncate px-2 py-2 font-mono">
+                        <td class="truncate px-2 py-2 font-mono" data-copy-col="code">
                             <a href="{{ $itemShowUrl }}" onclick="event.stopPropagation()" class="text-blue-600 hover:underline" title="{{ $item->code }}">{{ $item->code }}</a>
                         </td>
-                        <td class="min-w-[8rem] max-w-[14rem] break-words px-2 py-2 text-gray-500 whitespace-pre-line">{{ $desc }}</td>
-                        <td class="whitespace-nowrap px-2 py-2 text-right font-semibold text-gray-700">{{ $idr($item->price) }}</td>
-                        <td class="whitespace-nowrap px-2 py-2 text-right font-mono font-bold {{ $qty > 0 ? 'text-emerald-600' : 'text-gray-400' }}">{{ format_amount($qty, 0) }}</td>
+                        <td class="min-w-[8rem] max-w-[14rem] break-words px-2 py-2 text-gray-500 whitespace-pre-line" data-copy-col="description">{{ $desc }}</td>
+                        <td class="whitespace-nowrap px-2 py-2 text-right font-semibold text-gray-700" data-copy-col="price">{{ $idr($item->price) }}</td>
+                        <td class="whitespace-nowrap px-2 py-2 text-right font-mono font-bold {{ $qty > 0 ? 'text-emerald-600' : 'text-gray-400' }}" data-copy-col="qty">{{ format_amount($qty, 0) }}</td>
                         @if($jubelioSync ?? null)
-                            <td class="whitespace-nowrap px-2 py-2 text-right">
+                            <td class="whitespace-nowrap px-2 py-2 text-right" data-copy-col="jubelio">
                                 @if(! $jubelio || ! ($jubelio['linked'] ?? false))
                                     <span class="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700" title="Item is not linked to Jubelio">
                                         Not linked
@@ -209,4 +207,109 @@ $sortLink = function (string $column) use ($filters, $sortColumn, $sortDirection
         @include('partials.pagination', ['paginator' => $items, 'label' => 'items'])
     </div>
 </div>
+
+@push('scripts')
+<script>
+function warehouseItemsPage(filtersStorageKey) {
+    return {
+        showImage: false,
+        onlineName: false,
+        filtersOpen: true,
+        filtersStorageKey: filtersStorageKey,
+        copyFeedback: false,
+        copyFeedbackTimer: null,
+        init() {
+            const saved = localStorage.getItem(this.filtersStorageKey);
+            this.filtersOpen = saved === null ? true : saved === '1';
+            this.$watch('filtersOpen', (value) => {
+                localStorage.setItem(this.filtersStorageKey, value ? '1' : '0');
+            });
+        },
+        showCopyFeedback() {
+            this.copyFeedback = true;
+            clearTimeout(this.copyFeedbackTimer);
+            this.copyFeedbackTimer = setTimeout(() => {
+                this.copyFeedback = false;
+            }, 2000);
+        },
+        isCopyColumnVisible(col) {
+            if (col === 'image') {
+                return this.showImage;
+            }
+
+            return true;
+        },
+        cellCopyValue(cell) {
+            if (cell.dataset.copyCol === 'image') {
+                const img = cell.querySelector('img');
+                if (img) {
+                    return (img.getAttribute('alt') || img.getAttribute('src') || '').trim();
+                }
+            }
+
+            return cell.innerText.replace(/\s+/g, ' ').trim();
+        },
+        tableNodeToTsv(table) {
+            const rows = [];
+
+            table.querySelectorAll('thead tr, tbody tr').forEach((row) => {
+                const values = [];
+
+                row.querySelectorAll('[data-copy-col]').forEach((cell) => {
+                    if (!this.isCopyColumnVisible(cell.dataset.copyCol)) {
+                        return;
+                    }
+
+                    values.push(this.cellCopyValue(cell));
+                });
+
+                if (values.length) {
+                    rows.push(values.join('\t'));
+                }
+            });
+
+            return rows.join('\n');
+        },
+        async copyRowsTable() {
+            const table = this.$refs.itemsTable;
+            if (!table) {
+                return;
+            }
+
+            const clone = table.cloneNode(true);
+            clone.querySelectorAll('[data-copy-col]').forEach((cell) => {
+                if (!this.isCopyColumnVisible(cell.dataset.copyCol)) {
+                    cell.remove();
+                }
+            });
+
+            const plain = this.tableNodeToTsv(clone);
+            const html = clone.outerHTML;
+
+            try {
+                if (window.ClipboardItem && navigator.clipboard?.write) {
+                    await navigator.clipboard.write([
+                        new ClipboardItem({
+                            'text/plain': new Blob([plain], { type: 'text/plain' }),
+                            'text/html': new Blob([html], { type: 'text/html' }),
+                        }),
+                    ]);
+                } else {
+                    await navigator.clipboard.writeText(plain);
+                }
+
+                this.showCopyFeedback();
+            } catch (e) {
+                try {
+                    await navigator.clipboard.writeText(plain);
+                    this.showCopyFeedback();
+                } catch (fallbackError) {
+                    console.error('Failed to copy warehouse items table', fallbackError);
+                }
+            }
+        },
+    };
+}
+</script>
+@endpush
 @endsection
