@@ -7,6 +7,8 @@ use App\Models\TaxFakturImport;
 use App\Models\Transaction;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 use InvalidArgumentException;
 
 class TaxFakturImportService
@@ -92,6 +94,57 @@ class TaxFakturImportService
 
             return $import->fresh();
         });
+    }
+
+    /**
+     * Remove an imported faktur from PPN reporting. Linked Sell / Cash In rows stay;
+     * only the import record, sell links, and stored PDF are removed so the number
+     * can be uploaded again.
+     */
+    public function delete(TaxFakturImport $import): void
+    {
+        $pdfPath = $import->pdf_path;
+
+        DB::transaction(function () use ($import) {
+            $import = TaxFakturImport::query()
+                ->whereKey($import->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            if (Schema::hasTable('tax_faktur_import_sells')) {
+                $import->sellTransactions()->detach();
+            }
+
+            $import->delete();
+        });
+
+        $this->deleteStoredPdf($pdfPath);
+    }
+
+    private function deleteStoredPdf(?string $pdfPath): void
+    {
+        if (! $pdfPath) {
+            return;
+        }
+
+        foreach (['local', 'public'] as $disk) {
+            try {
+                if (Storage::disk($disk)->exists($pdfPath)) {
+                    Storage::disk($disk)->delete($pdfPath);
+                }
+            } catch (\Throwable) {
+                // Disk may not be configured in tests — file cleanup is best-effort.
+            }
+        }
+
+        foreach ([
+            storage_path('app/private/'.$pdfPath),
+            storage_path('app/'.$pdfPath),
+        ] as $absolute) {
+            if (is_file($absolute)) {
+                @unlink($absolute);
+            }
+        }
     }
 
     public function linkCashIn(TaxFakturImport $import, ?int $cashInTransactionId): TaxFakturImport

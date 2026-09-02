@@ -19,6 +19,8 @@ it('parses MDS output tax invoice faktur pajak PDF', function () {
         ->and($parsed->dpp)->toBe(19_452_728.0)
         ->and($parsed->ppn)->toBe(2_334_327.0)
         ->and($parsed->ppnbm)->toBe(0.0)
+        ->and($parsed->grossIncludingTax())->toBe(23_555_484.0)
+        ->and($parsed->grossIncludingTax())->not->toBe($parsed->dpp + $parsed->ppn)
         ->and($parsed->signatoryName)->toBe('ARIANTO GUNAWAN')
         ->and($parsed->sourceFormat)->toBe(FakturPajakPdfParser::FORMAT_MDS_OUTPUT_TAX_INVOICE)
         ->and($parsed->lineItems)->toHaveCount(7)
@@ -57,7 +59,9 @@ TEXT;
     $parsed = app(FakturPajakPdfParser::class)->parseText($text);
 
     expect($parsed->fakturNumber)->toBe('01000123456789012')
+        ->and($parsed->grossTotal)->toBe(1_110_000.0)
         ->and($parsed->dpp)->toBe(1_000_000.0)
         ->and($parsed->ppn)->toBe(110_000.0)
+        ->and($parsed->grossIncludingTax())->toBe(1_220_000.0)
         ->and($parsed->fakturDate?->toDateString())->toBe('2025-08-15');
 });

@@ -70,8 +70,9 @@ $gross = $parsed->grossIncludingTax();
             <dl class="space-y-2">
                 <div><dt class="text-gray-500">Penjual (PKP)</dt><dd>{{ $parsed->sellerName }} <span class="text-xs text-gray-400">{{ $parsed->sellerNpwp }}</span></dd></div>
                 <div><dt class="text-gray-500">Pembeli</dt><dd>{{ $parsed->buyerName }} <span class="text-xs text-gray-400">{{ $parsed->buyerNpwp }}</span></dd></div>
+                <div><dt class="text-gray-500">Harga jual / penggantian</dt><dd class="tabular-nums">{{ $fmt($parsed->grossTotal) }}@if($parsed->discountTotal > 0) <span class="text-xs text-gray-400">− potongan {{ $fmt($parsed->discountTotal) }}</span>@endif</dd></div>
                 <div><dt class="text-gray-500">DPP / PPN</dt><dd class="tabular-nums">{{ $fmt($parsed->dpp) }} / {{ $fmt($parsed->ppn) }}</dd></div>
-                <div><dt class="text-gray-500">Total faktur</dt><dd class="tabular-nums font-medium">{{ $fmt($gross) }}</dd></div>
+                <div><dt class="text-gray-500">Total faktur (harga jual + PPN)</dt><dd class="tabular-nums font-medium">{{ $fmt($gross) }}</dd></div>
                 @if($expectedPaymentDate)
                     <div><dt class="text-gray-500">Perkiraan jatuh tempo</dt><dd>{{ $expectedPaymentDate }} <span class="text-xs text-gray-400">(dari payment due day lawan)</span></dd></div>
                 @endif
@@ -236,7 +237,7 @@ $gross = $parsed->grossIncludingTax();
                     <input type="checkbox" name="post_sell" value="1" x-model="postSell" class="mt-0.5 rounded border-gray-300" data-testid="faktur-post-sell-on-save">
                     <span>
                         <span class="font-medium text-gray-900">Post Sell dari faktur setelah simpan</span>
-                        <span class="block text-xs text-gray-500">Konsinyasi MDS/Central: Sell = gross DPP+PPN. Entity pajak dari bank Cash In terkait.</span>
+                        <span class="block text-xs text-gray-500">Konsinyasi MDS/Central: Sell = harga jual + PPN. Entity pajak dari bank Cash In terkait.</span>
                     </span>
                 </label>
                 <div class="mt-3 space-y-3" x-show="postSell" x-cloak>

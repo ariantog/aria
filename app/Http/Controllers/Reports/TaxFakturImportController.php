@@ -481,6 +481,18 @@ class TaxFakturImportController extends Controller
         return $this->attemptPostSell($request, $import, $postFakturSell, $import->faktur_number);
     }
 
+    public function destroy(TaxFakturImport $import, TaxFakturImportService $importService)
+    {
+        Gate::authorize(Report::getPermissions()['import-tax-faktur']);
+
+        $fakturNumber = $import->faktur_number;
+        $importService->delete($import);
+
+        return redirect()
+            ->route('reports.tax.faktur.index')
+            ->with('success', "Faktur {$fakturNumber} dihapus dari laporan PPN. Sell dan Cash In terkait tidak dihapus.");
+    }
+
     /**
      * @param  list<array{line_no?: int|string, item_id?: int|string}>  $submitted
      * @return list<array{line_no: int, item_id: int}>|\Illuminate\Http\RedirectResponse
