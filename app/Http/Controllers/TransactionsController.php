@@ -3,12 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Actions\Transactions\CreateAdjustTransaction;
+use App\Actions\Transactions\CreateCashInFromSell;
 use App\Actions\Transactions\CreateCashTransaction;
 use App\Actions\Transactions\CreateItemTransaction;
 use App\Actions\Transactions\CreateTransferTransaction;
 use App\Http\Requests\StoreAdjustRequest;
 use App\Http\Requests\StoreCashTransactionRequest;
 use App\Http\Requests\StoreItemTransactionRequest;
+use App\Http\Requests\StoreSellCashInRequest;
 use App\Http\Requests\StoreTransferRequest;
 use App\Models\DeletedTransaction;
 use App\Models\DeletedTransactionDetail;
@@ -16,6 +18,7 @@ use App\Models\Transaction;
 use App\Services\BookClosingService;
 use App\Services\Jubelio\JubelioTransactionSyncPresenter;
 use App\Services\Reporting\ReportingSummaryRecorder;
+use App\Services\StandaloneInvoiceSettlement;
 use App\Services\TransactionInvoiceService;
 use App\Services\TransactionListExportService;
 use App\Services\TransactionReturnDraftService;
@@ -104,6 +107,7 @@ class TransactionsController extends Controller
             'min_date' => $bookClosingService->getMinAllowedDate()->toDateString(),
             'prefill' => $this->resolveCreatePrefill($type, $request, $draftService, $userPreferences),
             'jubelio_sync' => $jubelioSyncPresenter->createFormSyncConfig(),
+            'sellCashIn' => $type === 'sell' ? $this->sellCashInFormData(Auth::user()) : null,
         ]);
     }
 
@@ -174,6 +178,13 @@ class TransactionsController extends Controller
     {
         $this->authorizeTransactionType($request->input('type'));
         $bookClosingService->validateDate($request->validated('date'));
+        if ($request->wantsCashIn()) {
+            Gate::authorize(Transaction::getPermissions()['type-cash-in']);
+            $bookClosingService->validateDate(
+                $request->validated('cash_in_date') ?: now()->toDateString(),
+                'cash_in_date'
+            );
+        }
         $transaction = $action->execute($request);
 
         return redirect()->route('transactions.show', $transaction)->with('success', 'Transaction created.');
@@ -201,6 +212,30 @@ class TransactionsController extends Controller
         $ids = $action->execute($request, isCashIn: true);
 
         return redirect()->route('transactions.show', end($ids))->with('success', 'Cash In records created.');
+    }
+
+    public function storeSellCashIn(
+        StoreSellCashInRequest $request,
+        Transaction $transaction,
+        CreateCashInFromSell $action,
+        BookClosingService $bookClosingService
+    ) {
+        $this->authorizeTransactionView($transaction);
+        Gate::authorize(Transaction::getPermissions()['type-cash-in']);
+        abort_unless((int) $transaction->type === Transaction::TYPE_SELL, 422, 'Cash in can only be created from a sell.');
+        abort_unless((int) $transaction->status === Transaction::STATUS_COMPLETED, 422, 'Cash in can only be created from a completed sell.');
+
+        $date = $request->validated('date') ?: now()->toDateString();
+        $bookClosingService->validateDate($date);
+        $action->execute($transaction, [
+            'date' => $date,
+            'account_id' => (int) $request->validated('account_id'),
+            'amount' => (float) $request->validated('amount'),
+        ]);
+
+        return redirect()
+            ->route('transactions.show', $transaction)
+            ->with('success', 'Cash In created.');
     }
 
     public function cashOut(BookClosingService $bookClosingService, UserPreferenceService $userPreferences)
@@ -290,6 +325,8 @@ class TransactionsController extends Controller
         $jubelioSync['show_ui'] = $jubelioSyncPresenter->showSyncUi($jubelioSync, Auth::user());
         $invoiceService = app(TransactionInvoiceService::class);
         $canDraftReturn = $this->canDraftReturn($transaction);
+        $invoiceSettlement = app(StandaloneInvoiceSettlement::class)->snapshotForTransaction($transaction);
+        $sellCashIn = $this->sellCashInShowData($transaction, $invoiceSettlement);
         $cashBankId = match ((int) $transaction->type) {
             Transaction::TYPE_CASH_IN => (int) $transaction->receiver_id,
             Transaction::TYPE_CASH_OUT => (int) $transaction->sender_id,
@@ -306,10 +343,16 @@ class TransactionsController extends Controller
             'can' => [
                 'delete_transaction' => Auth::user()->can(Transaction::getPermissions()['delete']),
                 'edit_transaction' => Auth::user()->can(Transaction::getPermissions()['edit']),
+                'edit_invoice' => Auth::user()->can(Transaction::getPermissions()['edit-invoice']),
                 'bank_hidden_balance' => ! Auth::user()->is_superadmin && Auth::user()->can('addrbook-bank-account-hidden-balance'),
                 'return_draft' => $canDraftReturn,
                 'jubelio_transaction_sync' => Transaction::userCanJubelioTransactionSync(Auth::user()),
+                'invoice_maker_view' => Auth::user()->can(\App\Models\StandaloneInvoice::getPermissions()['view']),
+                'invoice_maker_edit' => Auth::user()->can(\App\Models\StandaloneInvoice::getPermissions()['edit']),
+                'create_sell_cash_in' => (bool) ($sellCashIn['can_create'] ?? false),
             ],
+            'invoiceSettlement' => $invoiceSettlement,
+            'sellCashIn' => $sellCashIn,
             'flash' => [
                 'success' => session('success'),
                 'error' => session('errorMessage') ?? session('error'),
@@ -517,6 +560,42 @@ class TransactionsController extends Controller
         return back()->with('success', 'Transaction note updated.');
     }
 
+    public function updateInvoice(Request $request, Transaction $transaction, TransactionInvoiceService $invoiceService)
+    {
+        Gate::authorize(Transaction::getPermissions()['edit-invoice']);
+        abort_unless(
+            app(\App\Services\LocationAccessService::class)->canAccessTransaction(Auth::user(), $transaction),
+            403
+        );
+
+        $validated = $request->validate([
+            'invoice' => ['nullable', 'string', 'max:50'],
+        ]);
+
+        $invoice = trim((string) ($validated['invoice'] ?? ''));
+        if ($invoice === '') {
+            $invoice = (string) $transaction->id;
+        }
+
+        $previous = (string) $transaction->invoice;
+        $transaction->update(['invoice' => $invoice]);
+
+        if ($previous !== $invoice) {
+            $invoiceService->deleteInvoicePdf($transaction);
+            app(StandaloneInvoiceSettlement::class)->reconcileByNumber($previous, Auth::user());
+        }
+        app(StandaloneInvoiceSettlement::class)->reconcileByNumber($invoice, Auth::user());
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'invoice' => $invoice,
+                'linked' => \App\Models\StandaloneInvoice::findByNumber($invoice) !== null,
+            ]);
+        }
+
+        return back()->with('success', 'Invoice number updated.');
+    }
+
     public function updatePpn(Request $request, Transaction $transaction, ReportingSummaryRecorder $recorder)
     {
         Gate::authorize(Transaction::getPermissions()['edit']);
@@ -609,6 +688,7 @@ class TransactionsController extends Controller
         $transaction->load(['details', 'sender', 'receiver']);
         $sender = $transaction->sender;
         $receiver = $transaction->receiver;
+        $invoiceNumber = (string) $transaction->invoice;
         $bookClosingService->validateDate($transaction->date->format('Y-m-d'));
 
         DB::transaction(function () use ($transaction, $service, $sender, $receiver) {
@@ -642,7 +722,75 @@ class TransactionsController extends Controller
             }
         });
 
+        app(StandaloneInvoiceSettlement::class)->reconcileByNumber($invoiceNumber, Auth::user());
+
         return redirect()->route('transactions.index')->with('success', 'Transaction moved to deleted.');
+    }
+
+    /**
+     * @return array{
+     *     can_create: bool,
+     *     banks: \Illuminate\Support\Collection<int, \App\Models\Addrbook>,
+     *     default_account: array{id: int, name: string}|null,
+     *     min_date: string,
+     *     default_date: string,
+     *     default_amount: float,
+     *     linked: \Illuminate\Support\Collection<int, Transaction>
+     * }
+     */
+    private function sellCashInFormData(?\App\Models\User $user, float $defaultAmount = 0.0): array
+    {
+        $today = now()->toDateString();
+        $minDate = app(BookClosingService::class)->getMinAllowedDate()->toDateString();
+
+        return [
+            'can_create' => $user !== null
+                && $user->can(Transaction::getPermissions()['type-cash-in']),
+            'banks' => \App\Models\Addrbook::query()
+                ->where('type', \App\Models\Addrbook::TYPE_BANK)
+                ->orderBy('name')
+                ->get(),
+            'default_account' => $user
+                ? app(UserPreferenceService::class)->defaultCashAccount($user, true)
+                : null,
+            'min_date' => $minDate,
+            'default_date' => $today < $minDate ? $minDate : $today,
+            'default_amount' => $defaultAmount,
+            'linked' => collect(),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $invoiceSettlement
+     * @return array<string, mixed>|null
+     */
+    private function sellCashInShowData(Transaction $transaction, ?array $invoiceSettlement): ?array
+    {
+        if ((int) $transaction->type !== Transaction::TYPE_SELL) {
+            return null;
+        }
+
+        $defaultAmount = $transaction->displayGrandTotal();
+        if ($invoiceSettlement && (float) ($invoiceSettlement['remaining'] ?? 0) > 0.009) {
+            $defaultAmount = (float) $invoiceSettlement['remaining'];
+        }
+
+        $data = $this->sellCashInFormData(Auth::user(), $defaultAmount);
+        $receiver = $transaction->receiver;
+        $receiverOk = $receiver && in_array((int) $receiver->type, \App\Models\Addrbook::cashPartyTypes(), true);
+        $data['can_create'] = $data['can_create']
+            && (int) $transaction->status === Transaction::STATUS_COMPLETED
+            && $receiverOk;
+        $data['linked'] = Transaction::query()
+            ->with(['sender', 'receiver'])
+            ->where('type', Transaction::TYPE_CASH_IN)
+            ->where('invoice', $transaction->invoice)
+            ->where('status', Transaction::STATUS_COMPLETED)
+            ->orderBy('date')
+            ->orderBy('id')
+            ->get();
+
+        return $data;
     }
 
     private function authorizeTransactionType(string $type): void

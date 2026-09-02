@@ -6,6 +6,7 @@ use App\Models\Addrbook;
 use App\Models\ItemStockNotification;
 use App\Models\User;
 use App\Services\SidebarFavoriteService;
+use App\Services\StaffChecklistService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\View\View;
@@ -51,5 +52,9 @@ class AppComposer
         } else {
             $view->with('stockNotificationUnreadCount', 0);
         }
+
+        $staffChecklist = app(StaffChecklistService::class)->forUser($user);
+        $view->with('staffChecklistPendingCount', (int) ($staffChecklist['summary']['pending'] ?? 0));
+        $view->with('hasStaffChecklist', (bool) ($staffChecklist['has_checklists'] ?? false));
     }
 }

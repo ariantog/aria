@@ -201,7 +201,9 @@ it('filters addrbook transactions by location', function () {
 
     $response->assertOk()
         ->assertSee('ADDR-VISIBLE-TX')
-        ->assertDontSee('ADDR-HIDDEN-TX');
+        ->assertDontSee('ADDR-HIDDEN-TX')
+        ->assertSee('data-testid="copy-transactions-table"', false)
+        ->assertSee('data-copy-col="invoice"', false);
 });
 
 it('filters item transactions by location', function () {

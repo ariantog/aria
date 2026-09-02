@@ -14,7 +14,7 @@ class StoreItemRequest extends FormRequest
         return [
             'pcode' => ['required', 'string'],
             'type' => ['required', 'integer'],
-            'product_name' => $isAsset ? ['required', 'string', 'max:255'] : ['nullable', 'string', 'max:255'],
+            'product_name' => ['nullable', 'string', 'max:255'],
             'price' => ['nullable', 'numeric'],
             'description' => ['nullable', 'string'],
             'description2' => ['nullable', 'string'],

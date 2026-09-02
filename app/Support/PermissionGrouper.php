@@ -4,6 +4,7 @@ namespace App\Support;
 
 use App\Models\Addrbook;
 use App\Models\Borongan;
+use App\Models\ChecklistTemplate;
 use App\Models\Item;
 use App\Models\ItemGroup;
 use App\Models\Jubelio;
@@ -15,6 +16,7 @@ use App\Models\Report;
 use App\Models\RestockSheet;
 use App\Models\ScheduledTask;
 use App\Models\Setting;
+use App\Models\StandaloneInvoice;
 use App\Models\Tag;
 use App\Models\Transaction;
 use App\Models\User;
@@ -33,6 +35,7 @@ class PermissionGrouper
     /** @var list<string> */
     private const GROUP_ORDER = [
         'Users',
+        'Checklist Peran',
         'Roles',
         'Permissions',
         'Locations',
@@ -43,6 +46,7 @@ class PermissionGrouper
         'Asset Lancar',
         'Asset Tetap',
         'Transactions',
+        'Invoice Maker',
         'Restock',
         'Reports',
         'Journals — Operations',
@@ -108,7 +112,9 @@ class PermissionGrouper
             [User::class, 'Users', [
                 'roles-' => 'Roles',
                 'permissions-' => 'Permissions',
+                'staff-roles-' => 'Users',
             ]],
+            [ChecklistTemplate::class, 'Checklist Peran'],
             [Location::class, 'Locations'],
             [Addrbook::class, 'Addrbook'],
             [Item::class, 'Items', [
@@ -118,6 +124,7 @@ class PermissionGrouper
             [ItemGroup::class, 'Item Groups'],
             [Tag::class, 'Tags'],
             [Transaction::class, 'Transactions'],
+            [StandaloneInvoice::class, 'Invoice Maker'],
             [RestockSheet::class, 'Restock'],
             [Report::class, 'Reports'],
             [Operation::class, 'Journals — Operations', [
@@ -186,6 +193,7 @@ class PermissionGrouper
                 'users' => str_contains($name, '-locations-') ? 'Locations'
                     : (str_contains($name, '-roles-') ? 'Roles'
                     : (str_contains($name, '-permissions-') ? 'Permissions' : 'Users')),
+                'checklist' => 'Checklist Peran',
                 'addrbook' => 'Addrbook',
                 'transactions' => 'Transactions',
                 'production' => str_contains($name, '-worker-') ? 'Production — Workers' : 'Production',
@@ -200,6 +208,7 @@ class PermissionGrouper
                 'borongan' => 'Borongan',
                 'restock' => 'Restock',
                 'jubelio' => 'Jubelio',
+                'invoice' => 'Invoice Maker',
                 'shopee-ads' => 'Shopee Ads',
                 default => ucfirst($module),
             };

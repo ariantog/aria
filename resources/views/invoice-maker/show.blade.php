@@ -21,6 +21,12 @@ $fmt = fn ($n) => format_currency($n);
             <div>
                 <h1 class="text-2xl font-bold tracking-tight">Invoice Detail</h1>
                 <p class="text-sm text-gray-500">{{ $invoice->number }} · {{ $invoice->formattedDate() }}</p>
+                <div class="mt-1">
+                    @include('invoice-maker.partials.status-badge', [
+                        'status' => $settlement['status'],
+                        'label' => $settlement['status_label'],
+                    ])
+                </div>
             </div>
         </div>
 
@@ -112,6 +118,12 @@ $fmt = fn ($n) => format_currency($n);
                             <td class="px-4 py-3 text-right text-gray-500">SUB TOTAL</td>
                             <td class="px-4 py-3 text-right font-mono text-lg font-bold text-gray-900">{{ $fmt($invoice->subtotal) }}</td>
                         </tr>
+                        @if($invoice->discountAmount() > 0)
+                        <tr>
+                            <td colspan="3" class="px-4 py-3 text-right font-semibold text-gray-600">Discount</td>
+                            <td class="px-4 py-3 text-right font-mono text-lg font-bold text-gray-600">{{ $fmt($invoice->discountAmount()) }}</td>
+                        </tr>
+                        @endif
                         @if($invoice->hasDownPayment())
                         <tr>
                             <td colspan="3" class="px-4 py-3 text-right font-semibold text-red-600">DP</td>
@@ -120,7 +132,7 @@ $fmt = fn ($n) => format_currency($n);
                         @endif
                         <tr>
                             <td colspan="3" class="px-4 py-3 text-right font-semibold text-gray-900">TOTAL</td>
-                            <td class="px-4 py-3 text-right font-mono text-lg font-bold text-gray-900">{{ $fmt($invoice->balanceDue()) }}</td>
+                            <td class="px-4 py-3 text-right font-mono text-lg font-bold text-gray-900">{{ $fmt(max(0, $invoice->balanceDue() - $invoice->discountAmount())) }}</td>
                         </tr>
                     </tfoot>
                 </table>
@@ -149,6 +161,10 @@ $fmt = fn ($n) => format_currency($n);
                 <h3 class="mb-2 font-semibold text-gray-900">Signatory</h3>
                 <p class="font-medium text-gray-900">{{ $invoice->signatory_name ?: '—' }}</p>
             </div>
+            @include('invoice-maker.partials.settlement-card', [
+                'settlement' => $settlement,
+                'canEdit' => $can['edit'] ?? false,
+            ])
             @if($invoice->notes)
             <div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm text-sm">
                 <h3 class="mb-2 font-semibold text-gray-900">Notes</h3>

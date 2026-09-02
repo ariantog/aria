@@ -92,7 +92,10 @@ it('renders addrbook item sales with sell lines for the contact', function () {
         ->assertSee('SKU-CUST-1', false)
         ->assertSee('WH Item Sales', false)
         ->assertSee('Customer Item Sales', false)
-        ->assertDontSee('SELL-CUST-HIDDEN', false);
+        ->assertDontSee('SELL-CUST-HIDDEN', false)
+        ->assertSee('data-testid="copy-export-sell-table"', false)
+        ->assertSee('data-copy-col="invoice"', false)
+        ->assertSee('copyRowsTable()', false);
 });
 
 it('does not leak the route type segment into sell line filters', function () {

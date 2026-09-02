@@ -17,6 +17,7 @@ $initialLines = old('lines', $invoice?->lines->map(fn ($line) => [
 $initialPresetId = old('preset_id', $invoice->preset_id ?? $selectedPreset['id']);
 $initialDpEnabled = (bool) old('dp_enabled', $invoice?->hasDownPayment() ?? false);
 $initialDpAmount = old('dp_amount', $invoice?->dp_amount ?? '');
+$initialDiscountAmount = old('discount_amount', $invoice?->discount_amount ?? 0);
 @endphp
 
 <div class="flex flex-col gap-4 p-3 sm:p-4" x-data="invoiceMakerForm(@js([
@@ -30,6 +31,7 @@ $initialDpAmount = old('dp_amount', $invoice?->dp_amount ?? '');
     'notes' => old('notes', $invoice->notes ?? ''),
     'dp_enabled' => $initialDpEnabled,
     'dp_amount' => $initialDpAmount,
+    'discount_amount' => $initialDiscountAmount,
     'lines' => $initialLines,
     'senderInitial' => $invoice?->sender ? ['id' => $invoice->sender->id, 'name' => $invoice->sender->name] : null,
 ]))">
@@ -131,6 +133,9 @@ $initialDpAmount = old('dp_amount', $invoice?->dp_amount ?? '');
                         <div class="space-y-1 text-right">
                             <div class="text-gray-500">Total Qty: <span class="font-mono font-medium text-gray-900" x-text="formatAmount(totalQty())"></span></div>
                             <div class="text-base font-semibold text-gray-900">Subtotal: <span class="font-mono" x-text="formatCurrency(grandTotal())"></span></div>
+                            <template x-if="Number(form.discount_amount) > 0">
+                                <div class="text-base font-semibold text-gray-600">Discount: <span class="font-mono" x-text="formatCurrency(discountAmount())"></span></div>
+                            </template>
                             <template x-if="form.dp_enabled">
                                 <div class="text-base font-semibold text-red-600">DP: <span class="font-mono" x-text="formatCurrency(dpAmount())"></span></div>
                             </template>
@@ -190,6 +195,17 @@ $initialDpAmount = old('dp_amount', $invoice?->dp_amount ?? '');
                             <label class="mb-1 block text-sm font-medium text-gray-700">Notes</label>
                             <textarea name="notes" rows="2" x-model="form.notes"
                                       class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500"></textarea>
+                        </div>
+
+                        <div class="rounded-lg border border-gray-100 bg-gray-50 p-3">
+                            <label class="mb-1 block text-sm font-medium text-gray-700">Additional discount</label>
+                            <input type="number" name="discount_amount" step="0.01" min="0" x-model.number="form.discount_amount"
+                                   data-testid="invoice-discount-amount"
+                                   :max="grandTotal()"
+                                   placeholder="0"
+                                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500">
+                            <p class="mt-1 text-xs text-gray-500">Write-off so invoice = sell = cash-in. Saving the invoice re-checks paid status.</p>
+                            <p class="mt-1 text-xs text-rose-600" x-show="discountAmount() > grandTotal()">Discount cannot exceed subtotal.</p>
                         </div>
 
                         <div class="rounded-lg border border-gray-100 bg-gray-50 p-3">
@@ -278,8 +294,11 @@ function invoiceMakerForm(initial) {
             if (!this.form.dp_enabled) return 0;
             return Math.max(0, Number(this.form.dp_amount) || 0);
         },
+        discountAmount() {
+            return Math.max(0, Number(this.form.discount_amount) || 0);
+        },
         balanceDue() {
-            return Math.max(0, this.grandTotal() - this.dpAmount());
+            return Math.max(0, this.grandTotal() - this.discountAmount() - this.dpAmount());
         },
         onDpToggle() {
             if (!this.form.dp_enabled) {
@@ -297,6 +316,7 @@ function invoiceMakerForm(initial) {
             if (!this.form.recipient?.trim()) return false;
             if (!this.form.preset_id) return false;
             if (!this.form.lines.length) return false;
+            if (this.discountAmount() > this.grandTotal()) return false;
             if (this.form.dp_enabled) {
                 const dp = this.dpAmount();
                 if (dp <= 0 || dp > this.grandTotal()) return false;

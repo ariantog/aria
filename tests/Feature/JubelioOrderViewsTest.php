@@ -697,6 +697,141 @@ it('filters jubelio orders index by mapped warehouse', function () {
         ->assertSee('Gudang Filter A', false);
 });
 
+it('omits the source column and keeps sync status on the error list', function () {
+    $user = User::factory()->create();
+    $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'Gudang Error List']);
+
+    Jubeliosync::create([
+        'jubelio_store_id' => 801,
+        'jubelio_store_name' => 'Store',
+        'jubelio_location_id' => 802,
+        'jubelio_location_name' => 'Loc',
+        'warehouse_id' => $warehouse->id,
+        'customer_id' => 0,
+        'bin_id' => 0,
+    ]);
+
+    mockJubelioSalesOrder('compact-error-1', [
+        'salesorder_no' => 'INV-COMPACT-ERROR',
+        'store_id' => 801,
+        'location_id' => 802,
+        'source_name' => 'Tokopedia',
+        'location_name' => 'Loc',
+        'real_total' => 10000,
+        'items' => [
+            ['item_code' => 'SKU-COMPACT', 'qty' => 1, 'price' => 10000],
+        ],
+    ]);
+
+    Jubelioorder::create([
+        'jubelio_order_id' => 'compact-error-1',
+        'source' => 1,
+        'invoice' => 'INV-COMPACT-ERROR',
+        'type' => 'SELL',
+        'order_status' => 'SHIPPED',
+        'run_count' => 1,
+        'error_type' => 1,
+        'error' => 'Stok tidak cukup',
+        'jubelio_store_id' => 801,
+        'jubelio_location_id' => 802,
+        'warehouse_id' => $warehouse->id,
+        'status' => 1,
+    ]);
+
+    $this->actingAs($user)
+        ->get(route('jubelio.index', ['status' => 'error']))
+        ->assertSuccessful()
+        ->assertSee('INV-COMPACT-ERROR')
+        ->assertSee('data-testid="jubelio-warehouse-filter"', false)
+        ->assertSee('data-testid="jubelio-orders-sync-status"', false)
+        ->assertSee('Sync Status')
+        ->assertSee('Qty')
+        ->assertDontSee('>Source</th>', false);
+});
+
+it('filters error jubelio orders by warehouse', function () {
+    $user = User::factory()->create();
+    $warehouseA = Addrbook::factory()->warehouse()->create(['name' => 'Gudang Error A']);
+    $warehouseB = Addrbook::factory()->warehouse()->create(['name' => 'Gudang Error B']);
+
+    Jubeliosync::create([
+        'jubelio_store_id' => 821,
+        'jubelio_store_name' => 'Store A',
+        'jubelio_location_id' => 822,
+        'jubelio_location_name' => 'Loc A',
+        'warehouse_id' => $warehouseA->id,
+        'customer_id' => 0,
+        'bin_id' => 0,
+    ]);
+
+    Jubeliosync::create([
+        'jubelio_store_id' => 823,
+        'jubelio_store_name' => 'Store B',
+        'jubelio_location_id' => 824,
+        'jubelio_location_name' => 'Loc B',
+        'warehouse_id' => $warehouseB->id,
+        'customer_id' => 0,
+        'bin_id' => 0,
+    ]);
+
+    test()->mock(JubelioService::class, function (MockInterface $mock) {
+        $mock->shouldReceive('fetchSalesOrder')->andReturnUsing(function (string $id) {
+            return match ($id) {
+                'err-wh-a' => [
+                    'salesorder_no' => 'INV-ERR-WH-A',
+                    'store_id' => 821,
+                    'location_id' => 822,
+                    'items' => [],
+                ],
+                'err-wh-b' => [
+                    'salesorder_no' => 'INV-ERR-WH-B',
+                    'store_id' => 823,
+                    'location_id' => 824,
+                    'items' => [],
+                ],
+                default => [],
+            };
+        });
+    });
+
+    Jubelioorder::create([
+        'jubelio_order_id' => 'err-wh-a',
+        'source' => 1,
+        'invoice' => 'INV-ERR-WH-A',
+        'type' => 'SELL',
+        'order_status' => 'SHIPPED',
+        'run_count' => 1,
+        'error_type' => 1,
+        'error' => 'Stok tidak cukup',
+        'jubelio_store_id' => 821,
+        'jubelio_location_id' => 822,
+        'warehouse_id' => $warehouseA->id,
+        'status' => 1,
+    ]);
+
+    Jubelioorder::create([
+        'jubelio_order_id' => 'err-wh-b',
+        'source' => 1,
+        'invoice' => 'INV-ERR-WH-B',
+        'type' => 'SELL',
+        'order_status' => 'SHIPPED',
+        'run_count' => 1,
+        'error_type' => 1,
+        'error' => 'Stok tidak cukup',
+        'jubelio_store_id' => 823,
+        'jubelio_location_id' => 824,
+        'warehouse_id' => $warehouseB->id,
+        'status' => 1,
+    ]);
+
+    $this->actingAs($user)
+        ->get(route('jubelio.index', ['status' => 'error', 'warehouse_id' => $warehouseA->id]))
+        ->assertSuccessful()
+        ->assertSee('INV-ERR-WH-A')
+        ->assertDontSee('INV-ERR-WH-B')
+        ->assertSee('Gudang Error A', false);
+});
+
 it('shows clickable stock error codes on jubelio orders index', function () {
     $user = User::factory()->create();
     $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'Gudang Kosong']);

@@ -19,6 +19,19 @@ $gross = $parsed->grossIncludingTax();
     variance: 0,
     suggestionsUrl: @js(route('reports.tax.faktur.cash-in-suggestions')),
     fakturNumber: @js($parsed->fakturNumber),
+    postSell: {{ old('post_sell') ? 'true' : 'false' }},
+    lineMode: '{{ old('line_mode', 'summary') }}',
+    consignmentIds: @js($customers->whereNotNull('payment_due_day')->pluck('id')->map(fn ($id) => (int) $id)->values()),
+    lineMatches: @js($lineItemMatches ?? []).map(function (line) {
+        line.selected_item_id = line.best_match ? String(line.best_match.id) : '';
+        return line;
+    }),
+    isConsignment() {
+        return this.direction === 'keluaran' && this.consignmentIds.includes(Number(this.counterpartyId));
+    },
+    canOfferSell() {
+        return this.isConsignment() && (Boolean(this.cashInId) || (Boolean(this.paymentAmount) && Boolean(this.paymentDate)));
+    },
     recalcVariance() {
         const paid = parseFloat(this.paymentAmount) || 0;
         this.variance = paid ? (paid - {{ $gross }}) : 0;
@@ -159,9 +172,117 @@ $gross = $parsed->grossIncludingTax();
                 </div>
             </div>
 
+            <div class="border-t border-gray-100 pt-4" x-show="direction === 'keluaran'" x-cloak>
+                <p class="mb-1 text-sm font-medium text-gray-900">Link Sell yang sudah ada</p>
+                <p class="mb-2 text-xs text-gray-500">Satu faktur bisa ditutup beberapa invoice Sell. Tidak perlu input Sell ulang.</p>
+                @if(count($sellSuggestions ?? []) > 0)
+                    <div class="max-h-48 space-y-1 overflow-y-auto rounded-lg border border-gray-200 p-2">
+                        @foreach($sellSuggestions as $sell)
+                            <label class="flex items-start gap-2 text-sm">
+                                <input type="checkbox" name="sell_transaction_ids[]" value="{{ $sell['id'] }}" class="mt-0.5 rounded border-gray-300">
+                                <span>
+                                    #{{ $sell['id'] }} · {{ $sell['date'] }} · {{ $sell['invoice'] ?: 'tanpa invoice' }}
+                                    <span class="block text-xs text-gray-500">{{ $sell['warehouse_name'] }} · DPP {{ $fmt($sell['dpp']) }}</span>
+                                </span>
+                            </label>
+                        @endforeach
+                    </div>
+                @else
+                    <p class="text-xs text-gray-500">Tidak ada Sell customer ini di jendela tanggal. Link nanti dari halaman detail.</p>
+                @endif
+            </div>
+
             <div>
                 <label class="mb-1 block text-sm font-medium text-gray-700" for="notes">Catatan</label>
                 <textarea id="notes" name="notes" rows="2" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">{{ old('notes') }}</textarea>
+            </div>
+
+            <div class="border-t border-gray-100 pt-4" x-show="canOfferSell()" x-cloak>
+                <label class="flex items-start gap-2 text-sm">
+                    <input type="checkbox" name="post_sell" value="1" x-model="postSell" class="mt-0.5 rounded border-gray-300" data-testid="faktur-post-sell-on-save">
+                    <span>
+                        <span class="font-medium text-gray-900">Post Sell dari faktur setelah simpan</span>
+                        <span class="block text-xs text-gray-500">Konsinyasi MDS/Central: Sell = gross DPP+PPN. Entity pajak dari bank Cash In terkait.</span>
+                    </span>
+                </label>
+                <div class="mt-3 space-y-3" x-show="postSell" x-cloak>
+                    <div class="grid gap-3 sm:grid-cols-2">
+                        <div>
+                            <label class="mb-1 block text-xs text-gray-500" for="review_warehouse_id">Warehouse</label>
+                            <select id="review_warehouse_id" name="warehouse_id" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" :required="postSell">
+                                <option value="">— Pilih —</option>
+                                @foreach($warehouses as $warehouse)
+                                    <option value="{{ $warehouse->id }}" @selected((int) old('warehouse_id', $defaultWarehouseId ?? null) === $warehouse->id)>{{ $warehouse->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-xs text-gray-500" for="review_date_source">Tanggal Sell</label>
+                            <select id="review_date_source" name="date_source" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                                <option value="faktur" @selected(old('date_source', 'faktur') === 'faktur')>Tanggal faktur ({{ $parsed->fakturDate?->format('Y-m-d') }})</option>
+                                <option value="cash_in" @selected(old('date_source') === 'cash_in')>Tanggal Cash In / bayar</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-xs text-gray-500" for="review_invoice_source">Invoice</label>
+                            <select id="review_invoice_source" name="invoice_source" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                                <option value="faktur" @selected(old('invoice_source', 'faktur') === 'faktur')>Nomor faktur ({{ $parsed->fakturNumber }})</option>
+                                <option value="cash_in" @selected(old('invoice_source') === 'cash_in')>Invoice Cash In terkait</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-xs text-gray-500" for="review_line_mode">Baris item</label>
+                            <select id="review_line_mode" name="line_mode" x-model="lineMode" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                                <option value="summary">Satu baris ringkasan (DPP {{ $fmt($parsed->dpp) }})</option>
+                                <option value="mapped">Map per baris faktur</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div x-show="lineMode === 'summary'" x-cloak>
+                        <label class="mb-1 block text-xs text-gray-500" for="review_summary_item_id">Item ringkasan</label>
+                        <select id="review_summary_item_id" name="summary_item_id" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                            <option value="">— Pilih item —</option>
+                            @foreach($items as $item)
+                                <option value="{{ $item->id }}" @selected((int) old('summary_item_id') === $item->id)>
+                                    {{ $item->name }}@if($item->code) · {{ $item->code }}@endif
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div x-show="lineMode === 'mapped'" x-cloak class="overflow-hidden rounded-lg border border-gray-200 bg-white">
+                        <table class="w-full text-sm">
+                            <thead>
+                                <tr class="border-b bg-gray-50 text-left text-xs text-gray-500">
+                                    <th class="px-3 py-2 font-medium">#</th>
+                                    <th class="px-3 py-2 font-medium">Nama faktur</th>
+                                    <th class="px-3 py-2 font-medium">Item inventory</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <template x-for="(line, index) in lineMatches" :key="line.line_no">
+                                    <tr class="border-b">
+                                        <td class="px-3 py-2 tabular-nums" x-text="line.line_no"></td>
+                                        <td class="px-3 py-2">
+                                            <span x-text="line.name"></span>
+                                            <template x-if="line.best_match">
+                                                <span class="mt-0.5 block text-xs text-green-700" x-text="`Saran: ${line.best_match.name}`"></span>
+                                            </template>
+                                        </td>
+                                        <td class="px-3 py-2">
+                                            <input type="hidden" :name="`mapped_lines[${index}][line_no]`" :value="line.line_no">
+                                            <select :name="`mapped_lines[${index}][item_id]`" x-model="line.selected_item_id" class="w-full rounded border border-gray-300 px-2 py-1 text-sm">
+                                                <option value="">— Pilih —</option>
+                                                @foreach($items as $item)
+                                                    <option value="{{ $item->id }}">{{ $item->name }}@if($item->code) · {{ $item->code }}@endif</option>
+                                                @endforeach
+                                            </select>
+                                        </td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
 
             <div class="flex gap-2">

@@ -46,6 +46,18 @@
                 <p class="flex items-center gap-1.5 text-xs text-gray-500 sm:gap-2 sm:text-sm">
                     <svg class="h-3.5 w-3.5 shrink-0 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
                     Invoice #{{ $transaction->invoice }}
+                    @if($can['edit_invoice'] ?? false)
+                    <button type="button" @click="invoiceModalOpen = true" data-testid="edit-tx-invoice"
+                            class="inline-flex items-center rounded border border-gray-300 bg-white px-1.5 py-0.5 text-[10px] font-medium text-gray-600 hover:bg-gray-50">
+                        Edit
+                    </button>
+                    @endif
+                    @if($invoiceSettlement)
+                        @include('invoice-maker.partials.status-badge', [
+                            'status' => $invoiceSettlement['status'],
+                            'label' => $invoiceSettlement['status_label'],
+                        ])
+                    @endif
                 </p>
             </div>
         </div>
@@ -179,6 +191,36 @@
                     <span x-show="ppnSaving">Saving…</span>
                 </button>
             </div>
+        </div>
+    </div>
+    @endif
+
+    @if($can['edit_invoice'] ?? false)
+    <div x-show="invoiceModalOpen" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 print:hidden"
+         @keydown.window.escape="invoiceModalOpen = false">
+        <div @click.away="invoiceModalOpen = false" class="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
+            <h3 class="text-lg font-semibold text-gray-900">Change Invoice Number</h3>
+            <p class="mt-1 text-sm text-gray-500">Matching an Invoice Maker number links this transaction as a payment or related document.</p>
+            <form method="POST" action="{{ route('transactions.update-invoice', $transaction) }}" class="mt-4 space-y-4">
+                @csrf
+                @method('PATCH')
+                <div>
+                    <label for="tx-invoice-input" class="mb-1 block text-sm font-medium text-gray-700">Invoice number</label>
+                    <input type="text" id="tx-invoice-input" name="invoice" maxlength="50" required
+                           value="{{ old('invoice', $transaction->invoice) }}"
+                           data-testid="tx-invoice-input"
+                           class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                    @error('invoice')
+                        <p class="mt-2 text-sm text-rose-600">{{ $message }}</p>
+                    @enderror
+                </div>
+                <div class="flex justify-end gap-2">
+                    <button type="button" @click="invoiceModalOpen = false"
+                            class="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Cancel</button>
+                    <button type="submit" data-testid="tx-invoice-save"
+                            class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Save</button>
+                </div>
+            </form>
         </div>
     </div>
     @endif
@@ -325,6 +367,31 @@
 
     @include('transactions.partials.jubelio-sync', ['transaction' => $transaction, 'jubelioSync' => $jubelioSync ?? []])
 
+    @if($invoiceSettlement)
+    <div class="print:hidden">
+        <div class="mb-2 flex items-center justify-between gap-3">
+            <h2 class="text-sm font-semibold text-gray-700">Invoice Maker</h2>
+            @if($can['invoice_maker_view'] ?? false)
+            <a href="{{ route('invoice-maker.show', $invoiceSettlement['invoice']) }}"
+               class="text-sm font-medium text-blue-700 hover:underline">
+                {{ $invoiceSettlement['invoice']->number }}
+            </a>
+            @else
+            <span class="text-sm font-medium text-gray-700">{{ $invoiceSettlement['invoice']->number }}</span>
+            @endif
+        </div>
+        @include('invoice-maker.partials.settlement-card', [
+            'settlement' => $invoiceSettlement,
+            'canEdit' => $can['invoice_maker_edit'] ?? false,
+        ])
+    </div>
+    @endif
+
+    @include('transactions.partials.sell-cash-in', [
+        'transaction' => $transaction,
+        'sellCashIn' => $sellCashIn ?? null,
+    ])
+
     {{-- Items Section --}}
     <div class="rounded-xl bg-white shadow-md print:shadow-none">
         <div class="flex flex-col justify-between gap-4 p-6 pb-4 md:flex-row md:items-center">
@@ -422,16 +489,16 @@
                             @endif
                         </td>
                         <td class="px-3 py-2.5 align-middle text-gray-600" data-copy-col="desc" data-sort-value="{{ $item?->description ?: '' }}" x-show="showDescription">{{ $item?->description ?: '-' }}</td>
-                        <td class="whitespace-nowrap px-3 py-2.5 text-center align-middle font-black tabular-nums" data-copy-col="qty" data-sort-value="{{ $detail->quantity }}">{{ $detail->quantity }}</td>
-                        <td class="whitespace-nowrap px-3 py-2.5 text-right align-middle font-medium tabular-nums" data-copy-col="price" data-sort-value="{{ $detail->price }}">{{ $fmt($detail->price) }}</td>
-                        <td class="whitespace-nowrap px-3 py-2.5 text-right align-middle tabular-nums" data-copy-col="disc" data-sort-value="{{ (float) $detail->discount }}">
+                        <td class="whitespace-nowrap px-3 py-2.5 text-center align-middle font-black tabular-nums" data-copy-col="qty" data-copy-value="{{ format_copy_number($detail->quantity) }}" data-sort-value="{{ $detail->quantity }}">{{ $detail->quantity }}</td>
+                        <td class="whitespace-nowrap px-3 py-2.5 text-right align-middle font-medium tabular-nums" data-copy-col="price" data-copy-value="{{ format_copy_number($detail->price) }}" data-sort-value="{{ $detail->price }}">{{ $fmt($detail->price) }}</td>
+                        <td class="whitespace-nowrap px-3 py-2.5 text-right align-middle tabular-nums" data-copy-col="disc" data-copy-value="{{ format_copy_number((float) $detail->discount) }}" data-sort-value="{{ (float) $detail->discount }}">
                             @if($detail->discount > 0)
                                 <span class="inline-flex h-5 items-center rounded-md border border-dashed border-red-300 bg-red-50 px-1.5 text-[10px] font-bold text-red-600">-{{ format_amount((float) $detail->discount) }}%</span>
                             @else
                                 <span class="text-gray-400">-</span>
                             @endif
                         </td>
-                        <td class="whitespace-nowrap px-3 py-2.5 text-right align-middle font-black text-blue-700 tabular-nums" data-copy-col="subtotal" data-sort-value="{{ $detail->total }}">{{ $fmt($detail->total) }}</td>
+                        <td class="whitespace-nowrap px-3 py-2.5 text-right align-middle font-black text-blue-700 tabular-nums" data-copy-col="subtotal" data-copy-value="{{ format_copy_number($detail->total) }}" data-sort-value="{{ $detail->total }}">{{ $fmt($detail->total) }}</td>
                     </tr>
                     @endforeach
                 </tbody>
@@ -578,6 +645,7 @@ function transactionShowPage(transactionId, initialNote, canEditNote, canEditPpn
         deleteConfirmOpen: false,
         printMenuOpen: false,
         invoiceMenuOpen: false,
+        invoiceModalOpen: {{ $errors->has('invoice') ? 'true' : 'false' }},
         noteText: initialNote || '',
         noteDraft: initialNote || '',
         noteModalOpen: false,
@@ -835,76 +903,9 @@ function transactionShowPage(transactionId, initialNote, canEditNote, canEditPpn
 
             rows.forEach((row) => tbody.appendChild(row));
         },
-        cellCopyValue(cell) {
-            const img = cell.querySelector('img');
-            if (img) {
-                return (img.getAttribute('alt') || img.getAttribute('src') || '').trim();
-            }
-
-            const link = cell.querySelector('a');
-            if (link) {
-                return link.textContent.trim();
-            }
-
-            return cell.innerText.replace(/\s+/g, ' ').trim();
-        },
-        tableNodeToTsv(table) {
-            const rows = [];
-
-            table.querySelectorAll('thead tr, tbody tr').forEach((row) => {
-                const values = [];
-
-                row.querySelectorAll('[data-copy-col]').forEach((cell) => {
-                    if (!this.isCopyColumnVisible(cell.dataset.copyCol)) {
-                        return;
-                    }
-
-                    values.push(this.cellCopyValue(cell));
-                });
-
-                if (values.length) {
-                    rows.push(values.join('\t'));
-                }
-            });
-
-            return rows.join('\n');
-        },
         async copyItemsTable() {
-            const table = this.$refs.itemsTable;
-            if (!table) {
-                return;
-            }
-
-            const clone = table.cloneNode(true);
-            clone.querySelectorAll('[data-copy-col]').forEach((cell) => {
-                if (!this.isCopyColumnVisible(cell.dataset.copyCol)) {
-                    cell.remove();
-                }
-            });
-
-            const plain = this.tableNodeToTsv(clone);
-            const html = clone.outerHTML;
-
-            try {
-                if (window.ClipboardItem && navigator.clipboard?.write) {
-                    await navigator.clipboard.write([
-                        new ClipboardItem({
-                            'text/plain': new Blob([plain], { type: 'text/plain' }),
-                            'text/html': new Blob([html], { type: 'text/html' }),
-                        }),
-                    ]);
-                } else {
-                    await navigator.clipboard.writeText(plain);
-                }
-
+            if (await ariaCopyTable(this.$refs.itemsTable, (col) => this.isCopyColumnVisible(col))) {
                 this.showCopyFeedback();
-            } catch (e) {
-                try {
-                    await navigator.clipboard.writeText(plain);
-                    this.showCopyFeedback();
-                } catch (fallbackError) {
-                    console.error('Failed to copy items table', fallbackError);
-                }
             }
         },
     };

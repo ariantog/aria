@@ -4,6 +4,7 @@
     $placeholder = $placeholder ?? 'Search contact...';
     $initial = $initial ?? null;
     $endpoint = $endpoint ?? '';
+    $testId = $testId ?? 'export-sell-'.$name.'-combobox';
 @endphp
 
 <div class="flex min-w-[220px] flex-col gap-1">
@@ -27,7 +28,7 @@
                    :placeholder="placeholder"
                    class="flex-1 border-none bg-transparent px-2.5 py-1.5 text-sm outline-none placeholder-gray-400"
                    autocomplete="off"
-                   data-testid="export-sell-{{ $name }}-combobox">
+                   data-testid="{{ $testId }}">
             <button type="button"
                     x-show="selected"
                     @click="clearSelection()"

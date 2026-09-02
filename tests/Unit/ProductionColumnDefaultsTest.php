@@ -1,13 +1,14 @@
 <?php
 
 use App\Models\Addrbook;
+use App\Models\Produksi;
 use App\Support\ProductionColumnDefaults;
 use Illuminate\Database\Connection;
 use Illuminate\Support\Facades\Schema;
 
 uses(Tests\TestCase::class, Illuminate\Foundation\Testing\RefreshDatabase::class);
 
-function mockMysqlSchemaForCustomerColumns(array $columns): void
+function mockMysqlSchemaForTableColumns(string $table, array $columns): void
 {
     $connection = Mockery::mock(Connection::class);
     $connection->shouldReceive('getDriverName')->andReturn('mysql');
@@ -17,7 +18,12 @@ function mockMysqlSchemaForCustomerColumns(array $columns): void
         ->andReturn($connection);
     Schema::partialMock()
         ->shouldReceive('hasColumn')
-        ->andReturnUsing(fn (string $table, string $column) => $table === 'customers' && in_array($column, $columns, true));
+        ->andReturnUsing(fn (string $actualTable, string $column) => $actualTable === $table && in_array($column, $columns, true));
+}
+
+function mockMysqlSchemaForCustomerColumns(array $columns): void
+{
+    mockMysqlSchemaForTableColumns('customers', $columns);
 }
 
 it('fills null legacy customer columns when applying production defaults on mysql', function () {
@@ -49,4 +55,22 @@ it('fills null customer email on update via model events on mysql', function () 
     $addrbook->save();
 
     expect($addrbook->fresh()->email)->toBe('');
+});
+
+it('leaves null produksi worker ids unset when applying production defaults on mysql', function () {
+    mockMysqlSchemaForTableColumns('prod_produksi', ['qc_id', 'jahit_id', 'pritil_id', 'item_id']);
+
+    $produksi = new Produksi([
+        'qc_id' => null,
+        'jahit_id' => null,
+        'pritil_id' => null,
+        'item_id' => null,
+    ]);
+
+    ProductionColumnDefaults::apply($produksi);
+
+    expect($produksi->qc_id)->toBeNull()
+        ->and($produksi->jahit_id)->toBeNull()
+        ->and($produksi->pritil_id)->toBeNull()
+        ->and($produksi->item_id)->toBe(0);
 });

@@ -65,10 +65,17 @@ class SettingRegistry
             ],
             'payroll.jam_kerja_per_hari' => [
                 'group' => 'HR',
-                'name' => 'Jam Kerja per Hari',
+                'name' => 'Jam Kerja per Hari (default)',
                 'type' => 'number',
                 'default' => '8',
-                'hint' => 'Digunakan untuk hitung tarif per jam (telat & lembur).',
+                'hint' => 'Fallback jika jam_kerja karyawan kosong. Bisa 7 / 8 / 10 per orang di data karyawan.',
+            ],
+            'payroll.hari_kerja' => [
+                'group' => 'HR',
+                'name' => 'Hari Kerja (ISO 1–7)',
+                'type' => 'text',
+                'default' => '1,2,3,4,5,6',
+                'hint' => 'Hari kerja reguler: 1=Senin … 7=Minggu. Default Senin–Sabtu. Minggu dan hari libur tidak dihitung sebagai jam wajib; absen di hari itu tetap menambah jam aktual (tukar hari).',
             ],
             'payroll.lembur_multiplier' => [
                 'group' => 'HR',

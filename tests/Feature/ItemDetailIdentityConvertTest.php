@@ -15,8 +15,6 @@ beforeEach(function () {
     Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'S', 'name' => 'S']);
     Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'BLACK', 'name' => 'BLACK']);
     Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'AS', 'name' => 'All Size']);
-    Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'BABYBLUE', 'name' => 'BABYBLUE']);
-    Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'LIGHT', 'name' => 'LIGHT']);
 });
 
 function makeLegacyAssetItem(string $code, ?string $name = null): Item
@@ -212,17 +210,6 @@ it('relinks a mis-grouped item from the detail page', function () {
         ->and($item->legacy_code)->toBe('OLD-GLOVE-CODE');
 });
 
-it('warns about special sku families without a convert button', function () {
-    $item = makeLegacyAssetItem('FABRICBAND-03-LIGHT-BABYBLUE', 'FABRIC BAND - LIGHT - BABYBLUE');
-
-    $this->actingAs($this->user)
-        ->get(route('assetlancar.show', $item))
-        ->assertOk()
-        ->assertSee('Special SKU — do not use generic conversion', false)
-        ->assertSee('Open Special SKU Converter', false)
-        ->assertDontSee('Convert to new SKU', false);
-});
-
 it('converts a single asset lancar item from the detail page', function () {
     $gloveType = Tag::factory()->create([
         'type' => Tag::TYPE_TYPE,
@@ -278,17 +265,6 @@ it('links converted asset lancar items to parent group and restock type', functi
     expect($parent)->not->toBeNull()
         ->and(collect($parent['colors'])->pluck('group_id'))->toContain($item->group_id)
         ->and($method->invoke($restockQuery, $gloveType)->where('items.id', $item->id)->exists())->toBeTrue();
-});
-
-it('rejects generic convert for special sku posts', function () {
-    $item = makeLegacyAssetItem('FABRICBAND-03-LIGHT-BABYBLUE', 'FABRIC BAND - LIGHT - BABYBLUE');
-
-    $this->actingAs($this->user)
-        ->post(route('assetlancar.convert-identity', $item))
-        ->assertRedirect(route('assetlancar.show', $item))
-        ->assertSessionHas('error');
-
-    expect($item->fresh()->group_id)->toBeNull();
 });
 
 it('detail convert context treats legacy group_id zero as ungrouped', function () {

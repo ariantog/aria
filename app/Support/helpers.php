@@ -22,3 +22,10 @@ if (! function_exists('format_currency')) {
         return AmountFormatter::currency($value, $prefix, $maxDecimals);
     }
 }
+
+if (! function_exists('format_copy_number')) {
+    function format_copy_number(float|int|string|null $value, int $maxDecimals = 2): string
+    {
+        return AmountFormatter::plain($value, $maxDecimals);
+    }
+}

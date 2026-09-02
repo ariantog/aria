@@ -157,5 +157,33 @@ it('renders asset lancar create page', function () {
         ->get(route('assetlancar.create'))
         ->assertOk()
         ->assertSee('Create New Asset', false)
-        ->assertSee('Product Name', false);
+        ->assertSee('Product Name', false)
+        ->assertSee('data-testid="item-form-pcode"', false)
+        ->assertSee('name - color - size', false);
+});
+
+it('returns the product title for an existing pcode', function () {
+    $group = \App\Models\ItemGroup::factory()->create([
+        'master' => 'ELBOWSUPPORT-02',
+        'variant' => 'BLACKWHITE',
+        'name' => 'ELBOW STRAP - BLACKWHITE (ELBOWSUPPORT-02)',
+    ]);
+    \App\Models\Item::factory()->create([
+        'type' => ItemType::ASSET_LANCAR,
+        'group_id' => $group->id,
+        'pcode' => 'ELBOWSUPPORT-02',
+        'code' => 'ELBOWSUPPORT-02-BLACKWHITE',
+        'name' => 'ELBOW STRAP - BLACKWHITE',
+    ]);
+
+    $this->actingAs($this->user)
+        ->getJson(route('items.pcode-name', [
+            'pcode' => 'ELBOWSUPPORT-02',
+            'type' => ItemType::ASSET_LANCAR->value,
+        ]))
+        ->assertOk()
+        ->assertJson([
+            'found' => true,
+            'product_name' => 'ELBOW STRAP',
+        ]);
 });

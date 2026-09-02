@@ -4,18 +4,26 @@ namespace App\Http\Controllers\Reports;
 
 use App\Http\Controllers\Controller;
 use App\Models\Addrbook;
+use App\Models\Item;
 use App\Models\Report;
 use App\Models\ReportingEntity;
+use App\Models\ReportingWarehouseFulfillment;
 use App\Models\TaxFakturImport;
+use App\Models\User;
 use App\Services\Reporting\TaxReportService;
 use App\Services\Tax\ExpectedPaymentDateCalculator;
 use App\Services\Tax\FakturCashInMatcher;
 use App\Services\Tax\FakturLineItemMatcher;
+use App\Services\Tax\FakturSellMatcher;
+use App\Services\Tax\LinkFakturSells;
 use App\Services\Tax\FakturPajakDirectionResolver;
 use App\Services\Tax\FakturPajakPdfParser;
 use App\Services\Tax\ParsedFakturPajak;
 use App\Services\Tax\PostFakturSell;
 use App\Services\Tax\TaxFakturImportService;
+use App\Services\UserPreferenceService;
+use App\Support\LikeSearch;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use InvalidArgumentException;
@@ -29,18 +37,27 @@ class TaxFakturImportController extends Controller
     {
         Gate::authorize(Report::getPermissions()['view-tax-faktur']);
 
+        $link = $request->query('link');
+        $linkFilter = in_array($link, [
+            TaxFakturImport::LINK_FILTER_UNLINKED,
+            TaxFakturImport::LINK_FILTER_REMAINING,
+            TaxFakturImport::LINK_FILTER_INCOMPLETE,
+        ], true) ? $link : null;
+
         $filters = [
             'year' => $request->query('year'),
             'month' => $request->query('month'),
             'entity' => $request->query('entity'),
             'direction' => $request->query('direction'),
             'overdue' => $request->query('overdue') === '1',
+            'link' => $linkFilter,
         ];
 
         $imports = TaxFakturImport::query()
             ->select('tax_faktur_imports.*')
-            ->with(['reportingEntity', 'counterparty', 'varianceExpenseAccount', 'user'])
+            ->with(['reportingEntity', 'counterparty', 'varianceExpenseAccount', 'user', 'sellTransactions'])
             ->when($filters['overdue'], fn ($query) => $query->paymentOverdue())
+            ->when($filters['link'], fn ($query, $link) => $query->linkFilter($link))
             ->when($filters['year'], fn ($query, $year) => $query->where('report_year', (int) $year))
             ->when($filters['month'], fn ($query, $month) => $query->where('report_month', (int) $month))
             ->when($filters['entity'], fn ($query, $entity) => $query->where('reporting_entity_id', (int) $entity))
@@ -68,7 +85,7 @@ class TaxFakturImportController extends Controller
     {
         Gate::authorize(Report::getPermissions()['view-tax-faktur']);
 
-        $import->load(['reportingEntity', 'counterparty', 'varianceExpenseAccount', 'user', 'cashInTransaction', 'varianceTransaction', 'sellTransaction']);
+        $import->load(['reportingEntity', 'counterparty', 'varianceExpenseAccount', 'user', 'cashInTransaction', 'varianceTransaction', 'sellTransaction', 'sellTransactions.sender']);
 
         $lineItemMatches = app(FakturLineItemMatcher::class)->propose($import->line_items ?? []);
 
@@ -80,15 +97,7 @@ class TaxFakturImportController extends Controller
                 ->where('type', Addrbook::TYPE_ACCOUNT)
                 ->orderBy('name')
                 ->get(['id', 'name']),
-            'warehouses' => Addrbook::query()
-                ->whereIn('type', [Addrbook::TYPE_WAREHOUSE, Addrbook::TYPE_V_WAREHOUSE])
-                ->orderBy('name')
-                ->get(['id', 'name', 'type']),
-            'items' => \App\Models\Item::query()
-                ->orderBy('name')
-                ->limit(500)
-                ->get(['id', 'name', 'code', 'pcode']),
-            'lineItemMatches' => $lineItemMatches,
+            ...$this->sellFormContext($import->counterparty_id, $lineItemMatches, request()->user()),
         ]);
     }
 
@@ -140,11 +149,7 @@ class TaxFakturImportController extends Controller
             : $parsed->sellerNpwp;
 
         $counterpartyGuess = Addrbook::query()
-            ->whereIn('type', [
-                Addrbook::TYPE_CUSTOMER,
-                Addrbook::TYPE_RESELLER,
-                Addrbook::TYPE_SUPPLIER,
-            ])
+            ->whereIn('type', Addrbook::fakturCounterpartyTypes())
             ->whereRaw('REPLACE(REPLACE(REPLACE(npwp, ".", ""), "-", ""), " ", "") = ?', [
                 preg_replace('/\D+/', '', $counterpartyNpwp),
             ])
@@ -179,6 +184,9 @@ class TaxFakturImportController extends Controller
 
         $parsed = $this->hydrateParsed($preview['parsed']);
         $counterpartyGuessId = (int) old('counterparty_id', $preview['counterparty_guess_id'] ?? 0);
+        $counterpartyGuess = $counterpartyGuessId > 0
+            ? Addrbook::query()->find($counterpartyGuessId, ['id', 'name', 'type', 'payment_due_day'])
+            : null;
         $entityId = (int) old('reporting_entity_id', $preview['suggestion']['reporting_entity_id'] ?? 0);
         $cashInSuggestions = $counterpartyGuessId > 0
             ? $cashInMatcher->suggest(
@@ -190,19 +198,20 @@ class TaxFakturImportController extends Controller
             )->all()
             : [];
 
+        $lineItemMatches = app(FakturLineItemMatcher::class)->propose($parsed->lineItems);
+
         return view('reports.tax.faktur.review', [
             'parsed' => $parsed,
             'suggestion' => $preview['suggestion'],
             'pdfPath' => $preview['pdf_path'],
             'entities' => ReportingEntity::query()->where('is_active', true)->orderBy('name')->get(['id', 'name', 'is_pkp']),
-            'customers' => Addrbook::query()
+            'counterpartyGuess' => $counterpartyGuess,
+            'consignmentIds' => Addrbook::query()
                 ->whereIn('type', [Addrbook::TYPE_CUSTOMER, Addrbook::TYPE_RESELLER])
-                ->orderBy('name')
-                ->get(['id', 'name', 'npwp', 'payment_due_day', 'payment_grace_days']),
-            'suppliers' => Addrbook::query()
-                ->where('type', Addrbook::TYPE_SUPPLIER)
-                ->orderBy('name')
-                ->get(['id', 'name', 'npwp', 'payment_due_day', 'payment_grace_days']),
+                ->whereNotNull('payment_due_day')
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id)
+                ->values(),
             'expenseAccounts' => Addrbook::query()
                 ->where('type', Addrbook::TYPE_ACCOUNT)
                 ->orderBy('name')
@@ -210,7 +219,50 @@ class TaxFakturImportController extends Controller
             'counterpartyGuessId' => $preview['counterparty_guess_id'],
             'expectedPaymentDate' => $preview['expected_payment_date'],
             'cashInSuggestions' => $cashInSuggestions,
+            'sellSuggestions' => $counterpartyGuessId > 0
+                ? app(FakturSellMatcher::class)->suggest(
+                    $counterpartyGuessId,
+                    $parsed->fakturDate?->toDateString(),
+                    $parsed->fakturNumber,
+                    $parsed->dpp,
+                )->all()
+                : [],
+            ...$this->sellFormContext($counterpartyGuessId ?: null, $lineItemMatches, request()->user()),
+            'lineItemMatches' => $lineItemMatches,
         ]);
+    }
+
+    public function counterpartyLookup(Request $request): JsonResponse
+    {
+        Gate::authorize(Report::getPermissions()['import-tax-faktur']);
+
+        $search = trim((string) $request->query('search', ''));
+        if (strlen($search) <= 2) {
+            return response()->json([]);
+        }
+
+        $pattern = LikeSearch::contains($search);
+        $results = Addrbook::query()
+            ->visibleToUser($request->user())
+            ->whereIn('customers.type', Addrbook::fakturCounterpartyTypes())
+            ->where(function ($q) use ($pattern) {
+                $q->where('customers.name', 'like', $pattern)
+                    ->orWhere('customers.id', 'like', $pattern);
+            })
+            ->leftJoin('customerstat', 'customers.id', '=', 'customerstat.customer_id')
+            ->select(
+                'customers.id',
+                'customers.name',
+                'customers.type',
+                'customers.payment_due_day',
+                'customers.ledger_hint',
+                'customerstat.balance'
+            )
+            ->orderBy('customers.name')
+            ->limit(8)
+            ->get();
+
+        return response()->json($results);
     }
 
     public function cashInSuggestions(Request $request, FakturCashInMatcher $cashInMatcher)
@@ -238,7 +290,7 @@ class TaxFakturImportController extends Controller
         ]);
     }
 
-    public function store(Request $request, TaxFakturImportService $importService)
+    public function store(Request $request, TaxFakturImportService $importService, PostFakturSell $postFakturSell)
     {
         Gate::authorize(Report::getPermissions()['import-tax-faktur']);
 
@@ -257,6 +309,10 @@ class TaxFakturImportController extends Controller
             'cash_in_transaction_id' => ['nullable', 'integer', 'exists:transactions,id'],
             'variance_expense_addrbook_id' => ['nullable', 'integer', 'exists:customers,id'],
             'notes' => ['nullable', 'string', 'max:2000'],
+            'sell_transaction_ids' => ['nullable', 'array'],
+            'sell_transaction_ids.*' => ['integer', 'exists:transactions,id'],
+            'post_sell' => ['nullable', 'boolean'],
+            ...$this->postSellRules(),
         ]);
 
         $parsed = $this->hydrateParsed($preview['parsed']);
@@ -272,6 +328,34 @@ class TaxFakturImportController extends Controller
         }
 
         session()->forget(self::SESSION_KEY);
+
+        $linkedSellIds = collect($request->input('sell_transaction_ids', []))
+            ->map(fn ($id) => (int) $id)
+            ->filter()
+            ->values()
+            ->all();
+
+        if ($linkedSellIds !== []) {
+            try {
+                app(LinkFakturSells::class)->attach($import, $linkedSellIds);
+            } catch (InvalidArgumentException $e) {
+                return redirect()
+                    ->route('reports.tax.faktur.show', $import)
+                    ->with('success', "Faktur {$import->faktur_number} imported for PPN reporting.")
+                    ->with('error', $e->getMessage());
+            }
+        }
+
+        if ($request->boolean('post_sell') && $linkedSellIds === []) {
+            if (! $request->input('warehouse_id')) {
+                return redirect()
+                    ->route('reports.tax.faktur.show', $import)
+                    ->with('success', "Faktur {$import->faktur_number} imported for PPN reporting.")
+                    ->with('error', 'Select a warehouse to post Sell, or post it from this page.');
+            }
+
+            return $this->attemptPostSell($request, $import, $postFakturSell, $import->faktur_number);
+        }
 
         return redirect()
             ->route('reports.tax.faktur.show', $import)
@@ -323,54 +407,78 @@ class TaxFakturImportController extends Controller
             ->with('success', 'Pembayaran faktur diperbarui.');
     }
 
+    public function sellSuggestions(Request $request, FakturSellMatcher $sellMatcher)
+    {
+        Gate::authorize(Report::getPermissions()['import-tax-faktur']);
+
+        $data = $request->validate([
+            'counterparty_id' => ['required', 'integer', 'exists:customers,id'],
+            'faktur_date' => ['nullable', 'date'],
+            'faktur_number' => ['nullable', 'string', 'max:20'],
+            'remaining_dpp' => ['nullable', 'numeric'],
+            'exclude_import_id' => ['nullable', 'integer', 'exists:tax_faktur_imports,id'],
+            'invoice' => ['nullable', 'string', 'max:80'],
+        ]);
+
+        return response()->json([
+            'suggestions' => $sellMatcher->suggest(
+                (int) $data['counterparty_id'],
+                $data['faktur_date'] ?? null,
+                $data['faktur_number'] ?? null,
+                isset($data['remaining_dpp']) ? (float) $data['remaining_dpp'] : null,
+                isset($data['exclude_import_id']) ? (int) $data['exclude_import_id'] : null,
+                $data['invoice'] ?? null,
+            )->values(),
+        ]);
+    }
+
+    public function linkSells(Request $request, TaxFakturImport $import, LinkFakturSells $linkFakturSells)
+    {
+        Gate::authorize(Report::getPermissions()['import-tax-faktur']);
+
+        $data = $request->validate([
+            'sell_transaction_ids' => ['required', 'array', 'min:1'],
+            'sell_transaction_ids.*' => ['integer', 'exists:transactions,id'],
+        ]);
+
+        try {
+            $linkFakturSells->attach($import, $data['sell_transaction_ids']);
+        } catch (InvalidArgumentException $e) {
+            return back()->withInput()->with('error', $e->getMessage());
+        }
+
+        $count = count($data['sell_transaction_ids']);
+
+        return redirect()
+            ->route('reports.tax.faktur.show', $import->fresh())
+            ->with('success', $count === 1 ? 'Sell di-link ke faktur.' : "{$count} Sell di-link ke faktur.");
+    }
+
+    public function unlinkSell(TaxFakturImport $import, int $transaction, LinkFakturSells $linkFakturSells)
+    {
+        Gate::authorize(Report::getPermissions()['import-tax-faktur']);
+
+        $linkFakturSells->detach($import, $transaction);
+
+        return redirect()
+            ->route('reports.tax.faktur.show', $import->fresh())
+            ->with('success', 'Sell dilepas dari faktur.');
+    }
+
     public function postSell(Request $request, TaxFakturImport $import, PostFakturSell $postFakturSell)
     {
         Gate::authorize(Report::getPermissions()['import-tax-faktur']);
 
-        $rules = [
-            'warehouse_id' => ['required', 'integer', 'exists:customers,id'],
-            'date_source' => ['required', 'in:faktur,cash_in'],
-            'invoice_source' => ['required', 'in:faktur,cash_in'],
-            'line_mode' => ['required', 'in:summary,mapped'],
-            'summary_item_id' => ['nullable', 'integer', 'exists:items,id'],
-        ];
-
+        $rules = $this->postSellRules(required: true);
         if ($request->input('line_mode') === PostFakturSell::LINE_MODE_MAPPED) {
             $rules['mapped_lines'] = ['required', 'array', 'min:1'];
             $rules['mapped_lines.*.line_no'] = ['required', 'integer', 'min:1'];
             $rules['mapped_lines.*.item_id'] = ['nullable', 'integer', 'exists:items,id'];
         }
 
-        $data = $request->validate($rules);
+        $request->validate($rules);
 
-        if ($data['line_mode'] === PostFakturSell::LINE_MODE_SUMMARY && empty($data['summary_item_id'])) {
-            return back()->withInput()->with('error', 'Select an item for the summary Sell line.');
-        }
-
-        $mappedLines = [];
-        if ($data['line_mode'] === PostFakturSell::LINE_MODE_MAPPED) {
-            $mappedLines = $this->normalizeMappedLines($import, $data['mapped_lines'] ?? []);
-            if ($mappedLines instanceof \Illuminate\Http\RedirectResponse) {
-                return $mappedLines;
-            }
-        }
-
-        try {
-            $transaction = $postFakturSell->execute($import, [
-                'warehouse_id' => (int) $data['warehouse_id'],
-                'date_source' => $data['date_source'],
-                'invoice_source' => $data['invoice_source'],
-                'line_mode' => $data['line_mode'],
-                'summary_item_id' => isset($data['summary_item_id']) ? (int) $data['summary_item_id'] : null,
-                'mapped_lines' => $mappedLines,
-            ]);
-        } catch (InvalidArgumentException $e) {
-            return back()->withInput()->with('error', $e->getMessage());
-        }
-
-        return redirect()
-            ->route('reports.tax.faktur.show', $import->fresh())
-            ->with('success', "Sell #{$transaction->id} posted from faktur {$import->faktur_number}.");
+        return $this->attemptPostSell($request, $import, $postFakturSell, $import->faktur_number);
     }
 
     /**
@@ -422,6 +530,128 @@ class TaxFakturImportController extends Controller
         return response()->json([
             'lines' => $matcher->propose($import->line_items ?? []),
         ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function postSellRules(bool $required = false): array
+    {
+        $presence = $required ? 'required' : 'nullable';
+
+        return [
+            'warehouse_id' => [$presence, 'integer', 'exists:customers,id'],
+            'date_source' => [$presence, 'in:faktur,cash_in'],
+            'invoice_source' => [$presence, 'in:faktur,cash_in'],
+            'line_mode' => [$presence, 'in:summary,mapped'],
+            'summary_item_id' => ['nullable', 'integer', 'exists:items,id'],
+        ];
+    }
+
+    private function attemptPostSell(
+        Request $request,
+        TaxFakturImport $import,
+        PostFakturSell $postFakturSell,
+        string $fakturNumber,
+    ) {
+        $lineMode = $request->input('line_mode', PostFakturSell::LINE_MODE_SUMMARY);
+        if ($lineMode === PostFakturSell::LINE_MODE_SUMMARY && ! $request->input('summary_item_id')) {
+            return redirect()
+                ->route('reports.tax.faktur.show', $import)
+                ->withInput()
+                ->with('error', 'Select an item for the summary Sell line.');
+        }
+
+        $mappedLines = [];
+        if ($lineMode === PostFakturSell::LINE_MODE_MAPPED) {
+            $mappedLines = $this->normalizeMappedLines($import, $request->input('mapped_lines', []));
+            if ($mappedLines instanceof \Illuminate\Http\RedirectResponse) {
+                return $mappedLines;
+            }
+        }
+
+        try {
+            $transaction = $postFakturSell->execute($import, [
+                'warehouse_id' => (int) $request->input('warehouse_id'),
+                'date_source' => $request->input('date_source', PostFakturSell::DATE_SOURCE_FAKTUR),
+                'invoice_source' => $request->input('invoice_source', PostFakturSell::INVOICE_SOURCE_FAKTUR),
+                'line_mode' => $lineMode,
+                'summary_item_id' => $request->input('summary_item_id') ? (int) $request->input('summary_item_id') : null,
+                'mapped_lines' => $mappedLines,
+            ]);
+        } catch (InvalidArgumentException $e) {
+            return redirect()
+                ->route('reports.tax.faktur.show', $import->fresh())
+                ->withInput()
+                ->with('error', $e->getMessage());
+        }
+
+        return redirect()
+            ->route('reports.tax.faktur.show', $import->fresh())
+            ->with('success', "Sell #{$transaction->id} posted from faktur {$fakturNumber}.");
+    }
+
+    /**
+     * @param  list<array{best_match?: array{id: int}|null}>  $lineItemMatches
+     * @return array{
+     *     warehouses: \Illuminate\Support\Collection<int, Addrbook>,
+     *     items: \Illuminate\Support\Collection<int, Item>,
+     *     defaultWarehouseId: int|null,
+     *     lineItemMatches: list<array<string, mixed>>
+     * }
+     */
+    private function sellFormContext(?int $counterpartyId, array $lineItemMatches, ?User $user): array
+    {
+        $items = Item::query()
+            ->orderBy('name')
+            ->limit(500)
+            ->get(['id', 'name', 'code', 'pcode']);
+
+        $matchIds = collect($lineItemMatches)
+            ->pluck('best_match.id')
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
+
+        $missingIds = $matchIds->diff($items->pluck('id'));
+        if ($missingIds->isNotEmpty()) {
+            $extra = Item::query()
+                ->whereIn('id', $missingIds)
+                ->get(['id', 'name', 'code', 'pcode']);
+            $items = $items->concat($extra)->unique('id')->sortBy('name')->values();
+        }
+
+        return [
+            'warehouses' => Addrbook::query()
+                ->whereIn('type', [Addrbook::TYPE_WAREHOUSE, Addrbook::TYPE_V_WAREHOUSE])
+                ->orderBy('name')
+                ->get(['id', 'name', 'type']),
+            'items' => $items,
+            'defaultWarehouseId' => $this->defaultWarehouseId($counterpartyId, $user),
+            'lineItemMatches' => $lineItemMatches,
+        ];
+    }
+
+    private function defaultWarehouseId(?int $counterpartyId, ?User $user): ?int
+    {
+        if ($counterpartyId) {
+            $fulfillment = ReportingWarehouseFulfillment::query()
+                ->where('customer_id', $counterpartyId)
+                ->orderBy('id')
+                ->first();
+            if ($fulfillment) {
+                return (int) $fulfillment->warehouse_id;
+            }
+        }
+
+        if (! $user) {
+            return null;
+        }
+
+        $prefill = app(UserPreferenceService::class)->transactionPrefill($user, 'sell');
+
+        return isset($prefill['sender_id']) ? (int) $prefill['sender_id'] : null;
     }
 
     private function resolvePdfPath(TaxFakturImport $import): ?string

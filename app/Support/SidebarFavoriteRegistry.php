@@ -205,15 +205,6 @@ class SidebarFavoriteRegistry
                 'active_prefix' => '/items/legacy-converter',
             ],
             [
-                'key' => 'items-special-converter',
-                'label' => 'Special Converter',
-                'group' => 'Stuff',
-                'permission' => 'items-convert-legacy',
-                'route' => 'items.special-converter',
-                'params' => [],
-                'active_prefix' => '/items/special-converter',
-            ],
-            [
                 'key' => 'stock-notification-list',
                 'label' => 'Stock Alerts',
                 'group' => 'Stuff',
@@ -591,6 +582,24 @@ class SidebarFavoriteRegistry
                 'route' => 'locations.index',
                 'params' => [],
                 'active_prefix' => '/locations',
+            ],
+            [
+                'key' => 'users-staff-roles-view',
+                'label' => 'Checklist Peran',
+                'group' => 'User Management',
+                'permission' => 'users-staff-roles-view',
+                'route' => 'staff-checklists.index',
+                'params' => [],
+                'active_prefix' => '/staff-checklists',
+            ],
+            [
+                'key' => 'checklist-templates-edit',
+                'label' => 'Template Checklist',
+                'group' => 'User Management',
+                'permission' => 'users-staff-roles-view',
+                'route' => 'staff-checklists.templates.index',
+                'params' => [],
+                'active_prefix' => '/staff-checklists/templates',
             ],
         ];
 

@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\ItemType;
 use App\Models\Item;
 use App\Models\User;
 use Spatie\Permission\Models\Role;
@@ -146,27 +147,50 @@ test('getItemName prefers non-empty group alias for manufactured items', functio
     expect($item->getItemName())->toBe('GROUP ALIAS NAME');
 });
 
-test('items index name column prefers group alias when available', function () {
+test('items index name column shows the item display name not the group alias', function () {
     if (! \Illuminate\Support\Facades\Schema::hasColumn('item_group', 'alias')) {
-        return;
+        \Illuminate\Support\Facades\Schema::table('item_group', function (\Illuminate\Database\Schema\Blueprint $table) {
+            $table->string('alias')->nullable();
+        });
     }
 
     $group = \App\Models\ItemGroup::factory()->create(['name' => 'GROUP PRODUCT NAME']);
     \Illuminate\Support\Facades\DB::table('item_group')
         ->where('id', $group->id)
-        ->update(['alias' => 'GROUP ALIAS NAME']);
+        ->update(['alias' => 'UNBEATABLE DUAL LAYER SHORTS - BLACK']);
 
-    Item::factory()->create([
+    $item = Item::factory()->create([
         'group_id' => $group->id,
-        'name' => 'ITEM DISPLAY NAME - NAVY - S',
-        'code' => 'AJD-ALIAS-DISPLAY-S',
+        'name' => 'UNBEATABLE DUAL LAYER SHORTS - GREEN - XL',
+        'code' => 'CLN-CX90113-05-XL',
     ]);
 
     $this->actingAs($this->user)
         ->get(route('items.index'))
         ->assertOk()
-        ->assertSee('GROUP ALIAS NAME', false)
-        ->assertDontSee('ITEM DISPLAY NAME - NAVY - S', false);
+        ->assertSee('UNBEATABLE DUAL LAYER SHORTS - GREEN - XL', false)
+        ->assertDontSee('UNBEATABLE DUAL LAYER SHORTS - BLACK', false)
+        ->assertSee('CLN-CX90113-05-XL', false)
+        ->assertDontSee('CLN-CX90113-05...', false)
+        ->assertSee('data-testid="item-list-name-'.$item->id.'"', false)
+        ->assertSee('data-testid="item-list-code-'.$item->id.'"', false);
+});
+
+test('asset lancar index shows the full sku without truncating the code column', function () {
+    $item = Item::factory()->create([
+        'type' => \App\Enums\ItemType::ASSET_LANCAR,
+        'name' => 'ELBOW STRAP - BLACKWHITE',
+        'code' => 'ELBOWSUPPORT-02-BLACKWHITE',
+        'pcode' => 'ELBOWSUPPORT-02',
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('assetlancar.index'))
+        ->assertOk()
+        ->assertSee('ELBOWSUPPORT-02-BLACKWHITE', false)
+        ->assertSee('ELBOW STRAP - BLACKWHITE', false)
+        ->assertSee('data-testid="item-list-code-'.$item->id.'"', false)
+        ->assertDontSee('ELBOWSUPPORT-02-BLACKW...', false);
 });
 
 test('items index desc filter searches item description only', function () {
@@ -244,6 +268,27 @@ test('items edit page can be rendered', function () {
     $response->assertStatus(200);
 });
 
+test('asset edit form shows the bare product title not the unique group name', function () {
+    $group = \App\Models\ItemGroup::factory()->create([
+        'master' => 'ELBOWSUPPORT-02',
+        'variant' => 'BLACKWHITE',
+        'name' => 'ELBOW STRAP - BLACKWHITE (ELBOWSUPPORT-02)',
+    ]);
+    $item = Item::factory()->create([
+        'type' => \App\Enums\ItemType::ASSET_LANCAR,
+        'group_id' => $group->id,
+        'pcode' => 'ELBOWSUPPORT-02',
+        'code' => 'ELBOWSUPPORT-02-BLACKWHITE',
+        'name' => 'ELBOW STRAP - BLACKWHITE',
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('assetlancar.edit', $item))
+        ->assertOk()
+        ->assertSee('value="ELBOW STRAP"', false)
+        ->assertDontSee('ELBOW STRAP - BLACKWHITE (ELBOWSUPPORT-02) - BLACKWHITE', false);
+});
+
 test('items json lookup resolves barcode by numeric item id', function () {
     $item = Item::factory()->create([
         'name' => 'Scanned SKU',
@@ -269,3 +314,69 @@ test('items json lookup returns empty array for unknown id', function () {
     $response->assertSuccessful();
     expect($response->json())->toBe([]);
 });
+
+test('distinctLegacyCode hides empty or duplicate sku', function () {
+    expect(Item::factory()->make(['code' => 'NEW-SKU', 'legacy_code' => 'OLD-SKU'])->distinctLegacyCode())->toBe('OLD-SKU')
+        ->and(Item::factory()->make(['code' => 'NEW-SKU', 'legacy_code' => null])->distinctLegacyCode())->toBeNull()
+        ->and(Item::factory()->make(['code' => 'NEW-SKU', 'legacy_code' => ''])->distinctLegacyCode())->toBeNull()
+        ->and(Item::factory()->make(['code' => 'NEW-SKU', 'legacy_code' => '  '])->distinctLegacyCode())->toBeNull()
+        ->and(Item::factory()->make(['code' => 'NEW-SKU', 'legacy_code' => 'NEW-SKU'])->distinctLegacyCode())->toBeNull()
+        ->and(Item::factory()->make(['code' => 'new-sku', 'legacy_code' => 'NEW-SKU'])->distinctLegacyCode())->toBeNull();
+});
+
+test('item and assetlancar show pages display a distinct legacy code', function (string $routeName, ItemType $type) {
+    $item = Item::factory()->create([
+        'type' => $type,
+        'code' => 'NEW-SKU-01',
+        'legacy_code' => 'OLD-SKU-01',
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route($routeName, $item))
+        ->assertOk()
+        ->assertSee('SKU Reference', false)
+        ->assertSee('NEW-SKU-01', false)
+        ->assertSee('Legacy Code', false)
+        ->assertSee('data-testid="item-legacy-code"', false)
+        ->assertSee('OLD-SKU-01', false);
+})->with([
+    'items' => ['items.show', ItemType::ITEM],
+    'assetlancar' => ['assetlancar.show', ItemType::ASSET_LANCAR],
+]);
+
+test('item and assetlancar show pages hide legacy code when it is empty', function (string $routeName, ItemType $type) {
+    $item = Item::factory()->create([
+        'type' => $type,
+        'code' => 'ONLY-CURRENT-SKU',
+        'legacy_code' => null,
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route($routeName, $item))
+        ->assertOk()
+        ->assertSee('ONLY-CURRENT-SKU', false)
+        ->assertSee('SKU Reference', false)
+        ->assertDontSee('data-testid="item-legacy-code"', false)
+        ->assertDontSee('Legacy Code', false);
+})->with([
+    'items' => ['items.show', ItemType::ITEM],
+    'assetlancar' => ['assetlancar.show', ItemType::ASSET_LANCAR],
+]);
+
+test('item and assetlancar show pages hide legacy code when it matches the current sku', function (string $routeName, ItemType $type) {
+    $item = Item::factory()->create([
+        'type' => $type,
+        'code' => 'SAME-SKU-01',
+        'legacy_code' => 'SAME-SKU-01',
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route($routeName, $item))
+        ->assertOk()
+        ->assertSee('SAME-SKU-01', false)
+        ->assertDontSee('data-testid="item-legacy-code"', false)
+        ->assertDontSee('Legacy Code', false);
+})->with([
+    'items' => ['items.show', ItemType::ITEM],
+    'assetlancar' => ['assetlancar.show', ItemType::ASSET_LANCAR],
+]);

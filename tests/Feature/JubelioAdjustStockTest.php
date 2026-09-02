@@ -113,7 +113,9 @@ it('marks a move side synced when jubelio returns item_adj_id', function () {
 
     expect($transaction->a_submit_by)->toBe($user->id)
         ->and($transaction->a_reference_id)->toBe('44121')
-        ->and($transaction->hasSyncWarningA())->toBeFalse();
+        ->and($transaction->hasSyncWarningA())->toBeFalse()
+        ->and($transaction->isJubelioSenderSynced())->toBeTrue()
+        ->and($transaction->isJubelioReceiverSynced())->toBeFalse();
 });
 
 it('does not mark a move synced when jubelio returns 200 with an error message', function () {

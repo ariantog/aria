@@ -4,22 +4,24 @@ namespace App\Http\Controllers;
 
 use App\Enums\ItemBrand;
 use App\Enums\ItemType;
-use App\Enums\TransactionType;
 use App\Http\Requests\StoreItemRequest;
+use App\Models\Addrbook;
 use App\Models\Item;
 use App\Models\ItemGroup;
 use App\Models\Report;
 use App\Models\Tag;
 use App\Models\TransactionDetail;
-use App\Models\WarehouseItem;
+use App\Services\ItemAvailabilityService;
 use App\Services\ItemListFilter;
-use App\Services\ItemService;
 use App\Services\Items\ItemGroupHierarchyService;
 use App\Services\Items\ItemGroupParentExportService;
 use App\Services\Items\ItemIdentityBuilder;
 use App\Services\Items\LegacyItemConverterService;
+use App\Services\ItemService;
 use App\Services\ItemStatsService;
+use App\Services\ItemTransactionQueryService;
 use App\Services\JubelioService;
+use App\Support\LikeSearch;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 
@@ -32,6 +34,7 @@ class ItemsController extends Controller
         protected ItemIdentityBuilder $identityBuilder,
         protected LegacyItemConverterService $legacyConverter,
         protected ItemListFilter $itemListFilter,
+        protected ItemAvailabilityService $itemAvailability,
     ) {}
 
     public function index(Request $request, ?ItemType $type = null)
@@ -111,7 +114,7 @@ class ItemsController extends Controller
         }
 
         $items = $q->with('group')
-            ->withSum(['warehouseItems as active_qty' => fn ($query) => $query->forActiveWarehouseAddrbooks()], 'quantity')
+            ->withSum(['warehouseItems as active_qty' => fn ($query) => $query->forAvailableStock()], 'quantity')
             ->orderBy('id', 'desc')
             ->paginate(50)
             ->withQueryString();
@@ -182,19 +185,17 @@ class ItemsController extends Controller
                 ->orderBy('warehouse_id'),
         ]);
 
-        $activeWarehouseItems = $item->warehouseItems
-            ->filter(fn (WarehouseItem $row) => $row->warehouse && ! $row->warehouse->trashed())
-            ->values();
-        $deletedWarehouseItems = $item->warehouseItems
-            ->filter(fn (WarehouseItem $row) => $row->warehouse && $row->warehouse->trashed())
-            ->values();
+        $stock = $this->itemAvailability->partitionWarehouseItems($item->warehouseItems);
 
         return view('items.show', [
             'item' => $item,
-            'activeWarehouseItems' => $activeWarehouseItems,
-            'deletedWarehouseItems' => $deletedWarehouseItems,
-            'activeStock' => (float) $activeWarehouseItems->sum('quantity'),
-            'deletedStock' => (float) $deletedWarehouseItems->sum('quantity'),
+            'activeWarehouseItems' => $stock['physical'],
+            'virtualWarehouseItems' => $stock['virtual'],
+            'deletedWarehouseItems' => $stock['deleted'],
+            'activeStock' => $stock['available'],
+            'virtualStock' => $stock['virtual_stock'],
+            'deletedStock' => $stock['deleted_stock'],
+            'canRecalculateQty' => $this->canRecalculateQty($item),
             'isAsset' => $item->type === ItemType::ASSET_LANCAR,
             'groupUrl' => $this->legacyConverter->hasProductGroup($item)
                 ? route('items.group-parent-detail', $this->identityBuilder->parentKeyToSlug(
@@ -203,6 +204,31 @@ class ItemsController extends Controller
                 : null,
             'identityConvert' => $this->detailIdentityConvertContext($item),
         ]);
+    }
+
+    public function recalculateQuantity(Item $item)
+    {
+        Gate::authorize($item->type === ItemType::ASSET_LANCAR
+            ? Item::getPermissions()['asset-lancar-edit']
+            : Item::getPermissions()['edit']
+        );
+
+        $result = $this->itemAvailability->recalculate($item);
+        $available = format_amount($result['available'], 0);
+
+        return redirect($item->showUrl())->with(
+            'success',
+            "Quantity recalculated. Available stock is {$available} units (non-deleted warehouses, virtual excluded).",
+        );
+    }
+
+    protected function canRecalculateQty(Item $item): bool
+    {
+        $permission = $item->type === ItemType::ASSET_LANCAR
+            ? Item::getPermissions()['asset-lancar-edit']
+            : Item::getPermissions()['edit'];
+
+        return Gate::check($permission);
     }
 
     protected function detailIdentityConvertContext(Item $item): ?array
@@ -239,9 +265,18 @@ class ItemsController extends Controller
         $p = Item::getPermissions();
         Gate::authorize($item->type === ItemType::ASSET_LANCAR ? $p['asset-lancar-edit'] : $p['edit']);
 
+        $item->load(['group', 'tags']);
+        $productTitle = $this->identityBuilder->productDisplayName(
+            $item->type,
+            (string) ($item->group?->name ?: $item->name),
+            (string) ($item->group?->variant ?? ''),
+            (string) ($item->group?->master ?? ''),
+        );
+
         return view('items.edit', array_merge($this->formProps($item->type), [
-            'item' => $item->load(['group', 'tags']),
+            'item' => $item,
             'types' => $this->typeOptions(),
+            'productTitle' => $productTitle,
         ]));
     }
 
@@ -484,23 +519,100 @@ class ItemsController extends Controller
         ]);
     }
 
-    public function itemTransactions(Request $request, Item $item)
+    public function itemTransactions(Request $request, Item $item, ItemTransactionQueryService $queryService)
     {
         Gate::authorize(Item::getPermissions()['view']);
 
-        $transactions = TransactionDetail::with(['transaction.sender', 'transaction.receiver'])
-            ->where('item_id', $item->id)
-            ->visibleToUser($request->user())
-            ->whereHas('transaction')
-            ->orderBy('transaction_id', 'desc')
+        $filters = $queryService->filtersFromRequest($request);
+        $isAsset = $item->type === ItemType::ASSET_LANCAR;
+        $formAction = $isAsset
+            ? route('assetlancar.transactions', $item)
+            : route('items.transactions', $item);
+
+        $transactions = $queryService->apply(
+            TransactionDetail::with(['transaction.sender', 'transaction.receiver'])
+                ->where('item_id', $item->id)
+                ->visibleToUser($request->user())
+                ->whereHas('transaction')
+                ->orderBy('transaction_id', 'desc'),
+            $request,
+        )
             ->paginate(50)
             ->withQueryString();
 
         return view('items.item-transactions', [
             'item' => $item->load('group'),
             'transactions' => $transactions,
-            'isAsset' => $item->type === ItemType::ASSET_LANCAR,
+            'isAsset' => $isAsset,
+            'filters' => $filters,
+            'formAction' => $formAction,
+            'resetUrl' => $formAction,
+            'partyLookupUrl' => route('items.party-lookup'),
+            'selectedSender' => $queryService->resolveSelectedParty($filters['sender'], $request->user()),
+            'selectedReceiver' => $queryService->resolveSelectedParty($filters['receiver'], $request->user()),
+            'hasActiveFilters' => $queryService->hasActiveFilters($filters),
         ]);
+    }
+
+    public function pcodeName(Request $request)
+    {
+        $type = ItemType::tryFrom((int) $request->query('type', ItemType::ITEM->value))
+            ?? ItemType::ITEM;
+        $permissions = Item::getPermissions();
+        $create = $type === ItemType::ASSET_LANCAR
+            ? $permissions['asset-lancar-create']
+            : $permissions['create'];
+        $edit = $type === ItemType::ASSET_LANCAR
+            ? $permissions['asset-lancar-edit']
+            : $permissions['edit'];
+
+        abort_unless(Gate::check($create) || Gate::check($edit), 403);
+
+        $pcode = strtoupper(trim((string) $request->query('pcode', '')));
+        $productName = $this->itemService->productNameForPcode($type, $pcode);
+
+        return response()->json([
+            'pcode' => $pcode,
+            'product_name' => $productName,
+            'found' => $productName !== null,
+        ]);
+    }
+
+    public function partyLookup(Request $request)
+    {
+        $permissions = Item::getPermissions();
+        abort_unless(
+            Gate::check($permissions['view']) || Gate::check($permissions['asset-lancar-view']),
+            403
+        );
+
+        $search = trim((string) $request->query('search', ''));
+        if (strlen($search) <= 2) {
+            return response()->json([]);
+        }
+
+        $pattern = LikeSearch::contains($search);
+        $results = Addrbook::query()
+            ->visibleToUser($request->user())
+            ->whereIn('customers.type', Addrbook::itemTransactionPartyTypes())
+            ->where(function ($q) use ($pattern) {
+                $q->where('customers.name', 'like', $pattern)
+                    ->orWhere('customers.id', 'like', $pattern);
+            })
+            ->leftJoin('customerstat', 'customers.id', '=', 'customerstat.customer_id')
+            ->select(
+                'customers.id',
+                'customers.name',
+                'customers.ppn',
+                'customers.type',
+                'customers.ledger_hint',
+                'customerstat.balance'
+            )
+            ->orderBy('customers.name')
+            ->limit(8)
+            ->get();
+
+        return response()->json($results);
     }
 
     public function itemStats(Request $request, Item $item)

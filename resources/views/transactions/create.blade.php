@@ -38,7 +38,17 @@
         </div>
     </div>
 
-    {{-- Validation errors — kept client-side so entries persist on failure --}}
+    {{-- Validation errors — Alpine keeps entries on AJAX 422; Blade covers a full-page redirect --}}
+    @if ($errors->any())
+    <div class="rounded-lg border border-red-200 bg-red-50 p-3">
+        <p class="text-sm font-medium text-red-800">Please fix the following:</p>
+        <ul class="mt-1 list-disc pl-5 text-sm text-red-700">
+            @foreach ($errors->all() as $error)
+                <li>{{ $error }}</li>
+            @endforeach
+        </ul>
+    </div>
+    @endif
     <div x-show="serverErrors.length" x-cloak class="rounded-lg border border-red-200 bg-red-50 p-3">
         <p class="text-sm font-medium text-red-800">Please fix the following:</p>
         <ul class="mt-1 list-disc pl-5 text-sm text-red-700">
@@ -402,6 +412,52 @@
                         <span class="font-bold text-gray-900">Grand Total</span>
                         <span class="text-lg font-bold tabular-nums text-blue-700" x-text="'Rp ' + formatAmountId(form.real_total)"></span>
                     </div>
+                    @if($type === 'sell' && ($sellCashIn['can_create'] ?? false))
+                    <div class="mt-4 rounded-lg border border-gray-100 bg-gray-50 p-3" data-testid="sell-cash-in-card">
+                        <div class="flex items-start justify-between gap-3">
+                            <div>
+                                <div class="text-sm font-medium text-gray-900">Cash In</div>
+                                <p class="text-xs text-gray-500">Create a cash in with the same invoice. Sender is this sell’s receiver.</p>
+                            </div>
+                            <label class="relative inline-flex cursor-pointer items-center">
+                                <input type="checkbox" x-model="form.cash_in_enabled" @change="onCashInToggle()"
+                                       data-testid="sell-cash-in-switch"
+                                       class="peer sr-only">
+                                <span class="h-6 w-11 rounded-full bg-gray-300 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all peer-checked:bg-blue-600 peer-checked:after:translate-x-full peer-checked:after:border-white"></span>
+                            </label>
+                        </div>
+                        <div x-show="form.cash_in_enabled" x-cloak class="mt-3 space-y-3">
+                            <div>
+                                <label for="create-cash-in-date" class="mb-1 block text-xs font-medium text-gray-700">Date</label>
+                                <input type="date" id="create-cash-in-date" x-model="form.cash_in_date"
+                                       min="{{ $sellCashIn['min_date'] ?? '' }}"
+                                       data-testid="sell-cash-in-date"
+                                       class="w-full rounded-lg border px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                                       :class="!cashInDateValid() ? 'border-red-400 bg-red-50' : 'border-gray-300'">
+                            </div>
+                            <div>
+                                <label for="create-cash-in-amount" class="mb-1 block text-xs font-medium text-gray-700">Amount (Rp)</label>
+                                <input type="number" id="create-cash-in-amount" min="0.01" step="any"
+                                       x-model.number="form.cash_in_amount"
+                                       @input="cashInAmountManual = true"
+                                       data-testid="sell-cash-in-amount"
+                                       class="w-full rounded-lg border px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                                       :class="!cashInAmountValid() ? 'border-red-400 bg-red-50' : 'border-gray-300'">
+                            </div>
+                            <div>
+                                <label for="create-cash-in-bank" class="mb-1 block text-xs font-medium text-gray-700">Bank</label>
+                                <select id="create-cash-in-bank" x-model="form.cash_in_account_id"
+                                        data-testid="sell-cash-in-bank"
+                                        class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                                    <option value="">Select bank account…</option>
+                                    @foreach($sellCashIn['banks'] as $bank)
+                                    <option value="{{ $bank->id }}">{{ $bank->name }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    @endif
                 </div>
                 <div class="border-t border-gray-100 p-5">
                     <p x-show="!canSubmit()" x-cloak class="mb-2 text-center text-xs text-gray-400">
@@ -472,6 +528,10 @@ const _ItemLookupByCodeUrl = @json(route('transactions.item-by-code', ['type' =>
 const _JubelioSync = @json($jubelio_sync ?? ['synced_warehouse_ids' => []]);
 const _AfterQtyField = @js($isMove ? 'price' : 'disc');
 const _BarcodeScannerLibUrl = 'https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.5/umd/zxing-browser.min.js';
+const _CanSellCashIn = @js((bool) ($type === 'sell' && ($sellCashIn['can_create'] ?? false)));
+const _CashInDefaultAccount = @js($sellCashIn['default_account'] ?? null);
+const _CashInDefaultDate = @js($sellCashIn['default_date'] ?? null);
+const _CashInMinDate = @js($sellCashIn['min_date'] ?? '');
 
 function isFrontCameraLabel(label) {
     return /front|user|selfie|facetime|true.?depth|mirror/i.test(String(label || ''));
@@ -543,11 +603,20 @@ function createTransaction() {
             total_before_ppn: 0,
             ppn_amount: 0,
             real_total: 0,
+            cash_in_enabled: false,
+            cash_in_amount: null,
+            cash_in_account_id: '',
+            cash_in_date: _CashInDefaultDate || startDate,
         },
+        cashInAmountManual: false,
 
         init() {
             if (this._initialized) return;
             this._initialized = true;
+
+            if (_CanSellCashIn && _CashInDefaultAccount) {
+                this.form.cash_in_account_id = String(_CashInDefaultAccount.id);
+            }
 
             if (_Prefill) {
                 this.form.sender_id = String(_Prefill.sender_id || '');
@@ -588,6 +657,7 @@ function createTransaction() {
             // PPN depends on the counterparty's ppn flag.
             this.$watch('form.sender', () => this.recalcTotals());
             this.$watch('form.receiver', () => this.recalcTotals());
+            this.$watch('form.real_total', () => this.syncCashInAmountFromTotal());
         },
 
         // Warehouse whose on-hand stock is relevant: receiver for buy/return, sender otherwise.
@@ -613,10 +683,41 @@ function createTransaction() {
         itemValid(i) { return !!i.item_id && Number(i.quantity) >= 0.01 && Number(i.price) >= 0; },
         itemInvalid(i) { return this.itemStarted(i) && !this.itemValid(i); },
         validItems() { return this.form.items.filter(i => this.itemValid(i)); },
+        cashInDateValid() {
+            if (!_CanSellCashIn || !this.form.cash_in_enabled) return true;
+            if (!this.form.cash_in_date) return false;
+            if (_CashInMinDate && this.form.cash_in_date < _CashInMinDate) return false;
+            return true;
+        },
+        cashInAmountValid() {
+            if (!_CanSellCashIn || !this.form.cash_in_enabled) return true;
+            return Number(this.form.cash_in_amount) >= 0.01;
+        },
+        cashInAccountValid() {
+            if (!_CanSellCashIn || !this.form.cash_in_enabled) return true;
+            return !!this.form.cash_in_account_id;
+        },
+        onCashInToggle() {
+            if (this.form.cash_in_enabled) {
+                this.syncCashInAmountFromTotal();
+                if (!this.form.cash_in_date) {
+                    this.form.cash_in_date = _CashInDefaultDate || this.form.date;
+                }
+            }
+        },
+        syncCashInAmountFromTotal() {
+            if (!_CanSellCashIn || !this.form.cash_in_enabled || this.cashInAmountManual) {
+                return;
+            }
+            this.form.cash_in_amount = Number(this.form.real_total || 0);
+        },
         canSubmit() {
             return this.senderValid() && this.receiverValid() && this.dateValid()
                 && this.validItems().length >= 1
-                && !this.form.items.some(i => this.itemInvalid(i));
+                && !this.form.items.some(i => this.itemInvalid(i))
+                && this.cashInDateValid()
+                && this.cashInAmountValid()
+                && this.cashInAccountValid();
         },
 
         newItemRow() {
@@ -1242,6 +1343,10 @@ function createTransaction() {
                 }),
                 discount_percent: this.form.discount_percent,
                 adjustment: this.form.adjustment,
+                create_cash_in: !!(_CanSellCashIn && this.form.cash_in_enabled),
+                cash_in_amount: _CanSellCashIn && this.form.cash_in_enabled ? Number(this.form.cash_in_amount || 0) : null,
+                cash_in_account_id: _CanSellCashIn && this.form.cash_in_enabled ? this.form.cash_in_account_id : null,
+                cash_in_date: _CanSellCashIn && this.form.cash_in_enabled ? (this.form.cash_in_date || null) : null,
             };
 
             try {

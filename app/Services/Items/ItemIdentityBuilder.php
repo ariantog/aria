@@ -4,12 +4,19 @@ namespace App\Services\Items;
 
 use App\Enums\ItemType;
 use App\Models\Item;
+use App\Models\ItemGroup;
 use App\Models\Tag;
 use InvalidArgumentException;
+use RuntimeException;
 
 class ItemIdentityBuilder
 {
     public const ALL_SIZE_CODE = 'AS';
+
+    /**
+     * Production `item_group.name` is varchar(50) UNIQUE (see database/old.sql).
+     */
+    public const GROUP_NAME_MAX_LENGTH = 50;
 
     /**
      * Manufactured item pcode: [2-3 letters][5 digits]-[2-3 digits] e.g. CX90233-23
@@ -120,15 +127,23 @@ class ItemIdentityBuilder
     }
 
     /**
-     * Display name: {group.name} - {warna code} - {size code}
-     * e.g. SLASH RUNNING SHIRT - BLUE - S
+     * Display name: {product title} - {warna} - {size}
+     * All-size omits the size segment: {product title} - {warna}
+     * e.g. ELBOW STRAP - BLACKWHITE, SLASH RUNNING SHIRT - BLUE - S
      */
     public function buildName(string $groupName, ?Tag $warnaTag, ?Tag $sizeTag): string
     {
-        $parts = [strtoupper(trim($groupName))];
+        $warna = $warnaTag ? strtoupper(trim((string) $warnaTag->code)) : '';
+        $product = $this->productDisplayName(
+            ItemType::ASSET_LANCAR,
+            $groupName,
+            $warna,
+        );
 
-        if ($warnaTag) {
-            $parts[] = strtoupper($warnaTag->code);
+        $parts = [$product];
+
+        if ($warna !== '') {
+            $parts[] = $warna;
         }
 
         if ($sizeTag && ! $this->isAllSize($sizeTag)) {
@@ -164,22 +179,96 @@ class ItemIdentityBuilder
     }
 
     /**
-     * Reverse storedGroupName for item display names (buildName expects the bare product title).
+     * Trim a stored group name to the production column width.
      */
-    public function productDisplayName(ItemType $type, string $storedGroupName, string $groupVariant): string
+    public function fitStoredGroupName(string $name): string
     {
-        $storedGroupName = strtoupper(trim($storedGroupName));
-        $groupVariant = strtoupper(trim($groupVariant));
+        $name = strtoupper(trim($name));
 
-        if ($type === ItemType::ASSET_LANCAR && $groupVariant !== '') {
-            $suffix = ' - '.$groupVariant;
+        if ($name === '' || mb_strlen($name) <= self::GROUP_NAME_MAX_LENGTH) {
+            return $name;
+        }
 
-            if (str_ends_with($storedGroupName, $suffix)) {
-                return substr($storedGroupName, 0, -strlen($suffix));
+        return rtrim(mb_substr($name, 0, self::GROUP_NAME_MAX_LENGTH));
+    }
+
+    /**
+     * Return a globally unique item_group.name that fits varchar(50).
+     *
+     * When another master/variant already owns the preferred name, append the
+     * shortest disambiguator that still fits (master, then master/variant,
+     * then a numeric suffix).
+     */
+    public function uniqueStoredGroupName(string $storedName, string $master, string $variant): string
+    {
+        $storedName = $this->fitStoredGroupName($storedName);
+        $master = strtoupper(trim($master));
+        $variant = strtoupper(trim($variant));
+
+        if (! $this->storedGroupNameConflicts($storedName, $master, $variant)) {
+            return $storedName;
+        }
+
+        $suffixes = [];
+
+        if ($master !== '') {
+            $suffixes[] = ' ('.$master.')';
+        }
+
+        if ($master !== '' && $variant !== '') {
+            $suffixes[] = ' ('.$master.'/'.$variant.')';
+        }
+
+        foreach ($suffixes as $suffix) {
+            $candidate = $this->joinStoredGroupName($storedName, $suffix);
+
+            if (! $this->storedGroupNameConflicts($candidate, $master, $variant)) {
+                return $candidate;
             }
         }
 
-        return $storedGroupName;
+        for ($n = 2; $n <= 99; $n++) {
+            $candidate = $this->joinStoredGroupName($storedName, ' ('.$n.')');
+
+            if (! $this->storedGroupNameConflicts($candidate, $master, $variant)) {
+                return $candidate;
+            }
+        }
+
+        throw new RuntimeException(
+            'Unable to allocate a unique item_group.name within '.self::GROUP_NAME_MAX_LENGTH.' characters.',
+        );
+    }
+
+    /**
+     * Reverse storedGroupName for item display names (buildName expects the bare product title).
+     *
+     * Unique item_group.name values may include a color segment and a
+     * uniqueness suffix, e.g. "ELBOW STRAP - BLACKWHITE (ELBOWSUPPORT-02)".
+     * Those must not leak into the item display name.
+     */
+    public function productDisplayName(
+        ItemType $type,
+        string $storedGroupName,
+        string $groupVariant,
+        string $master = '',
+    ): string {
+        $name = $this->stripUniquenessSuffix(strtoupper(trim($storedGroupName)), strtoupper(trim($master)));
+        $groupVariant = strtoupper(trim($groupVariant));
+
+        if ($groupVariant !== '') {
+            $suffix = ' - '.$groupVariant;
+
+            while (str_ends_with($name, $suffix)) {
+                $name = strtoupper(trim(substr($name, 0, -strlen($suffix))));
+            }
+        }
+
+        if ($type === ItemType::ASSET_LANCAR && str_contains($name, ' - ')) {
+            return strtoupper(trim(explode(' - ', $name, 2)[0]));
+        }
+
+        return $name;
     }
 
     /**
@@ -481,5 +570,56 @@ class ItemIdentityBuilder
         }
 
         return ItemType::tryFrom((int) $raw) ?? ItemType::ITEM;
+    }
+
+    private function joinStoredGroupName(string $name, string $suffix): string
+    {
+        $suffix = strtoupper($suffix);
+        $suffixLength = mb_strlen($suffix);
+
+        if ($suffixLength >= self::GROUP_NAME_MAX_LENGTH) {
+            $suffix = ' ('.mb_substr(md5($suffix), 0, 6).')';
+            $suffixLength = mb_strlen($suffix);
+        }
+
+        $base = rtrim(mb_substr($name, 0, self::GROUP_NAME_MAX_LENGTH - $suffixLength));
+
+        return $this->fitStoredGroupName($base.$suffix);
+    }
+
+    /**
+     * Remove uniqueness suffixes we append: " (MASTER)", " (MASTER/VARIANT)", " (2)".
+     */
+    public function stripUniquenessSuffix(string $name, string $master = ''): string
+    {
+        $name = strtoupper(trim($name));
+        $master = strtoupper(trim($master));
+
+        return (string) preg_replace_callback(
+            '/\s+\(([^)]+)\)/',
+            function (array $match) use ($master) {
+                $inside = strtoupper(trim($match[1]));
+
+                $looksLikeDisambiguator = ctype_digit($inside)
+                    || str_contains($inside, '/')
+                    || str_contains($inside, '-')
+                    || ($master !== '' && str_starts_with($inside, $master));
+
+                return $looksLikeDisambiguator ? '' : $match[0];
+            },
+            $name,
+        );
+    }
+
+    private function storedGroupNameConflicts(string $name, string $master, string $variant): bool
+    {
+        $existing = ItemGroup::query()->where('name', $name)->first();
+
+        if (! $existing) {
+            return false;
+        }
+
+        return strtoupper((string) $existing->master) !== $master
+            || strtoupper((string) $existing->variant) !== $variant;
     }
 }

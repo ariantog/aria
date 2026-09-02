@@ -88,7 +88,6 @@
     }
     if ($hasPerm('items-convert-legacy') || $isSuperAdmin) {
         $stuffNavLabels[] = 'Legacy Converter';
-        $stuffNavLabels[] = 'Special Converter';
     }
     if ($hasPerm('stock-notification-list') || $isSuperAdmin) {
         $stuffNavLabels[] = 'Stock Alerts';
@@ -207,6 +206,10 @@
     if ($hasPerm('users-locations-list') || $isSuperAdmin) {
         $userNavLabels[] = 'Locations';
     }
+    if ($hasPerm('users-staff-roles-view') || $isSuperAdmin) {
+        $userNavLabels[] = 'Checklist Peran';
+        $userNavLabels[] = 'Template Checklist';
+    }
 
     $hrNavLabels = ['SDM / Gaji'];
     if ($hasPerm('karyawan-list') || $isSuperAdmin) {
@@ -214,6 +217,15 @@
     }
     if ($hasPerm('karyawan-gaji-list') || $isSuperAdmin) {
         $hrNavLabels[] = 'Gaji';
+    }
+    if ($hasPerm('karyawan-cuti-list') || $isSuperAdmin) {
+        $hrNavLabels[] = 'Cuti';
+    }
+    if ($hasPerm('karyawan-absensi-list') || $isSuperAdmin) {
+        $hrNavLabels[] = 'Absensi';
+    }
+    if ($hasPerm('karyawan-hari-libur-list') || $isSuperAdmin) {
+        $hrNavLabels[] = 'Hari Libur';
     }
 
     $sidebarFavorites = $_sidebar['favorites'] ?? [];
@@ -396,7 +408,6 @@
         @endif
         @if($hasPerm('items-convert-legacy') || $isSuperAdmin)
         <a href="{{ route('items.legacy-converter') }}" x-show="navLinkVisible('Legacy Converter', 'Stuff')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/items/legacy-converter') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Legacy Converter</a>
-        <a href="{{ route('items.special-converter') }}" x-show="navLinkVisible('Special Converter', 'Stuff')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/items/special-converter') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Special Converter</a>
         @endif
         @if($hasPerm('stock-notification-list') || $isSuperAdmin)
         <a href="{{ route('stock-notifications.index') }}" x-show="navLinkVisible('Stock Alerts', 'Stuff')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/stock-notifications') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Stock Alerts</a>
@@ -694,8 +705,8 @@
 @endif
 
 {{-- ── SDM / Gaji ─────────────────────────────────────────────────────── --}}
-@if($hasPerm('karyawan-list') || $hasPerm('karyawan-gaji-list') || $isSuperAdmin)
-@php $hrActive = $isActive('/karyawan') || $isActive('/gaji'); @endphp
+@if($hasPerm('karyawan-list') || $hasPerm('karyawan-gaji-list') || $hasPerm('karyawan-cuti-list') || $hasPerm('karyawan-absensi-list') || $hasPerm('karyawan-hari-libur-list') || $isSuperAdmin)
+@php $hrActive = $isActive('/karyawan') || $isActive('/gaji') || $isActive('/cuti') || $isActive('/absensi') || $isActive('/hari-libur'); @endphp
 <div x-data="{ open: {{ $hrActive ? 'true' : 'false' }} }"
      class="mb-1"
      x-show="navGroupVisible(@js($hrNavLabels))"
@@ -714,13 +725,22 @@
         @if($hasPerm('karyawan-gaji-list') || $isSuperAdmin)
         <a href="{{ route('gaji.index') }}" x-show="navLinkVisible('Gaji', 'SDM / Gaji')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/gaji') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Gaji Bulanan</a>
         @endif
+        @if($hasPerm('karyawan-cuti-list') || $isSuperAdmin)
+        <a href="{{ route('cuti.index') }}" x-show="navLinkVisible('Cuti', 'SDM / Gaji')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/cuti') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Cuti</a>
+        @endif
+        @if($hasPerm('karyawan-absensi-list') || $isSuperAdmin)
+        <a href="{{ route('absensi.index') }}" x-show="navLinkVisible('Absensi', 'SDM / Gaji')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/absensi') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Absensi Fingerprint</a>
+        @endif
+        @if($hasPerm('karyawan-hari-libur-list') || $isSuperAdmin)
+        <a href="{{ route('hari-libur.index') }}" x-show="navLinkVisible('Hari Libur', 'SDM / Gaji')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/hari-libur') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Hari Libur</a>
+        @endif
     </div>
 </div>
 @endif
 
 {{-- ── User Management ───────────────────────────────────────────────── --}}
-@if($hasPerm('users-list') || $hasPerm('users-roles-list') || $isSuperAdmin)
-@php $umActive = $isActive('/users') || $isActive('/roles') || $isActive('/permissions'); @endphp
+@if($hasPerm('users-list') || $hasPerm('users-roles-list') || $hasPerm('users-staff-roles-view') || $isSuperAdmin)
+@php $umActive = $isActive('/users') || $isActive('/roles') || $isActive('/permissions') || $isActive('/staff-checklists'); @endphp
 <div x-data="{ open: {{ $umActive ? 'true' : 'false' }} }"
      class="mb-1"
      x-show="navGroupVisible(@js($userNavLabels))"
@@ -744,6 +764,10 @@
         @endif
         @if($hasPerm('users-locations-list') || $isSuperAdmin)
         <a href="{{ route('locations.index') }}" x-show="navLinkVisible('Locations', 'User Management')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/locations') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Locations</a>
+        @endif
+        @if($hasPerm('users-staff-roles-view') || $isSuperAdmin)
+        <a href="{{ route('staff-checklists.index') }}" x-show="navLinkVisible('Checklist Peran', 'User Management')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/staff-checklists') && ! $isActive('/staff-checklists/templates') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Checklist Peran</a>
+        <a href="{{ route('staff-checklists.templates.index') }}" x-show="navLinkVisible('Template Checklist', 'User Management')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/staff-checklists/templates') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Template Checklist</a>
         @endif
     </div>
 </div>

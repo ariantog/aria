@@ -37,6 +37,8 @@ it('renders export sell page for authorized users', function () {
         ->assertSee('data-testid="toggle-export-sell-tx-total"', false)
         ->assertSee('data-testid="toggle-export-sell-tx-description"', false)
         ->assertSee('data-testid="export-sell-excel-link"', false)
+        ->assertSee('data-testid="copy-export-sell-table"', false)
+        ->assertSee('x-ref="exportSellTable"', false)
         ->assertSee('showFilters: true', false);
 });
 
@@ -237,7 +239,15 @@ it('lists sell transaction detail lines with links', function () {
         ->assertSee(route('transactions.show', $transaction->id), false)
         ->assertSee(route('items.show', $item->id), false)
         ->assertSee(route('addrbook.type.show', ['warehouse', $sender->id]), false)
-        ->assertSee(route('addrbook.type.show', ['customer', $receiver->id]), false);
+        ->assertSee(route('addrbook.type.show', ['customer', $receiver->id]), false)
+        ->assertSee('data-testid="copy-export-sell-table"', false)
+        ->assertSee('data-copy-col="invoice"', false)
+        ->assertSee('data-copy-col="item_code"', false)
+        ->assertSee('data-copy-col="qty"', false)
+        ->assertSee('data-copy-col="sender"', false)
+        ->assertSee('data-copy-col="receiver"', false)
+        ->assertSee('data-copy-value="270000"', false)
+        ->assertSee('copyRowsTable()', false);
 });
 
 it('filters export sell lines by invoice', function () {

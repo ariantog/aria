@@ -145,11 +145,6 @@ class LegacyItemConverterService
             return false;
         }
 
-        $specialRules = new SpecialSkuConverterRules;
-        if ($specialRules->matchingFamilyPrefix((string) $item->code) !== null) {
-            return false;
-        }
-
         // Ungrouped legacy rows cannot be fully canonical — skip the expensive parse pass.
         if (! $this->hasProductGroup($item)) {
             return true;
@@ -598,6 +593,8 @@ class LegacyItemConverterService
             $failureCode = match (true) {
                 str_contains($e->getMessage(), 'JAHIT') => 'JAHIT_MISSING',
                 str_contains($e->getMessage(), 'Duplicate canonical') => 'DUPLICATE_CANONICAL',
+                str_contains($e->getMessage(), 'Data too long')
+                    || str_contains($e->getMessage(), '22001') => LegacyItemIdentityParser::FAILURE_GROUP_NAME_TOO_LONG,
                 default => LegacyItemIdentityParser::FAILURE_SKU_UNPARSEABLE,
             };
 
@@ -673,8 +670,11 @@ class LegacyItemConverterService
     {
         $parsed = $this->identityBuilder->parsePcode($type, $pcode);
         $variant = $this->identityBuilder->groupVariant($type, $pcode, $warnaTag);
-        $storedName = $this->identityBuilder->storedGroupName($type, $groupName, $pcode, $variant);
-        $storedName = $this->ensureUniqueStoredGroupName($storedName, $parsed['master'], $variant);
+        $storedName = $this->identityBuilder->uniqueStoredGroupName(
+            $this->identityBuilder->storedGroupName($type, $groupName, $pcode, $variant),
+            $parsed['master'],
+            $variant,
+        );
 
         $group = ItemGroup::query()->firstOrCreate(
             [
@@ -731,22 +731,6 @@ class LegacyItemConverterService
         }
 
         return null;
-    }
-
-    protected function ensureUniqueStoredGroupName(string $storedName, string $master, string $variant): string
-    {
-        $existing = ItemGroup::query()->where('name', $storedName)->first();
-
-        if (! $existing) {
-            return $storedName;
-        }
-
-        if (strtoupper((string) $existing->master) === strtoupper($master)
-            && strtoupper((string) $existing->variant) === strtoupper($variant)) {
-            return $storedName;
-        }
-
-        return strtoupper(trim("{$storedName} ({$master}/{$variant})"));
     }
 
     protected function preserveLegacyCode(Item $item, string $newCode, ?string $explicitLegacy = null): void
@@ -891,7 +875,6 @@ class LegacyItemConverterService
      * @return array{
      *     visible: bool,
      *     convertible: bool,
-     *     special_family: ?array,
      *     parse: ?LegacyParseResult,
      *     message: ?string,
      *     item_type: ?ItemType
@@ -904,7 +887,6 @@ class LegacyItemConverterService
         $hidden = [
             'visible' => false,
             'convertible' => false,
-            'special_family' => null,
             'parse' => null,
             'message' => null,
             'item_type' => $itemType,
@@ -914,23 +896,8 @@ class LegacyItemConverterService
             return array_merge($hidden, ['message' => 'Unsupported item type for identity conversion.']);
         }
 
-        $specialRules = new SpecialSkuConverterRules;
-        $specialFamily = $specialRules->matchingFamilyPrefix((string) $item->code);
-
         $item->loadMissing(['tags', 'group']);
         $parse = $parser->parse($item);
-
-        if ($specialFamily !== null) {
-            return [
-                'visible' => true,
-                'convertible' => false,
-                'special_family' => $specialFamily,
-                'parse' => $parse,
-                'message' => "This SKU uses the {$specialFamily['label']} special-code family. "
-                    .'Use the Special SKU Converter — the generic legacy converter will produce wrong results.',
-                'item_type' => $itemType,
-            ];
-        }
 
         if ($parse->success && $this->isDetailConversionComplete($item, $parse)) {
             return array_merge($hidden, ['message' => 'Item is already converted and linked to its product group.']);
@@ -940,7 +907,6 @@ class LegacyItemConverterService
             return [
                 'visible' => true,
                 'convertible' => false,
-                'special_family' => null,
                 'parse' => $parse,
                 'message' => $parse->detail ?? 'SKU cannot be parsed for conversion.',
                 'item_type' => $itemType,
@@ -950,7 +916,6 @@ class LegacyItemConverterService
         return [
             'visible' => true,
             'convertible' => true,
-            'special_family' => null,
             'parse' => $parse,
             'message' => $this->detailConversionRepairMessage($item, $parse, $itemType),
             'item_type' => $itemType,

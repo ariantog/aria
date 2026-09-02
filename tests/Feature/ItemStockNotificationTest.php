@@ -250,7 +250,42 @@ it('renders the stock notifications page for authorized users', function () {
     $this->actingAs($this->user)
         ->get(route('stock-notifications.index'))
         ->assertOk()
-        ->assertSee('Stock Alerts', false);
+        ->assertSee('Stock Alerts', false)
+        ->assertSee('data-testid="stock-notifications-page"', false)
+        ->assertDontSee('flex h-full flex-1 flex-col gap-4 overflow-x-auto', false);
+});
+
+it('renders a long stock alert list including the last row and pagination', function () {
+    $soldOut = Addrbook::factory()->warehouse()->create(['name' => 'Sold Out Shop']);
+    $source = Addrbook::factory()->warehouse()->create(['name' => 'Source Warehouse']);
+
+    for ($i = 1; $i <= 35; $i++) {
+        ItemStockNotification::query()->create([
+            'item_id' => Item::factory()->create(['code' => sprintf('SCROLL-SKU-%02d', $i)])->id,
+            'sold_out_warehouse_id' => $soldOut->id,
+            'source_warehouse_id' => $source->id,
+            'source_stock' => $i,
+            'source_status' => ItemStockSourceStatus::Available,
+            'created_at' => now()->subMinutes(36 - $i),
+        ]);
+    }
+
+    $html = $this->actingAs($this->user)
+        ->get(route('stock-notifications.index'))
+        ->assertOk()
+        ->assertSee('data-testid="stock-notifications-page"', false)
+        ->assertSee('flex flex-col gap-4 p-3 sm:p-4', false)
+        ->assertDontSee('flex h-full flex-1 flex-col gap-4 overflow-x-auto', false)
+        ->assertSee('SCROLL-SKU-35', false)
+        ->assertSee('SCROLL-SKU-06', false)
+        ->assertDontSee('SCROLL-SKU-05', false)
+        ->assertSee('page=2', false)
+        ->getContent();
+
+    expect($html)
+        ->toContain('id="app-main-scroll"')
+        ->toContain('data-testid="stock-notifications-page"')
+        ->not->toContain('h-full flex-1 flex-col gap-4 overflow-x-auto');
 });
 
 it('forbids stock notifications page without permission', function () {

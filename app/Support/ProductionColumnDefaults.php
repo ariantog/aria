@@ -102,7 +102,6 @@ class ProductionColumnDefaults
         ],
         'prod_produksi' => [
             'item_id' => 0,
-            'jahit_id' => 0,
             'customer' => '',
             'potong_id' => 0,
             'warna' => '',
@@ -112,6 +111,8 @@ class ProductionColumnDefaults
             'invoice' => '',
             'detail_id' => 0,
             'surat_jalan_potong' => '',
+            'original_id' => 0,
+            'transaction_id' => 0,
         ],
         'operations' => [
             'description' => '',

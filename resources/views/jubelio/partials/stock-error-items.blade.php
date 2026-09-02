@@ -1,7 +1,7 @@
 @if(!empty($stockErrorItems))
-<div class="max-w-[14rem]">
+<div class="max-w-full">
     <p class="text-[10px] font-medium text-red-600">Stok tidak cukup:</p>
-    <div class="mt-1 flex flex-wrap justify-center gap-1">
+    <div class="mt-1 flex flex-wrap justify-start gap-1">
         @foreach($stockErrorItems as $row)
             @if(!empty($row['item_id']))
             <a href="{{ route('items.show', $row['item_id']) }}"

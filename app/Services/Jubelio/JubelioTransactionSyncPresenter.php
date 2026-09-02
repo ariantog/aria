@@ -110,8 +110,8 @@ class JubelioTransactionSyncPresenter
         $senderId = (int) $transaction->sender_id;
         $receiverId = (int) $transaction->receiver_id;
 
-        $syncRelevantA = in_array($type, [Transaction::TYPE_SELL, Transaction::TYPE_RETURN_SUPPLIER, Transaction::TYPE_MOVE], true);
-        $syncRelevantB = in_array($type, [Transaction::TYPE_BUY, Transaction::TYPE_RETURN, Transaction::TYPE_MOVE], true);
+        $syncRelevantA = in_array($type, JubelioStockSync::senderPushTypes(), true);
+        $syncRelevantB = in_array($type, JubelioStockSync::receiverPushTypes(), true);
 
         $jubSyncA = $syncMap->get($senderId);
         $jubSyncB = $syncMap->get($receiverId);
@@ -128,8 +128,8 @@ class JubelioTransactionSyncPresenter
             'a_synced' => $canSync && (bool) $transaction->a_submit_by,
             'b_synced' => $canSync && (bool) $transaction->b_submit_by,
             'is_from_jubelio' => $transaction->isFromJubelio(),
-            'adjust_type_a' => ($senderSynced && $jubSyncA) ? 2 : 0,
-            'adjust_type_b' => ($receiverSynced && $jubSyncB) ? 1 : 0,
+            'adjust_type_a' => ($senderSynced && $jubSyncA) ? JubelioStockSync::ADJUST_DEDUCT : 0,
+            'adjust_type_b' => ($receiverSynced && $jubSyncB) ? JubelioStockSync::ADJUST_ADD : 0,
         ];
     }
 

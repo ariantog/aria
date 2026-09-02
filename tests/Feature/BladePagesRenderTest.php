@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Addrbook;
+use App\Models\StandaloneInvoice;
 use App\Models\Transaction;
 use App\Models\User;
 
@@ -49,7 +50,11 @@ it('renders the transactions index with its rows', function () {
         ->assertSee('Total', false)
         ->assertSee('Description', false)
         ->assertSee('INV-SMOKE-1', false)
-        ->assertSee('Test Supplier', false);
+        ->assertSee('Test Supplier', false)
+        ->assertSee('data-testid="copy-transactions-table"', false)
+        ->assertSee('data-copy-col="invoice"', false)
+        ->assertSee('data-copy-value="1000000"', false)
+        ->assertSee('copyRowsTable()', false);
 });
 
 it('renders the export sell page', function () {
@@ -89,6 +94,7 @@ it('renders the cash in page', function () {
         ->assertSee('Cash Entries', false)
         ->assertSee('data-testid="cash-entry-row"', false)
         ->assertSee('data-testid="cash-entry-ledger-hint"', false)
+        ->assertSee('cash-entry-invoice-', false)
         ->assertSee('sm:items-start', false);
 });
 
@@ -99,6 +105,7 @@ it('renders the cash out page', function () {
         ->assertSee('Cash Entries', false)
         ->assertSee('data-testid="cash-entry-row"', false)
         ->assertSee('data-testid="cash-entry-ledger-hint"', false)
+        ->assertSee('cash-entry-invoice-', false)
         ->assertSee('sm:items-start', false);
 });
 
@@ -124,6 +131,29 @@ it('renders the transaction show page', function () {
         ->assertOk()
         ->assertSee('sortItems(', false)
         ->assertSee('data-testid="delete-transaction-button"', false);
+});
+
+it('renders the cash in switch on a sell transaction show page', function () {
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    $customer = Addrbook::factory()->customer()->create();
+    $sell = Transaction::factory()->create([
+        'type' => Transaction::TYPE_SELL,
+        'invoice' => 'INV-SELL-SMOKE',
+        'sender_type' => (string) Addrbook::TYPE_WAREHOUSE,
+        'sender_id' => $warehouse->id,
+        'receiver_type' => (string) Addrbook::TYPE_CUSTOMER,
+        'receiver_id' => $customer->id,
+        'total' => -1000,
+        'real_total' => -1000,
+        'status' => Transaction::STATUS_COMPLETED,
+        'user_id' => $this->user->id,
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('transactions.show', $sell))
+        ->assertOk()
+        ->assertSee('data-testid="sell-cash-in-switch"', false)
+        ->assertSee('data-testid="sell-cash-in-amount"', false);
 });
 
 it('renders the addrbook item sales page', function () {
@@ -200,7 +230,23 @@ it('renders migrated GET pages with a 200', function (string $route) {
     'jubelio connection' => 'jubelio/token',
     'shopee ads' => 'shopee-ads',
     'restock index' => 'restock',
+    'absensi index' => 'absensi',
+    'absensi import' => 'absensi/import',
+    'hari libur' => 'hari-libur',
 ]);
+
+it('renders the invoice maker show page with payment status', function () {
+    $invoice = StandaloneInvoice::factory()->create([
+        'number' => 'INV/CA/2026/SMOKE',
+        'user_id' => $this->user->id,
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('invoice-maker.show', $invoice))
+        ->assertOk()
+        ->assertSee('Payment', false)
+        ->assertSee('Unpaid', false);
+});
 
 it('does not expose the removed warehouse compare report', function () {
     $this->actingAs($this->user)

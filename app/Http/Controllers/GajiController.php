@@ -195,6 +195,8 @@ class GajiController extends Controller
             'bonus' => 'required|numeric|min:0',
             'sanksi' => 'required|numeric|min:0',
             'privasi' => 'required|integer|in:1,2',
+            'jam_kerja_aktual' => 'nullable|numeric|min:0',
+            'jam_kerja_ekspektasi' => 'nullable|numeric|min:0',
         ], [], [
             'bulanan' => 'gaji bulanan',
             'harian_rate' => 'tarif harian',
@@ -237,6 +239,8 @@ class GajiController extends Controller
         $validated['total_cuti'] = $calculation['total_cuti'];
         $validated['total_potongan'] = $calculation['total_potongan'];
         $validated['harian_total'] = (int) $validated['harian_rate'] * GajiSalaryCalculator::WORKING_DAYS_PER_MONTH;
+        $validated['jam_kerja_aktual'] = $validated['jam_kerja_aktual'] ?? $calculation['jam_kerja_aktual'];
+        $validated['jam_kerja_ekspektasi'] = $validated['jam_kerja_ekspektasi'] ?? $calculation['jam_kerja_ekspektasi'];
 
         return $validated;
     }
@@ -257,6 +261,8 @@ class GajiController extends Controller
             'cuti_tahunan' => (int) $payload['total_cuti_tahunan'],
             'cuti_mendadak' => (int) $payload['total_cuti_mendadak'],
             'hari_izin' => (int) $payload['hari_izin'],
+            'jam_kerja_aktual' => (float) ($payload['jam_kerja_aktual'] ?? 0),
+            'jam_kerja_ekspektasi' => (float) ($payload['jam_kerja_ekspektasi'] ?? 0),
             'potongan_harian' => (int) $payload['potong_harian'],
             'menit_telat' => (int) $payload['menit_telat'],
             'potongan_telat' => (int) $payload['potong_telat'],

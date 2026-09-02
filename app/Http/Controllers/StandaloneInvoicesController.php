@@ -6,6 +6,7 @@ use App\Models\Addrbook;
 use App\Models\StandaloneInvoice;
 use App\Services\InvoiceMakerSettingsService;
 use App\Services\StandaloneInvoiceService;
+use App\Services\StandaloneInvoiceSettlement;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\ValidationException;
@@ -25,8 +26,18 @@ class StandaloneInvoicesController extends Controller
             });
         }
 
+        $invoices = $query->orderByDesc('date')->orderByDesc('id')->paginate(25)->withQueryString();
+        $settlement = app(StandaloneInvoiceSettlement::class);
+        $totals = $settlement->totalsByNumbers($invoices->pluck('number')->all());
+        $statuses = [];
+        foreach ($invoices as $row) {
+            $rowTotals = $totals[$row->number] ?? ['cash_in' => 0.0, 'sell' => 0.0];
+            $statuses[$row->id] = $settlement->status($row, $rowTotals['cash_in'], $rowTotals['sell']);
+        }
+
         return view('invoice-maker.index', [
-            'invoices' => $query->orderByDesc('date')->orderByDesc('id')->paginate(25)->withQueryString(),
+            'invoices' => $invoices,
+            'invoiceStatuses' => $statuses,
             'search' => $search ?? '',
             'can' => $this->permissions(),
         ]);
@@ -52,10 +63,13 @@ class StandaloneInvoicesController extends Controller
         [$data, $lines] = $this->validatedPayload($request);
 
         $invoice = $service->create($data, $lines, (int) $request->user()->id);
+        $message = $invoice->isMarkedPaid()
+            ? 'Invoice created and marked as paid — sell, cash-in, and invoice amounts match.'
+            : 'Invoice created.';
 
         return redirect()
             ->route('invoice-maker.show', $invoice)
-            ->with('success', 'Invoice created.');
+            ->with('success', $message);
     }
 
     public function show(StandaloneInvoice $invoice, StandaloneInvoiceService $service)
@@ -66,6 +80,7 @@ class StandaloneInvoicesController extends Controller
 
         return view('invoice-maker.show', [
             'invoice' => $invoice,
+            'settlement' => app(StandaloneInvoiceSettlement::class)->snapshot($invoice),
             'hasInvoicePdf' => $service->invoicePdfExists($invoice),
             'invoicePdfUrl' => $service->invoicePdfUrl($invoice),
             'invoicePdfDownloadUrl' => $service->invoicePdfDownloadUrl($invoice),
@@ -97,11 +112,14 @@ class StandaloneInvoicesController extends Controller
 
         [$data, $lines] = $this->validatedPayload($request, $invoice);
 
-        $service->update($invoice, $data, $lines);
+        $invoice = $service->update($invoice, $data, $lines);
+        $message = $invoice->isMarkedPaid()
+            ? 'Invoice updated and marked as paid — sell, cash-in, and invoice amounts match.'
+            : 'Invoice updated.';
 
         return redirect()
             ->route('invoice-maker.show', $invoice)
-            ->with('success', 'Invoice updated.');
+            ->with('success', $message);
     }
 
     public function destroy(StandaloneInvoice $invoice, StandaloneInvoiceService $service)
@@ -115,6 +133,24 @@ class StandaloneInvoicesController extends Controller
         return redirect()
             ->route('invoice-maker.index')
             ->with('success', 'Invoice deleted.');
+    }
+
+    public function updateDiscount(Request $request, StandaloneInvoice $invoice, StandaloneInvoiceSettlement $settlement)
+    {
+        Gate::authorize(StandaloneInvoice::getPermissions()['edit']);
+
+        $validated = $request->validate([
+            'discount_amount' => ['required', 'numeric', 'min:0'],
+        ]);
+
+        $invoice = $settlement->updateDiscount($invoice, (float) $validated['discount_amount'], $request->user());
+        $message = $invoice->isMarkedPaid()
+            ? 'Discount saved. Invoice marked as paid — sell, cash-in, and invoice amounts match.'
+            : 'Invoice discount updated.';
+
+        return redirect()
+            ->route('invoice-maker.show', $invoice)
+            ->with('success', $message);
     }
 
     public function showPdf(StandaloneInvoice $invoice, StandaloneInvoiceService $service)
@@ -170,6 +206,7 @@ class StandaloneInvoicesController extends Controller
             'notes' => ['nullable', 'string', 'max:5000'],
             'dp_enabled' => ['nullable', 'boolean'],
             'dp_amount' => ['nullable', 'numeric', 'min:0'],
+            'discount_amount' => ['nullable', 'numeric', 'min:0'],
             'lines' => ['required', 'array', 'min:1'],
             'lines.*.description' => ['required', 'string', 'max:500'],
             'lines.*.quantity' => ['required', 'numeric', 'min:0.0001'],
@@ -196,6 +233,20 @@ class StandaloneInvoicesController extends Controller
         } else {
             $validated['dp_amount'] = null;
         }
+
+        if (array_key_exists('discount_amount', $validated) && $validated['discount_amount'] !== null) {
+            $discount = (float) $validated['discount_amount'];
+        } elseif ($existing) {
+            $discount = $existing->discountAmount();
+        } else {
+            $discount = 0.0;
+        }
+        if ($discount > $subtotal) {
+            throw ValidationException::withMessages([
+                'discount_amount' => 'Discount cannot exceed the invoice subtotal.',
+            ]);
+        }
+        $validated['discount_amount'] = $discount;
 
         unset($validated['dp_enabled']);
 

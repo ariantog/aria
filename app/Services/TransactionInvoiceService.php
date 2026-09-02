@@ -46,6 +46,14 @@ class TransactionInvoiceService
         return File::exists($this->invoiceDiskPath($this->invoiceFileName($transaction)));
     }
 
+    public function deleteInvoicePdf(Transaction $transaction): void
+    {
+        $filePath = $this->invoiceDiskPath($this->invoiceFileName($transaction));
+        if (File::exists($filePath)) {
+            File::delete($filePath);
+        }
+    }
+
     public function ensureInvoicePdf(Transaction $transaction): string
     {
         return $this->createInvoicePdf($transaction, regenerate: false);

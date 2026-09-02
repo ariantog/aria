@@ -3,6 +3,7 @@
 namespace App\Actions\Transactions;
 
 use App\Actions\Transactions\Concerns\CalculatesTransactionTotals;
+use App\Exceptions\InsufficientWarehouseStockException;
 use App\Http\Requests\StoreItemTransactionRequest;
 use App\Models\Addrbook;
 use App\Models\Transaction;
@@ -24,13 +25,25 @@ class CreateItemTransaction
         $data = $request->validated();
         $sender = Addrbook::findOrFail($data['sender_id']);
         $receiver = Addrbook::findOrFail($data['receiver_id']);
+        $cashInPayload = $request->cashInPayload();
 
-        return DB::transaction(function () use ($type, $data, $sender, $receiver) {
+        return DB::transaction(function () use ($type, $data, $sender, $receiver, $cashInPayload) {
             $this->validateStock($type, $sender, $data['items']);
             $transaction = $this->createTransaction($type, $data, $sender, $receiver);
             $this->createDetails($transaction, $data);
             $this->calculateAndSetTotals($transaction, $type, $data, $sender, $receiver);
-            $this->transactionService->handleTransaction($transaction);
+            try {
+                $this->transactionService->handleTransaction($transaction);
+            } catch (InsufficientWarehouseStockException $e) {
+                throw $e->asValidationException();
+            }
+
+            if ($type === Transaction::TYPE_SELL && $cashInPayload) {
+                app(CreateCashInFromSell::class)->execute($transaction->fresh(['receiver']) ?? $transaction, $cashInPayload);
+            } elseif (in_array($type, [Transaction::TYPE_SELL, Transaction::TYPE_CASH_IN], true)) {
+                app(\App\Services\StandaloneInvoiceSettlement::class)
+                    ->reconcileByNumber((string) $transaction->invoice, Auth::user());
+            }
 
             return $transaction->fresh(['details', 'sender', 'receiver']);
         });

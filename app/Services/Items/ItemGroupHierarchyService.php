@@ -329,7 +329,12 @@ class ItemGroupHierarchyService
             return $isAsset ? $master : '';
         }
 
-        return $name;
+        return $this->identityBuilder->productDisplayName(
+            $isAsset ? ItemType::ASSET_LANCAR : ItemType::ITEM,
+            $name,
+            '',
+            $master,
+        );
     }
 
     /**
@@ -468,7 +473,14 @@ class ItemGroupHierarchyService
             fn (?string $name) => $name && strtoupper(trim($name)) !== strtoupper($parentLabel)
         );
 
-        return $preferred ?? $names->first() ?? $parentLabel;
+        $raw = $preferred ?? $names->first() ?? $parentLabel;
+
+        return $this->identityBuilder->productDisplayName(
+            ItemType::ASSET_LANCAR,
+            (string) $raw,
+            '',
+            $parentLabel,
+        );
     }
 
     /**

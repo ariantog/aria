@@ -68,6 +68,11 @@ describe('size matching', function () {
     it('matches exact size remainder', function () {
         expect($this->parser->matchSizeFromSuffix('XL')?->code)->toBe('XL');
     });
+
+    it('matches a leftover size-before-color remainder from the prefix', function () {
+        expect($this->parser->matchSizeFromPrefix('S-BLACK')?->code)->toBe('S')
+            ->and($this->parser->matchSizeFromRemainder('BLACK-S')?->code)->toBe('S');
+    });
 });
 
 describe('asset fixtures §3.2', function () {

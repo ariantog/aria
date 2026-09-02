@@ -75,9 +75,8 @@ class ItemService
             $pcode = strtoupper(trim((string) $input->pcode));
             $groupName = $this->groupNameFromInput($input, $inputType, $pcode, $item->group, $item);
             $variant = $this->identityBuilder->groupVariant($inputType, $pcode, $warnaTag);
-            $storedName = $this->identityBuilder->storedGroupName($inputType, $groupName, $pcode, $variant);
-            $storedName = $this->ensureUniqueStoredGroupName(
-                $storedName,
+            $storedName = $this->identityBuilder->uniqueStoredGroupName(
+                $this->identityBuilder->storedGroupName($inputType, $groupName, $pcode, $variant),
                 $this->identityBuilder->parsePcode($inputType, $pcode)['master'],
                 $variant,
             );
@@ -131,14 +130,19 @@ class ItemService
             $itemType = $sampleItem
                 ? $this->resolveItemType($sampleItem->getAttributes()['type'] ?? $sampleItem->type)
                 : ItemType::ITEM;
-            $storedName = $this->identityBuilder->storedGroupName(
+            $productName = $this->identityBuilder->productDisplayName(
                 $itemType,
                 $productName,
-                (string) ($sampleItem?->pcode ?? ''),
                 (string) ($group->variant ?? ''),
+                (string) ($group->master ?? ''),
             );
-            $storedName = $this->ensureUniqueStoredGroupName(
-                $storedName,
+            $storedName = $this->identityBuilder->uniqueStoredGroupName(
+                $this->identityBuilder->storedGroupName(
+                    $itemType,
+                    $productName,
+                    (string) ($sampleItem?->pcode ?? ''),
+                    (string) ($group->variant ?? ''),
+                ),
                 (string) ($group->master ?? ''),
                 (string) ($group->variant ?? ''),
             );
@@ -293,14 +297,15 @@ class ItemService
             throw new Exception("SKU already exists: {$code}");
         }
 
-        if ($isUpdate && $itemType === ItemType::ITEM) {
+        if ($isUpdate) {
             $this->preserveLegacyCode($item, $code);
         }
 
-        $displayName = $productName ?? $this->identityBuilder->productDisplayName(
+        $displayName = $this->identityBuilder->productDisplayName(
             $itemType,
-            (string) $group->name,
+            $productName ?? (string) $group->name,
             (string) ($group->variant ?? ''),
+            (string) ($group->master ?? ''),
         );
 
         $item->pcode = $pcode;
@@ -327,8 +332,11 @@ class ItemService
     ): ItemGroup {
         $parsed = $this->identityBuilder->parsePcode($type, $pcode);
         $variant = $this->identityBuilder->groupVariant($type, $pcode, $warnaTag);
-        $storedName = $this->identityBuilder->storedGroupName($type, $groupName, $pcode, $variant);
-        $storedName = $this->ensureUniqueStoredGroupName($storedName, $parsed['master'], $variant);
+        $storedName = $this->identityBuilder->uniqueStoredGroupName(
+            $this->identityBuilder->storedGroupName($type, $groupName, $pcode, $variant),
+            $parsed['master'],
+            $variant,
+        );
 
         $group = ItemGroup::firstOrCreate(
             [
@@ -364,22 +372,6 @@ class ItemService
         return $group;
     }
 
-    protected function ensureUniqueStoredGroupName(string $storedName, string $master, string $variant): string
-    {
-        $existing = ItemGroup::query()->where('name', $storedName)->first();
-
-        if (! $existing) {
-            return $storedName;
-        }
-
-        if (strtoupper((string) $existing->master) === strtoupper($master)
-            && strtoupper((string) $existing->variant) === strtoupper($variant)) {
-            return $storedName;
-        }
-
-        return strtoupper(trim("{$storedName} ({$master}/{$variant})"));
-    }
-
     protected function groupNameFromInput(
         object $input,
         ItemType $type,
@@ -390,7 +382,18 @@ class ItemService
         $name = trim((string) ($input->product_name ?? $input->alias ?? $input->name ?? ''));
 
         if ($name !== '') {
-            return $name;
+            return $this->identityBuilder->productDisplayName(
+                $type,
+                $name,
+                (string) ($existing?->variant ?? ''),
+                (string) ($existing?->master ?? ''),
+            );
+        }
+
+        $fromPcode = $this->productNameForPcode($type, $pcode);
+
+        if ($fromPcode !== null) {
+            return $fromPcode;
         }
 
         if ($type === ItemType::ITEM) {
@@ -400,14 +403,19 @@ class ItemService
         $fallback = trim((string) ($existing?->name ?? ''));
 
         if ($fallback !== '') {
-            return $fallback;
+            return $this->identityBuilder->productDisplayName(
+                $type,
+                $fallback,
+                (string) ($existing?->variant ?? ''),
+                (string) ($existing?->master ?? ''),
+            );
         }
 
         if ($item !== null) {
             $derived = $this->deriveLegacyAssetProductName($item);
 
             if ($derived !== '') {
-                return $derived;
+                return $this->identityBuilder->productDisplayName($type, $derived, '', '');
             }
         }
 
@@ -415,8 +423,55 @@ class ItemService
     }
 
     /**
-     * Snapshot the pre-identity SKU for Jubelio before code changes on manufactured items.
-     * Never overwrites an existing legacy_code.
+     * Bare product title already stored for this pcode, if any.
+     */
+    public function productNameForPcode(ItemType $type, string $pcode): ?string
+    {
+        $pcode = strtoupper(trim($pcode));
+
+        if ($pcode === '') {
+            return null;
+        }
+
+        $item = Item::query()
+            ->where('type', $type)
+            ->whereRaw('UPPER(TRIM(pcode)) = ?', [$pcode])
+            ->whereNull('deleted_at')
+            ->with('group')
+            ->orderByDesc('id')
+            ->first();
+
+        if (! $item) {
+            return null;
+        }
+
+        if ($item->group) {
+            $fromGroup = $this->identityBuilder->productDisplayName(
+                $type,
+                (string) $item->group->name,
+                (string) ($item->group->variant ?? ''),
+                (string) ($item->group->master ?? ''),
+            );
+
+            if ($fromGroup !== '' && $fromGroup !== $pcode) {
+                return $fromGroup;
+            }
+        }
+
+        $fromItem = $type === ItemType::ASSET_LANCAR
+            ? $this->deriveLegacyAssetProductName($item)
+            : strtoupper(trim(explode(' - ', (string) $item->name, 2)[0]));
+
+        if ($fromItem === '' || $fromItem === $pcode) {
+            return null;
+        }
+
+        return $this->identityBuilder->productDisplayName($type, $fromItem, '', '');
+    }
+
+    /**
+     * Snapshot the previous SKU for Jubelio before code changes on edit
+     * (manufactured items and asset lancar). Never overwrites an existing legacy_code.
      */
     protected function preserveLegacyCode(Item $item, string $newCode): void
     {
@@ -486,6 +541,7 @@ class ItemService
             $sampleType,
             (string) $group->name,
             (string) ($group->variant ?? ''),
+            (string) ($group->master ?? ''),
         );
 
         foreach ($items as $item) {

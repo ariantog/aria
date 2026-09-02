@@ -274,6 +274,22 @@
             @endif
 
             <div class="ml-auto flex items-center gap-2">
+                @if($hasStaffChecklist ?? false)
+                <a href="{{ route('my-checklist.index') }}"
+                   class="relative flex h-8 w-8 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100"
+                   title="Checklist peran"
+                   data-testid="header-checklist-link">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
+                    </svg>
+                    @if(($staffChecklistPendingCount ?? 0) > 0)
+                    <span class="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-bold text-white">
+                        {{ $staffChecklistPendingCount > 99 ? '99+' : $staffChecklistPendingCount }}
+                    </span>
+                    @endif
+                </a>
+                @endif
                 @if(($stockNotificationUnreadCount ?? 0) > 0 || auth()->user()?->can(\App\Models\ItemStockNotification::getPermissions()['view']))
                 <a href="{{ route('stock-notifications.index') }}"
                    class="relative flex h-8 w-8 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100"
@@ -309,6 +325,105 @@ function formatAmountId(value) {
 
 function formatNumberId(value) {
     return Number(value || 0).toLocaleString('en-US', { maximumFractionDigits: 0 });
+}
+
+function ariaFormatCopyNumber(raw) {
+    return raw == null ? '' : String(raw);
+}
+
+function ariaCopyCellText(cell) {
+    if (cell.hasAttribute('data-copy-value')) {
+        return ariaFormatCopyNumber(cell.getAttribute('data-copy-value'));
+    }
+
+    const img = cell.querySelector('img');
+    if (img && cell.querySelectorAll('a').length === 0) {
+        return (img.getAttribute('alt') || img.getAttribute('src') || '').trim();
+    }
+
+    const link = cell.querySelector('a');
+    if (link) {
+        return link.textContent.trim();
+    }
+
+    return cell.innerText.replace(/\s+/g, ' ').trim();
+}
+
+function ariaPrepareCopyTable(table, isColumnVisible) {
+    const clone = table.cloneNode(true);
+
+    clone.querySelectorAll('[data-copy-col]').forEach((cell) => {
+        if (typeof isColumnVisible === 'function' && !isColumnVisible(cell.dataset.copyCol)) {
+            cell.remove();
+            return;
+        }
+
+        if (cell.hasAttribute('data-copy-value')) {
+            cell.textContent = ariaFormatCopyNumber(cell.getAttribute('data-copy-value'));
+            return;
+        }
+
+        cell.querySelectorAll('a').forEach((anchor) => {
+            anchor.replaceWith(document.createTextNode(anchor.textContent.trim()));
+        });
+    });
+
+    return clone;
+}
+
+function ariaTableToTsv(table, isColumnVisible) {
+    const rows = [];
+
+    table.querySelectorAll('thead tr, tbody tr').forEach((row) => {
+        const values = [];
+
+        row.querySelectorAll('[data-copy-col]').forEach((cell) => {
+            if (typeof isColumnVisible === 'function' && !isColumnVisible(cell.dataset.copyCol)) {
+                return;
+            }
+
+            values.push(ariaCopyCellText(cell));
+        });
+
+        if (values.length) {
+            rows.push(values.join('\t'));
+        }
+    });
+
+    return rows.join('\n');
+}
+
+async function ariaCopyTable(table, isColumnVisible) {
+    if (!table) {
+        return false;
+    }
+
+    const clone = ariaPrepareCopyTable(table, isColumnVisible);
+    const plain = ariaTableToTsv(clone, isColumnVisible);
+    const html = clone.outerHTML;
+
+    try {
+        if (window.ClipboardItem && navigator.clipboard?.write) {
+            await navigator.clipboard.write([
+                new ClipboardItem({
+                    'text/plain': new Blob([plain], { type: 'text/plain' }),
+                    'text/html': new Blob([html], { type: 'text/html' }),
+                }),
+            ]);
+        } else {
+            await navigator.clipboard.writeText(plain);
+        }
+
+        return true;
+    } catch (e) {
+        try {
+            await navigator.clipboard.writeText(plain);
+            return true;
+        } catch (fallbackError) {
+            console.error('Failed to copy table', fallbackError);
+            return false;
+        }
+    }
 }
 
 function appShell() {
@@ -428,6 +543,48 @@ function suppressFieldNavigation(ms = 400) {
 
 function isFieldNavigationSuppressed() {
     return Date.now() < (window._suppressFieldNavUntil || 0);
+}
+
+// Android Chrome IME keydown is keyCode 229 / key Unidentified while e.code still
+// names the physical key. Treating that as Enter makes the later real Enter a
+// second navigation. Callers that need a keyup fallback should use this.
+function isImePlaceholderKey(e) {
+    if (!e) return false;
+    const kc = e.keyCode || e.which;
+    return kc === 229 || e.key === 'Unidentified' || e.key === 'Process';
+}
+
+// True only for a real Enter (not the IME 229 placeholder that still has e.code).
+function isConfirmedEnterKey(e) {
+    if (!e || isImePlaceholderKey(e)) return false;
+    return normalizeNavigationKey(e) === 'Enter';
+}
+
+// Android/Gboard needs a few hundred ms to collapse a duplicate Enter pair.
+// Desktop Chrome sends one keydown+keyup per press, so a long lock would swallow
+// the next intentional Enter (invoice → note → total).
+function enterFieldNavClaimMs() {
+    try {
+        if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) {
+            return 300;
+        }
+    } catch (e) {}
+    const ua = (typeof navigator !== 'undefined' && navigator.userAgent) ? navigator.userAgent : '';
+    if (/Android|iPhone|iPad|iPod|Mobile/i.test(ua)) {
+        return 300;
+    }
+    return 0;
+}
+
+// One successful Enter field-advance per short window. Duplicate keydown/keyup
+// pairs from Android Chrome Gboard collapse here instead of skipping a field.
+function claimEnterFieldNavigation(ms) {
+    if (isFieldNavigationSuppressed()) return false;
+    const wait = typeof ms === 'number' ? ms : enterFieldNavClaimMs();
+    if (wait > 0) {
+        suppressFieldNavigation(wait);
+    }
+    return true;
 }
 
 // Defer focus until after keyup: $nextTick runs as a microtask before keyup on
