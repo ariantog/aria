@@ -235,17 +235,17 @@ class ProduksiController extends Controller
             $splitQty = (int) $request->split_q;
             $produksi->update(['quantity' => $produksi->quantity - $splitQty]);
 
-            $data = $produksi->replicate()->toArray();
-            unset($data['serial']);
-            $data['quantity'] = $splitQty;
-            $data['original_id'] = $produksi->original_id ?: $produksi->id;
-            $data['jahit_id'] = null;
-            $data['jahit_date'] = null;
-            $data['qc_id'] = null;
-            $data['qc_date'] = null;
-            $data['pritil_id'] = null;
-            $data['pritil_date'] = null;
-            Produksi::create($data);
+            $clone = $produksi->replicate();
+            $clone->quantity = $splitQty;
+            $clone->original_id = $produksi->original_id ?: $produksi->id;
+            // Production MySQL uses 0 (not NULL) for unassigned worker FKs.
+            $clone->jahit_id = 0;
+            $clone->jahit_date = null;
+            $clone->qc_id = 0;
+            $clone->qc_date = null;
+            $clone->pritil_id = 0;
+            $clone->pritil_date = null;
+            $clone->save();
         });
 
         return back()->with('success', 'Production entry split successfully.');
