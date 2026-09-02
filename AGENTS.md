@@ -21,9 +21,10 @@ The migration from the React/Inertia SPA to Blade+Alpine and a batch of UI/bug f
   links restored, gated by `journal-*` / `production-*` / `borongan-*` permissions or superadmin.
 - **Superadmin (user 1) sees real balances** — it is exempt from the `bank_hidden_balance` check.
 - **Transaction entry forms are inline + keyboard-driven** (cash-in/out and buy/sell/return/
-  return-supplier): barcode/autocomplete lookup, discount in %, PPN 11%, AJAX submit that keeps
-  inputs + highlights invalid rows on validation error, and a submit button gated by client-side
-  validation (see `transactions/create.blade.php`, `transactions/cash.blade.php`).
+  return-supplier): barcode/autocomplete lookup, discount in %, optional PPN (not on every
+  invoice — see reporting entities below), AJAX submit that keeps inputs + highlights invalid
+  rows on validation error, and a submit button gated by client-side validation
+  (see `transactions/create.blade.php`, `transactions/cash.blade.php`).
 - **Palette normalized to `gray-*`** (journals/produksi were `zinc-*`); page-load slide-in animation
   removed.
 
