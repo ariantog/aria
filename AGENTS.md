@@ -99,6 +99,8 @@ Application code must ignore `transactions.real_total`. **`total` is the only he
 - Do **not** ship `DROP COLUMN real_total` on partitioned `transactions` / `deleted`.
 - Do **not** reintroduce `real_total` as a second Aria amount. Jubelio's HTTP payload field named
   `real_total` is **their** API, not our DB column — keep that mapping as API data only.
+- Faktur-posted sells store **DPP** on `total` (tax linking sums that as DPP). Reconstruct gross as
+  `abs(total) + ppn` — do not bring back a second header column for it.
 
 ### Do NOT change signed transaction totals
 
