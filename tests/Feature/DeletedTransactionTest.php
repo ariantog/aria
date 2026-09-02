@@ -9,6 +9,8 @@ use App\Models\Item;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Models\WarehouseItem;
+use App\Models\WarehouseItemMonthlyStat;
+use App\Services\WarehouseItemStatsRecorder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 
@@ -91,6 +93,86 @@ test('deleting a buy transaction reverts stock and balances then moves it to del
     expect((float) $item->fresh()->qty)->toBe(5.0);
     expect((float) $laterTransaction->fresh()->sender_balance)->toBe(10000.0);
     expect((float) AddrbookStat::where('customer_id', $supplier->id)->first()->balance)->toBe(10000.0);
+});
+
+test('deleting a sell transaction adds each sold qty back to the sender warehouse', function () {
+    $user = User::factory()->create();
+    $this->actingAs($user);
+
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    $customer = Addrbook::factory()->customer()->create(['ppn' => false]);
+    $shirt = Item::factory()->create(['qty' => 20, 'price' => 100_000, 'cost' => 40_000]);
+    $pants = Item::factory()->create(['qty' => 15, 'price' => 200_000, 'cost' => 80_000]);
+
+    WarehouseItem::create([
+        'warehouse_id' => $warehouse->id,
+        'item_id' => $shirt->id,
+        'warehouse_type' => $warehouse->type,
+        'quantity' => 20,
+    ]);
+    WarehouseItem::create([
+        'warehouse_id' => $warehouse->id,
+        'item_id' => $pants->id,
+        'warehouse_type' => $warehouse->type,
+        'quantity' => 15,
+    ]);
+
+    $this->post(route('transactions.store'), [
+        'date' => now()->toDateString(),
+        'type' => 'sell',
+        'sender_id' => $warehouse->id,
+        'receiver_id' => $customer->id,
+        'discount_percent' => 100,
+        'items' => [
+            ['item_id' => $shirt->id, 'quantity' => 3, 'price' => 100_000, 'discount' => 0],
+            ['item_id' => $pants->id, 'quantity' => 4, 'price' => 200_000, 'discount' => 0],
+        ],
+    ])->assertRedirect();
+
+    $sell = Transaction::query()->where('type', Transaction::TYPE_SELL)->latest('id')->first();
+    expect($sell)->not->toBeNull();
+
+    expect((float) WarehouseItem::where('warehouse_id', $warehouse->id)->where('item_id', $shirt->id)->value('quantity'))->toBe(17.0)
+        ->and((float) WarehouseItem::where('warehouse_id', $warehouse->id)->where('item_id', $pants->id)->value('quantity'))->toBe(11.0)
+        ->and((float) $shirt->fresh()->qty)->toBe(17.0)
+        ->and((float) $pants->fresh()->qty)->toBe(11.0);
+
+    $sell->load('details');
+    $recorder = app(WarehouseItemStatsRecorder::class);
+    foreach ($sell->details as $detail) {
+        $recorder->recordDetail($sell, $detail);
+    }
+
+    expect((float) WarehouseItemMonthlyStat::query()
+        ->where('warehouse_id', $warehouse->id)
+        ->where('item_id', $shirt->id)
+        ->value('sold_qty'))->toBe(3.0)
+        ->and((float) WarehouseItemMonthlyStat::query()
+            ->where('warehouse_id', $warehouse->id)
+            ->where('item_id', $pants->id)
+            ->value('sold_qty'))->toBe(4.0);
+
+    $this->delete(route('transactions.destroy', $sell))
+        ->assertRedirect(route('transactions.index'))
+        ->assertSessionHas('success');
+
+    expect(Transaction::find($sell->id))->toBeNull();
+    expect(DeletedTransaction::find($sell->id))->not->toBeNull();
+
+    expect((float) WarehouseItem::where('warehouse_id', $warehouse->id)->where('item_id', $shirt->id)->value('quantity'))->toBe(20.0)
+        ->and((float) WarehouseItem::where('warehouse_id', $warehouse->id)->where('item_id', $pants->id)->value('quantity'))->toBe(15.0)
+        ->and((float) $shirt->fresh()->qty)->toBe(20.0)
+        ->and((float) $pants->fresh()->qty)->toBe(15.0)
+        ->and((float) WarehouseItem::where('warehouse_id', $customer->id)->where('item_id', $shirt->id)->value('quantity'))->toBe(0.0)
+        ->and((float) WarehouseItem::where('warehouse_id', $customer->id)->where('item_id', $pants->id)->value('quantity'))->toBe(0.0)
+        ->and((float) WarehouseItemMonthlyStat::query()
+            ->where('warehouse_id', $warehouse->id)
+            ->where('item_id', $shirt->id)
+            ->value('sold_qty'))->toBe(0.0)
+        ->and((float) WarehouseItemMonthlyStat::query()
+            ->where('warehouse_id', $warehouse->id)
+            ->where('item_id', $pants->id)
+            ->value('sold_qty'))->toBe(0.0);
 });
 
 test('deleting a transaction with legacy invalid due date still archives to deleted', function () {
