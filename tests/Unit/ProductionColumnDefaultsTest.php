@@ -57,18 +57,20 @@ it('fills null customer email on update via model events on mysql', function () 
     expect($addrbook->fresh()->email)->toBe('');
 });
 
-it('fills null prod_produksi worker ids when applying production defaults on mysql', function () {
-    mockMysqlSchemaForTableColumns('prod_produksi', ['qc_id', 'jahit_id', 'pritil_id']);
+it('leaves null produksi worker ids unset when applying production defaults on mysql', function () {
+    mockMysqlSchemaForTableColumns('prod_produksi', ['qc_id', 'jahit_id', 'pritil_id', 'item_id']);
 
     $produksi = new Produksi([
         'qc_id' => null,
         'jahit_id' => null,
         'pritil_id' => null,
+        'item_id' => null,
     ]);
 
     ProductionColumnDefaults::apply($produksi);
 
-    expect($produksi->qc_id)->toBe(0)
-        ->and($produksi->jahit_id)->toBe(0)
-        ->and($produksi->pritil_id)->toBe(0);
+    expect($produksi->qc_id)->toBeNull()
+        ->and($produksi->jahit_id)->toBeNull()
+        ->and($produksi->pritil_id)->toBeNull()
+        ->and($produksi->item_id)->toBe(0);
 });
