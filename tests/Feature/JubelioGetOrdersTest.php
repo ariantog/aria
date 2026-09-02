@@ -35,6 +35,7 @@ it('renders get orders page with start form when no import exists', function () 
 
 it('starts a get orders sync and dispatches background job', function () {
     Queue::fake();
+    $task = seedGetOrdersScheduledTask();
     $user = User::factory()->create();
 
     $this->actingAs($user)
@@ -48,6 +49,7 @@ it('starts a get orders sync and dispatches background job', function () {
     $import = Crongetorder::first();
     expect($import->from->toDateString())->toBe('2026-08-01');
     expect($import->to)->toBe(2);
+    expect($task->fresh()->active)->toBeTrue();
 
     Queue::assertPushed(SyncJubelioMissingOrders::class, fn ($job) => $job->importId === $import->id);
 });
@@ -191,6 +193,160 @@ it('can fetch multiple pages in one cron run', function () {
     expect($import->status)->toBe(1);
     expect($import->orders_queued)->toBe(2);
     expect(Jubelioorder::whereIn('invoice', ['INV-P1', 'INV-P2'])->count())->toBe(2);
+});
+
+it('advances page count when api returns an empty data page', function () {
+    seedGetOrdersScheduledTask();
+
+    $import = Crongetorder::create([
+        'from' => '2026-08-01',
+        'to' => 0,
+        'total' => 3,
+        'count' => 2,
+        'status' => 0,
+    ]);
+
+    $this->mock(JubelioService::class, function (MockInterface $mock) {
+        $mock->shouldReceive('fetchSalesOrders')
+            ->once()
+            ->with(3, 200, \Mockery::type('string'), \Mockery::type('string'))
+            ->andReturn([
+                'totalCount' => 600,
+                'data' => [],
+            ]);
+    });
+
+    $this->artisan('jubelio:get-orders', ['--pages' => 1])->assertSuccessful();
+
+    $import->refresh();
+    expect($import->count)->toBe(3);
+    expect($import->status)->toBe(1);
+});
+
+it('resumes a full sync from the next unread page', function () {
+    $import = Crongetorder::create([
+        'from' => '2026-08-01',
+        'to' => 0,
+        'total' => 2,
+        'count' => 1,
+        'status' => 0,
+        'orders_queued' => 0,
+    ]);
+
+    $this->mock(JubelioService::class, function (MockInterface $mock) {
+        $mock->shouldReceive('fetchSalesOrders')
+            ->once()
+            ->with(2, 200, \Mockery::type('string'), \Mockery::type('string'))
+            ->andReturn([
+                'totalCount' => 400,
+                'data' => [[
+                    'salesorder_id' => 'so-page-2',
+                    'salesorder_no' => 'INV-RESUME',
+                    'internal_status' => 'SHIPPED',
+                    'is_canceled' => 'N',
+                ]],
+            ]);
+    });
+
+    $this->artisan('jubelio:get-orders', ['--sync' => true])->assertSuccessful();
+
+    $import->refresh();
+    expect($import->count)->toBe(2);
+    expect($import->status)->toBe(1);
+    expect($import->orders_queued)->toBe(1);
+    expect(Jubelioorder::where('invoice', 'INV-RESUME')->exists())->toBeTrue();
+});
+
+it('re-queues a short batch when the import is not finished', function () {
+    Queue::fake();
+    $task = seedGetOrdersScheduledTask();
+
+    $import = Crongetorder::create([
+        'from' => '2026-08-01',
+        'to' => 0,
+        'total' => 20,
+        'count' => 7,
+        'status' => 0,
+    ]);
+
+    $this->mock(JubelioService::class, function (MockInterface $mock) {
+        $mock->shouldReceive('fetchSalesOrders')
+            ->andReturn([
+                'totalCount' => 4000,
+                'data' => [],
+            ]);
+    });
+
+    (new SyncJubelioMissingOrders($import->id))->handle(app(JubelioGetOrdersService::class));
+
+    $import->refresh();
+    expect($import->count)->toBe(10);
+    expect($import->status)->toBe(0);
+    expect($task->fresh()->active)->toBeTrue();
+
+    Queue::assertPushed(SyncJubelioMissingOrders::class, fn ($job) => $job->importId === $import->id);
+});
+
+it('records an error when the jubelio list api fails', function () {
+    $import = Crongetorder::create([
+        'from' => '2026-08-01',
+        'to' => 0,
+        'total' => 10,
+        'count' => 7,
+        'status' => 0,
+    ]);
+
+    $this->mock(JubelioService::class, function (MockInterface $mock) {
+        $mock->shouldReceive('fetchSalesOrders')->once()->andReturn(null);
+    });
+
+    $this->artisan('jubelio:get-orders', ['--pages' => 1])->assertFailed();
+
+    $import->refresh();
+    expect($import->status)->toBe(0);
+    expect($import->count)->toBe(7);
+    expect($import->last_error)->toContain('halaman 8');
+});
+
+it('resumes a stuck import from the ui', function () {
+    Queue::fake();
+    $task = seedGetOrdersScheduledTask();
+
+    $import = Crongetorder::create([
+        'from' => '2026-08-01',
+        'to' => 0,
+        'total' => 10,
+        'count' => 7,
+        'status' => 0,
+    ]);
+
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->post(route('jubelio.get-orders.resume'))
+        ->assertRedirect(route('jubelio.get-orders.index'));
+
+    expect($task->fresh()->active)->toBeTrue();
+    Queue::assertPushed(SyncJubelioMissingOrders::class, fn ($job) => $job->importId === $import->id);
+});
+
+it('shows resume control while an import is running', function () {
+    Crongetorder::create([
+        'from' => '2026-08-01',
+        'to' => 0,
+        'total' => 10,
+        'count' => 7,
+        'status' => 0,
+        'orders_queued' => 0,
+    ]);
+
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->get(route('jubelio.get-orders.index'))
+        ->assertSuccessful()
+        ->assertSee('Halaman 7/10', false)
+        ->assertSee('Lanjutkan');
 });
 
 it('resets an import', function () {

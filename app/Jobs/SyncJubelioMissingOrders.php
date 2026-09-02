@@ -13,7 +13,17 @@ class SyncJubelioMissingOrders implements ShouldQueue
 {
     use Queueable;
 
-    public int $timeout = 600;
+    /**
+     * Production drains the queue with `queue:work --max-time=55` every minute.
+     * A 600s full-import job is killed / retried as stale (retry_after=90, tries=1)
+     * and left the Crongetorder row running at whatever page it last saved.
+     */
+    public int $timeout = 50;
+
+    public int $tries = 5;
+
+    /** @var list<int> */
+    public array $backoff = [10, 20, 30];
 
     public function __construct(public int $importId) {}
 
@@ -21,20 +31,52 @@ class SyncJubelioMissingOrders implements ShouldQueue
     {
         $import = Crongetorder::find($this->importId);
         if (! $import || ! $import->isRunning()) {
+            $this->disableScheduledTask();
+
             return;
         }
 
         try {
-            $service->runImport($import);
+            $result = $service->processBatch($import, 3, 40);
         } catch (\Throwable $e) {
             Log::error('SyncJubelioMissingOrders failed', [
                 'import_id' => $this->importId,
                 'message' => $e->getMessage(),
             ]);
+            $this->enableScheduledTask();
 
             throw $e;
-        } finally {
-            ScheduledTask::where('command', 'jubelio:get-orders')->update(['active' => false]);
         }
+
+        $import->refresh();
+
+        if ($import->isRunning() && ! $result['completed']) {
+            $this->enableScheduledTask();
+            static::dispatch($this->importId)->delay(now()->addSeconds(8));
+
+            return;
+        }
+
+        $this->disableScheduledTask();
+    }
+
+    public function failed(?\Throwable $exception): void
+    {
+        Log::error('SyncJubelioMissingOrders exhausted retries', [
+            'import_id' => $this->importId,
+            'message' => $exception?->getMessage(),
+        ]);
+
+        $this->enableScheduledTask();
+    }
+
+    protected function enableScheduledTask(): void
+    {
+        ScheduledTask::where('command', 'jubelio:get-orders')->update(['active' => true]);
+    }
+
+    protected function disableScheduledTask(): void
+    {
+        ScheduledTask::where('command', 'jubelio:get-orders')->update(['active' => false]);
     }
 }

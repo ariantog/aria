@@ -92,6 +92,7 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::post('jubelio-returns/{jubelioReturn}/solve', [App\Http\Controllers\JubelioReturnController::class, 'markSolved'])->name('jubelio.returns.solve');
     Route::get('jubelio-get-orders', [App\Http\Controllers\JubelioGetOrderController::class, 'index'])->name('jubelio.get-orders.index');
     Route::post('jubelio-get-orders', [App\Http\Controllers\JubelioGetOrderController::class, 'store'])->name('jubelio.get-orders.store');
+    Route::post('jubelio-get-orders/resume', [App\Http\Controllers\JubelioGetOrderController::class, 'resume'])->name('jubelio.get-orders.resume');
     Route::post('jubelio-get-orders/reset', [App\Http\Controllers\JubelioGetOrderController::class, 'reset'])->name('jubelio.get-orders.reset');
     Route::get('jubelio-transaction/sync', [App\Http\Controllers\JubelioController::class, 'transactionSync'])->name('jubelio.transaction.sync');
     Route::get('jubelio-transaction/{transaction}/detail-sync', [App\Http\Controllers\JubelioController::class, 'detailJubelioSync'])->name('jubelio.transaction.detail-sync');

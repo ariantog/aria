@@ -3,6 +3,11 @@
 @section('title', 'Jubelio Get Orders')
 
 @section('content')
+@if($import && $import->isRunning())
+@push('head-css')
+<meta http-equiv="refresh" content="10">
+@endpush
+@endif
 @php
 $breadcrumbs = [
     ['title' => 'Jubelio', 'href' => route('jubelio.index')],
@@ -94,8 +99,28 @@ $defaultTo = old('date_to', now()->toDateString());
                     Halaman {{ $import->count }}/{{ max($import->total, 1) }}
                     · {{ number_format($import->orders_queued ?? 0) }} order diantri
                 </p>
+                @if($import->isRunning() && $import->updated_at)
+                <p class="mt-1 text-xs text-gray-400">Terakhir update {{ $import->updated_at->diffForHumans() }}</p>
+                @endif
             </div>
         </div>
+
+        @if($import->isStalled())
+        <div class="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            Proses terhenti di halaman {{ $import->count }}/{{ max($import->total, 1) }}.
+            Job antrian kemungkinan terputus (worker queue hanya ~55 detik per menit).
+            Tekan <strong>Lanjutkan</strong> untuk mengambil sisa halaman — 0 order diantri berarti halaman yang sudah dibaca tidak punya order baru.
+        </div>
+        @elseif($import->isRunning())
+        <div class="mb-4 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-xs text-blue-800">
+            Mengambil halaman dari Jubelio dalam batch pendek agar cocok dengan cron queue.
+            Halaman ini refresh otomatis.
+        </div>
+        @endif
+
+        @if($import->last_error)
+        <div class="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ $import->last_error }}</div>
+        @endif
 
         @if($import->total > 0)
         <div class="mb-6">
@@ -110,7 +135,16 @@ $defaultTo = old('date_to', now()->toDateString());
         @endif
 
         <div class="flex flex-wrap gap-2">
-            @if(! $import->isRunning())
+            @if($import->isRunning())
+            <form method="POST" action="{{ route('jubelio.get-orders.resume') }}">
+                @csrf
+                <button type="submit"
+                        class="rounded-lg bg-blue-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-800"
+                        data-testid="jubelio-get-orders-resume">
+                    Lanjutkan
+                </button>
+            </form>
+            @else
             <a href="{{ route('jubelio.index') }}"
                class="inline-flex rounded-lg bg-green-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-800"
                data-testid="jubelio-get-orders-view-queue">

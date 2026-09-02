@@ -24,6 +24,7 @@ use Illuminate\Database\Migrations\Migration;
  * 13. `2026_08_13_130000_fix_production_bigint_columns_to_int` — INT FK types for prod PKs
  * 14. `2026_09_01_210000_install_jubelio_stock_check_columns` — sync_cursor + discrepancy qty columns
  * 15. `2026_09_02_120000_make_produksi_worker_ids_nullable` — jahit/qc/pritil NULL default
+ * 16. `2026_09_02_210000_add_last_error_to_crongetorders_and_resume_stuck_imports` — get-orders resume
  *
  * Safe to run on a fresh prod copy in one step:
  *
@@ -77,6 +78,7 @@ return new class extends Migration
         (require __DIR__.'/2026_09_01_170000_install_karyawan_cuti_sisa_tables.php')->up();
         (require __DIR__.'/2026_09_01_210000_install_jubelio_stock_check_columns.php')->up();
         (require __DIR__.'/2026_09_02_120000_make_produksi_worker_ids_nullable.php')->up();
+        (require __DIR__.'/2026_09_02_210000_add_last_error_to_crongetorders_and_resume_stuck_imports.php')->up();
     }
 
     public function down(): void

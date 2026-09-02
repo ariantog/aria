@@ -11,8 +11,8 @@ use Illuminate\Support\Facades\Log;
 class GetOrderJubelio extends Command
 {
     protected $signature = 'jubelio:get-orders
-                            {--pages=10 : Max API pages to fetch per run}
-                            {--timeout=50 : Max seconds per run}
+                            {--pages=3 : Max API pages to fetch per run}
+                            {--timeout=40 : Max seconds per run}
                             {--sync : Fetch all remaining pages in one run}';
 
     protected $description = 'Resume a manual Jubelio missing-order import (prefer the queued job after starting from UI)';
