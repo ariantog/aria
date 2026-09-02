@@ -419,11 +419,15 @@
                                 <div class="text-sm font-medium text-gray-900">Cash In</div>
                                 <p class="text-xs text-gray-500">Create a cash in with the same invoice. Sender is this sell’s receiver.</p>
                             </div>
-                            <label class="relative inline-flex cursor-pointer items-center">
-                                <input type="checkbox" x-model="form.cash_in_enabled" @change="onCashInToggle()"
-                                       data-testid="sell-cash-in-switch"
-                                       class="peer sr-only">
-                                <span class="h-6 w-11 rounded-full bg-gray-300 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all peer-checked:bg-blue-600 peer-checked:after:translate-x-full peer-checked:after:border-white"></span>
+                            <label class="inline-flex cursor-pointer items-center gap-2">
+                                <span class="text-xs font-medium text-gray-600" x-text="form.cash_in_enabled ? 'On' : 'Off'">Off</span>
+                                <span class="relative inline-flex h-6 w-11 shrink-0 items-center">
+                                    <input type="checkbox" x-model="form.cash_in_enabled" @change="onCashInToggle()"
+                                           data-testid="sell-cash-in-switch"
+                                           class="peer sr-only">
+                                    <span class="absolute inset-0 rounded-full bg-gray-300 peer-checked:bg-blue-600"></span>
+                                    <span class="absolute left-0.5 h-5 w-5 rounded-full bg-white shadow transition peer-checked:translate-x-5"></span>
+                                </span>
                             </label>
                         </div>
                         <div x-show="form.cash_in_enabled" x-cloak class="mt-3 space-y-3">

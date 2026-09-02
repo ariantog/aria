@@ -367,6 +367,11 @@
 
     @include('transactions.partials.jubelio-sync', ['transaction' => $transaction, 'jubelioSync' => $jubelioSync ?? []])
 
+    @include('transactions.partials.sell-cash-in', [
+        'transaction' => $transaction,
+        'sellCashIn' => $sellCashIn ?? null,
+    ])
+
     @if($invoiceSettlement)
     <div class="print:hidden">
         <div class="mb-2 flex items-center justify-between gap-3">
@@ -386,11 +391,6 @@
         ])
     </div>
     @endif
-
-    @include('transactions.partials.sell-cash-in', [
-        'transaction' => $transaction,
-        'sellCashIn' => $sellCashIn ?? null,
-    ])
 
     {{-- Items Section --}}
     <div class="rounded-xl bg-white shadow-md print:shadow-none">
