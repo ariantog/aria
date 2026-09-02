@@ -8,6 +8,7 @@ use App\Models\Item;
 use App\Models\Transaction;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * Seeds a small, realistic dataset so the preview has something to show:
@@ -146,28 +147,33 @@ class DemoDataSeeder extends Seeder
             $senderId   = $book[$senderName];
             $receiverId = $book[$receiverName];
 
-            Transaction::create([
-                'date'             => $date->toDateString(),
-                'type'             => $type,
-                'due'         => $date->copy()->addDays(30)->toDateString(),
-                'sender_type'      => $typeOf[$senderId] ?? '',
-                'sender_id'        => $senderId,
-                'receiver_type'    => $typeOf[$receiverId] ?? '',
-                'receiver_id'      => $receiverId,
-                'invoice'   => sprintf('%s-%s-%04d', $prefix, $date->format('Ym'), $seq++),
-                'description'      => 'Sample seeded '.strtolower($prefix).' transaction for preview.',
-                'submit_type'      => Transaction::SUBMIT_TYPE_MANUAL,
-                'discount'         => $discount,
-                'discount_percent' => $subtotal > 0 ? round($discount / $subtotal * 100, 2) : 0,
-                'adjustment'       => 0,
-                'ppn'       => $tax,
-                'total'            => $grand,
-                'total_items'      => $totalItems,
-                'sender_balance'   => (10 + $i * 7) * 100_000,
+            $row = [
+                'date' => $date->toDateString(),
+                'type' => $type,
+                'due' => $date->copy()->addDays(30)->toDateString(),
+                'sender_type' => $typeOf[$senderId] ?? '',
+                'sender_id' => $senderId,
+                'receiver_type' => $typeOf[$receiverId] ?? '',
+                'receiver_id' => $receiverId,
+                'invoice' => sprintf('%s-%s-%04d', $prefix, $date->format('Ym'), $seq++),
+                'description' => 'Sample seeded '.strtolower($prefix).' transaction for preview.',
+                'submit_type' => Transaction::SUBMIT_TYPE_MANUAL,
+                'discount' => $discount,
+                'adjustment' => 0,
+                'ppn' => $tax,
+                'total' => Transaction::signedAmount($type, $grand),
+                'total_items' => $totalItems,
+                'sender_balance' => (10 + $i * 7) * 100_000,
                 'receiver_balance' => (20 + $i * 5) * 100_000,
-                'status'           => 1,
-                'user_id'          => $userId,
-            ]);
+                'status' => 1,
+                'user_id' => $userId,
+            ];
+
+            if (Schema::hasColumn('transactions', 'discount_percent')) {
+                $row['discount_percent'] = $subtotal > 0 ? round($discount / $subtotal * 100, 2) : 0;
+            }
+
+            Transaction::create($row);
         }
 
         $this->command->info('Demo data seeded: '.count($book).' contacts, '.count($itemIds).' items, '.count($plan).' transactions.');
