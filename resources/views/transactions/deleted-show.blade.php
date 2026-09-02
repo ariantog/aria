@@ -316,17 +316,26 @@
                 </div>
                 <div class="flex items-center justify-between text-sm">
                     <span class="text-gray-500">Invoice Discount ({{ $transaction->discount ?? 0 }}%)</span>
-                    <span data-testid="tx-invoice-discount-amount" class="font-bold text-red-600">-{{ $fmt($transaction->displayInvoiceDiscountAmount()) }}</span>
+                    @php $signedDiscount = $transaction->displaySignedInvoiceDiscount(); @endphp
+                    <span data-testid="tx-invoice-discount-amount" class="font-bold {{ $signedDiscount < 0 ? 'text-red-600' : 'text-green-600' }}">{{ $signedDiscount > 0 ? '+' : '' }}{{ $fmt($signedDiscount) }}</span>
                 </div>
                 <hr class="border-dashed">
                 <div class="flex items-center justify-between text-sm">
                     <span class="text-gray-500 italic underline decoration-dotted">Adjustment</span>
-                    <span class="font-bold {{ $transaction->adjustment < 0 ? 'text-red-500' : 'text-green-500' }}">{{ $transaction->adjustment > 0 ? '+' : '' }}{{ $fmt($transaction->adjustment) }}</span>
+                    @php $signedAdjustment = $transaction->displaySignedAdjustment(); @endphp
+                    <span data-testid="tx-adjustment-amount" class="font-bold {{ $signedAdjustment < 0 ? 'text-red-500' : 'text-green-500' }}">{{ $signedAdjustment > 0 ? '+' : '' }}{{ $fmt($signedAdjustment) }}</span>
                 </div>
                 <div class="flex items-center justify-between text-sm">
                     <span class="text-gray-500">Tax / VAT</span>
-                    <span class="font-bold">{{ $fmt($transaction->ppn) }}</span>
+                    <span class="font-bold">{{ $fmt($transaction->displaySignedPpn()) }}</span>
                 </div>
+                @if($transaction->hasLegacyTotalMismatch())
+                    <p class="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900" data-testid="legacy-total-mismatch">
+                        Stored total ({{ $fmt($transaction->displaySignedGrandTotal()) }}) does not match
+                        lines − discount + adjustment ({{ $fmt($transaction->displayReconstructedSignedTotal()) }}).
+                        This is leftover from an older write.
+                    </p>
+                @endif
                 <div class="pt-2">
                     <div class="flex items-center justify-between gap-3 rounded-lg bg-zinc-800 p-4 text-white shadow-lg">
                         <div class="flex min-w-0 flex-shrink-0 flex-col">

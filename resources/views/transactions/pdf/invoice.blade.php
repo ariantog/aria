@@ -67,7 +67,7 @@
     <table class="totals" style="width: 280px; margin-left: auto; margin-top: 12px;">
         <tr>
             <td>Subtotal</td>
-            <td class="right">{{ format_amount($transaction->displaySummarySubtotal()) }}</td>
+            <td class="right">{{ format_amount($transaction->itemsSubtotalAmount()) }}</td>
         </tr>
         @if((float) $transaction->discount > 0)
         <tr>
