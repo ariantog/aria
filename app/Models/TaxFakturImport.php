@@ -35,6 +35,7 @@ class TaxFakturImport extends Model
             'payment_received_date' => 'date',
             'gross_total' => 'decimal:2',
             'discount_total' => 'decimal:2',
+            'down_payment_total' => 'decimal:2',
             'dpp' => 'decimal:2',
             'ppn' => 'decimal:2',
             'ppnbm' => 'decimal:2',
@@ -92,14 +93,17 @@ class TaxFakturImport extends Model
     }
 
     /**
-     * Invoice total payable: Harga Jual/Penggantian (minus potongan) + PPN + PPnBM.
-     * DPP Nilai Lain is the tax base only — adding it to PPN understates the invoice.
+     * Invoice total payable from the six footer rows:
+     * harga jual − potongan harga − uang muka + PPN.
+     * DPP and PPnBM are ignored here.
      */
     public function fakturGross(): float
     {
-        $netSellingPrice = (float) $this->gross_total - (float) $this->discount_total;
+        $netSellingPrice = (float) $this->gross_total
+            - (float) $this->discount_total
+            - (float) ($this->down_payment_total ?? 0);
 
-        return round(max(0, $netSellingPrice) + (float) $this->ppn + (float) $this->ppnbm, 2);
+        return round(max(0, $netSellingPrice) + (float) $this->ppn, 2);
     }
 
     /**

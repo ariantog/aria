@@ -71,6 +71,7 @@ class TaxFakturImportService
                 'buyer_npwp' => $parsed->buyerNpwp,
                 'gross_total' => $parsed->grossTotal,
                 'discount_total' => $parsed->discountTotal,
+                'down_payment_total' => $parsed->downPaymentTotal,
                 'dpp' => $parsed->dpp,
                 'ppn' => $parsed->ppn,
                 'ppnbm' => $parsed->ppnbm,

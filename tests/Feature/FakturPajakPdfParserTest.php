@@ -16,6 +16,7 @@ it('parses MDS output tax invoice faktur pajak PDF', function () {
         ->and($parsed->buyerNpwp)->toBe('0013179569054000')
         ->and($parsed->grossTotal)->toBe(21_221_157.0)
         ->and($parsed->discountTotal)->toBe(0.0)
+        ->and($parsed->downPaymentTotal)->toBe(0.0)
         ->and($parsed->dpp)->toBe(19_452_728.0)
         ->and($parsed->ppn)->toBe(2_334_327.0)
         ->and($parsed->ppnbm)->toBe(0.0)
@@ -47,6 +48,7 @@ Alamat : Jl. Buyer 2
 NPWP : 9876543210987654
 Harga Jual / Penggantian / Uang Muka / Termin 1.110.000,00
 Dikurangi Potongan Harga 0,00
+Dikurangi Uang Muka yang telah diterima
 Dasar Pengenaan Pajak 1.000.000,00
 Jumlah PPN (Pajak Pertambahan Nilai) 110.000,00
 Jumlah PPnBM (Pajak Penjualan atas Barang Mewah) 0,00
@@ -62,6 +64,42 @@ TEXT;
         ->and($parsed->grossTotal)->toBe(1_110_000.0)
         ->and($parsed->dpp)->toBe(1_000_000.0)
         ->and($parsed->ppn)->toBe(110_000.0)
+        ->and($parsed->downPaymentTotal)->toBe(0.0)
         ->and($parsed->grossIncludingTax())->toBe(1_220_000.0)
         ->and($parsed->fakturDate?->toDateString())->toBe('2025-08-15');
+});
+
+it('subtracts potongan and uang muka and ignores dpp and ppnbm in the payable total', function () {
+    $text = <<<'TEXT'
+Faktur Pajak
+Kode dan Nomor Seri Faktur Pajak: 01000987654321098
+Pengusaha Kena Pajak:
+Nama : CV TEST PKP
+Alamat : Jl. Test 1
+NPWP : 0123456789012345
+Pembeli Barang Kena Pajak/Penerima Jasa Kena Pajak:
+Nama : CUSTOMER TBK
+Alamat : Jl. Buyer 2
+NPWP : 9876543210987654
+Harga Jual / Penggantian / Uang Muka / Termin 1.200.000,00
+Dikurangi Potongan Harga 50.000,00
+Dikurangi Uang Muka yang telah diterima 150.000,00
+Dasar Pengenaan Pajak 916.667,00
+Jumlah PPN (Pajak Pertambahan Nilai) 110.000,00
+Jumlah PPnBM (Pajak Penjualan atas Barang Mewah) 99.000,00
+KOTA ADM. JAKARTA UTARA, 15 Agustus 2025
+Ditandatangani secara elektronik
+TEST SIGNER
+(Referensi: )
+TEXT;
+
+    $parsed = app(FakturPajakPdfParser::class)->parseText($text);
+
+    expect($parsed->grossTotal)->toBe(1_200_000.0)
+        ->and($parsed->discountTotal)->toBe(50_000.0)
+        ->and($parsed->downPaymentTotal)->toBe(150_000.0)
+        ->and($parsed->dpp)->toBe(916_667.0)
+        ->and($parsed->ppn)->toBe(110_000.0)
+        ->and($parsed->ppnbm)->toBe(99_000.0)
+        ->and($parsed->grossIncludingTax())->toBe(1_110_000.0);
 });

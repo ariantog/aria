@@ -700,6 +700,7 @@ class TaxFakturImportController extends Controller
             'buyer_npwp' => $parsed->buyerNpwp,
             'gross_total' => $parsed->grossTotal,
             'discount_total' => $parsed->discountTotal,
+            'down_payment_total' => $parsed->downPaymentTotal,
             'dpp' => $parsed->dpp,
             'ppn' => $parsed->ppn,
             'ppnbm' => $parsed->ppnbm,
@@ -727,6 +728,7 @@ class TaxFakturImportController extends Controller
             signatoryName: $data['signatory_name'],
             sourceFormat: $data['source_format'],
             lineItems: $data['line_items'] ?? [],
+            downPaymentTotal: (float) ($data['down_payment_total'] ?? 0),
         );
     }
 }
