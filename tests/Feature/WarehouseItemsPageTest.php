@@ -71,7 +71,10 @@ it('links warehouse items to item or asset lancar show pages', function () {
         ->assertSee(route('assetlancar.edit', $assetItem), false)
         ->assertSee('REG-001', false)
         ->assertSee('AST-001', false)
-        ->assertSee('Export Excel', false);
+        ->assertSee('Export Excel', false)
+        ->assertSee('data-testid="copy-warehouse-items-table"', false)
+        ->assertSee('data-copy-col="code"', false)
+        ->assertSee('copyRowsTable()', false);
 });
 
 it('filters warehouse stock by group product title', function () {

@@ -50,7 +50,10 @@ it('renders the transactions index with its rows', function () {
         ->assertSee('Total', false)
         ->assertSee('Description', false)
         ->assertSee('INV-SMOKE-1', false)
-        ->assertSee('Test Supplier', false);
+        ->assertSee('Test Supplier', false)
+        ->assertSee('data-testid="copy-transactions-table"', false)
+        ->assertSee('data-copy-col="invoice"', false)
+        ->assertSee('copyRowsTable()', false);
 });
 
 it('renders the export sell page', function () {
