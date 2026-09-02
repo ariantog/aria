@@ -327,19 +327,32 @@ class TaxFakturImportController extends Controller
     {
         Gate::authorize(Report::getPermissions()['import-tax-faktur']);
 
-        $data = $request->validate([
+        $rules = [
             'warehouse_id' => ['required', 'integer', 'exists:customers,id'],
             'date_source' => ['required', 'in:faktur,cash_in'],
             'invoice_source' => ['required', 'in:faktur,cash_in'],
             'line_mode' => ['required', 'in:summary,mapped'],
             'summary_item_id' => ['nullable', 'integer', 'exists:items,id'],
-            'mapped_lines' => ['nullable', 'array'],
-            'mapped_lines.*.line_no' => ['required_with:mapped_lines', 'integer', 'min:1'],
-            'mapped_lines.*.item_id' => ['required_with:mapped_lines', 'integer', 'exists:items,id'],
-        ]);
+        ];
+
+        if ($request->input('line_mode') === PostFakturSell::LINE_MODE_MAPPED) {
+            $rules['mapped_lines'] = ['required', 'array', 'min:1'];
+            $rules['mapped_lines.*.line_no'] = ['required', 'integer', 'min:1'];
+            $rules['mapped_lines.*.item_id'] = ['nullable', 'integer', 'exists:items,id'];
+        }
+
+        $data = $request->validate($rules);
 
         if ($data['line_mode'] === PostFakturSell::LINE_MODE_SUMMARY && empty($data['summary_item_id'])) {
             return back()->withInput()->with('error', 'Select an item for the summary Sell line.');
+        }
+
+        $mappedLines = [];
+        if ($data['line_mode'] === PostFakturSell::LINE_MODE_MAPPED) {
+            $mappedLines = $this->normalizeMappedLines($import, $data['mapped_lines'] ?? []);
+            if ($mappedLines instanceof \Illuminate\Http\RedirectResponse) {
+                return $mappedLines;
+            }
         }
 
         try {
@@ -349,7 +362,7 @@ class TaxFakturImportController extends Controller
                 'invoice_source' => $data['invoice_source'],
                 'line_mode' => $data['line_mode'],
                 'summary_item_id' => isset($data['summary_item_id']) ? (int) $data['summary_item_id'] : null,
-                'mapped_lines' => $data['mapped_lines'] ?? [],
+                'mapped_lines' => $mappedLines,
             ]);
         } catch (InvalidArgumentException $e) {
             return back()->withInput()->with('error', $e->getMessage());
@@ -358,6 +371,48 @@ class TaxFakturImportController extends Controller
         return redirect()
             ->route('reports.tax.faktur.show', $import->fresh())
             ->with('success', "Sell #{$transaction->id} posted from faktur {$import->faktur_number}.");
+    }
+
+    /**
+     * @param  list<array{line_no?: int|string, item_id?: int|string}>  $submitted
+     * @return list<array{line_no: int, item_id: int}>|\Illuminate\Http\RedirectResponse
+     */
+    private function normalizeMappedLines(TaxFakturImport $import, array $submitted)
+    {
+        $byLineNo = collect($submitted)
+            ->filter(fn (array $row) => ! empty($row['line_no']))
+            ->keyBy(fn (array $row) => (int) $row['line_no']);
+
+        $missing = [];
+        $normalized = [];
+
+        foreach ($import->line_items ?? [] as $index => $line) {
+            $lineNo = (int) ($line['line_no'] ?? ($index + 1));
+            $mapping = $byLineNo->get($lineNo);
+            $itemId = isset($mapping['item_id']) ? (int) $mapping['item_id'] : 0;
+
+            if ($itemId <= 0) {
+                $label = trim((string) ($line['name'] ?? ''));
+                $missing[] = $label !== '' ? "#{$lineNo} ({$label})" : "#{$lineNo}";
+
+                continue;
+            }
+
+            $normalized[] = [
+                'line_no' => $lineNo,
+                'item_id' => $itemId,
+            ];
+        }
+
+        if ($missing !== []) {
+            return back()
+                ->withInput()
+                ->withErrors([
+                    'mapped_lines' => 'Pilih item inventory untuk baris faktur: '.implode(', ', $missing).'.',
+                ]);
+        }
+
+        return $normalized;
     }
 
     public function lineItemMatches(TaxFakturImport $import, FakturLineItemMatcher $matcher)
