@@ -29,7 +29,7 @@ class AccountListController extends Controller
         }
 
         return view('journals.account-list.index', [
-            'accounts' => $query->latest()->paginate(50)->withQueryString(),
+            'accounts' => $query->orderBy('name')->orderBy('id')->paginate(50)->withQueryString(),
             'operations' => Operation::all(['id', 'name']),
             'filters' => $request->only(['search', 'operation_id']),
             'flash' => ['success' => session('success'), 'error' => session('error')],
