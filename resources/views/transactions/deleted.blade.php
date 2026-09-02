@@ -73,7 +73,7 @@
                                 </div>
                                 <div class="flex items-center gap-1.5">
                                     <span class="w-8 text-[10px] font-black tracking-tighter text-red-500 uppercase opacity-70">Del:</span>
-                                    <span class="text-xs font-medium text-zinc-600">{{ $fmtDate($transaction->deleted_at) }}</span>
+                                    <span class="text-xs font-medium text-zinc-600">{{ $fmtDate($transaction->archivedAt()) }}</span>
                                 </div>
                             </a>
                         </td>

@@ -694,15 +694,12 @@ class TransactionsController extends Controller
 
         DB::transaction(function () use ($transaction, $service, $sender, $receiver) {
             $deletedColumns = array_flip(Schema::getColumnListing((new DeletedTransaction)->getTable()));
-            $transactionData = array_intersect_key($transaction->getAttributes(), $deletedColumns);
-            $transactionData['deleted_at'] = now();
+            $transactionData = $this->attributesForArchiveTable($transaction->getAttributes(), $deletedColumns);
 
             $deletedDetailColumns = array_flip(Schema::getColumnListing((new DeletedTransactionDetail)->getTable()));
             $detailRows = [];
             foreach ($transaction->details as $detail) {
-                $detailData = array_intersect_key($detail->getAttributes(), $deletedDetailColumns);
-                $detailData['deleted_at'] = now();
-                $detailRows[] = $detailData;
+                $detailRows[] = $this->attributesForArchiveTable($detail->getAttributes(), $deletedDetailColumns);
             }
 
             $service->revertTransaction($transaction);
@@ -727,6 +724,25 @@ class TransactionsController extends Controller
         app(StandaloneInvoiceSettlement::class)->reconcileByNumber($invoiceNumber, Auth::user());
 
         return redirect()->route('transactions.index')->with('success', 'Transaction moved to deleted.');
+    }
+
+    /**
+     * Copy live transaction attributes onto `deleted` / `deleted_details`.
+     *
+     * Production archive tables match the live L10 shape: `deleted_details` has
+     * no created_at, updated_at, or deleted_at. Only write columns that exist.
+     *
+     * @param  array<string, mixed>  $attributes
+     * @param  array<string, int>  $columnMap
+     * @return array<string, mixed>
+     */
+    private function attributesForArchiveTable(array $attributes, array $columnMap): array
+    {
+        if (array_key_exists('deleted_at', $columnMap)) {
+            $attributes['deleted_at'] = now();
+        }
+
+        return array_intersect_key($attributes, $columnMap);
     }
 
     /**
