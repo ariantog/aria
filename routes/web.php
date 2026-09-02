@@ -414,6 +414,7 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
         Route::get('/tax/faktur/create', [\App\Http\Controllers\Reports\TaxFakturImportController::class, 'create'])->name('tax.faktur.create');
         Route::post('/tax/faktur/parse', [\App\Http\Controllers\Reports\TaxFakturImportController::class, 'parse'])->name('tax.faktur.parse');
         Route::get('/tax/faktur/review', [\App\Http\Controllers\Reports\TaxFakturImportController::class, 'review'])->name('tax.faktur.review');
+        Route::get('/tax/faktur/counterparty-lookup', [\App\Http\Controllers\Reports\TaxFakturImportController::class, 'counterpartyLookup'])->name('tax.faktur.counterparty-lookup');
         Route::get('/tax/faktur/cash-in-suggestions', [\App\Http\Controllers\Reports\TaxFakturImportController::class, 'cashInSuggestions'])->name('tax.faktur.cash-in-suggestions');
         Route::get('/tax/faktur/sell-suggestions', [\App\Http\Controllers\Reports\TaxFakturImportController::class, 'sellSuggestions'])->name('tax.faktur.sell-suggestions');
         Route::post('/tax/faktur', [\App\Http\Controllers\Reports\TaxFakturImportController::class, 'store'])->name('tax.faktur.store');

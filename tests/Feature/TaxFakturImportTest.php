@@ -638,3 +638,31 @@ it('lists keluaran that still need sell coverage', function () {
         ->assertDontSee('01000COMPLETE00001', false)
         ->assertDontSee('01000MASUKAN000001', false);
 });
+
+it('returns customer reseller and ledger matches for faktur counterparty lookup', function () {
+    $customer = Addrbook::factory()->customer()->create(['name' => 'Zeta Faktur Customer']);
+    $reseller = Addrbook::factory()->create(['name' => 'Zeta Faktur Reseller', 'type' => Addrbook::TYPE_RESELLER]);
+    $ledger = Addrbook::factory()->create(['name' => 'Zeta Faktur Ledger', 'type' => Addrbook::TYPE_ACCOUNT]);
+    Addrbook::factory()->supplier()->create(['name' => 'Zeta Faktur Supplier']);
+
+    $names = collect($this->actingAs($this->user)
+        ->getJson(route('reports.tax.faktur.counterparty-lookup', ['search' => 'Zeta Faktur']))
+        ->assertOk()
+        ->json())
+        ->pluck('name');
+
+    expect($names)->toContain('Zeta Faktur Customer')
+        ->toContain('Zeta Faktur Reseller')
+        ->toContain('Zeta Faktur Ledger')
+        ->not->toContain('Zeta Faktur Supplier');
+});
+
+it('rejects faktur counterparty lookup without import permission', function () {
+    $user = User::factory()->create();
+    app(PermissionGenerator::class)->generateForModule('Report');
+    $user->givePermissionTo('report-tax-faktur');
+
+    $this->actingAs($user)
+        ->getJson(route('reports.tax.faktur.counterparty-lookup', ['search' => 'Test']))
+        ->assertForbidden();
+});
