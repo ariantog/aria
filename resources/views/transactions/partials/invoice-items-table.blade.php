@@ -82,12 +82,12 @@
         <tr><td colspan="{{ $totalCols }}"><hr></td></tr>
         <tr>
             <td colspan="{{ $labelColspan }}" style="text-align:right;">Subtotal</td>
-            <td style="text-align:right;">{{ $fmt($transaction->total) }}</td>
+            <td style="text-align:right;">{{ $fmt($transaction->displaySummarySubtotal()) }}</td>
         </tr>
         @if((float) $transaction->discount > 0)
             <tr>
                 <td colspan="{{ $labelColspan }}" style="text-align:right;">Discount</td>
-                <td style="text-align:right;">-{{ $fmt($transaction->discount) }}</td>
+                <td style="text-align:right;">-{{ $fmt($transaction->displayInvoiceDiscountAmount()) }}</td>
             </tr>
         @endif
         @if((float) $transaction->adjustment != 0)
@@ -104,7 +104,7 @@
         @endif
         <tr>
             <td colspan="{{ $labelColspan }}" style="text-align:right;"><strong>Grand Total</strong></td>
-            <td style="text-align:right;"><strong>{{ $fmt(abs((float) $transaction->real_total)) }}</strong></td>
+            <td style="text-align:right;"><strong>{{ $fmt($transaction->displayGrandTotal()) }}</strong></td>
         </tr>
     </tfoot>
     @endif

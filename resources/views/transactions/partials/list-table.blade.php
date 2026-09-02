@@ -105,8 +105,8 @@
                                 @endif
                             </div>
                         </td>
-                        <td class="whitespace-nowrap px-3 py-2.5 text-right font-semibold tabular-nums text-gray-900" data-copy-col="total" data-copy-value="{{ format_copy_number($tx->total) }}">
-                            {{ format_amount($tx->total) }}
+                        <td class="whitespace-nowrap px-3 py-2.5 text-right font-semibold tabular-nums text-gray-900" data-copy-col="total" data-copy-value="{{ format_copy_number($tx->displaySignedGrandTotal()) }}" data-testid="tx-list-total-{{ $tx->id }}">
+                            {{ format_amount($tx->displaySignedGrandTotal()) }}
                         </td>
                         <td class="whitespace-nowrap px-3 py-2.5 text-right tabular-nums text-gray-500" data-copy-col="total_items" data-copy-value="{{ format_copy_number($tx->total_items) }}">
                             {{ format_amount($tx->total_items) }}

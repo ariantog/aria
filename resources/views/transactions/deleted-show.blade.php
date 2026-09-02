@@ -18,7 +18,7 @@
     $status = $statuses[$transaction->status] ?? ['label' => 'Unknown', 'color' => 'bg-gray-100 text-gray-800'];
 
     $fmt = fn ($n) => format_amount($n);
-    $grandTotalFormatted = $fmt($transaction->total);
+    $grandTotalFormatted = $fmt($transaction->displaySignedGrandTotal());
     $grandTotalHeroClass = \App\Support\AmountFormatter::displayTextClass($grandTotalFormatted, 'hero');
     $grandTotalCompactClass = \App\Support\AmountFormatter::displayTextClass($grandTotalFormatted, 'compact');
     $fmtDate = fn ($d) => $d ? \Illuminate\Support\Carbon::parse($d)->format('d/m/Y') : '-';
@@ -316,7 +316,7 @@
                 </div>
                 <div class="flex items-center justify-between text-sm">
                     <span class="text-gray-500">Invoice Discount ({{ $transaction->discount ?? 0 }}%)</span>
-                    <span class="font-bold text-red-600">-{{ $fmt($transaction->discount) }}</span>
+                    <span data-testid="tx-invoice-discount-amount" class="font-bold text-red-600">-{{ $fmt($transaction->displayInvoiceDiscountAmount()) }}</span>
                 </div>
                 <hr class="border-dashed">
                 <div class="flex items-center justify-between text-sm">
@@ -333,7 +333,7 @@
                             <span class="text-[10px] font-black tracking-widest text-zinc-300 uppercase">Grand Total</span>
                             <span class="text-xs font-medium italic text-zinc-400">Net Amount</span>
                         </div>
-                        <span class="min-w-0 break-all text-right tabular-nums {{ $grandTotalCompactClass }}">IDR {{ $grandTotalFormatted }}</span>
+                        <span data-testid="tx-grand-total" class="min-w-0 break-all text-right tabular-nums {{ $grandTotalCompactClass }}">IDR {{ $grandTotalFormatted }}</span>
                     </div>
                 </div>
             </div>
