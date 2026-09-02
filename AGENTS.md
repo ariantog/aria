@@ -21,9 +21,10 @@ The migration from the React/Inertia SPA to Blade+Alpine and a batch of UI/bug f
   links restored, gated by `journal-*` / `production-*` / `borongan-*` permissions or superadmin.
 - **Superadmin (user 1) sees real balances** — it is exempt from the `bank_hidden_balance` check.
 - **Transaction entry forms are inline + keyboard-driven** (cash-in/out and buy/sell/return/
-  return-supplier): barcode/autocomplete lookup, discount in %, PPN 11%, AJAX submit that keeps
-  inputs + highlights invalid rows on validation error, and a submit button gated by client-side
-  validation (see `transactions/create.blade.php`, `transactions/cash.blade.php`).
+  return-supplier): barcode/autocomplete lookup, discount in %, optional PPN (not on every
+  invoice — see reporting entities below), AJAX submit that keeps inputs + highlights invalid
+  rows on validation error, and a submit button gated by client-side validation
+  (see `transactions/create.blade.php`, `transactions/cash.blade.php`).
 - **Palette normalized to `gray-*`** (journals/produksi were `zinc-*`); page-load slide-in animation
   removed.
 
@@ -87,8 +88,9 @@ user explicitly asks.**
 
 Application code must ignore `transactions.real_total`. **`total` is the only header amount.**
 
-- **`transactions.total`** is the signed **final payable** after invoice discount, PPN/tax, and
-  adjustments. Balances, display, reports, and new writes all use this column.
+- **`transactions.total`** is the signed **final payable** after invoice discount and adjustment,
+  plus **stored** PPN only when tax was recorded. Balances, display, reports, and new writes all
+  use this column. Do **not** assume every row includes 11% PPN.
 - Line subtotals come from **`transaction_details.total`**, not from a second header column.
 - `transactions.discount` is an invoice-discount **percent** (production `decimal(5,2)`), not money.
 - The leftover MySQL column on partitioned `transactions` / `deleted` may stay (NOT NULL, no
@@ -223,6 +225,16 @@ not "modernize" or refactor Alpine style:
   types per transaction live in `config/transaction_rules.php`.
 - Addrbook `type` is polymorphic: 1 customer, 2 warehouse, 3 bank, 4 supplier, 5 v_warehouse,
   6 v_account, 7 reseller, 8 account, 99 other.
+- **PPN is not always calculated.** It depends on the **reporting entity**, not a global 11% on every
+  invoice. Do not infer tax from `ppn_rate` when reconstructing or "fixing" a payable.
+  - Cash in/out: `record_ppn` is allowed only when the bank belongs to an active **PKP**
+    reporting entity (`ReportingEntity::is_pkp` via `reporting_entity_banks`). Non-PKP entities
+    do not take PPN keluaran; cash-in may get PPh final instead.
+  - Tax reports attribute **stored** `transactions.ppn` to an entity (sell via cash-in bank,
+    buy via cash-out bank). `ppn = 0` is a real zero — the row is not taxable.
+  - Item buy/sell write path still uses the counterparty `addrbook.ppn` flag to decide whether
+    to add tax to `total`. Do not change that unless asked. Reconstruct from the stored `ppn`
+    column; never add rate × subtotal because a contact or entity "should" be PKP.
 - Connects to **Jubelio** (Indonesian omnichannel) for online stock; dormant while `JUBELIO_ACTIVE=false`.
   See **Jubelio stock sync** below — do not guess what `a_submit_by` / `b_submit_by` mean.
 

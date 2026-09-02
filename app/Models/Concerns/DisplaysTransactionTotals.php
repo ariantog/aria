@@ -47,6 +47,87 @@ trait DisplaysTransactionTotals
     }
 
     /**
+     * Signed invoice-discount contribution (add to signed subtotal).
+     * Discount reduces the unsigned payable, so on a sell it is positive
+     * (moves the signed total toward zero).
+     */
+    public function displaySignedInvoiceDiscount(): float
+    {
+        return -Transaction::signedAmount((int) $this->type, $this->displayInvoiceDiscountAmount());
+    }
+
+    /**
+     * Signed adjustment contribution (add to signed subtotal).
+     * Matches the write path: unsigned payable += stored `adjustment`.
+     */
+    public function displaySignedAdjustment(): float
+    {
+        $adjustment = (float) $this->adjustment;
+        if (abs($adjustment) < 0.00001) {
+            return 0.0;
+        }
+
+        $signedMagnitude = Transaction::signedAmount((int) $this->type, abs($adjustment));
+
+        return $adjustment < 0 ? -$signedMagnitude : $signedMagnitude;
+    }
+
+    /**
+     * Signed stored-PPN contribution (add to signed subtotal).
+     * Uses `transactions.ppn` as written — 0 when tax was not recorded.
+     * Do not infer 11% from the rate or the reporting entity.
+     */
+    public function displaySignedPpn(): float
+    {
+        return Transaction::signedAmount((int) $this->type, abs((float) $this->ppn));
+    }
+
+    /**
+     * Recompute signed payable from lines + header discount / adjustment + stored PPN.
+     * PPN is included only when the row already has a tax amount; it is not always
+     * calculated (reporting entity / PKP). Differs from stored `total` on old rows
+     * that omitted discount or adjustment, not on rows that correctly have ppn = 0.
+     */
+    public function displayReconstructedSignedTotal(): float
+    {
+        return round(
+            $this->displaySummarySubtotal()
+            + $this->displaySignedInvoiceDiscount()
+            + $this->displaySignedAdjustment()
+            + $this->displaySignedPpn(),
+            2,
+        );
+    }
+
+    /**
+     * True when stored `total` does not equal lines − invoice disc% + adj + stored PPN.
+     * Only checked when a header discount or adjustment is present, so faktur
+     * sells (DPP on `total`, PPN stored separately) and non-tax rows (ppn = 0)
+     * are not flagged. Marks leftover early-L12 writes that stored the pre-discount subtotal.
+     */
+    public function hasLegacyTotalMismatch(): bool
+    {
+        $hasHeaderMoney = $this->invoiceDiscountPercent() > 0
+            || abs((float) $this->adjustment) >= 0.01;
+
+        if (! $hasHeaderMoney) {
+            return false;
+        }
+
+        $details = $this->relationLoaded('details')
+            ? $this->details
+            : $this->details()->get();
+
+        if ($details->isEmpty()) {
+            return false;
+        }
+
+        return abs(
+            $this->displayReconstructedSignedTotal() - $this->displaySignedGrandTotal()
+        ) >= 0.01;
+    }
+
+    /**
      * Positive net payable for PDF export and print (unsigned).
      * Header `total` is the only amount — do not read `real_total`.
      */

@@ -181,6 +181,37 @@ it('stores sell total after header discount', function () {
     ]);
 });
 
+it('stores sell total after header discount and adjustment', function () {
+    $user = User::factory()->create();
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    $customer = Addrbook::factory()->customer()->create(['ppn' => false]);
+    $item = Item::factory()->create(['price' => 10_000, 'cost' => 5_000]);
+    seedWarehouseStock($warehouse, $item);
+
+    postItemTransaction($user, [
+        'date' => now()->toDateString(),
+        'type' => 'sell',
+        'sender_id' => $warehouse->id,
+        'receiver_id' => $customer->id,
+        'discount_percent' => 10,
+        'adjustment' => -1_000,
+        'items' => [[
+            'item_id' => $item->id,
+            'quantity' => 2,
+            'price' => 10_000,
+            'discount' => 0,
+        ]],
+    ])->assertRedirect();
+
+    $this->assertDatabaseHas('transactions', [
+        'type' => Transaction::TYPE_SELL,
+        'total' => -17_000,
+        'discount' => 10,
+        'adjustment' => -1_000,
+        'ppn' => 0,
+    ]);
+});
+
 it('stores a zero total when sell invoice discount is 100 percent', function () {
     $user = User::factory()->create();
     $warehouse = Addrbook::factory()->warehouse()->create();

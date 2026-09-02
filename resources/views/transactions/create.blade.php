@@ -658,7 +658,8 @@ function createTransaction() {
             // The warehouse side can change after items are added → refresh their stock.
             this.$watch('form.sender_id', () => { this.refreshStocks(); this.refreshJubelioWarnings(); });
             this.$watch('form.receiver_id', () => { this.refreshStocks(); this.refreshJubelioWarnings(); });
-            // PPN depends on the counterparty's ppn flag.
+            // PPN is optional: item forms follow the counterparty ppn flag; cash/tax
+            // reporting is gated by the bank's PKP reporting entity. Never assume 11%.
             this.$watch('form.sender', () => this.recalcTotals());
             this.$watch('form.receiver', () => this.recalcTotals());
             this.$watch('form.grand_total', () => this.syncCashInAmountFromTotal());
