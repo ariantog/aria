@@ -165,6 +165,10 @@ $fmt = fn ($n) => format_currency($n);
                 'settlement' => $settlement,
                 'canEdit' => $can['edit'] ?? false,
             ])
+            @include('transactions.partials.sell-cash-in', [
+                'transaction' => $sellCashInTransaction ?? null,
+                'sellCashIn' => $sellCashIn ?? null,
+            ])
             @if($invoice->notes)
             <div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm text-sm">
                 <h3 class="mb-2 font-semibold text-gray-900">Notes</h3>
