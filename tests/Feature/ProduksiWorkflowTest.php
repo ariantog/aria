@@ -106,11 +106,11 @@ it('splits produksi quantity and leaves the new row unassigned for jahit/qc', fu
         ->and($split->quantity)->toBe(3)
         ->and($split->temp_name)->toBe('APJ CJ00414')
         ->and($split->customer)->toBe('RIZKY W')
-        ->and((int) $split->jahit_id)->toBe(0)
+        ->and($split->jahit_id)->toBeNull()
         ->and($split->jahit_date)->toBeNull()
-        ->and((int) $split->qc_id)->toBe(0)
+        ->and($split->qc_id)->toBeNull()
         ->and($split->qc_date)->toBeNull()
-        ->and((int) $split->pritil_id)->toBe(0)
+        ->and($split->pritil_id)->toBeNull()
         ->and($split->pritil_date)->toBeNull();
 });
 

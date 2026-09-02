@@ -238,12 +238,11 @@ class ProduksiController extends Controller
             $clone = $produksi->replicate();
             $clone->quantity = $splitQty;
             $clone->original_id = $produksi->original_id ?: $produksi->id;
-            // Production MySQL uses 0 (not NULL) for unassigned worker FKs.
-            $clone->jahit_id = 0;
+            $clone->jahit_id = null;
             $clone->jahit_date = null;
-            $clone->qc_id = 0;
+            $clone->qc_id = null;
             $clone->qc_date = null;
-            $clone->pritil_id = 0;
+            $clone->pritil_id = null;
             $clone->pritil_date = null;
             $clone->save();
         });
