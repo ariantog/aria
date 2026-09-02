@@ -318,10 +318,21 @@ $gross = $import->fakturGross();
     @if($canImport && $import->canPostConsignmentSell())
         <div class="rounded-xl border border-blue-200 bg-blue-50/40 p-4 shadow-sm text-sm" x-data="{
             lineMode: '{{ old('line_mode', 'summary') }}',
-            lineMatches: @js($lineItemMatches).map(function (line) {
-                line.selected_item_id = line.best_match ? String(line.best_match.id) : '';
-                return line;
-            }),
+            lineMatches: @js(collect($lineItemMatches)->map(function ($line) {
+                $oldRows = old('mapped_lines', []);
+                $oldRow = collect($oldRows)->firstWhere('line_no', (string) ($line['line_no'] ?? ''))
+                    ?? collect($oldRows)->firstWhere('line_no', $line['line_no'] ?? null);
+                $itemId = $oldRow['item_id'] ?? ($line['best_match']['id'] ?? '');
+
+                return array_merge($line, ['item_id' => $itemId !== '' && $itemId !== null ? (string) $itemId : '']);
+            })->values()->all()),
+            allMappedLinesSelected() {
+                if (this.lineMode !== 'mapped') {
+                    return true;
+                }
+
+                return this.lineMatches.every((line) => line.item_id);
+            },
         }">
             <h3 class="mb-1 font-semibold text-gray-900">Buat Sell baru (opsional)</h3>
             <p class="mb-3 text-xs text-gray-600">
@@ -363,9 +374,15 @@ $gross = $import->fakturGross();
                     </div>
                 </div>
 
+                @if($errors->has('mapped_lines'))
+                    <div class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+                        {{ $errors->first('mapped_lines') }}
+                    </div>
+                @endif
+
                 <div x-show="lineMode === 'summary'" x-cloak>
                     <label class="mb-1 block text-xs text-gray-500" for="post_sell_summary_item_id">Item ringkasan</label>
-                    <select id="post_sell_summary_item_id" name="summary_item_id" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                    <select id="post_sell_summary_item_id" name="summary_item_id" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" :disabled="lineMode !== 'summary'">
                         <option value="">— Pilih item —</option>
                         @foreach($items as $item)
                             <option value="{{ $item->id }}" @selected((int) old('summary_item_id') === $item->id)>
@@ -397,8 +414,15 @@ $gross = $import->fakturGross();
                                         </template>
                                     </td>
                                     <td class="px-3 py-2">
-                                        <input type="hidden" :name="`mapped_lines[${index}][line_no]`" :value="line.line_no">
-                                        <select :name="`mapped_lines[${index}][item_id]`" x-model="line.selected_item_id" class="w-full rounded border border-gray-300 px-2 py-1 text-sm" required>
+                                        <input type="hidden" :name="`mapped_lines[${index}][line_no]`" :value="line.line_no" :disabled="lineMode !== 'mapped'">
+                                        <select
+                                            :name="`mapped_lines[${index}][item_id]`"
+                                            x-model="line.item_id"
+                                            class="w-full rounded border px-2 py-1 text-sm"
+                                            :class="lineMode === 'mapped' && !line.item_id ? 'border-amber-400 bg-amber-50' : 'border-gray-300'"
+                                            :disabled="lineMode !== 'mapped'"
+                                            :required="lineMode === 'mapped'"
+                                        >
                                             <option value="">— Pilih —</option>
                                             @foreach($items as $item)
                                                 <option value="{{ $item->id }}">{{ $item->name }}@if($item->code) · {{ $item->code }}@endif</option>
@@ -411,7 +435,13 @@ $gross = $import->fakturGross();
                     </table>
                 </div>
 
-                <button type="submit" class="rounded-lg bg-blue-700 px-4 py-2 text-sm font-medium text-white hover:bg-blue-800" data-testid="faktur-post-sell">
+                <button
+                    type="submit"
+                    class="rounded-lg px-4 py-2 text-sm font-medium text-white"
+                    :class="allMappedLinesSelected() ? 'bg-blue-700 hover:bg-blue-800' : 'cursor-not-allowed bg-gray-400'"
+                    :disabled="!allMappedLinesSelected()"
+                    data-testid="faktur-post-sell"
+                >
                     Post Sell dari faktur
                 </button>
             </form>

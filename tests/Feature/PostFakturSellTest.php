@@ -513,6 +513,149 @@ it('rejects sell date inside a closed book period', function () {
     ]);
 })->throws(InvalidArgumentException::class, 'Tanggal transaksi hanya boleh');
 
+it('ignores empty mapped lines when posting summary sell', function () {
+    $data = seedConsignmentFakturSellScenario();
+    $this->actingAs($this->user);
+
+    $import = app(TaxFakturImportService::class)->storeFromParsed($data['parsed'], [
+        'direction' => TaxFakturImport::DIRECTION_KELUARAN,
+        'reporting_entity_id' => $data['entity']->id,
+        'counterparty_id' => $data['customer']->id,
+        'payment_received_amount' => 20_000_000,
+        'payment_received_date' => '2026-08-15',
+        'cash_in_transaction_id' => $data['cashIn']->id,
+    ]);
+
+    $this->post(route('reports.tax.faktur.post-sell', $import), [
+        'warehouse_id' => $data['warehouse']->id,
+        'date_source' => 'faktur',
+        'invoice_source' => 'faktur',
+        'line_mode' => 'summary',
+        'summary_item_id' => $data['item']->id,
+        'mapped_lines' => [
+            ['line_no' => 1, 'item_id' => ''],
+            ['line_no' => 2, 'item_id' => ''],
+        ],
+    ])
+        ->assertRedirect(route('reports.tax.faktur.show', $import))
+        ->assertSessionHas('success');
+
+    expect($import->fresh()->sell_transaction_id)->not->toBeNull();
+});
+
+it('posts mapped sell when every faktur line has an item', function () {
+    $data = seedConsignmentFakturSellScenario();
+    $itemTwo = Item::factory()->create(['name' => 'Kaos Kaki', 'code' => 'KKS001']);
+    WarehouseItem::create([
+        'warehouse_id' => $data['warehouse']->id,
+        'warehouse_type' => $data['warehouse']->type,
+        'item_id' => $itemTwo->id,
+        'quantity' => 50,
+    ]);
+
+    $parsed = new ParsedFakturPajak(
+        fakturNumber: '04002600999999999',
+        fakturDate: Carbon::parse('2026-07-31'),
+        fakturDatePlace: 'Jakarta Utara',
+        sellerName: 'INDOSPORT ADIGUNA PERKASA',
+        sellerNpwp: '0504330085044000',
+        buyerName: 'MDS RETAILING TBK',
+        buyerNpwp: '0013179569054000',
+        grossTotal: 3_330_000.0,
+        discountTotal: 0,
+        dpp: 3_000_000.0,
+        ppn: 330_000.0,
+        ppnbm: 0,
+        signatoryName: 'TEST',
+        sourceFormat: 'mds_output_tax_invoice',
+        lineItems: [
+            ['line_no' => 1, 'name' => 'Celana Panjang', 'quantity' => 2, 'unit_price' => 1_000_000, 'total' => 2_000_000],
+            ['line_no' => 2, 'name' => 'Kaos Kaki', 'quantity' => 10, 'unit_price' => 100_000, 'total' => 1_000_000],
+        ],
+    );
+
+    $this->actingAs($this->user);
+
+    $import = app(TaxFakturImportService::class)->storeFromParsed($parsed, [
+        'direction' => TaxFakturImport::DIRECTION_KELUARAN,
+        'reporting_entity_id' => $data['entity']->id,
+        'counterparty_id' => $data['customer']->id,
+        'payment_received_amount' => 3_000_000,
+        'payment_received_date' => '2026-08-15',
+        'cash_in_transaction_id' => $data['cashIn']->id,
+    ]);
+
+    $this->post(route('reports.tax.faktur.post-sell', $import), [
+        'warehouse_id' => $data['warehouse']->id,
+        'date_source' => 'faktur',
+        'invoice_source' => 'faktur',
+        'line_mode' => 'mapped',
+        'mapped_lines' => [
+            ['line_no' => 1, 'item_id' => $data['item']->id],
+            ['line_no' => 2, 'item_id' => $itemTwo->id],
+        ],
+    ])
+        ->assertRedirect(route('reports.tax.faktur.show', $import))
+        ->assertSessionHas('success');
+
+    $sell = Transaction::query()->with('details')->find($import->fresh()->sell_transaction_id);
+
+    expect($sell)->not->toBeNull()
+        ->and($sell->details)->toHaveCount(2)
+        ->and((float) $sell->total)->toBe(-3_000_000.0);
+});
+
+it('returns a clear error when mapped lines are incomplete', function () {
+    $data = seedConsignmentFakturSellScenario();
+    $itemTwo = Item::factory()->create(['name' => 'Kaos Kaki', 'code' => 'KKS001']);
+
+    $parsed = new ParsedFakturPajak(
+        fakturNumber: '04002600777777777',
+        fakturDate: Carbon::parse('2026-07-31'),
+        fakturDatePlace: 'Jakarta Utara',
+        sellerName: 'INDOSPORT ADIGUNA PERKASA',
+        sellerNpwp: '0504330085044000',
+        buyerName: 'MDS RETAILING TBK',
+        buyerNpwp: '0013179569054000',
+        grossTotal: 3_330_000.0,
+        discountTotal: 0,
+        dpp: 3_000_000.0,
+        ppn: 330_000.0,
+        ppnbm: 0,
+        signatoryName: 'TEST',
+        sourceFormat: 'mds_output_tax_invoice',
+        lineItems: [
+            ['line_no' => 1, 'name' => 'Celana Panjang', 'quantity' => 2, 'unit_price' => 1_000_000, 'total' => 2_000_000],
+            ['line_no' => 2, 'name' => 'Kaos Kaki', 'quantity' => 10, 'unit_price' => 100_000, 'total' => 1_000_000],
+        ],
+    );
+
+    $this->actingAs($this->user);
+
+    $import = app(TaxFakturImportService::class)->storeFromParsed($parsed, [
+        'direction' => TaxFakturImport::DIRECTION_KELUARAN,
+        'reporting_entity_id' => $data['entity']->id,
+        'counterparty_id' => $data['customer']->id,
+        'payment_received_amount' => 3_000_000,
+        'payment_received_date' => '2026-08-15',
+        'cash_in_transaction_id' => $data['cashIn']->id,
+    ]);
+
+    $this->from(route('reports.tax.faktur.show', $import))
+        ->post(route('reports.tax.faktur.post-sell', $import), [
+            'warehouse_id' => $data['warehouse']->id,
+            'date_source' => 'faktur',
+            'invoice_source' => 'faktur',
+            'line_mode' => 'mapped',
+            'mapped_lines' => [
+                ['line_no' => 1, 'item_id' => $data['item']->id],
+                ['line_no' => 2, 'item_id' => ''],
+            ],
+        ])
+        ->assertRedirect(route('reports.tax.faktur.show', $import))
+        ->assertSessionHasErrors('mapped_lines');
+});
+
 it('prefills warehouse from customer fulfillment mapping', function () {
     $data = seedConsignmentFakturSellScenario();
     $fulfillmentWarehouse = Addrbook::factory()->warehouse()->create(['name' => 'MDS Fulfillment WH']);
