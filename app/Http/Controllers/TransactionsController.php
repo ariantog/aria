@@ -24,6 +24,7 @@ use App\Services\TransactionListExportService;
 use App\Services\TransactionReturnDraftService;
 use App\Services\TransactionService;
 use App\Services\UserPreferenceService;
+use App\Services\WarehouseItemStatsRecorder;
 use App\Support\PpnAmounts;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
@@ -705,6 +706,7 @@ class TransactionsController extends Controller
             }
 
             $service->revertTransaction($transaction);
+            app(WarehouseItemStatsRecorder::class)->revertTransaction($transaction);
 
             DeletedTransaction::create($transactionData);
             foreach ($detailRows as $detailData) {

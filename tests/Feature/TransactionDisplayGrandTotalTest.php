@@ -144,6 +144,101 @@ it('uses line-item sum for summary subtotal when header total is net receivable'
         ->and($transaction->displayGrandTotal())->toBe(82350.0);
 });
 
+it('treats a 100 percent invoice discount as a full write-off of the line subtotal', function () {
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    $customer = Addrbook::factory()->create(['type' => Addrbook::TYPE_CUSTOMER]);
+    $item = Item::factory()->create();
+
+    $transaction = Transaction::factory()->create([
+        'type' => Transaction::TYPE_SELL,
+        'submit_type' => Transaction::SUBMIT_TYPE_MANUAL,
+        'total' => -1_591_000,
+        'real_total' => 0,
+        'discount' => 100,
+        'adjustment' => 0,
+        'ppn' => 0,
+        'sender_id' => $warehouse->id,
+        'sender_type' => (string) Addrbook::TYPE_WAREHOUSE,
+        'receiver_id' => $customer->id,
+        'receiver_type' => (string) Addrbook::TYPE_CUSTOMER,
+    ]);
+
+    TransactionDetail::create([
+        'transaction_id' => $transaction->id,
+        'date' => $transaction->date,
+        'transaction_type' => Transaction::TYPE_SELL,
+        'sender_id' => $warehouse->id,
+        'receiver_id' => $customer->id,
+        'item_id' => $item->id,
+        'quantity' => 1,
+        'price' => 1_591_000,
+        'discount' => 0,
+        'total' => 1_591_000,
+    ]);
+
+    $transaction->load('details');
+
+    expect($transaction->invoiceDiscountPercent())->toBe(100.0)
+        ->and($transaction->displayInvoiceDiscountAmount())->toBe(1_591_000.0)
+        ->and($transaction->displaySummarySubtotal())->toBe(-1_591_000.0)
+        ->and($transaction->displayGrandTotal())->toBe(0.0)
+        ->and($transaction->displaySignedGrandTotal())->toBe(0.0);
+});
+
+it('shows 100 percent invoice discount as the full amount and a zero payable', function () {
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    $customer = Addrbook::factory()->create(['type' => Addrbook::TYPE_CUSTOMER]);
+    $item = Item::factory()->create();
+
+    $transaction = Transaction::factory()->create([
+        'type' => Transaction::TYPE_SELL,
+        'submit_type' => Transaction::SUBMIT_TYPE_MANUAL,
+        'invoice' => 'INV-FULL-DISC',
+        'total' => -1_591_000,
+        'real_total' => 0,
+        'discount' => 100,
+        'adjustment' => 0,
+        'ppn' => 0,
+        'sender_id' => $warehouse->id,
+        'sender_type' => (string) Addrbook::TYPE_WAREHOUSE,
+        'receiver_id' => $customer->id,
+        'receiver_type' => (string) Addrbook::TYPE_CUSTOMER,
+        'user_id' => $this->user->id,
+    ]);
+
+    TransactionDetail::create([
+        'transaction_id' => $transaction->id,
+        'date' => $transaction->date,
+        'transaction_type' => Transaction::TYPE_SELL,
+        'sender_id' => $warehouse->id,
+        'receiver_id' => $customer->id,
+        'item_id' => $item->id,
+        'quantity' => 1,
+        'price' => 1_591_000,
+        'discount' => 0,
+        'total' => 1_591_000,
+    ]);
+
+    $html = $this->actingAs($this->user)
+        ->get(route('transactions.show', $transaction))
+        ->assertOk()
+        ->getContent();
+
+    expect(preg_match('/data-testid="tx-invoice-discount-amount"[^>]*>(-?[^<]+)/', $html, $discountMatch))->toBe(1)
+        ->and(trim($discountMatch[1]))->toBe('-1,591,000')
+        ->and(preg_match('/data-testid="tx-grand-total"[^>]*>IDR ([^<]+)/', $html, $totalMatch))->toBe(1)
+        ->and(trim($totalMatch[1]))->toBe('0');
+
+    $list = $this->actingAs($this->user)
+        ->get(route('transactions.index'))
+        ->assertOk()
+        ->assertSee('INV-FULL-DISC', false)
+        ->getContent();
+
+    expect(preg_match('/data-testid="tx-list-total-'.$transaction->id.'"[^>]*>([^<]+)/', $list, $listMatch))->toBe(1)
+        ->and(trim($listMatch[1]))->toBe('0');
+});
+
 it('exposes display helpers on deleted transactions and renders deleted show', function () {
     $deleted = DeletedTransaction::create([
         'id' => 615223,

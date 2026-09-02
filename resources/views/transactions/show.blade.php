@@ -18,7 +18,7 @@
     $status = $statuses[$statusKey] ?? ['label' => 'Unknown', 'color' => 'bg-gray-100 text-gray-800'];
 
     $fmt = fn ($n) => format_amount($n);
-    $grandTotalFormatted = $fmt($transaction->total);
+    $grandTotalFormatted = $fmt($transaction->displaySignedGrandTotal());
     $grandTotalHeroClass = \App\Support\AmountFormatter::displayTextClass($grandTotalFormatted, 'hero');
     $grandTotalCompactClass = \App\Support\AmountFormatter::displayTextClass($grandTotalFormatted, 'compact');
     $fmtDate = function ($d) {
@@ -28,7 +28,7 @@
     $noteText = $transaction->description ?: ($transaction->notes ?: '');
     $hasRecordedPpn = (float) $transaction->ppn > 0;
     $ppnDppDisplay = $transaction->ppn_dpp !== null ? $fmt($transaction->ppn_dpp) : '-';
-    $cashTotalAbs = abs((float) $transaction->total);
+    $cashTotalAbs = $transaction->displayGrandTotal();
 @endphp
 
 <div class="flex h-full flex-1 flex-col gap-3 overflow-x-auto rounded-xl p-3 sm:gap-4 sm:p-4"
@@ -236,7 +236,7 @@
                         <div class="text-[10px] font-medium tracking-wider text-gray-500 uppercase sm:text-xs">Grand Total</div>
                         <div class="mt-0.5 min-w-0 sm:mt-1">
                             <div class="text-[10px] font-semibold text-blue-600 sm:text-xs">IDR</div>
-                            <div class="{{ $grandTotalHeroClass }} tabular-nums break-all text-blue-700">{{ $grandTotalFormatted }}</div>
+                            <div data-testid="tx-grand-total-hero" class="{{ $grandTotalHeroClass }} tabular-nums break-all text-blue-700">{{ $grandTotalFormatted }}</div>
                         </div>
                     </div>
                     <span class="inline-flex shrink-0 items-center rounded-full px-2.5 py-0.5 text-[10px] font-semibold sm:hidden {{ $status['color'] }}">{{ $status['label'] }}</span>
@@ -543,7 +543,7 @@
                 </div>
                 <div class="flex items-center justify-between text-sm">
                     <span class="text-gray-500">Invoice Discount ({{ $transaction->discount ?? 0 }}%)</span>
-                    <span class="font-bold text-red-600">-{{ $fmt($transaction->discount) }}</span>
+                    <span data-testid="tx-invoice-discount-amount" class="font-bold text-red-600">-{{ $fmt($transaction->displayInvoiceDiscountAmount()) }}</span>
                 </div>
                 <hr class="border-dashed">
                 <div class="flex items-center justify-between text-sm">
@@ -578,7 +578,7 @@
                             <span class="text-[10px] font-black tracking-widest text-blue-100/70 uppercase">Grand Total</span>
                             <span class="text-xs font-medium italic text-blue-100">Net Amount Payable</span>
                         </div>
-                        <span class="min-w-0 break-all text-right tabular-nums {{ $grandTotalCompactClass }}">IDR {{ $grandTotalFormatted }}</span>
+                        <span data-testid="tx-grand-total" class="min-w-0 break-all text-right tabular-nums {{ $grandTotalCompactClass }}">IDR {{ $grandTotalFormatted }}</span>
                     </div>
                 </div>
             </div>
