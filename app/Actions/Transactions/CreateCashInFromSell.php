@@ -4,6 +4,7 @@ namespace App\Actions\Transactions;
 
 use App\Models\Addrbook;
 use App\Models\Transaction;
+use App\Services\SellCashInPresenter;
 use App\Services\StandaloneInvoiceSettlement;
 use App\Services\TransactionService;
 use Illuminate\Support\Carbon;
@@ -22,8 +23,10 @@ class CreateCashInFromSell
     {
         $this->assertSell($sell);
 
-        $contact = $sell->receiver;
-        if (! $contact || ! in_array((int) $contact->type, Addrbook::cashPartyTypes(), true)) {
+        $contact = app(SellCashInPresenter::class)->cashInReceiver($sell);
+        $contactId = $contact?->id ?: (int) $sell->receiver_id;
+        $contactType = $contact ? (int) $contact->type : (int) $sell->receiver_type;
+        if ($contactId < 1 || ! in_array($contactType, Addrbook::cashPartyTypes(), true)) {
             throw ValidationException::withMessages([
                 'amount' => ['Sell receiver must be a customer, reseller, supplier, or ledger to create cash in.'],
             ]);
@@ -48,12 +51,12 @@ class CreateCashInFromSell
             : Carbon::today()->toDateString();
         $grandTotal = Transaction::signedAmount(Transaction::TYPE_CASH_IN, $amount);
 
-        return DB::transaction(function () use ($sell, $contact, $account, $date, $grandTotal) {
+        return DB::transaction(function () use ($sell, $contactId, $contactType, $account, $date, $grandTotal) {
             $trx = Transaction::create([
                 'date' => $date,
                 'type' => Transaction::TYPE_CASH_IN,
-                'sender_type' => (int) $contact->type,
-                'sender_id' => $contact->id,
+                'sender_type' => $contactType,
+                'sender_id' => $contactId,
                 'receiver_type' => (int) $account->type,
                 'receiver_id' => $account->id,
                 'invoice' => $sell->invoice ?: (string) $sell->id,
@@ -81,17 +84,15 @@ class CreateCashInFromSell
 
     private function assertSell(Transaction $sell): void
     {
-        $sell->loadMissing('receiver');
-
         if ((int) $sell->type !== Transaction::TYPE_SELL) {
             throw ValidationException::withMessages([
                 'amount' => ['Cash in can only be created from a sell transaction.'],
             ]);
         }
 
-        if ((int) $sell->status !== Transaction::STATUS_COMPLETED) {
+        if ((int) $sell->status === Transaction::STATUS_CANCELLED) {
             throw ValidationException::withMessages([
-                'amount' => ['Cash in can only be created from a completed sell.'],
+                'amount' => ['Cash in cannot be created from a cancelled sell.'],
             ]);
         }
     }
