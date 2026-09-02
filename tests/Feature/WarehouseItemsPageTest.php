@@ -45,7 +45,7 @@ it('links warehouse items to item or asset lancar show pages', function () {
 
     $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'Gudang A']);
 
-    $regularItem = Item::factory()->create(['name' => 'Regular SKU', 'code' => 'REG-001']);
+    $regularItem = Item::factory()->create(['name' => 'Regular SKU', 'code' => 'REG-001', 'price' => 214500]);
     $assetItem = Item::factory()->create([
         'type' => \App\Enums\ItemType::ASSET_LANCAR,
         'name' => 'Asset SKU',
@@ -74,6 +74,7 @@ it('links warehouse items to item or asset lancar show pages', function () {
         ->assertSee('Export Excel', false)
         ->assertSee('data-testid="copy-warehouse-items-table"', false)
         ->assertSee('data-copy-col="code"', false)
+        ->assertSee('data-copy-value="214500"', false)
         ->assertSee('copyRowsTable()', false);
 });
 
