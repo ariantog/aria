@@ -112,6 +112,10 @@ class ProductionColumnDefaults
             'invoice' => '',
             'detail_id' => 0,
             'surat_jalan_potong' => '',
+            'qc_id' => 0,
+            'pritil_id' => 0,
+            'original_id' => 0,
+            'transaction_id' => 0,
         ],
         'operations' => [
             'description' => '',
