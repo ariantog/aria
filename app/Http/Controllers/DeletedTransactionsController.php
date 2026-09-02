@@ -13,7 +13,7 @@ class DeletedTransactionsController extends Controller
         \Illuminate\Support\Facades\Gate::authorize(Transaction::getPermissions()['view']);
 
         $transactions = DeletedTransaction::with(['sender', 'receiver'])
-            ->latest('deleted_at')
+            ->latest(DeletedTransaction::archivedAtColumn())
             ->paginate(10)
             ->withQueryString();
 

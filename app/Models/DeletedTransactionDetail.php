@@ -8,9 +8,16 @@ use Illuminate\Database\Eloquent\Model;
 class DeletedTransactionDetail extends Model
 {
     use FillsProductionColumnDefaults;
+
     protected $table = 'deleted_details';
 
     public $incrementing = false;
+
+    /**
+     * Production `deleted_details` is a copy of `transaction_details` and has
+     * no created_at / updated_at. Eloquent timestamps would 1054 on MySQL.
+     */
+    public $timestamps = false;
 
     protected $guarded = [];
 

@@ -5,14 +5,17 @@ namespace Tests\Feature;
 use App\Models\Addrbook;
 use App\Models\AddrbookStat;
 use App\Models\DeletedTransaction;
+use App\Models\DeletedTransactionDetail;
 use App\Models\Item;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Models\WarehouseItem;
 use App\Models\WarehouseItemMonthlyStat;
 use App\Services\WarehouseItemStatsRecorder;
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Schema;
 
 beforeEach(function () {
     Gate::before(fn () => true);
@@ -315,3 +318,108 @@ test('deleted transaction show page renders clickable item and party links', fun
         ->assertSee(route('addrbook.type.show', ['type' => $supplier->type_slug, 'addrbook' => $supplier->id]), false)
         ->assertSee(route('addrbook.type.show', ['type' => $warehouse->type_slug, 'addrbook' => $warehouse->id]), false);
 });
+
+test('deleted detail model does not use eloquent timestamps', function () {
+    expect((new DeletedTransactionDetail)->usesTimestamps())->toBeFalse();
+});
+
+test('deleting archives onto production deleted_details columns without timestamps', function () {
+    dropNonProductionDeletedArchiveColumns();
+
+    $user = User::factory()->create();
+    $this->actingAs($user);
+
+    $supplier = Addrbook::create([
+        'name' => 'Prod Schema Supplier',
+        'type' => Addrbook::TYPE_SUPPLIER,
+    ]);
+    $warehouse = Addrbook::create([
+        'name' => 'Prod Schema Warehouse',
+        'type' => Addrbook::TYPE_WAREHOUSE,
+    ]);
+    $item = Item::factory()->create(['qty' => 0]);
+
+    $this->post(route('transactions.store'), [
+        'date' => now()->toDateString(),
+        'type' => 'buy',
+        'sender_id' => $supplier->id,
+        'receiver_id' => $warehouse->id,
+        'items' => [
+            [
+                'item_id' => $item->id,
+                'quantity' => 2,
+                'price' => 1500,
+            ],
+        ],
+    ])->assertRedirect();
+
+    $transaction = Transaction::latest('id')->first();
+    $detail = $transaction->details()->first();
+    expect($detail)->not->toBeNull();
+
+    $this->delete(route('transactions.destroy', $transaction))
+        ->assertRedirect(route('transactions.index'))
+        ->assertSessionHas('success');
+
+    expect(Transaction::find($transaction->id))->toBeNull();
+
+    $deleted = DeletedTransaction::find($transaction->id);
+    expect($deleted)->not->toBeNull();
+    expect($deleted->archivedAt())->not->toBeNull();
+
+    $archivedDetail = DeletedTransactionDetail::query()
+        ->where('transaction_id', $transaction->id)
+        ->where('id', $detail->id)
+        ->first();
+
+    expect($archivedDetail)->not->toBeNull()
+        ->and((int) $archivedDetail->item_id)->toBe($item->id)
+        ->and((float) $archivedDetail->quantity)->toBe(2.0)
+        ->and((float) $archivedDetail->price)->toBe(1500.0)
+        ->and((int) $archivedDetail->transaction_type)->toBe(Transaction::TYPE_BUY)
+        ->and((int) $archivedDetail->sender_id)->toBe($supplier->id)
+        ->and((int) $archivedDetail->receiver_id)->toBe($warehouse->id);
+
+    expect(Schema::getColumnListing('deleted_details'))
+        ->not->toContain('created_at')
+        ->not->toContain('updated_at')
+        ->not->toContain('deleted_at');
+
+    $this->get(route('transactions.deleted.index'))
+        ->assertOk()
+        ->assertSee((string) $transaction->invoice, false);
+
+    $this->get(route('transactions.deleted.show', $transaction->id))
+        ->assertOk();
+});
+
+/**
+ * Match production `deleted` / `deleted_details` from database/old.sql.
+ * The greenfield SQLite migrations added timestamps that prod never had.
+ *
+ * @return void
+ */
+function dropNonProductionDeletedArchiveColumns(): void
+{
+    $detailDrops = array_values(array_filter(
+        ['created_at', 'updated_at', 'deleted_at', 'notes'],
+        fn (string $column) => Schema::hasColumn('deleted_details', $column),
+    ));
+
+    if ($detailDrops !== []) {
+        Schema::table('deleted_details', function (Blueprint $table) use ($detailDrops) {
+            $table->dropColumn($detailDrops);
+        });
+    }
+
+    if (Schema::hasColumn('deleted', 'deleted_at')) {
+        Schema::table('deleted', function (Blueprint $table) {
+            $table->dropColumn('deleted_at');
+        });
+    }
+
+    $builder = Schema::getConnection()->getSchemaBuilder();
+    if (method_exists($builder, 'flushCache')) {
+        $builder->flushCache();
+    }
+}

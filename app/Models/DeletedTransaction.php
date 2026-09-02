@@ -4,12 +4,15 @@ namespace App\Models;
 
 use App\Models\Concerns\DisplaysTransactionTotals;
 use App\Support\FillsProductionColumnDefaults;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Schema;
 
 class DeletedTransaction extends Model
 {
     use DisplaysTransactionTotals;
     use FillsProductionColumnDefaults;
+
     protected $table = 'deleted';
 
     public $incrementing = false;
@@ -43,5 +46,34 @@ class DeletedTransaction extends Model
     public function receiver()
     {
         return $this->belongsTo(Addrbook::class, 'receiver_id');
+    }
+
+    /**
+     * Production `deleted` has created_at / updated_at but not deleted_at.
+     * Prefer deleted_at when the local/greenfield schema added it.
+     */
+    public static function archivedAtColumn(): string
+    {
+        $table = (new static)->getTable();
+
+        foreach (['deleted_at', 'created_at', 'updated_at'] as $column) {
+            if (Schema::hasColumn($table, $column)) {
+                return $column;
+            }
+        }
+
+        return 'id';
+    }
+
+    public function archivedAt(): ?CarbonInterface
+    {
+        foreach (['deleted_at', 'created_at', 'updated_at'] as $column) {
+            $value = $this->getAttributes()[$column] ?? null;
+            if ($value) {
+                return $this->asDateTime($value);
+            }
+        }
+
+        return null;
     }
 }
