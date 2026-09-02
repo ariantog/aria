@@ -7,6 +7,8 @@ use App\Models\AddrbookStat;
 use App\Models\Operation;
 use App\Models\ReportingEntity;
 use App\Models\ReportingLedgerRole as ReportingLedgerRoleModel;
+use App\Models\Setting;
+use App\Models\Transaction;
 use App\Support\NewDomainChartOfAccounts;
 use Database\Seeders\AddrbookPlaceholderSeeder;
 use Database\Seeders\DatabaseSeeder;
@@ -100,11 +102,20 @@ it('refuses typical ledger seeding on the current production domain', function (
 it('runs the main new-domain seeder on an empty database', function () {
     Artisan::call('db:seed', ['--class' => NewDomainSeeder::class, '--force' => true]);
 
+    $gudang = Addrbook::query()->where('name', 'Gudang')->where('type', Addrbook::TYPE_WAREHOUSE)->first();
+    $supplier = Addrbook::query()->where('name', 'Supplier')->where('type', Addrbook::TYPE_SUPPLIER)->first();
+    $perawatan = Addrbook::query()->where('name', 'Biaya Perawatan')->first();
+
     expect(Addrbook::query()->where('name', 'Pelanggan')->where('type', Addrbook::TYPE_CUSTOMER)->exists())->toBeTrue()
         ->and(Addrbook::query()->where('name', 'Kas / Bank')->where('type', Addrbook::TYPE_BANK)->exists())->toBeTrue()
         ->and(Operation::query()->where('name', 'Gaji & Upah')->exists())->toBeTrue()
         ->and(Addrbook::query()->where('name', 'Material Produksi')->exists())->toBeTrue()
-        ->and(\App\Models\User::query()->where('username', 'superadmin')->exists())->toBeTrue();
+        ->and(\App\Models\User::query()->where('username', 'superadmin')->exists())->toBeTrue()
+        ->and(Setting::query()->where('slug', 'si_gap_weight')->exists())->toBeTrue()
+        ->and((int) Setting::getValue('restock.default_receiver_id'))->toBe($gudang->id)
+        ->and((int) Setting::getValue('restock.default_supplier_id'))->toBe($supplier->id)
+        ->and((int) Setting::getValue('produksi.default_warehouse_id'))->toBe($gudang->id)
+        ->and((int) Setting::getValue('asset_tetap.depreciation_expense_account_id'))->toBe($perawatan->id);
 });
 
 it('does not seed from the new-domain migration during tests', function () {
@@ -122,5 +133,21 @@ it('wires typical ledgers into DatabaseSeeder for new domains', function () {
 
     expect($source)->toContain('TypicalLedgerSeeder::class')
         ->and($source)->toContain('AddrbookPlaceholderSeeder::class')
+        ->and($source)->toContain('NewDomainSettingsSeeder::class')
         ->and($source)->toContain('NewDomainInstall::allowsBaselineSeed()');
+});
+
+it('signs demo transaction totals and runs after the new-domain baseline', function () {
+    Artisan::call('db:seed', ['--class' => DatabaseSeeder::class, '--force' => true]);
+
+    expect(Addrbook::query()->where('name', 'Gudang')->exists())->toBeTrue()
+        ->and(Addrbook::query()->where('name', 'BCA Operasional')->exists())->toBeTrue();
+
+    $sell = Transaction::query()->where('type', Transaction::TYPE_SELL)->first();
+    $buy = Transaction::query()->where('type', Transaction::TYPE_BUY)->first();
+
+    expect($sell)->not->toBeNull()
+        ->and((float) $sell->total)->toBeLessThan(0)
+        ->and($buy)->not->toBeNull()
+        ->and((float) $buy->total)->toBeGreaterThan(0);
 });
