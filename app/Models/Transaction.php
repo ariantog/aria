@@ -129,17 +129,22 @@ class Transaction extends Model
             self::TYPE_RETURN_SUPPLIER,
             self::TYPE_CASH_OUT,
             self::TYPE_TRANSFER,
+            self::TYPE_MOVE,
         ], true);
     }
 
-    /** Signed monetary amount for header total / real_total per transaction type. */
+    /**
+     * Signed monetary amount for header total / real_total per transaction type.
+     * Negative: sell, return-supplier, cash out, transfer, move.
+     * Positive: buy, return, cash in, adjustment.
+     */
     public static function signedAmount(int $type, float $amount): float
     {
         if (self::typeIsNegative($type)) {
             return -abs($amount);
         }
 
-        if (in_array($type, [self::TYPE_BUY, self::TYPE_RETURN, self::TYPE_CASH_IN], true)) {
+        if (in_array($type, [self::TYPE_BUY, self::TYPE_RETURN, self::TYPE_CASH_IN, self::TYPE_ADJUST], true)) {
             return abs($amount);
         }
 

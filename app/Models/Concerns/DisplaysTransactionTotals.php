@@ -23,7 +23,7 @@ trait DisplaysTransactionTotals
                 return max(abs((float) $this->real_total), abs((float) $this->total));
             }
 
-            return abs((float) $this->total);
+            return abs((float) $this->real_total);
         }
 
         return (float) $details->sum(fn ($detail) => abs((float) $detail->total));
@@ -53,9 +53,10 @@ trait DisplaysTransactionTotals
     /**
      * Positive net payable for PDF export and print (unsigned).
      *
-     * Manual Aria rows store net on `real_total` and gross line sum on `total`.
-     * Jubelio rows may store subtotal/receivable on either column depending on era;
-     * net is the smaller absolute header amount when they differ.
+     * Manual Aria rows store the final payable on `total` and the line subtotal
+     * on `real_total`. Jubelio rows may store subtotal/receivable on either
+     * column depending on era; net is the smaller absolute header amount when
+     * they differ.
      */
     public function displayGrandTotal(): float
     {
@@ -73,7 +74,7 @@ trait DisplaysTransactionTotals
             return min($real, $total);
         }
 
-        return $real;
+        return $total;
     }
 
     /** Signed net payable for on-screen totals (sell stays negative). */
