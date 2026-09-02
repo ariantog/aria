@@ -131,7 +131,6 @@ test('deleting a sell transaction adds each sold qty back to the sender warehous
 
     $sell = Transaction::query()->where('type', Transaction::TYPE_SELL)->latest('id')->first();
     expect($sell)->not->toBeNull()
-        ->and((float) $sell->real_total)->toBe(-1_100_000.0)
         ->and((float) $sell->total)->toBe(0.0)
         ->and((float) $sell->receiver_balance)->toBe(0.0)
         ->and((float) (AddrbookStat::where('customer_id', $customer->id)->value('balance') ?? 0))->toBe(0.0);

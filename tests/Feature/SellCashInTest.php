@@ -88,7 +88,6 @@ it('creates a cash in from a sell with the same invoice and sell receiver as sen
         ->and((int) $cashIn->receiver_id)->toBe($this->bank->id)
         ->and((int) $cashIn->receiver_type)->toBe(Addrbook::TYPE_BANK)
         ->and((float) $cashIn->total)->toBe(1_250_000.0)
-        ->and((float) $cashIn->real_total)->toBe(1_250_000.0)
         ->and($cashIn->date->toDateString())->toBe('2026-08-15')
         ->and($cashIn->invoice)->toBe($this->sell->invoice);
 });

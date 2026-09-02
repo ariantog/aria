@@ -34,7 +34,7 @@ it('generates the receipt pdf and serves it inline', function () {
         'invoice' => '615922',
         'sender_id' => $sender->id,
         'receiver_id' => $receiver->id,
-        'real_total' => -934_700,
+        'total' => -934_700,
         'total_items' => 4,
     ]);
     $item = Item::factory()->create(['name' => 'LANA TOP - LILAC', 'code' => 'AJDCA2302510L']);
@@ -63,7 +63,7 @@ it('renders the receipt pdf blade with item name and code', function () {
     $transaction = Transaction::factory()->create([
         'invoice' => '615922',
         'sender_id' => $sender->id,
-        'real_total' => -934_700,
+        'total' => -934_700,
         'total_items' => 4,
     ]);
     $item = Item::factory()->create(['name' => 'LANA TOP - LILAC', 'code' => 'AJDCA2302510L']);

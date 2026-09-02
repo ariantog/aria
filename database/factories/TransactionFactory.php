@@ -19,7 +19,6 @@ class TransactionFactory extends Factory
             'total' => 0, // Should be calculated or defined explicitly
             'discount' => 0,
             'ppn' => 0,
-            'real_total' => 0, // Should be calculated or defined explicitly
             'total_items' => 0,
             'sender_balance' => 0,
             'receiver_balance' => 0,

@@ -61,7 +61,6 @@ class CreateCashInFromSell
                 'user_id' => Auth::id(),
                 'status' => Transaction::STATUS_COMPLETED,
                 'total' => $grandTotal,
-                'real_total' => $grandTotal,
                 'total_items' => 0,
                 'adjustment' => 0,
                 'discount' => 0,

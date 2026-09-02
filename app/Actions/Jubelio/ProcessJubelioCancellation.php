@@ -87,8 +87,7 @@ class ProcessJubelioCancellation
                 }
 
                 $grandTotal = $subTotal + $transaction->adjustment;
-                $transaction->total = Transaction::signedAmount(Transaction::TYPE_RETURN, $subTotal);
-                $transaction->real_total = Transaction::signedAmount(Transaction::TYPE_RETURN, $grandTotal);
+                $transaction->total = Transaction::signedAmount(Transaction::TYPE_RETURN, $grandTotal);
                 $transaction->total_items = $totalQty;
                 $transaction->save();
 

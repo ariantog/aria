@@ -393,7 +393,7 @@ class LabaRugiService
             ->where('sender_type', '!=', Addrbook::TYPE_ACCOUNT)
             ->whereIn('receiver_id', $bankIds)
             ->whereBetween('date', ReportingPeriod::queryBounds($start, $end))
-            ->get(['date', 'total', 'real_total']);
+            ->get(['date', 'total']);
 
         foreach ($rows as $row) {
             $key = $this->monthKey((int) $row->date->year, (int) $row->date->month);
@@ -534,7 +534,7 @@ class LabaRugiService
             ->whereIn('sender_id', $lendingIds)
             ->whereIn('receiver_id', $bankIds)
             ->whereBetween('date', ReportingPeriod::queryBounds($start, $end))
-            ->get(['date', 'total', 'real_total']);
+            ->get(['date', 'total']);
 
         $byMonth = [];
         foreach ($rows as $row) {
@@ -705,9 +705,6 @@ class LabaRugiService
 
     private function transactionAmount(Transaction $transaction): float
     {
-        $real = (float) $transaction->real_total;
-        $total = (float) $transaction->total;
-
-        return abs($real !== 0.0 ? $real : $total);
+        return abs((float) $transaction->total);
     }
 }

@@ -20,7 +20,7 @@ function seedWarehouseStock(Addrbook $warehouse, Item $item, float $quantity = 1
     ]);
 }
 
-it('stores buy transaction subtotal in total and matches real_total when no tax or header discount', function () {
+it('stores buy transaction payable in total when no tax or header discount', function () {
     $user = User::factory()->create();
     $supplier = Addrbook::factory()->supplier()->create(['ppn' => false]);
     $warehouse = Addrbook::factory()->warehouse()->create();
@@ -42,12 +42,11 @@ it('stores buy transaction subtotal in total and matches real_total when no tax 
     $this->assertDatabaseHas('transactions', [
         'type' => Transaction::TYPE_BUY,
         'total' => 50_000,
-        'real_total' => 50_000,
         'ppn' => 0,
     ]);
 });
 
-it('stores sell subtotal in total and signed grand total in real_total', function () {
+it('stores sell payable as a signed total', function () {
     $user = User::factory()->create();
     $warehouse = Addrbook::factory()->warehouse()->create();
     $customer = Addrbook::factory()->customer()->create(['ppn' => false]);
@@ -70,12 +69,11 @@ it('stores sell subtotal in total and signed grand total in real_total', functio
     $this->assertDatabaseHas('transactions', [
         'type' => Transaction::TYPE_SELL,
         'total' => -20_000,
-        'real_total' => -20_000,
         'ppn' => 0,
     ]);
 });
 
-it('stores return subtotal in total and matches real_total when no tax or header discount', function () {
+it('stores return payable in total when no tax or header discount', function () {
     $user = User::factory()->create();
     $warehouse = Addrbook::factory()->warehouse()->create();
     $customer = Addrbook::factory()->customer()->create();
@@ -97,12 +95,11 @@ it('stores return subtotal in total and matches real_total when no tax or header
     $this->assertDatabaseHas('transactions', [
         'type' => Transaction::TYPE_RETURN,
         'total' => 30_000,
-        'real_total' => 30_000,
         'ppn' => 0,
     ]);
 });
 
-it('stores return-supplier subtotal in total and signed grand total in real_total', function () {
+it('stores return-supplier payable as a signed total', function () {
     $user = User::factory()->create();
     $warehouse = Addrbook::factory()->warehouse()->create();
     $supplier = Addrbook::factory()->supplier()->create(['ppn' => false]);
@@ -125,12 +122,11 @@ it('stores return-supplier subtotal in total and signed grand total in real_tota
     $this->assertDatabaseHas('transactions', [
         'type' => Transaction::TYPE_RETURN_SUPPLIER,
         'total' => -25_000,
-        'real_total' => -25_000,
         'ppn' => 0,
     ]);
 });
 
-it('keeps real_total as line subtotal while total includes supplier PPN on buy', function () {
+it('includes supplier PPN in buy total', function () {
     $user = User::factory()->create();
     $supplier = Addrbook::factory()->supplier()->create(['ppn' => true]);
     $warehouse = Addrbook::factory()->warehouse()->create();
@@ -151,13 +147,12 @@ it('keeps real_total as line subtotal while total includes supplier PPN on buy',
 
     $this->assertDatabaseHas('transactions', [
         'type' => Transaction::TYPE_BUY,
-        'real_total' => 50_000,
         'total' => 55_500,
         'ppn' => 5_500,
     ]);
 });
 
-it('keeps real_total as line subtotal while total reflects header discount on sell', function () {
+it('stores sell total after header discount', function () {
     $user = User::factory()->create();
     $warehouse = Addrbook::factory()->warehouse()->create();
     $customer = Addrbook::factory()->customer()->create(['ppn' => false]);
@@ -180,7 +175,6 @@ it('keeps real_total as line subtotal while total reflects header discount on se
 
     $this->assertDatabaseHas('transactions', [
         'type' => Transaction::TYPE_SELL,
-        'real_total' => -20_000,
         'total' => -18_000,
         'discount' => 10,
         'ppn' => 0,
@@ -210,7 +204,6 @@ it('stores a zero total when sell invoice discount is 100 percent', function () 
 
     $this->assertDatabaseHas('transactions', [
         'type' => Transaction::TYPE_SELL,
-        'real_total' => -1_591_000,
         'total' => 0,
         'discount' => 100,
         'ppn' => 0,
@@ -240,7 +233,6 @@ it('stores move transactions with informational line totals on the header', func
     $this->assertDatabaseHas('transactions', [
         'type' => Transaction::TYPE_MOVE,
         'total' => -40_000,
-        'real_total' => -40_000,
         'total_items' => 4,
         'ppn' => 0,
     ]);

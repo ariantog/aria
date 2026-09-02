@@ -72,6 +72,7 @@ class ProductionColumnDefaults
         'transactions' => [
             'description' => '',
             'detail_ids' => '',
+            // Leftover NOT NULL prod column — dummy 0 only. Do not read or store amounts here.
             'real_total' => 0,
             'cogs' => 0,
             'location_id' => 0,

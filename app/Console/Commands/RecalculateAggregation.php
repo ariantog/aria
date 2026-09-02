@@ -123,12 +123,7 @@ class RecalculateAggregation extends Command
 
     protected function balanceAmountFromRow(object $trx): float
     {
-        $stored = (float) $trx->total;
-        if ($stored === 0.0 && (float) $trx->real_total !== 0.0) {
-            $stored = (float) $trx->real_total;
-        }
-
-        return $stored;
+        return (float) $trx->total;
     }
 
     /**

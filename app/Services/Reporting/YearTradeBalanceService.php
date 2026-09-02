@@ -202,7 +202,7 @@ class YearTradeBalanceService
 
         $idColumn = $side === 'sender' ? 'sender_id' : 'receiver_id';
         $typeColumn = $side === 'sender' ? 'sender_type' : 'receiver_type';
-        $amountSql = 'SUM(ABS(CASE WHEN COALESCE(real_total, 0) = 0 THEN total ELSE real_total END)) as amount';
+        $amountSql = 'SUM(ABS(total)) as amount';
 
         $rows = Transaction::query()
             ->where('status', Transaction::STATUS_COMPLETED)

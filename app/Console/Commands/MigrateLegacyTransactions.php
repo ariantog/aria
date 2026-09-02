@@ -160,7 +160,6 @@ class MigrateLegacyTransactions extends Command
                 // Nominal discount calculation for the header
                 $nominalDiscount = $subtotal * ($lDiscountPercent / 100);
 
-                // real_total is the final amount including tax.
                 $grandTotal = $lTotal;
                 if ($lPpn > 0) {
                     // Adjust grandTotal with tax (following the sign of total)
@@ -198,8 +197,8 @@ class MigrateLegacyTransactions extends Command
                     'due' => (isset($data['due']) && $data['due'] !== '0000-00-00') ? $data['due'] : null,
                     'description' => $data['description'] ?? null,
                     'notes' => $data['notes'] ?? $data['note'] ?? null,
-                    'real_total' => $grandTotal,
-                    'total' => $total,
+                    'real_total' => 0,
+                    'total' => $grandTotal,
                     'discount' => $nominalDiscount,
                     'discount_percent' => $lDiscountPercent,
                     'adjustment' => (float) ($data['adjustment'] ?? 0),
