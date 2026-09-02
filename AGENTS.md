@@ -102,6 +102,25 @@ Application code must ignore `transactions.real_total`. **`total` is the only he
 - Faktur-posted sells store **DPP** on `total` (tax linking sums that as DPP). Reconstruct gross as
   `abs(total) + ppn` — do not bring back a second header column for it.
 
+**Pre-deploy L12 bug (do not reintroduce).** Until commit `93dd8022` / PR #548, manual item sells
+wrote the **line subtotal** on `total` and the **net payable** on `real_total`:
+
+| Column | Stored | Meaning |
+|--------|--------|---------|
+| `total` | signed line subtotal | wrong — this is what balances read |
+| `real_total` | signed net after disc% + adj + PPN | correct amount, wrong column |
+
+Example production row **`618383`** (sell, 2026-09-01): one line Rp 135,000, invoice discount
+5%, adjustment −250 → net **Rp 128,000**. DB had `total = -135,000`, `real_total = -128,000`.
+Customer/reseller balance moved by 135,000 instead of 128,000.
+
+After the fix, **`CreateItemTransaction`** (and all other writers) set **`total` only** to
+`signedAmount(type, lines − disc% + adj + stored PPN)`. `real_total` is never a second payable —
+only dummy `0` on insert where MySQL requires NOT NULL. **Do not** swap columns back, read
+`real_total` in PHP/Blade/reports, or store subtotal on `total`.
+
+Regression: `tests/Feature/ItemTransactionTotalsTest.php` (“618383 net payable on total”).
+
 ### Do NOT change signed transaction totals
 
 `transactions.total` is a **signed** integer/decimal by design — not an unsigned amount with sign
