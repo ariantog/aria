@@ -236,25 +236,24 @@ test('persists warehouse arrangement source warehouses on update', function () {
         ->assertSee('Source WH', false);
 });
 
-test('bank list is sorted by name', function () {
-    Addrbook::factory()->create(['name' => 'Zebra Bank', 'type' => Addrbook::TYPE_BANK]);
-    Addrbook::factory()->create(['name' => 'Alpha Bank', 'type' => Addrbook::TYPE_BANK]);
+test('addrbook type list is sorted by name by default', function (string $slug, int $type) {
+    Addrbook::factory()->create(['name' => 'Alpha Contact', 'type' => $type]);
+    Addrbook::factory()->create(['name' => 'Zebra Contact', 'type' => $type]);
 
     $this->actingAs($this->user)
-        ->get(route('addrbook.type.index', 'bank'))
+        ->get(route('addrbook.type.index', $slug))
         ->assertOk()
-        ->assertSeeInOrder(['Alpha Bank', 'Zebra Bank'], false);
-});
-
-test('warehouse list is sorted by name', function () {
-    Addrbook::factory()->warehouse()->create(['name' => 'Zulu Warehouse']);
-    Addrbook::factory()->warehouse()->create(['name' => 'Alpha Warehouse']);
-
-    $this->actingAs($this->user)
-        ->get(route('addrbook.type.index', 'warehouse'))
-        ->assertOk()
-        ->assertSeeInOrder(['Alpha Warehouse', 'Zulu Warehouse'], false);
-});
+        ->assertSeeInOrder(['Alpha Contact', 'Zebra Contact'], false);
+})->with([
+    'customer' => ['customer', Addrbook::TYPE_CUSTOMER],
+    'warehouse' => ['warehouse', Addrbook::TYPE_WAREHOUSE],
+    'bank' => ['bank', Addrbook::TYPE_BANK],
+    'supplier' => ['supplier', Addrbook::TYPE_SUPPLIER],
+    'vwarehouse' => ['vwarehouse', Addrbook::TYPE_V_WAREHOUSE],
+    'vaccount' => ['vaccount', Addrbook::TYPE_V_ACCOUNT],
+    'reseller' => ['reseller', Addrbook::TYPE_RESELLER],
+    'account' => ['account', Addrbook::TYPE_ACCOUNT],
+]);
 
 test('warehouse list shows arrangement destination column', function () {
     Addrbook::factory()->warehouse()->create([
