@@ -28,6 +28,15 @@ $gross = $import->fakturGross();
                 @endif
                 @if($canImport)
                     <a href="{{ route('reports.tax.faktur.create') }}" class="rounded-lg bg-blue-700 px-4 py-2 text-sm font-medium text-white hover:bg-blue-800">Upload baru</a>
+                    <form method="POST" action="{{ route('reports.tax.faktur.destroy', $import) }}" class="inline"
+                          data-testid="faktur-delete-form"
+                          onsubmit="return confirm('Hapus faktur {{ $import->faktur_number }} dari laporan PPN? Sell dan Cash In yang sudah di-link tidak ikut terhapus. Nomor ini bisa diimport ulang.')">
+                        @csrf
+                        @method('DELETE')
+                        <button type="submit" class="rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50" data-testid="faktur-delete-btn">
+                            Hapus faktur
+                        </button>
+                    </form>
                 @endif
             </div>
         </div>
@@ -49,8 +58,18 @@ $gross = $import->fakturGross();
                 <div><dt class="text-gray-500">Pembeli</dt><dd>{{ $import->buyer_name }} <span class="text-xs text-gray-400">{{ $import->buyer_npwp }}</span></dd></div>
                 <div><dt class="text-gray-500">Reporting entity</dt><dd>{{ $import->reportingEntity?->name }}</dd></div>
                 <div><dt class="text-gray-500">Lawan transaksi</dt><dd>{{ $import->counterparty?->name }}</dd></div>
-                <div><dt class="text-gray-500">DPP / PPN / PPnBM</dt><dd class="tabular-nums">{{ $fmt($import->dpp) }} / {{ $fmt($import->ppn) }} / {{ $fmt($import->ppnbm) }}</dd></div>
-                <div><dt class="text-gray-500">Gross faktur (DPP+PPN) — dasar Sell</dt><dd class="tabular-nums font-medium">{{ $fmt($gross) }}</dd></div>
+                <div class="pt-1">
+                    @include('reports.tax.faktur.partials.amount-rows', [
+                        'fmt' => $fmt,
+                        'hargaJual' => $import->gross_total,
+                        'potongan' => $import->discount_total,
+                        'uangMuka' => $import->down_payment_total ?? 0,
+                        'dpp' => $import->dpp,
+                        'ppn' => $import->ppn,
+                        'ppnbm' => $import->ppnbm,
+                        'total' => $gross,
+                    ])
+                </div>
                 @if($import->signatory_name)
                     <div><dt class="text-gray-500">Penandatangan</dt><dd>{{ $import->signatory_name }}</dd></div>
                 @endif
@@ -87,11 +106,12 @@ $gross = $import->fakturGross();
                         @endif
                     </dd>
                 </div>
-                @if($import->payment_variance && abs((float) $import->payment_variance) > 0.01)
+                @php $paymentVariance = $import->computedPaymentVariance(); @endphp
+                @if($paymentVariance !== null && abs($paymentVariance) > 0.01)
                     <div>
                         <dt class="text-gray-500">Margin / biaya konsinyasi (gross − bayar)</dt>
-                        <dd class="tabular-nums">{{ $fmt(abs((float) $import->payment_variance)) }}
-                            @if((float) $import->payment_variance < 0)
+                        <dd class="tabular-nums">{{ $fmt(abs($paymentVariance)) }}
+                            @if($paymentVariance < 0)
                                 <span class="text-xs text-gray-500">(MDS/Central potong)</span>
                             @endif
                             @if($import->varianceExpenseAccount)
@@ -193,6 +213,67 @@ $gross = $import->fakturGross();
             @if(session('error'))
                 <div class="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-800">{{ session('error') }}</div>
             @endif
+
+            @if($canCreateCashIn ?? false)
+                <form method="POST" action="{{ route('reports.tax.faktur.cash-in.store', $import) }}" class="mb-4 space-y-3 rounded-lg border border-blue-100 bg-blue-50/40 p-3" data-testid="faktur-create-cash-in">
+                    @csrf
+                    <p class="text-sm font-medium text-gray-900">Buat Cash In dari faktur</p>
+                    <p class="text-xs text-gray-500">Otomatis di-link. Sender = lawan transaksi. Invoice = nomor faktur. PPN tidak dicatat (sudah di faktur).</p>
+                    <div class="grid gap-3 sm:grid-cols-3">
+                        <div>
+                            <label class="mb-1 block text-xs text-gray-500" for="create_cash_in_amount">Jumlah (Rp)</label>
+                            <input type="number" step="0.01" min="0.01" id="create_cash_in_amount" name="amount"
+                                   value="{{ old('amount', $defaultCashInAmount ?? '') }}"
+                                   required
+                                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm tabular-nums"
+                                   data-testid="faktur-create-cash-in-amount">
+                            @error('amount')
+                                <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                            @enderror
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-xs text-gray-500" for="create_cash_in_date">Tanggal</label>
+                            <input type="date" id="create_cash_in_date" name="date"
+                                   value="{{ old('date', $defaultCashInDate ?? now()->toDateString()) }}"
+                                   min="{{ $cashInMinDate ?? '' }}"
+                                   required
+                                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                                   data-testid="faktur-create-cash-in-date">
+                            @error('date')
+                                <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                            @enderror
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-xs text-gray-500" for="create_cash_in_bank">Bank</label>
+                            <select id="create_cash_in_bank" name="account_id" required
+                                    class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                                    data-testid="faktur-create-cash-in-bank">
+                                <option value="">— Pilih —</option>
+                                @foreach($cashInBanks ?? [] as $bank)
+                                    <option value="{{ $bank->id }}" @selected((int) old('account_id', $defaultCashInBankId ?? null) === (int) $bank->id)>{{ $bank->name }}</option>
+                                @endforeach
+                            </select>
+                            @error('account_id')
+                                <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                            @enderror
+                        </div>
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-xs text-gray-500" for="create_cash_in_variance">Akun biaya selisih (opsional)</label>
+                        <select id="create_cash_in_variance" name="variance_expense_addrbook_id" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                            <option value="">— Tidak ada —</option>
+                            @foreach($expenseAccounts as $account)
+                                <option value="{{ $account->id }}" @selected((int) old('variance_expense_addrbook_id', $import->variance_expense_addrbook_id) === $account->id)>{{ $account->name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <button type="submit" class="rounded-lg bg-blue-700 px-4 py-2 text-sm font-medium text-white hover:bg-blue-800" data-testid="faktur-create-cash-in-submit">
+                        Buat &amp; link Cash In
+                    </button>
+                </form>
+                <p class="mb-3 text-xs font-medium uppercase tracking-wide text-gray-400">Atau link Cash In yang sudah ada</p>
+            @endif
+
             <form method="POST" action="{{ route('reports.tax.faktur.payment.update', $import) }}" class="space-y-3">
                 @csrf
                 @method('PATCH')
@@ -318,15 +399,26 @@ $gross = $import->fakturGross();
     @if($canImport && $import->canPostConsignmentSell())
         <div class="rounded-xl border border-blue-200 bg-blue-50/40 p-4 shadow-sm text-sm" x-data="{
             lineMode: '{{ old('line_mode', 'summary') }}',
-            lineMatches: @js($lineItemMatches).map(function (line) {
-                line.selected_item_id = line.best_match ? String(line.best_match.id) : '';
-                return line;
-            }),
+            lineMatches: @js(collect($lineItemMatches)->map(function ($line) {
+                $oldRows = old('mapped_lines', []);
+                $oldRow = collect($oldRows)->firstWhere('line_no', (string) ($line['line_no'] ?? ''))
+                    ?? collect($oldRows)->firstWhere('line_no', $line['line_no'] ?? null);
+                $itemId = $oldRow['item_id'] ?? ($line['best_match']['id'] ?? '');
+
+                return array_merge($line, ['item_id' => $itemId !== '' && $itemId !== null ? (string) $itemId : '']);
+            })->values()->all()),
+            allMappedLinesSelected() {
+                if (this.lineMode !== 'mapped') {
+                    return true;
+                }
+
+                return this.lineMatches.every((line) => line.item_id);
+            },
         }">
             <h3 class="mb-1 font-semibold text-gray-900">Buat Sell baru (opsional)</h3>
             <p class="mb-3 text-xs text-gray-600">
                 Hanya jika Sell untuk faktur ini belum diinput. Biasanya cukup <strong>link Sell yang sudah ada</strong> di atas.
-                Sell baru = gross faktur (DPP+PPN {{ $fmt($gross) }}).
+                Sell baru = harga jual − potongan − uang muka + PPN ({{ $fmt($gross) }}).
             </p>
             <form method="POST" action="{{ route('reports.tax.faktur.post-sell', $import) }}" class="space-y-3">
                 @csrf
@@ -363,9 +455,15 @@ $gross = $import->fakturGross();
                     </div>
                 </div>
 
+                @if($errors->has('mapped_lines'))
+                    <div class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+                        {{ $errors->first('mapped_lines') }}
+                    </div>
+                @endif
+
                 <div x-show="lineMode === 'summary'" x-cloak>
                     <label class="mb-1 block text-xs text-gray-500" for="post_sell_summary_item_id">Item ringkasan</label>
-                    <select id="post_sell_summary_item_id" name="summary_item_id" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                    <select id="post_sell_summary_item_id" name="summary_item_id" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" :disabled="lineMode !== 'summary'">
                         <option value="">— Pilih item —</option>
                         @foreach($items as $item)
                             <option value="{{ $item->id }}" @selected((int) old('summary_item_id') === $item->id)>
@@ -397,8 +495,15 @@ $gross = $import->fakturGross();
                                         </template>
                                     </td>
                                     <td class="px-3 py-2">
-                                        <input type="hidden" :name="`mapped_lines[${index}][line_no]`" :value="line.line_no">
-                                        <select :name="`mapped_lines[${index}][item_id]`" x-model="line.selected_item_id" class="w-full rounded border border-gray-300 px-2 py-1 text-sm" required>
+                                        <input type="hidden" :name="`mapped_lines[${index}][line_no]`" :value="line.line_no" :disabled="lineMode !== 'mapped'">
+                                        <select
+                                            :name="`mapped_lines[${index}][item_id]`"
+                                            x-model="line.item_id"
+                                            class="w-full rounded border px-2 py-1 text-sm"
+                                            :class="lineMode === 'mapped' && !line.item_id ? 'border-amber-400 bg-amber-50' : 'border-gray-300'"
+                                            :disabled="lineMode !== 'mapped'"
+                                            :required="lineMode === 'mapped'"
+                                        >
                                             <option value="">— Pilih —</option>
                                             @foreach($items as $item)
                                                 <option value="{{ $item->id }}">{{ $item->name }}@if($item->code) · {{ $item->code }}@endif</option>
@@ -411,7 +516,13 @@ $gross = $import->fakturGross();
                     </table>
                 </div>
 
-                <button type="submit" class="rounded-lg bg-blue-700 px-4 py-2 text-sm font-medium text-white hover:bg-blue-800" data-testid="faktur-post-sell">
+                <button
+                    type="submit"
+                    class="rounded-lg px-4 py-2 text-sm font-medium text-white"
+                    :class="allMappedLinesSelected() ? 'bg-blue-700 hover:bg-blue-800' : 'cursor-not-allowed bg-gray-400'"
+                    :disabled="!allMappedLinesSelected()"
+                    data-testid="faktur-post-sell"
+                >
                     Post Sell dari faktur
                 </button>
             </form>

@@ -98,6 +98,12 @@ class FakturPajakPdfParser
             '0',
         ));
 
+        $downPaymentTotal = $this->parseAmount($this->matchOr(
+            $normalized,
+            '/Dikurangi Uang Muka yang telah diterima\s+([\d.,]+)/i',
+            '0',
+        ));
+
         $dpp = $this->parseAmount($this->requireMatch(
             $normalized,
             '/Dasar Pengenaan Pajak\s+([\d.,]+)/i',
@@ -130,6 +136,7 @@ class FakturPajakPdfParser
             buyerNpwp: $buyerNpwp,
             grossTotal: $grossTotal,
             discountTotal: $discountTotal,
+            downPaymentTotal: $downPaymentTotal,
             dpp: $dpp,
             ppn: $ppn,
             ppnbm: $ppnbm,

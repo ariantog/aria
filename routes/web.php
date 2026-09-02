@@ -414,11 +414,14 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
         Route::get('/tax/faktur/create', [\App\Http\Controllers\Reports\TaxFakturImportController::class, 'create'])->name('tax.faktur.create');
         Route::post('/tax/faktur/parse', [\App\Http\Controllers\Reports\TaxFakturImportController::class, 'parse'])->name('tax.faktur.parse');
         Route::get('/tax/faktur/review', [\App\Http\Controllers\Reports\TaxFakturImportController::class, 'review'])->name('tax.faktur.review');
+        Route::get('/tax/faktur/counterparty-lookup', [\App\Http\Controllers\Reports\TaxFakturImportController::class, 'counterpartyLookup'])->name('tax.faktur.counterparty-lookup');
         Route::get('/tax/faktur/cash-in-suggestions', [\App\Http\Controllers\Reports\TaxFakturImportController::class, 'cashInSuggestions'])->name('tax.faktur.cash-in-suggestions');
         Route::get('/tax/faktur/sell-suggestions', [\App\Http\Controllers\Reports\TaxFakturImportController::class, 'sellSuggestions'])->name('tax.faktur.sell-suggestions');
         Route::post('/tax/faktur', [\App\Http\Controllers\Reports\TaxFakturImportController::class, 'store'])->name('tax.faktur.store');
         Route::get('/tax/faktur/{import}', [\App\Http\Controllers\Reports\TaxFakturImportController::class, 'show'])->name('tax.faktur.show');
+        Route::delete('/tax/faktur/{import}', [\App\Http\Controllers\Reports\TaxFakturImportController::class, 'destroy'])->name('tax.faktur.destroy');
         Route::patch('/tax/faktur/{import}/payment', [\App\Http\Controllers\Reports\TaxFakturImportController::class, 'updatePayment'])->name('tax.faktur.payment.update');
+        Route::post('/tax/faktur/{import}/cash-in', [\App\Http\Controllers\Reports\TaxFakturImportController::class, 'storeCashIn'])->middleware('prevent.duplicate')->name('tax.faktur.cash-in.store');
         Route::post('/tax/faktur/{import}/link-sells', [\App\Http\Controllers\Reports\TaxFakturImportController::class, 'linkSells'])->name('tax.faktur.link-sells');
         Route::delete('/tax/faktur/{import}/sells/{transaction}', [\App\Http\Controllers\Reports\TaxFakturImportController::class, 'unlinkSell'])->name('tax.faktur.unlink-sell');
         Route::post('/tax/faktur/{import}/post-sell', [\App\Http\Controllers\Reports\TaxFakturImportController::class, 'postSell'])->name('tax.faktur.post-sell');

@@ -126,6 +126,16 @@ class Addrbook extends Model
         ];
     }
 
+    /** @return list<int> Customer, reseller, and ledger account on faktur import review. */
+    public static function fakturCounterpartyTypes(): array
+    {
+        return [
+            self::TYPE_CUSTOMER,
+            self::TYPE_RESELLER,
+            self::TYPE_ACCOUNT,
+        ];
+    }
+
     /**
      * Addrbook types allowed in item / asset-lancar transaction sender/receiver filters.
      *

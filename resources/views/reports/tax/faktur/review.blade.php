@@ -21,7 +21,7 @@ $gross = $parsed->grossIncludingTax();
     fakturNumber: @js($parsed->fakturNumber),
     postSell: {{ old('post_sell') ? 'true' : 'false' }},
     lineMode: '{{ old('line_mode', 'summary') }}',
-    consignmentIds: @js($customers->whereNotNull('payment_due_day')->pluck('id')->map(fn ($id) => (int) $id)->values()),
+    consignmentIds: @js($consignmentIds),
     lineMatches: @js($lineItemMatches ?? []).map(function (line) {
         line.selected_item_id = line.best_match ? String(line.best_match.id) : '';
         return line;
@@ -70,8 +70,18 @@ $gross = $parsed->grossIncludingTax();
             <dl class="space-y-2">
                 <div><dt class="text-gray-500">Penjual (PKP)</dt><dd>{{ $parsed->sellerName }} <span class="text-xs text-gray-400">{{ $parsed->sellerNpwp }}</span></dd></div>
                 <div><dt class="text-gray-500">Pembeli</dt><dd>{{ $parsed->buyerName }} <span class="text-xs text-gray-400">{{ $parsed->buyerNpwp }}</span></dd></div>
-                <div><dt class="text-gray-500">DPP / PPN</dt><dd class="tabular-nums">{{ $fmt($parsed->dpp) }} / {{ $fmt($parsed->ppn) }}</dd></div>
-                <div><dt class="text-gray-500">Total faktur</dt><dd class="tabular-nums font-medium">{{ $fmt($gross) }}</dd></div>
+                <div class="pt-1">
+                    @include('reports.tax.faktur.partials.amount-rows', [
+                        'fmt' => $fmt,
+                        'hargaJual' => $parsed->grossTotal,
+                        'potongan' => $parsed->discountTotal,
+                        'uangMuka' => $parsed->downPaymentTotal,
+                        'dpp' => $parsed->dpp,
+                        'ppn' => $parsed->ppn,
+                        'ppnbm' => $parsed->ppnbm,
+                        'total' => $gross,
+                    ])
+                </div>
                 @if($expectedPaymentDate)
                     <div><dt class="text-gray-500">Perkiraan jatuh tempo</dt><dd>{{ $expectedPaymentDate }} <span class="text-xs text-gray-400">(dari payment due day lawan)</span></dd></div>
                 @endif
@@ -109,26 +119,60 @@ $gross = $parsed->grossIncludingTax();
                 </select>
             </div>
 
-            <div x-show="direction === 'keluaran'">
-                <label class="mb-1 block text-sm font-medium text-gray-700" for="counterparty_id_keluaran">Customer / pembeli</label>
-                <select id="counterparty_id_keluaran" name="counterparty_id" x-bind:disabled="direction !== 'keluaran'" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" data-testid="counterparty-select" x-model="counterpartyId" @change="refreshSuggestions()">
-                    <option value="">— Pilih —</option>
-                    @foreach($customers as $c)
-                        <option value="{{ $c->id }}" @selected((int) old('counterparty_id', $counterpartyGuessId) === $c->id)>
-                            {{ $c->name }}@if($c->payment_due_day) (tgl {{ $c->payment_due_day }})@endif
-                        </option>
-                    @endforeach
-                </select>
-            </div>
-
-            <div x-show="direction === 'masukan'" x-cloak>
-                <label class="mb-1 block text-sm font-medium text-gray-700" for="counterparty_id_masukan">Supplier / penjual</label>
-                <select id="counterparty_id_masukan" name="counterparty_id" x-bind:disabled="direction !== 'masukan'" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
-                    <option value="">— Pilih —</option>
-                    @foreach($suppliers as $s)
-                        <option value="{{ $s->id }}">{{ $s->name }}</option>
-                    @endforeach
-                </select>
+            <div>
+                <label class="mb-1 block text-sm font-medium text-gray-700" for="counterparty_combobox" x-text="direction === 'keluaran' ? 'Customer / pembeli' : 'Penjual / lawan transaksi'"></label>
+                <div class="relative"
+                     x-data="asyncCombobox({
+                        endpoint: @js(route('reports.tax.faktur.counterparty-lookup')),
+                        placeholder: 'Cari customer, reseller, atau ledger…',
+                        initial: @js($counterpartyGuess ? ['id' => $counterpartyGuess->id, 'name' => $counterpartyGuess->name.($counterpartyGuess->payment_due_day ? ' (tgl '.$counterpartyGuess->payment_due_day.')' : '')] : null),
+                        onSelect: (item) => {
+                            counterpartyId = item ? String(item.id) : '';
+                            refreshSuggestions();
+                        }
+                     })"
+                     x-init="init()">
+                    <input type="hidden" name="counterparty_id" :value="selected ? selected.id : ''" required>
+                    <div class="relative flex h-[38px] w-full overflow-hidden rounded-lg border border-gray-300 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500">
+                        <input type="text"
+                               id="counterparty_combobox"
+                               x-model="query"
+                               @input="handleInput()"
+                               @focus="handleFocus()"
+                               @keydown="handleKeydown($event)"
+                               @keyup="handleKeyup($event)"
+                               :readonly="keyboardNavLock()"
+                               :placeholder="placeholder"
+                               class="flex-1 border-none bg-transparent px-3 py-2 text-sm outline-none placeholder-gray-400"
+                               autocomplete="off"
+                               data-testid="counterparty-select">
+                        <button type="button"
+                                x-show="selected"
+                                @click="clearSelection()"
+                                class="flex items-center px-2 text-gray-400 hover:text-gray-600">
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                        </button>
+                        <button type="button"
+                                @click="open = !open; if(!items.length) doSearch(query)"
+                                class="flex items-center px-2 text-gray-400">
+                            <svg x-show="!loading" class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l4-4 4 4m0 6l-4 4-4-4"/></svg>
+                            <svg x-show="loading" class="h-4 w-4 animate-spin text-gray-400" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                        </button>
+                    </div>
+                    <div x-show="open" x-cloak @click.away="open = false" class="combobox-options">
+                        <div x-show="!loading && items.length === 0" class="px-3 py-2 text-sm text-gray-400" x-text="emptyMessage()"></div>
+                        <template x-for="(item, idx) in items" :key="item.id">
+                            <div @click="selectItem(item)"
+                                 @mouseenter="activeIndex = idx"
+                                 class="combobox-option"
+                                 :class="{ 'active': activeIndex === idx }">
+                                <span class="block font-medium" x-text="item.name + (item.payment_due_day ? ' (tgl ' + item.payment_due_day + ')' : '')"></span>
+                                <span x-show="item.ledger_hint" class="block text-xs text-gray-500 line-clamp-2" x-text="item.ledger_hint"></span>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+                <p class="mt-1 text-xs text-gray-500">Customer, reseller, atau akun ledger.</p>
             </div>
 
             <div class="border-t border-gray-100 pt-4">
@@ -202,7 +246,7 @@ $gross = $parsed->grossIncludingTax();
                     <input type="checkbox" name="post_sell" value="1" x-model="postSell" class="mt-0.5 rounded border-gray-300" data-testid="faktur-post-sell-on-save">
                     <span>
                         <span class="font-medium text-gray-900">Post Sell dari faktur setelah simpan</span>
-                        <span class="block text-xs text-gray-500">Konsinyasi MDS/Central: Sell = gross DPP+PPN. Entity pajak dari bank Cash In terkait.</span>
+                        <span class="block text-xs text-gray-500">Konsinyasi MDS/Central: Sell = harga jual − potongan − uang muka + PPN. Entity pajak dari bank Cash In terkait.</span>
                     </span>
                 </label>
                 <div class="mt-3 space-y-3" x-show="postSell" x-cloak>

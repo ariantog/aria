@@ -2,11 +2,14 @@
 
 namespace App\Services\Tax;
 
+use App\Actions\Transactions\CreateCashInFromFaktur;
 use App\Models\Addrbook;
 use App\Models\TaxFakturImport;
 use App\Models\Transaction;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 use InvalidArgumentException;
 
 class TaxFakturImportService
@@ -69,6 +72,7 @@ class TaxFakturImportService
                 'buyer_npwp' => $parsed->buyerNpwp,
                 'gross_total' => $parsed->grossTotal,
                 'discount_total' => $parsed->discountTotal,
+                'down_payment_total' => $parsed->downPaymentTotal,
                 'dpp' => $parsed->dpp,
                 'ppn' => $parsed->ppn,
                 'ppnbm' => $parsed->ppnbm,
@@ -94,6 +98,57 @@ class TaxFakturImportService
         });
     }
 
+    /**
+     * Remove an imported faktur from PPN reporting. Linked Sell / Cash In rows stay;
+     * only the import record, sell links, and stored PDF are removed so the number
+     * can be uploaded again.
+     */
+    public function delete(TaxFakturImport $import): void
+    {
+        $pdfPath = $import->pdf_path;
+
+        DB::transaction(function () use ($import) {
+            $import = TaxFakturImport::query()
+                ->whereKey($import->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            if (Schema::hasTable('tax_faktur_import_sells')) {
+                $import->sellTransactions()->detach();
+            }
+
+            $import->delete();
+        });
+
+        $this->deleteStoredPdf($pdfPath);
+    }
+
+    private function deleteStoredPdf(?string $pdfPath): void
+    {
+        if (! $pdfPath) {
+            return;
+        }
+
+        foreach (['local', 'public'] as $disk) {
+            try {
+                if (Storage::disk($disk)->exists($pdfPath)) {
+                    Storage::disk($disk)->delete($pdfPath);
+                }
+            } catch (\Throwable) {
+                // Disk may not be configured in tests — file cleanup is best-effort.
+            }
+        }
+
+        foreach ([
+            storage_path('app/private/'.$pdfPath),
+            storage_path('app/'.$pdfPath),
+        ] as $absolute) {
+            if (is_file($absolute)) {
+                @unlink($absolute);
+            }
+        }
+    }
+
     public function linkCashIn(TaxFakturImport $import, ?int $cashInTransactionId): TaxFakturImport
     {
         if ($cashInTransactionId) {
@@ -104,6 +159,26 @@ class TaxFakturImportService
         $import->save();
 
         return $import->fresh();
+    }
+
+    /**
+     * @param  array{date: string, account_id: int, amount: float, variance_expense_addrbook_id?: int|null}  $data
+     */
+    public function createAndLinkCashIn(TaxFakturImport $import, array $data): TaxFakturImport
+    {
+        return DB::transaction(function () use ($import, $data) {
+            $cashIn = app(CreateCashInFromFaktur::class)->execute($import, $data);
+
+            return $this->recordPayment(
+                $import->fresh(),
+                (float) $data['amount'],
+                $data['date'] ?? now()->toDateString(),
+                $cashIn->id,
+                isset($data['variance_expense_addrbook_id']) && $data['variance_expense_addrbook_id']
+                    ? (int) $data['variance_expense_addrbook_id']
+                    : $import->variance_expense_addrbook_id,
+            );
+        });
     }
 
     public function recordPayment(

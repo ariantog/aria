@@ -43,6 +43,10 @@ beforeEach(function () {
         '--path' => 'database/migrations/2026_08_31_120000_install_tax_faktur_import_sells_table.php',
         '--force' => true,
     ]);
+    Artisan::call('migrate', [
+        '--path' => 'database/migrations/2026_09_02_180000_add_down_payment_total_to_tax_faktur_imports_table.php',
+        '--force' => true,
+    ]);
 });
 
 it('calculates expected payment on due day next month after faktur', function () {
@@ -188,12 +192,55 @@ it('imports keluaran faktur and includes it in ppn ringkasan', function () {
     ]);
 
     expect($import->expected_payment_date?->toDateString())->toBe('2026-08-15')
-        ->and((float) $import->payment_variance)->toBe(-1_787_055.0);
+        ->and((float) $import->down_payment_total)->toBe(0.0)
+        ->and((float) $import->fakturGross())->toBe(23_555_484.0)
+        ->and((float) $import->payment_variance)->toBe(-3_555_484.0);
 
     $ringkasan = app(TaxReportService::class)->ringkasan(2026, 7, $entity->id);
 
     expect($ringkasan['keluaran_dpp'])->toBe(19_452_728.0)
         ->and($ringkasan['keluaran_tax'])->toBe(2_334_327.0);
+});
+
+it('subtracts potongan and uang muka from payable total and ignores ppnbm', function () {
+    $entity = ReportingEntity::create([
+        'name' => 'PT Indosport',
+        'slug' => 'pt-indosport-uang-muka',
+        'is_pkp' => true,
+        'npwp' => '0504330085044000',
+    ]);
+    $customer = Addrbook::factory()->customer()->create();
+
+    $parsed = new ParsedFakturPajak(
+        fakturNumber: '01000UANGMUKA00001',
+        fakturDate: Carbon::parse('2026-07-15'),
+        fakturDatePlace: 'Jakarta',
+        sellerName: 'INDOSPORT',
+        sellerNpwp: '0504330085044000',
+        buyerName: 'Buyer',
+        buyerNpwp: '0013179569054000',
+        grossTotal: 1_200_000.0,
+        discountTotal: 50_000.0,
+        dpp: 916_667.0,
+        ppn: 110_000.0,
+        ppnbm: 99_000.0,
+        signatoryName: 'TEST',
+        sourceFormat: 'mds_output_tax_invoice',
+        downPaymentTotal: 150_000.0,
+    );
+
+    $this->actingAs($this->user);
+
+    $import = app(TaxFakturImportService::class)->storeFromParsed($parsed, [
+        'direction' => TaxFakturImport::DIRECTION_KELUARAN,
+        'reporting_entity_id' => $entity->id,
+        'counterparty_id' => $customer->id,
+    ]);
+
+    expect((float) $import->down_payment_total)->toBe(150_000.0)
+        ->and((float) $import->fakturGross())->toBe(1_110_000.0)
+        ->and($import->fakturGross())->not->toBe((float) $import->dpp + (float) $import->ppn)
+        ->and($import->fakturGross())->not->toBe((float) $import->gross_total + (float) $import->ppn + (float) $import->ppnbm);
 });
 
 it('suggests keluaran when entity npwp matches seller', function () {
@@ -307,6 +354,15 @@ it('allows view-only user to list and show but not upload', function () {
 
     $this->actingAs($viewer)
         ->get(route('reports.tax.faktur.create'))
+        ->assertForbidden();
+
+    $this->actingAs($viewer)
+        ->get(route('reports.tax.faktur.show', $import))
+        ->assertOk()
+        ->assertDontSee('data-testid="faktur-delete-form"', false);
+
+    $this->actingAs($viewer)
+        ->delete(route('reports.tax.faktur.destroy', $import))
         ->assertForbidden();
 });
 
@@ -426,7 +482,7 @@ it('posts payment variance as cash out to expense ledger', function () {
         sellerNpwp: '0504330085044000',
         buyerName: 'MDS',
         buyerNpwp: '0013179569054000',
-        grossTotal: 21_787_055.0,
+        grossTotal: 21_221_157.0,
         discountTotal: 0,
         dpp: 19_452_728.0,
         ppn: 2_334_327.0,
@@ -456,7 +512,7 @@ it('posts payment variance as cash out to expense ledger', function () {
         ->and((int) $varianceTx->type)->toBe(Transaction::TYPE_CASH_OUT)
         ->and((int) $varianceTx->sender_id)->toBe($bank->id)
         ->and((int) $varianceTx->receiver_id)->toBe($expense->id)
-        ->and(abs((float) $varianceTx->total))->toBe(1_787_055.0);
+        ->and(abs((float) $varianceTx->total))->toBe(3_555_484.0);
 });
 
 function seedKeluaranLinkFilterScenario(User $user): array
@@ -637,4 +693,155 @@ it('lists keluaran that still need sell coverage', function () {
         ->assertSee('01000SHORTDPP00001', false)
         ->assertDontSee('01000COMPLETE00001', false)
         ->assertDontSee('01000MASUKAN000001', false);
+});
+
+it('returns customer reseller and ledger matches for faktur counterparty lookup', function () {
+    $customer = Addrbook::factory()->customer()->create(['name' => 'Zeta Faktur Customer']);
+    $reseller = Addrbook::factory()->create(['name' => 'Zeta Faktur Reseller', 'type' => Addrbook::TYPE_RESELLER]);
+    $ledger = Addrbook::factory()->create(['name' => 'Zeta Faktur Ledger', 'type' => Addrbook::TYPE_ACCOUNT]);
+    Addrbook::factory()->supplier()->create(['name' => 'Zeta Faktur Supplier']);
+
+    $names = collect($this->actingAs($this->user)
+        ->getJson(route('reports.tax.faktur.counterparty-lookup', ['search' => 'Zeta Faktur']))
+        ->assertOk()
+        ->json())
+        ->pluck('name');
+
+    expect($names)->toContain('Zeta Faktur Customer')
+        ->toContain('Zeta Faktur Reseller')
+        ->toContain('Zeta Faktur Ledger')
+        ->not->toContain('Zeta Faktur Supplier');
+});
+
+it('rejects faktur counterparty lookup without import permission', function () {
+    $user = User::factory()->create();
+    app(PermissionGenerator::class)->generateForModule('Report');
+    $user->givePermissionTo('report-tax-faktur');
+
+    $this->actingAs($user)
+        ->getJson(route('reports.tax.faktur.counterparty-lookup', ['search' => 'Test']))
+        ->assertForbidden();
+});
+
+it('deletes an imported faktur so the number can be uploaded again', function () {
+    $entity = ReportingEntity::create([
+        'name' => 'PT Delete Faktur',
+        'slug' => 'pt-delete-faktur',
+        'is_pkp' => true,
+        'npwp' => '0504330085044000',
+    ]);
+    $customer = Addrbook::factory()->customer()->create();
+    $warehouse = Addrbook::factory()->warehouse()->create();
+
+    $import = TaxFakturImport::create([
+        'faktur_number' => '01000DELETE0000001',
+        'faktur_date' => '2026-07-31',
+        'direction' => TaxFakturImport::DIRECTION_KELUARAN,
+        'reporting_entity_id' => $entity->id,
+        'counterparty_id' => $customer->id,
+        'seller_name' => 'INDOSPORT',
+        'seller_npwp' => '0504330085044000',
+        'buyer_name' => 'MDS',
+        'buyer_npwp' => '0013179569054000',
+        'gross_total' => 21_221_157,
+        'dpp' => 19_452_728,
+        'ppn' => 2_334_327,
+        'report_year' => 2026,
+        'report_month' => 7,
+        'user_id' => $this->user->id,
+    ]);
+
+    $sell = Transaction::withoutEvents(fn () => Transaction::create([
+        'date' => '2026-07-31',
+        'type' => Transaction::TYPE_SELL,
+        'sender_type' => Addrbook::TYPE_WAREHOUSE,
+        'sender_id' => $warehouse->id,
+        'receiver_type' => Addrbook::TYPE_CUSTOMER,
+        'receiver_id' => $customer->id,
+        'invoice' => 'INV-KEEP',
+        'total' => Transaction::signedAmount(Transaction::TYPE_SELL, 19_452_728),
+        'real_total' => Transaction::signedAmount(Transaction::TYPE_SELL, 23_555_484),
+        'ppn' => 2_334_327,
+        'status' => Transaction::STATUS_COMPLETED,
+        'user_id' => $this->user->id,
+        'submit_type' => Transaction::SUBMIT_TYPE_MANUAL,
+    ]));
+
+    app(LinkFakturSells::class)->attach($import, [$sell->id]);
+
+    $this->actingAs($this->user)
+        ->get(route('reports.tax.faktur.show', $import))
+        ->assertOk()
+        ->assertSee('data-testid="faktur-delete-form"', false)
+        ->assertSee('data-testid="faktur-amount-rows"', false)
+        ->assertSee('Harga jual / penggantian / uang muka / termin', false)
+        ->assertSee('Dikurangi uang muka yang telah diterima', false);
+
+    $this->actingAs($this->user)
+        ->delete(route('reports.tax.faktur.destroy', $import))
+        ->assertRedirect(route('reports.tax.faktur.index'));
+
+    expect(TaxFakturImport::query()->where('faktur_number', '01000DELETE0000001')->exists())->toBeFalse()
+        ->and(Transaction::query()->whereKey($sell->id)->exists())->toBeTrue();
+
+    $parsed = new ParsedFakturPajak(
+        fakturNumber: '01000DELETE0000001',
+        fakturDate: Carbon::parse('2026-07-31'),
+        fakturDatePlace: 'Jakarta',
+        sellerName: 'INDOSPORT',
+        sellerNpwp: '0504330085044000',
+        buyerName: 'MDS',
+        buyerNpwp: '0013179569054000',
+        grossTotal: 21_221_157.0,
+        discountTotal: 0,
+        dpp: 19_452_728.0,
+        ppn: 2_334_327.0,
+        ppnbm: 0,
+        signatoryName: 'TEST',
+        sourceFormat: 'mds_output_tax_invoice',
+    );
+
+    $reimported = app(TaxFakturImportService::class)->storeFromParsed($parsed, [
+        'direction' => TaxFakturImport::DIRECTION_KELUARAN,
+        'reporting_entity_id' => $entity->id,
+        'counterparty_id' => $customer->id,
+    ]);
+
+    expect($reimported->faktur_number)->toBe('01000DELETE0000001')
+        ->and((float) $reimported->fakturGross())->toBe(23_555_484.0);
+});
+
+it('forbids deleting a faktur without import permission', function () {
+    $entity = ReportingEntity::create([
+        'name' => 'PT No Delete',
+        'slug' => 'pt-no-delete-faktur',
+        'is_pkp' => true,
+    ]);
+    $customer = Addrbook::factory()->customer()->create();
+    $import = TaxFakturImport::create([
+        'faktur_number' => '01000NODELETE00001',
+        'faktur_date' => '2026-07-31',
+        'direction' => TaxFakturImport::DIRECTION_KELUARAN,
+        'reporting_entity_id' => $entity->id,
+        'counterparty_id' => $customer->id,
+        'seller_name' => 'INDOSPORT',
+        'seller_npwp' => '0504330085044000',
+        'buyer_name' => 'MDS',
+        'buyer_npwp' => '0013179569054000',
+        'dpp' => 1_000_000,
+        'ppn' => 110_000,
+        'report_year' => 2026,
+        'report_month' => 7,
+        'user_id' => $this->user->id,
+    ]);
+
+    $viewer = User::factory()->create();
+    app(PermissionGenerator::class)->generateForModule('Report');
+    $viewer->givePermissionTo('report-tax-faktur');
+
+    $this->actingAs($viewer)
+        ->delete(route('reports.tax.faktur.destroy', $import))
+        ->assertForbidden();
+
+    expect(TaxFakturImport::query()->whereKey($import->id)->exists())->toBeTrue();
 });

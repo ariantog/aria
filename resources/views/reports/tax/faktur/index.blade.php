@@ -28,6 +28,9 @@ $hasActiveFilters = collect($filters)->filter(fn ($value) => $value !== null && 
     @if(session('success'))
         <div class="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">{{ session('success') }}</div>
     @endif
+    @if(session('error'))
+        <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ session('error') }}</div>
+    @endif
 
     <form method="GET" action="{{ route('reports.tax.faktur.index') }}" class="flex flex-wrap items-end gap-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
         <div>
@@ -109,6 +112,9 @@ $hasActiveFilters = collect($filters)->filter(fn ($value) => $value !== null && 
                     <th class="px-3 py-2 font-medium">Jatuh tempo</th>
                     <th class="px-3 py-2 font-medium">Bayar</th>
                     <th class="px-3 py-2 font-medium">Diimport</th>
+                    @if($canImport)
+                        <th class="px-3 py-2 font-medium"></th>
+                    @endif
                 </tr>
             </thead>
             <tbody>
@@ -150,8 +156,8 @@ $hasActiveFilters = collect($filters)->filter(fn ($value) => $value !== null && 
                         <td class="px-3 py-2 text-xs">
                             @if($row->payment_received_date)
                                 <span class="text-green-700">{{ $fmt($row->payment_received_amount) }}</span>
-                                @if($row->payment_variance && abs((float)$row->payment_variance) > 0.01)
-                                    <span class="text-gray-500">(Δ {{ $fmt($row->payment_variance) }})</span>
+                                @if($row->computedPaymentVariance() !== null && abs((float) $row->computedPaymentVariance()) > 0.01)
+                                    <span class="text-gray-500">(Δ {{ $fmt($row->computedPaymentVariance()) }})</span>
                                 @endif
                             @else
                                 <span class="text-gray-400">Belum</span>
@@ -163,10 +169,21 @@ $hasActiveFilters = collect($filters)->filter(fn ($value) => $value !== null && 
                                 <span class="block">{{ $row->user->username }}</span>
                             @endif
                         </td>
+                        @if($canImport)
+                            <td class="px-3 py-2">
+                                <form method="POST" action="{{ route('reports.tax.faktur.destroy', $row) }}"
+                                      data-testid="faktur-delete-form-{{ $row->id }}"
+                                      onsubmit="return confirm('Hapus faktur {{ $row->faktur_number }} dari laporan PPN? Sell dan Cash In yang sudah di-link tidak ikut terhapus.')">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" class="text-xs font-medium text-red-600 hover:underline" data-testid="faktur-delete-btn-{{ $row->id }}">Hapus</button>
+                                </form>
+                            </td>
+                        @endif
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="12" class="px-3 py-8 text-center text-gray-500">{{ $hasActiveFilters ? 'Tidak ada faktur yang cocok dengan filter.' : 'Belum ada faktur diimport.' }}</td>
+                        <td colspan="{{ $canImport ? 13 : 12 }}" class="px-3 py-8 text-center text-gray-500">{{ $hasActiveFilters ? 'Tidak ada faktur yang cocok dengan filter.' : 'Belum ada faktur diimport.' }}</td>
                     </tr>
                 @endforelse
             </tbody>
