@@ -4,8 +4,8 @@ namespace App\Models;
 
 use App\Models\Concerns\DisplaysTransactionTotals;
 use App\Support\FillsProductionColumnDefaults;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Schema;
 
 class DeletedTransaction extends Model
@@ -65,7 +65,7 @@ class DeletedTransaction extends Model
         return 'id';
     }
 
-    public function archivedAt(): ?Carbon
+    public function archivedAt(): ?CarbonInterface
     {
         foreach (['deleted_at', 'created_at', 'updated_at'] as $column) {
             $value = $this->getAttributes()[$column] ?? null;
