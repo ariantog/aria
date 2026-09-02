@@ -43,6 +43,10 @@ beforeEach(function () {
         '--path' => 'database/migrations/2026_08_31_120000_install_tax_faktur_import_sells_table.php',
         '--force' => true,
     ]);
+    Artisan::call('migrate', [
+        '--path' => 'database/migrations/2026_09_02_180000_add_down_payment_total_to_tax_faktur_imports_table.php',
+        '--force' => true,
+    ]);
 });
 
 it('calculates expected payment on due day next month after faktur', function () {
@@ -188,6 +192,7 @@ it('imports keluaran faktur and includes it in ppn ringkasan', function () {
     ]);
 
     expect($import->expected_payment_date?->toDateString())->toBe('2026-08-15')
+        ->and((float) $import->down_payment_total)->toBe(0.0)
         ->and((float) $import->fakturGross())->toBe(23_555_484.0)
         ->and((float) $import->payment_variance)->toBe(-3_555_484.0);
 
@@ -195,6 +200,47 @@ it('imports keluaran faktur and includes it in ppn ringkasan', function () {
 
     expect($ringkasan['keluaran_dpp'])->toBe(19_452_728.0)
         ->and($ringkasan['keluaran_tax'])->toBe(2_334_327.0);
+});
+
+it('subtracts potongan and uang muka from payable total and ignores ppnbm', function () {
+    $entity = ReportingEntity::create([
+        'name' => 'PT Indosport',
+        'slug' => 'pt-indosport-uang-muka',
+        'is_pkp' => true,
+        'npwp' => '0504330085044000',
+    ]);
+    $customer = Addrbook::factory()->customer()->create();
+
+    $parsed = new ParsedFakturPajak(
+        fakturNumber: '01000UANGMUKA00001',
+        fakturDate: Carbon::parse('2026-07-15'),
+        fakturDatePlace: 'Jakarta',
+        sellerName: 'INDOSPORT',
+        sellerNpwp: '0504330085044000',
+        buyerName: 'Buyer',
+        buyerNpwp: '0013179569054000',
+        grossTotal: 1_200_000.0,
+        discountTotal: 50_000.0,
+        dpp: 916_667.0,
+        ppn: 110_000.0,
+        ppnbm: 99_000.0,
+        signatoryName: 'TEST',
+        sourceFormat: 'mds_output_tax_invoice',
+        downPaymentTotal: 150_000.0,
+    );
+
+    $this->actingAs($this->user);
+
+    $import = app(TaxFakturImportService::class)->storeFromParsed($parsed, [
+        'direction' => TaxFakturImport::DIRECTION_KELUARAN,
+        'reporting_entity_id' => $entity->id,
+        'counterparty_id' => $customer->id,
+    ]);
+
+    expect((float) $import->down_payment_total)->toBe(150_000.0)
+        ->and((float) $import->fakturGross())->toBe(1_110_000.0)
+        ->and($import->fakturGross())->not->toBe((float) $import->dpp + (float) $import->ppn)
+        ->and($import->fakturGross())->not->toBe((float) $import->gross_total + (float) $import->ppn + (float) $import->ppnbm);
 });
 
 it('suggests keluaran when entity npwp matches seller', function () {
@@ -727,8 +773,9 @@ it('deletes an imported faktur so the number can be uploaded again', function ()
         ->get(route('reports.tax.faktur.show', $import))
         ->assertOk()
         ->assertSee('data-testid="faktur-delete-form"', false)
-        ->assertSee('Harga jual / penggantian', false)
-        ->assertSee('Total faktur (harga jual + PPN)', false);
+        ->assertSee('data-testid="faktur-amount-rows"', false)
+        ->assertSee('Harga jual / penggantian / uang muka / termin', false)
+        ->assertSee('Dikurangi uang muka yang telah diterima', false);
 
     $this->actingAs($this->user)
         ->delete(route('reports.tax.faktur.destroy', $import))

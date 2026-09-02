@@ -31,14 +31,16 @@ readonly class ParsedFakturPajak
         public ?string $signatoryName,
         public string $sourceFormat,
         public array $lineItems = [],
+        public float $downPaymentTotal = 0,
     ) {}
 
     /**
-     * Invoice total payable: Harga Jual/Penggantian (minus potongan) + PPN + PPnBM.
-     * Do not use DPP + PPN — Coretax DPP Nilai Lain is 11/12 of the selling price.
+     * Invoice total payable from the six footer rows:
+     * harga jual − potongan harga − uang muka + PPN.
+     * DPP and PPnBM are stored for tax display only.
      */
     public function grossIncludingTax(): float
     {
-        return round(max(0, $this->grossTotal - $this->discountTotal) + $this->ppn + $this->ppnbm, 2);
+        return round(max(0, $this->grossTotal - $this->discountTotal - $this->downPaymentTotal) + $this->ppn, 2);
     }
 }

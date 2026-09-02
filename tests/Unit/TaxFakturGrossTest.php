@@ -45,3 +45,25 @@ it('subtracts potongan harga before adding ppn', function () {
 
     expect($parsed->grossIncludingTax())->toBe(1_110_000.0);
 });
+
+it('subtracts uang muka and ignores ppnbm in the payable total', function () {
+    $parsed = new ParsedFakturPajak(
+        fakturNumber: '01000123456789012',
+        fakturDate: null,
+        fakturDatePlace: null,
+        sellerName: 'PKP',
+        sellerNpwp: '0504330085044000',
+        buyerName: 'Buyer',
+        buyerNpwp: '0013179569054000',
+        grossTotal: 1_200_000.0,
+        discountTotal: 50_000.0,
+        dpp: 916_667.0,
+        ppn: 110_000.0,
+        ppnbm: 99_000.0,
+        signatoryName: null,
+        sourceFormat: 'mds_output_tax_invoice',
+        downPaymentTotal: 150_000.0,
+    );
+
+    expect($parsed->grossIncludingTax())->toBe(1_110_000.0);
+});

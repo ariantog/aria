@@ -58,9 +58,18 @@ $gross = $import->fakturGross();
                 <div><dt class="text-gray-500">Pembeli</dt><dd>{{ $import->buyer_name }} <span class="text-xs text-gray-400">{{ $import->buyer_npwp }}</span></dd></div>
                 <div><dt class="text-gray-500">Reporting entity</dt><dd>{{ $import->reportingEntity?->name }}</dd></div>
                 <div><dt class="text-gray-500">Lawan transaksi</dt><dd>{{ $import->counterparty?->name }}</dd></div>
-                <div><dt class="text-gray-500">Harga jual / penggantian</dt><dd class="tabular-nums">{{ $fmt($import->gross_total) }}@if((float) $import->discount_total > 0) <span class="text-xs text-gray-400">− potongan {{ $fmt($import->discount_total) }}</span>@endif</dd></div>
-                <div><dt class="text-gray-500">DPP / PPN / PPnBM</dt><dd class="tabular-nums">{{ $fmt($import->dpp) }} / {{ $fmt($import->ppn) }} / {{ $fmt($import->ppnbm) }}</dd></div>
-                <div><dt class="text-gray-500">Total faktur (harga jual + PPN)</dt><dd class="tabular-nums font-medium">{{ $fmt($gross) }}</dd></div>
+                <div class="pt-1">
+                    @include('reports.tax.faktur.partials.amount-rows', [
+                        'fmt' => $fmt,
+                        'hargaJual' => $import->gross_total,
+                        'potongan' => $import->discount_total,
+                        'uangMuka' => $import->down_payment_total ?? 0,
+                        'dpp' => $import->dpp,
+                        'ppn' => $import->ppn,
+                        'ppnbm' => $import->ppnbm,
+                        'total' => $gross,
+                    ])
+                </div>
                 @if($import->signatory_name)
                     <div><dt class="text-gray-500">Penandatangan</dt><dd>{{ $import->signatory_name }}</dd></div>
                 @endif
@@ -348,7 +357,7 @@ $gross = $import->fakturGross();
             <h3 class="mb-1 font-semibold text-gray-900">Buat Sell baru (opsional)</h3>
             <p class="mb-3 text-xs text-gray-600">
                 Hanya jika Sell untuk faktur ini belum diinput. Biasanya cukup <strong>link Sell yang sudah ada</strong> di atas.
-                Sell baru = harga jual + PPN ({{ $fmt($gross) }}).
+                Sell baru = harga jual − potongan − uang muka + PPN ({{ $fmt($gross) }}).
             </p>
             <form method="POST" action="{{ route('reports.tax.faktur.post-sell', $import) }}" class="space-y-3">
                 @csrf
