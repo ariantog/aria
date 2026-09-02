@@ -220,14 +220,20 @@ class TransactionService
     }
 
     /**
-     * Signed balance delta from the transaction header total (already signed per type).
-     * Falls back to real_total only when total is unset (legacy adjust rows).
+     * Signed balance delta from header `total` (final payable after discount / PPN / adj).
+     * A stored 0 is a real zero (100% invoice discount) — do not fall back to `real_total`
+     * (that is the pre-discount line subtotal). Legacy adjust rows may still keep the
+     * amount only on real_total.
      * Legacy rows may store the wrong sign — normalize via signedAmount(abs(...)).
      */
     protected function balanceAmount(Transaction $transaction, bool $revert = false): float
     {
         $stored = (float) $transaction->total;
-        if ($stored === 0.0 && (float) $transaction->real_total !== 0.0) {
+        if (
+            (int) $transaction->type === Transaction::TYPE_ADJUST
+            && $stored === 0.0
+            && (float) $transaction->real_total !== 0.0
+        ) {
             $stored = (float) $transaction->real_total;
         }
 

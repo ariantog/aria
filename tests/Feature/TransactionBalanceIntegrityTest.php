@@ -31,7 +31,9 @@ describe('signed balance rules', function () {
             ->and(Transaction::signedAmount(Transaction::TYPE_SELL, 1000))->toBe(-1000.0)
             ->and(Transaction::signedAmount(Transaction::TYPE_RETURN_SUPPLIER, 1000))->toBe(-1000.0)
             ->and(Transaction::signedAmount(Transaction::TYPE_CASH_OUT, 1000))->toBe(-1000.0)
-            ->and(Transaction::signedAmount(Transaction::TYPE_TRANSFER, 1000))->toBe(-1000.0);
+            ->and(Transaction::signedAmount(Transaction::TYPE_TRANSFER, 1000))->toBe(-1000.0)
+            ->and(Transaction::signedAmount(Transaction::TYPE_MOVE, 1000))->toBe(-1000.0)
+            ->and(Transaction::signedAmount(Transaction::TYPE_ADJUST, 1000))->toBe(1000.0);
     });
 
     it('posts buy as positive sender balance and sell as negative receiver balance', function () {

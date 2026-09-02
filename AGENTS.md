@@ -83,28 +83,44 @@ user explicitly asks.**
 - The maintainer tests manually. Implement, run `./vendor/bin/pest` / `curl` / tinker as needed, **commit**,
   and open a PR. Avoid burning tokens on GUI demos.
 
-### Do NOT change signed transaction totals
+### Do NOT mix up `total` and `real_total` (and do not flip signs)
 
 `transactions.total` and `transactions.real_total` are **signed integers/decimals by design** — not
-unsigned amounts with sign inferred elsewhere.
+unsigned amounts with sign inferred elsewhere. **Do not swap these two columns.**
 
-- **Sign convention (do not flip):** positive = sender owes receiver; negative = receiver owes sender.
-  **Buy / Return / CashIn → positive.** **Sell / ReturnSupplier / CashOut / Transfer → negative.**
-  Authoritative helper: `Transaction::signedAmount($type, $amount)` in `app/Models/Transaction.php`.
-- **When writing new transactions**, store totals through `Transaction::signedAmount()` (see
+- **`real_total`** = signed **line subtotal**: sum of item/line subtotals **before** invoice
+  discount, PPN/tax, and adjustments.
+- **`total`** = signed **final payable**: that subtotal **after** invoice discount, PPN/tax, and
+  adjustments. This is the amount that updates party balances.
+- `transactions.discount` is an invoice-discount **percent** (production `decimal(5,2)`), not money.
+
+**Sign convention (do not flip):** positive = sender owes receiver; negative = receiver owes sender.
+
+- **Negative:** sell, return-supplier, cash out, transfer, move.
+- **Positive:** buy, return, cash in, adjustment.
+
+Authoritative helper: `Transaction::signedAmount($type, $amount)` in `app/Models/Transaction.php`.
+
+- **When writing new transactions**, store both columns through `Transaction::signedAmount()` (see
   `CreateItemTransaction`, `CreateCashTransaction`, `CreateTransferTransaction`). Do **not** store
-  `abs($grandTotal)` and apply sign later.
-- **When reading totals for balances**, use `TransactionService::balanceAmount()` — it already
-  normalizes legacy rows via `signedAmount(abs($stored))`. Do **not** replace this with bare
-  `abs()`, `*-1` flips, debit/credit logic, or "always store positive" refactors.
+  `abs($grandTotal)` and apply sign later. Do **not** put the final payable in `real_total` or the
+  pre-discount subtotal in `total`.
+- **When reading totals for balances**, use `TransactionService::balanceAmount()` — it reads
+  **`total`** (the final signed payable) and normalizes legacy sign via `signedAmount(abs($stored))`.
+  A stored `total` of `0` is a real zero (e.g. 100% invoice discount) — do **not** fall back to
+  `real_total` (that is the pre-discount subtotal). Do **not** replace this with bare `abs()`, `*-1`
+  flips, debit/credit logic, or "always store positive" refactors.
 - **Display-only** formatting may use `abs()` for human-readable currency; **do not** change what is
-  persisted based on display needs.
+  persisted based on display needs. On-screen payable uses `total`; on-screen line subtotal uses
+  detail rows or `real_total`.
 - **Do not edit** `Transaction::signedAmount()`, `Transaction::typeIsNegative()`, or tests such as
   `tests/Unit/TransactionSignedAmountTest.php` and `tests/Feature/TransactionBalanceIntegrityTest.php`
   unless the task **explicitly** requests a signed-total convention change.
-- **Balance bugs:** fix running-balance recalculation, observer/job ordering, or back-dated row
-  updates — **not** the sign convention. If a row looks "wrong", check whether you are comparing
-  against legacy unsigned data before rewriting the signing rules.
+- **Balance bugs:** fix running-balance recalculation, observer/job ordering, back-dated row
+  updates, or using `real_total` as the payable — **not** the sign convention. If a row looks
+  "wrong", check whether `total` / `real_total` were written swapped before rewriting the signing
+  rules. Some early L12 sells stored them backwards (`total` = subtotal, `real_total` = net); delete
+  still reverts whatever was posted from `total`.
 
 ### Do NOT reintroduce React / Vite / a JS build
 
@@ -189,9 +205,12 @@ not "modernize" or refactor Alpine style:
   `User::getIsSuperadminAttribute()`) and all ACL/location/hidden-balance restrictions. Every other user
   is subject to ACL.
 - Balances use **signed values**, not debit/credit. Parties are sender/receiver; a positive value/balance
-  means the sender owes the receiver, negative means the receiver owes the sender. buy/return → total
-  positive; sell/return-supplier → total negative. The double-entry is handled in the background.
-  **Agents: do not change this convention** — see **AI agent restrictions** above.
+  means the sender owes the receiver, negative means the receiver owes the sender.
+  **`real_total`** = line subtotal before discount / PPN / adjustments.
+  **`total`** = final payable after those (this is what posts to balances).
+  Signs: sell / return-supplier / cash out / transfer / move → negative; buy / return / cash in /
+  adjustment → positive. The double-entry is handled in the background.
+  **Agents: do not swap the two columns or flip these signs** — see **AI agent restrictions** above.
 - Transaction types (`App\Enums\TransactionType`): Buy=1, Sell=2, Move=3, Transfer=6, CashOut=7, Use=8,
   CashIn=9, Adjust=12, Return=15, Production=16, ReturnSupplier=17, Depreciation=18. Legal sender/receiver
   types per transaction live in `config/transaction_rules.php`.
@@ -319,9 +338,11 @@ and the `app/Jobs/UpdateTransactionSummaries.php` queued job keep balances/aggre
 `php artisan queue:listen`). Shared logic lives in `app/Services/TransactionService.php`;
 `BookClosingService` enforces the book-closing cutoff date; `InventoryService` adjusts
 `warehouse_items` stock. Batch recompute lives in `app/Console/Commands/Recalculate*`.
-- Balances are **signed** (not debit/credit): +total = sender owes receiver; buy/return are positive,
-  sell/return-supplier negative. Types are in `App\Enums\TransactionType`; legal sender/receiver types
-  per type are in `config/transaction_rules.php`.
+- Balances are **signed** (not debit/credit): `total` is the final payable that posts; `real_total`
+  is the pre-discount line subtotal. +total = sender owes receiver. buy / return / cash in /
+  adjustment → positive; sell / return-supplier / cash out / transfer / move → negative. Types are
+  in `App\Enums\TransactionType`; legal sender/receiver types per type are in
+  `config/transaction_rules.php`.
 - Likely goals here: solidify signed double-entry posting; **recalculate balances when a back-dated
   transaction is inserted/edited/deleted** (later rows must re-derive their running balance); wire up
   **Jubelio stock-sync buttons** (`app/Services/JubelioService.php`,

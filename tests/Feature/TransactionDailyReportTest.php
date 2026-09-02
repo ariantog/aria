@@ -62,6 +62,7 @@ test('subsequent transactions on the same day increment the daily total', functi
         'type' => Transaction::TYPE_BUY,
         'date' => now(),
         'real_total' => 500.00,
+        'total' => 500.00,
     ]);
     $service->handleTransaction($t1);
 
@@ -72,6 +73,7 @@ test('subsequent transactions on the same day increment the daily total', functi
         'type' => Transaction::TYPE_BUY,
         'date' => now(),
         'real_total' => 300.00,
+        'total' => 300.00,
     ]);
     $service->handleTransaction($t2);
 
