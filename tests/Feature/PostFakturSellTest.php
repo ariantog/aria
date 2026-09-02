@@ -140,9 +140,8 @@ it('posts sell from keluaran faktur with faktur dpp and ppn totals', function ()
 
     expect($import->fresh()->sell_transaction_id)->toBe($sell->id)
         ->and((int) $sell->type)->toBe(Transaction::TYPE_SELL)
-        ->and((float) $sell->total)->toBe(-19_452_728.0)
+        ->and((float) $sell->total)->toBe(-21_787_055.0)
         ->and((float) $sell->ppn)->toBe(2_334_327.0)
-        ->and((float) $sell->real_total)->toBe(-21_787_055.0)
         ->and($sell->invoice)->toBe('04002600298450234')
         ->and($sell->date->toDateString())->toBe('2026-07-31');
 
@@ -183,8 +182,8 @@ it('matches gross sell to faktur and treats payment gap as consignment margin', 
         'summary_item_id' => $data['item']->id,
     ]);
 
-    expect(abs((float) $sell->real_total))->toBe($fakturGross)
-        ->and(abs((float) $sell->real_total))->toBeGreaterThan($paymentReceived);
+    expect(abs((float) $sell->total))->toBe($fakturGross)
+        ->and(abs((float) $sell->total))->toBeGreaterThan($paymentReceived);
 });
 
 it('resolves sell tax entity from linked cash in bank', function () {

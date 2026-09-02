@@ -151,7 +151,6 @@ class TransactionTest extends TestCase
             'sender_id' => $warehouse->id,
             'receiver_id' => $reseller->id,
             'total' => -25000,
-            'real_total' => -25000, // Negative for return supplier
         ]);
 
         // 5. Verify Stock Update (WarehouseItem)
