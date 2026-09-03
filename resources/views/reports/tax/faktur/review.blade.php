@@ -167,7 +167,7 @@ $gross = $parsed->grossIncludingTax();
                                  class="combobox-option"
                                  :class="{ 'active': activeIndex === idx }">
                                 <span class="block font-medium" x-text="item.name + (item.payment_due_day ? ' (tgl ' + item.payment_due_day + ')' : '')"></span>
-                                <span x-show="item.ledger_hint" class="block text-xs text-gray-500 line-clamp-2" x-text="item.ledger_hint"></span>
+                                <span x-show="item.ledger_hint || item.description" class="block text-xs text-gray-500 line-clamp-2" x-text="item.ledger_hint || item.description"></span>
                             </div>
                         </template>
                     </div>

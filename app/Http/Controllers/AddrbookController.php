@@ -68,7 +68,7 @@ class AddrbookController extends Controller
 
         // Combobox / autocomplete requests (?json=1)
         if ($this->isJsonRequest()) {
-            return $q->limit(20)->get(['id', 'code', 'name', 'alias', 'ppn']);
+            return $q->limit(20)->get(['id', 'code', 'name', 'alias', 'ppn', 'description', 'ledger_hint']);
         }
 
         $can = [

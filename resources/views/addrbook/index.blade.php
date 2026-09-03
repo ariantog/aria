@@ -87,6 +87,9 @@ $tableColumnCount = $showArrangementColumn ? 6 : 5;
                                 @if($a->contact_person)
                                     <div class="mt-0.5 truncate text-xs text-gray-500" title="{{ $a->contact_person }}">{{ $a->contact_person }}</div>
                                 @endif
+                                @if($current_type === 'account' && $a->description)
+                                    <div class="mt-0.5 truncate text-xs text-gray-500" title="{{ $a->description }}">{{ $a->description }}</div>
+                                @endif
                                 <div class="mt-1 space-y-0.5 text-xs text-gray-500 md:hidden">
                                     @if($a->phone)<div class="truncate" title="{{ $a->phone }}">☎ {{ $a->phone }}</div>@endif
                                     @if($a->email)<div class="truncate" title="{{ $a->email }}">✉ {{ $a->email }}</div>@endif

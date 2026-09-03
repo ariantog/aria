@@ -258,6 +258,7 @@ class TaxFakturImportController extends Controller
                 'customers.id',
                 'customers.name',
                 'customers.type',
+                'customers.description',
                 'customers.payment_due_day',
                 'customers.ledger_hint',
                 'customerstat.balance'
