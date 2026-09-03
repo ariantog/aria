@@ -292,12 +292,9 @@
                 <tbody class="divide-y divide-gray-100">
                     @foreach($stockAlerts['recent'] as $notification)
                     <tr class="bg-blue-50/40">
-                        <td class="px-5 py-3">
-                            <div class="font-medium text-gray-900">{{ $notification->item?->code }}</div>
-                            <div class="text-xs text-gray-500">{{ $notification->item?->name }}</div>
-                        </td>
-                        <td class="px-5 py-3 text-gray-700">{{ $notification->soldOutWarehouse?->name }}</td>
-                        <td class="px-5 py-3 text-gray-700">{{ $notification->sourceWarehouse?->name }}</td>
+                        @include('stock-notifications.partials.item-cell', ['notification' => $notification, 'tdClass' => 'px-5 py-3'])
+                        @include('stock-notifications.partials.warehouse-cell', ['warehouse' => $notification->soldOutWarehouse, 'tdClass' => 'px-5 py-3 text-gray-700'])
+                        @include('stock-notifications.partials.warehouse-cell', ['warehouse' => $notification->sourceWarehouse, 'tdClass' => 'px-5 py-3 text-gray-700'])
                         <td class="px-5 py-3 font-mono text-gray-700">{{ $fmtNum($notification->source_stock) }}</td>
                         <td class="px-5 py-3">
                             @if($notification->source_status)

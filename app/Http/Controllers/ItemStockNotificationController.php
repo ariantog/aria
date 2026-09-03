@@ -17,7 +17,7 @@ class ItemStockNotificationController extends Controller
         $showDismissed = $request->boolean('dismissed');
 
         $notifications = ItemStockNotification::query()
-            ->with(['item:id,code,name', 'soldOutWarehouse:id,name', 'sourceWarehouse:id,name'])
+            ->with(['item:id,code,name,type', 'soldOutWarehouse:id,name,type', 'sourceWarehouse:id,name,type'])
             ->when(
                 $showDismissed,
                 fn ($query) => $query->whereNotNull('dismissed_at'),

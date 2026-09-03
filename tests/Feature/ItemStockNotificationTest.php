@@ -246,6 +246,30 @@ it('creates notifications after handleTransaction commits stock changes', functi
         ->and((float) WarehouseItem::query()->where('warehouse_id', $shopA->id)->where('item_id', $item->id)->value('quantity'))->toBe(0.0);
 });
 
+it('renders clickable item and warehouse links on the stock notifications page', function () {
+    $soldOut = Addrbook::factory()->warehouse()->create(['name' => 'Sold Out Shop']);
+    $source = Addrbook::factory()->warehouse()->create(['name' => 'Source Warehouse']);
+    $item = Item::factory()->create(['code' => 'LINK-SKU', 'name' => 'Link Test Item']);
+
+    ItemStockNotification::query()->create([
+        'item_id' => $item->id,
+        'sold_out_warehouse_id' => $soldOut->id,
+        'source_warehouse_id' => $source->id,
+        'source_stock' => 3,
+        'source_status' => ItemStockSourceStatus::Available,
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('stock-notifications.index'))
+        ->assertOk()
+        ->assertSee(route('items.show', $item->id), false)
+        ->assertSee(route('addrbook.type.show', ['type' => 'warehouse', 'addrbook' => $soldOut->id]), false)
+        ->assertSee(route('addrbook.type.show', ['type' => 'warehouse', 'addrbook' => $source->id]), false)
+        ->assertSee('LINK-SKU', false)
+        ->assertSee('Sold Out Shop', false)
+        ->assertSee('Source Warehouse', false);
+});
+
 it('renders the stock notifications page for authorized users', function () {
     $this->actingAs($this->user)
         ->get(route('stock-notifications.index'))
