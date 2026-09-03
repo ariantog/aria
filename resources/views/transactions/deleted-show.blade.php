@@ -251,7 +251,7 @@
                         @else
                             <span class="font-bold text-zinc-900">{{ $item?->name }}</span>
                         @endif
-                        <span class="mt-0.5 line-clamp-1 text-[10px] leading-tight italic text-gray-500">{{ $detail->notes ?: $item?->description }}</span>
+                        <span class="mt-0.5 line-clamp-1 text-[10px] leading-tight italic text-gray-500">{{ $detail->notes ?: $item?->catalogDescription() }}</span>
                     </div>
 
                     <div class="flex items-center justify-between sm:col-span-1 sm:block sm:text-center print:block print:text-center">

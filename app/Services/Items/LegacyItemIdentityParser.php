@@ -495,9 +495,7 @@ class LegacyItemIdentityParser
             return ['success' => true, 'tag' => $this->warnaTagsByCode->get(strtoupper($variant))];
         }
 
-        $colorScan = $this->scanBahasaColor(
-            trim((string) $item->description).' '.trim((string) $item->description2)
-        );
+        $colorScan = $this->scanBahasaColor($this->manufacturedColorScanText($item));
 
         if ($colorScan['ambiguous']) {
             return [
@@ -516,6 +514,20 @@ class LegacyItemIdentityParser
         }
 
         return ['success' => true, 'tag' => $this->resolveWarnaTag($colorScan['code'])];
+    }
+
+    /**
+     * Grouped manufactured SKUs scan item_group description, not items.description.
+     */
+    protected function manufacturedColorScanText(Item $item): string
+    {
+        $item->loadMissing('group');
+
+        if ((int) $item->group_id > 0 && $item->group) {
+            return trim((string) $item->group->description).' '.trim((string) $item->group->description2);
+        }
+
+        return trim((string) $item->description).' '.trim((string) $item->description2);
     }
 
     /**

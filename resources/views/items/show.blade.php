@@ -20,8 +20,8 @@ $recalculateQtyRoute = $isAsset ? route('assetlancar.recalculate-qty', $item) : 
 $storedQty = (float) $item->qty;
 $qtyOutOfSync = abs($storedQty - $activeStock) > 0.0001;
 $groupProductName = optional($item->group)->name ?? '-';
-$desc = optional($item->group)->description ?? ($item->description ?? '-');
-$nb = optional($item->group)->description2 ?? ($item->description2 ?? '-');
+$desc = $item->catalogDescription() !== '' ? $item->catalogDescription() : '-';
+$nb = $item->catalogDescription2() !== '' ? $item->catalogDescription2() : '-';
 $legacyCode = $item->distinctLegacyCode();
 @endphp
 
@@ -118,7 +118,7 @@ $legacyCode = $item->distinctLegacyCode();
                     <div class="grid grid-cols-1 gap-4 border-t border-gray-100 pt-4">
                         <div>
                             <p class="mb-1 text-[10px] font-bold uppercase tracking-tight text-gray-500">Description</p>
-                            <p class="text-xs leading-relaxed text-gray-600">{{ $desc }}</p>
+                            <p class="text-xs leading-relaxed text-gray-600" data-testid="item-catalog-description">{{ $desc }}</p>
                         </div>
                         <div>
                             <p class="mb-1 text-[10px] font-bold uppercase tracking-tight text-gray-500">NB</p>

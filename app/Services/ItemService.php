@@ -313,6 +313,8 @@ class ItemService
         $item->name = $this->identityBuilder->buildName($displayName, $warnaTag, $sizeTag);
         $item->price = $input->price ?? $item->price ?? 0;
         $item->cost = $input->cost ?? $item->cost ?? 0;
+        // Group description is canonical for display. Mirror onto the item so
+        // the leftover items.description column stays aligned after an edit.
         $item->description = $input->description ?? $item->description ?? '';
         $item->description2 = $input->description2 ?? $item->description2 ?? '';
         $item->restock_urgent_threshold = $this->normalizeRestockUrgentThreshold(

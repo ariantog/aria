@@ -195,7 +195,22 @@ class Item extends Model
             return;
         }
 
-        $query->where($query->qualifyColumn('description'), 'like', $contains);
+        $query->where(function (Builder $q) use ($contains) {
+            $q->whereExists(function ($sub) use ($contains) {
+                $sub->selectRaw('1')
+                    ->from('item_group')
+                    ->whereColumn('item_group.id', 'items.group_id')
+                    ->where('items.group_id', '>', 0)
+                    ->where('item_group.description', 'like', $contains);
+            })->orWhere(function (Builder $ungrouped) use ($contains) {
+                $ungrouped
+                    ->where(function (Builder $noGroup) {
+                        $noGroup->whereNull('items.group_id')
+                            ->orWhere('items.group_id', '<=', 0);
+                    })
+                    ->where($ungrouped->qualifyColumn('description'), 'like', $contains);
+            });
+        });
     }
 
     public function scopeFilterByTags(Builder $query, array $tagIds): void
@@ -249,6 +264,33 @@ class Item extends Model
         }
 
         return $legacy;
+    }
+
+    /**
+     * Catalog colorway / notes. Grouped SKUs use item_group; items.description
+     * is leftover per-row text and is not the source of truth.
+     */
+    public function catalogDescription(): string
+    {
+        if ($this->hasCatalogGroup()) {
+            return trim((string) ($this->group->description ?? ''));
+        }
+
+        return trim((string) ($this->description ?? ''));
+    }
+
+    public function catalogDescription2(): string
+    {
+        if ($this->hasCatalogGroup()) {
+            return trim((string) ($this->group->description2 ?? ''));
+        }
+
+        return trim((string) ($this->description2 ?? ''));
+    }
+
+    public function hasCatalogGroup(): bool
+    {
+        return (int) $this->group_id > 0 && $this->group !== null;
     }
 
     public function getItemName(): string

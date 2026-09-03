@@ -20,8 +20,9 @@
     <div class="space-y-6 p-5">
         <div>
             <label class="mb-1 block text-sm font-medium text-gray-700">Description</label>
-            <textarea name="description" rows="4" placeholder="Item description..."
+            <textarea name="description" rows="4" placeholder="Colorway description..."
                       class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">{{ $fi['description'] }}</textarea>
+            <p class="mt-1 text-xs text-gray-500">Shared by every size in this colorway (stored on the item group).</p>
             @error('description')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
         </div>
         <div>
