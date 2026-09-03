@@ -665,7 +665,7 @@ test('it syncs shared colorway attributes to every size when one item is edited'
         ->and($group->brand)->toBe(\App\Enums\ItemBrand::CX9)
         ->and($group->genre)->toBe($this->typeTag->id)
         ->and((float) $small->price)->toBe(175000.0)
-        ->and((float) $medium->price)->toBe(175000.0)
+        ->and((float) $medium->price)->toBe(100000.0)
         ->and($small->description)->toBe('Mikro motif camo hijau')
         ->and($medium->description)->toBe('Mikro motif camo hijau')
         ->and($small->restock_urgent_threshold)->toBe(12)

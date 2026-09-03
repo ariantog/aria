@@ -132,6 +132,125 @@ class ItemService
     }
 
     /**
+     * Update shared catalog fields on one colorway and per-SKU price / cost / restock threshold.
+     *
+     * Identity fields (pcode, tags, SKU code) are read-only on this path.
+     *
+     * @param  list<array{id: int, price?: mixed, cost?: mixed, restock_urgent_threshold?: mixed}>  $itemRows
+     *
+     * @throws Exception
+     */
+    public function updateColorway(
+        ItemGroup $group,
+        object $input,
+        array $itemRows,
+        ?UploadedFile $file = null,
+    ): ItemGroup {
+        return DB::transaction(function () use ($group, $input, $itemRows, $file) {
+            $items = Item::with('tags')->where('group_id', $group->id)->get();
+            $sample = $items->first();
+
+            if (! $sample) {
+                throw new Exception('Colorway has no items.');
+            }
+
+            $itemType = $this->resolveItemType($sample->type);
+            $pcode = strtoupper(trim((string) $sample->pcode));
+            $typeTag = $sample->tags->firstWhere('type', Tag::TYPE_TYPE);
+
+            $groupName = $this->groupNameFromInput($input, $itemType, $pcode, $group, $sample);
+            $storedName = $this->identityBuilder->uniqueStoredGroupName(
+                $this->identityBuilder->storedGroupName(
+                    $itemType,
+                    $groupName,
+                    $pcode,
+                    (string) ($group->variant ?? ''),
+                ),
+                (string) ($group->master ?? ''),
+                (string) ($group->variant ?? ''),
+            );
+
+            $group->name = $storedName;
+
+            $catalogAttributes = [
+                'brand' => isset($input->brand)
+                    ? ItemBrand::tryFrom((int) $input->brand) ?? ItemBrand::fromPcode($pcode)
+                    : ($group->brand ?? ItemBrand::fromPcode($pcode)),
+                'genre' => isset($input->genre)
+                    ? (int) $input->genre
+                    : (int) ($group->genre ?? ($typeTag?->id ?? 0)),
+            ];
+
+            if (isset($input->description)) {
+                $catalogAttributes['description'] = $input->description;
+            }
+
+            if (isset($input->description2)) {
+                $catalogAttributes['description2'] = $input->description2;
+            }
+
+            if (isset($input->url)) {
+                $catalogAttributes['url'] = $this->normalizeUrl($input->url);
+            }
+
+            ItemCatalog::applyToGroup($group, $catalogAttributes);
+
+            $mirror = [
+                'brand' => $catalogAttributes['brand'],
+                'genre' => $catalogAttributes['genre'],
+            ];
+
+            if (isset($input->description)) {
+                $mirror['description'] = $input->description;
+            }
+
+            if (isset($input->description2)) {
+                $mirror['description2'] = $input->description2;
+            }
+
+            foreach ($items as $item) {
+                ItemCatalog::mirrorToItem($item, $mirror);
+                $item->save();
+            }
+
+            $this->syncItemNamesForGroup($group->fresh());
+
+            $itemsById = $items->keyBy('id');
+
+            foreach ($itemRows as $row) {
+                $itemId = (int) ($row['id'] ?? 0);
+                $item = $itemsById->get($itemId);
+
+                if (! $item) {
+                    continue;
+                }
+
+                if (array_key_exists('price', $row)) {
+                    $item->price = $row['price'] ?? 0;
+                }
+
+                if (array_key_exists('cost', $row)) {
+                    $item->cost = $row['cost'] ?? 0;
+                }
+
+                if (array_key_exists('restock_urgent_threshold', $row)) {
+                    $item->restock_urgent_threshold = $this->normalizeRestockUrgentThreshold(
+                        $row['restock_urgent_threshold']
+                    );
+                }
+
+                $item->save();
+            }
+
+            if ($file) {
+                $this->imageService->saveImage($group, $file);
+            }
+
+            return $group->fresh();
+        });
+    }
+
+    /**
      * Rename the product name on a group and regenerate display names for every item in it.
      */
     public function renameGroupProductName(ItemGroup $group, string $productName): ItemGroup
@@ -700,6 +819,7 @@ class ItemService
         }
 
         $siblingInput = clone $input;
+        $siblingInput->price = $sibling->price;
         $siblingInput->cost = $sibling->cost;
         $siblingInput->restock_urgent_threshold = $sibling->restock_urgent_threshold;
 

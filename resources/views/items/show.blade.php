@@ -152,6 +152,9 @@ $legacyCode = $item->distinctLegacyCode();
                                 @elseif($item->group)
                                 <span class="text-xs font-medium text-gray-700">{{ $item->group->name }}</span>
                                 @endif
+                                @if(!empty($colorwayEditUrl))
+                                <a href="{{ $colorwayEditUrl }}" class="rounded border border-indigo-200 bg-indigo-50 px-2 py-1 text-xs font-medium text-indigo-700 hover:bg-indigo-100 hover:underline">Edit colorway</a>
+                                @endif
                                 @forelse($item->tags as $tag)
                                 <a href="{{ $tag->itemsIndexFilterUrl($item->type) }}" class="rounded border border-blue-200 bg-blue-50 px-2 py-1 text-[9px] font-bold uppercase tracking-tighter text-blue-600 hover:bg-blue-100 hover:underline">{{ $tag->name }}</a>
                                 @empty
