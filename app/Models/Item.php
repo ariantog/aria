@@ -288,9 +288,40 @@ class Item extends Model
         return trim((string) ($this->description2 ?? ''));
     }
 
+    public function catalogBrand(): ItemBrand
+    {
+        if ($this->hasCatalogGroup()) {
+            $groupBrand = $this->normalizeBrand($this->group->brand);
+
+            if ($groupBrand !== ItemBrand::NO_BRAND) {
+                return $groupBrand;
+            }
+        }
+
+        return $this->normalizeBrand($this->brand);
+    }
+
+    public function catalogGenre(): int
+    {
+        if ($this->hasCatalogGroup() && (int) ($this->group->genre ?? 0) > 0) {
+            return (int) $this->group->genre;
+        }
+
+        return (int) ($this->genre ?? 0);
+    }
+
     public function hasCatalogGroup(): bool
     {
         return (int) $this->group_id > 0 && $this->group !== null;
+    }
+
+    private function normalizeBrand(mixed $brand): ItemBrand
+    {
+        if ($brand instanceof ItemBrand) {
+            return $brand;
+        }
+
+        return ItemBrand::tryFrom((int) $brand) ?? ItemBrand::NO_BRAND;
     }
 
     public function getItemName(): string

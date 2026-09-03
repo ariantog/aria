@@ -68,6 +68,8 @@ class ProductionColumnDefaults
             'description' => '',
             'alias' => '',
             'description2' => '',
+            'brand' => 0,
+            'genre' => 0,
         ],
         'transactions' => [
             'description' => '',
