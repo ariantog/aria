@@ -28,7 +28,7 @@ $idr = fn ($v) => 'Rp ' . format_amount($v, 0);
         <div class="rounded-xl border bg-white p-4 shadow-sm">
             <h2 class="text-sm font-semibold uppercase tracking-wide text-gray-500">Identity</h2>
             <dl class="mt-3 space-y-2 text-sm">
-                <div class="flex justify-between gap-4"><dt class="text-gray-500">ID</dt><dd class="font-mono">#{{ $item->id }}</dd></div>
+                <div class="flex justify-between gap-4"><dt class="text-gray-500">ID</dt><dd class="font-mono">{{ $item->id }}</dd></div>
                 <div class="flex justify-between gap-4"><dt class="text-gray-500">Pcode</dt><dd class="font-mono">{{ $item->pcode ?: '—' }}</dd></div>
                 <div class="flex justify-between gap-4"><dt class="text-gray-500">Group</dt><dd>{{ $item->group?->name ?? '—' }}</dd></div>
                 <div class="flex justify-between gap-4"><dt class="text-gray-500">Type</dt><dd>{{ $item->type?->name ?? $item->type }}</dd></div>

@@ -65,6 +65,8 @@ it('links warehouse items to item or asset lancar show pages', function () {
         ->get(route('addrbook.type.items', ['type' => 'warehouse', 'addrbook' => $warehouse->id]));
 
     $response->assertOk()
+        ->assertSee('>'.$regularItem->id.'</a>', false)
+        ->assertDontSee('#'.$regularItem->id.'</a>', false)
         ->assertSee(route('items.show', $regularItem), false)
         ->assertSee(route('items.edit', $regularItem), false)
         ->assertSee(route('assetlancar.show', $assetItem), false)

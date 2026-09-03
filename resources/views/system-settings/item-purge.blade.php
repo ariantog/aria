@@ -111,12 +111,12 @@ $pageItemIds = collect($preview->items())->pluck('id')->values()->all();
                                    name="keep_ids[]"
                                    value="{{ $row['id'] }}"
                                    class="h-4 w-4 rounded border-gray-300"
-                                   aria-label="Keep item #{{ $row['id'] }}"
+                                   aria-label="Keep item {{ $row['id'] }}"
                                    @change="syncKeep({{ $row['id'] }}, $event.target.checked)">
                             <input type="hidden" name="page_item_ids[]" value="{{ $row['id'] }}">
                         </td>
                         <td class="px-3 py-2 font-mono text-xs">
-                            <a href="{{ route('items.show', $row['id']) }}" class="text-blue-600 hover:underline">#{{ $row['id'] }}</a>
+                            <a href="{{ route('items.show', $row['id']) }}" class="text-blue-600 hover:underline">{{ $row['id'] }}</a>
                         </td>
                         <td class="px-3 py-2 font-mono text-xs">
                             <a href="{{ route('items.show', $row['id']) }}" class="text-blue-600 hover:underline">{{ $row['code'] }}</a>

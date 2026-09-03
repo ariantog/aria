@@ -177,7 +177,7 @@
                         <tr class="hover:bg-gray-50 {{ $legacy ? 'bg-gray-50/80' : '' }}">
                             <td class="px-4 py-2 text-gray-500">
                                 @if($showUrl)
-                                    <a href="{{ $showUrl }}" class="font-medium text-blue-600 hover:underline">#{{ $item->id }}</a>
+                                    <a href="{{ $showUrl }}" class="font-medium text-blue-600 hover:underline">{{ $item->id }}</a>
                                 @else
                                     {{ $item->id }}
                                 @endif
@@ -256,9 +256,9 @@
                         <tr class="hover:bg-gray-50">
                             <td class="px-4 py-2 text-gray-500">
                                 @if($showUrl)
-                                    <a href="{{ $showUrl }}" class="font-medium text-blue-600 hover:underline">#{{ $result->item_id }}</a>
+                                    <a href="{{ $showUrl }}" class="font-medium text-blue-600 hover:underline">{{ $result->item_id }}</a>
                                 @else
-                                    #{{ $result->item_id }}
+                                    {{ $result->item_id }}
                                 @endif
                             </td>
                             <td class="px-4 py-2 font-mono text-gray-700">{{ $result->snapshot['original_code'] ?? '—' }}</td>
@@ -297,9 +297,9 @@
                         <tr class="hover:bg-gray-50">
                             <td class="px-4 py-2 text-gray-500">
                                 @if($showUrl)
-                                    <a href="{{ $showUrl }}" class="font-medium text-blue-600 hover:underline">#{{ $result->item_id }}</a>
+                                    <a href="{{ $showUrl }}" class="font-medium text-blue-600 hover:underline">{{ $result->item_id }}</a>
                                 @else
-                                    #{{ $result->item_id }}
+                                    {{ $result->item_id }}
                                 @endif
                             </td>
                             <td class="px-4 py-2 font-mono">
