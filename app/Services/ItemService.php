@@ -187,6 +187,21 @@ class ItemService
 
         $tags = $this->sortTags($tags, $inputType);
         $pcode = strtoupper(trim((string) $input->pcode));
+
+        if ($inputType === ItemType::ASSET_LANCAR && ! empty($tags['types'])) {
+            $typeTag = Tag::find((int) $tags['types'][0]);
+            $submittedPcode = $pcode;
+            $pcodeAlreadyExists = Item::query()
+                ->where('type', ItemType::ASSET_LANCAR)
+                ->whereRaw('UPPER(TRIM(pcode)) = ?', [$submittedPcode])
+                ->exists();
+
+            if (! $pcodeAlreadyExists) {
+                $pcode = $this->identityBuilder->applyAssetTypePrefixToPcode($pcode, $typeTag);
+                $input->pcode = $pcode;
+            }
+        }
+
         $groupName = $this->groupNameFromInput($input, $inputType, $pcode);
 
         if ($inputType === ItemType::ITEM && count($tags['warna']) !== 1) {

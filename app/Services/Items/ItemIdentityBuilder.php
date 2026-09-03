@@ -36,6 +36,32 @@ class ItemIdentityBuilder
         return strtoupper(str_replace('/', '-', trim($pcode)));
     }
 
+    /**
+     * Rewrite the first hyphen segment of an asset lancar pcode to the TYPE tag code.
+     * gloves-03 + GLOVE → GLOVE-03; BAG-16-03 keeps three segments (legacy color).
+     */
+    public function applyAssetTypePrefixToPcode(string $pcode, ?Tag $typeTag): string
+    {
+        $pcode = strtoupper(trim($pcode));
+        if ($pcode === '' || $typeTag === null) {
+            return $pcode;
+        }
+
+        $typeCode = strtoupper(trim((string) $typeTag->code));
+        if ($typeCode === '') {
+            return $pcode;
+        }
+
+        $parts = explode('-', $pcode);
+        if (count($parts) < 2) {
+            return $typeCode;
+        }
+
+        $parts[0] = $typeCode;
+
+        return implode('-', $parts);
+    }
+
     public function validatePcode(ItemType $type, string $pcode): void
     {
         $pcode = $type === ItemType::ITEM
