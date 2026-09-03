@@ -8,7 +8,7 @@
     $pcodePlaceholder = $isAsset ? 'GLOVE-01' : 'CX90233-23';
     $editingItem = isset($item);
     $sharedHint = $editingItem
-        ? 'Saving this item updates every size in the colorway (the item group).'
+        ? 'Shared catalog fields and the price matrix are edited on the colorway page when this SKU belongs to a group.'
         : 'These fields apply to every size created in this batch.';
 @endphp
 <div class="rounded-xl border border-gray-200 bg-white shadow-sm">
@@ -72,7 +72,7 @@
                            data-testid="item-form-price"
                            class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 @error('price') border-red-500 @enderror">
                     @error('price')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
-                    <p class="mt-1 text-xs text-gray-500">Shared by every size in this colorway.</p>
+                    <p class="mt-1 text-xs text-gray-500">Default for new sizes at create time; edit per size on the colorway page.</p>
                 </div>
             </div>
         </fieldset>

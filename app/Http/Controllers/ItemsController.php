@@ -202,6 +202,9 @@ class ItemsController extends Controller
                     $this->identityBuilder->itemParentKey($item)
                 ))
                 : null,
+            'colorwayEditUrl' => $item->group_id > 0 && Gate::check(ItemGroup::getPermissions()['edit'])
+                ? route('items.colorway-edit', $item->group_id)
+                : null,
             'identityConvert' => $this->detailIdentityConvertContext($item),
         ]);
     }
@@ -277,6 +280,9 @@ class ItemsController extends Controller
             'item' => $item,
             'types' => $this->typeOptions(),
             'productTitle' => $productTitle,
+            'colorwayEditUrl' => $item->group_id > 0
+                ? route('items.colorway-edit', $item->group_id)
+                : null,
         ]));
     }
 
@@ -461,6 +467,139 @@ class ItemsController extends Controller
         );
 
         return redirect()->route('items.group-parent-detail', $slug);
+    }
+
+    public function colorwayEdit(ItemGroup $group)
+    {
+        Gate::authorize(ItemGroup::getPermissions()['edit']);
+
+        $group->load(['items.tags']);
+        $items = $group->items->sortBy(fn (Item $item) => $this->identityBuilder->itemSizeCode($item) ?? '')->values();
+        $sample = $items->first();
+
+        abort_if($sample === null, 404);
+
+        $itemType = $sample->type;
+        $productTitle = $this->identityBuilder->productDisplayName(
+            $itemType,
+            (string) $group->name,
+            (string) ($group->variant ?? ''),
+            (string) ($group->master ?? ''),
+        );
+        $usesPlaceholder = $this->itemService->isPlaceholderProductName(
+            $itemType,
+            (string) $group->name,
+            (string) $sample->pcode,
+        );
+        $color = $this->identityBuilder->itemColorInfo($sample);
+        $parentSlug = $this->identityBuilder->parentKeyToSlug(
+            $this->identityBuilder->itemParentKey($sample)
+        );
+
+        $sizeRows = $items->map(function (Item $item) use ($itemType) {
+            $sizeTag = $item->tags->firstWhere('type', Tag::TYPE_SIZE);
+            $warnaTag = $item->tags->firstWhere('type', Tag::TYPE_WARNA);
+
+            return [
+                'id' => $item->id,
+                'code' => $item->code,
+                'name' => $item->name,
+                'size_code' => $sizeTag?->code ?? '—',
+                'size_name' => $sizeTag?->name ?? '—',
+                'warna_code' => $warnaTag?->code ?? '',
+                'price' => old('items.'.$item->id.'.price', $item->price),
+                'cost' => old('items.'.$item->id.'.cost', $item->cost),
+                'restock_urgent_threshold' => old(
+                    'items.'.$item->id.'.restock_urgent_threshold',
+                    $item->restock_urgent_threshold
+                ),
+                'show_url' => $item->showUrl(),
+            ];
+        })->all();
+
+        return view('items.colorway-edit', [
+            'group' => $group,
+            'sample' => $sample,
+            'sizeRows' => $sizeRows,
+            'productTitle' => $usesPlaceholder ? '' : $productTitle,
+            'usesPlaceholder' => $usesPlaceholder,
+            'color' => $color,
+            'parentSlug' => $parentSlug,
+            'isAsset' => $itemType === ItemType::ASSET_LANCAR,
+            'brands' => $this->brandOptions(),
+            'typeTags' => Tag::typeTagsForItem($itemType),
+            'flash' => ['success' => session('success'), 'error' => session('error')],
+        ]);
+    }
+
+    public function colorwayUpdate(Request $request, ItemGroup $group)
+    {
+        Gate::authorize(ItemGroup::getPermissions()['edit']);
+
+        $group->load(['items']);
+        $itemIds = $group->items->pluck('id')->all();
+        $sample = $group->items->first();
+        abort_if($sample === null, 404);
+
+        $isAsset = $sample->type === ItemType::ASSET_LANCAR;
+
+        $rules = [
+            'product_name' => ['nullable', 'string', 'max:255'],
+            'description' => ['nullable', 'string'],
+            'description2' => ['nullable', 'string'],
+            'url' => ['nullable', 'string', 'max:255'],
+            'brand' => ['nullable', 'integer'],
+            'genre' => ['nullable', 'integer'],
+            'image' => ['nullable', 'image', 'max:5120'],
+            'items' => ['required', 'array'],
+        ];
+
+        foreach ($itemIds as $itemId) {
+            $rules["items.{$itemId}.price"] = ['nullable', 'numeric'];
+            $rules["items.{$itemId}.cost"] = $isAsset ? ['nullable', 'numeric'] : ['nullable', 'numeric'];
+            $rules["items.{$itemId}.restock_urgent_threshold"] = ['nullable', 'integer', 'min:1'];
+        }
+
+        if ($isAsset) {
+            $rules['product_name'] = ['required', 'string', 'max:255'];
+        }
+
+        $request->validate($rules, [
+            'product_name.required' => 'Product name is required.',
+        ]);
+
+        $itemRows = [];
+        foreach ($itemIds as $itemId) {
+            $row = $request->input("items.{$itemId}", []);
+            $itemRows[] = [
+                'id' => (int) $itemId,
+                'price' => $row['price'] ?? null,
+                'cost' => $row['cost'] ?? null,
+                'restock_urgent_threshold' => $row['restock_urgent_threshold'] ?? null,
+            ];
+        }
+
+        try {
+            $this->itemService->updateColorway(
+                $group,
+                (object) $request->only([
+                    'product_name',
+                    'description',
+                    'description2',
+                    'url',
+                    'brand',
+                    'genre',
+                ]),
+                $itemRows,
+                $request->file('image'),
+            );
+
+            return redirect()
+                ->route('items.colorway-edit', $group)
+                ->with('success', 'Colorway updated.');
+        } catch (\Exception $e) {
+            return back()->withErrors(['message' => $e->getMessage()])->withInput();
+        }
     }
 
     public function updateGroup(Request $request, ItemGroup $group)
