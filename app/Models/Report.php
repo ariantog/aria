@@ -30,6 +30,7 @@ class Report
             'import-tax-faktur' => 'report-tax-faktur-import',
             'view-neraca' => 'report-neraca',
             'view-laba-rugi' => 'report-laba-rugi',
+            'view-channel-pnl' => 'report-channel-pnl',
             'view-receivables' => 'report-receivables',
             'view-payables' => 'report-payables',
         ];
