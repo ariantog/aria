@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\ItemBrand;
 use App\Enums\ItemType;
 use App\Models\Item;
 use App\Models\User;
@@ -345,6 +346,25 @@ test('items index desc filter searches group description for grouped skus', func
         ->get(route('items.index', ['desc' => 'PUTIH LEGACY ITEM TEXT']))
         ->assertOk()
         ->assertDontSee('AJD-DESC-FILTER-M', false);
+});
+
+test('items index brand filter matches item_group.brand when the item mirror is stale', function () {
+    $group = \App\Models\ItemGroup::factory()->create(['brand' => ItemBrand::CX9]);
+    Item::factory()->create([
+        'group_id' => $group->id,
+        'code' => 'AJD-BRAND-FILTER-S',
+        'brand' => ItemBrand::NO_BRAND,
+    ]);
+    Item::factory()->create([
+        'code' => 'AJD-BRAND-OTHER-S',
+        'brand' => ItemBrand::HJ,
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('items.index', ['brand' => ItemBrand::CX9->value]))
+        ->assertOk()
+        ->assertSee('AJD-BRAND-FILTER-S', false)
+        ->assertDontSee('AJD-BRAND-OTHER-S', false);
 });
 
 test('items index desc filter searches item description when the sku has no group', function () {

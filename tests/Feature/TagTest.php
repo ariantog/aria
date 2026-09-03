@@ -307,6 +307,24 @@ it('clears legacy tag_ids when a tag is deleted without pivot rows', function ()
         ->and($item->size)->toBe(0);
 });
 
+it('clears item_group.genre when the type tag is deleted', function () {
+    $tag = Tag::create([
+        'name' => 'Group Genre',
+        'code' => 'GGN',
+        'type' => Tag::TYPE_TYPE,
+        'item_type' => ItemType::ITEM->value,
+    ]);
+    $group = \App\Models\ItemGroup::factory()->create(['genre' => $tag->id]);
+    Item::factory()->create([
+        'group_id' => $group->id,
+        'genre' => $tag->id,
+    ]);
+
+    $this->actingAs($this->user)->delete("/tags/{$tag->id}")->assertSessionHasNoErrors();
+
+    expect($group->fresh()->genre)->toBe(0);
+});
+
 it('renders item and asset lancar show pages after a referenced tag is deleted', function () {
     $typeTag = Tag::create([
         'name' => 'Show Type',

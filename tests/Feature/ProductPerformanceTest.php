@@ -1,6 +1,7 @@
 <?php
 
 use App\Actions\Transactions\Concerns\CalculatesTransactionTotals;
+use App\Enums\ItemBrand;
 use App\Enums\ItemType;
 use App\Models\Addrbook;
 use App\Models\Item;
@@ -137,3 +138,31 @@ it('nulls orphaned group_id values when the item_group row is missing', function
     expect($dims['group_id'])->toBeNull();
 });
 
+it('resolves manufactured brand and genre from the item group when item mirrors are empty', function () {
+    $typeTag = Tag::factory()->create([
+        'type' => Tag::TYPE_TYPE,
+        'item_type' => ItemType::ITEM->value,
+        'code' => 'CLN',
+        'name' => 'Celana',
+    ]);
+    $group = ItemGroup::factory()->create([
+        'master' => 'CX00122',
+        'variant' => '04',
+        'brand' => ItemBrand::CX0,
+        'genre' => $typeTag->id,
+    ]);
+    $item = Item::factory()->create([
+        'type' => ItemType::ITEM,
+        'group_id' => $group->id,
+        'pcode' => 'CX00122-04',
+        'brand' => ItemBrand::NO_BRAND,
+        'genre' => 0,
+    ]);
+    $item->setRelation('group', $group->fresh());
+    $item->setRelation('tags', collect());
+
+    $dims = app(\App\Services\Items\ItemDimensionResolver::class)->resolve($item);
+
+    expect($dims['brand'])->toBe(ItemBrand::CX0->value)
+        ->and($dims['type_code'])->toBe('CLN');
+});
