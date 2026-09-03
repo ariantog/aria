@@ -159,7 +159,7 @@ $sortLink = function (string $column) use ($filters, $sortColumn, $sortDirection
                     @endphp
                     <tr class="cursor-pointer align-top hover:bg-gray-50" onclick="window.location='{{ $itemShowUrl }}'">
                         <td class="px-2 py-2 font-mono" data-copy-col="id">
-                            <a href="{{ $itemShowUrl }}" onclick="event.stopPropagation()" class="text-blue-600 hover:underline">#{{ $item->id }}</a>
+                            <a href="{{ $itemShowUrl }}" onclick="event.stopPropagation()" class="text-blue-600 hover:underline">{{ $item->id }}</a>
                         </td>
                         <td class="px-2 py-2" data-copy-col="image" x-show="showImage">
                             <img src="{{ $item->image_url ?: '/images/default-item.png' }}" alt="{{ $item->name }}" onerror="this.src='/images/default-item.png'" class="h-10 w-10 rounded-md border border-gray-200 object-cover">
