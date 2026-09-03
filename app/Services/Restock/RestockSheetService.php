@@ -41,6 +41,29 @@ class RestockSheetService
   }
 
   /**
+   * Per-sheet pipeline totals for the restock front page.
+   *
+   * @return Collection<int, array{id: int, name: string, qty_restock: int, qty_production: int, qty_shipped: int}>
+   */
+  public function sheetSummaries(): Collection
+  {
+    return RestockSheet::query()
+      ->withSum('cells as qty_restock_total', 'qty_restock')
+      ->withSum('cells as qty_production_total', 'qty_production')
+      ->withSum('cells as qty_shipped_total', 'qty_shipped')
+      ->orderBy('name')
+      ->get()
+      ->map(fn (RestockSheet $sheet) => [
+        'id' => $sheet->id,
+        'name' => $sheet->name,
+        'qty_restock' => (int) $sheet->qty_restock_total,
+        'qty_production' => (int) $sheet->qty_production_total,
+        'qty_shipped' => (int) $sheet->qty_shipped_total,
+      ])
+      ->values();
+  }
+
+  /**
    * Parent pcode rows for the TYPE landing page (BELT-01, BELT-02, …).
    *
    * @return Collection<int, array{pcode: string, name: string, image_url: string, sku_count: int, totals: array{restock: int, production: int, shipped: int}, urgent_count: int}>
