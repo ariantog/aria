@@ -40,8 +40,7 @@ $typeColors = [
         'formAction' => $formAction,
         'resetUrl' => $resetUrl,
         'partyLookupUrl' => $partyLookupUrl,
-        'selectedSender' => $selectedSender ?? null,
-        'selectedReceiver' => $selectedReceiver ?? null,
+        'selectedParty' => $selectedParty ?? null,
     ])
 
     <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
