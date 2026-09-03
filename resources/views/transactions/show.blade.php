@@ -425,6 +425,9 @@
                     <input type="checkbox" x-model="showSku" class="h-4 w-4 rounded border-gray-300"> SKU
                 </label>
                 <label class="flex cursor-pointer items-center gap-2 text-xs font-bold">
+                    <input type="checkbox" x-model="showLegacyCode" class="h-4 w-4 rounded border-gray-300"> Legacy code
+                </label>
+                <label class="flex cursor-pointer items-center gap-2 text-xs font-bold">
                     <input type="checkbox" x-model="showName" class="h-4 w-4 rounded border-gray-300"> Name
                 </label>
                 <label class="flex cursor-pointer items-center gap-2 text-xs font-bold">
@@ -451,11 +454,15 @@
                         ] as $sortCol)
                         <th class="px-3 py-2.5 font-black {{ $sortCol['align'] }}"
                             data-copy-col="{{ $sortCol['col'] }}"
-                            @if(in_array($sortCol['col'], ['barcode', 'sku', 'name', 'desc'], true)) x-show="{{ match($sortCol['col']) { 'barcode' => 'showBarcode', 'sku' => 'showSku', 'name' => 'showName', 'desc' => 'showDescription', default => 'true' } }}" @endif>
+                            @if(in_array($sortCol['col'], ['barcode', 'sku', 'name', 'desc'], true)) x-show="{{ match($sortCol['col']) { 'barcode' => 'showBarcode', 'sku' => 'showSkuColumn()', 'name' => 'showName', 'desc' => 'showDescription', default => 'true' } }}" @endif>
                             <button type="button"
                                     @click="sortItems('{{ $sortCol['col'] }}')"
                                     class="inline-flex w-full items-center gap-1 hover:text-gray-900 {{ str_contains($sortCol['align'], 'text-right') ? 'justify-end' : (str_contains($sortCol['align'], 'text-center') ? 'justify-center' : 'justify-start') }}">
-                                {{ $sortCol['label'] }}
+                                @if($sortCol['col'] === 'sku')
+                                    <span x-text="skuColumnLabel()"></span>
+                                @else
+                                    {{ $sortCol['label'] }}
+                                @endif
                                 <span x-show="sortCol === '{{ $sortCol['col'] }}'" class="text-blue-600" x-text="sortDir === 'asc' ? '↑' : '↓'"></span>
                             </button>
                         </th>
@@ -478,7 +485,11 @@
                         <td class="whitespace-nowrap px-3 py-2.5 align-middle font-mono text-xs" data-copy-col="barcode" data-sort-value="{{ $item?->id ?? 0 }}" x-show="showBarcode">
                             <a href="{{ $item ? route('items.show', $item->id) : '#' }}" class="text-blue-600 hover:underline">{{ $item?->id }}</a>
                         </td>
-                        <td class="whitespace-nowrap px-3 py-2.5 align-middle font-mono text-xs italic text-gray-500" data-copy-col="sku" data-sort-value="{{ $item?->code ?: '' }}" x-show="showSku">{{ $item?->code ?: '-' }}</td>
+                        <td class="whitespace-nowrap px-3 py-2.5 align-middle font-mono text-xs italic text-gray-500"
+                            data-copy-col="sku"
+                            :data-sort-value="skuCellText(@js($item?->code ?: ''), @js($item?->distinctLegacyCode() ?: ''))"
+                            x-show="showSkuColumn()"
+                            x-text="skuCellText(@js($item?->code ?: ''), @js($item?->distinctLegacyCode() ?: ''))"></td>
                         <td class="px-3 py-2.5 align-middle" data-copy-col="name" data-sort-value="{{ $item?->getItemName() ?: '' }}" x-show="showName">
                             <div class="font-bold text-gray-900">{{ $item?->getItemName() }}</div>
                             @if($item?->code)
@@ -631,7 +642,7 @@
 <script>
 function transactionShowPage(transactionId, initialNote, canEditNote, canEditPpn, initialPpn, initialPpnDpp, initialPph, ppnRate, pphRate, transactionTotal, initialSignedPpn) {
     const storageKey = 'aria-transaction-show-view';
-    const defaults = { showImage: true, showBarcode: true, showSku: false, showName: true, showDescription: false };
+    const defaults = { showImage: true, showBarcode: true, showSku: false, showLegacyCode: false, showName: true, showDescription: false };
     let saved = {};
 
     try {
@@ -644,6 +655,7 @@ function transactionShowPage(transactionId, initialNote, canEditNote, canEditPpn
         showImage: typeof saved.showImage === 'boolean' ? saved.showImage : defaults.showImage,
         showBarcode: typeof saved.showBarcode === 'boolean' ? saved.showBarcode : defaults.showBarcode,
         showSku: typeof saved.showSku === 'boolean' ? saved.showSku : defaults.showSku,
+        showLegacyCode: typeof saved.showLegacyCode === 'boolean' ? saved.showLegacyCode : defaults.showLegacyCode,
         showName: typeof saved.showName === 'boolean' ? saved.showName : defaults.showName,
         showDescription: typeof saved.showDescription === 'boolean' ? saved.showDescription : defaults.showDescription,
         copyFeedback: false,
@@ -823,17 +835,56 @@ function transactionShowPage(transactionId, initialNote, canEditNote, canEditPpn
             }
         },
         init() {
+            if (this.showLegacyCode && ! this.showSku) {
+                this.showSku = true;
+            }
+
             this.$watch('showImage', () => this.persistViewPrefs());
             this.$watch('showBarcode', () => this.persistViewPrefs());
-            this.$watch('showSku', () => this.persistViewPrefs());
+            this.$watch('showLegacyCode', (value) => {
+                if (value) {
+                    this.showSku = true;
+                }
+                this.persistViewPrefs();
+            });
+            this.$watch('showSku', (value) => {
+                if (! value && this.showLegacyCode) {
+                    this.showSku = true;
+
+                    return;
+                }
+                this.persistViewPrefs();
+            });
             this.$watch('showName', () => this.persistViewPrefs());
             this.$watch('showDescription', () => this.persistViewPrefs());
+        },
+        showSkuColumn() {
+            return this.showSku || this.showLegacyCode;
+        },
+        skuColumnLabel() {
+            if (! this.showSkuColumn()) {
+                return '';
+            }
+
+            return this.showLegacyCode ? 'Legacy code' : 'SKU';
+        },
+        skuCellText(code, legacy) {
+            if (! this.showSkuColumn()) {
+                return '';
+            }
+
+            if (this.showLegacyCode) {
+                return legacy || code || '-';
+            }
+
+            return code || '-';
         },
         persistViewPrefs() {
             localStorage.setItem(storageKey, JSON.stringify({
                 showImage: this.showImage,
                 showBarcode: this.showBarcode,
                 showSku: this.showSku,
+                showLegacyCode: this.showLegacyCode,
                 showName: this.showName,
                 showDescription: this.showDescription,
             }));
@@ -843,6 +894,7 @@ function transactionShowPage(transactionId, initialNote, canEditNote, canEditPpn
             params.set('image', this.showImage ? '1' : '0');
             params.set('barcode', this.showBarcode ? '1' : '0');
             params.set('sku', this.showSku ? '1' : '0');
+            params.set('legacy', this.showLegacyCode ? '1' : '0');
             params.set('name', this.showName ? '1' : '0');
             params.set('desc', this.showDescription ? '1' : '0');
 
@@ -858,7 +910,7 @@ function transactionShowPage(transactionId, initialNote, canEditNote, canEditPpn
         isCopyColumnVisible(col) {
             if (col === 'image') return this.showImage;
             if (col === 'barcode') return this.showBarcode;
-            if (col === 'sku') return this.showSku;
+            if (col === 'sku') return this.showSkuColumn();
             if (col === 'name') return this.showName;
             if (col === 'desc') return this.showDescription;
 
