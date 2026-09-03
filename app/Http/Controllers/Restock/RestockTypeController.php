@@ -7,7 +7,6 @@ use App\Models\RestockSheet;
 use App\Models\Tag;
 use App\Services\Restock\RestockMissingService;
 use App\Services\Restock\RestockSheetService;
-use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\View\View;
 
@@ -18,23 +17,15 @@ class RestockTypeController extends Controller
     protected RestockMissingService $missingService,
   ) {}
 
-  public function index(): RedirectResponse|View
+  public function index(): View
   {
     Gate::authorize(RestockSheet::getPermissions()['view']);
 
-    $typeTags = $this->sheetService->typeTags();
-
-    if ($typeTags->isEmpty()) {
-      return view('restock.type-index', [
-        'typeTags' => $typeTags,
-        'activeTypeTag' => null,
-        'parents' => collect(),
-        'sheet' => null,
-        'canCreateSheet' => false,
-      ]);
-    }
-
-    return redirect()->route('restock.type.show', $typeTags->first());
+    return view('restock.index', [
+      'typeTags' => $this->sheetService->typeTags(),
+      'sheets' => $this->sheetService->sheetSummaries(),
+      'missingCount' => $this->missingService->missingCountForType(),
+    ]);
   }
 
   public function show(Tag $typeTag): View

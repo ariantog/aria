@@ -3,6 +3,7 @@
 use App\Enums\ItemType;
 use App\Models\Addrbook;
 use App\Models\Item;
+use App\Models\RestockCell;
 use App\Models\RestockCellHistory;
 use App\Models\RestockSheet;
 use App\Models\Setting;
@@ -83,12 +84,71 @@ test('type tabs only include asset lancar tags with item_type 2', function () {
     expect($tags->pluck('id'))->not->toContain($this->manufacturedTypeTag->id);
 });
 
-test('restock index redirects to first asset lancar type tab', function () {
+test('restock index lists sheets with pipeline totals', function () {
+    createAssetLancarSkus($this);
+
+    $otherType = Tag::factory()->create([
+        'type' => Tag::TYPE_TYPE,
+        'code' => 'KNEE',
+        'name' => 'Knee Support',
+        'item_type' => ItemType::ASSET_LANCAR->value,
+    ]);
+
+    $elbowSheet = app(RestockSheetService::class)->createSheet($this->typeTag, $this->user);
+    $kneeSheet = RestockSheet::create([
+        'name' => 'Knee Support',
+        'type_tag_id' => $otherType->id,
+        'created_by' => $this->user->id,
+    ]);
+
+    $elbowCells = $elbowSheet->cells()->orderBy('id')->get();
+    $elbowCells[0]->update([
+        'qty_restock' => 11,
+        'qty_production' => 22,
+        'qty_shipped' => 33,
+    ]);
+    $elbowCells[1]->update([
+        'qty_restock' => 4,
+        'qty_production' => 5,
+        'qty_shipped' => 6,
+    ]);
+
+    $kneeItem = Item::factory()->create();
+    RestockCell::create([
+        'restock_sheet_id' => $kneeSheet->id,
+        'item_id' => $kneeItem->id,
+        'qty_restock' => 100,
+        'qty_production' => 200,
+        'qty_shipped' => 300,
+    ]);
+
+    $this->actingAs($this->user)
+        ->get('/restock')
+        ->assertOk()
+        ->assertSee('data-testid="restock-sheets-table"', false)
+        ->assertSee('Elbow', false)
+        ->assertSee('Knee Support', false)
+        ->assertSee('data-qty-restock="15"', false)
+        ->assertSee('data-qty-production="27"', false)
+        ->assertSee('data-qty-shipping="39"', false)
+        ->assertSee('data-qty-restock="100"', false)
+        ->assertSee('data-qty-production="200"', false)
+        ->assertSee('data-qty-shipping="300"', false)
+        ->assertSee('data-qty-restock="115"', false)
+        ->assertSee('data-qty-production="227"', false)
+        ->assertSee('data-qty-shipping="339"', false)
+        ->assertSee('All sheets', false);
+});
+
+test('restock index shows empty state when no sheets exist', function () {
     createAssetLancarSkus($this);
 
     $this->actingAs($this->user)
         ->get('/restock')
-        ->assertRedirect(route('restock.type.show', $this->typeTag));
+        ->assertOk()
+        ->assertSee('data-testid="restock-sheets-empty"', false)
+        ->assertSee('No restock sheets yet', false)
+        ->assertDontSee('data-testid="restock-sheets-table"', false);
 });
 
 test('type landing lists parent pcodes under the type', function () {
