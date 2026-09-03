@@ -184,13 +184,13 @@ describe('asset sku splitting', function () {
 });
 
 describe('stored group names', function () {
-    it('suffixes asset lancar group names with warna variant', function () {
+    it('stores bare asset lancar product title without warna suffix', function () {
         expect($this->builder->storedGroupName(
             ItemType::ASSET_LANCAR,
             'HIP THRUST PAD',
             'HIPTHRUST-02',
             'AQUAMARINE',
-        ))->toBe('HIP THRUST PAD - AQUAMARINE');
+        ))->toBe('HIP THRUST PAD');
     });
 
     it('derives product display name from stored asset group name', function () {
@@ -233,60 +233,41 @@ describe('stored group names', function () {
         ))->toBe('ELBOW STRAP - BLACKWHITE - S');
     });
 
-    it('fits stored group names to the production varchar(50) column', function () {
-        $long = 'ELBOW STRAP - BLACKWHITE (ELBOWSUPPORT-02/BLACKWHITE)';
+    it('fits stored group names to the production varchar(255) column', function () {
+        $long = str_repeat('A', 300);
 
-        expect(strlen($long))->toBeGreaterThan(ItemIdentityBuilder::GROUP_NAME_MAX_LENGTH)
-            ->and(strlen($this->builder->fitStoredGroupName($long)))->toBe(ItemIdentityBuilder::GROUP_NAME_MAX_LENGTH)
-            ->and($this->builder->fitStoredGroupName($long))->toBe('ELBOW STRAP - BLACKWHITE (ELBOWSUPPORT-02/BLACKWHI');
+        expect(mb_strlen($long))->toBeGreaterThan(ItemIdentityBuilder::GROUP_NAME_MAX_LENGTH)
+            ->and(mb_strlen($this->builder->fitStoredGroupName($long)))->toBe(ItemIdentityBuilder::GROUP_NAME_MAX_LENGTH);
     });
 
-    it('disambiguates colliding asset group names with a master suffix that fits in 50 chars', function () {
+    it('allows colliding asset group names without a uniqueness suffix', function () {
         \App\Models\ItemGroup::factory()->create([
             'master' => 'ELBOWSTRAP-01',
             'variant' => 'BLACKWHITE',
-            'name' => 'ELBOW STRAP - BLACKWHITE',
+            'name' => 'ELBOW STRAP',
         ]);
 
         $name = $this->builder->uniqueStoredGroupName(
-            'ELBOW STRAP - BLACKWHITE',
+            'ELBOW STRAP',
             'ELBOWSUPPORT-02',
             'BLACKWHITE',
         );
 
-        expect($name)->toBe('ELBOW STRAP - BLACKWHITE (ELBOWSUPPORT-02)')
-            ->and(strlen($name))->toBeLessThanOrEqual(ItemIdentityBuilder::GROUP_NAME_MAX_LENGTH)
-            ->and($name)->not->toBe('ELBOW STRAP - BLACKWHITE (ELBOWSUPPORT-02/BLACKWHITE)');
-    });
-
-    it('fits an unused long stored name to 50 characters', function () {
-        $long = $this->builder->storedGroupName(
-            ItemType::ASSET_LANCAR,
-            'PREMIUM ADJUSTABLE ELBOW SUPPORT STRAP',
-            'ELBOWSUPPORT-02',
-            'BLACKWHITE',
-        );
-
-        expect(strlen($long))->toBeGreaterThan(ItemIdentityBuilder::GROUP_NAME_MAX_LENGTH);
-
-        $fitted = $this->builder->uniqueStoredGroupName($long, 'ELBOWSUPPORT-02', 'BLACKWHITE');
-
-        expect(strlen($fitted))->toBe(ItemIdentityBuilder::GROUP_NAME_MAX_LENGTH)
-            ->and($fitted)->toBe($this->builder->fitStoredGroupName($long));
+        expect($name)->toBe('ELBOW STRAP');
     });
 
     it('keeps the preferred name when the same master and variant already own it', function () {
         \App\Models\ItemGroup::factory()->create([
             'master' => 'ELBOWSUPPORT-02',
             'variant' => 'BLACKWHITE',
-            'name' => 'ELBOW STRAP - BLACKWHITE',
+            'name' => 'ELBOW STRAP',
         ]);
 
         expect($this->builder->uniqueStoredGroupName(
-            'ELBOW STRAP - BLACKWHITE',
+            'ELBOW STRAP',
             'ELBOWSUPPORT-02',
             'BLACKWHITE',
-        ))->toBe('ELBOW STRAP - BLACKWHITE');
+        ))->toBe('ELBOW STRAP');
     });
 });
 

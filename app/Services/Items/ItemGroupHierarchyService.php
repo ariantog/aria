@@ -30,7 +30,7 @@ class ItemGroupHierarchyService
      */
     public function paginateParents(array $filters, int $perPage = 20): LengthAwarePaginator
     {
-        $canonicalMasterSql = "CASE WHEN INSTR(item_group.master, '/') > 0 THEN SUBSTR(item_group.master, 1, INSTR(item_group.master, '/') - 1) ELSE item_group.master END";
+        $canonicalMasterSql = $this->canonicalParentMasterSql();
 
         $query = ItemGroup::query()
             ->select([
@@ -533,5 +533,35 @@ class ItemGroupHierarchyService
         }
 
         return '1_'.$upper;
+    }
+
+    private function canonicalParentMasterSql(): string
+    {
+        if (DB::connection()->getDriverName() === 'mysql') {
+            return <<<'SQL'
+CASE
+  WHEN UPPER(TRIM(item_group.master)) REGEXP '^[A-Z]{2,3}[0-9]{5}(/|-)[0-9]{2,3}$'
+    THEN SUBSTRING_INDEX(REPLACE(UPPER(TRIM(item_group.master)), '/', '-'), '-', 1)
+  WHEN UPPER(TRIM(item_group.master)) REGEXP '^[A-Z]{2,3}[0-9]{5}$'
+    THEN UPPER(TRIM(item_group.master))
+  WHEN INSTR(item_group.master, '/') > 0
+    THEN SUBSTR(item_group.master, 1, INSTR(item_group.master, '/') - 1)
+  ELSE UPPER(TRIM(item_group.master))
+END
+SQL;
+        }
+
+        return <<<'SQL'
+CASE
+  WHEN instr(item_group.master, '-') > 0
+    AND length(substr(item_group.master, 1, instr(item_group.master, '-') - 1)) BETWEEN 7 AND 8
+    AND substr(item_group.master, instr(item_group.master, '-') + 1) GLOB '[0-9]*'
+    AND substr(item_group.master, 1, 3) GLOB '[A-Z]*'
+    THEN substr(item_group.master, 1, instr(item_group.master, '-') - 1)
+  WHEN instr(item_group.master, '/') > 0
+    THEN substr(item_group.master, 1, instr(item_group.master, '/') - 1)
+  ELSE item_group.master
+END
+SQL;
     }
 }

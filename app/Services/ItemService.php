@@ -360,24 +360,24 @@ class ItemService
         $pcode = $type === ItemType::ITEM
             ? $this->identityBuilder->normalizeManufacturedPcode($pcode)
             : strtoupper(trim($pcode));
-        $parsed = $this->identityBuilder->parsePcode($type, $pcode);
+        $groupMaster = $this->identityBuilder->groupMaster($type, $pcode);
         $variant = $this->identityBuilder->groupVariant($type, $pcode, $warnaTag);
         $storedName = $this->identityBuilder->uniqueStoredGroupName(
             $this->identityBuilder->storedGroupName($type, $groupName, $pcode, $variant),
-            $parsed['master'],
+            $groupMaster,
             $variant,
         );
 
-        $group = $this->findCanonicalGroup($parsed['master'], $variant)
-            ?? $this->reuseLeftoverColorwayGroup($sourceItem, $pcode, $parsed['master'], $variant);
+        $group = $this->identityBuilder->findCanonicalGroup($groupMaster, $variant)
+            ?? $this->reuseLeftoverColorwayGroup($sourceItem, $pcode, $groupMaster, $variant);
 
         if ($group) {
-            $group->master = $parsed['master'];
+            $group->master = $groupMaster;
             $group->variant = $variant;
         } else {
             $group = ItemGroup::firstOrCreate(
                 [
-                    'master' => $parsed['master'],
+                    'master' => $groupMaster,
                     'variant' => $variant,
                 ],
                 [
@@ -410,14 +410,6 @@ class ItemService
         return $group;
     }
 
-    protected function findCanonicalGroup(string $master, string $variant): ?ItemGroup
-    {
-        return ItemGroup::query()
-            ->whereRaw('UPPER(TRIM(master)) = ?', [strtoupper($master)])
-            ->whereRaw('UPPER(TRIM(variant)) = ?', [strtoupper($variant)])
-            ->first();
-    }
-
     /**
      * Leftover colorways stored the slash pcode on item_group.master or name
      * (CX00122/03). Reuse that row when saving the hyphenated pcode so SKUs
@@ -426,7 +418,7 @@ class ItemService
     protected function reuseLeftoverColorwayGroup(
         ?Item $sourceItem,
         string $pcode,
-        string $master,
+        string $groupMaster,
         string $variant,
     ): ?ItemGroup {
         $group = $sourceItem?->group;
@@ -438,15 +430,16 @@ class ItemService
         $normalizedMaster = $this->identityBuilder->normalizeManufacturedPcode((string) ($group->master ?? ''));
         $normalizedName = $this->identityBuilder->normalizeManufacturedPcode((string) ($group->name ?? ''));
         $normalizedItemPcode = $this->identityBuilder->normalizeManufacturedPcode((string) ($sourceItem->pcode ?? ''));
+        $productionMaster = $this->identityBuilder->canonicalManufacturedMaster($groupMaster);
 
         if ($normalizedMaster === $pcode || $normalizedName === $pcode) {
             return $group;
         }
 
         if ($normalizedItemPcode === $pcode && (
-            $normalizedMaster === '' 
-            || $normalizedMaster === $master
-            || $this->identityBuilder->canonicalManufacturedMaster((string) ($group->master ?? '')) === $master
+            $normalizedMaster === ''
+            || $normalizedMaster === $groupMaster
+            || ($productionMaster !== null && $this->identityBuilder->canonicalManufacturedMaster((string) ($group->master ?? '')) === $productionMaster)
         )) {
             $groupVariant = strtoupper(trim((string) ($group->variant ?? '')));
 

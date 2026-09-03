@@ -716,17 +716,18 @@ class LegacyItemConverterService
 
     protected function resolveGroup(ItemType $type, string $pcode, string $groupName, Tag $warnaTag): ItemGroup
     {
-        $parsed = $this->identityBuilder->parsePcode($type, $pcode);
+        $groupMaster = $this->identityBuilder->groupMaster($type, $pcode);
         $variant = $this->identityBuilder->groupVariant($type, $pcode, $warnaTag);
         $storedName = $this->identityBuilder->uniqueStoredGroupName(
             $this->identityBuilder->storedGroupName($type, $groupName, $pcode, $variant),
-            $parsed['master'],
+            $groupMaster,
             $variant,
         );
 
-        $group = ItemGroup::query()->firstOrCreate(
+        $group = $this->identityBuilder->findCanonicalGroup($groupMaster, $variant)
+            ?? ItemGroup::query()->firstOrCreate(
             [
-                'master' => $parsed['master'],
+                'master' => $groupMaster,
                 'variant' => $variant,
             ],
             [
@@ -738,8 +739,8 @@ class LegacyItemConverterService
             $group->name = $storedName;
         }
 
-        if (strtoupper(trim((string) ($group->master ?? ''))) !== strtoupper($parsed['master'])) {
-            $group->master = $parsed['master'];
+        if (strtoupper(trim((string) ($group->master ?? ''))) !== strtoupper($groupMaster)) {
+            $group->master = $groupMaster;
         }
 
         if (strtoupper(trim((string) ($group->variant ?? ''))) !== strtoupper($variant)) {
