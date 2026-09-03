@@ -59,6 +59,31 @@ class Produksi extends Model
         ];
     }
 
+    /** @return list<array{id: int, name: string}> */
+    public static function reportStatusFilterOptions(): array
+    {
+        return [
+            ['id' => self::STATUS_PRODUKSI, 'name' => self::statusLabel(self::STATUS_PRODUKSI)],
+            ...self::statusFilterOptions(),
+        ];
+    }
+
+    public static function parseStatusFilter(mixed $status): ?int
+    {
+        if ($status === null || $status === '') {
+            return null;
+        }
+
+        if (! is_numeric($status)) {
+            return null;
+        }
+
+        $status = (int) $status;
+        $valid = [self::STATUS_PRODUKSI, ...self::setoranStatuses()];
+
+        return in_array($status, $valid, true) ? $status : null;
+    }
+
     public function setoranRowClass(): string
     {
         return match ((int) $this->status) {

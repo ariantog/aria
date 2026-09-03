@@ -14,23 +14,14 @@ class ProduksiQcReportController extends Controller
     {
         Gate::authorize(Report::getPermissions()['view-produksi-qc']);
 
-        $month = $request->query('month');
-        $month = ($month === null || $month === '' || $month === '0') ? null : (int) $month;
-        $year = (int) ($request->query('year') ?? date('Y'));
-
-        [$startDate, $endDate, $resolvedMonth, $resolvedYear] = $stats->resolveDateRange($month, $year);
-
-        $workerSummary = $stats->qcWorkerSummary($startDate, $endDate);
-        $monthlyTotals = $stats->qcMonthlyTotals($resolvedYear);
+        $ctx = $stats->reportContext($request->query());
 
         return view('reports.produksi-qc', [
-            'workerSummary' => $workerSummary,
-            'monthlyTotals' => $monthlyTotals,
-            'filters' => [
-                'month' => $resolvedMonth,
-                'year' => $resolvedYear,
-            ],
+            'workerSummary' => $stats->qcWorkerSummary($ctx['startDate'], $ctx['endDate'], $ctx['status']),
+            'monthlyTotals' => $stats->qcMonthlyTotals($ctx['filters']['year'], $ctx['status']),
+            'filters' => $ctx['filters'],
             'yearList' => $stats->yearList(),
+            'periodLabel' => $ctx['periodLabel'],
             'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
     }
