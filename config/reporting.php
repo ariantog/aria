@@ -30,6 +30,11 @@ return [
     |--------------------------------------------------------------------------
     | PPh Final rate (non-PKP entity CashIn)
     |--------------------------------------------------------------------------
+    |
+    | Omzet is net per party per month: Cash In from a customer/reseller/supplier
+    | to an entity bank minus Cash Out back to the same party from that bank
+    | (consignment pass-through). See CashPartyOmzetNetting.
+    |
     */
     'pph_final_rate' => 0.005,
 

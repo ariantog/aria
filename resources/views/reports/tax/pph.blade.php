@@ -96,10 +96,14 @@ $ratePct = rtrim(rtrim(number_format($report['rate'] * 100, 2, '.', ''), '0'), '
 
     <div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm" data-testid="pph-ringkasan">
         <h3 class="mb-3 text-sm font-semibold text-gray-900">Ringkasan</h3>
-        <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <div class="rounded-lg border border-gray-100 bg-gray-50 p-3">
                 <p class="text-xs text-gray-500">Gross CashIn</p>
                 <p class="text-lg font-semibold tabular-nums text-gray-900">{{ $fmt($report['gross_cash_in']) }}</p>
+            </div>
+            <div class="rounded-lg border border-emerald-100 bg-emerald-50 p-3">
+                <p class="text-xs text-emerald-800">Net omzet (CashIn − CashOut pihak sama)</p>
+                <p class="text-lg font-semibold tabular-nums text-emerald-900">{{ $fmt($report['net_omzet']) }}</p>
             </div>
             <div class="rounded-lg border border-blue-100 bg-blue-50 p-3">
                 <p class="text-xs text-blue-700">PPh Final ({{ $ratePct }}%)</p>
@@ -119,7 +123,7 @@ $ratePct = rtrim(rtrim(number_format($report['rate'] * 100, 2, '.', ''), '0'), '
             @click="toggleDetail()"
             data-testid="pph-detail-toggle"
         >
-            <span class="text-sm font-semibold text-gray-900">CashIn ({{ $report['rows']->count() }} baris)</span>
+            <span class="text-sm font-semibold text-gray-900">Net omzet per pihak ({{ $report['rows']->count() }} baris)</span>
             <svg :class="isDetailOpen() ? 'rotate-180' : ''" class="h-4 w-4 text-gray-500 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
             </svg>
@@ -129,33 +133,29 @@ $ratePct = rtrim(rtrim(number_format($report['rate'] * 100, 2, '.', ''), '0'), '
                 <table class="w-full text-sm" data-testid="pph-cashin-table">
                     <thead>
                         <tr class="border-b bg-gray-50 text-left text-xs text-gray-500">
-                            <th class="px-3 py-2 font-medium">Tanggal</th>
-                            <th class="px-3 py-2 font-medium">Invoice</th>
                             <th class="px-3 py-2 font-medium">Pihak</th>
-                            <th class="px-3 py-2 font-medium">Bank</th>
                             @if($report['is_consolidated'])
                                 <th class="px-3 py-2 font-medium">Entitas</th>
                             @endif
-                            <th class="px-3 py-2 text-right font-medium">Gross</th>
+                            <th class="px-3 py-2 text-right font-medium">Cash In</th>
+                            <th class="px-3 py-2 text-right font-medium">Cash Out</th>
+                            <th class="px-3 py-2 text-right font-medium">Net omzet</th>
                             <th class="px-3 py-2 text-right font-medium">PPh Final</th>
-                            <th class="px-3 py-2 font-medium">Tx</th>
                         </tr>
                     </thead>
                     <tbody>
                         @forelse($report['rows'] as $row)
                             <tr class="border-b">
-                                <td class="px-3 py-2 tabular-nums">{{ $row['date'] }}</td>
-                                <td class="px-3 py-2">{{ $row['invoice'] ?? '—' }}</td>
-                                <td class="px-3 py-2">{{ $row['party'] }}</td>
-                                <td class="px-3 py-2">{{ $row['bank'] }}</td>
+                                <td class="px-3 py-2">
+                                    <a href="{{ route('addrbook.transactions', $row['party_id']) }}" class="text-blue-600 hover:underline">{{ $row['party'] }}</a>
+                                </td>
                                 @if($report['is_consolidated'])
                                     <td class="px-3 py-2">{{ $row['entity_name'] }}</td>
                                 @endif
-                                <td class="px-3 py-2 text-right tabular-nums">{{ $fmt($row['gross']) }}</td>
+                                <td class="px-3 py-2 text-right tabular-nums">{{ $fmt($row['cash_in_gross']) }}</td>
+                                <td class="px-3 py-2 text-right tabular-nums">{{ $fmt($row['cash_out_gross']) }}</td>
+                                <td class="px-3 py-2 text-right tabular-nums font-medium">{{ $fmt($row['net_omzet']) }}</td>
                                 <td class="px-3 py-2 text-right tabular-nums">{{ $fmt($row['pph_final']) }}</td>
-                                <td class="px-3 py-2">
-                                    <a href="{{ route('transactions.show', $row['id']) }}" class="text-blue-600 hover:underline">#{{ $row['id'] }}</a>
-                                </td>
                             </tr>
                         @empty
                             <tr>
