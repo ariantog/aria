@@ -57,6 +57,7 @@
                 <input type="hidden" name="image" :value="showImage ? 1 : 0">
                 <input type="hidden" name="barcode" :value="showBarcode ? 1 : 0">
                 <input type="hidden" name="sku" :value="showSku ? 1 : 0">
+                <input type="hidden" name="legacy" :value="showLegacyCode ? 1 : 0">
                 <input type="hidden" name="name" :value="showName ? 1 : 0">
                 <input type="hidden" name="desc" :value="showDescription ? 1 : 0">
                 <button type="submit" data-testid="regenerate-pdf-button"
@@ -71,6 +72,7 @@
                 <input type="hidden" name="image" :value="showImage ? 1 : 0">
                 <input type="hidden" name="barcode" :value="showBarcode ? 1 : 0">
                 <input type="hidden" name="sku" :value="showSku ? 1 : 0">
+                <input type="hidden" name="legacy" :value="showLegacyCode ? 1 : 0">
                 <input type="hidden" name="name" :value="showName ? 1 : 0">
                 <input type="hidden" name="desc" :value="showDescription ? 1 : 0">
                 <button type="submit"

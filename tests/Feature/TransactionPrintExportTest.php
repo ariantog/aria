@@ -411,5 +411,100 @@ it('transaction show page builds print invoice href from view checkboxes', funct
         ->get(route('transactions.show', $transaction))
         ->assertOk()
         ->assertSee('itemViewQuery()', false)
-        ->assertSee("name=\"desc\"", false);
+        ->assertSee("name=\"desc\"", false)
+        ->assertSee('x-model="showLegacyCode"', false);
+});
+
+it('print invoice shows legacy code with code fallback in shared sku column', function () {
+    $item = Item::factory()->create([
+        'name' => 'Legacy Item',
+        'code' => 'NEW-SKU-01',
+        'legacy_code' => 'OLD-SKU-01',
+    ]);
+
+    $transaction = Transaction::factory()->create(['invoice' => 'TX-LEGACY-PRINT']);
+    TransactionDetail::factory()->create([
+        'transaction_id' => $transaction->id,
+        'item_id' => $item->id,
+        'quantity' => 1,
+        'price' => 10_000,
+        'total' => 10_000,
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('transactions.print', [
+            'transaction' => $transaction,
+            'image' => '0',
+            'barcode' => '0',
+            'sku' => '0',
+            'legacy' => '1',
+            'name' => '0',
+        ]))
+        ->assertOk()
+        ->assertSee('Legacy code', false)
+        ->assertSee('OLD-SKU-01', false)
+        ->assertDontSee('NEW-SKU-01', false);
+});
+
+it('print invoice shows sku code only when legacy code is disabled', function () {
+    $item = Item::factory()->create([
+        'name' => 'Sku Item',
+        'code' => 'NEW-SKU-02',
+        'legacy_code' => 'OLD-SKU-02',
+    ]);
+
+    $transaction = Transaction::factory()->create(['invoice' => 'TX-SKU-PRINT']);
+    TransactionDetail::factory()->create([
+        'transaction_id' => $transaction->id,
+        'item_id' => $item->id,
+        'quantity' => 1,
+        'price' => 10_000,
+        'total' => 10_000,
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('transactions.print', [
+            'transaction' => $transaction,
+            'image' => '0',
+            'barcode' => '0',
+            'sku' => '1',
+            'legacy' => '0',
+            'name' => '0',
+        ]))
+        ->assertOk()
+        ->assertSee('SKU', false)
+        ->assertSee('NEW-SKU-02', false)
+        ->assertDontSee('OLD-SKU-02', false);
+});
+
+it('print invoice hides shared sku column when sku and legacy code are disabled', function () {
+    $item = Item::factory()->create([
+        'name' => 'Hidden Sku Item',
+        'code' => 'HIDDEN-SKU',
+        'legacy_code' => 'HIDDEN-LEGACY',
+    ]);
+
+    $transaction = Transaction::factory()->create(['invoice' => 'TX-HIDE-SKU']);
+    TransactionDetail::factory()->create([
+        'transaction_id' => $transaction->id,
+        'item_id' => $item->id,
+        'quantity' => 1,
+        'price' => 10_000,
+        'total' => 10_000,
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('transactions.print', [
+            'transaction' => $transaction,
+            'image' => '0',
+            'barcode' => '0',
+            'sku' => '0',
+            'legacy' => '0',
+            'name' => '1',
+        ]))
+        ->assertOk()
+        ->assertDontSee('HIDDEN-SKU', false)
+        ->assertDontSee('HIDDEN-LEGACY', false)
+        ->assertDontSee('>SKU<', false)
+        ->assertDontSee('Legacy code', false);
 });

@@ -18,8 +18,8 @@
             @if($itemView['showBarcode'])
                 <th style="text-align:left;{{ $cellStyle }}">Barcode</th>
             @endif
-            @if($itemView['showSku'])
-                <th style="text-align:left;{{ $cellStyle }}">SKU</th>
+            @if(\App\Support\TransactionItemViewOptions::showSkuColumn($itemView))
+                <th style="text-align:left;{{ $cellStyle }}">{{ \App\Support\TransactionItemViewOptions::skuColumnLabel($itemView) }}</th>
             @endif
             @if($itemView['showName'])
                 <th style="text-align:left;{{ $cellStyle }}">{{ $plainPrint ? 'Code' : 'Item Name' }}</th>
@@ -49,8 +49,8 @@
                 @if($itemView['showBarcode'])
                     <td style="{{ $plainPrint ? '' : 'font-family:monospace; font-size:11px;' }}{{ $cellStyle }}">{{ $item?->id ?? '-' }}</td>
                 @endif
-                @if($itemView['showSku'])
-                    <td style="{{ $plainPrint ? '' : 'font-family:monospace; font-size:11px; font-style:italic;' }}{{ $cellStyle }}">{{ $item?->code ?: '-' }}</td>
+                @if(\App\Support\TransactionItemViewOptions::showSkuColumn($itemView))
+                    <td style="{{ $plainPrint ? '' : 'font-family:monospace; font-size:11px; font-style:italic;' }}{{ $cellStyle }}">{{ \App\Support\TransactionItemViewOptions::skuColumnValue($item, $itemView) }}</td>
                 @endif
                 @if($itemView['showName'])
                     <td style="{{ $cellStyle }}">
