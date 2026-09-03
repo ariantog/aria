@@ -28,6 +28,12 @@
         <h3 class="text-lg font-semibold text-gray-900">Attributes</h3>
     </div>
     <div class="space-y-5 p-5">
+        <fieldset class="space-y-4 rounded-lg border border-indigo-200 bg-indigo-50/40 p-4" data-testid="item-form-shared-tags">
+            <legend class="px-1 text-xs font-semibold uppercase tracking-wide text-indigo-800">Shared across this colorway</legend>
+            @include('items.partials.form-shared-banner', [
+                'sharedTestId' => 'item-form-shared-tags-banner',
+                'sharedHint' => 'Type, warna, and jahit apply to every size in this colorway.',
+            ])
         {{-- Warna --}}
         <div>
             <label class="mb-1 block text-sm font-medium text-gray-700">
@@ -100,8 +106,19 @@
             <p class="mt-1 text-xs text-gray-500">Becomes the SKU prefix (e.g. AJD).</p>
             @endif
         </div>
+        </fieldset>
 
         {{-- Size --}}
+        <fieldset class="space-y-4 rounded-lg border border-gray-200 bg-gray-50/60 p-4" data-testid="item-form-sku-size">
+            <legend class="px-1 text-xs font-semibold uppercase tracking-wide text-gray-700">This size only</legend>
+            @include('items.partials.form-shared-banner', [
+                'sharedTone' => 'sku',
+                'sharedTitle' => 'This size only',
+                'sharedHint' => $multiSize
+                    ? 'Each selected size becomes its own SKU. Name is group name + color + size.'
+                    : 'Size stays on this SKU. The display name is rebuilt as group name + color + size.',
+                'sharedTestId' => 'item-form-sku-size-banner',
+            ])
         <div>
             <label class="mb-1 block text-sm font-medium text-gray-700">Size <span class="text-red-500">*</span></label>
             @if($multiSize)
@@ -130,5 +147,6 @@
             <p class="mt-1 text-xs text-gray-500">Select all sizes to create in this batch. Use AS for all-size (no size suffix in SKU).</p>
             @endif
         </div>
+        </fieldset>
     </div>
 </div>
