@@ -5,6 +5,7 @@ namespace App\Services\Items;
 use App\Enums\ItemType;
 use App\Models\Item;
 use App\Models\Tag;
+use App\Support\ItemCatalog;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Collection;
 use InvalidArgumentException;
@@ -517,13 +518,12 @@ class LegacyItemIdentityParser
     }
 
     /**
-     * Grouped manufactured SKUs scan item_group description, not items.description.
+     * Prefer item_group catalog text. Fall back to leftover items.description
+     * only when the group has no colorway text yet.
      */
     protected function manufacturedColorScanText(Item $item): string
     {
-        $item->loadMissing('group');
-
-        return trim($item->catalogDescription().' '.$item->catalogDescription2());
+        return ItemCatalog::scanText($item);
     }
 
     /**

@@ -644,6 +644,9 @@ class LegacyItemConverterService
 
         $effectiveTypeTag = $typeTag ?? $assetTypeTag;
 
+        $item->loadMissing('group');
+        $previousGroup = $item->group;
+
         $group = $this->resolveGroup($itemType, (string) $parse->pcode, (string) $parse->groupName, $warnaTag);
         $canonicalCode = (string) $parse->canonicalCode;
 
@@ -658,21 +661,57 @@ class LegacyItemConverterService
         $item->code = $canonicalCode;
         $item->name = $this->identityBuilder->buildName((string) $parse->groupName, $warnaTag, $sizeTag);
         $item->size = $sizeTag?->id ?? 0;
-        ItemCatalog::mirrorToItem($item, [
-            'brand' => ItemBrand::fromPcode((string) $parse->pcode),
-            'genre' => $effectiveTypeTag?->id ?? 0,
-        ]);
+        $this->persistConvertedCatalog($item, $group, $previousGroup, (string) $parse->pcode, $effectiveTypeTag);
         $item->save();
-
-        ItemCatalog::applyToGroup($group, [
-            'brand' => ItemBrand::fromPcode((string) $parse->pcode),
-            'genre' => $effectiveTypeTag?->id ?? 0,
-        ]);
 
         $tagIds = $this->collectTagIds($item, $effectiveTypeTag, $warnaTag, $sizeTag);
         $item->tag_ids = implode(',', $tagIds);
         $item->save();
         $item->tags()->sync($tagIds);
+    }
+
+    /**
+     * Write shared catalog fields to the group (source of truth) and mirror leftovers.
+     * Existing group description is kept; leftover item text only seeds an empty group.
+     */
+    protected function persistConvertedCatalog(
+        Item $item,
+        ItemGroup $group,
+        ?ItemGroup $previousGroup,
+        string $pcode,
+        ?Tag $typeTag,
+    ): void {
+        $attributes = [];
+        $brand = ItemBrand::fromPcode($pcode);
+
+        if ($brand !== ItemBrand::NO_BRAND) {
+            $attributes['brand'] = $brand;
+        }
+
+        $genre = (int) ($typeTag?->id ?? 0);
+
+        if ($genre > 0) {
+            $attributes['genre'] = $genre;
+        }
+
+        if ($attributes !== []) {
+            ItemCatalog::applyToGroup($group, $attributes);
+        }
+
+        $sourceGroup = $previousGroup && (int) $previousGroup->id !== (int) $group->id
+            ? $previousGroup
+            : null;
+
+        ItemCatalog::seedEmptyDescriptions($group, $item, $sourceGroup);
+
+        ItemCatalog::mirrorToItem($item, [
+            'description' => $group->description ?? '',
+            'description2' => $group->description2 ?? '',
+            'brand' => $group->brand,
+            'genre' => (int) ($group->genre ?? 0),
+        ]);
+
+        $item->setRelation('group', $group);
     }
 
     protected function resolveGroup(ItemType $type, string $pcode, string $groupName, Tag $warnaTag): ItemGroup
