@@ -207,7 +207,7 @@ $sc = $statusConfig[$order->status] ?? ['label' => 'Unknown', 'cls' => 'border b
                         <tbody class="divide-y divide-gray-50">
                             @foreach($items as $item)
                             @php $lineTotal = (float) $item['quantity'] * (float) ($item['price'] ?? 0); @endphp
-                            <tr>
+                            <tr data-testid="jubelio-item-row" data-sku="{{ $item['item_code'] }}">
                                 <td class="px-3 py-2 font-mono text-xs">
                                     @if($item['item_url'])
                                     <a href="{{ $item['item_url'] }}" class="text-blue-700 hover:underline">{{ $item['item_code'] }}</a>

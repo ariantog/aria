@@ -472,7 +472,7 @@
                 <tbody class="divide-y divide-gray-100">
                     @foreach($transaction->details as $detail)
                     @php $item = $detail->item; @endphp
-                    <tr class="group transition-colors hover:bg-gray-50">
+                    <tr class="group transition-colors hover:bg-gray-50" data-testid="tx-item-row" data-sku="{{ $item?->code ?: '' }}">
                         <td class="px-3 py-2.5 text-center align-middle" data-copy-col="image" x-show="showImage">
                             <div class="relative mx-auto flex h-12 w-12 items-center justify-center overflow-hidden rounded border bg-white shadow-sm transition-transform duration-200 group-hover:scale-105">
                                 @if($item?->image_url)
@@ -487,7 +487,7 @@
                         </td>
                         <td class="whitespace-nowrap px-3 py-2.5 align-middle font-mono text-xs italic text-gray-500"
                             data-copy-col="sku"
-                            :data-sort-value="skuCellText(@js($item?->code ?: ''), @js($item?->distinctLegacyCode() ?: ''))"
+                            data-sort-value="{{ $item?->code ?: '' }}"
                             x-show="showSkuColumn()"
                             x-text="skuCellText(@js($item?->code ?: ''), @js($item?->distinctLegacyCode() ?: ''))"></td>
                         <td class="px-3 py-2.5 align-middle" data-copy-col="name" data-sort-value="{{ $item?->getItemName() ?: '' }}" x-show="showName">
@@ -660,7 +660,7 @@ function transactionShowPage(transactionId, initialNote, canEditNote, canEditPpn
         showDescription: typeof saved.showDescription === 'boolean' ? saved.showDescription : defaults.showDescription,
         copyFeedback: false,
         copyFeedbackTimer: null,
-        sortCol: null,
+        sortCol: @js($transaction->details->isNotEmpty() ? 'sku' : null),
         sortDir: 'asc',
         waOpen: false,
         deleteConfirmOpen: false,

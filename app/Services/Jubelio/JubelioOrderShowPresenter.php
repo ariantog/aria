@@ -131,7 +131,10 @@ class JubelioOrderShowPresenter
                 : ($item ? 0.0 : null);
 
             return $enriched;
-        })->values()->all();
+        })
+            ->sortBy(fn (array $row) => (string) ($row['item_code'] ?? ''), SORT_NATURAL | SORT_FLAG_CASE)
+            ->values()
+            ->all();
     }
 
   /**
