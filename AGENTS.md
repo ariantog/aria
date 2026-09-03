@@ -167,6 +167,23 @@ order matching still finds the item after `items.code` is rewritten.
   already set, do not overwrite it.
 - Keep it on `Item` `$fillable` / forms / Jubelio lookups. Display-only UI may hide it;
   persistence must keep it.
+- The **legacy identity converter UI** (`LegacyItemConverterService`, convert-identity routes)
+  is a **temporary migration tool**. **`items.legacy_code` is permanent** — do not remove the
+  column or row values when conversion work finishes. See **Item group & item identity** below.
+
+### Do NOT regress item_group / item identity
+
+Settled rules live in **Item group & item identity** below. In particular:
+
+- **Do NOT add `item_group.legacy_name`** — it was never shipped; product title is
+  `item_group.name` only.
+- **Do NOT re-add a UNIQUE index on `item_group.name`** — multiple colorways may share the
+  same bare title; identity is `(master, variant)`, not name.
+- **Do NOT store color in `item_group.name`** — warna lives on `item_group.variant` (assets)
+  or the pcode suffix (manufactured); SKU display names append color/size via `buildName()`.
+- **Do NOT use manufactured master-only shapes for new writes** — canonical manufactured
+  `master` is the full colorway pcode (`CX90233-23`). Legacy parent-only masters
+  (`CX00122`, `CX00122/03`) are read/merge paths only (see PR #576).
 
 ### Do NOT change Alpine.js patterns
 
@@ -237,6 +254,103 @@ not "modernize" or refactor Alpine style:
     column; never add rate × subtotal because a contact or entity "should" be PKP.
 - Connects to **Jubelio** (Indonesian omnichannel) for online stock; dormant while `JUBELIO_ACTIVE=false`.
   See **Jubelio stock sync** below — do not guess what `a_submit_by` / `b_submit_by` mean.
+
+## Item group & item identity (do NOT regress)
+
+Canonical implementation: `App\Services\Items\ItemIdentityBuilder`, `App\Services\ItemService`.
+Tests: `ItemIdentityBuilderTest`, `ItemServiceTest`, `ItemGroupHierarchyTest`, `ColorwayEditTest`,
+`LegacyItemConverterTest`.
+
+**Prerequisites (merged):** PR **#575** (legacy converter writes catalog to `item_group` first;
+leftover `items.*` mirrored from group) and PR **#576** (reuse leftover slash-pcode groups when
+saving hyphen pcodes so SKUs stay on the parent page). Do not undo those behaviors.
+
+**Deferred:** normalizing legacy **three-segment asset pcodes** (e.g. `BAG-16-03`) down to two
+segments — keep them as stored; only rewrite the first segment from TYPE on **new** pcodes.
+
+### `item_group` schema & keys
+
+Production table is `item_group` (not `item_groups`). Legacy snapshot: `database/old.sql`
+(`name` was `varchar(50) UNIQUE`); widened by `2026_09_03_150000_widen_item_group_name_drop_unique`:
+
+| Column | Rule |
+|--------|------|
+| `name` | `varchar(255) NOT NULL`. **Not UNIQUE.** Bare product title, or pcode when no title. **No `legacy_name` column** — never add one. |
+| `master` | Colorway identity (see per-type shapes below). |
+| `variant` | Color segment: pcode suffix (manufactured) or warna tag code (asset lancar). |
+| `description`, `description2`, `url`, `brand`, `genre` | Shared **catalog** for every size in the colorway (`ItemCatalog::applyToGroup`). |
+
+Colorway row key is **`(master, variant)`**, not `name`. Multiple groups may share the same
+`name` (e.g. two manufactured colorways both titled `RUNNING SHIRT`).
+
+### Master / variant per item type
+
+| Type | `master` | `variant` | Example |
+|------|----------|-----------|---------|
+| Manufactured (`ItemType::ITEM`) | Full colorway **pcode** | Color number from pcode suffix | `master=CX90233-23`, `variant=23` |
+| Asset lancar (`ItemType::ASSET_LANCAR`) | **TYPE-CODE** pcode | Warna tag `code` | `master=GLOVE-01`, `variant=BLUE` |
+
+Pcode patterns (`ItemIdentityBuilder`): manufactured `[A-Z]{2,3}[0-9]{5}-[0-9]{2,3}` (slashes
+normalized to hyphens); asset `[segment]-[segment]` or three segments for legacy rows
+(`GLOVE-01`, `BAG-16-03`).
+
+Legacy manufactured groups may still have `master=CX00122` or `CX00122/03` with empty
+`variant` — `findCanonicalGroup()` / `reuseLeftoverColorwayGroup()` merge those onto the
+canonical hyphen pcode on save; **new writes** should store the full colorway on `master`.
+
+### Product name (`item_group.name`)
+
+- **Blank product name → `name` = pcode** (manufactured: normalized hyphen pcode; asset: uppercase pcode).
+- **Filled product name → `name` = bare uppercase title** — color is **not** appended to `name`.
+- **Edit must update `group.name`** when the user changes product name (`ItemService::resolveGroup`,
+  `updateColorway`, `renameGroupProductName`). Empty / pcode-like input on update means
+  `name` tracks pcode again.
+- **`uniqueStoredGroupName()` does not suffix for uniqueness** — it only trims to 255 chars.
+  Strip legacy disambiguators like ` (CX90233-23)` via `productDisplayName()` / `stripUniquenessSuffix()`.
+
+### SKU code & display name (`items`)
+
+- **`items.code`:** manufactured `{TYPE}-{pcode}-{size?}` (e.g. `AJD-CX90324-05-S`); asset
+  `{pcode}-{warna}-{size?}` (e.g. `GLOVE-01-BLACK-S`). All-size (`AS`) omits the size segment.
+- **`items.name`:** `{product title} - {warna} - {size}` via `ItemIdentityBuilder::buildName()`.
+  All-size omits size: `ELBOW STRAP - BLACKWHITE`. Regenerated for every item in the group when
+  catalog/name changes (`ItemService::syncItemNamesForGroup()`).
+- **`items.legacy_code`:** see **Do NOT remove `items.legacy_code`** — snapshot old `code` on
+  first identity change; converter tooling is temporary, the column is not.
+
+### Colorway-only edit page & per-item price
+
+Route: `items-group/colorway/{group}/edit` (`ItemsController@colorwayEdit` /
+`colorwayUpdate`). View: `resources/views/items/colorway-edit.blade.php`.
+
+- **Read-only on this page:** pcode, tags, SKU `code` (identity block).
+- **Editable per colorway (stored on `item_group`):** product name → `name`, description,
+  description2, url, brand, genre, image.
+- **Editable per size (stored on each `items` row):** price, cost, restock urgent threshold.
+  Create forms set a default price; matrix edits happen here.
+
+Single-SKU create/edit forms mark shared fields with “Shared across this colorway”; price on
+create is a default for new sizes only.
+
+### Asset create UX: TYPE → pcode autofill & preview layout
+
+On asset lancar **create** (`resources/views/items/create.blade.php`):
+
+- Layout: basic + details (left), **attributes/tags (right)**, then **Item Summary Preview
+  below the grid** (`form-preview` after the 3-column section — preview sits under tags, not beside pcode).
+- Selecting **Type** rewrites a **new** pcode’s first segment to the TYPE tag code
+  (`applyAssetTypePrefixToPcode`: `gloves-03` + `GLOVE` → `GLOVE-03`). Skipped when the pcode
+  already exists on another asset row. **Three-segment pcodes are preserved** (`bag-16-03` →
+  `BAG-16-03`, not `BAG-03`).
+- Pcode blur may AJAX-load an existing product title (`items.pcode-name` → `productNameForPcode`).
+
+### Key files
+
+- `app/Services/Items/ItemIdentityBuilder.php` — pcode validation, group master/variant, code/name builders.
+- `app/Services/ItemService.php` — create/update/colorway, group resolution, legacy_code preserve.
+- `app/Services/Items/LegacyItemConverterService.php` — one-off SKU migration (group-first catalog).
+- `resources/views/items/partials/form-{basic,attributes,preview,scripts}.blade.php` — create/edit UX.
+- `database/migrations/2026_09_03_150000_widen_item_group_name_drop_unique.php` — name width + drop UNIQUE.
 
 ## Jubelio stock sync (read before touching a_*/b_* columns)
 
@@ -374,6 +488,8 @@ and the `app/Jobs/UpdateTransactionSummaries.php` queued job keep balances/aggre
 
 ### 2. Expand the items table (`cursor/expand-items-table-e924`)
 
+- Read **Item group & item identity** first — catalog fields belong on `item_group`; do not
+  reintroduce `legacy_name`, UNIQUE `item_group.name`, or wrong master/variant shapes.
 - Add columns with a **new dated migration** in `database/migrations/` (e.g.
   `add_<cols>_to_items_table`) — do **not** edit the original `create_items_table` migration.
 - Then update `App\Models\Item` `$fillable` (and `$casts` if typed), surface the fields in the item
@@ -381,6 +497,6 @@ and the `app/Jobs/UpdateTransactionSummaries.php` queued job keep balances/aggre
   `app/Http/Controllers/ItemsController.php`. Touch `app/Services/{ItemService,InventoryService}.php`
   if a new column affects stock or pricing.
 - Current `items` columns: `id, group_id, name, code, pcode, brand, type, price, cost, qty, tag_ids,
-  description, description2, url, image_path, size, genre, jubelio_item_id, timestamps, deleted_at`.
-  Per-warehouse stock lives in `warehouse_items` (quantity + note), not on `items`.
+  description, description2, url, image_path, size, genre, jubelio_item_id, legacy_code, timestamps,
+  deleted_at`. Per-warehouse stock lives in `warehouse_items` (quantity + note), not on `items`.
 - Caveat: some item reports/stats use MySQL `DATE_FORMAT` and error on the SQLite dev DB only.
