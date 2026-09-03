@@ -20,6 +20,34 @@ beforeEach(function () {
     $this->user->assignRole($role);
 });
 
+it('shows the jml total for the rendered setoran page', function () {
+    $worker = Worker::create(['name' => 'Cutter', 'type' => Worker::TYPE_POTONG]);
+    $size = Tag::create(['name' => 'L', 'type' => Tag::TYPE_SIZE, 'item_type' => 0]);
+
+    Produksi::create([
+        'temp_name' => 'Setor Five',
+        'size_id' => $size->id,
+        'quantity' => 5,
+        'potong_id' => $worker->id,
+        'potong_date' => now(),
+        'status' => Produksi::STATUS_SETOR,
+    ]);
+    Produksi::create([
+        'temp_name' => 'Setor Eight',
+        'size_id' => $size->id,
+        'quantity' => 8,
+        'potong_id' => $worker->id,
+        'potong_date' => now(),
+        'status' => Produksi::STATUS_SETOR,
+    ]);
+
+    $response = $this->actingAs($this->user)->get('/produksi/setoran');
+
+    $response->assertSuccessful();
+    $response->assertSee('data-testid="setoran-page-jml-total"', false);
+    $response->assertSee('>13</td>', false);
+});
+
 it('allows editing kode on setoran row when invoice is empty and status is setor', function () {
     $worker = Worker::create(['name' => 'Cutter', 'type' => Worker::TYPE_POTONG]);
     $size = Tag::create(['name' => 'L', 'type' => Tag::TYPE_SIZE, 'item_type' => 0]);
