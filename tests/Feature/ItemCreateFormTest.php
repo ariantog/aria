@@ -159,7 +159,8 @@ it('renders asset lancar create page', function () {
         ->assertSee('Create New Asset', false)
         ->assertSee('Product Name', false)
         ->assertSee('data-testid="item-form-pcode"', false)
-        ->assertSee('name - color - size', false);
+        ->assertSee('group name - color - size', false)
+        ->assertSee('data-testid="item-form-shared-attributes"', false);
 });
 
 it('returns the product title for an existing pcode', function () {

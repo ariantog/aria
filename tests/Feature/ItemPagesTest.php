@@ -231,6 +231,38 @@ test('catalogDescription falls back to the item column when there is no group', 
         ->and($item->catalogDescription2())->toBe('UNGROUPED NB');
 });
 
+test('catalogBrand and catalogGenre prefer group values when they are set', function () {
+    $group = \App\Models\ItemGroup::factory()->make([
+        'brand' => \App\Enums\ItemBrand::CX9,
+        'genre' => 6480,
+    ]);
+    $item = Item::factory()->make([
+        'group_id' => 24961,
+        'brand' => \App\Enums\ItemBrand::NO_BRAND,
+        'genre' => 12,
+    ]);
+    $item->setRelation('group', $group);
+
+    expect($item->catalogBrand())->toBe(\App\Enums\ItemBrand::CX9)
+        ->and($item->catalogGenre())->toBe(6480);
+});
+
+test('catalogBrand falls back to the item column when the group brand is empty', function () {
+    $group = \App\Models\ItemGroup::factory()->make([
+        'brand' => \App\Enums\ItemBrand::NO_BRAND,
+        'genre' => 0,
+    ]);
+    $item = Item::factory()->make([
+        'group_id' => 24961,
+        'brand' => \App\Enums\ItemBrand::CX0,
+        'genre' => 99,
+    ]);
+    $item->setRelation('group', $group);
+
+    expect($item->catalogBrand())->toBe(\App\Enums\ItemBrand::CX0)
+        ->and($item->catalogGenre())->toBe(99);
+});
+
 test('getItemName prefers non-empty group alias for manufactured items', function () {
     $group = \App\Models\ItemGroup::factory()->make(['name' => 'GROUP PRODUCT NAME']);
     $group->setRawAttributes(array_merge($group->getAttributes(), ['alias' => 'GROUP ALIAS NAME']));
@@ -412,6 +444,29 @@ test('items edit page can be rendered', function () {
         ->get(route('items.edit', $item));
 
     $response->assertStatus(200);
+});
+
+test('item create and edit forms mark shared colorway attributes', function () {
+    $item = Item::factory()->create();
+
+    $this->actingAs($this->user)
+        ->get(route('items.create'))
+        ->assertOk()
+        ->assertSee('data-testid="item-form-shared-attributes"', false)
+        ->assertSee('data-testid="item-form-shared-details"', false)
+        ->assertSee('Shared across this colorway', false)
+        ->assertSee('This size only', false)
+        ->assertSee('group name - color - size', false)
+        ->assertDontSee('each row keeps its own price', false);
+
+    $this->actingAs($this->user)
+        ->get(route('items.edit', $item))
+        ->assertOk()
+        ->assertSee('data-testid="item-form-shared-attributes"', false)
+        ->assertSee('data-testid="item-form-shared-details"', false)
+        ->assertSee('data-testid="item-form-shared-tags"', false)
+        ->assertSee('Shared across this colorway', false)
+        ->assertSee('This size only', false);
 });
 
 test('asset edit form shows the bare product title not the unique group name', function () {

@@ -496,3 +496,224 @@ test('it does not append color twice when the submitted name is a unique stored 
     expect($item->name)->toBe('ELBOW STRAP - BLACKWHITE')
         ->and($item->name)->not->toBe('ELBOW STRAP - BLACKWHITE (ELBOWSUPPORT-02) - BLACKWHITE');
 });
+
+test('it stores brand and genre on the item group and mirrors them on each size', function () {
+    $mediumTag = Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'M', 'name' => 'Medium']);
+
+    $this->itemService->create((object) [
+        'pcode' => 'CX90233-23',
+        'type' => ItemType::ITEM->value,
+        'price' => 100000,
+        'description' => 'Mikro motif navy',
+        'description2' => 'Group nb',
+    ], [
+        'types' => [$this->typeTag->id],
+        'sizes' => [$this->sizeTag->id, $mediumTag->id],
+        'warna' => [$this->warnaTag->id],
+        'jahit' => [$this->jahitTag->id],
+    ]);
+
+    $group = ItemGroup::where('master', 'CX90233')->where('variant', '23')->firstOrFail();
+
+    expect($group->name)->toBe('CX90233-23')
+        ->and($group->brand)->toBe(\App\Enums\ItemBrand::CX9)
+        ->and($group->genre)->toBe($this->typeTag->id)
+        ->and($group->description)->toBe('MIKRO MOTIF NAVY')
+        ->and($group->description2)->toBe('GROUP NB');
+
+    $this->assertDatabaseHas('items', [
+        'code' => 'AJD-CX90233-23-S',
+        'pcode' => 'CX90233-23',
+        'brand' => \App\Enums\ItemBrand::CX9->value,
+        'genre' => $this->typeTag->id,
+        'price' => 100000,
+    ]);
+    $this->assertDatabaseHas('items', [
+        'code' => 'AJD-CX90233-23-M',
+        'pcode' => 'CX90233-23',
+        'brand' => \App\Enums\ItemBrand::CX9->value,
+        'genre' => $this->typeTag->id,
+        'price' => 100000,
+    ]);
+});
+
+test('it syncs shared colorway attributes to every size when one item is edited', function () {
+    $mediumTag = Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'M', 'name' => 'Medium']);
+
+    $this->itemService->create((object) [
+        'pcode' => 'CX90233-23',
+        'type' => ItemType::ITEM->value,
+        'price' => 100000,
+        'description' => 'Old desc',
+        'description2' => 'Old nb',
+        'restock_urgent_threshold' => 4,
+    ], [
+        'types' => [$this->typeTag->id],
+        'sizes' => [$this->sizeTag->id, $mediumTag->id],
+        'warna' => [$this->warnaTag->id],
+        'jahit' => [$this->jahitTag->id],
+    ]);
+
+    $small = Item::where('code', 'AJD-CX90233-23-S')->firstOrFail();
+    $medium = Item::where('code', 'AJD-CX90233-23-M')->firstOrFail();
+    $medium->forceFill(['restock_urgent_threshold' => 9, 'cost' => 25000])->save();
+
+    $this->itemService->update($small->id, (object) [
+        'pcode' => 'CX90233-23',
+        'type' => ItemType::ITEM->value,
+        'price' => 175000,
+        'description' => 'Mikro motif camo hijau',
+        'description2' => 'Updated nb',
+        'restock_urgent_threshold' => 12,
+    ], [
+        'types' => [$this->typeTag->id],
+        'sizes' => [$this->sizeTag->id],
+        'warna' => [$this->warnaTag->id],
+        'jahit' => [$this->jahitTag->id],
+    ]);
+
+    $small->refresh();
+    $medium->refresh();
+    $group = $small->group()->firstOrFail();
+
+    expect($group->description)->toBe('MIKRO MOTIF CAMO HIJAU')
+        ->and($group->description2)->toBe('UPDATED NB')
+        ->and($group->brand)->toBe(\App\Enums\ItemBrand::CX9)
+        ->and($group->genre)->toBe($this->typeTag->id)
+        ->and((float) $small->price)->toBe(175000.0)
+        ->and((float) $medium->price)->toBe(175000.0)
+        ->and($small->description)->toBe('Mikro motif camo hijau')
+        ->and($medium->description)->toBe('Mikro motif camo hijau')
+        ->and($small->restock_urgent_threshold)->toBe(12)
+        ->and($medium->restock_urgent_threshold)->toBe(9)
+        ->and((float) $medium->cost)->toBe(25000.0)
+        ->and($small->name)->toBe('CX90233-23 - BLUE - S')
+        ->and($medium->name)->toBe('CX90233-23 - BLUE - M');
+});
+
+test('it moves every size to the new pcode and keeps group.name equal to pcode', function () {
+    $mediumTag = Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'M', 'name' => 'Medium']);
+
+    $this->itemService->create((object) [
+        'pcode' => 'CX00122-04',
+        'type' => ItemType::ITEM->value,
+        'price' => 100000,
+    ], [
+        'types' => [$this->typeTag->id],
+        'sizes' => [$this->sizeTag->id, $mediumTag->id],
+        'warna' => [$this->warnaTag->id],
+        'jahit' => [$this->jahitTag->id],
+    ]);
+
+    $small = Item::where('code', 'AJD-CX00122-04-S')->firstOrFail();
+
+    $this->itemService->update($small->id, (object) [
+        'pcode' => 'CX00122-05',
+        'type' => ItemType::ITEM->value,
+        'product_name' => 'CX00122/04',
+        'price' => 100000,
+    ], [
+        'types' => [$this->typeTag->id],
+        'sizes' => [$this->sizeTag->id],
+        'warna' => [$this->warnaTag->id],
+        'jahit' => [$this->jahitTag->id],
+    ]);
+
+    $this->assertDatabaseHas('item_group', [
+        'master' => 'CX00122',
+        'variant' => '05',
+        'name' => 'CX00122-05',
+    ]);
+    $this->assertDatabaseHas('items', [
+        'code' => 'AJD-CX00122-05-S',
+        'pcode' => 'CX00122-05',
+        'name' => 'CX00122-05 - BLUE - S',
+    ]);
+    $this->assertDatabaseHas('items', [
+        'code' => 'AJD-CX00122-05-M',
+        'pcode' => 'CX00122-05',
+        'name' => 'CX00122-05 - BLUE - M',
+    ]);
+});
+
+test('it keeps a custom group title when product name is not the pcode', function () {
+    $mediumTag = Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'M', 'name' => 'Medium']);
+
+    $this->itemService->create((object) [
+        'pcode' => 'CX90233-23',
+        'type' => ItemType::ITEM->value,
+        'price' => 100000,
+    ], [
+        'types' => [$this->typeTag->id],
+        'sizes' => [$this->sizeTag->id, $mediumTag->id],
+        'warna' => [$this->warnaTag->id],
+        'jahit' => [$this->jahitTag->id],
+    ]);
+
+    $small = Item::where('code', 'AJD-CX90233-23-S')->firstOrFail();
+
+    $this->itemService->update($small->id, (object) [
+        'pcode' => 'CX90233-23',
+        'type' => ItemType::ITEM->value,
+        'product_name' => 'Slash Running Shirt',
+        'price' => 120000,
+    ], [
+        'types' => [$this->typeTag->id],
+        'sizes' => [$this->sizeTag->id],
+        'warna' => [$this->warnaTag->id],
+        'jahit' => [$this->jahitTag->id],
+    ]);
+
+    $this->assertDatabaseHas('item_group', ['name' => 'SLASH RUNNING SHIRT', 'master' => 'CX90233', 'variant' => '23']);
+    $this->assertDatabaseHas('items', ['code' => 'AJD-CX90233-23-S', 'name' => 'SLASH RUNNING SHIRT - BLUE - S', 'price' => 120000]);
+    $this->assertDatabaseHas('items', ['code' => 'AJD-CX90233-23-M', 'name' => 'SLASH RUNNING SHIRT - BLUE - M', 'price' => 120000]);
+});
+
+test('it does not copy asset cost onto sibling sizes when price is edited', function () {
+    $mediumTag = Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'M', 'name' => 'Medium']);
+    $assetType = Tag::factory()->create([
+        'type' => Tag::TYPE_TYPE,
+        'item_type' => ItemType::ASSET_LANCAR->value,
+        'code' => 'GLOVE',
+        'name' => 'Glove',
+    ]);
+
+    $this->itemService->create((object) [
+        'pcode' => 'GLOVE-01',
+        'type' => ItemType::ASSET_LANCAR->value,
+        'product_name' => 'Boxing Gloves',
+        'price' => 500000,
+        'cost' => 300000,
+    ], [
+        'types' => [$assetType->id],
+        'sizes' => [$this->sizeTag->id, $mediumTag->id],
+        'warna' => [$this->warnaTag->id],
+        'jahit' => [],
+    ]);
+
+    $small = Item::where('code', 'GLOVE-01-BLUE-S')->firstOrFail();
+    $medium = Item::where('code', 'GLOVE-01-BLUE-M')->firstOrFail();
+    $medium->forceFill(['cost' => 310000])->save();
+
+    $this->itemService->update($small->id, (object) [
+        'pcode' => 'GLOVE-01',
+        'type' => ItemType::ASSET_LANCAR->value,
+        'product_name' => 'Boxing Gloves',
+        'price' => 550000,
+        'cost' => 305000,
+    ], [
+        'types' => [$assetType->id],
+        'sizes' => [$this->sizeTag->id],
+        'warna' => $this->warnaTag->id,
+    ]);
+
+    $small->refresh();
+    $medium->refresh();
+
+    expect((float) $small->price)->toBe(550000.0)
+        ->and((float) $medium->price)->toBe(550000.0)
+        ->and((float) $small->cost)->toBe(305000.0)
+        ->and((float) $medium->cost)->toBe(310000.0)
+        ->and($small->name)->toBe('BOXING GLOVES - BLUE - S')
+        ->and($medium->name)->toBe('BOXING GLOVES - BLUE - M');
+});
