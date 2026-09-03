@@ -340,6 +340,15 @@ class SidebarFavoriteRegistry
                 'active_prefix' => '/reports/produksi-potong',
             ],
             [
+                'key' => 'report-produksi-jahit',
+                'label' => 'Statistik Jahit',
+                'group' => 'Reports',
+                'permission' => 'report-produksi-jahit',
+                'route' => 'reports.produksi-jahit',
+                'params' => [],
+                'active_prefix' => '/reports/produksi-jahit',
+            ],
+            [
                 'key' => 'report-produksi-qc',
                 'label' => 'Statistik QC',
                 'group' => 'Reports',
@@ -347,6 +356,15 @@ class SidebarFavoriteRegistry
                 'route' => 'reports.produksi-qc',
                 'params' => [],
                 'active_prefix' => '/reports/produksi-qc',
+            ],
+            [
+                'key' => 'report-produksi-pritil',
+                'label' => 'Statistik Pritil',
+                'group' => 'Reports',
+                'permission' => 'report-produksi-pritil',
+                'route' => 'reports.produksi-pritil',
+                'params' => [],
+                'active_prefix' => '/reports/produksi-pritil',
             ],
             [
                 'key' => 'report-entities',

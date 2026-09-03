@@ -149,6 +149,58 @@ class ProduksiStatisticsService
     /**
      * @return Collection<int, object{month: int, kitir_count: int, total_qty: int}>
      */
+    public function jahitMonthlyTotals(int $year): Collection
+    {
+        $rows = Produksi::query()
+            ->whereNotNull('jahit_id')
+            ->whereNotNull('jahit_date')
+            ->whereYear('jahit_date', $year)
+            ->get(['jahit_date', 'quantity']);
+
+        return $this->groupRowsByMonth($rows, 'jahit_date');
+    }
+
+    /**
+     * @return Collection<int, object{worker_id: int, worker_name: string, kitir_count: int, total_qty: int, sjp_count: int, kode_count: int, avg_qty: float, avg_potong_lag_days: ?float}>
+     */
+    public function jahitWorkerSummary(string $startDate, string $endDate): Collection
+    {
+        $rows = Produksi::query()
+            ->whereNotNull('jahit_id')
+            ->whereDate('jahit_date', '>=', $startDate)
+            ->whereDate('jahit_date', '<=', $endDate)
+            ->get(['jahit_id', 'quantity', 'surat_jalan_potong', 'temp_name', 'jahit_date', 'potong_date']);
+
+        $workers = Worker::jahit()->get()->keyBy('id');
+
+        return $rows
+            ->groupBy('jahit_id')
+            ->map(function (Collection $group, $jahitId) use ($workers) {
+                $kitirCount = $group->count();
+                $totalQty = (int) $group->sum('quantity');
+
+                $potongLags = $group
+                    ->filter(fn ($row) => $row->potong_date && $row->jahit_date)
+                    ->map(fn ($row) => Carbon::parse($row->potong_date)->diffInDays(Carbon::parse($row->jahit_date)));
+
+                return (object) [
+                    'worker_id' => (int) $jahitId,
+                    'worker_name' => $workers->get($jahitId)?->name ?? 'Unknown',
+                    'kitir_count' => $kitirCount,
+                    'total_qty' => $totalQty,
+                    'sjp_count' => $group->pluck('surat_jalan_potong')->filter()->unique()->count(),
+                    'kode_count' => $group->pluck('temp_name')->filter()->unique()->count(),
+                    'avg_qty' => $kitirCount > 0 ? round($totalQty / $kitirCount, 1) : 0.0,
+                    'avg_potong_lag_days' => $potongLags->isNotEmpty() ? round($potongLags->avg(), 1) : null,
+                ];
+            })
+            ->sortByDesc('total_qty')
+            ->values();
+    }
+
+    /**
+     * @return Collection<int, object{month: int, kitir_count: int, total_qty: int}>
+     */
     public function pritilMonthlyTotals(int $year): Collection
     {
         $rows = Produksi::query()
@@ -158,6 +210,47 @@ class ProduksiStatisticsService
             ->get(['pritil_date', 'quantity']);
 
         return $this->groupRowsByMonth($rows, 'pritil_date');
+    }
+
+    /**
+     * @return Collection<int, object{worker_id: int, worker_name: string, kitir_count: int, total_qty: int, avg_qty: float, avg_potong_lag_days: ?float, avg_setor_lag_days: ?float}>
+     */
+    public function pritilWorkerSummary(string $startDate, string $endDate): Collection
+    {
+        $rows = Produksi::query()
+            ->whereNotNull('pritil_id')
+            ->whereDate('pritil_date', '>=', $startDate)
+            ->whereDate('pritil_date', '<=', $endDate)
+            ->get(['pritil_id', 'quantity', 'pritil_date', 'potong_date', 'setor_date']);
+
+        $workers = Worker::pritil()->get()->keyBy('id');
+
+        return $rows
+            ->groupBy('pritil_id')
+            ->map(function (Collection $group, $pritilId) use ($workers) {
+                $kitirCount = $group->count();
+                $totalQty = (int) $group->sum('quantity');
+
+                $potongLags = $group
+                    ->filter(fn ($row) => $row->potong_date && $row->pritil_date)
+                    ->map(fn ($row) => Carbon::parse($row->potong_date)->diffInDays(Carbon::parse($row->pritil_date)));
+
+                $setorLags = $group
+                    ->filter(fn ($row) => $row->setor_date && $row->pritil_date)
+                    ->map(fn ($row) => Carbon::parse($row->setor_date)->diffInDays(Carbon::parse($row->pritil_date)));
+
+                return (object) [
+                    'worker_id' => (int) $pritilId,
+                    'worker_name' => $workers->get($pritilId)?->name ?? 'Unknown',
+                    'kitir_count' => $kitirCount,
+                    'total_qty' => $totalQty,
+                    'avg_qty' => $kitirCount > 0 ? round($totalQty / $kitirCount, 1) : 0.0,
+                    'avg_potong_lag_days' => $potongLags->isNotEmpty() ? round($potongLags->avg(), 1) : null,
+                    'avg_setor_lag_days' => $setorLags->isNotEmpty() ? round($setorLags->avg(), 1) : null,
+                ];
+            })
+            ->sortByDesc('total_qty')
+            ->values();
     }
 
     /**
