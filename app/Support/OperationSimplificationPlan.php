@@ -90,6 +90,7 @@ final class OperationSimplificationPlan
     ];
     $toko = [2889, 2842];
     $produksi = [885];
+    $lain = [2835];
     $penyesuaian = [879, 880, 2252, 2857, 882, 883, 884, 886, 887, 888, 908, 1303, 2488, 2493];
 
     $map = [];
@@ -101,6 +102,9 @@ final class OperationSimplificationPlan
     }
     foreach ($produksi as $id) {
       $map[$id] = 27;
+    }
+    foreach ($lain as $id) {
+      $map[$id] = 22;
     }
     foreach ($penyesuaian as $id) {
       $map[$id] = 31;

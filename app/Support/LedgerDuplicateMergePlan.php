@@ -20,14 +20,31 @@ final class LedgerDuplicateMergePlan
     public static function renames(): array
     {
         return [
+            814 => 'Gaji Outsourcing',
+            816 => 'Gaji Lain',
+            835 => 'Biaya Perjalanan Marketing',
+            858 => 'Biaya Ongkir',
             860 => 'Biaya Perbaikan Gedung',
+            880 => 'Penyesuaian Umum',
+            905 => 'Bonus & Insentif',
             2099 => 'Biaya Metro',
+            2149 => 'Biaya Fotografi',
             2178 => 'Biaya Sogo',
+            2234 => 'Biaya Shopee',
+            2250 => 'Biaya Marketing Digital',
             2273 => 'Biaya Tokopedia',
             2633 => 'Biaya Central',
+            2719 => 'Biaya FitBox',
+            2788 => 'Biaya TikTok',
+            2799 => 'Perlengkapan Produksi',
             2842 => 'Biaya Toko Citos',
+            2881 => 'Biaya Lazada',
             2889 => 'Biaya Toko WTC',
+            2899 => 'Biaya BSD',
+            2957 => 'Biaya MUKU',
             2959 => 'Biaya Sewa Gedung',
+            2963 => 'Biaya AF',
+            2964 => 'Biaya Prop',
         ];
     }
 
@@ -37,9 +54,26 @@ final class LedgerDuplicateMergePlan
     public static function merges(): array
     {
         return [
+            813 => 905,   // THR → Bonus & Insentif
+            820 => 905,   // Insentif → Bonus & Insentif
+            821 => 816,   // Gaji Pembantu → Gaji Lain
+            825 => 814,   // Gaji Finishing → Gaji Outsourcing
+            863 => 2799,  // Aksesoris Mesin → Perlengkapan Produksi
+            899 => 814,   // Jahit Luar → Gaji Outsourcing
+            903 => 816,   // Pesangon → Gaji Lain
+            909 => 814,   // Helper → Gaji Outsourcing
+            937 => 905,   // Lembur → Bonus & Insentif
             1180 => 860,  // Biaya Perbaikan Gedung (Lain-lain) → Perawatan
+            2070 => 2250, // Counter Cost → Marketing Digital
             2184 => 2889, // WTC Transport → Toko WTC
             2225 => 847,  // Office Inventories → Perlengkapan Kantor
+            2509 => 816,  // Gaji Guru → Gaji Lain
+            2640 => 2250, // Collab → Marketing Digital
+            2691 => 2250, // Rangers → Marketing Digital
+            2724 => 2250, // CleanEat → Marketing Digital
+            2729 => 2719, // FitBox JKT → FitBox
+            2800 => 2799, // Mesin Pelengkap → Perlengkapan Produksi
+            2814 => 829,  // Konsultan Pak Dian → Biaya Konsultasi
             2826 => 862,  // Biaya Kendaraan catch-all → Servis Kendaraan
             2844 => 2842, // Sewa Citos → Toko Citos
             2854 => 2842, // FX Cost → Toko Citos
