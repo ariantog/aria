@@ -46,7 +46,9 @@ class ItemTransactionQueryService
 
                 return $q->whereHas('transaction', fn (Builder $tq) => $tq->where('invoice', 'like', $pattern));
             })
-            ->when($partyId !== null, fn (Builder $q) => $this->applyPartyIdFilter($q, $partyId));
+            ->when($partyId !== null, fn (Builder $q) => $this->applyPartyIdFilter($q, $partyId))
+            ->orderByDesc('transaction_details.date')
+            ->orderByDesc('transaction_id');
     }
 
     /**

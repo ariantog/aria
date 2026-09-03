@@ -533,8 +533,7 @@ class ItemsController extends Controller
             TransactionDetail::with(['transaction.sender', 'transaction.receiver'])
                 ->where('item_id', $item->id)
                 ->visibleToUser($request->user())
-                ->whereHas('transaction')
-                ->orderBy('transaction_id', 'desc'),
+                ->whereHas('transaction'),
             $request,
         )
             ->paginate(50)

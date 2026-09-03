@@ -152,6 +152,45 @@ it('filters item transactions by party as receiver', function () {
         ->assertSee('Receiver Filter A', false);
 });
 
+it('sorts item transactions by date desc then transaction id desc', function () {
+    $item = Item::factory()->create(['type' => ItemType::ASSET_LANCAR]);
+    $party = Addrbook::factory()->warehouse()->create();
+
+    seedItemTransactionLine($item, [
+        'date' => '2025-06-01',
+        'invoice' => 'SORT-SAME-DATE-OLD',
+        'sender_id' => $party->id,
+        'sender_type' => (string) $party->type,
+        'receiver_id' => Addrbook::factory()->customer()->create()->id,
+        'receiver_type' => (string) Addrbook::TYPE_CUSTOMER,
+    ]);
+    seedItemTransactionLine($item, [
+        'date' => '2025-06-01',
+        'invoice' => 'SORT-SAME-DATE-NEW',
+        'sender_id' => $party->id,
+        'sender_type' => (string) $party->type,
+        'receiver_id' => Addrbook::factory()->customer()->create()->id,
+        'receiver_type' => (string) Addrbook::TYPE_CUSTOMER,
+    ]);
+    seedItemTransactionLine($item, [
+        'date' => '2025-01-01',
+        'invoice' => 'SORT-BACKDATED',
+        'sender_id' => $party->id,
+        'sender_type' => (string) $party->type,
+        'receiver_id' => Addrbook::factory()->customer()->create()->id,
+        'receiver_type' => (string) Addrbook::TYPE_CUSTOMER,
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('assetlancar.transactions', ['item' => $item, 'party' => $party->id]))
+        ->assertOk()
+        ->assertSeeInOrder([
+            'SORT-SAME-DATE-NEW',
+            'SORT-SAME-DATE-OLD',
+            'SORT-BACKDATED',
+        ], false);
+});
+
 it('filters item transactions by party matching sender or receiver', function () {
     $item = Item::factory()->create();
     $party = Addrbook::factory()->warehouse()->create(['name' => 'Shared Party']);
