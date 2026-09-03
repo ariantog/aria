@@ -71,6 +71,7 @@ $filtersStorageKey = $isAsset ? 'aria-assetlancar-index-filters-open' : 'aria-it
                     <th class="w-16 px-2 py-2.5 font-bold" x-show="showImage">Image</th>
                     <th class="w-16 px-2 py-2.5 font-bold">Barcode</th>
                     <th class="whitespace-nowrap px-2 py-2.5 font-bold">Code</th>
+                    <th class="min-w-[8rem] px-2 py-2.5 font-bold">Group</th>
                     <th class="min-w-[16rem] px-2 py-2.5 font-bold">Name</th>
                     <th class="min-w-[8rem] px-2 py-2.5 font-bold">Desc</th>
                     <th class="w-28 px-2 py-2.5 text-right font-bold">Price</th>
@@ -82,6 +83,7 @@ $filtersStorageKey = $isAsset ? 'aria-assetlancar-index-filters-open' : 'aria-it
             </thead>
             <tbody class="divide-y divide-gray-100">
                 @forelse($items as $item)
+                    @php $groupUrl = $item->groupParentUrl(); @endphp
                     <tr class="align-middle hover:bg-gray-50">
                         <td class="px-2 py-2" x-show="showImage">
                             @if($item->image_url)
@@ -96,6 +98,13 @@ $filtersStorageKey = $isAsset ? 'aria-assetlancar-index-filters-open' : 'aria-it
                             <a href="{{ $baseUrl }}/{{ $item->id }}" class="font-medium text-blue-600 hover:underline">{{ $item->id }}</a>
                         </td>
                         <td class="whitespace-nowrap px-2 py-2 font-mono text-xs text-gray-800" data-testid="item-list-code-{{ $item->id }}">{{ $item->code ?: '-' }}</td>
+                        <td class="whitespace-nowrap px-2 py-2" data-testid="item-list-group-{{ $item->id }}">
+                            @if($groupUrl)
+                                <a href="{{ $groupUrl }}" class="font-mono text-xs text-blue-600 hover:underline">{{ $item->group?->name ?: '-' }}</a>
+                            @else
+                                <span class="text-xs text-gray-400">—</span>
+                            @endif
+                        </td>
                         <td class="px-2 py-2 text-gray-800" data-testid="item-list-name-{{ $item->id }}">{{ $item->name ?: '-' }}</td>
                         <td class="max-w-[14rem] px-2 py-2 text-gray-700" data-testid="item-list-desc-{{ $item->id }}" title="{{ $item->catalogDescription() }}">{{ $item->catalogDescription() ?: '-' }}</td>
                         <td class="whitespace-nowrap px-2 py-2 text-right font-bold tabular-nums text-gray-800">{{ $idr($item->price) }}</td>
@@ -115,7 +124,7 @@ $filtersStorageKey = $isAsset ? 'aria-assetlancar-index-filters-open' : 'aria-it
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="10" class="px-4 py-12 text-center text-sm italic text-gray-500">No {{ $isAsset ? 'assets' : 'items' }} found matching your filters.</td></tr>
+                    <tr><td colspan="11" class="px-4 py-12 text-center text-sm italic text-gray-500">No {{ $isAsset ? 'assets' : 'items' }} found matching your filters.</td></tr>
                 @endforelse
             </tbody>
         </table>

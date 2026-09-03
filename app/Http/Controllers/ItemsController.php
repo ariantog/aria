@@ -113,7 +113,7 @@ class ItemsController extends Controller
             ]);
         }
 
-        $items = $q->with('group')
+        $items = $q->with(['group', 'tags'])
             ->withSum(['warehouseItems as active_qty' => fn ($query) => $query->forAvailableStock()], 'quantity')
             ->orderBy('id', 'desc')
             ->paginate(50)

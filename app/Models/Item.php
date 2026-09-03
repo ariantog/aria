@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\ItemBrand;
 use App\Enums\ItemType;
+use App\Services\Items\ItemIdentityBuilder;
 use App\Support\FillsProductionColumnDefaults;
 use App\Support\ItemCatalog;
 use App\Support\ItemImageResolver;
@@ -339,6 +340,21 @@ class Item extends Model
             $this->isAssetTetap() => route('assettetap.edit', $this),
             default => route('items.edit', $this),
         };
+    }
+
+    public function groupParentUrl(): ?string
+    {
+        $this->loadMissing(['group', 'tags']);
+
+        if ((int) $this->group_id <= 0 || $this->group === null) {
+            return null;
+        }
+
+        $builder = app(ItemIdentityBuilder::class);
+
+        return route('items.group-parent-detail', $builder->parentKeyToSlug(
+            $builder->itemParentKey($this)
+        ));
     }
 
     /**

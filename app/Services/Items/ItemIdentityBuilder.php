@@ -29,9 +29,19 @@ class ItemIdentityBuilder
      */
     private const ASSET_PCODE_PATTERN = '/^[A-Za-z0-9]+(?:-[A-Za-z0-9]+){1,2}$/i';
 
+    /**
+     * Leftover manufactured pcodes used a slash (CX00122/03). Canonical form is hyphenated.
+     */
+    public function normalizeManufacturedPcode(string $pcode): string
+    {
+        return strtoupper(str_replace('/', '-', trim($pcode)));
+    }
+
     public function validatePcode(ItemType $type, string $pcode): void
     {
-        $pcode = strtoupper(trim($pcode));
+        $pcode = $type === ItemType::ITEM
+            ? $this->normalizeManufacturedPcode($pcode)
+            : strtoupper(trim($pcode));
 
         if ($pcode === '') {
             throw new InvalidArgumentException('pcode is required');
@@ -56,7 +66,9 @@ class ItemIdentityBuilder
     public function parsePcode(ItemType $type, string $pcode): array
     {
         $this->validatePcode($type, $pcode);
-        $pcode = strtoupper(trim($pcode));
+        $pcode = $type === ItemType::ITEM
+            ? $this->normalizeManufacturedPcode($pcode)
+            : strtoupper(trim($pcode));
 
         if ($type === ItemType::ASSET_LANCAR) {
             return [
@@ -71,6 +83,31 @@ class ItemIdentityBuilder
             'master' => $master,
             'variant' => $variant,
         ];
+    }
+
+    /**
+     * Parent master for a leftover slash pcode, hyphen pcode, or already-canonical master.
+     * CX00122/03 and CX00122-03 → CX00122. Bare CX00122 → CX00122.
+     */
+    public function canonicalManufacturedMaster(string $value): ?string
+    {
+        $value = strtoupper(trim($value));
+
+        if ($value === '') {
+            return null;
+        }
+
+        $normalized = $this->normalizeManufacturedPcode($value);
+
+        if (preg_match(self::ITEM_PCODE_PATTERN, $normalized)) {
+            return explode('-', $normalized, 2)[0];
+        }
+
+        if (preg_match('/^[A-Z]{2,3}[0-9]{5}$/', $normalized)) {
+            return $normalized;
+        }
+
+        return null;
     }
 
     /**
@@ -445,12 +482,12 @@ class ItemIdentityBuilder
 
     public function parentKeyToSlug(string $parentKey): string
     {
-        return str_replace(':', '__', $parentKey);
+        return str_replace(['/', ':'], ['--', '__'], $parentKey);
     }
 
     public function parentKeyFromSlug(string $slug): string
     {
-        return str_replace('__', ':', $slug);
+        return str_replace(['__', '--'], [':', '/'], $slug);
     }
 
     public function itemColorGroupKey(Item $item): string
@@ -545,15 +582,18 @@ class ItemIdentityBuilder
     public function manufacturedParentMaster(Item $item): string
     {
         if ($item->group?->master) {
-            return strtoupper($item->group->master);
+            return $this->canonicalManufacturedMaster((string) $item->group->master)
+                ?? strtoupper(trim((string) $item->group->master));
         }
 
-        $pcode = strtoupper(trim($item->pcode ?? ''));
-        if ($pcode !== '' && preg_match(self::ITEM_PCODE_PATTERN, $pcode)) {
-            return $this->parsePcode(ItemType::ITEM, $pcode)['master'];
+        $pcode = strtoupper(trim((string) ($item->pcode ?? '')));
+        $fromPcode = $this->canonicalManufacturedMaster($pcode);
+
+        if ($fromPcode !== null) {
+            return $fromPcode;
         }
 
-        $parts = explode('-', strtoupper(trim($item->code ?? '')));
+        $parts = explode('-', strtoupper(trim((string) ($item->code ?? ''))));
         if (count($parts) >= 2) {
             return $parts[1];
         }

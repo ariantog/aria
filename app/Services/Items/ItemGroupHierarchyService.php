@@ -30,9 +30,11 @@ class ItemGroupHierarchyService
      */
     public function paginateParents(array $filters, int $perPage = 20): LengthAwarePaginator
     {
+        $canonicalMasterSql = "CASE WHEN INSTR(item_group.master, '/') > 0 THEN SUBSTR(item_group.master, 1, INSTR(item_group.master, '/') - 1) ELSE item_group.master END";
+
         $query = ItemGroup::query()
             ->select([
-                'item_group.master',
+                DB::raw($canonicalMasterSql.' as master'),
                 DB::raw('MIN(item_group.name) as product_name'),
                 DB::raw('MIN(item_group.description) as description'),
                 DB::raw('MIN(item_group.id) as sample_group_id'),
@@ -60,8 +62,8 @@ class ItemGroupHierarchyService
                 'like',
                 '%'.$filters['desc'].'%'
             ))
-            ->groupBy('item_group.master')
-            ->orderBy('item_group.master');
+            ->groupBy(DB::raw($canonicalMasterSql))
+            ->orderBy('master');
 
         /** @var LengthAwarePaginator $paginator */
         $paginator = $query->paginate($perPage)->withQueryString();
@@ -261,8 +263,13 @@ class ItemGroupHierarchyService
             $query->whereRaw('UPPER(item_group.master) = ?', [$master]);
         } else {
             $typeCode = strtoupper($parts[1] ?? '');
-            $master = strtoupper($parts[2] ?? '');
-            $query->whereRaw('UPPER(item_group.master) = ?', [$master])
+            $master = $this->identityBuilder->canonicalManufacturedMaster((string) ($parts[2] ?? ''))
+                ?? strtoupper((string) ($parts[2] ?? ''));
+            $query->where(function (Builder $masterQuery) use ($master) {
+                $masterQuery->whereRaw('UPPER(TRIM(item_group.master)) = ?', [$master])
+                    ->orWhereRaw("UPPER(REPLACE(TRIM(item_group.master), '/', '-')) = ?", [$master])
+                    ->orWhereRaw("UPPER(REPLACE(TRIM(item_group.master), '/', '-')) LIKE ?", [$master.'-%']);
+            })
                 ->whereHas('items', function (Builder $q) use ($typeCode) {
                     $q->where(function (Builder $inner) use ($typeCode) {
                         $inner->whereHas('tags', fn (Builder $t) => $t
