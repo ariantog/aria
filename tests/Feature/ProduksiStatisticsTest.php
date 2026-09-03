@@ -217,9 +217,10 @@ it('renders produksi report date and status filters including status zero', func
         ->assertSuccessful()
         ->assertSee('data-testid="produksi-report-from"', false)
         ->assertSee('data-testid="produksi-report-status"', false)
-        ->assertSee('Filterable Shirt')
-        ->assertDontSee('Later Shirt')
+        ->assertSee('Report Cutter')
         ->assertSee('3,210')
+        ->assertDontSee('13,209')
+        ->assertDontSee('9,999')
         ->assertSee('option value="0"', false);
 });
 
