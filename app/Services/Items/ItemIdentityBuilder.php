@@ -225,6 +225,64 @@ class ItemIdentityBuilder
     }
 
     /**
+     * Whether a stored colorway group matches the canonical (master, variant) for pcode + warna.
+     * Accepts legacy manufactured master shapes (CX00122, CX00122/03) and empty variant.
+     */
+    public function groupMatchesExpectedColorway(
+        ItemGroup $group,
+        ItemType $type,
+        string $pcode,
+        ?Tag $warnaTag,
+    ): bool {
+        $pcode = $type === ItemType::ITEM
+            ? $this->normalizeManufacturedPcode($pcode)
+            : strtoupper(trim($pcode));
+
+        $expectedMaster = strtoupper(trim($this->groupMaster($type, $pcode)));
+        $expectedVariant = strtoupper(trim($this->groupVariant($type, $pcode, $warnaTag)));
+        $storedMaster = strtoupper(trim((string) ($group->master ?? '')));
+        $storedVariant = strtoupper(trim((string) ($group->variant ?? '')));
+
+        if ($storedMaster === '') {
+            return false;
+        }
+
+        if ($storedMaster === $expectedMaster && $this->variantMatchesExpected($storedVariant, $expectedVariant, $pcode)) {
+            return true;
+        }
+
+        if ($type !== ItemType::ITEM) {
+            return false;
+        }
+
+        $normalizedStoredMaster = $this->normalizeManufacturedPcode($storedMaster);
+        $productionMaster = $this->canonicalManufacturedMaster($expectedMaster);
+
+        if ($normalizedStoredMaster === $expectedMaster) {
+            return $this->variantMatchesExpected($storedVariant, $expectedVariant, $pcode);
+        }
+
+        if ($productionMaster !== null && $this->canonicalManufacturedMaster($storedMaster) === $productionMaster) {
+            return $this->variantMatchesExpected($storedVariant, $expectedVariant, $pcode);
+        }
+
+        return false;
+    }
+
+    private function variantMatchesExpected(string $storedVariant, string $expectedVariant, string $pcode): bool
+    {
+        if ($storedVariant === $expectedVariant) {
+            return true;
+        }
+
+        if ($storedVariant === '') {
+            return true;
+        }
+
+        return $this->normalizeManufacturedPcode($storedVariant) === $this->normalizeManufacturedPcode($pcode);
+    }
+
+    /**
      * Build the canonical SKU stored in items.code.
      *
      * Item:      {typeTag}-{pcode}-{size?}           e.g. AJD-CX90324-05-S
