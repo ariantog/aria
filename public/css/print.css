@@ -1,4 +1,4 @@
-/* Dot-matrix / plain invoice print */
+/* print.css — dot-matrix / plain invoice (from legacy L10 layout) */
 body {
     font-family: Calibri, Arial, sans-serif;
     color: #000;
@@ -11,6 +11,10 @@ a {
     background: none;
     text-decoration: none;
     color: #000;
+}
+
+a:link:after {
+    content: none;
 }
 
 #invoice table {
@@ -40,10 +44,26 @@ a {
     display: block;
 }
 
+#invoice .invoice-items th,
+#invoice .invoice-items td {
+    border: none;
+    padding: 2px 4px;
+    font-size: 10pt;
+    color: #000;
+}
+
+#invoice .invoice-items th {
+    text-align: left;
+}
+
+#invoice .invoice-items .num {
+    text-align: right;
+}
+
 #invoice .invoice-signatures {
     clear: both;
     width: 100%;
-    margin-top: 48px;
+    margin-top: 24px;
     border-collapse: collapse;
     page-break-inside: avoid;
 }
@@ -57,10 +77,10 @@ a {
 }
 
 #invoice .invoice-signatures .sign-space {
-    height: 72px;
+    height: 48px;
 }
 
 #invoice .invoice-signatures .sign-line {
     padding-top: 4px;
-    font-size: 9pt;
+    font-size: 10pt;
 }

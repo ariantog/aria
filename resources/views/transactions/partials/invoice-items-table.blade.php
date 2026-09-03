@@ -2,33 +2,35 @@
     $fmt = $fmt ?? fn ($n) => format_amount($n);
     $itemView = $itemView ?? \App\Support\TransactionItemViewOptions::defaults();
     $forPdf = $forPdf ?? false;
+    $plainPrint = $plainPrint ?? false;
     $leadingCols = \App\Support\TransactionItemViewOptions::leadingColumnCount($itemView);
     $totalCols = $leadingCols + 4;
     $labelColspan = max(1, $totalCols - 1);
+    $cellStyle = ($forPdf || $plainPrint) ? '' : ' padding:6px 8px; border:1px solid #ccc;';
 @endphp
 
-<table class="invoice-items" style="margin-top:12px; width:100%; border-collapse:collapse;">
+<table class="invoice-items" @if(! $plainPrint) style="margin-top:12px; width:100%; border-collapse:collapse;" @endif width="100%">
     <thead>
         <tr>
             @if($itemView['showImage'])
-                <th style="text-align:center;{{ $forPdf ? '' : ' padding:6px 8px; border:1px solid #ccc;' }}">Img</th>
+                <th style="text-align:center;{{ $cellStyle }}">Img</th>
             @endif
             @if($itemView['showBarcode'])
-                <th style="text-align:left;{{ $forPdf ? '' : ' padding:6px 8px; border:1px solid #ccc;' }}">Barcode</th>
+                <th style="text-align:left;{{ $cellStyle }}">Barcode</th>
             @endif
             @if($itemView['showSku'])
-                <th style="text-align:left;{{ $forPdf ? '' : ' padding:6px 8px; border:1px solid #ccc;' }}">SKU</th>
+                <th style="text-align:left;{{ $cellStyle }}">SKU</th>
             @endif
             @if($itemView['showName'])
-                <th style="text-align:left;{{ $forPdf ? '' : ' padding:6px 8px; border:1px solid #ccc;' }}">Item Name</th>
+                <th style="text-align:left;{{ $cellStyle }}">{{ $plainPrint ? 'Code' : 'Item Name' }}</th>
             @endif
             @if($itemView['showDescription'])
-                <th style="text-align:left;{{ $forPdf ? '' : ' padding:6px 8px; border:1px solid #ccc;' }}">Desc</th>
+                <th style="text-align:left;{{ $cellStyle }}">Desc</th>
             @endif
-            <th style="text-align:right;{{ $forPdf ? '' : ' padding:6px 8px; border:1px solid #ccc;' }}">Qty</th>
-            <th style="text-align:right;{{ $forPdf ? '' : ' padding:6px 8px; border:1px solid #ccc;' }}">Price</th>
-            <th style="text-align:right;{{ $forPdf ? '' : ' padding:6px 8px; border:1px solid #ccc;' }}">Disc(%)</th>
-            <th style="text-align:right;{{ $forPdf ? '' : ' padding:6px 8px; border:1px solid #ccc;' }}">Subtotal</th>
+            <th class="{{ $plainPrint ? 'num' : '' }}" style="text-align:right;{{ $cellStyle }}">Qty</th>
+            <th class="{{ $plainPrint ? 'num' : '' }}" style="text-align:right;{{ $cellStyle }}">Price</th>
+            <th class="{{ $plainPrint ? 'num' : '' }}" style="text-align:right;{{ $cellStyle }}">Disc(%)</th>
+            <th class="{{ $plainPrint ? 'num' : '' }}" style="text-align:right;{{ $cellStyle }}">{{ $plainPrint ? 'Total' : 'Subtotal' }}</th>
         </tr>
     </thead>
     <tbody>
@@ -36,7 +38,7 @@
             @php $item = $detail->item; @endphp
             <tr>
                 @if($itemView['showImage'])
-                    <td style="text-align:center; vertical-align:middle;{{ $forPdf ? '' : ' padding:6px 8px; border:1px solid #ccc;' }}">
+                    <td style="text-align:center; vertical-align:middle;{{ $cellStyle }}">
                         @if($item && $forPdf && file_exists($item->image_path))
                             <img src="{{ $item->image_path }}" alt="" style="max-height:48px; max-width:48px;">
                         @elseif($item && ! $forPdf)
@@ -45,39 +47,46 @@
                     </td>
                 @endif
                 @if($itemView['showBarcode'])
-                    <td style="font-family:monospace; font-size:11px;{{ $forPdf ? '' : ' padding:6px 8px; border:1px solid #ccc;' }}">{{ $item?->id ?? '-' }}</td>
+                    <td style="{{ $plainPrint ? '' : 'font-family:monospace; font-size:11px;' }}{{ $cellStyle }}">{{ $item?->id ?? '-' }}</td>
                 @endif
                 @if($itemView['showSku'])
-                    <td style="font-family:monospace; font-size:11px; font-style:italic;{{ $forPdf ? '' : ' padding:6px 8px; border:1px solid #ccc;' }}">{{ $item?->code ?: '-' }}</td>
+                    <td style="{{ $plainPrint ? '' : 'font-family:monospace; font-size:11px; font-style:italic;' }}{{ $cellStyle }}">{{ $item?->code ?: '-' }}</td>
                 @endif
                 @if($itemView['showName'])
-                    <td style="{{ $forPdf ? '' : ' padding:6px 8px; border:1px solid #ccc;' }}">
-                        <div style="font-weight:bold;">{{ $item?->getItemName() ?? '-' }}</div>
-                        @if($item?->code)
-                            <div style="margin-top:2px; font-family:monospace; font-size:10px; color:#666;">{{ $item->code }}</div>
-                        @endif
-                        @if($detail->notes)
-                            <div style="margin-top:4px; font-size:11px; font-style:italic; color:#666;">{{ $detail->notes }}</div>
+                    <td style="{{ $cellStyle }}">
+                        @if($plainPrint)
+                            {{ $item?->getItemName() ?? '-' }}
+                            @if($detail->notes)
+                                <br><em>{{ $detail->notes }}</em>
+                            @endif
+                        @else
+                            <div style="font-weight:bold;">{{ $item?->getItemName() ?? '-' }}</div>
+                            @if($item?->code)
+                                <div style="margin-top:2px; font-family:monospace; font-size:10px; color:#666;">{{ $item->code }}</div>
+                            @endif
+                            @if($detail->notes)
+                                <div style="margin-top:4px; font-size:11px; font-style:italic; color:#666;">{{ $detail->notes }}</div>
+                            @endif
                         @endif
                     </td>
                 @endif
                 @if($itemView['showDescription'])
-                    <td style="{{ $forPdf ? '' : ' padding:6px 8px; border:1px solid #ccc;' }}">{{ $item?->description ?: '-' }}</td>
+                    <td style="{{ $cellStyle }}">{{ $item?->description ?: '-' }}</td>
                 @endif
-                <td style="text-align:right;{{ $forPdf ? '' : ' padding:6px 8px; border:1px solid #ccc;' }}">{{ $fmt($detail->quantity) }}</td>
-                <td style="text-align:right;{{ $forPdf ? '' : ' padding:6px 8px; border:1px solid #ccc;' }}">{{ $fmt($detail->price) }}</td>
-                <td style="text-align:right;{{ $forPdf ? '' : ' padding:6px 8px; border:1px solid #ccc;' }}">
+                <td class="{{ $plainPrint ? 'num' : '' }}" style="text-align:right;{{ $cellStyle }}">{{ $fmt($detail->quantity) }}</td>
+                <td class="{{ $plainPrint ? 'num' : '' }}" style="text-align:right;{{ $cellStyle }}">{{ $fmt($detail->price) }}</td>
+                <td class="{{ $plainPrint ? 'num' : '' }}" style="text-align:right;{{ $cellStyle }}">
                     @if((float) $detail->discount > 0)
-                        -{{ $fmt((float) $detail->discount) }}%
+                        {{ $plainPrint ? $detail->discount : '-'.$fmt((float) $detail->discount).'%' }}
                     @else
                         -
                     @endif
                 </td>
-                <td style="text-align:right; font-weight:bold;{{ $forPdf ? '' : ' padding:6px 8px; border:1px solid #ccc;' }}">{{ $fmt($detail->total) }}</td>
+                <td class="{{ $plainPrint ? 'num' : '' }}" style="text-align:right;{{ $plainPrint ? '' : ' font-weight:bold;' }}{{ $cellStyle }}">{{ $fmt($detail->total) }}</td>
             </tr>
         @endforeach
     </tbody>
-    @if(! ($forPdf ?? false))
+    @if(! ($forPdf ?? false) && ! ($plainPrint ?? false))
     <tfoot>
         <tr><td colspan="{{ $totalCols }}"><hr></td></tr>
         <tr>
