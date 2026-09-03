@@ -8,10 +8,10 @@ use App\Models\Item;
 use App\Models\ItemGroup;
 use App\Models\Tag;
 use App\Services\Items\ItemIdentityBuilder;
+use App\Support\ItemCatalog;
 use Exception;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use InvalidArgumentException;
 
 class ItemService
@@ -332,16 +332,21 @@ class ItemService
         $item->name = $this->identityBuilder->buildName($displayName, $warnaTag, $sizeTag);
         $item->price = $input->price ?? $item->price ?? 0;
         $item->cost = $input->cost ?? $item->cost ?? 0;
-        // Group description is canonical for display. Mirror onto the item so
-        // the leftover items.description column stays aligned after an edit.
-        $item->description = $input->description ?? $item->description ?? '';
-        $item->description2 = $input->description2 ?? $item->description2 ?? '';
         $item->restock_urgent_threshold = $this->normalizeRestockUrgentThreshold(
             $input->restock_urgent_threshold ?? $item->restock_urgent_threshold
         );
         $item->size = $sizeTag?->id ?? 0;
-        $item->genre = $typeTag?->id ?? 0;
-        $item->brand = ItemBrand::fromPcode($pcode);
+        $mirror = [
+            'brand' => ItemBrand::fromPcode($pcode),
+            'genre' => $typeTag?->id ?? 0,
+        ];
+        if (isset($input->description)) {
+            $mirror['description'] = $input->description;
+        }
+        if (isset($input->description2)) {
+            $mirror['description2'] = $input->description2;
+        }
+        ItemCatalog::mirrorToItem($item, $mirror);
     }
 
     protected function resolveGroup(
@@ -650,31 +655,26 @@ class ItemService
 
     protected function persistGroupCatalogAttributes(ItemGroup $group, Item $item, object $input, ?Tag $typeTag): void
     {
+        $attributes = [
+            'brand' => $item->brand instanceof ItemBrand
+                ? $item->brand
+                : ItemBrand::fromPcode((string) $item->pcode),
+            'genre' => (int) ($typeTag?->id ?? $item->catalogGenre()),
+        ];
+
         if (isset($input->description)) {
-            $group->description = strtoupper((string) $input->description);
+            $attributes['description'] = $input->description;
         }
 
         if (isset($input->description2)) {
-            $group->description2 = strtoupper((string) $input->description2);
+            $attributes['description2'] = $input->description2;
         }
 
         if (isset($input->url)) {
-            $group->url = $this->normalizeUrl($input->url);
+            $attributes['url'] = $this->normalizeUrl($input->url);
         }
 
-        $brand = $item->brand instanceof ItemBrand
-            ? $item->brand
-            : ItemBrand::fromPcode((string) $item->pcode);
-
-        if (Schema::hasColumn($group->getTable(), 'brand')) {
-            $group->brand = $brand;
-        }
-
-        if (Schema::hasColumn($group->getTable(), 'genre')) {
-            $group->genre = (int) ($typeTag?->id ?? $item->genre ?? 0);
-        }
-
-        $group->save();
+        ItemCatalog::applyToGroup($group, $attributes);
     }
 
     /**

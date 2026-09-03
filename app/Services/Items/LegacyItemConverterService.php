@@ -10,11 +10,11 @@ use App\Models\ItemIdentityConversionResult;
 use App\Models\ItemIdentityConversionRun;
 use App\Models\Tag;
 use App\Models\User;
+use App\Support\ItemCatalog;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 
 class LegacyItemConverterService
 {
@@ -658,11 +658,16 @@ class LegacyItemConverterService
         $item->code = $canonicalCode;
         $item->name = $this->identityBuilder->buildName((string) $parse->groupName, $warnaTag, $sizeTag);
         $item->size = $sizeTag?->id ?? 0;
-        $item->genre = $effectiveTypeTag?->id ?? 0;
-        $item->brand = ItemBrand::fromPcode((string) $parse->pcode);
+        ItemCatalog::mirrorToItem($item, [
+            'brand' => ItemBrand::fromPcode((string) $parse->pcode),
+            'genre' => $effectiveTypeTag?->id ?? 0,
+        ]);
         $item->save();
 
-        $this->persistGroupCatalogAttributes($group, $item, $effectiveTypeTag);
+        ItemCatalog::applyToGroup($group, [
+            'brand' => ItemBrand::fromPcode((string) $parse->pcode),
+            'genre' => $effectiveTypeTag?->id ?? 0,
+        ]);
 
         $tagIds = $this->collectTagIds($item, $effectiveTypeTag, $warnaTag, $sizeTag);
         $item->tag_ids = implode(',', $tagIds);
@@ -709,23 +714,6 @@ class LegacyItemConverterService
         return $group;
     }
 
-    protected function persistGroupCatalogAttributes(ItemGroup $group, Item $item, ?Tag $typeTag): void
-    {
-        if (Schema::hasColumn($group->getTable(), 'brand')) {
-            $group->brand = $item->brand instanceof ItemBrand
-                ? $item->brand
-                : ItemBrand::fromPcode((string) $item->pcode);
-        }
-
-        if (Schema::hasColumn($group->getTable(), 'genre')) {
-            $group->genre = (int) ($typeTag?->id ?? $item->genre ?? 0);
-        }
-
-        if ($group->isDirty()) {
-            $group->save();
-        }
-    }
-
     protected function resolveAssetLancarTypeTag(Item $item): ?Tag
     {
         $fromTags = $item->tags->first(
@@ -737,7 +725,8 @@ class LegacyItemConverterService
             return $fromTags;
         }
 
-        $genreId = (int) $item->genre;
+        $item->loadMissing('group');
+        $genreId = $item->catalogGenre();
 
         if ($genreId <= 0) {
             return null;

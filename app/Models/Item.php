@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\ItemBrand;
 use App\Enums\ItemType;
 use App\Support\FillsProductionColumnDefaults;
+use App\Support\ItemCatalog;
 use App\Support\ItemImageResolver;
 use App\Support\LikeSearch;
 use Illuminate\Database\Eloquent\Builder;
@@ -37,6 +38,7 @@ class Item extends Model
         'code',
         'legacy_code',
         'pcode',
+        // Leftover mirrors of item_group (see ItemCatalog::LEFTOVER_ITEM_COLUMNS).
         'brand',
         'type',
         'size',
@@ -213,6 +215,11 @@ class Item extends Model
         });
     }
 
+    public function scopeFilterBrand(Builder $query, int $brand): void
+    {
+        ItemCatalog::constrainBrand($query, $brand);
+    }
+
     public function scopeFilterByTags(Builder $query, array $tagIds): void
     {
         if (empty($tagIds)) {
@@ -267,61 +274,32 @@ class Item extends Model
     }
 
     /**
-     * Catalog colorway / notes. Grouped SKUs use item_group; items.description
-     * is leftover per-row text and is not the source of truth.
+     * Catalog colorway / notes / brand / genre. Grouped SKUs use item_group;
+     * leftover items.* columns are mirrors (ItemCatalog::MIRROR_ITEM_COLUMNS).
      */
     public function catalogDescription(): string
     {
-        if ($this->hasCatalogGroup()) {
-            return trim((string) ($this->group->description ?? ''));
-        }
-
-        return trim((string) ($this->description ?? ''));
+        return ItemCatalog::description($this);
     }
 
     public function catalogDescription2(): string
     {
-        if ($this->hasCatalogGroup()) {
-            return trim((string) ($this->group->description2 ?? ''));
-        }
-
-        return trim((string) ($this->description2 ?? ''));
+        return ItemCatalog::description2($this);
     }
 
     public function catalogBrand(): ItemBrand
     {
-        if ($this->hasCatalogGroup()) {
-            $groupBrand = $this->normalizeBrand($this->group->brand);
-
-            if ($groupBrand !== ItemBrand::NO_BRAND) {
-                return $groupBrand;
-            }
-        }
-
-        return $this->normalizeBrand($this->brand);
+        return ItemCatalog::brand($this);
     }
 
     public function catalogGenre(): int
     {
-        if ($this->hasCatalogGroup() && (int) ($this->group->genre ?? 0) > 0) {
-            return (int) $this->group->genre;
-        }
-
-        return (int) ($this->genre ?? 0);
+        return ItemCatalog::genre($this);
     }
 
     public function hasCatalogGroup(): bool
     {
         return (int) $this->group_id > 0 && $this->group !== null;
-    }
-
-    private function normalizeBrand(mixed $brand): ItemBrand
-    {
-        if ($brand instanceof ItemBrand) {
-            return $brand;
-        }
-
-        return ItemBrand::tryFrom((int) $brand) ?? ItemBrand::NO_BRAND;
     }
 
     public function getItemName(): string

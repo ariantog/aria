@@ -60,7 +60,7 @@ class ItemsController extends Controller
 
         $q->when($request->filled('search'), fn ($q) => $q->search($request->search))
             ->when($request->filled('id'), fn ($q) => $q->where('id', $request->id))
-            ->when($request->filled('brand'), fn ($q) => $q->where('brand', $request->brand));
+            ->when($request->filled('brand'), fn ($q) => $q->filterBrand((int) $request->brand));
 
         if (! $this->isJson($request)) {
             $this->itemListFilter->apply($q, $request);

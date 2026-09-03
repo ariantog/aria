@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\ItemType;
 use App\Support\FillsProductionColumnDefaults;
+use App\Support\ItemCatalog;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -15,7 +16,7 @@ use InvalidArgumentException;
 
 class Tag extends Model
 {
-    use HasFactory, FillsProductionColumnDefaults;
+    use FillsProductionColumnDefaults, HasFactory;
 
     protected $fillable = [
         'name',
@@ -323,7 +324,11 @@ class Tag extends Model
         ));
         $updates['tag_ids'] = implode(',', $tagIds);
 
-        if ((int) $item->genre === $tagId) {
+        if (
+            ItemCatalog::shouldMirrorItemColumns()
+            && ItemCatalog::itemColumnExists('genre')
+            && (int) $item->genre === $tagId
+        ) {
             $updates['genre'] = 0;
         }
 
@@ -373,13 +378,17 @@ class Tag extends Model
 
             Item::query()
                 ->where(function (Builder $query) use ($tagId) {
-                    $query->where('genre', $tagId)
-                        ->orWhere('size', $tagId);
+                    $query->where('size', $tagId);
+                    if (ItemCatalog::shouldMirrorItemColumns() && ItemCatalog::itemColumnExists('genre')) {
+                        $query->orWhere('genre', $tagId);
+                    }
                 })
                 ->when($itemIds->isNotEmpty(), fn (Builder $query) => $query->whereNotIn('id', $itemIds))
                 ->each(function (Item $item) use ($tagId) {
                     static::stripDeletedTagFromItem($item, $tagId);
                 });
+
+            ItemCatalog::clearGroupGenre($tagId);
         });
     }
 }

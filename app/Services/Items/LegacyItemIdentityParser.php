@@ -523,11 +523,7 @@ class LegacyItemIdentityParser
     {
         $item->loadMissing('group');
 
-        if ((int) $item->group_id > 0 && $item->group) {
-            return trim((string) $item->group->description).' '.trim((string) $item->group->description2);
-        }
-
-        return trim((string) $item->description).' '.trim((string) $item->description2);
+        return trim($item->catalogDescription().' '.$item->catalogDescription2());
     }
 
     /**
