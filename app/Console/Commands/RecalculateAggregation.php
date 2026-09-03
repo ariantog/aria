@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Models\Transaction;
+use App\Services\TransactionService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
@@ -47,21 +48,19 @@ class RecalculateAggregation extends Command
         // 2. Load basic lookups
         $this->addrbookTypes = DB::table('customers')->pluck('type', 'id')->toArray();
 
-        // 3. Process Transactions in chunks
-        $query = DB::table('transactions')
-            ->orderBy('date', 'asc')
-            ->orderBy('id', 'asc');
-
+        // 3. Process transactions in date+id order (chunkById would ignore date and
+        // rebuild running balances in insert-id order, which is wrong for back-dated rows).
+        $baseQuery = DB::table('transactions');
         if ($year) {
-            $query->whereYear('date', $year);
+            $baseQuery->whereYear('date', $year);
         }
 
-        $total = $query->count();
+        $total = (clone $baseQuery)->count();
         $this->info("Processing {$total} local transactions...");
         $bar = $this->output->createProgressBar($total);
         $bar->start();
 
-        $query->chunkById(1000, function ($transactions) use ($bar) {
+        $this->eachTransactionInDateOrder($year, function ($transactions) use ($bar) {
             $trxIds = $transactions->pluck('id')->toArray();
 
             // Fetch all details for this chunk
@@ -121,9 +120,49 @@ class RecalculateAggregation extends Command
         DB::table('items')->update(['qty' => 0]);
     }
 
+    /**
+     * @param  callable(\Illuminate\Support\Collection<int, object>): void  $callback
+     */
+    protected function eachTransactionInDateOrder(?string $year, callable $callback): void
+    {
+        $lastDate = null;
+        $lastId = 0;
+
+        do {
+            $query = DB::table('transactions')
+                ->orderBy('date')
+                ->orderBy('id')
+                ->limit(1000);
+
+            if ($year) {
+                $query->whereYear('date', $year);
+            }
+
+            if ($lastDate !== null) {
+                $query->where(function ($q) use ($lastDate, $lastId) {
+                    $q->where('date', '>', $lastDate)
+                        ->orWhere(function ($q2) use ($lastDate, $lastId) {
+                            $q2->where('date', $lastDate)->where('id', '>', $lastId);
+                        });
+                });
+            }
+
+            $transactions = $query->get();
+            if ($transactions->isEmpty()) {
+                break;
+            }
+
+            $callback($transactions);
+
+            $last = $transactions->last();
+            $lastDate = substr((string) $last->date, 0, 10);
+            $lastId = (int) $last->id;
+        } while (true);
+    }
+
     protected function balanceAmountFromRow(object $trx): float
     {
-        return (float) $trx->total;
+        return Transaction::signedAmount((int) $trx->type, abs((float) $trx->total));
     }
 
     /**
@@ -131,45 +170,14 @@ class RecalculateAggregation extends Command
      */
     protected function applyBalanceDelta(int $type, ?int $senderId, ?int $receiverId, float $amount): void
     {
-        if ($type === Transaction::TYPE_BUY && $senderId) {
-            $this->balances[$senderId] = (float) ($this->balances[$senderId] ?? 0) + $amount;
-        } elseif ($type === Transaction::TYPE_SELL && $receiverId) {
-            $this->balances[$receiverId] = (float) ($this->balances[$receiverId] ?? 0) + $amount;
-        } elseif ($type === Transaction::TYPE_RETURN) {
-            if ($senderId) {
-                $this->balances[$senderId] = (float) ($this->balances[$senderId] ?? 0) + $amount;
-            }
-            if ($receiverId) {
-                $this->balances[$receiverId] = (float) ($this->balances[$receiverId] ?? 0) + $amount;
-            }
-        } elseif ($type === Transaction::TYPE_CASH_IN || $type === Transaction::TYPE_CASH_OUT) {
-            if ($senderId) {
-                $this->balances[$senderId] = (float) ($this->balances[$senderId] ?? 0) + $amount;
-            }
-            if ($receiverId) {
-                $this->balances[$receiverId] = (float) ($this->balances[$receiverId] ?? 0) + $amount;
-            }
-        } elseif ($type === Transaction::TYPE_TRANSFER) {
-            if ($senderId) {
-                $this->balances[$senderId] = (float) ($this->balances[$senderId] ?? 0) + $amount;
-            }
-            if ($receiverId) {
-                $this->balances[$receiverId] = (float) ($this->balances[$receiverId] ?? 0) - $amount;
-            }
-        } elseif ($type === Transaction::TYPE_ADJUST) {
-            if ($senderId) {
-                $this->balances[$senderId] = (float) ($this->balances[$senderId] ?? 0) - $amount;
-            }
-            if ($receiverId) {
-                $this->balances[$receiverId] = (float) ($this->balances[$receiverId] ?? 0) + $amount;
-            }
-        } elseif ($type === Transaction::TYPE_DEPRECIATION) {
-            if ($senderId) {
-                $this->balances[$senderId] = (float) ($this->balances[$senderId] ?? 0) + $amount;
-            }
-            if ($receiverId) {
-                $this->balances[$receiverId] = (float) ($this->balances[$receiverId] ?? 0) + $amount;
-            }
+        $deltas = TransactionService::signedBalanceDeltas($type, $amount);
+
+        if ($deltas['sender'] !== null && $senderId) {
+            $this->balances[$senderId] = (float) ($this->balances[$senderId] ?? 0) + $deltas['sender'];
+        }
+
+        if ($deltas['receiver'] !== null && $receiverId) {
+            $this->balances[$receiverId] = (float) ($this->balances[$receiverId] ?? 0) + $deltas['receiver'];
         }
     }
 
@@ -295,7 +303,12 @@ class RecalculateAggregation extends Command
             $data = [];
             foreach ($chunk as $key => $vals) {
                 [$id, $date] = explode('.', $key);
-                $data[] = array_merge(['customer_id' => $id, 'date' => $date, 'type' => $this->addrbookTypes[$id] ?? 99], $vals);
+                $data[] = array_merge([
+                    'customer_id' => $id,
+                    'date' => $date,
+                    'customer_type' => $this->addrbookTypes[$id] ?? 99,
+                    'class' => '',
+                ], $vals);
             }
             DB::table('customer_class')->insert($data);
         }
