@@ -332,7 +332,7 @@ it('seeds a new group from the leftover group catalog when relinking from items 
     $item->refresh()->load('group');
 
     expect((int) $item->group_id)->not->toBe($oldGroup->id)
-        ->and($item->group?->master)->toBe('CX00122')
+        ->and($item->group?->master)->toBe('CX00122-04')
         ->and($item->group?->description)->toBe('MIKRO MOTIF CAMO HIJAU')
         ->and($item->group?->description2)->toBe('KEEP')
         ->and($item->description)->toBe('MIKRO MOTIF CAMO HIJAU')

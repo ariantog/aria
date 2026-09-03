@@ -59,7 +59,7 @@ test('it creates manufactured item without product name using pcode placeholder'
 
     $this->assertDatabaseHas('item_group', [
         'name' => 'CX93249-03',
-        'master' => 'CX93249',
+        'master' => 'CX93249-03',
         'variant' => '03',
     ]);
 
@@ -88,7 +88,7 @@ test('it renames group product name and syncs all item display names', function 
 
     $this->itemService->create($input, $tags);
 
-    $group = ItemGroup::where('master', 'CX90233')->where('variant', '23')->firstOrFail();
+    $group = ItemGroup::where('master', 'CX90233-23')->where('variant', '23')->firstOrFail();
 
     $this->itemService->renameGroupProductName($group, 'Slash Running Shirt');
 
@@ -153,7 +153,7 @@ test('it creates manufactured item with unified code and display name', function
 
     $this->assertDatabaseHas('item_group', [
         'name' => 'SLASH RUNNING SHIRT',
-        'master' => 'CX90233',
+        'master' => 'CX90233-23',
         'variant' => '23',
     ]);
 
@@ -184,7 +184,7 @@ test('it saves image when provided', function () {
 
     $this->itemService->create($input, $tags, $file);
 
-    expect(ItemGroup::where('master', 'CX90233')->where('variant', '24')->exists())->toBeTrue();
+    expect(ItemGroup::where('master', 'CX90233-24')->where('variant', '24')->exists())->toBeTrue();
 });
 
 test('it creates asset lancar variants with cartesian color and size', function () {
@@ -403,7 +403,7 @@ test('it auto creates parent group when updating legacy asset lancar without gro
         'id' => $item->group_id,
         'master' => 'GLOVE-01',
         'variant' => 'BLUE',
-        'name' => 'BOXING GLOVES - BLUE',
+        'name' => 'BOXING GLOVES',
     ]);
     expect($item->code)->toBe('GLOVE-01-BLUE-S')
         ->and($item->price)->toBe('550000.00');
@@ -513,7 +513,7 @@ test('it stores brand and genre on the item group and mirrors them on each size'
         'jahit' => [$this->jahitTag->id],
     ]);
 
-    $group = ItemGroup::where('master', 'CX90233')->where('variant', '23')->firstOrFail();
+    $group = ItemGroup::where('master', 'CX90233-23')->where('variant', '23')->firstOrFail();
 
     expect($group->name)->toBe('CX90233-23')
         ->and($group->brand)->toBe(\App\Enums\ItemBrand::CX9)
@@ -620,7 +620,7 @@ test('it moves every size to the new pcode and keeps group.name equal to pcode',
     ]);
 
     $this->assertDatabaseHas('item_group', [
-        'master' => 'CX00122',
+        'master' => 'CX00122-05',
         'variant' => '05',
         'name' => 'CX00122-05',
     ]);
@@ -687,7 +687,7 @@ test('saving slash leftover pcode as hyphen keeps every size on the parent group
 
     expect($group->id)->toBe($small->group_id)
         ->and($medium->group_id)->toBe($group->id)
-        ->and($group->master)->toBe('CX00122')
+        ->and($group->master)->toBe('CX00122-03')
         ->and($group->variant)->toBe('03')
         ->and($small->pcode)->toBe('CX00122-03')
         ->and($medium->pcode)->toBe('CX00122-03');
@@ -736,9 +736,85 @@ test('it keeps a custom group title when product name is not the pcode', functio
         'jahit' => [$this->jahitTag->id],
     ]);
 
-    $this->assertDatabaseHas('item_group', ['name' => 'SLASH RUNNING SHIRT', 'master' => 'CX90233', 'variant' => '23']);
+    $this->assertDatabaseHas('item_group', ['name' => 'SLASH RUNNING SHIRT', 'master' => 'CX90233-23', 'variant' => '23']);
     $this->assertDatabaseHas('items', ['code' => 'AJD-CX90233-23-S', 'name' => 'SLASH RUNNING SHIRT - BLUE - S', 'price' => 120000]);
     $this->assertDatabaseHas('items', ['code' => 'AJD-CX90233-23-M', 'name' => 'SLASH RUNNING SHIRT - BLUE - M', 'price' => 120000]);
+});
+
+test('it updates group name from pcode placeholder when product_name is set on edit', function () {
+    $this->itemService->create((object) [
+        'pcode' => 'CX93249-03',
+        'type' => ItemType::ITEM->value,
+        'price' => 100000,
+    ], [
+        'types' => [$this->typeTag->id],
+        'sizes' => [$this->sizeTag->id],
+        'warna' => [$this->warnaTag->id],
+        'jahit' => [$this->jahitTag->id],
+    ]);
+
+    $item = Item::where('code', 'AJD-CX93249-03-S')->firstOrFail();
+
+    $this->itemService->update($item->id, (object) [
+        'pcode' => 'CX93249-03',
+        'type' => ItemType::ITEM->value,
+        'product_name' => 'Essential Shorts',
+        'price' => 100000,
+    ], [
+        'types' => [$this->typeTag->id],
+        'sizes' => [$this->sizeTag->id],
+        'warna' => [$this->warnaTag->id],
+        'jahit' => [$this->jahitTag->id],
+    ]);
+
+    $this->assertDatabaseHas('item_group', [
+        'master' => 'CX93249-03',
+        'variant' => '03',
+        'name' => 'ESSENTIAL SHORTS',
+    ]);
+    $this->assertDatabaseHas('items', [
+        'code' => 'AJD-CX93249-03-S',
+        'name' => 'ESSENTIAL SHORTS - BLUE - S',
+    ]);
+});
+
+test('two manufactured colorways can share the same product title without a suffix', function () {
+    $redTag = Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'RED', 'name' => 'RED']);
+
+    $this->itemService->create((object) [
+        'pcode' => 'CX90233-23',
+        'type' => ItemType::ITEM->value,
+        'product_name' => 'Essential Shorts',
+        'price' => 100000,
+    ], [
+        'types' => [$this->typeTag->id],
+        'sizes' => [$this->sizeTag->id],
+        'warna' => [$this->warnaTag->id],
+        'jahit' => [$this->jahitTag->id],
+    ]);
+
+    $this->itemService->create((object) [
+        'pcode' => 'CX90233-24',
+        'type' => ItemType::ITEM->value,
+        'product_name' => 'Essential Shorts',
+        'price' => 100000,
+    ], [
+        'types' => [$this->typeTag->id],
+        'sizes' => [$this->sizeTag->id],
+        'warna' => [$redTag->id],
+        'jahit' => [$this->jahitTag->id],
+    ]);
+
+    $this->assertDatabaseHas('item_group', [
+        'master' => 'CX90233-23',
+        'variant' => '23',
+        'name' => 'ESSENTIAL SHORTS',
+    ]);
+    $this->assertDatabaseHas('item_group', [
+        'master' => 'CX90233-24',
+        'variant' => '24',
+        'name' => 'ESSENTIAL SHORTS',
+    ]);
 });
 
 test('it does not copy asset cost onto sibling sizes when price is edited', function () {

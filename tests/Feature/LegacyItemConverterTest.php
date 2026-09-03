@@ -550,8 +550,8 @@ it('converts multiple colors of the same asset product without duplicate group n
     expect($run->success_count)->toBe(5)
         ->and($run->failed_count)->toBe(0);
 
-    expect($hipAquamarine->fresh()->group->name)->toBe('HIP THRUST PAD - AQUAMARINE')
-        ->and($hipViolet->fresh()->group->name)->toBe('HIP THRUST PAD - MARBLEVIOLET')
+    expect($hipAquamarine->fresh()->group->name)->toBe('HIP THRUST PAD')
+        ->and($hipViolet->fresh()->group->name)->toBe('HIP THRUST PAD')
         ->and($hipAquamarine->fresh()->name)->toBe('HIP THRUST PAD - AQUAMARINE')
         ->and($liftingBelt->fresh()->name)->toBe('DUAL LOCK LIFTING BELT - BLACK - XL')
         ->and($glove->fresh()->name)->toBe('MICROFIBER STRAP GYM GLOVE - GREY - M')
@@ -677,8 +677,7 @@ it('converts ELBOWSUPPORT-02-BLACKWHITE when another group already uses the same
     expect($item->group)->not->toBeNull()
         ->and($item->group->master)->toBe('ELBOWSUPPORT-02')
         ->and($item->group->variant)->toBe('BLACKWHITE')
-        ->and($item->group->name)->toBe('ELBOW STRAP - BLACKWHITE (ELBOWSUPPORT-02)')
-        ->and(strlen((string) $item->group->name))->toBeLessThanOrEqual(ItemIdentityBuilder::GROUP_NAME_MAX_LENGTH)
+        ->and($item->group->name)->toBe('ELBOW STRAP')
         ->and($item->name)->toBe('ELBOW STRAP - BLACKWHITE')
         ->and($item->code)->toBe('ELBOWSUPPORT-02-BLACKWHITE');
 });
