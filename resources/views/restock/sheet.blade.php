@@ -151,6 +151,11 @@ $breadcrumbs = [
                 <div>
                     <h1 class="text-2xl font-bold text-gray-900">{{ $sheet->name }}</h1>
                     <p class="text-sm text-gray-500">{{ count($grid['parents']) }} parent variant(s)</p>
+                    @if($receiveReady)
+                        <p class="mt-1 text-xs text-gray-500">
+                            Receive Buy: {{ $receiveSupplierName }} → {{ $receiveWarehouseName }}
+                        </p>
+                    @endif
                 </div>
             </div>
         </div>
@@ -179,7 +184,7 @@ $breadcrumbs = [
                         class="rounded-md border border-gray-300 bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-800 hover:bg-gray-200 disabled:opacity-50">
                     Production → Shipped
                 </button>
-                <button type="button" @click="openReceiveModal()" :disabled="receiving || !canEdit || !receiveReady || selectionCount === 0"
+                <button type="button" data-testid="restock-receive-btn" @click="openReceiveModal()" :disabled="receiving || !canEdit || !receiveReady || selectionCount === 0"
                         title="{{ $receiveReady ? 'Receive shipped qty into warehouse (Buy transaction)' : 'Configure supplier and receiver in Restock settings' }}"
                         class="rounded-md border border-green-300 bg-green-50 px-3 py-1.5 text-sm font-medium text-green-900 hover:bg-green-100 disabled:opacity-50">
                     Receive → Warehouse
@@ -191,6 +196,17 @@ $breadcrumbs = [
                     </button>
                 </form>
                 @endcan
+                <form @submit.prevent="lookupSku()" class="flex items-center gap-2">
+                    <label for="restock-sku-lookup" class="sr-only">Find SKU</label>
+                    <input id="restock-sku-lookup" data-testid="restock-sku-lookup" type="text"
+                           x-model="skuQuery" @keydown.enter.prevent="lookupSku()"
+                           placeholder="SKU / barcode / legacy code"
+                           class="w-52 rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-blue-500">
+                    <button type="submit" data-testid="restock-sku-lookup-btn"
+                            class="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                        Find
+                    </button>
+                </form>
                 <a href="{{ route('restock.sheets.export', $sheet) }}"
                    class="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
                     Export Excel
@@ -208,8 +224,14 @@ $breadcrumbs = [
             @if(session('success'))
                 <div class="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">{{ session('success') }}</div>
             @endif
+            @if(session('error'))
+                <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ session('error') }}</div>
+            @endif
 
-            <div x-show="flash" x-cloak class="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800" x-text="flash"></div>
+            <div x-show="flash" x-cloak class="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
+                <span x-text="flash"></span>
+                <a x-show="transactionUrl" x-cloak :href="transactionUrl" class="ml-2 font-medium underline" x-text="'Open transaction #' + transactionId"></a>
+            </div>
             <div x-show="error" x-cloak class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" x-text="error"></div>
         </div>
     </div>
@@ -236,7 +258,10 @@ $breadcrumbs = [
     <div x-show="receiveModalOpen" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" @click.self="receiveModalOpen = false">
         <div class="w-full max-w-2xl rounded-xl border border-gray-200 bg-white p-5 shadow-xl">
             <h3 class="text-lg font-semibold text-gray-900">Receive into warehouse</h3>
-            <p class="mt-1 text-sm text-gray-500">Adjust received qty per SKU. Any shortfall vs shipped is recorded as missing.</p>
+            <p class="mt-1 text-sm text-gray-500">Adjust received qty per SKU. Receive cannot exceed shipped qty. Any shortfall vs shipped is recorded as missing.</p>
+            @if($receiveReady)
+                <p class="mt-2 text-sm text-gray-600">Buy from <strong>{{ $receiveSupplierName }}</strong> → <strong>{{ $receiveWarehouseName }}</strong></p>
+            @endif
             <div class="mt-4 grid gap-3 sm:grid-cols-2">
                 <div>
                     <label for="receive-date" class="block text-sm font-medium text-gray-700">Date</label>
@@ -275,12 +300,13 @@ $breadcrumbs = [
                 </table>
             </div>
             <p x-show="receiveLines.length === 0" class="mt-4 text-sm text-gray-500">No shipped quantity on the selected row(s).</p>
+            <p x-show="hasOverReceive()" class="mt-3 text-sm text-red-700">Receive qty cannot exceed shipped qty.</p>
             <div class="mt-5 flex justify-end gap-2">
                 <button type="button" @click="receiveModalOpen = false"
                         class="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
                     Cancel
                 </button>
-                <button type="button" @click="receive()" :disabled="receiving || receiveLines.length === 0 || !hasReceiveQty()"
+                <button type="button" data-testid="restock-receive-confirm" @click="receive()" :disabled="!canConfirmReceive()"
                         class="rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50">
                     <span x-text="receiving ? 'Receiving…' : 'Confirm receive'"></span>
                 </button>
@@ -301,6 +327,7 @@ function restockSheetPage() {
         saveUrl: @json(route('restock.sheets.update', $sheet)),
         moveUrl: @json(route('restock.sheets.move', $sheet)),
         receiveUrl: @json(route('restock.sheets.receive', $sheet)),
+        lookupUrl: @json(route('restock.sheets.lookup', $sheet)),
         defaultImageUrl: @json(asset('images/default-item.svg')),
         tables: {},
         selectionCount: 0,
@@ -315,6 +342,10 @@ function restockSheetPage() {
         },
         flash: '',
         error: '',
+        skuQuery: '',
+        lookingUp: false,
+        transactionUrl: '',
+        transactionId: '',
 
         init() {
             if (typeof Tabulator === 'undefined') {
@@ -354,6 +385,8 @@ function restockSheetPage() {
                         this.syncCheckboxCells(table);
                     });
                 }
+
+                this.scrollToHashParent();
             });
         },
 
@@ -801,10 +834,11 @@ function restockSheetPage() {
                     const shipped = Number(row[prefix + 'shipped'] ?? 0);
                     if (!meta?.cell_id || shipped <= 0) continue;
                     const code = meta.item_code || row.color_name;
+                    const legacy = meta.legacy_code ? ` (${meta.legacy_code})` : '';
                     const size = meta.size_label && meta.size_label !== '—' ? ` · ${meta.size_label}` : '';
                     lines.push({
                         id: meta.cell_id,
-                        label: `${code}${size}`,
+                        label: `${code}${legacy}${size}`,
                         shipped,
                         qty: shipped,
                     });
@@ -822,6 +856,95 @@ function restockSheetPage() {
 
         hasReceiveQty() {
             return this.receiveLines.some((line) => Number(line.qty ?? 0) > 0);
+        },
+
+        hasOverReceive() {
+            return this.receiveLines.some((line) => Number(line.qty ?? 0) > Number(line.shipped ?? 0));
+        },
+
+        canConfirmReceive() {
+            return !this.receiving && this.receiveLines.length > 0 && this.hasReceiveQty() && !this.hasOverReceive();
+        },
+
+        async lookupSku() {
+            const code = (this.skuQuery || '').trim();
+            if (!code) return;
+
+            this.lookingUp = true;
+            this.flash = '';
+            this.error = '';
+            this.transactionUrl = '';
+            try {
+                const url = new URL(this.lookupUrl, window.location.origin);
+                url.searchParams.set('code', code);
+                const res = await fetch(url.toString(), {
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                });
+                const data = await this.parseJsonResponse(res);
+                if (!res.ok) throw new Error(data.message || 'Lookup failed');
+
+                if (!data.item) {
+                    this.error = 'SKU not found (code or legacy code).';
+                    return;
+                }
+
+                if (!data.cell) {
+                    this.error = (data.item.code || code) + ' is not on this sheet. Use Sync SKUs if it belongs to this type.';
+                    return;
+                }
+
+                this.selectCell(data.cell.id);
+                this.flash = 'Found ' + (data.item.code || code) + '.';
+            } catch (e) {
+                this.error = e.message || 'Lookup failed';
+            } finally {
+                this.lookingUp = false;
+            }
+        },
+
+        selectCell(cellId) {
+            const targetId = Number(cellId);
+            for (const block of this.grid.blocks ?? []) {
+                const table = this.tables[block.id];
+                if (!table) continue;
+                table.deselectRow();
+                for (const row of table.getRows()) {
+                    const data = row.getData();
+                    if (data._type !== 'data') continue;
+                    const match = Object.values(data._meta || {}).some((meta) => Number(meta?.cell_id) === targetId);
+                    if (!match) continue;
+                    row.select();
+                    const el = row.getElement();
+                    if (el && typeof el.scrollIntoView === 'function') {
+                        el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                    }
+                }
+            }
+            this.syncSelectionCount();
+        },
+
+        scrollToHashParent() {
+            const raw = decodeURIComponent((window.location.hash || '').replace(/^#/, ''));
+            if (!raw.startsWith('parent-')) return;
+            const pcode = raw.slice('parent-'.length);
+            if (!pcode) return;
+
+            for (const block of this.grid.blocks ?? []) {
+                const table = this.tables[block.id];
+                if (!table) continue;
+                for (const row of table.getRows()) {
+                    const data = row.getData();
+                    if (data._type !== 'section' || data.pcode !== pcode) continue;
+                    const el = row.getElement();
+                    if (el && typeof el.scrollIntoView === 'function') {
+                        el.scrollIntoView({ block: 'start', behavior: 'smooth' });
+                    }
+                    return;
+                }
+            }
         },
 
         openReceiveModal() {
@@ -844,6 +967,7 @@ function restockSheetPage() {
             this.receiving = true;
             this.flash = '';
             this.error = '';
+            this.transactionUrl = '';
             try {
                 await this.persistQuantities();
 
@@ -866,9 +990,9 @@ function restockSheetPage() {
                 if (data.grid) this.applyGrid(data.grid);
                 this.receiveModalOpen = false;
                 this.receiveLines = [];
-                this.flash = data.transaction_url
-                    ? `${data.message} Transaction #${data.transaction_id}.`
-                    : (data.message || 'Received.');
+                this.transactionUrl = data.transaction_url || '';
+                this.transactionId = data.transaction_id || '';
+                this.flash = data.message || 'Received.';
             } catch (e) {
                 this.error = e.message || 'Receive failed';
             } finally {

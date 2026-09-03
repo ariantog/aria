@@ -76,7 +76,12 @@ $breadcrumbs = [
                             @unless($activeTypeTag)
                                 <td class="px-4 py-3 text-gray-700">{{ $row['type_name'] }}</td>
                             @endunless
-                            <td class="px-4 py-3 font-mono text-xs text-gray-600">{{ $row['sku_code'] }}</td>
+                            <td class="px-4 py-3 font-mono text-xs text-gray-600">
+                                {{ $row['sku_code'] }}
+                                @if($row['sku_legacy_code'] ?? null)
+                                    <div class="text-gray-400">legacy {{ $row['sku_legacy_code'] }}</div>
+                                @endif
+                            </td>
                             <td class="px-4 py-3 text-gray-900">{{ $row['sku_name'] }}</td>
                             <td class="px-4 py-3 text-right tabular-nums font-medium text-red-700">{{ number_format($row['qty_missing']) }}</td>
                             <td class="px-4 py-3 text-gray-600">{{ $row['missing_at'] ?? '—' }}</td>
