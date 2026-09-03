@@ -95,6 +95,7 @@ class ReportingSummaryRecorder
     private function recordTax(Transaction $transaction): void
     {
         $this->recordCashInTax($transaction);
+        $this->recordCashOutForPphNetting($transaction);
         $this->recordItemTax($transaction);
         $this->recordCashTransactionTax($transaction);
         $this->recordLegacyTaxCashOut($transaction);
@@ -138,8 +139,48 @@ class ReportingSummaryRecorder
             return;
         }
 
-        $pphRate = (float) config('reporting.pph_final_rate', 0.005);
-        $summary->increment('pph_final', round($gross * $pphRate, 2));
+        if ((float) $transaction->ppn > 0) {
+            return;
+        }
+
+        $this->reconcileNonPkpPphFinal(
+            $transaction->date->year,
+            $transaction->date->month,
+            $entity->id,
+        );
+    }
+
+    private function recordCashOutForPphNetting(Transaction $transaction): void
+    {
+        if ((int) $transaction->type !== Transaction::TYPE_CASH_OUT) {
+            return;
+        }
+
+        if ((int) $transaction->sender_type !== Addrbook::TYPE_BANK) {
+            return;
+        }
+
+        if (! in_array((int) $transaction->receiver_type, CashPartyOmzetNetting::nettingPartyTypes(), true)) {
+            return;
+        }
+
+        $entity = ReportingEntity::findActiveForBank((int) $transaction->sender_id);
+        if (! $entity || $entity->is_pkp) {
+            return;
+        }
+
+        $this->reconcileNonPkpPphFinal(
+            $transaction->date->year,
+            $transaction->date->month,
+            $entity->id,
+        );
+    }
+
+    private function reconcileNonPkpPphFinal(int $year, int $month, int $entityId): void
+    {
+        $pphFinal = app(CashPartyOmzetNetting::class)->totalPphFinal($year, $month, [$entityId]);
+        $summary = $this->taxSummary($year, $month, $entityId);
+        $summary->update(['pph_final' => $pphFinal]);
     }
 
     private function recordItemTax(Transaction $transaction): void
