@@ -249,6 +249,30 @@ describe('unsupported item types', function () {
     });
 });
 
+describe('manufactured warna from catalog description', function () {
+    it('scans item_group description and ignores items.description', function () {
+        $group = \App\Models\ItemGroup::factory()->create([
+            'description' => 'MIKRO MOTIF CAMO HIJAU',
+        ]);
+        $item = Item::factory()->create([
+            'type' => ItemType::ITEM,
+            'group_id' => $group->id,
+            'code' => 'AJJPL2512904S',
+            'pcode' => 'PL25129/04',
+            'description' => 'PUTIH',
+        ]);
+        $item->tags()->sync([
+            $this->typeTags->first()->id,
+            Tag::factory()->create(['type' => Tag::TYPE_JAHIT, 'code' => 'J1', 'name' => 'J1'])->id,
+        ]);
+
+        $result = $this->parser->parse($item->fresh(['tags', 'group']));
+
+        expect($result->success)->toBeTrue()
+            ->and($result->warnaCode)->toBe('GREEN');
+    });
+});
+
 describe('Bahasa color scan', function () {
     it('detects Indonesian color words', function () {
         expect($this->parser->scanBahasaColor('warna hitam pekat'))->toBe([

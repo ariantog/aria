@@ -97,9 +97,9 @@ $filtersStorageKey = $isAsset ? 'aria-assetlancar-index-filters-open' : 'aria-it
                         </td>
                         <td class="whitespace-nowrap px-2 py-2 font-mono text-xs text-gray-800" data-testid="item-list-code-{{ $item->id }}">{{ $item->code ?: '-' }}</td>
                         <td class="px-2 py-2 text-gray-800" data-testid="item-list-name-{{ $item->id }}">{{ $item->name ?: '-' }}</td>
-                        <td class="max-w-[14rem] px-2 py-2 text-gray-700" title="{{ $item->description }}">{{ $item->description ?: '-' }}</td>
+                        <td class="max-w-[14rem] px-2 py-2 text-gray-700" data-testid="item-list-desc-{{ $item->id }}" title="{{ $item->catalogDescription() }}">{{ $item->catalogDescription() ?: '-' }}</td>
                         <td class="whitespace-nowrap px-2 py-2 text-right font-bold tabular-nums text-gray-800">{{ $idr($item->price) }}</td>
-                        <td class="max-w-[14rem] px-2 py-2 text-gray-500" title="{{ $item->description2 }}">{{ $item->description2 ?: '--' }}</td>
+                        <td class="max-w-[14rem] px-2 py-2 text-gray-500" title="{{ $item->catalogDescription2() }}">{{ $item->catalogDescription2() ?: '--' }}</td>
                         <td class="whitespace-nowrap px-2 py-2 text-right font-bold tabular-nums text-emerald-600">{{ format_amount((float) ($item->active_qty ?? 0), 0) }}</td>
                         <td class="px-2 py-2">
                             @if($item->jubelio_item_id)

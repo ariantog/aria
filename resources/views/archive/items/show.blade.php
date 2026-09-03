@@ -46,11 +46,11 @@ $idr = fn ($v) => 'Rp ' . format_amount($v, 0);
         </div>
     </div>
 
-    @if($item->description || $item->description2)
+    @if($item->catalogDescription() || $item->catalogDescription2())
     <div class="rounded-xl border bg-white p-4 shadow-sm">
         <h2 class="text-sm font-semibold uppercase tracking-wide text-gray-500">Description</h2>
-        @if($item->description)<p class="mt-2 whitespace-pre-wrap text-sm">{{ $item->description }}</p>@endif
-        @if($item->description2)<p class="mt-2 whitespace-pre-wrap text-sm text-gray-600">{{ $item->description2 }}</p>@endif
+        @if($item->catalogDescription())<p class="mt-2 whitespace-pre-wrap text-sm">{{ $item->catalogDescription() }}</p>@endif
+        @if($item->catalogDescription2())<p class="mt-2 whitespace-pre-wrap text-sm text-gray-600">{{ $item->catalogDescription2() }}</p>@endif
     </div>
     @endif
 </div>

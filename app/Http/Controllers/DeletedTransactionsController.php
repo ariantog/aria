@@ -27,7 +27,7 @@ class DeletedTransactionsController extends Controller
     {
         \Illuminate\Support\Facades\Gate::authorize(Transaction::getPermissions()['view']);
 
-        $transaction = DeletedTransaction::with(['details.item', 'sender', 'receiver'])->findOrFail($id);
+        $transaction = DeletedTransaction::with(['details.item.group', 'sender', 'receiver'])->findOrFail($id);
 
         $typeKey = collect(config('transaction_rules'))->firstWhere('id', $transaction->type);
         $typeSlug = $typeKey ? array_search($typeKey, config('transaction_rules')) : 'adjust';

@@ -57,6 +57,7 @@ class ProductionColumnDefaults
         ],
         'items' => [
             'tag_ids' => '',
+            // Leftover mirrors of item_group — keep filling until ItemCatalog::MIRROR_ITEM_COLUMNS is false and the columns are dropped.
             'description' => '',
             'description2' => '',
             'variant' => '',
@@ -68,6 +69,8 @@ class ProductionColumnDefaults
             'description' => '',
             'alias' => '',
             'description2' => '',
+            'brand' => 0,
+            'genre' => 0,
         ],
         'transactions' => [
             'description' => '',

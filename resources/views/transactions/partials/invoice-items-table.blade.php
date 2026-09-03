@@ -71,7 +71,7 @@
                     </td>
                 @endif
                 @if($itemView['showDescription'])
-                    <td style="{{ $cellStyle }}">{{ $item?->description ?: '-' }}</td>
+                    <td style="{{ $cellStyle }}">{{ $item?->catalogDescription() ?: '-' }}</td>
                 @endif
                 <td class="{{ $plainPrint ? 'num' : '' }}" style="text-align:right;{{ $cellStyle }}">{{ $fmt($detail->quantity) }}</td>
                 <td class="{{ $plainPrint ? 'num' : '' }}" style="text-align:right;{{ $cellStyle }}">{{ $fmt($detail->price) }}</td>

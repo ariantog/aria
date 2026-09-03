@@ -499,7 +499,7 @@
                             <div class="mt-1 text-xs italic text-gray-500">📝 {{ $detail->notes }}</div>
                             @endif
                         </td>
-                        <td class="px-3 py-2.5 align-middle text-gray-600" data-copy-col="desc" data-sort-value="{{ $item?->description ?: '' }}" x-show="showDescription">{{ $item?->description ?: '-' }}</td>
+                        <td class="px-3 py-2.5 align-middle text-gray-600" data-copy-col="desc" data-sort-value="{{ $item?->catalogDescription() ?: '' }}" x-show="showDescription">{{ $item?->catalogDescription() ?: '-' }}</td>
                         <td class="whitespace-nowrap px-3 py-2.5 text-center align-middle font-black tabular-nums" data-copy-col="qty" data-copy-value="{{ format_copy_number($detail->quantity) }}" data-sort-value="{{ $detail->quantity }}">{{ $detail->quantity }}</td>
                         <td class="whitespace-nowrap px-3 py-2.5 text-right align-middle font-medium tabular-nums" data-copy-col="price" data-copy-value="{{ format_copy_number($detail->price) }}" data-sort-value="{{ $detail->price }}">{{ $fmt($detail->price) }}</td>
                         <td class="whitespace-nowrap px-3 py-2.5 text-right align-middle tabular-nums" data-copy-col="disc" data-copy-value="{{ format_copy_number((float) $detail->discount) }}" data-sort-value="{{ (float) $detail->discount }}">

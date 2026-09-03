@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\ItemBrand;
 use App\Enums\ItemType;
 use App\Support\FillsProductionColumnDefaults;
+use App\Support\ItemCatalog;
 use App\Support\ItemImageResolver;
 use App\Support\LikeSearch;
 use Illuminate\Database\Eloquent\Builder;
@@ -37,6 +38,7 @@ class Item extends Model
         'code',
         'legacy_code',
         'pcode',
+        // Leftover mirrors of item_group (see ItemCatalog::LEFTOVER_ITEM_COLUMNS).
         'brand',
         'type',
         'size',
@@ -195,7 +197,27 @@ class Item extends Model
             return;
         }
 
-        $query->where($query->qualifyColumn('description'), 'like', $contains);
+        $query->where(function (Builder $q) use ($contains) {
+            $q->whereExists(function ($sub) use ($contains) {
+                $sub->selectRaw('1')
+                    ->from('item_group')
+                    ->whereColumn('item_group.id', 'items.group_id')
+                    ->where('items.group_id', '>', 0)
+                    ->where('item_group.description', 'like', $contains);
+            })->orWhere(function (Builder $ungrouped) use ($contains) {
+                $ungrouped
+                    ->where(function (Builder $noGroup) {
+                        $noGroup->whereNull('items.group_id')
+                            ->orWhere('items.group_id', '<=', 0);
+                    })
+                    ->where($ungrouped->qualifyColumn('description'), 'like', $contains);
+            });
+        });
+    }
+
+    public function scopeFilterBrand(Builder $query, int $brand): void
+    {
+        ItemCatalog::constrainBrand($query, $brand);
     }
 
     public function scopeFilterByTags(Builder $query, array $tagIds): void
@@ -249,6 +271,35 @@ class Item extends Model
         }
 
         return $legacy;
+    }
+
+    /**
+     * Catalog colorway / notes / brand / genre. Grouped SKUs use item_group;
+     * leftover items.* columns are mirrors (ItemCatalog::MIRROR_ITEM_COLUMNS).
+     */
+    public function catalogDescription(): string
+    {
+        return ItemCatalog::description($this);
+    }
+
+    public function catalogDescription2(): string
+    {
+        return ItemCatalog::description2($this);
+    }
+
+    public function catalogBrand(): ItemBrand
+    {
+        return ItemCatalog::brand($this);
+    }
+
+    public function catalogGenre(): int
+    {
+        return ItemCatalog::genre($this);
+    }
+
+    public function hasCatalogGroup(): bool
+    {
+        return (int) $this->group_id > 0 && $this->group !== null;
     }
 
     public function getItemName(): string

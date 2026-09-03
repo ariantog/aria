@@ -60,7 +60,7 @@ class ItemsController extends Controller
 
         $q->when($request->filled('search'), fn ($q) => $q->search($request->search))
             ->when($request->filled('id'), fn ($q) => $q->where('id', $request->id))
-            ->when($request->filled('brand'), fn ($q) => $q->where('brand', $request->brand));
+            ->when($request->filled('brand'), fn ($q) => $q->filterBrand((int) $request->brand));
 
         if (! $this->isJson($request)) {
             $this->itemListFilter->apply($q, $request);
@@ -105,8 +105,8 @@ class ItemsController extends Controller
                     'image_url' => $item->image_url,
                     'jubelio_item_id' => $item->jubelio_item_id,
                     'product_name' => $item->group?->name ?? $item->name,
-                    'description' => $item->group?->description ?? $item->description,
-                    'description2' => $item->group?->description2 ?? $item->description2,
+                    'description' => $item->catalogDescription(),
+                    'description2' => $item->catalogDescription2(),
                 ])->all(),
                 'last_page' => $paginator->lastPage(),
                 'total' => $paginator->total(),

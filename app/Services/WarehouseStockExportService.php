@@ -49,8 +49,8 @@ class WarehouseStockExportService
             $row = [
                 (int) $item->id,
                 $item->code ?? '',
-                $group->description ?? $item->name ?? '',
-                $item->description ?: ($group->description ?? ''),
+                $group?->description ?? $item->name ?? '',
+                $item->catalogDescription(),
                 (float) $item->price,
                 (float) ($item->pivot->quantity ?? 0),
             ];
