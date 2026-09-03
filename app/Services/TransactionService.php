@@ -8,18 +8,23 @@ use App\Models\AddrbookStat;
 use App\Models\Item;
 use App\Models\Transaction;
 use App\Models\WarehouseItem;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
 class TransactionService
 {
+    protected static int $runningBalancePostingDepth = 0;
+
     public function handleTransaction(Transaction $transaction)
     {
-        DB::transaction(function () use ($transaction) {
-            $this->updateStock($transaction);
-            $this->updateBalances($transaction);
-        });
+        $this->withRunningBalancePosting(function () use ($transaction) {
+            DB::transaction(function () use ($transaction) {
+                $this->updateStock($transaction);
+                $this->updateBalances($transaction);
+            });
 
-        $this->queueStockNotificationCheckIfNeeded($transaction);
+            $this->queueStockNotificationCheckIfNeeded($transaction);
+        });
     }
 
     private function queueStockNotificationCheckIfNeeded(Transaction $transaction): void
@@ -41,10 +46,12 @@ class TransactionService
 
     public function revertTransaction(Transaction $transaction)
     {
-        DB::transaction(function () use ($transaction) {
-            $transaction->loadMissing('details');
-            $this->updateStock($transaction, true);
-            $this->updateBalances($transaction, true);
+        $this->withRunningBalancePosting(function () use ($transaction) {
+            DB::transaction(function () use ($transaction) {
+                $transaction->loadMissing('details');
+                $this->updateStock($transaction, true);
+                $this->updateBalances($transaction, true);
+            });
         });
     }
 
@@ -54,18 +61,57 @@ class TransactionService
      */
     public function editTransaction(Transaction $transaction, callable $applyChanges): Transaction
     {
-        return DB::transaction(function () use ($transaction, $applyChanges) {
-            $snapshot = $this->snapshotForRevert($transaction);
+        return $this->withRunningBalancePosting(function () use ($transaction, $applyChanges) {
+            return DB::transaction(function () use ($transaction, $applyChanges) {
+                $snapshot = $this->snapshotForRevert($transaction);
 
-            $this->revertTransaction($snapshot);
+                $this->revertTransaction($snapshot);
 
-            $applyChanges($transaction);
+                $applyChanges($transaction);
 
-            $transaction->refresh()->load('details');
-            $this->handleTransaction($transaction);
+                $transaction->refresh()->load('details');
+                $this->handleTransaction($transaction);
 
-            return $transaction->fresh(['details']);
+                return $transaction->fresh(['details']);
+            });
         });
+    }
+
+    public function withRunningBalancePosting(callable $callback): mixed
+    {
+        self::$runningBalancePostingDepth++;
+
+        try {
+            return $callback();
+        } finally {
+            self::$runningBalancePostingDepth--;
+        }
+    }
+
+    public static function isPostingRunningBalances(): bool
+    {
+        return self::$runningBalancePostingDepth > 0;
+    }
+
+    /**
+     * Signed running-balance deltas for each party.
+     * null = this side does not post a money balance (e.g. warehouse on a buy).
+     *
+     * @return array{sender: ?float, receiver: ?float}
+     */
+    public static function signedBalanceDeltas(int $type, float $signedAmount): array
+    {
+        return match ($type) {
+            Transaction::TYPE_BUY => ['sender' => $signedAmount, 'receiver' => null],
+            Transaction::TYPE_SELL => ['sender' => null, 'receiver' => $signedAmount],
+            Transaction::TYPE_RETURN,
+            Transaction::TYPE_CASH_IN,
+            Transaction::TYPE_CASH_OUT,
+            Transaction::TYPE_DEPRECIATION => ['sender' => $signedAmount, 'receiver' => $signedAmount],
+            Transaction::TYPE_TRANSFER => ['sender' => $signedAmount, 'receiver' => -$signedAmount],
+            Transaction::TYPE_ADJUST => ['sender' => -$signedAmount, 'receiver' => $signedAmount],
+            default => ['sender' => null, 'receiver' => null],
+        };
     }
 
     /**
@@ -177,44 +223,44 @@ class TransactionService
         $type = (int) $transaction->type;
 
         if ($type === Transaction::TYPE_BUY && $transaction->sender_id) {
-            $this->updateEntityBalance($transaction, 'sender', $amount);
+            $this->updateEntityBalance($transaction, 'sender', $amount, $revert);
             $this->updateDailyReports($transaction, 'sender', $amount);
         } elseif ($type === Transaction::TYPE_SELL && $transaction->receiver_id) {
-            $this->updateEntityBalance($transaction, 'receiver', $amount);
+            $this->updateEntityBalance($transaction, 'receiver', $amount, $revert);
             $this->updateDailyReports($transaction, 'receiver', $amount);
         } elseif ($type === Transaction::TYPE_RETURN) {
             if ($transaction->sender_id) {
-                $this->updateEntityBalance($transaction, 'sender', $amount);
+                $this->updateEntityBalance($transaction, 'sender', $amount, $revert);
                 $this->updateDailyReports($transaction, 'sender', $amount);
             }
             if ($transaction->receiver_id) {
-                $this->updateEntityBalance($transaction, 'receiver', $amount);
+                $this->updateEntityBalance($transaction, 'receiver', $amount, $revert);
                 $this->updateDailyReports($transaction, 'receiver', $amount);
             }
         } elseif ($type === Transaction::TYPE_CASH_IN) {
-            $this->updateEntityBalance($transaction, 'sender', $amount);
+            $this->updateEntityBalance($transaction, 'sender', $amount, $revert);
             $this->updateDailyReports($transaction, 'sender', $amount);
-            $this->updateEntityBalance($transaction, 'receiver', $amount);
+            $this->updateEntityBalance($transaction, 'receiver', $amount, $revert);
             $this->updateDailyReports($transaction, 'receiver', $amount);
         } elseif ($type === Transaction::TYPE_CASH_OUT) {
-            $this->updateEntityBalance($transaction, 'sender', $amount);
+            $this->updateEntityBalance($transaction, 'sender', $amount, $revert);
             $this->updateDailyReports($transaction, 'sender', $amount);
-            $this->updateEntityBalance($transaction, 'receiver', $amount);
+            $this->updateEntityBalance($transaction, 'receiver', $amount, $revert);
             $this->updateDailyReports($transaction, 'receiver', $amount);
         } elseif ($type === Transaction::TYPE_TRANSFER) {
-            $this->updateEntityBalance($transaction, 'sender', $amount);
+            $this->updateEntityBalance($transaction, 'sender', $amount, $revert);
             $this->updateDailyReports($transaction, 'sender', $amount);
-            $this->updateEntityBalance($transaction, 'receiver', -$amount);
+            $this->updateEntityBalance($transaction, 'receiver', -$amount, $revert);
             $this->updateDailyReports($transaction, 'receiver', -$amount);
         } elseif ($type === Transaction::TYPE_ADJUST) {
-            $this->updateEntityBalance($transaction, 'sender', -$amount);
+            $this->updateEntityBalance($transaction, 'sender', -$amount, $revert);
             $this->updateDailyReports($transaction, 'sender', -$amount);
-            $this->updateEntityBalance($transaction, 'receiver', $amount);
+            $this->updateEntityBalance($transaction, 'receiver', $amount, $revert);
             $this->updateDailyReports($transaction, 'receiver', $amount);
         } elseif ($type === Transaction::TYPE_DEPRECIATION) {
-            $this->updateEntityBalance($transaction, 'sender', $amount);
+            $this->updateEntityBalance($transaction, 'sender', $amount, $revert);
             $this->updateDailyReports($transaction, 'sender', $amount);
-            $this->updateEntityBalance($transaction, 'receiver', $amount);
+            $this->updateEntityBalance($transaction, 'receiver', $amount, $revert);
             $this->updateDailyReports($transaction, 'receiver', $amount);
         }
     }
@@ -224,37 +270,58 @@ class TransactionService
      * A stored 0 is a real zero (e.g. 100% invoice discount).
      * Legacy rows may store the wrong sign — normalize via signedAmount(abs(...)).
      */
-    protected function balanceAmount(Transaction $transaction, bool $revert = false): float
+    public function balanceAmount(Transaction $transaction, bool $revert = false): float
     {
         $amount = Transaction::signedAmount((int) $transaction->type, abs((float) $transaction->total));
 
         return $revert ? -$amount : $amount;
     }
 
-    public function syncStatFromLatestTransaction(Addrbook $entity): void
+    public function partyBalanceDelta(Transaction $transaction, Addrbook $entity): float
+    {
+        $deltas = self::signedBalanceDeltas((int) $transaction->type, $this->balanceAmount($transaction));
+        $entityType = (int) $entity->type;
+        $delta = 0.0;
+
+        if (
+            (int) $transaction->sender_id === (int) $entity->id
+            && (int) $transaction->sender_type === $entityType
+            && $deltas['sender'] !== null
+        ) {
+            $delta += $deltas['sender'];
+        }
+
+        if (
+            (int) $transaction->receiver_id === (int) $entity->id
+            && (int) $transaction->receiver_type === $entityType
+            && $deltas['receiver'] !== null
+        ) {
+            $delta += $deltas['receiver'];
+        }
+
+        return $delta;
+    }
+
+    public function syncStatFromLatestTransaction(Addrbook $entity, ?int $excludeId = null): void
     {
         $entityType = (int) $entity->type;
 
-        $lastTransaction = Transaction::query()
-            ->where(function ($q) use ($entity, $entityType) {
-                $q->where(function ($q2) use ($entity, $entityType) {
-                    $q2->where('sender_id', $entity->id)
-                        ->where('sender_type', $entityType);
-                })->orWhere(function ($q2) use ($entity, $entityType) {
-                    $q2->where('receiver_id', $entity->id)
-                        ->where('receiver_type', $entityType);
-                });
-            })
+        $query = $this->entityTransactionsQuery($entity)
             ->orderByDesc('date')
-            ->orderByDesc('id')
-            ->first();
+            ->orderByDesc('id');
+
+        if ($excludeId) {
+            $query->where('id', '!=', $excludeId);
+        }
+
+        $lastTransaction = $query->first();
 
         $balance = 0.0;
 
         if ($lastTransaction) {
-            if ((int) $lastTransaction->sender_id === $entity->id && (int) $lastTransaction->sender_type === $entityType) {
+            if ((int) $lastTransaction->sender_id === (int) $entity->id && (int) $lastTransaction->sender_type === $entityType) {
                 $balance = (float) $lastTransaction->sender_balance;
-            } elseif ((int) $lastTransaction->receiver_id === $entity->id && (int) $lastTransaction->receiver_type === $entityType) {
+            } elseif ((int) $lastTransaction->receiver_id === (int) $entity->id && (int) $lastTransaction->receiver_type === $entityType) {
                 $balance = (float) $lastTransaction->receiver_balance;
             }
         }
@@ -304,44 +371,264 @@ class TransactionService
         $daily->increment($column, $amount);
     }
 
-    protected function updateEntityBalance(Transaction $transaction, string $side, $amount)
+    protected function updateEntityBalance(Transaction $transaction, string $side, $amount, bool $revert = false)
     {
         $entity = $transaction->$side;
-        if (! $entity) {
+        if (! $entity instanceof Addrbook) {
             return;
         }
 
-        $balanceCol = $side.'_balance';
+        $excludeId = $revert ? (int) $transaction->id : null;
 
-        $this->updateStat($entity, $amount, $transaction->date);
-
-        $transaction->$balanceCol = $this->getLastBalance($entity, $transaction->date, $transaction->id) + $amount;
-        $transaction->saveQuietly();
-
-        $this->updateFutureBalances($entity, $transaction->date, $amount, $side, $transaction->id);
+        $this->recalculateRunningBalancesFor(
+            $entity,
+            $transaction->date,
+            (int) $transaction->id,
+            $excludeId,
+        );
+        $this->syncStatFromLatestTransaction($entity, $excludeId);
     }
 
-    protected function updateStat($entity, $amount, $date)
+    /**
+     * Re-derive sender_balance / receiver_balance for one addrbook from a ledger point forward.
+     */
+    public function recalculateRunningBalancesFor(
+        Addrbook $entity,
+        mixed $fromDate = null,
+        ?int $fromId = null,
+        ?int $excludeId = null,
+    ): float {
+        return $this->withRunningBalancePosting(function () use ($entity, $fromDate, $fromId, $excludeId) {
+            $fromDate = $fromDate !== null ? $this->dateString($fromDate) : null;
+            $running = $fromDate !== null
+                ? $this->getLastBalance($entity, $fromDate, $fromId ?? 0, $excludeId)
+                : 0.0;
+
+            $query = $this->entityTransactionsQuery($entity);
+
+            if ($excludeId) {
+                $query->where('id', '!=', $excludeId);
+            }
+
+            if ($fromDate !== null) {
+                if ($fromId) {
+                    $query->where(function ($q) use ($fromDate, $fromId) {
+                        $q->where('date', '>', $fromDate)
+                            ->orWhere(function ($q2) use ($fromDate, $fromId) {
+                                $q2->where('date', $fromDate)->where('id', '>=', $fromId);
+                            });
+                    });
+                } else {
+                    $query->where('date', '>=', $fromDate);
+                }
+            }
+
+            foreach ($query->orderBy('date')->orderBy('id')->cursor() as $txn) {
+                $running += $this->partyBalanceDelta($txn, $entity);
+                $this->writeEntityRunningBalance($txn, $entity, $running);
+            }
+
+            return $running;
+        });
+    }
+
+    /**
+     * Re-derive running balances for every party this row posts (and original parties when requested).
+     */
+    public function recalculateAffectedRunningBalances(
+        Transaction $transaction,
+        bool $includeOriginal = false,
+        ?int $excludeId = null,
+    ): void {
+        $this->withRunningBalancePosting(function () use ($transaction, $includeOriginal, $excludeId) {
+            foreach ($this->collectAffectedParties($transaction, $includeOriginal) as $party) {
+                $this->recalculateRunningBalancesFor($party['entity'], $party['from'], null, $excludeId);
+                $this->syncStatFromLatestTransaction($party['entity'], $excludeId);
+            }
+        });
+    }
+
+    /**
+     * Rebuild running balances in date+id order. Used by Recalculate* commands.
+     */
+    public function rebuildRunningBalances(?int $addrbookId = null, ?string $fromDate = null): int
     {
-        if ($entity instanceof Addrbook) {
-            $stat = AddrbookStat::firstOrCreate(
-                ['customer_id' => $entity->id],
-                ['balance' => 0]
-            );
-            $stat->balance += $amount;
-            $stat->save();
+        return $this->withRunningBalancePosting(function () use ($addrbookId, $fromDate) {
+            $fromDate = $fromDate !== null && $fromDate !== '' ? $this->dateString($fromDate) : null;
+            $balances = [];
+            $touched = [];
+
+            $query = Transaction::query()->orderBy('date')->orderBy('id');
+            if ($fromDate !== null) {
+                $query->where('date', '>=', $fromDate);
+            }
+
+            $updated = 0;
+
+            foreach ($query->cursor() as $trx) {
+                $deltas = self::signedBalanceDeltas((int) $trx->type, $this->balanceAmount($trx));
+                $changed = false;
+
+                if ($deltas['sender'] !== null && $trx->sender_id) {
+                    $senderId = (int) $trx->sender_id;
+                    if ($addrbookId === null || $senderId === $addrbookId) {
+                        $balances[$senderId] = $this->openingRebuildBalance($balances, $senderId, $fromDate) + $deltas['sender'];
+                        $trx->sender_balance = $balances[$senderId];
+                        $touched[$senderId] = true;
+                        $changed = true;
+                    }
+                }
+
+                if ($deltas['receiver'] !== null && $trx->receiver_id) {
+                    $receiverId = (int) $trx->receiver_id;
+                    if ($addrbookId === null || $receiverId === $addrbookId) {
+                        $balances[$receiverId] = $this->openingRebuildBalance($balances, $receiverId, $fromDate) + $deltas['receiver'];
+                        $trx->receiver_balance = $balances[$receiverId];
+                        $touched[$receiverId] = true;
+                        $changed = true;
+                    }
+                }
+
+                if ($changed) {
+                    $trx->saveQuietly();
+                    $updated++;
+                }
+            }
+
+            if ($addrbookId) {
+                $touched[$addrbookId] = true;
+            }
+
+            foreach (array_keys($touched) as $id) {
+                $entity = Addrbook::withTrashed()->find($id);
+                if ($entity) {
+                    $this->syncStatFromLatestTransaction($entity);
+                }
+            }
+
+            return $updated;
+        });
+    }
+
+    protected function openingRebuildBalance(array $balances, int $addrbookId, ?string $fromDate): float
+    {
+        if (array_key_exists($addrbookId, $balances)) {
+            return $balances[$addrbookId];
+        }
+
+        if ($fromDate === null) {
+            return 0.0;
+        }
+
+        $entity = Addrbook::withTrashed()->find($addrbookId);
+
+        return $entity ? $this->getLastBalance($entity, $fromDate, 0) : 0.0;
+    }
+
+    /**
+     * @return array<int, array{entity: Addrbook, from: ?string}>
+     */
+    protected function collectAffectedParties(Transaction $transaction, bool $includeOriginal): array
+    {
+        $parties = [];
+
+        $add = function (?int $id, mixed $date) use (&$parties): void {
+            if (! $id) {
+                return;
+            }
+
+            $entity = Addrbook::withTrashed()->find($id);
+            if (! $entity) {
+                return;
+            }
+
+            $dateStr = $date !== null ? $this->dateString($date) : null;
+            if (! isset($parties[$entity->id])) {
+                $parties[$entity->id] = ['entity' => $entity, 'from' => $dateStr];
+
+                return;
+            }
+
+            $existing = $parties[$entity->id]['from'];
+            if ($dateStr !== null && ($existing === null || $dateStr < $existing)) {
+                $parties[$entity->id]['from'] = $dateStr;
+            }
+        };
+
+        foreach ($this->postingPartyIds($transaction) as $id) {
+            $add($id, $transaction->date);
+        }
+
+        if ($includeOriginal) {
+            $original = new Transaction;
+            $original->forceFill([
+                'type' => $transaction->getOriginal('type') ?? $transaction->type,
+                'total' => $transaction->getOriginal('total') ?? $transaction->total,
+                'sender_id' => $transaction->getOriginal('sender_id'),
+                'receiver_id' => $transaction->getOriginal('receiver_id'),
+            ]);
+
+            foreach ($this->postingPartyIds($original) as $id) {
+                $add($id, $transaction->getOriginal('date') ?? $transaction->date);
+            }
+        }
+
+        return $parties;
+    }
+
+    /**
+     * @return list<int>
+     */
+    protected function postingPartyIds(Transaction $transaction): array
+    {
+        $deltas = self::signedBalanceDeltas((int) $transaction->type, $this->balanceAmount($transaction));
+        $ids = [];
+
+        if ($deltas['sender'] !== null && $transaction->sender_id) {
+            $ids[] = (int) $transaction->sender_id;
+        }
+
+        if ($deltas['receiver'] !== null && $transaction->receiver_id) {
+            $ids[] = (int) $transaction->receiver_id;
+        }
+
+        return $ids;
+    }
+
+    protected function writeEntityRunningBalance(Transaction $transaction, Addrbook $entity, float $running): void
+    {
+        $deltas = self::signedBalanceDeltas((int) $transaction->type, $this->balanceAmount($transaction));
+        $entityType = (int) $entity->type;
+        $dirty = false;
+
+        if (
+            (int) $transaction->sender_id === (int) $entity->id
+            && (int) $transaction->sender_type === $entityType
+            && $deltas['sender'] !== null
+        ) {
+            $transaction->sender_balance = $running;
+            $dirty = true;
+        }
+
+        if (
+            (int) $transaction->receiver_id === (int) $entity->id
+            && (int) $transaction->receiver_type === $entityType
+            && $deltas['receiver'] !== null
+        ) {
+            $transaction->receiver_balance = $running;
+            $dirty = true;
+        }
+
+        if ($dirty) {
+            $transaction->saveQuietly();
         }
     }
 
-    protected function getLastBalance($entity, $date, $currentTransactionId = null)
+    protected function entityTransactionsQuery(Addrbook $entity)
     {
-        if (! ($entity instanceof Addrbook)) {
-            return 0;
-        }
-
         $entityType = (int) $entity->type;
 
-        $query = Transaction::where(function ($q) use ($entity, $entityType) {
+        return Transaction::query()->where(function ($q) use ($entity, $entityType) {
             $q->where(function ($q2) use ($entity, $entityType) {
                 $q2->where('sender_id', $entity->id)
                     ->where('sender_type', $entityType);
@@ -349,10 +636,26 @@ class TransactionService
                 $q2->where('receiver_id', $entity->id)
                     ->where('receiver_type', $entityType);
             });
-        })
+        });
+    }
+
+    protected function getLastBalance($entity, $date, $currentTransactionId = null, ?int $excludeId = null)
+    {
+        if (! ($entity instanceof Addrbook)) {
+            return 0;
+        }
+
+        $date = $this->dateString($date);
+        $entityType = (int) $entity->type;
+
+        $query = $this->entityTransactionsQuery($entity)
             ->where('date', '<=', $date);
 
-        if ($currentTransactionId) {
+        if ($excludeId) {
+            $query->where('id', '!=', $excludeId);
+        }
+
+        if ($currentTransactionId !== null) {
             $query->where(function ($q) use ($date, $currentTransactionId) {
                 $q->where('date', '<', $date)
                     ->orWhere(function ($q2) use ($date, $currentTransactionId) {
@@ -369,55 +672,15 @@ class TransactionService
             return 0;
         }
 
-        if ($lastTransaction->sender_id === $entity->id && $lastTransaction->sender_type == $entityType) {
-            return $lastTransaction->sender_balance;
+        if ((int) $lastTransaction->sender_id === (int) $entity->id && (int) $lastTransaction->sender_type === $entityType) {
+            return (float) $lastTransaction->sender_balance;
         }
 
-        return $lastTransaction->receiver_balance;
+        return (float) $lastTransaction->receiver_balance;
     }
 
-    protected function updateFutureBalances($entity, $date, $amount, $side, $currentTransactionId = null)
+    protected function dateString(mixed $date): string
     {
-        if (! ($entity instanceof Addrbook)) {
-            return;
-        }
-
-        $entityType = (int) $entity->type;
-
-        $query = Transaction::where(function ($q) use ($entity, $entityType) {
-            $q->where(function ($q2) use ($entity, $entityType) {
-                $q2->where('sender_id', $entity->id)
-                    ->where('sender_type', $entityType);
-            })->orWhere(function ($q2) use ($entity, $entityType) {
-                $q2->where('receiver_id', $entity->id)
-                    ->where('receiver_type', $entityType);
-            });
-        })
-            ->where('date', '>=', $date);
-
-        if ($currentTransactionId) {
-            $query->where(function ($q) use ($date, $currentTransactionId) {
-                $q->where('date', '>', $date)
-                    ->orWhere(function ($q2) use ($date, $currentTransactionId) {
-                        $q2->where('date', $date)->where('id', '>', $currentTransactionId);
-                    });
-            });
-        } else {
-            $query->where('date', '>', $date);
-        }
-
-        $futureTransactions = $query->orderBy('date', 'asc')
-            ->orderBy('id', 'asc')
-            ->get();
-
-        foreach ($futureTransactions as $ft) {
-            if ($ft->sender_id === $entity->id && $ft->sender_type == $entityType) {
-                $ft->sender_balance += $amount;
-            }
-            if ($ft->receiver_id === $entity->id && $ft->receiver_type == $entityType) {
-                $ft->receiver_balance += $amount;
-            }
-            $ft->saveQuietly();
-        }
+        return Carbon::parse($date)->format('Y-m-d');
     }
 }
