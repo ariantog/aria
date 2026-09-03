@@ -75,12 +75,9 @@ $fmtNum = fn ($v) => format_amount($v, 0);
                 <tbody class="divide-y divide-gray-100">
                     @foreach($notifications as $notification)
                     <tr class="{{ $notification->isUnread() ? 'bg-blue-50/40' : '' }}">
-                        <td class="px-4 py-3">
-                            <div class="font-medium text-gray-900">{{ $notification->item?->code }}</div>
-                            <div class="text-xs text-gray-500">{{ $notification->item?->name }}</div>
-                        </td>
-                        <td class="px-4 py-3 text-gray-700">{{ $notification->soldOutWarehouse?->name }}</td>
-                        <td class="px-4 py-3 text-gray-700">{{ $notification->sourceWarehouse?->name }}</td>
+                        @include('stock-notifications.partials.item-cell', ['notification' => $notification])
+                        @include('stock-notifications.partials.warehouse-cell', ['warehouse' => $notification->soldOutWarehouse])
+                        @include('stock-notifications.partials.warehouse-cell', ['warehouse' => $notification->sourceWarehouse])
                         <td class="px-4 py-3 font-medium text-gray-900">{{ $fmtNum($notification->source_stock) }}</td>
                         <td class="px-4 py-3">
                             <span class="inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium {{ $notification->source_status->colorClass() }}">
