@@ -25,7 +25,7 @@ $yearlyQty = $monthlyTotals->sum('total_qty');
                 (grouped by <span class="font-medium">QC assignment date</span>).
             </p>
         </div>
-        <a href="{{ route('reports.produksi-potong', ['year' => $filters['year'], 'month' => $filters['month'] ?? 0]) }}" class="text-sm font-medium text-blue-600 hover:underline">← View Potong statistics</a>
+        @include('reports.partials.produksi-stat-nav', ['current' => 'qc', 'filters' => $filters])
     </div>
 
     @include('reports.partials.month-year-filter', [

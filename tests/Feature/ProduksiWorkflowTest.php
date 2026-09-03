@@ -114,6 +114,34 @@ it('splits produksi quantity and leaves the new row unassigned for jahit/qc', fu
         ->and($split->pritil_date)->toBeNull();
 });
 
+it('shows the jumlah total for the rendered produksi page', function () {
+    $worker = Worker::create(['name' => 'Cutter', 'type' => Worker::TYPE_POTONG]);
+    $size = Tag::create(['name' => 'L', 'type' => Tag::TYPE_SIZE, 'item_type' => 0]);
+
+    Produksi::create([
+        'temp_name' => 'Qty Ten',
+        'size_id' => $size->id,
+        'quantity' => 10,
+        'potong_id' => $worker->id,
+        'potong_date' => now(),
+        'status' => Produksi::STATUS_PRODUKSI,
+    ]);
+    Produksi::create([
+        'temp_name' => 'Qty Seven',
+        'size_id' => $size->id,
+        'quantity' => 7,
+        'potong_id' => $worker->id,
+        'potong_date' => now(),
+        'status' => Produksi::STATUS_PRODUKSI,
+    ]);
+
+    $response = $this->actingAs($this->user)->get('/produksi');
+
+    $response->assertSuccessful();
+    $response->assertSee('data-testid="produksi-page-jumlah-total"', false);
+    $response->assertSee('>17</td>', false);
+});
+
 it('rejects splitting the full produksi quantity', function () {
     $produksi = Produksi::create([
         'temp_name' => 'Cannot Split All',

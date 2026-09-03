@@ -404,7 +404,9 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
         Route::get('/product-performance', [\App\Http\Controllers\Reports\ProductPerformanceController::class, 'index'])->name('product-performance');
         Route::get('/inventory-health', [\App\Http\Controllers\Reports\InventoryHealthController::class, 'index'])->name('inventory-health');
         Route::get('/produksi-potong', \App\Http\Controllers\Reports\ProduksiPotongReportController::class)->name('produksi-potong');
+        Route::get('/produksi-jahit', \App\Http\Controllers\Reports\ProduksiJahitReportController::class)->name('produksi-jahit');
         Route::get('/produksi-qc', \App\Http\Controllers\Reports\ProduksiQcReportController::class)->name('produksi-qc');
+        Route::get('/produksi-pritil', \App\Http\Controllers\Reports\ProduksiPritilReportController::class)->name('produksi-pritil');
         Route::get('/neraca', \App\Http\Controllers\Reports\NeracaReportController::class)->name('neraca');
         Route::get('/laba-rugi', \App\Http\Controllers\Reports\LabaRugiReportController::class)->name('laba-rugi');
         Route::get('/receivables', \App\Http\Controllers\Reports\ReceivablesReportController::class)->name('receivables');
