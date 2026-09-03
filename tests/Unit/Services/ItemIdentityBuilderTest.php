@@ -171,6 +171,64 @@ describe('groupVariant', function () {
     });
 });
 
+describe('groupMatchesExpectedColorway', function () {
+    it('accepts canonical manufactured master and variant', function () {
+        $group = \App\Models\ItemGroup::factory()->make([
+            'master' => 'CX00122-04',
+            'variant' => '04',
+        ]);
+
+        expect($this->builder->groupMatchesExpectedColorway(
+            $group,
+            ItemType::ITEM,
+            'CX00122-04',
+            $this->warnaTag,
+        ))->toBeTrue();
+    });
+
+    it('accepts legacy manufactured parent master with color variant', function () {
+        $group = \App\Models\ItemGroup::factory()->make([
+            'master' => 'CX00122',
+            'variant' => '04',
+        ]);
+
+        expect($this->builder->groupMatchesExpectedColorway(
+            $group,
+            ItemType::ITEM,
+            'CX00122-04',
+            $this->warnaTag,
+        ))->toBeTrue();
+    });
+
+    it('accepts leftover slash manufactured master', function () {
+        $group = \App\Models\ItemGroup::factory()->make([
+            'master' => 'CX00122/04',
+            'variant' => '',
+        ]);
+
+        expect($this->builder->groupMatchesExpectedColorway(
+            $group,
+            ItemType::ITEM,
+            'CX00122-04',
+            $this->warnaTag,
+        ))->toBeTrue();
+    });
+
+    it('rejects wrong manufactured colorway', function () {
+        $group = \App\Models\ItemGroup::factory()->make([
+            'master' => 'CX00122-05',
+            'variant' => '05',
+        ]);
+
+        expect($this->builder->groupMatchesExpectedColorway(
+            $group,
+            ItemType::ITEM,
+            'CX00122-04',
+            $this->warnaTag,
+        ))->toBeFalse();
+    });
+});
+
 describe('asset sku splitting', function () {
     it('splits two-segment asset pcodes', function () {
         expect($this->builder->splitAssetSku('GLOVE-01-BLACK-S'))

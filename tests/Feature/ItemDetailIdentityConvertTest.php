@@ -74,6 +74,119 @@ it('hides convert panel when item is already fully canonical', function () {
         ->assertDontSee('Legacy SKU Conversion', false);
 });
 
+it('hides convert panel for converted manufactured item with canonical group master', function () {
+    $typeTag = Tag::factory()->create([
+        'type' => Tag::TYPE_TYPE,
+        'item_type' => ItemType::ITEM->value,
+        'code' => 'AJJ',
+        'name' => 'Jacket',
+    ]);
+    $jahit = Tag::factory()->create(['type' => Tag::TYPE_JAHIT, 'code' => 'J1', 'name' => 'J1']);
+    $warna = Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => '04', 'name' => '04']);
+
+    $group = \App\Models\ItemGroup::factory()->create([
+        'master' => 'CX00122-04',
+        'variant' => '04',
+        'name' => 'RUNNING SHIRT',
+    ]);
+
+    $item = Item::factory()->create([
+        'type' => ItemType::ITEM,
+        'group_id' => $group->id,
+        'code' => 'AJJ-CX00122-04-S',
+        'legacy_code' => 'AJJCX0012204S',
+        'pcode' => 'CX00122-04',
+        'name' => 'RUNNING SHIRT - 04 - S',
+        'genre' => $typeTag->id,
+    ]);
+    $item->tags()->sync([
+        $typeTag->id,
+        $jahit->id,
+        $warna->id,
+        Tag::where('code', 'S')->first()->id,
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('items.show', $item))
+        ->assertOk()
+        ->assertDontSee('Legacy SKU Conversion', false);
+});
+
+it('hides convert panel for converted manufactured item with legacy parent group master', function () {
+    $typeTag = Tag::factory()->create([
+        'type' => Tag::TYPE_TYPE,
+        'item_type' => ItemType::ITEM->value,
+        'code' => 'AJJ',
+        'name' => 'Jacket',
+    ]);
+    $jahit = Tag::factory()->create(['type' => Tag::TYPE_JAHIT, 'code' => 'J1', 'name' => 'J1']);
+    $warna = Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => '04', 'name' => '04']);
+
+    $group = \App\Models\ItemGroup::factory()->create([
+        'master' => 'CX00122',
+        'variant' => '04',
+        'name' => 'RUNNING SHIRT',
+    ]);
+
+    $item = Item::factory()->create([
+        'type' => ItemType::ITEM,
+        'group_id' => $group->id,
+        'code' => 'AJJ-CX00122-04-S',
+        'legacy_code' => 'AJJCX0012204S',
+        'pcode' => 'CX00122-04',
+        'name' => 'RUNNING SHIRT - 04 - S',
+        'genre' => $typeTag->id,
+    ]);
+    $item->tags()->sync([
+        $typeTag->id,
+        $jahit->id,
+        $warna->id,
+        Tag::where('code', 'S')->first()->id,
+    ]);
+
+    expect(app(LegacyItemConverterService::class)->detailConvertContext($item->fresh())['visible'])->toBeFalse();
+
+    $this->actingAs($this->user)
+        ->get(route('items.show', $item))
+        ->assertOk()
+        ->assertDontSee('Legacy SKU Conversion', false);
+});
+
+it('hides convert panel when manufactured type tag lives on genre after manual tag edit', function () {
+    $typeTag = Tag::factory()->create([
+        'type' => Tag::TYPE_TYPE,
+        'item_type' => ItemType::ITEM->value,
+        'code' => 'AJJ',
+        'name' => 'Jacket',
+    ]);
+    $jahit = Tag::factory()->create(['type' => Tag::TYPE_JAHIT, 'code' => 'J1', 'name' => 'J1']);
+    $warna = Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => '04', 'name' => '04']);
+
+    $group = \App\Models\ItemGroup::factory()->create([
+        'master' => 'CX00122-04',
+        'variant' => '04',
+        'name' => 'RUNNING SHIRT',
+        'genre' => $typeTag->id,
+    ]);
+
+    $item = Item::factory()->create([
+        'type' => ItemType::ITEM,
+        'group_id' => $group->id,
+        'code' => 'AJJ-CX00122-04-S',
+        'legacy_code' => 'AJJCX0012204S',
+        'pcode' => 'CX00122-04',
+        'name' => 'RUNNING SHIRT - 04 - S',
+        'genre' => $typeTag->id,
+    ]);
+    $item->tags()->sync([
+        $jahit->id,
+        $warna->id,
+        Tag::where('code', 'S')->first()->id,
+    ]);
+
+    expect(app(LegacyItemConverterService::class)->detailConvertContext($item->fresh())['visible'])->toBeFalse();
+});
+
 it('shows convert panel when group link exists but asset type tag is missing', function () {
     $group = \App\Models\ItemGroup::factory()->create([
         'master' => 'GLOVE-07',
