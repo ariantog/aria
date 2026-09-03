@@ -155,8 +155,13 @@ class RecalculateAggregation extends Command
             $callback($transactions);
 
             $last = $transactions->last();
-            $lastDate = substr((string) $last->date, 0, 10);
-            $lastId = (int) $last->id;
+            $nextDate = (string) $last->date;
+            $nextId = (int) $last->id;
+            if ($lastDate === $nextDate && $lastId === $nextId) {
+                break;
+            }
+            $lastDate = $nextDate;
+            $lastId = $nextId;
         } while (true);
     }
 
