@@ -38,6 +38,7 @@ it('does not list the removed reports in the sidebar', function () {
         ->assertOk()
         ->assertSee('Nett Cash', false)
         ->assertSee('Laba Rugi', false)
+        ->assertSee('Channel P&L', false)
         ->assertSee('Piutang Usaha', false)
         ->assertDontSee('>Cash Flow<', false)
         ->assertDontSee('Laporan Biaya', false)
