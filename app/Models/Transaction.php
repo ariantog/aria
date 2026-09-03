@@ -225,6 +225,26 @@ class Transaction extends Model
         return $this->hasMany(TransactionDetail::class);
     }
 
+    /**
+     * Reorder loaded line items by item SKU (`items.code`) for display.
+     * No-op when details are empty or the relation is not loaded.
+     */
+    public function sortDetailsBySku(): static
+    {
+        if (! $this->relationLoaded('details') || $this->details->isEmpty()) {
+            return $this;
+        }
+
+        $this->setRelation(
+            'details',
+            $this->details
+                ->sortBy(fn ($detail) => (string) ($detail->item?->code ?? ''), SORT_NATURAL | SORT_FLAG_CASE)
+                ->values()
+        );
+
+        return $this;
+    }
+
     public function user()
     {
         return $this->belongsTo(User::class);

@@ -311,6 +311,7 @@ class TransactionsController extends Controller
             403
         );
         $transaction->load(['details.item.group', 'sender', 'receiver', 'user', 'submitByA', 'submitByB']);
+        $transaction->sortDetailsBySku();
         $typeSlug = $this->resolveTypeSlug($transaction);
         $config = config("transaction_rules.{$typeSlug}");
         $getLabel = function ($role) use ($config) {
