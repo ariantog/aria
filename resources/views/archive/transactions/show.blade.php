@@ -58,7 +58,7 @@ $tb = $typeBadges[$transaction->type] ?? ['Unknown', 'border-gray-200 bg-white t
                                 @if($detail->item)
                                 <a href="{{ route('archive.items.show', $detail->item_id) }}" class="font-medium text-blue-600 hover:underline">{{ $detail->item->name }}</a>
                                 @else
-                                <span class="text-gray-500">Item #{{ $detail->item_id }}</span>
+                                <span class="text-gray-500">Item {{ $detail->item_id }}</span>
                                 @endif
                             </td>
                             <td class="px-3 py-2 font-mono text-xs">{{ $detail->item?->code ?? '—' }}</td>

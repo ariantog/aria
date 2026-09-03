@@ -74,6 +74,119 @@ it('hides convert panel when item is already fully canonical', function () {
         ->assertDontSee('Legacy SKU Conversion', false);
 });
 
+it('hides convert panel for converted manufactured item with canonical group master', function () {
+    $typeTag = Tag::factory()->create([
+        'type' => Tag::TYPE_TYPE,
+        'item_type' => ItemType::ITEM->value,
+        'code' => 'AJJ',
+        'name' => 'Jacket',
+    ]);
+    $jahit = Tag::factory()->create(['type' => Tag::TYPE_JAHIT, 'code' => 'J1', 'name' => 'J1']);
+    $warna = Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => '04', 'name' => '04']);
+
+    $group = \App\Models\ItemGroup::factory()->create([
+        'master' => 'CX00122-04',
+        'variant' => '04',
+        'name' => 'RUNNING SHIRT',
+    ]);
+
+    $item = Item::factory()->create([
+        'type' => ItemType::ITEM,
+        'group_id' => $group->id,
+        'code' => 'AJJ-CX00122-04-S',
+        'legacy_code' => 'AJJCX0012204S',
+        'pcode' => 'CX00122-04',
+        'name' => 'RUNNING SHIRT - 04 - S',
+        'genre' => $typeTag->id,
+    ]);
+    $item->tags()->sync([
+        $typeTag->id,
+        $jahit->id,
+        $warna->id,
+        Tag::where('code', 'S')->first()->id,
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('items.show', $item))
+        ->assertOk()
+        ->assertDontSee('Legacy SKU Conversion', false);
+});
+
+it('hides convert panel for converted manufactured item with legacy parent group master', function () {
+    $typeTag = Tag::factory()->create([
+        'type' => Tag::TYPE_TYPE,
+        'item_type' => ItemType::ITEM->value,
+        'code' => 'AJJ',
+        'name' => 'Jacket',
+    ]);
+    $jahit = Tag::factory()->create(['type' => Tag::TYPE_JAHIT, 'code' => 'J1', 'name' => 'J1']);
+    $warna = Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => '04', 'name' => '04']);
+
+    $group = \App\Models\ItemGroup::factory()->create([
+        'master' => 'CX00122',
+        'variant' => '04',
+        'name' => 'RUNNING SHIRT',
+    ]);
+
+    $item = Item::factory()->create([
+        'type' => ItemType::ITEM,
+        'group_id' => $group->id,
+        'code' => 'AJJ-CX00122-04-S',
+        'legacy_code' => 'AJJCX0012204S',
+        'pcode' => 'CX00122-04',
+        'name' => 'RUNNING SHIRT - 04 - S',
+        'genre' => $typeTag->id,
+    ]);
+    $item->tags()->sync([
+        $typeTag->id,
+        $jahit->id,
+        $warna->id,
+        Tag::where('code', 'S')->first()->id,
+    ]);
+
+    expect(app(LegacyItemConverterService::class)->detailConvertContext($item->fresh())['visible'])->toBeFalse();
+
+    $this->actingAs($this->user)
+        ->get(route('items.show', $item))
+        ->assertOk()
+        ->assertDontSee('Legacy SKU Conversion', false);
+});
+
+it('hides convert panel when manufactured type tag lives on genre after manual tag edit', function () {
+    $typeTag = Tag::factory()->create([
+        'type' => Tag::TYPE_TYPE,
+        'item_type' => ItemType::ITEM->value,
+        'code' => 'AJJ',
+        'name' => 'Jacket',
+    ]);
+    $jahit = Tag::factory()->create(['type' => Tag::TYPE_JAHIT, 'code' => 'J1', 'name' => 'J1']);
+    $warna = Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => '04', 'name' => '04']);
+
+    $group = \App\Models\ItemGroup::factory()->create([
+        'master' => 'CX00122-04',
+        'variant' => '04',
+        'name' => 'RUNNING SHIRT',
+        'genre' => $typeTag->id,
+    ]);
+
+    $item = Item::factory()->create([
+        'type' => ItemType::ITEM,
+        'group_id' => $group->id,
+        'code' => 'AJJ-CX00122-04-S',
+        'legacy_code' => 'AJJCX0012204S',
+        'pcode' => 'CX00122-04',
+        'name' => 'RUNNING SHIRT - 04 - S',
+        'genre' => $typeTag->id,
+    ]);
+    $item->tags()->sync([
+        $jahit->id,
+        $warna->id,
+        Tag::where('code', 'S')->first()->id,
+    ]);
+
+    expect(app(LegacyItemConverterService::class)->detailConvertContext($item->fresh())['visible'])->toBeFalse();
+});
+
 it('shows convert panel when group link exists but asset type tag is missing', function () {
     $group = \App\Models\ItemGroup::factory()->create([
         'master' => 'GLOVE-07',
@@ -219,7 +332,12 @@ it('converts a single asset lancar item from the detail page', function () {
     ]);
 
     $item = makeLegacyAssetItem('GLOVE-07-BLACK-S', 'MICROFIBER STRAP GYM GLOVE - BLACK - S');
-    $item->update(['genre' => $gloveType->id, 'pcode' => 'GLOVE-07']);
+    $item->update([
+        'genre' => $gloveType->id,
+        'pcode' => 'GLOVE-07',
+        'description' => 'foam black',
+        'description2' => 'note',
+    ]);
     $item->tags()->sync([$gloveType->id]);
 
     $this->actingAs($this->user)
@@ -234,9 +352,104 @@ it('converts a single asset lancar item from the detail page', function () {
         ->and($item->group?->variant)->toBe('BLACK')
         ->and($item->code)->toBe('GLOVE-07-BLACK-S')
         ->and($item->genre)->toBe($gloveType->id)
+        ->and($item->group?->genre)->toBe($gloveType->id)
+        ->and($item->group?->description)->toBe('FOAM BLACK')
+        ->and($item->group?->description2)->toBe('NOTE')
+        ->and($item->description)->toBe('FOAM BLACK')
+        ->and($item->catalogGenre())->toBe($gloveType->id)
         ->and($item->tags->contains(fn (Tag $tag) => $tag->id === $gloveType->id))->toBeTrue()
         ->and($item->tags->contains(fn (Tag $tag) => $tag->type === Tag::TYPE_WARNA))->toBeTrue()
         ->and($item->tags->contains(fn (Tag $tag) => $tag->type === Tag::TYPE_SIZE))->toBeTrue();
+});
+
+it('converts a manufactured item from the items detail page onto the group catalog', function () {
+    $typeTag = Tag::factory()->create([
+        'type' => Tag::TYPE_TYPE,
+        'item_type' => ItemType::ITEM->value,
+        'code' => 'AJJ',
+        'name' => 'Jacket',
+    ]);
+    $jahit = Tag::factory()->create(['type' => Tag::TYPE_JAHIT, 'code' => 'J1', 'name' => 'J1']);
+
+    $item = Item::factory()->create([
+        'type' => ItemType::ITEM,
+        'group_id' => null,
+        'code' => 'AJJCX0012204S',
+        'legacy_code' => null,
+        'pcode' => 'CX00122-04',
+        'name' => 'RUNNING SHIRT',
+        'description' => 'MIKRO MOTIF HIJAU',
+        'description2' => 'nb',
+        'brand' => \App\Enums\ItemBrand::NO_BRAND,
+        'genre' => 0,
+    ]);
+    $item->tags()->sync([$typeTag->id, $jahit->id, Tag::where('code', 'S')->first()->id]);
+
+    $this->actingAs($this->user)
+        ->get(route('items.show', $item))
+        ->assertOk()
+        ->assertSee('Legacy SKU Conversion', false)
+        ->assertSee('Convert to new SKU', false);
+
+    $this->actingAs($this->user)
+        ->post(route('items.convert-identity', $item))
+        ->assertRedirect(route('items.show', $item))
+        ->assertSessionHas('success');
+
+    $item->refresh()->load('group');
+
+    expect($item->code)->toBe('AJJ-CX00122-04-S')
+        ->and($item->legacy_code)->toBe('AJJCX0012204S')
+        ->and($item->group?->description)->toBe('MIKRO MOTIF HIJAU')
+        ->and($item->group?->description2)->toBe('NB')
+        ->and($item->group?->brand)->toBe(\App\Enums\ItemBrand::CX0)
+        ->and($item->group?->genre)->toBe($typeTag->id)
+        ->and($item->description)->toBe('MIKRO MOTIF HIJAU')
+        ->and($item->catalogDescription())->toBe('MIKRO MOTIF HIJAU');
+});
+
+it('seeds a new group from the leftover group catalog when relinking from items detail', function () {
+    $typeTag = Tag::factory()->create([
+        'type' => Tag::TYPE_TYPE,
+        'item_type' => ItemType::ITEM->value,
+        'code' => 'AJJ',
+        'name' => 'Jacket',
+    ]);
+    $jahit = Tag::factory()->create(['type' => Tag::TYPE_JAHIT, 'code' => 'J1', 'name' => 'J1']);
+    $warna = Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'GREEN', 'name' => 'GREEN']);
+    $oldGroup = \App\Models\ItemGroup::factory()->create([
+        'master' => null,
+        'variant' => 'OLD',
+        'name' => 'OLD LEFTOVER GROUP',
+        'description' => 'MIKRO MOTIF CAMO HIJAU',
+        'description2' => 'KEEP',
+    ]);
+
+    $item = Item::factory()->create([
+        'type' => ItemType::ITEM,
+        'group_id' => $oldGroup->id,
+        'code' => 'AJJ-CX00122-04-S',
+        'legacy_code' => null,
+        'pcode' => 'CX00122-04',
+        'name' => 'RUNNING SHIRT',
+        'description' => 'MIKRO MOTIF HIJAU',
+        'description2' => 'STALE',
+    ]);
+    $item->tags()->sync([$typeTag->id, $jahit->id, $warna->id, Tag::where('code', 'S')->first()->id]);
+
+    $this->actingAs($this->user)
+        ->post(route('items.convert-identity', $item))
+        ->assertRedirect(route('items.show', $item))
+        ->assertSessionHas('success');
+
+    $item->refresh()->load('group');
+
+    expect((int) $item->group_id)->not->toBe($oldGroup->id)
+        ->and($item->group?->master)->toBe('CX00122-04')
+        ->and($item->group?->description)->toBe('MIKRO MOTIF CAMO HIJAU')
+        ->and($item->group?->description2)->toBe('KEEP')
+        ->and($item->description)->toBe('MIKRO MOTIF CAMO HIJAU')
+        ->and($item->description2)->toBe('KEEP');
 });
 
 it('links converted asset lancar items to parent group and restock type', function () {

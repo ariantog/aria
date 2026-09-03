@@ -55,7 +55,6 @@ $formItem = [
             <div class="space-y-6 lg:col-span-2">
                 @include('items.partials.form-basic', ['formItem' => $formItem])
                 @include('items.partials.form-details', ['formItem' => $formItem])
-                @include('items.partials.form-preview')
             </div>
             <div class="space-y-6">
                 @include('items.partials.form-attributes', [
@@ -68,6 +67,8 @@ $formItem = [
                 @include('items.partials.form-image', ['imageUrl' => $item->image_url])
             </div>
         </div>
+
+        @include('items.partials.form-preview')
 
         <div class="flex justify-end gap-4 border-t border-gray-200 pt-8">
             <button type="button" onclick="window.history.back()" class="rounded-lg px-4 py-2 text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900">Cancel</button>

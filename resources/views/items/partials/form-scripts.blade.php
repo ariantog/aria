@@ -17,6 +17,7 @@ function itemForm() {
         itemType: @js((int) ($itemType ?? ($isAsset ? 2 : 1))),
         pcodeNameUrl: @js(route('items.pcode-name')),
         autoFilledName: '',
+        autoFilledPcode: '',
         pcodeLookupTimer: null,
         form: {
             pcode: @js($formItem['pcode'] ?? ''),
@@ -30,13 +31,14 @@ function itemForm() {
 
         init() {
             this.autoFilledName = (this.form.product_name || '').toUpperCase().trim();
+            this.autoFilledPcode = (this.form.pcode || '').toUpperCase().trim();
             this.$nextTick(() => this.syncFromDom());
         },
 
         syncFromDom() {
             const root = this.$root;
 
-            const typeSel = root.querySelector('select[name="tags[types]"]');
+            const typeSel = root.querySelector('select[name="tags[types]"], select[name="tags[types][]"]');
             if (typeSel?.selectedOptions[0]?.value) {
                 this.typeCode = typeSel.selectedOptions[0].dataset.code || '???';
             }
@@ -152,6 +154,42 @@ function itemForm() {
             this.lookupProductName();
         },
 
+        applyTypePrefixToPcode(pcode, typeCode) {
+            const tc = (typeCode || '').toUpperCase().trim();
+            if (!tc || tc === '???') {
+                return (pcode || '').toUpperCase().trim();
+            }
+
+            const trimmed = (pcode || '').toUpperCase().trim();
+            if (!trimmed) {
+                return trimmed;
+            }
+
+            const parts = trimmed.split('-');
+            if (parts.length < 2) {
+                return tc;
+            }
+
+            parts[0] = tc;
+
+            return parts.join('-');
+        },
+
+        rewritePcodeFromType(typeCode) {
+            if (!this.isAsset || !this.multiSize) {
+                return;
+            }
+
+            const current = (this.form.pcode || '').toUpperCase().trim();
+            if (current !== '' && current !== this.autoFilledPcode) {
+                return;
+            }
+
+            const rewritten = this.applyTypePrefixToPcode(current, typeCode);
+            this.form.pcode = rewritten;
+            this.autoFilledPcode = rewritten;
+        },
+
         schedulePcodeLookup() {
             if (this.pcodeLookupTimer) {
                 clearTimeout(this.pcodeLookupTimer);
@@ -194,9 +232,12 @@ function itemForm() {
             return `${base}-${sizeCode}`.toUpperCase();
         },
 
-        onType(e) {
+        onTypeChange(e) {
             const opt = e.target.selectedOptions[0];
             this.typeCode = opt?.value ? (opt.dataset.code || '???') : '???';
+            if (this.isAsset) {
+                this.rewritePcodeFromType(this.typeCode);
+            }
         },
 
         onWarna(e) {

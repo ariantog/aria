@@ -644,6 +644,9 @@ class LegacyItemConverterService
 
         $effectiveTypeTag = $typeTag ?? $assetTypeTag;
 
+        $item->loadMissing('group');
+        $previousGroup = $item->group;
+
         $group = $this->resolveGroup($itemType, (string) $parse->pcode, (string) $parse->groupName, $warnaTag);
         $canonicalCode = (string) $parse->canonicalCode;
 
@@ -658,16 +661,8 @@ class LegacyItemConverterService
         $item->code = $canonicalCode;
         $item->name = $this->identityBuilder->buildName((string) $parse->groupName, $warnaTag, $sizeTag);
         $item->size = $sizeTag?->id ?? 0;
-        ItemCatalog::mirrorToItem($item, [
-            'brand' => ItemBrand::fromPcode((string) $parse->pcode),
-            'genre' => $effectiveTypeTag?->id ?? 0,
-        ]);
+        $this->persistConvertedCatalog($item, $group, $previousGroup, (string) $parse->pcode, $effectiveTypeTag);
         $item->save();
-
-        ItemCatalog::applyToGroup($group, [
-            'brand' => ItemBrand::fromPcode((string) $parse->pcode),
-            'genre' => $effectiveTypeTag?->id ?? 0,
-        ]);
 
         $tagIds = $this->collectTagIds($item, $effectiveTypeTag, $warnaTag, $sizeTag);
         $item->tag_ids = implode(',', $tagIds);
@@ -675,19 +670,64 @@ class LegacyItemConverterService
         $item->tags()->sync($tagIds);
     }
 
+    /**
+     * Write shared catalog fields to the group (source of truth) and mirror leftovers.
+     * Existing group description is kept; leftover item text only seeds an empty group.
+     */
+    protected function persistConvertedCatalog(
+        Item $item,
+        ItemGroup $group,
+        ?ItemGroup $previousGroup,
+        string $pcode,
+        ?Tag $typeTag,
+    ): void {
+        $attributes = [];
+        $brand = ItemBrand::fromPcode($pcode);
+
+        if ($brand !== ItemBrand::NO_BRAND) {
+            $attributes['brand'] = $brand;
+        }
+
+        $genre = (int) ($typeTag?->id ?? 0);
+
+        if ($genre > 0) {
+            $attributes['genre'] = $genre;
+        }
+
+        if ($attributes !== []) {
+            ItemCatalog::applyToGroup($group, $attributes);
+        }
+
+        $sourceGroup = $previousGroup && (int) $previousGroup->id !== (int) $group->id
+            ? $previousGroup
+            : null;
+
+        ItemCatalog::seedEmptyDescriptions($group, $item, $sourceGroup);
+
+        ItemCatalog::mirrorToItem($item, [
+            'description' => $group->description ?? '',
+            'description2' => $group->description2 ?? '',
+            'brand' => $group->brand,
+            'genre' => (int) ($group->genre ?? 0),
+        ]);
+
+        $item->setRelation('group', $group);
+    }
+
     protected function resolveGroup(ItemType $type, string $pcode, string $groupName, Tag $warnaTag): ItemGroup
     {
-        $parsed = $this->identityBuilder->parsePcode($type, $pcode);
+        $groupMaster = $this->identityBuilder->groupMaster($type, $pcode);
         $variant = $this->identityBuilder->groupVariant($type, $pcode, $warnaTag);
         $storedName = $this->identityBuilder->uniqueStoredGroupName(
             $this->identityBuilder->storedGroupName($type, $groupName, $pcode, $variant),
-            $parsed['master'],
+            $groupMaster,
             $variant,
         );
 
-        $group = ItemGroup::query()->firstOrCreate(
+        $group = $this->identityBuilder->findCanonicalGroup($groupMaster, $variant)
+            ?? ItemGroup::query()->firstOrCreate(
             [
-                'master' => $parsed['master'],
+                'master' => $groupMaster,
                 'variant' => $variant,
             ],
             [
@@ -699,8 +739,8 @@ class LegacyItemConverterService
             $group->name = $storedName;
         }
 
-        if (strtoupper(trim((string) ($group->master ?? ''))) !== strtoupper($parsed['master'])) {
-            $group->master = $parsed['master'];
+        if (strtoupper(trim((string) ($group->master ?? ''))) !== strtoupper($groupMaster)) {
+            $group->master = $groupMaster;
         }
 
         if (strtoupper(trim((string) ($group->variant ?? ''))) !== strtoupper($variant)) {
@@ -794,7 +834,7 @@ class LegacyItemConverterService
             return false;
         }
 
-        if (strtoupper(trim((string) $item->code)) !== strtoupper(trim((string) $parse->canonicalCode))) {
+        if (! $this->storedSkuMatchesParseCanonical($item, $parse)) {
             return false;
         }
 
@@ -809,7 +849,7 @@ class LegacyItemConverterService
         $itemType = $this->makeParser()->resolveItemType($item);
 
         if ($itemType === ItemType::ITEM) {
-            return $item->tags->contains(fn (Tag $tag) => $tag->type === Tag::TYPE_TYPE)
+            return $this->resolveManufacturedTypeTag($item, $parse) !== null
                 && $item->tags->contains(fn (Tag $tag) => $tag->type === Tag::TYPE_JAHIT)
                 && $this->itemLinkedToExpectedGroup($item, $parse, $itemType);
         }
@@ -822,6 +862,22 @@ class LegacyItemConverterService
         return true;
     }
 
+    protected function storedSkuMatchesParseCanonical(Item $item, LegacyParseResult $parse): bool
+    {
+        $stored = strtoupper(trim((string) $item->code));
+        $canonical = strtoupper(trim((string) $parse->canonicalCode));
+
+        if ($stored === '' || $canonical === '') {
+            return false;
+        }
+
+        if ($stored === $canonical || $parse->codeUnchanged) {
+            return true;
+        }
+
+        return str_replace('/', '-', $stored) === str_replace('/', '-', $canonical);
+    }
+
     protected function itemLinkedToExpectedGroup(Item $item, LegacyParseResult $parse, ItemType $itemType): bool
     {
         $group = $item->group;
@@ -830,17 +886,50 @@ class LegacyItemConverterService
             return false;
         }
 
-        $groupMaster = strtoupper(trim((string) ($group->master ?? '')));
-        if ($groupMaster === '') {
-            return false;
+        return $this->identityBuilder->groupMatchesExpectedColorway(
+            $group,
+            $itemType,
+            (string) $parse->pcode,
+            Tag::findWarnaTag((string) $parse->warnaCode),
+        );
+    }
+
+    protected function resolveManufacturedTypeTag(Item $item, ?LegacyParseResult $parse = null): ?Tag
+    {
+        $fromTags = $item->tags->first(
+            fn (Tag $tag) => (int) $tag->type === Tag::TYPE_TYPE
+                && (int) $tag->item_type === ItemType::ITEM->value,
+        );
+
+        if ($fromTags) {
+            return $fromTags;
         }
 
-        $parsed = $this->identityBuilder->parsePcode($itemType, (string) $parse->pcode);
-        $warnaTag = Tag::findWarnaTag((string) $parse->warnaCode);
-        $expectedVariant = $this->identityBuilder->groupVariant($itemType, (string) $parse->pcode, $warnaTag);
+        $item->loadMissing('group');
+        $genreId = $item->catalogGenre();
 
-        return strtoupper(trim((string) $group->master)) === strtoupper(trim((string) $parsed['master']))
-            && strtoupper(trim((string) $group->variant)) === strtoupper(trim($expectedVariant));
+        if ($genreId > 0) {
+            $fromGenre = Tag::query()->find($genreId);
+
+            if ($fromGenre
+                && (int) $fromGenre->type === Tag::TYPE_TYPE
+                && (int) $fromGenre->item_type === ItemType::ITEM->value) {
+                return $fromGenre;
+            }
+        }
+
+        $typeCode = $parse?->typeCode;
+
+        if ($typeCode === null || trim((string) $typeCode) === '') {
+            $parts = explode('-', strtoupper(trim((string) ($item->code ?? ''))));
+            $typeCode = $parts[0] ?? '';
+        }
+
+        if ($typeCode === '') {
+            return null;
+        }
+
+        return Tag::findManufacturedTypeTag((string) $typeCode);
     }
 
     protected function recordResult(
@@ -962,12 +1051,12 @@ class LegacyItemConverterService
         }
 
         if (! $this->itemLinkedToExpectedGroup($item, $parse, $itemType)) {
-            $parsed = $this->identityBuilder->parsePcode($itemType, (string) $parse->pcode);
             $warnaTag = Tag::findWarnaTag((string) $parse->warnaCode);
+            $expectedMaster = $this->identityBuilder->groupMaster($itemType, (string) $parse->pcode);
             $expectedVariant = $this->identityBuilder->groupVariant($itemType, (string) $parse->pcode, $warnaTag);
 
             return 'Item is linked to the wrong product group (expected '
-                .$parsed['master'].' / '.$expectedVariant.'). Converting will relink it.';
+                .$expectedMaster.' / '.$expectedVariant.'). Converting will relink it.';
         }
 
         if ($itemType === ItemType::ASSET_LANCAR && $this->resolveAssetLancarTypeTag($item) === null) {

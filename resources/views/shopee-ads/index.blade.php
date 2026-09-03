@@ -210,7 +210,7 @@ $saInnerCardWhite = 'space-y-3 rounded-lg border border-gray-200 bg-white p-4';
                             <div class="font-mono text-xs text-gray-500">{{ $row['item_code'] }}</div>
                             @endif
                             @if(! empty($row['aria_item_id']))
-                            <div class="text-xs text-gray-400">Aria #{{ $row['aria_item_id'] }}</div>
+                            <div class="text-xs text-gray-400">Aria {{ $row['aria_item_id'] }}</div>
                             @endif
                             @else
                             <span class="{{ $saTextMuted }}">Belum terhubung ke item lokal</span>

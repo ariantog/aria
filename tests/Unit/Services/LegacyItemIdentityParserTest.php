@@ -271,6 +271,29 @@ describe('manufactured warna from catalog description', function () {
         expect($result->success)->toBeTrue()
             ->and($result->warnaCode)->toBe('GREEN');
     });
+
+    it('falls back to leftover items.description when the group catalog is empty', function () {
+        $group = \App\Models\ItemGroup::factory()->create([
+            'description' => '',
+            'description2' => '',
+        ]);
+        $item = Item::factory()->create([
+            'type' => ItemType::ITEM,
+            'group_id' => $group->id,
+            'code' => 'AJJPL2512904S',
+            'pcode' => 'PL25129/04',
+            'description' => 'KAOS PUTIH',
+        ]);
+        $item->tags()->sync([
+            $this->typeTags->first()->id,
+            Tag::factory()->create(['type' => Tag::TYPE_JAHIT, 'code' => 'J1', 'name' => 'J1'])->id,
+        ]);
+
+        $result = $this->parser->parse($item->fresh(['tags', 'group']));
+
+        expect($result->success)->toBeTrue()
+            ->and($result->warnaCode)->toBe('WHITE');
+    });
 });
 
 describe('Bahasa color scan', function () {

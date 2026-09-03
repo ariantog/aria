@@ -79,6 +79,7 @@ return new class extends Migration
         (require __DIR__.'/2026_09_01_210000_install_jubelio_stock_check_columns.php')->up();
         (require __DIR__.'/2026_09_02_120000_make_produksi_worker_ids_nullable.php')->up();
         (require __DIR__.'/2026_09_02_210000_add_last_error_to_crongetorders_and_resume_stuck_imports.php')->up();
+        (require __DIR__.'/2026_09_03_150000_widen_item_group_name_drop_unique.php')->up();
     }
 
     public function down(): void

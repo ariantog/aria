@@ -30,9 +30,11 @@ class ItemGroupHierarchyService
      */
     public function paginateParents(array $filters, int $perPage = 20): LengthAwarePaginator
     {
+        $canonicalMasterSql = $this->canonicalParentMasterSql();
+
         $query = ItemGroup::query()
             ->select([
-                'item_group.master',
+                DB::raw($canonicalMasterSql.' as master'),
                 DB::raw('MIN(item_group.name) as product_name'),
                 DB::raw('MIN(item_group.description) as description'),
                 DB::raw('MIN(item_group.id) as sample_group_id'),
@@ -60,8 +62,8 @@ class ItemGroupHierarchyService
                 'like',
                 '%'.$filters['desc'].'%'
             ))
-            ->groupBy('item_group.master')
-            ->orderBy('item_group.master');
+            ->groupBy(DB::raw($canonicalMasterSql))
+            ->orderBy('master');
 
         /** @var LengthAwarePaginator $paginator */
         $paginator = $query->paginate($perPage)->withQueryString();
@@ -261,8 +263,13 @@ class ItemGroupHierarchyService
             $query->whereRaw('UPPER(item_group.master) = ?', [$master]);
         } else {
             $typeCode = strtoupper($parts[1] ?? '');
-            $master = strtoupper($parts[2] ?? '');
-            $query->whereRaw('UPPER(item_group.master) = ?', [$master])
+            $master = $this->identityBuilder->canonicalManufacturedMaster((string) ($parts[2] ?? ''))
+                ?? strtoupper((string) ($parts[2] ?? ''));
+            $query->where(function (Builder $masterQuery) use ($master) {
+                $masterQuery->whereRaw('UPPER(TRIM(item_group.master)) = ?', [$master])
+                    ->orWhereRaw("UPPER(REPLACE(TRIM(item_group.master), '/', '-')) = ?", [$master])
+                    ->orWhereRaw("UPPER(REPLACE(TRIM(item_group.master), '/', '-')) LIKE ?", [$master.'-%']);
+            })
                 ->whereHas('items', function (Builder $q) use ($typeCode) {
                     $q->where(function (Builder $inner) use ($typeCode) {
                         $inner->whereHas('tags', fn (Builder $t) => $t
@@ -526,5 +533,35 @@ class ItemGroupHierarchyService
         }
 
         return '1_'.$upper;
+    }
+
+    private function canonicalParentMasterSql(): string
+    {
+        if (DB::connection()->getDriverName() === 'mysql') {
+            return <<<'SQL'
+CASE
+  WHEN UPPER(TRIM(item_group.master)) REGEXP '^[A-Z]{2,3}[0-9]{5}(/|-)[0-9]{2,3}$'
+    THEN SUBSTRING_INDEX(REPLACE(UPPER(TRIM(item_group.master)), '/', '-'), '-', 1)
+  WHEN UPPER(TRIM(item_group.master)) REGEXP '^[A-Z]{2,3}[0-9]{5}$'
+    THEN UPPER(TRIM(item_group.master))
+  WHEN INSTR(item_group.master, '/') > 0
+    THEN SUBSTR(item_group.master, 1, INSTR(item_group.master, '/') - 1)
+  ELSE UPPER(TRIM(item_group.master))
+END
+SQL;
+        }
+
+        return <<<'SQL'
+CASE
+  WHEN instr(item_group.master, '-') > 0
+    AND length(substr(item_group.master, 1, instr(item_group.master, '-') - 1)) BETWEEN 7 AND 8
+    AND substr(item_group.master, instr(item_group.master, '-') + 1) GLOB '[0-9]*'
+    AND substr(item_group.master, 1, 3) GLOB '[A-Z]*'
+    THEN substr(item_group.master, 1, instr(item_group.master, '-') - 1)
+  WHEN instr(item_group.master, '/') > 0
+    THEN substr(item_group.master, 1, instr(item_group.master, '/') - 1)
+  ELSE item_group.master
+END
+SQL;
     }
 }

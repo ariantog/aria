@@ -100,6 +100,29 @@ it('builds export payload with warehouse columns per sku', function () {
     expect($payload['warehouse_names'])->toBeArray();
 });
 
+it('parent detail finds leftover slash-master groups under the canonical CX00122 page', function () {
+    $group = ItemGroup::factory()->create([
+        'master' => 'CX00122/03',
+        'variant' => '',
+        'name' => 'CX00122/03',
+    ]);
+    $item = Item::factory()->create([
+        'group_id' => $group->id,
+        'type' => ItemType::ITEM,
+        'pcode' => 'CX00122/03',
+        'code' => 'AJD-CX00122-03-S',
+    ]);
+    $item->tags()->attach([$this->typeTag->id, $this->pinkTag->id, $this->sizeS->id]);
+
+    $detail = $this->hierarchy->parentDetail('1:AJD:CX00122', fetchJubelio: false);
+    $slashDetail = $this->hierarchy->parentDetail('1:AJD:CX00122/03', fetchJubelio: false);
+
+    expect($detail)->not->toBeNull()
+        ->and($slashDetail)->not->toBeNull()
+        ->and(collect($detail['colors'])->pluck('group_id'))->toContain($group->id)
+        ->and($this->builder->itemParentKey($item->fresh(['tags', 'group'])))->toBe('1:AJD:CX00122');
+});
+
 it('renders group list and parent detail pages', function () {
     $group = ItemGroup::factory()->create(['master' => 'GLOVE-01', 'variant' => 'BLACK', 'name' => 'BOXING GLOVE']);
 

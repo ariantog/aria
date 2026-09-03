@@ -194,9 +194,9 @@
                             @endif
                             <div class="flex flex-wrap gap-2 pt-1">
                                 @if($itemUrl)
-                                    <a href="{{ $itemUrl }}" class="font-mono text-[10px] font-medium text-blue-600 hover:underline" x-show="showBarcode">#{{ $item->id }}</a>
+                                    <a href="{{ $itemUrl }}" class="font-mono text-[10px] font-medium text-blue-600 hover:underline" x-show="showBarcode">{{ $item->id }}</a>
                                 @else
-                                    <span class="font-mono text-[10px] font-medium text-blue-600" x-show="showBarcode">#{{ $item?->id }}</span>
+                                    <span class="font-mono text-[10px] font-medium text-blue-600" x-show="showBarcode">{{ $item?->id }}</span>
                                 @endif
                                 @if($item?->code)
                                     @if($itemUrl)

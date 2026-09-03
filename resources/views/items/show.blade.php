@@ -197,6 +197,7 @@ $legacyCode = $item->distinctLegacyCode();
                     'warehouseItems' => $warehouseItems,
                     'showZero' => 'showZero',
                     'variant' => 'physical',
+                    'testId' => 'item-availability',
                 ])
 
                 @if($virtualWarehouseItems->isNotEmpty())
@@ -212,6 +213,7 @@ $legacyCode = $item->distinctLegacyCode();
                             'warehouseItems' => $virtualWarehouseItems,
                             'showZero' => 'showZero',
                             'variant' => 'virtual',
+                            'testId' => 'item-availability-virtual',
                         ])
                     </div>
                 </div>
@@ -229,7 +231,8 @@ $legacyCode = $item->distinctLegacyCode();
                         @include('items.partials.warehouse-stock-grid', [
                             'warehouseItems' => $deletedWarehouseItems,
                             'showZero' => 'showZero',
-                            'deleted' => true,
+                            'variant' => 'deleted',
+                            'testId' => 'item-availability-deleted',
                         ])
                     </div>
                 </div>

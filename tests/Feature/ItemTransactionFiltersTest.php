@@ -54,8 +54,7 @@ it('renders item transaction filters on items and assetlancar pages', function (
         ->assertSee('data-testid="item-tx-from"', false)
         ->assertSee('data-testid="item-tx-to"', false)
         ->assertSee('data-testid="item-tx-invoice"', false)
-        ->assertSee('data-testid="item-tx-sender-combobox"', false)
-        ->assertSee('data-testid="item-tx-receiver-combobox"', false)
+        ->assertSee('data-testid="item-tx-party-combobox"', false)
         ->assertSee($storageKey, false)
         ->assertSee('localStorage.getItem(this.filtersStorageKey)', false)
         ->assertSee("localStorage.setItem(this.filtersStorageKey, value ? '1' : '0')", false);
@@ -95,7 +94,7 @@ it('filters item transactions by invoice substring', function () {
         ->assertSee('value="999"', false);
 });
 
-it('filters item transactions by sender', function () {
+it('filters item transactions by party as sender', function () {
     $item = Item::factory()->create();
     $senderA = Addrbook::factory()->warehouse()->create(['name' => 'Sender Filter A']);
     $senderB = Addrbook::factory()->warehouse()->create(['name' => 'Sender Filter B']);
@@ -117,14 +116,14 @@ it('filters item transactions by sender', function () {
     ]);
 
     $this->actingAs($this->user)
-        ->get(route('items.transactions', ['item' => $item, 'sender' => $senderA->id]))
+        ->get(route('items.transactions', ['item' => $item, 'party' => $senderA->id]))
         ->assertOk()
         ->assertSee('SENDER-VISIBLE', false)
         ->assertDontSee('SENDER-HIDDEN', false)
         ->assertSee('Sender Filter A', false);
 });
 
-it('filters item transactions by receiver', function () {
+it('filters item transactions by party as receiver', function () {
     $item = Item::factory()->create();
     $sender = Addrbook::factory()->warehouse()->create();
     $receiverA = Addrbook::factory()->customer()->create(['name' => 'Receiver Filter A']);
@@ -146,7 +145,7 @@ it('filters item transactions by receiver', function () {
     ]);
 
     $this->actingAs($this->user)
-        ->get(route('items.transactions', ['item' => $item, 'receiver' => $receiverA->id]))
+        ->get(route('items.transactions', ['item' => $item, 'party' => $receiverA->id]))
         ->assertOk()
         ->assertSee('RECEIVER-VISIBLE', false)
         ->assertDontSee('RECEIVER-HIDDEN', false)
@@ -183,13 +182,47 @@ it('sorts item transactions by date desc then transaction id desc', function () 
     ]);
 
     $this->actingAs($this->user)
-        ->get(route('assetlancar.transactions', ['item' => $item, 'sender' => $party->id]))
+        ->get(route('assetlancar.transactions', ['item' => $item, 'party' => $party->id]))
         ->assertOk()
         ->assertSeeInOrder([
             'SORT-SAME-DATE-NEW',
             'SORT-SAME-DATE-OLD',
             'SORT-BACKDATED',
         ], false);
+});
+
+it('filters item transactions by party matching sender or receiver', function () {
+    $item = Item::factory()->create();
+    $party = Addrbook::factory()->warehouse()->create(['name' => 'Shared Party']);
+    $other = Addrbook::factory()->customer()->create(['name' => 'Other Party']);
+
+    seedItemTransactionLine($item, [
+        'invoice' => 'PARTY-AS-SENDER',
+        'sender_id' => $party->id,
+        'sender_type' => (string) $party->type,
+        'receiver_id' => $other->id,
+        'receiver_type' => (string) $other->type,
+    ]);
+    seedItemTransactionLine($item, [
+        'invoice' => 'PARTY-AS-RECEIVER',
+        'sender_id' => $other->id,
+        'sender_type' => (string) $other->type,
+        'receiver_id' => $party->id,
+        'receiver_type' => (string) $party->type,
+    ]);
+    seedItemTransactionLine($item, [
+        'invoice' => 'PARTY-NO-MATCH',
+        'sender_id' => $other->id,
+        'sender_type' => (string) $other->type,
+        'receiver_id' => Addrbook::factory()->customer()->create()->id,
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('items.transactions', ['item' => $item, 'party' => $party->id]))
+        ->assertOk()
+        ->assertSee('PARTY-AS-SENDER', false)
+        ->assertSee('PARTY-AS-RECEIVER', false)
+        ->assertDontSee('PARTY-NO-MATCH', false);
 });
 
 it('applies the same filters on assetlancar transactions', function () {
@@ -219,8 +252,7 @@ it('applies the same filters on assetlancar transactions', function () {
             'from' => '2024-03-01',
             'to' => '2024-03-31',
             'invoice' => 'MATCH',
-            'sender' => $sender->id,
-            'receiver' => $receiver->id,
+            'party' => $sender->id,
         ]))
         ->assertOk()
         ->assertSee('ASSET-MATCH', false)

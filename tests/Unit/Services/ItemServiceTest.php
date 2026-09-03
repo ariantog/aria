@@ -59,7 +59,7 @@ test('it creates manufactured item without product name using pcode placeholder'
 
     $this->assertDatabaseHas('item_group', [
         'name' => 'CX93249-03',
-        'master' => 'CX93249',
+        'master' => 'CX93249-03',
         'variant' => '03',
     ]);
 
@@ -88,7 +88,7 @@ test('it renames group product name and syncs all item display names', function 
 
     $this->itemService->create($input, $tags);
 
-    $group = ItemGroup::where('master', 'CX90233')->where('variant', '23')->firstOrFail();
+    $group = ItemGroup::where('master', 'CX90233-23')->where('variant', '23')->firstOrFail();
 
     $this->itemService->renameGroupProductName($group, 'Slash Running Shirt');
 
@@ -153,7 +153,7 @@ test('it creates manufactured item with unified code and display name', function
 
     $this->assertDatabaseHas('item_group', [
         'name' => 'SLASH RUNNING SHIRT',
-        'master' => 'CX90233',
+        'master' => 'CX90233-23',
         'variant' => '23',
     ]);
 
@@ -184,12 +184,18 @@ test('it saves image when provided', function () {
 
     $this->itemService->create($input, $tags, $file);
 
-    expect(ItemGroup::where('master', 'CX90233')->where('variant', '24')->exists())->toBeTrue();
+    expect(ItemGroup::where('master', 'CX90233-24')->where('variant', '24')->exists())->toBeTrue();
 });
 
 test('it creates asset lancar variants with cartesian color and size', function () {
     $pinkTag = Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'PINK', 'name' => 'PINK']);
     $mediumTag = Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'M', 'name' => 'Medium']);
+    $assetType = Tag::factory()->create([
+        'type' => Tag::TYPE_TYPE,
+        'item_type' => ItemType::ASSET_LANCAR->value,
+        'code' => 'GLOVE',
+        'name' => 'Glove',
+    ]);
 
     $input = (object) [
         'pcode' => 'GLOVE-01',
@@ -200,7 +206,7 @@ test('it creates asset lancar variants with cartesian color and size', function 
     ];
 
     $tags = [
-        'types' => [$this->typeTag->id],
+        'types' => [$assetType->id],
         'sizes' => [$this->sizeTag->id, $mediumTag->id],
         'warna' => [$this->warnaTag->id, $pinkTag->id],
         'jahit' => [],
@@ -219,6 +225,84 @@ test('it creates asset lancar variants with cartesian color and size', function 
     ]);
 
     expect(Item::where('code', 'like', 'GLOVE-01-%')->count())->toBe(4);
+});
+
+test('it rewrites asset lancar pcode prefix from the selected type tag on create', function () {
+    $assetType = Tag::factory()->create([
+        'type' => Tag::TYPE_TYPE,
+        'item_type' => ItemType::ASSET_LANCAR->value,
+        'code' => 'GLOVE',
+        'name' => 'Glove',
+    ]);
+
+    $input = (object) [
+        'pcode' => 'gloves-03',
+        'type' => ItemType::ASSET_LANCAR->value,
+        'product_name' => 'Boxing Gloves',
+        'price' => 500000,
+        'cost' => 300000,
+    ];
+
+    $this->itemService->create($input, [
+        'types' => [$assetType->id],
+        'sizes' => [$this->sizeTag->id],
+        'warna' => [$this->warnaTag->id],
+        'jahit' => [],
+    ]);
+
+    $this->assertDatabaseHas('items', [
+        'code' => 'GLOVE-03-BLUE-S',
+        'pcode' => 'GLOVE-03',
+    ]);
+});
+
+test('it keeps three-segment asset pcodes when rewriting the type prefix on create', function () {
+    $assetType = Tag::factory()->create([
+        'type' => Tag::TYPE_TYPE,
+        'item_type' => ItemType::ASSET_LANCAR->value,
+        'code' => 'BAG',
+        'name' => 'Bag',
+    ]);
+
+    $input = (object) [
+        'pcode' => 'bag-16-03',
+        'type' => ItemType::ASSET_LANCAR->value,
+        'product_name' => 'Duffel Bag',
+        'price' => 250000,
+        'cost' => 150000,
+    ];
+
+    $this->itemService->create($input, [
+        'types' => [$assetType->id],
+        'sizes' => [$this->sizeTag->id],
+        'warna' => [$this->warnaTag->id],
+        'jahit' => [],
+    ]);
+
+    $this->assertDatabaseHas('items', [
+        'code' => 'BAG-16-03-BLUE-S',
+        'pcode' => 'BAG-16-03',
+    ]);
+});
+
+test('it does not rewrite manufactured item pcode from the type tag on create', function () {
+    $input = (object) [
+        'pcode' => 'CX90233-23',
+        'type' => ItemType::ITEM->value,
+        'price' => 150000,
+    ];
+
+    $this->itemService->create($input, [
+        'types' => [$this->typeTag->id],
+        'sizes' => [$this->sizeTag->id],
+        'warna' => [$this->warnaTag->id],
+        'jahit' => [$this->jahitTag->id],
+    ]);
+
+    $this->assertDatabaseHas('items', [
+        'code' => 'AJD-CX90233-23-S',
+        'pcode' => 'CX90233-23',
+    ]);
 });
 
 test('it rejects duplicate sku on create', function () {
@@ -403,7 +487,7 @@ test('it auto creates parent group when updating legacy asset lancar without gro
         'id' => $item->group_id,
         'master' => 'GLOVE-01',
         'variant' => 'BLUE',
-        'name' => 'BOXING GLOVES - BLUE',
+        'name' => 'BOXING GLOVES',
     ]);
     expect($item->code)->toBe('GLOVE-01-BLUE-S')
         ->and($item->price)->toBe('550000.00');
@@ -513,7 +597,7 @@ test('it stores brand and genre on the item group and mirrors them on each size'
         'jahit' => [$this->jahitTag->id],
     ]);
 
-    $group = ItemGroup::where('master', 'CX90233')->where('variant', '23')->firstOrFail();
+    $group = ItemGroup::where('master', 'CX90233-23')->where('variant', '23')->firstOrFail();
 
     expect($group->name)->toBe('CX90233-23')
         ->and($group->brand)->toBe(\App\Enums\ItemBrand::CX9)
@@ -620,7 +704,7 @@ test('it moves every size to the new pcode and keeps group.name equal to pcode',
     ]);
 
     $this->assertDatabaseHas('item_group', [
-        'master' => 'CX00122',
+        'master' => 'CX00122-05',
         'variant' => '05',
         'name' => 'CX00122-05',
     ]);
@@ -634,6 +718,78 @@ test('it moves every size to the new pcode and keeps group.name equal to pcode',
         'pcode' => 'CX00122-05',
         'name' => 'CX00122-05 - BLUE - M',
     ]);
+});
+
+test('saving slash leftover pcode as hyphen keeps every size on the parent group page', function () {
+    $mediumTag = Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'M', 'name' => 'Medium']);
+    $group = ItemGroup::factory()->create([
+        'master' => 'CX00122/03',
+        'variant' => '',
+        'name' => 'CX00122/03',
+        'description' => 'MIKRO MOTIF CAMO HIJAU',
+    ]);
+
+    $small = Item::factory()->create([
+        'type' => ItemType::ITEM,
+        'group_id' => $group->id,
+        'pcode' => 'CX00122/03',
+        'code' => 'AJDCX0012203S',
+        'name' => 'CX00122/03 S',
+        'price' => 100000,
+    ]);
+    $medium = Item::factory()->create([
+        'type' => ItemType::ITEM,
+        'group_id' => $group->id,
+        'pcode' => 'CX00122/03',
+        'code' => 'AJDCX0012203M',
+        'name' => 'CX00122/03 M',
+        'price' => 100000,
+    ]);
+    $small->tags()->sync([$this->typeTag->id, $this->warnaTag->id, $this->sizeTag->id, $this->jahitTag->id]);
+    $medium->tags()->sync([$this->typeTag->id, $this->warnaTag->id, $mediumTag->id, $this->jahitTag->id]);
+
+    $hierarchy = app(\App\Services\Items\ItemGroupHierarchyService::class);
+    $builder = app(\App\Services\Items\ItemIdentityBuilder::class);
+    $oldKey = $builder->itemParentKey($small->fresh(['group', 'tags']));
+
+    $this->itemService->update($small->id, (object) [
+        'pcode' => 'CX00122-03',
+        'type' => ItemType::ITEM->value,
+        'product_name' => 'CX00122/03',
+        'price' => 100000,
+        'description' => 'Mikro motif camo hijau',
+    ], [
+        'types' => [$this->typeTag->id],
+        'sizes' => [$this->sizeTag->id],
+        'warna' => [$this->warnaTag->id],
+        'jahit' => [$this->jahitTag->id],
+    ]);
+
+    $small->refresh()->load(['group', 'tags']);
+    $medium->refresh()->load(['group', 'tags']);
+    $group->refresh();
+
+    expect($group->id)->toBe($small->group_id)
+        ->and($medium->group_id)->toBe($group->id)
+        ->and($group->master)->toBe('CX00122-03')
+        ->and($group->variant)->toBe('03')
+        ->and($small->pcode)->toBe('CX00122-03')
+        ->and($medium->pcode)->toBe('CX00122-03');
+
+    $newKey = $builder->itemParentKey($small);
+    $oldDetail = $hierarchy->parentDetail($oldKey, fetchJubelio: false);
+    $newDetail = $hierarchy->parentDetail($newKey, fetchJubelio: false);
+    $canonicalDetail = $hierarchy->parentDetail('1:AJD:CX00122', fetchJubelio: false);
+    $slashDetail = $hierarchy->parentDetail('1:AJD:CX00122/03', fetchJubelio: false);
+
+    expect($newKey)->toBe('1:AJD:CX00122')
+        ->and($oldDetail)->not->toBeNull()
+        ->and($newDetail)->not->toBeNull()
+        ->and($canonicalDetail)->not->toBeNull()
+        ->and($slashDetail)->not->toBeNull()
+        ->and(collect($canonicalDetail['colors'])->pluck('group_id'))->toContain($group->id)
+        ->and(collect($canonicalDetail['colors'][0]['size_rows'])->pluck('item_id')->all())
+        ->toContain($small->id, $medium->id);
 });
 
 test('it keeps a custom group title when product name is not the pcode', function () {
@@ -664,9 +820,85 @@ test('it keeps a custom group title when product name is not the pcode', functio
         'jahit' => [$this->jahitTag->id],
     ]);
 
-    $this->assertDatabaseHas('item_group', ['name' => 'SLASH RUNNING SHIRT', 'master' => 'CX90233', 'variant' => '23']);
+    $this->assertDatabaseHas('item_group', ['name' => 'SLASH RUNNING SHIRT', 'master' => 'CX90233-23', 'variant' => '23']);
     $this->assertDatabaseHas('items', ['code' => 'AJD-CX90233-23-S', 'name' => 'SLASH RUNNING SHIRT - BLUE - S', 'price' => 120000]);
     $this->assertDatabaseHas('items', ['code' => 'AJD-CX90233-23-M', 'name' => 'SLASH RUNNING SHIRT - BLUE - M', 'price' => 120000]);
+});
+
+test('it updates group name from pcode placeholder when product_name is set on edit', function () {
+    $this->itemService->create((object) [
+        'pcode' => 'CX93249-03',
+        'type' => ItemType::ITEM->value,
+        'price' => 100000,
+    ], [
+        'types' => [$this->typeTag->id],
+        'sizes' => [$this->sizeTag->id],
+        'warna' => [$this->warnaTag->id],
+        'jahit' => [$this->jahitTag->id],
+    ]);
+
+    $item = Item::where('code', 'AJD-CX93249-03-S')->firstOrFail();
+
+    $this->itemService->update($item->id, (object) [
+        'pcode' => 'CX93249-03',
+        'type' => ItemType::ITEM->value,
+        'product_name' => 'Essential Shorts',
+        'price' => 100000,
+    ], [
+        'types' => [$this->typeTag->id],
+        'sizes' => [$this->sizeTag->id],
+        'warna' => [$this->warnaTag->id],
+        'jahit' => [$this->jahitTag->id],
+    ]);
+
+    $this->assertDatabaseHas('item_group', [
+        'master' => 'CX93249-03',
+        'variant' => '03',
+        'name' => 'ESSENTIAL SHORTS',
+    ]);
+    $this->assertDatabaseHas('items', [
+        'code' => 'AJD-CX93249-03-S',
+        'name' => 'ESSENTIAL SHORTS - BLUE - S',
+    ]);
+});
+
+test('two manufactured colorways can share the same product title without a suffix', function () {
+    $redTag = Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'RED', 'name' => 'RED']);
+
+    $this->itemService->create((object) [
+        'pcode' => 'CX90233-23',
+        'type' => ItemType::ITEM->value,
+        'product_name' => 'Essential Shorts',
+        'price' => 100000,
+    ], [
+        'types' => [$this->typeTag->id],
+        'sizes' => [$this->sizeTag->id],
+        'warna' => [$this->warnaTag->id],
+        'jahit' => [$this->jahitTag->id],
+    ]);
+
+    $this->itemService->create((object) [
+        'pcode' => 'CX90233-24',
+        'type' => ItemType::ITEM->value,
+        'product_name' => 'Essential Shorts',
+        'price' => 100000,
+    ], [
+        'types' => [$this->typeTag->id],
+        'sizes' => [$this->sizeTag->id],
+        'warna' => [$redTag->id],
+        'jahit' => [$this->jahitTag->id],
+    ]);
+
+    $this->assertDatabaseHas('item_group', [
+        'master' => 'CX90233-23',
+        'variant' => '23',
+        'name' => 'ESSENTIAL SHORTS',
+    ]);
+    $this->assertDatabaseHas('item_group', [
+        'master' => 'CX90233-24',
+        'variant' => '24',
+        'name' => 'ESSENTIAL SHORTS',
+    ]);
 });
 
 test('it does not copy asset cost onto sibling sizes when price is edited', function () {

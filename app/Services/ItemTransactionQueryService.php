@@ -11,16 +11,23 @@ use Illuminate\Http\Request;
 class ItemTransactionQueryService
 {
     /**
-     * @return array{from: string, to: string, invoice: string, sender: string, receiver: string}
+     * @return array{from: string, to: string, invoice: string, party: string}
      */
     public function filtersFromRequest(Request $request): array
     {
+        $party = trim((string) $request->query('party', ''));
+        if ($party === '') {
+            $party = trim((string) $request->query('sender', ''));
+        }
+        if ($party === '') {
+            $party = trim((string) $request->query('receiver', ''));
+        }
+
         return [
             'from' => trim((string) $request->query('from', '')),
             'to' => trim((string) $request->query('to', '')),
             'invoice' => trim((string) $request->query('invoice', '')),
-            'sender' => trim((string) $request->query('sender', '')),
-            'receiver' => trim((string) $request->query('receiver', '')),
+            'party' => $party,
         ];
     }
 
@@ -29,8 +36,7 @@ class ItemTransactionQueryService
         $filters = $this->filtersFromRequest($request);
         $from = $this->dateValue($filters['from']);
         $to = $this->dateValue($filters['to']);
-        $senderId = $this->partyId($filters['sender']);
-        $receiverId = $this->partyId($filters['receiver']);
+        $partyId = $this->partyId($filters['party']);
 
         return $query
             ->when($from !== null, fn (Builder $q) => $q->whereDate('transaction_details.date', '>=', $from))
@@ -40,8 +46,7 @@ class ItemTransactionQueryService
 
                 return $q->whereHas('transaction', fn (Builder $tq) => $tq->where('invoice', 'like', $pattern));
             })
-            ->when($senderId !== null, fn (Builder $q) => $this->applyPartyIdFilter($q, 'sender', $senderId))
-            ->when($receiverId !== null, fn (Builder $q) => $this->applyPartyIdFilter($q, 'receiver', $receiverId))
+            ->when($partyId !== null, fn (Builder $q) => $this->applyPartyIdFilter($q, $partyId))
             ->orderByDesc('transaction_details.date')
             ->orderByDesc('transaction_id');
     }
@@ -76,11 +81,14 @@ class ItemTransactionQueryService
         return collect($filters)->contains(fn ($value) => trim((string) $value) !== '');
     }
 
-    private function applyPartyIdFilter(Builder $query, string $role, int $partyId): Builder
+    private function applyPartyIdFilter(Builder $query, int $partyId): Builder
     {
-        $transactionColumn = $role === 'sender' ? 'sender_id' : 'receiver_id';
-
-        return $query->whereHas('transaction', fn (Builder $tq) => $tq->where($transactionColumn, $partyId));
+        return $query->whereHas('transaction', function (Builder $tq) use ($partyId) {
+            $tq->where(function (Builder $partyQuery) use ($partyId) {
+                $partyQuery->where('sender_id', $partyId)
+                    ->orWhere('receiver_id', $partyId);
+            });
+        });
     }
 
     private function partyId(mixed $value): ?int

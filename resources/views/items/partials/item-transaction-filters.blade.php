@@ -52,20 +52,12 @@
                        class="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
             </div>
             @include('transactions.partials.export-sell-party-combobox', [
-                'name' => 'sender',
-                'label' => 'Sender',
-                'placeholder' => 'Search sender...',
+                'name' => 'party',
+                'label' => 'Party',
+                'placeholder' => 'Search sender or receiver...',
                 'endpoint' => $partyLookupUrl,
-                'initial' => $selectedSender ?? null,
-                'testId' => 'item-tx-sender-combobox',
-            ])
-            @include('transactions.partials.export-sell-party-combobox', [
-                'name' => 'receiver',
-                'label' => 'Receiver',
-                'placeholder' => 'Search receiver...',
-                'endpoint' => $partyLookupUrl,
-                'initial' => $selectedReceiver ?? null,
-                'testId' => 'item-tx-receiver-combobox',
+                'initial' => $selectedParty ?? null,
+                'testId' => 'item-tx-party-combobox',
             ])
             <div class="flex gap-2">
                 <button type="submit" data-testid="item-tx-filter-submit"

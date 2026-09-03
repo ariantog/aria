@@ -86,7 +86,7 @@
             <label class="mb-1 block text-sm font-medium text-gray-700">
                 Type @if($isAsset)<span class="text-red-500">*</span>@endif
             </label>
-            <select name="{{ $isAsset ? 'tags[types][]' : 'tags[types]' }}" @if(!$isAsset) @change="onType($event)" @endif
+            <select name="{{ $isAsset ? 'tags[types][]' : 'tags[types]' }}" @change="onTypeChange($event)"
                     class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 @error('tags.types') border-red-500 @enderror">
                 <option value="">— Select Type —</option>
                 @foreach($typeTags as $t)

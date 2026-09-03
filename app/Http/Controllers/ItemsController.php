@@ -113,7 +113,7 @@ class ItemsController extends Controller
             ]);
         }
 
-        $items = $q->with('group')
+        $items = $q->with(['group', 'tags'])
             ->withSum(['warehouseItems as active_qty' => fn ($query) => $query->forAvailableStock()], 'quantity')
             ->orderBy('id', 'desc')
             ->paginate(50)
@@ -547,8 +547,7 @@ class ItemsController extends Controller
             'formAction' => $formAction,
             'resetUrl' => $formAction,
             'partyLookupUrl' => route('items.party-lookup'),
-            'selectedSender' => $queryService->resolveSelectedParty($filters['sender'], $request->user()),
-            'selectedReceiver' => $queryService->resolveSelectedParty($filters['receiver'], $request->user()),
+            'selectedParty' => $queryService->resolveSelectedParty($filters['party'], $request->user()),
             'hasActiveFilters' => $queryService->hasActiveFilters($filters),
         ]);
     }

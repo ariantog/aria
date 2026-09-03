@@ -163,6 +163,23 @@ it('renders asset lancar create page', function () {
         ->assertSee('data-testid="item-form-shared-attributes"', false);
 });
 
+it('renders item summary preview below tag selection on create forms', function () {
+    foreach ([route('items.create'), route('assetlancar.create')] as $url) {
+        $html = $this->actingAs($this->user)
+            ->get($url)
+            ->assertOk()
+            ->assertSee('data-testid="item-form-preview"', false)
+            ->content();
+
+        $attributesPos = strpos($html, 'data-testid="item-form-shared-tags"');
+        $previewPos = strpos($html, 'data-testid="item-form-preview"');
+
+        expect($attributesPos)->not->toBeFalse()
+            ->and($previewPos)->not->toBeFalse()
+            ->and($previewPos)->toBeGreaterThan($attributesPos);
+    }
+});
+
 it('returns the product title for an existing pcode', function () {
     $group = \App\Models\ItemGroup::factory()->create([
         'master' => 'ELBOWSUPPORT-02',

@@ -550,8 +550,8 @@ it('converts multiple colors of the same asset product without duplicate group n
     expect($run->success_count)->toBe(5)
         ->and($run->failed_count)->toBe(0);
 
-    expect($hipAquamarine->fresh()->group->name)->toBe('HIP THRUST PAD - AQUAMARINE')
-        ->and($hipViolet->fresh()->group->name)->toBe('HIP THRUST PAD - MARBLEVIOLET')
+    expect($hipAquamarine->fresh()->group->name)->toBe('HIP THRUST PAD')
+        ->and($hipViolet->fresh()->group->name)->toBe('HIP THRUST PAD')
         ->and($hipAquamarine->fresh()->name)->toBe('HIP THRUST PAD - AQUAMARINE')
         ->and($liftingBelt->fresh()->name)->toBe('DUAL LOCK LIFTING BELT - BLACK - XL')
         ->and($glove->fresh()->name)->toBe('MICROFIBER STRAP GYM GLOVE - GREY - M')
@@ -677,8 +677,7 @@ it('converts ELBOWSUPPORT-02-BLACKWHITE when another group already uses the same
     expect($item->group)->not->toBeNull()
         ->and($item->group->master)->toBe('ELBOWSUPPORT-02')
         ->and($item->group->variant)->toBe('BLACKWHITE')
-        ->and($item->group->name)->toBe('ELBOW STRAP - BLACKWHITE (ELBOWSUPPORT-02)')
-        ->and(strlen((string) $item->group->name))->toBeLessThanOrEqual(ItemIdentityBuilder::GROUP_NAME_MAX_LENGTH)
+        ->and($item->group->name)->toBe('ELBOW STRAP')
         ->and($item->name)->toBe('ELBOW STRAP - BLACKWHITE')
         ->and($item->code)->toBe('ELBOWSUPPORT-02-BLACKWHITE');
 });
@@ -736,6 +735,141 @@ it('does not throw when converting GREYWHITE and that name is owned by another t
     expect($run->success_count)->toBe(0)
         ->and($run->failed_count)->toBe(1)
         ->and(Tag::query()->whereRaw('UPPER(TRIM(name)) = ?', ['GREYWHITE'])->count())->toBe(1);
+});
+
+it('convert page writes shared catalog onto the group and mirrors leftovers', function () {
+    $item = Item::factory()->create([
+        'type' => ItemType::ITEM,
+        'group_id' => null,
+        'code' => 'AJJCX0012204S',
+        'legacy_code' => null,
+        'pcode' => 'CX00122-04',
+        'name' => 'RUNNING SHIRT',
+        'description' => 'MIKRO MOTIF HIJAU',
+        'description2' => 'nb',
+        'brand' => \App\Enums\ItemBrand::NO_BRAND,
+        'genre' => 0,
+    ]);
+    $item->tags()->sync([
+        $this->typeTag->id,
+        $this->jahitTag->id,
+        Tag::where('code', 'S')->first()->id,
+    ]);
+
+    $this->actingAs($this->user)
+        ->post(route('items.legacy-converter.run'), [
+            'type' => ItemType::ITEM->value,
+            'page' => 1,
+            'item_ids' => [$item->id],
+        ])
+        ->assertRedirect()
+        ->assertSessionHas('success');
+
+    $item->refresh()->load('group');
+
+    expect($item->group)->not->toBeNull()
+        ->and($item->group->description)->toBe('MIKRO MOTIF HIJAU')
+        ->and($item->group->description2)->toBe('NB')
+        ->and($item->group->brand)->toBe(\App\Enums\ItemBrand::CX0)
+        ->and($item->group->genre)->toBe($this->typeTag->id)
+        ->and($item->description)->toBe('MIKRO MOTIF HIJAU')
+        ->and($item->description2)->toBe('NB')
+        ->and($item->brand)->toBe(\App\Enums\ItemBrand::CX0)
+        ->and($item->genre)->toBe($this->typeTag->id)
+        ->and($item->catalogDescription())->toBe('MIKRO MOTIF HIJAU');
+});
+
+it('convert row keeps existing group catalog and overwrites leftover item text', function () {
+    $group = \App\Models\ItemGroup::factory()->create([
+        'master' => 'CX00122',
+        'variant' => '04',
+        'name' => 'RUNNING SHIRT',
+        'description' => 'MIKRO MOTIF CAMO HIJAU',
+        'description2' => 'CATALOG NB',
+        'brand' => \App\Enums\ItemBrand::NO_BRAND,
+        'genre' => 0,
+    ]);
+    $item = Item::factory()->create([
+        'type' => ItemType::ITEM,
+        'group_id' => $group->id,
+        'code' => 'AJJCX0012204S',
+        'legacy_code' => null,
+        'pcode' => 'CX00122-04',
+        'name' => 'RUNNING SHIRT',
+        'description' => 'MIKRO MOTIF HIJAU',
+        'description2' => 'STALE',
+        'brand' => \App\Enums\ItemBrand::NO_BRAND,
+        'genre' => 0,
+    ]);
+    $item->tags()->sync([
+        $this->typeTag->id,
+        $this->jahitTag->id,
+        Tag::where('code', 'S')->first()->id,
+    ]);
+
+    $this->actingAs($this->user)
+        ->post(route('items.legacy-converter.run-item', $item), [
+            'type' => ItemType::ITEM->value,
+            'page' => 1,
+        ])
+        ->assertRedirect()
+        ->assertSessionHas('success');
+
+    $item->refresh()->load('group');
+    $group->refresh();
+
+    expect($group->description)->toBe('MIKRO MOTIF CAMO HIJAU')
+        ->and($group->description2)->toBe('CATALOG NB')
+        ->and($group->brand)->toBe(\App\Enums\ItemBrand::CX0)
+        ->and($group->genre)->toBe($this->typeTag->id)
+        ->and($item->description)->toBe('MIKRO MOTIF CAMO HIJAU')
+        ->and($item->description2)->toBe('CATALOG NB')
+        ->and($item->catalogDescription())->toBe('MIKRO MOTIF CAMO HIJAU');
+});
+
+it('second sibling convert does not overwrite a seeded group description', function () {
+    $first = Item::factory()->create([
+        'type' => ItemType::ITEM,
+        'group_id' => null,
+        'code' => 'AJJCX0012204S',
+        'legacy_code' => null,
+        'pcode' => 'CX00122-04',
+        'name' => 'RUNNING SHIRT',
+        'description' => 'MIKRO MOTIF CAMO HIJAU',
+        'description2' => '',
+    ]);
+    $first->tags()->sync([
+        $this->typeTag->id,
+        $this->jahitTag->id,
+        Tag::where('code', 'S')->first()->id,
+    ]);
+
+    $this->service->runItems(ItemType::ITEM, collect([$first]), $this->user);
+
+    $first->refresh()->load('group');
+    $groupId = $first->group_id;
+
+    $second = Item::factory()->create([
+        'type' => ItemType::ITEM,
+        'group_id' => $groupId,
+        'code' => 'AJJCX0012204XL',
+        'legacy_code' => null,
+        'pcode' => 'CX00122-04',
+        'name' => 'RUNNING SHIRT',
+        'description' => 'MIKRO MOTIF HIJAU',
+        'description2' => '',
+    ]);
+    $second->tags()->sync([
+        $this->typeTag->id,
+        $this->jahitTag->id,
+        Tag::where('code', 'XL')->first()->id,
+    ]);
+
+    $this->service->runItems(ItemType::ITEM, collect([$second]), $this->user);
+
+    expect($first->fresh('group')->group->description)->toBe('MIKRO MOTIF CAMO HIJAU')
+        ->and($second->fresh()->description)->toBe('MIKRO MOTIF CAMO HIJAU')
+        ->and($second->fresh()->catalogDescription())->toBe('MIKRO MOTIF CAMO HIJAU');
 });
 
 it('shows per-row convert action on legacy converter pending table', function () {

@@ -82,7 +82,7 @@ class ItemService
 
             $pcode = strtoupper(trim((string) $input->pcode));
             $groupName = $this->groupNameFromInput($input, $inputType, $pcode, $item->group, $item);
-            $group = $this->resolveGroup($inputType, $pcode, $groupName, $warnaTag, $input);
+            $group = $this->resolveGroup($inputType, $pcode, $groupName, $warnaTag, $input, $item);
 
             $this->applyItemIdentity(
                 $item,
@@ -187,6 +187,21 @@ class ItemService
 
         $tags = $this->sortTags($tags, $inputType);
         $pcode = strtoupper(trim((string) $input->pcode));
+
+        if ($inputType === ItemType::ASSET_LANCAR && ! empty($tags['types'])) {
+            $typeTag = Tag::find((int) $tags['types'][0]);
+            $submittedPcode = $pcode;
+            $pcodeAlreadyExists = Item::query()
+                ->where('type', ItemType::ASSET_LANCAR)
+                ->whereRaw('UPPER(TRIM(pcode)) = ?', [$submittedPcode])
+                ->exists();
+
+            if (! $pcodeAlreadyExists) {
+                $pcode = $this->identityBuilder->applyAssetTypePrefixToPcode($pcode, $typeTag);
+                $input->pcode = $pcode;
+            }
+        }
+
         $groupName = $this->groupNameFromInput($input, $inputType, $pcode);
 
         if ($inputType === ItemType::ITEM && count($tags['warna']) !== 1) {
@@ -355,27 +370,39 @@ class ItemService
         string $groupName,
         ?Tag $warnaTag,
         object $input,
+        ?Item $sourceItem = null,
     ): ItemGroup {
-        $parsed = $this->identityBuilder->parsePcode($type, $pcode);
+        $pcode = $type === ItemType::ITEM
+            ? $this->identityBuilder->normalizeManufacturedPcode($pcode)
+            : strtoupper(trim($pcode));
+        $groupMaster = $this->identityBuilder->groupMaster($type, $pcode);
         $variant = $this->identityBuilder->groupVariant($type, $pcode, $warnaTag);
         $storedName = $this->identityBuilder->uniqueStoredGroupName(
             $this->identityBuilder->storedGroupName($type, $groupName, $pcode, $variant),
-            $parsed['master'],
+            $groupMaster,
             $variant,
         );
 
-        $group = ItemGroup::firstOrCreate(
-            [
-                'master' => $parsed['master'],
-                'variant' => $variant,
-            ],
-            [
-                'name' => $storedName,
-                'description' => isset($input->description) ? strtoupper($input->description) : null,
-                'description2' => isset($input->description2) ? strtoupper($input->description2) : null,
-                'url' => $this->normalizeUrl($input->url ?? null),
-            ],
-        );
+        $group = $this->identityBuilder->findCanonicalGroup($groupMaster, $variant)
+            ?? $this->reuseLeftoverColorwayGroup($sourceItem, $pcode, $groupMaster, $variant);
+
+        if ($group) {
+            $group->master = $groupMaster;
+            $group->variant = $variant;
+        } else {
+            $group = ItemGroup::firstOrCreate(
+                [
+                    'master' => $groupMaster,
+                    'variant' => $variant,
+                ],
+                [
+                    'name' => $storedName,
+                    'description' => isset($input->description) ? strtoupper($input->description) : null,
+                    'description2' => isset($input->description2) ? strtoupper($input->description2) : null,
+                    'url' => $this->normalizeUrl($input->url ?? null),
+                ],
+            );
+        }
 
         if (strtoupper(trim((string) $group->name)) !== strtoupper($storedName)) {
             $group->name = $storedName;
@@ -396,6 +423,47 @@ class ItemService
         $group->save();
 
         return $group;
+    }
+
+    /**
+     * Leftover colorways stored the slash pcode on item_group.master or name
+     * (CX00122/03). Reuse that row when saving the hyphenated pcode so SKUs
+     * stay on the same group instead of disappearing from the parent page.
+     */
+    protected function reuseLeftoverColorwayGroup(
+        ?Item $sourceItem,
+        string $pcode,
+        string $groupMaster,
+        string $variant,
+    ): ?ItemGroup {
+        $group = $sourceItem?->group;
+
+        if (! $group) {
+            return null;
+        }
+
+        $normalizedMaster = $this->identityBuilder->normalizeManufacturedPcode((string) ($group->master ?? ''));
+        $normalizedName = $this->identityBuilder->normalizeManufacturedPcode((string) ($group->name ?? ''));
+        $normalizedItemPcode = $this->identityBuilder->normalizeManufacturedPcode((string) ($sourceItem->pcode ?? ''));
+        $productionMaster = $this->identityBuilder->canonicalManufacturedMaster($groupMaster);
+
+        if ($normalizedMaster === $pcode || $normalizedName === $pcode) {
+            return $group;
+        }
+
+        if ($normalizedItemPcode === $pcode && (
+            $normalizedMaster === ''
+            || $normalizedMaster === $groupMaster
+            || ($productionMaster !== null && $this->identityBuilder->canonicalManufacturedMaster((string) ($group->master ?? '')) === $productionMaster)
+        )) {
+            $groupVariant = strtoupper(trim((string) ($group->variant ?? '')));
+
+            if ($groupVariant === '' || $groupVariant === $variant || $this->identityBuilder->normalizeManufacturedPcode($groupVariant) === $pcode) {
+                return $group;
+            }
+        }
+
+        return null;
     }
 
     protected function groupNameFromInput(
@@ -523,6 +591,10 @@ class ItemService
     protected function resolvePcodeForUpdate(Item $item, ItemType $type, object $input): string
     {
         $pcode = strtoupper(trim((string) ($input->pcode ?? '')));
+
+        if ($type === ItemType::ITEM && $pcode !== '') {
+            $pcode = $this->identityBuilder->normalizeManufacturedPcode($pcode);
+        }
 
         if ($pcode !== '') {
             try {

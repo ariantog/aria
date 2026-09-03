@@ -257,9 +257,9 @@ class DashboardService
             'recent' => ItemStockNotification::query()
                 ->unread()
                 ->with([
-                    'item:id,code,name',
-                    'soldOutWarehouse:id,name',
-                    'sourceWarehouse:id,name',
+                    'item:id,code,name,type',
+                    'soldOutWarehouse:id,name,type',
+                    'sourceWarehouse:id,name,type',
                 ])
                 ->orderByDesc('created_at')
                 ->limit(5)
