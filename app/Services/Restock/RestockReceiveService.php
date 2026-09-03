@@ -5,6 +5,7 @@ namespace App\Services\Restock;
 use App\Enums\AddrbookType;
 use App\Enums\TransactionStatus;
 use App\Enums\TransactionType;
+use App\Exceptions\InsufficientWarehouseStockException;
 use App\Models\RestockCell;
 use App\Models\RestockCellHistory;
 use App\Models\RestockSheet;
@@ -20,12 +21,13 @@ class RestockReceiveService
 {
     public function __construct(
         protected RestockSettingsService $settings,
+        protected RestockSheetService $sheetService,
         protected TransactionService $transactionService,
         protected BookClosingService $bookClosingService,
     ) {}
 
     /**
-     * @param  list<array{id: int, qty?: int}>  $cells
+     * @param  list<array{id?: int, sku?: string, qty?: int}>  $cells
      */
     public function receive(
         RestockSheet $sheet,
@@ -43,9 +45,10 @@ class RestockReceiveService
         $parties = $this->settings->resolveReceiveParties();
 
         return DB::transaction(function () use ($sheet, $cells, $user, $date, $invoiceNumber, $parties) {
-            $cellIds = collect($cells)->pluck('id')->all();
-            $qtyById = collect($cells)->keyBy('id')->map(
-                fn (array $row) => array_key_exists('qty', $row) ? (int) $row['qty'] : null
+            $resolved = $this->resolveReceiveRows($sheet, $cells);
+            $cellIds = $resolved->pluck('cell_id')->all();
+            $qtyById = $resolved->mapWithKeys(
+                fn (array $row) => [$row['cell_id'] => $row['qty']]
             );
 
             $models = RestockCell::query()
@@ -80,6 +83,13 @@ class RestockReceiveService
 
                 if ($receivedQty <= 0) {
                     continue;
+                }
+
+                if ($receivedQty > $shippedBefore) {
+                    $sku = $cell->item->getItemCode();
+                    throw ValidationException::withMessages([
+                        'cells' => ["Insufficient shipped qty for {$sku} (avail: {$shippedBefore}, requested: {$receivedQty})"],
+                    ]);
                 }
 
                 $shortfall = max(0, $shippedBefore - $receivedQty);
@@ -179,11 +189,18 @@ class RestockReceiveService
             }
 
             $transaction->update([
-                'total' => $itemsTotal,
+                'discount' => 0,
+                'adjustment' => 0,
+                'ppn' => 0,
+                'total' => Transaction::signedAmount(TransactionType::Buy->value, $itemsTotal),
                 'total_items' => $totalItems,
             ]);
 
-            $this->transactionService->handleTransaction($transaction->fresh('details'));
+            try {
+                $this->transactionService->handleTransaction($transaction->fresh('details'));
+            } catch (InsufficientWarehouseStockException $e) {
+                throw $e->asValidationException();
+            }
 
             $sheet->update([
                 'last_saved_at' => now(),
@@ -192,6 +209,44 @@ class RestockReceiveService
 
             return $transaction->fresh(['details', 'sender', 'receiver']);
         });
+    }
+
+    /**
+     * @param  list<array{id?: int, sku?: string, qty?: int}>  $cells
+     * @return \Illuminate\Support\Collection<int, array{cell_id: int, qty: ?int}>
+     */
+    protected function resolveReceiveRows(RestockSheet $sheet, array $cells)
+    {
+        $rows = collect();
+
+        foreach ($cells as $row) {
+            $cellId = isset($row['id']) ? (int) $row['id'] : 0;
+            $sku = trim((string) ($row['sku'] ?? ''));
+
+            if ($cellId <= 0 && $sku === '') {
+                throw new InvalidArgumentException('Each receive row needs a cell id or SKU.');
+            }
+
+            if ($cellId <= 0) {
+                $cell = $this->sheetService->findCellBySku($sheet, $sku);
+                if (! $cell) {
+                    $item = $this->sheetService->findItemBySku($sku);
+                    throw new InvalidArgumentException(
+                        $item
+                            ? "SKU {$sku} is not on this sheet."
+                            : "SKU {$sku} was not found (code or legacy code)."
+                    );
+                }
+                $cellId = $cell->id;
+            }
+
+            $rows->put($cellId, [
+                'cell_id' => $cellId,
+                'qty' => array_key_exists('qty', $row) ? (int) $row['qty'] : null,
+            ]);
+        }
+
+        return $rows->values();
     }
 
     protected function addrbookTypeValue(\App\Models\Addrbook $addrbook): int

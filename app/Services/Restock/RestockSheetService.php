@@ -136,11 +136,58 @@ class RestockSheetService
   /**
    * @return int Number of cells added
    */
-  public function syncSkus(RestockSheet $sheet): int
+  /**
+   * Resolve an item by canonical code or preserved legacy SKU.
+   */
+  public function findItemBySku(string $sku): ?Item
+  {
+    return Item::findBySku($sku);
+  }
+
+  /**
+   * Batch-resolve items keyed by uppercase SKU (code or legacy_code).
+   *
+   * @param  array<int, string>  $skus
+   * @return Collection<string, Item>
+   */
+  public function findItemsBySkus(array $skus): Collection
+  {
+    return Item::findManyBySkus($skus);
+  }
+
+  public function findCellBySku(RestockSheet $sheet, string $sku): ?RestockCell
+  {
+    $item = $this->findItemBySku($sku);
+    if (! $item) {
+      return null;
+    }
+
+    return $sheet->cells()->where('item_id', $item->id)->first();
+  }
+
+  /**
+   * @param  list<string>  $skus  When non-empty, only add items resolved via code / legacy_code.
+   * @return int Number of cells added
+   */
+  public function syncSkus(RestockSheet $sheet, array $skus = []): int
   {
     $items = $this->assetLancarItemsForType($sheet->typeTag)
       ->with('tags')
       ->get();
+
+    if ($skus !== []) {
+      $resolvedIds = $this->findItemsBySkus($skus)->pluck('id')->unique()->all();
+
+      if ($resolvedIds === []) {
+        throw new InvalidArgumentException('No items matched those SKUs (code or legacy code).');
+      }
+
+      $items = $items->whereIn('id', $resolvedIds)->values();
+
+      if ($items->isEmpty()) {
+        throw new InvalidArgumentException('Matched SKUs do not belong to this product type.');
+      }
+    }
 
     $existingItemIds = $sheet->cells()->pluck('item_id');
 

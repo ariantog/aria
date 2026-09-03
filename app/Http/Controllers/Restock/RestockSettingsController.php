@@ -61,7 +61,11 @@ class RestockSettingsController extends Controller
     {
         Gate::authorize(RestockSheet::getPermissions()['view']);
 
-        abort_unless(in_array($type, ['supplier', 'warehouse'], true), 404);
+        abort_unless(in_array($type, ['supplier', 'warehouse', 'item'], true), 404);
+
+        if ($type === 'item') {
+            return $this->lookupItem($request);
+        }
 
         $addrbookType = $type === 'supplier'
             ? AddrbookType::Supplier->value
@@ -69,7 +73,7 @@ class RestockSettingsController extends Controller
 
         $query = Addrbook::query()->where('type', $addrbookType);
 
-        if ($search = $request->input('search')) {
+        if ($search = $request->query('search')) {
             $pattern = LikeSearch::contains($search);
             $query->where(function ($q) use ($pattern) {
                 $q->where('name', 'like', $pattern)
@@ -80,5 +84,27 @@ class RestockSettingsController extends Controller
         return response()->json(
             $query->orderBy('name')->limit(20)->get(['id', 'name'])
         );
+    }
+
+    protected function lookupItem(Request $request)
+    {
+        $search = trim((string) $request->query('search', $request->query('code', '')));
+
+        if ($search === '') {
+            return response()->json([]);
+        }
+
+        $item = $this->sheetService->findItemBySku($search);
+
+        if (! $item) {
+            return response()->json([]);
+        }
+
+        return response()->json([[
+            'id' => $item->id,
+            'name' => $item->name,
+            'code' => $item->code,
+            'legacy_code' => $item->distinctLegacyCode(),
+        ]]);
     }
 }

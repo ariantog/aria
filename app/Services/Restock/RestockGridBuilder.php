@@ -299,8 +299,10 @@ class RestockGridBuilder
                     $row["{$prefix}stock"] = $stock;
                     $row['_meta'][$prefix] = [
                         'cell_id' => $cell->id,
+                        'item_id' => $cell->item_id,
                         'is_urgent' => $cell->is_urgent,
                         'item_code' => $cell->item?->code,
+                        'legacy_code' => $cell->item?->distinctLegacyCode(),
                         'size_label' => $sizeCode,
                     ];
 

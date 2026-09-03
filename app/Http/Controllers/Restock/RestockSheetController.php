@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Restock;
 
+use App\Exceptions\InsufficientWarehouseStockException;
 use App\Http\Controllers\Controller;
 use App\Models\RestockSheet;
 use App\Models\Tag;
@@ -56,7 +57,8 @@ class RestockSheetController extends Controller
 
     $sheet->load(['typeTag', 'representativeGroup']);
 
-    $receiveReady = rescue(fn () => $this->settingsService->resolveReceiveParties(), report: false) !== null;
+    $parties = rescue(fn () => $this->settingsService->resolveReceiveParties(), report: false);
+    $receiveReady = is_array($parties);
 
     return view('restock.sheet', [
       'sheet' => $sheet,
@@ -64,7 +66,37 @@ class RestockSheetController extends Controller
       'typeTags' => $this->sheetService->typeTags(),
       'canEdit' => request()->user()?->can(RestockSheet::getPermissions()['edit']) ?? false,
       'receiveReady' => $receiveReady,
+      'receiveSupplierName' => $receiveReady ? $parties['supplier']->name : null,
+      'receiveWarehouseName' => $receiveReady ? $parties['receiver']->name : null,
       'stockWarehouseLabel' => $this->settingsService->stockDisplayLabel(),
+    ]);
+  }
+
+  public function lookup(Request $request, RestockSheet $sheet): JsonResponse
+  {
+    Gate::authorize(RestockSheet::getPermissions()['view']);
+
+    $code = trim((string) $request->query('code', $request->query('search', '')));
+
+    if ($code === '') {
+      return response()->json(['item' => null, 'cell' => null]);
+    }
+
+    $item = $this->sheetService->findItemBySku($code);
+    if (! $item) {
+      return response()->json(['item' => null, 'cell' => null]);
+    }
+
+    $cell = $sheet->cells()->where('item_id', $item->id)->first();
+
+    return response()->json([
+      'item' => [
+        'id' => $item->id,
+        'code' => $item->code,
+        'legacy_code' => $item->distinctLegacyCode(),
+        'name' => $item->name,
+      ],
+      'cell' => $cell ? ['id' => $cell->id] : null,
     ]);
   }
 
@@ -103,7 +135,19 @@ class RestockSheetController extends Controller
   {
     Gate::authorize(RestockSheet::getPermissions()['edit']);
 
-    $added = $this->sheetService->syncSkus($sheet);
+    $skus = $request->input('skus', []);
+    if (is_string($skus)) {
+      $skus = preg_split('/[\s,]+/', $skus, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+    }
+    if (! is_array($skus)) {
+      $skus = [];
+    }
+
+    try {
+      $added = $this->sheetService->syncSkus($sheet, array_values(array_map('strval', $skus)));
+    } catch (InvalidArgumentException $e) {
+      return back()->with('error', $e->getMessage());
+    }
 
     return back()->with(
       'success',
@@ -156,7 +200,8 @@ class RestockSheetController extends Controller
       'date' => ['required', 'date'],
       'invoice' => ['nullable', 'string', 'max:255'],
       'cells' => ['required', 'array', 'min:1'],
-      'cells.*.id' => ['required', 'integer'],
+      'cells.*.id' => ['nullable', 'integer'],
+      'cells.*.sku' => ['nullable', 'string', 'max:255'],
       'cells.*.qty' => ['nullable', 'integer', 'min:0'],
     ]);
 
@@ -170,6 +215,8 @@ class RestockSheetController extends Controller
       );
     } catch (ValidationException $e) {
       return response()->json(['message' => collect($e->errors())->flatten()->first()], 422);
+    } catch (InsufficientWarehouseStockException $e) {
+      return response()->json(['message' => $e->getMessage(), 'errors' => $e->formErrors()], 422);
     } catch (InvalidArgumentException $e) {
       return response()->json(['message' => $e->getMessage()], 422);
     } catch (\Throwable $e) {
