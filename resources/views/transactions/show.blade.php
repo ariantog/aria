@@ -660,7 +660,7 @@ function transactionShowPage(transactionId, initialNote, canEditNote, canEditPpn
         showDescription: typeof saved.showDescription === 'boolean' ? saved.showDescription : defaults.showDescription,
         copyFeedback: false,
         copyFeedbackTimer: null,
-        sortCol: {{ $transaction->details->isNotEmpty() ? "'sku'" : 'null' }},
+        sortCol: @js($transaction->details->isNotEmpty() ? 'sku' : null),
         sortDir: 'asc',
         waOpen: false,
         deleteConfirmOpen: false,
