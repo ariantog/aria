@@ -47,7 +47,9 @@ class TransactionLookupController extends Controller
         $pattern = LikeSearch::contains($search);
         $query->where(function ($q) use ($pattern) {
             $q->where('customers.name', 'like', $pattern)
-                ->orWhere('customers.id', 'like', $pattern);
+                ->orWhere('customers.id', 'like', $pattern)
+                ->orWhere('customers.description', 'like', $pattern)
+                ->orWhere('customers.ledger_hint', 'like', $pattern);
         });
 
         $results = $query
@@ -57,6 +59,7 @@ class TransactionLookupController extends Controller
                 'customers.name',
                 'customers.ppn',
                 'customers.type',
+                'customers.description',
                 'customers.ledger_hint',
                 'customerstat.balance'
             )

@@ -12,7 +12,6 @@ use App\Models\Location;
 use App\Models\Operation;
 use App\Models\ReportingEntity;
 use App\Models\ReportingLedgerRole;
-use App\Models\StatSell;
 use App\Models\Tag;
 use App\Services\ExportSellExportService;
 use App\Services\ExportSellQueryService;
@@ -68,7 +67,7 @@ class AddrbookController extends Controller
 
         // Combobox / autocomplete requests (?json=1)
         if ($this->isJsonRequest()) {
-            return $q->limit(20)->get(['id', 'code', 'name', 'alias', 'ppn']);
+            return $q->limit(20)->get(['id', 'code', 'name', 'alias', 'ppn', 'description', 'ledger_hint']);
         }
 
         $can = [

@@ -21,7 +21,10 @@ class AccountListController extends Controller
         $query = Addrbook::account()->with('operation');
 
         if ($search = $request->search) {
-            $query->where('name', 'like', "%{$search}%");
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                    ->orWhere('description', 'like', "%{$search}%");
+            });
         }
 
         if ($operationId = $request->operation_id) {

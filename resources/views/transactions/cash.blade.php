@@ -136,16 +136,16 @@ $config = [
                                     <template x-for="(item, i) in items" :key="item.id">
                                         <div @mousedown.prevent="selectItem(item)" @mouseenter="activeIndex=i" class="combobox-option" :class="{'active': activeIndex===i}">
                                             <span class="block font-medium" x-text="item.name"></span>
-                                            <span x-show="item.ledger_hint" class="block text-xs text-gray-500 line-clamp-2" x-text="item.ledger_hint"></span>
+                                            <span x-show="item.ledger_hint || item.description" class="block text-xs text-gray-500 line-clamp-2" x-text="item.ledger_hint || item.description"></span>
                                         </div>
                                     </template>
                                 </div>
                             </div>
-                            <p x-show="row.customer && row.customer.ledger_hint"
+                            <p x-show="row.customer && (row.customer.ledger_hint || row.customer.description)"
                                x-cloak
                                data-testid="cash-entry-ledger-hint"
                                class="order-2 text-xs leading-4 text-gray-500 sm:order-6 sm:col-span-4 sm:col-start-1"
-                               x-text="row.customer.ledger_hint"></p>
+                               x-text="row.customer.ledger_hint || row.customer.description"></p>
                             <div class="order-3 sm:order-2 sm:col-span-3">
                                 <label class="mb-1 block text-xs font-medium text-gray-500 sm:hidden">Invoice #</label>
                                 <input type="text" x-model="row.invoice" placeholder="Invoice #"

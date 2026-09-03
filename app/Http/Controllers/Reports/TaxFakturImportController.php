@@ -5,25 +5,25 @@ namespace App\Http\Controllers\Reports;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreFakturCashInRequest;
 use App\Models\Addrbook;
-use App\Models\Transaction;
 use App\Models\Item;
 use App\Models\Report;
 use App\Models\ReportingEntity;
 use App\Models\ReportingWarehouseFulfillment;
 use App\Models\TaxFakturImport;
+use App\Models\Transaction;
 use App\Models\User;
+use App\Services\BookClosingService;
 use App\Services\Reporting\TaxReportService;
 use App\Services\Tax\ExpectedPaymentDateCalculator;
 use App\Services\Tax\FakturCashInMatcher;
 use App\Services\Tax\FakturLineItemMatcher;
-use App\Services\Tax\FakturSellMatcher;
-use App\Services\Tax\LinkFakturSells;
 use App\Services\Tax\FakturPajakDirectionResolver;
 use App\Services\Tax\FakturPajakPdfParser;
+use App\Services\Tax\FakturSellMatcher;
+use App\Services\Tax\LinkFakturSells;
 use App\Services\Tax\ParsedFakturPajak;
 use App\Services\Tax\PostFakturSell;
 use App\Services\Tax\TaxFakturImportService;
-use App\Services\BookClosingService;
 use App\Services\UserPreferenceService;
 use App\Support\LikeSearch;
 use Illuminate\Http\JsonResponse;
@@ -258,6 +258,7 @@ class TaxFakturImportController extends Controller
                 'customers.id',
                 'customers.name',
                 'customers.type',
+                'customers.description',
                 'customers.payment_due_day',
                 'customers.ledger_hint',
                 'customerstat.balance'

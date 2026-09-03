@@ -1,9 +1,13 @@
 <?php
 
+use App\Enums\ReportingLedgerRole;
 use App\Models\Addrbook;
+use App\Models\LedgerMergeMap;
 use App\Models\Operation;
 use App\Models\ReportingEntity;
+use App\Models\ReportingLedgerRole as ReportingLedgerRoleModel;
 use App\Models\ReportingTaxAccount;
+use App\Support\ProductionLedgerCopy;
 use Illuminate\Support\Facades\Artisan;
 
 it('retires pt core entity and soft-deletes its tax ledgers', function () {
@@ -72,4 +76,81 @@ it('simplifies operation categories and re-parents accounts', function () {
         ->and($shopee->fresh()->parent_id)->toBe(29)
         ->and(Operation::find(29)?->name)->toBe('Biaya Marketplace')
         ->and(Operation::find(9))->toBeNull();
+});
+
+it('dry-run succeeds on a fresh bootstrap without production ledger ids', function () {
+    $exit = Artisan::call('reporting:apply-ledger-plan', ['--dry-run' => true]);
+    $output = Artisan::output();
+
+    expect($exit)->toBe(0)
+        ->and($output)->toContain('Dry run complete.')
+        ->and($output)->not->toContain('Skip soft-delete op');
+});
+
+it('fills descriptions and roles on prod-shaped ledgers', function () {
+    Operation::forceCreate(['id' => 3, 'name' => 'Marketing', 'description' => '']);
+    Operation::forceCreate(['id' => 4, 'name' => 'Gaji dan Upah', 'description' => '']);
+    Operation::forceCreate(['id' => 27, 'name' => 'Ongkos Produksi', 'description' => '']);
+    Operation::forceCreate(['id' => 28, 'name' => 'Operational Luar', 'description' => '']);
+    Operation::forceCreate(['id' => 24, 'name' => 'Non-Operational', 'description' => '']);
+
+    $seed = function (int $id, string $name, int $parent): void {
+        Addrbook::unguarded(fn () => Addrbook::create([
+            'id' => $id,
+            'name' => $name,
+            'type' => Addrbook::TYPE_ACCOUNT,
+            'parent_id' => $parent,
+            'description' => '',
+        ]));
+    };
+
+    $seed(2234, 'Shopee Cost', 24);
+    $seed(2250, 'Social Media Cost', 3);
+    $seed(2640, 'Collab Cost', 3);
+    $seed(2889, 'WTC Cost', 28);
+    $seed(2184, 'WTC Transport Cost', 17);
+    $seed(1558, 'Material Produksi', 27);
+    $seed(2696, 'Gaji Mingguan', 4);
+    $seed(817, 'Gaji Harian', 4);
+    $seed(2106, 'PPH Crystal', 18);
+
+    ReportingEntity::create(['name' => 'CV Crystal', 'slug' => 'cv-crystal', 'is_pkp' => true]);
+
+    $exit = Artisan::call('reporting:apply-ledger-plan');
+
+    expect($exit)->toBe(0)
+        ->and(Addrbook::find(2234)?->name)->toBe('Biaya Shopee')
+        ->and(Addrbook::find(2234)?->description)->toBe('Biaya channel Shopee')
+        ->and(Addrbook::find(2234)?->ledger_hint)->toContain('Shopee')
+        ->and(Addrbook::find(2250)?->name)->toBe('Biaya Marketing Digital')
+        ->and(Addrbook::find(2640))->toBeNull()
+        ->and(LedgerMergeMap::resolveCanonicalCustomerId(2640))->toBe(2250)
+        ->and(Addrbook::find(2889)?->name)->toBe('Biaya Toko WTC')
+        ->and(Addrbook::find(2889)?->description)->not->toBeEmpty()
+        ->and(Addrbook::find(817))->toBeNull()
+        ->and(ReportingLedgerRoleModel::query()->where('customer_id', 1558)->value('role'))
+        ->toBe(ReportingLedgerRole::Material)
+        ->and(ReportingTaxAccount::query()->where('legacy_ledger_id', 2106)->exists())->toBeTrue();
+});
+
+it('does not overwrite an existing ledger description or role', function () {
+    Addrbook::unguarded(fn () => Addrbook::create([
+        'id' => 2234,
+        'name' => 'Biaya Shopee',
+        'type' => Addrbook::TYPE_ACCOUNT,
+        'description' => 'Custom staff note',
+        'ledger_hint' => 'Custom hint',
+    ]));
+    ReportingLedgerRoleModel::create([
+        'customer_id' => 2234,
+        'role' => ReportingLedgerRole::Exclude,
+    ]);
+
+    ProductionLedgerCopy::apply();
+    ProductionLedgerCopy::applyRoles();
+
+    expect(Addrbook::find(2234)?->description)->toBe('Custom staff note')
+        ->and(Addrbook::find(2234)?->ledger_hint)->toBe('Custom hint')
+        ->and(ReportingLedgerRoleModel::query()->where('customer_id', 2234)->value('role'))
+        ->toBe(ReportingLedgerRole::Exclude);
 });

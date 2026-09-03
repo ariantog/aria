@@ -14,6 +14,7 @@
     $ppn = (bool) old('ppn', $isEdit && $addrbook ? $addrbook->ppn : false);
     $arrangementEnabled = (bool) old('arrangement_enabled', $isEdit && $addrbook ? ($addrbook->arrangement_enabled ?? false) : false);
     $warehouseType = (string) \App\Enums\AddrbookType::Warehouse->value;
+    $accountType = (string) \App\Models\Addrbook::TYPE_ACCOUNT;
 @endphp
 
 <div class="grid grid-cols-1 gap-6 md:grid-cols-2" x-data="{ selectedType: '{{ $typeValue }}' }" @change.capture="if ($event.target && $event.target.name === 'type') selectedType = $event.target.value">
@@ -85,11 +86,15 @@
             </div>
 
             <div>
-                <label for="description" class="mb-1 block text-sm font-medium text-gray-700">Invoice Header</label>
+                <label for="description" class="mb-1 block text-sm font-medium text-gray-700">
+                    <span x-show="selectedType === '{{ $accountType }}'">Description</span>
+                    <span x-show="selectedType !== '{{ $accountType }}'">Invoice Header</span>
+                </label>
                 <textarea id="description" name="description" rows="4"
-                          placeholder="Store name on first line&#10;Address line 1&#10;Address line 2"
+                          :placeholder="selectedType === '{{ $accountType }}' ? 'One-line purpose shown on the journal list and Cash In/Out lookup' : 'Store name on first line\nAddress line 1\nAddress line 2'"
                           class="min-h-[100px] w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 @error('description') border-red-500 @enderror">{{ $val('description') }}</textarea>
-                <p class="mt-1 text-xs text-gray-500">Used on invoices when this contact is the transaction sender. First line = store name, following lines = address. Phone above is also shown.</p>
+                <p x-show="selectedType === '{{ $accountType }}'" class="mt-1 text-xs text-gray-500">Short purpose for this ledger. Cash In/Out also shows the cash-entry hint when set.</p>
+                <p x-show="selectedType !== '{{ $accountType }}'" class="mt-1 text-xs text-gray-500">Used on invoices when this contact is the transaction sender. First line = store name, following lines = address. Phone above is also shown.</p>
                 @error('description')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
             </div>
         </div>
