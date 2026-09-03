@@ -636,6 +636,78 @@ test('it moves every size to the new pcode and keeps group.name equal to pcode',
     ]);
 });
 
+test('saving slash leftover pcode as hyphen keeps every size on the parent group page', function () {
+    $mediumTag = Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'M', 'name' => 'Medium']);
+    $group = ItemGroup::factory()->create([
+        'master' => 'CX00122/03',
+        'variant' => '',
+        'name' => 'CX00122/03',
+        'description' => 'MIKRO MOTIF CAMO HIJAU',
+    ]);
+
+    $small = Item::factory()->create([
+        'type' => ItemType::ITEM,
+        'group_id' => $group->id,
+        'pcode' => 'CX00122/03',
+        'code' => 'AJDCX0012203S',
+        'name' => 'CX00122/03 S',
+        'price' => 100000,
+    ]);
+    $medium = Item::factory()->create([
+        'type' => ItemType::ITEM,
+        'group_id' => $group->id,
+        'pcode' => 'CX00122/03',
+        'code' => 'AJDCX0012203M',
+        'name' => 'CX00122/03 M',
+        'price' => 100000,
+    ]);
+    $small->tags()->sync([$this->typeTag->id, $this->warnaTag->id, $this->sizeTag->id, $this->jahitTag->id]);
+    $medium->tags()->sync([$this->typeTag->id, $this->warnaTag->id, $mediumTag->id, $this->jahitTag->id]);
+
+    $hierarchy = app(\App\Services\Items\ItemGroupHierarchyService::class);
+    $builder = app(\App\Services\Items\ItemIdentityBuilder::class);
+    $oldKey = $builder->itemParentKey($small->fresh(['group', 'tags']));
+
+    $this->itemService->update($small->id, (object) [
+        'pcode' => 'CX00122-03',
+        'type' => ItemType::ITEM->value,
+        'product_name' => 'CX00122/03',
+        'price' => 100000,
+        'description' => 'Mikro motif camo hijau',
+    ], [
+        'types' => [$this->typeTag->id],
+        'sizes' => [$this->sizeTag->id],
+        'warna' => [$this->warnaTag->id],
+        'jahit' => [$this->jahitTag->id],
+    ]);
+
+    $small->refresh()->load(['group', 'tags']);
+    $medium->refresh()->load(['group', 'tags']);
+    $group->refresh();
+
+    expect($group->id)->toBe($small->group_id)
+        ->and($medium->group_id)->toBe($group->id)
+        ->and($group->master)->toBe('CX00122')
+        ->and($group->variant)->toBe('03')
+        ->and($small->pcode)->toBe('CX00122-03')
+        ->and($medium->pcode)->toBe('CX00122-03');
+
+    $newKey = $builder->itemParentKey($small);
+    $oldDetail = $hierarchy->parentDetail($oldKey, fetchJubelio: false);
+    $newDetail = $hierarchy->parentDetail($newKey, fetchJubelio: false);
+    $canonicalDetail = $hierarchy->parentDetail('1:AJD:CX00122', fetchJubelio: false);
+    $slashDetail = $hierarchy->parentDetail('1:AJD:CX00122/03', fetchJubelio: false);
+
+    expect($newKey)->toBe('1:AJD:CX00122')
+        ->and($oldDetail)->not->toBeNull()
+        ->and($newDetail)->not->toBeNull()
+        ->and($canonicalDetail)->not->toBeNull()
+        ->and($slashDetail)->not->toBeNull()
+        ->and(collect($canonicalDetail['colors'])->pluck('group_id'))->toContain($group->id)
+        ->and(collect($canonicalDetail['colors'][0]['size_rows'])->pluck('item_id')->all())
+        ->toContain($small->id, $medium->id);
+});
+
 test('it keeps a custom group title when product name is not the pcode', function () {
     $mediumTag = Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'M', 'name' => 'Medium']);
 

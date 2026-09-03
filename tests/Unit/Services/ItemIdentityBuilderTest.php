@@ -43,6 +43,17 @@ describe('pcode validation', function () {
         expect(true)->toBeTrue();
     });
 
+    it('accepts leftover slash manufactured pcode as the hyphenated form', function () {
+        $this->builder->validatePcode(ItemType::ITEM, 'CX00122/03');
+
+        expect($this->builder->normalizeManufacturedPcode('CX00122/03'))->toBe('CX00122-03')
+            ->and($this->builder->parsePcode(ItemType::ITEM, 'CX00122/03'))->toBe([
+                'master' => 'CX00122',
+                'variant' => '03',
+            ])
+            ->and($this->builder->canonicalManufacturedMaster('CX00122/03'))->toBe('CX00122');
+    });
+
     it('rejects invalid manufactured item pcode', function () {
         $this->builder->validatePcode(ItemType::ITEM, 'INVALID');
     })->throws(InvalidArgumentException::class);
