@@ -273,7 +273,8 @@ test('sheet show page includes unified tabulator block grids', function () {
         ->assertSee('vendor/tabulator/tabulator.min.js', false)
         ->assertSee('Save sheet', false)
         ->assertSee('Export Excel', false)
-        ->assertSee('Stock', false);
+        ->assertSee('Stock', false)
+        ->assertSee('data-testid="restock-sku-lookup"', false);
 });
 
 test('grid includes warehouse stock from configured warehouses', function () {
@@ -488,7 +489,7 @@ test('receive multiple cells without invoice and mixed quantities', function () 
             'invoice' => '',
             'cells' => [
                 ['id' => $cells[0]->id, 'qty' => 99],
-                ['id' => $cells[1]->id, 'qty' => 102],
+                ['id' => $cells[1]->id, 'qty' => 100],
             ],
         ])
         ->assertSuccessful();
@@ -504,7 +505,7 @@ test('receive multiple cells without invoice and mixed quantities', function () 
     expect($transaction)->not->toBeNull();
     expect($transaction->details)->toHaveCount(2);
     expect((float) $transaction->details->firstWhere('item_id', $cells[0]->item_id)->quantity)->toBe(99.0);
-    expect((float) $transaction->details->firstWhere('item_id', $cells[1]->item_id)->quantity)->toBe(102.0);
+    expect((float) $transaction->details->firstWhere('item_id', $cells[1]->item_id)->quantity)->toBe(100.0);
 
     $grid = $response->json('grid');
     expect($grid['blocks'])->not->toBeEmpty();
@@ -592,6 +593,10 @@ test('receive creates buy transaction and decrements shipped qty', function () {
     expect((float) WarehouseItem::where('warehouse_id', $warehouse->id)->where('item_id', $cell->item_id)->value('quantity'))
         ->toBe(12.0);
 
+    expect((float) $transaction->total)->toBe(
+        (float) Transaction::signedAmount(Transaction::TYPE_BUY, 12 * (float) $cell->item->cost)
+    );
+
     expect(RestockCellHistory::where('restock_cell_id', $cell->id)->where('action', 'receive')->count())->toBe(1);
 });
 
@@ -607,6 +612,142 @@ test('receive fails when restock settings are not configured', function () {
             'cells' => [['id' => $cell->id]],
         ])
         ->assertStatus(422);
+});
+
+test('sheet lookup resolves a cell by canonical code and legacy_code', function () {
+    createAssetLancarSkus($this);
+    $sheet = app(RestockSheetService::class)->createSheet($this->typeTag, $this->user);
+    $cell = $sheet->cells()->with('item')->first();
+    $cell->item->update(['legacy_code' => 'OLD-ELBOW-BARCODE']);
+
+    $this->actingAs($this->user)
+        ->getJson(route('restock.sheets.lookup', $sheet).'?code='.urlencode($cell->item->code))
+        ->assertSuccessful()
+        ->assertJsonPath('item.id', $cell->item_id)
+        ->assertJsonPath('cell.id', $cell->id);
+
+    $this->actingAs($this->user)
+        ->getJson(route('restock.sheets.lookup', $sheet).'?code=old-elbow-barcode')
+        ->assertSuccessful()
+        ->assertJsonPath('item.id', $cell->item_id)
+        ->assertJsonPath('item.legacy_code', 'OLD-ELBOW-BARCODE')
+        ->assertJsonPath('cell.id', $cell->id);
+
+    $this->actingAs($this->user)
+        ->getJson(route('restock.sheets.lookup', $sheet).'?code=UNKNOWN-SKU')
+        ->assertSuccessful()
+        ->assertJsonPath('item', null)
+        ->assertJsonPath('cell', null);
+});
+
+test('sync skus can add a variant resolved by legacy_code', function () {
+    createAssetLancarSkus($this);
+    $sheet = app(RestockSheetService::class)->createSheet($this->typeTag, $this->user);
+    expect($sheet->cells)->toHaveCount(4);
+
+    $sizeL = Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'L', 'name' => 'L']);
+
+    app(ItemService::class)->create((object) [
+        'pcode' => 'ELBOW-03',
+        'type' => ItemType::ASSET_LANCAR->value,
+        'product_name' => 'Soft Edition',
+        'price' => 100000,
+        'cost' => 50000,
+    ], [
+        'types' => [$this->typeTag->id],
+        'sizes' => [$sizeL->id],
+        'warna' => [$this->warnaBlue->id],
+        'jahit' => [],
+    ]);
+
+    $newItem = Item::query()
+        ->where('type', ItemType::ASSET_LANCAR)
+        ->whereHas('tags', fn ($q) => $q->where('tags.id', $sizeL->id))
+        ->first();
+    $newItem->update(['legacy_code' => 'OLD-ELBOW-L']);
+
+    $this->actingAs($this->user)
+        ->from(route('restock.sheets.show', $sheet))
+        ->post(route('restock.sheets.sync', $sheet), ['skus' => ['OLD-ELBOW-L']])
+        ->assertRedirect()
+        ->assertSessionHas('success');
+
+    expect($sheet->fresh()->cells)->toHaveCount(5);
+    expect($sheet->fresh()->cells()->where('item_id', $newItem->id)->exists())->toBeTrue();
+});
+
+test('receive by legacy_code uses configured parties and signed buy total', function () {
+    createAssetLancarSkus($this);
+
+    $supplier = Addrbook::factory()->supplier()->create(['name' => 'Pabrik Konfigurasi']);
+    $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'Gudang Konfigurasi']);
+    seedRestockReceiveSettings($supplier, $warehouse);
+
+    $sheet = app(RestockSheetService::class)->createSheet($this->typeTag, $this->user);
+    $cell = $sheet->cells()->with('item')->first();
+    $cell->item->update(['legacy_code' => 'OLD-ELBOW-RECV']);
+    $cell->update(['qty_shipped' => 7]);
+
+    $this->actingAs($this->user)
+        ->postJson(route('restock.sheets.receive', $sheet), [
+            'date' => now()->toDateString(),
+            'cells' => [['sku' => 'OLD-ELBOW-RECV', 'qty' => 7]],
+        ])
+        ->assertSuccessful()
+        ->assertJsonStructure(['transaction_id', 'transaction_url', 'grid']);
+
+    $cell->refresh();
+    expect($cell->qty_shipped)->toBe(0);
+
+    $transaction = Transaction::latest('id')->first();
+    expect($transaction->sender_id)->toBe($supplier->id);
+    expect($transaction->receiver_id)->toBe($warehouse->id);
+    expect($transaction->type)->toBe(Transaction::TYPE_BUY);
+    expect((float) $transaction->details->first()->quantity)->toBe(7.0);
+    expect((float) $transaction->total)->toBe(
+        (float) Transaction::signedAmount(Transaction::TYPE_BUY, 7 * (float) $cell->item->cost)
+    );
+    expect((float) WarehouseItem::where('warehouse_id', $warehouse->id)->where('item_id', $cell->item_id)->value('quantity'))
+        ->toBe(7.0);
+});
+
+test('receive rejects qty above shipped with a clear message', function () {
+    createAssetLancarSkus($this);
+
+    $supplier = Addrbook::factory()->supplier()->create();
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    seedRestockReceiveSettings($supplier, $warehouse);
+
+    $sheet = app(RestockSheetService::class)->createSheet($this->typeTag, $this->user);
+    $cell = $sheet->cells()->with('item')->first();
+    $cell->update(['qty_shipped' => 10]);
+
+    $response = $this->actingAs($this->user)
+        ->postJson(route('restock.sheets.receive', $sheet), [
+            'date' => now()->toDateString(),
+            'cells' => [['id' => $cell->id, 'qty' => 12]],
+        ])
+        ->assertStatus(422);
+
+    expect($response->json('message'))->toContain('Insufficient shipped qty');
+    expect($cell->fresh()->qty_shipped)->toBe(10);
+    expect(Transaction::count())->toBe(0);
+});
+
+test('sheet show lists configured receive parties', function () {
+    createAssetLancarSkus($this);
+    $supplier = Addrbook::factory()->supplier()->create(['name' => 'Pabrik Utama']);
+    $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'Gudang Terima']);
+    seedRestockReceiveSettings($supplier, $warehouse);
+
+    $sheet = app(RestockSheetService::class)->createSheet($this->typeTag, $this->user);
+
+    $this->actingAs($this->user)
+        ->get(route('restock.sheets.show', $sheet))
+        ->assertOk()
+        ->assertSee('Pabrik Utama', false)
+        ->assertSee('Gudang Terima', false)
+        ->assertSee('data-testid="restock-sku-lookup"', false);
 });
 
 test('cannot create duplicate sheet for same type', function () {

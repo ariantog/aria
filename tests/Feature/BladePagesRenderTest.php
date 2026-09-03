@@ -1,9 +1,13 @@
 <?php
 
+use App\Enums\ItemType;
 use App\Models\Addrbook;
+use App\Models\Item;
 use App\Models\StandaloneInvoice;
+use App\Models\Tag;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Services\Restock\RestockSheetService;
 
 /**
  * Smoke tests: every Blade-migrated page must render without throwing.
@@ -230,6 +234,8 @@ it('renders migrated GET pages with a 200', function (string $route) {
     'jubelio connection' => 'jubelio/token',
     'shopee ads' => 'shopee-ads',
     'restock index' => 'restock',
+    'restock settings' => 'restock/settings',
+    'restock missing' => 'restock/missing',
     'absensi index' => 'absensi',
     'absensi import' => 'absensi/import',
     'hari libur' => 'hari-libur',
@@ -246,6 +252,35 @@ it('renders the invoice maker show page with payment status', function () {
         ->assertOk()
         ->assertSee('Payment', false)
         ->assertSee('Unpaid', false);
+});
+
+it('renders restock type landing and sheet pages', function () {
+    $typeTag = Tag::factory()->create([
+        'type' => Tag::TYPE_TYPE,
+        'code' => 'SMOKEAL',
+        'name' => 'Smoke Asset',
+        'item_type' => ItemType::ASSET_LANCAR->value,
+    ]);
+    $item = Item::factory()->create([
+        'type' => ItemType::ASSET_LANCAR,
+        'code' => 'SMOKE-01-BLACK',
+        'pcode' => 'SMOKE-01',
+        'name' => 'Smoke Sleeve',
+    ]);
+    $item->tags()->attach($typeTag->id);
+
+    $this->actingAs($this->user)
+        ->get(route('restock.type.show', $typeTag))
+        ->assertOk()
+        ->assertSee('SMOKE-01', false);
+
+    $sheet = app(RestockSheetService::class)->createSheet($typeTag, $this->user);
+
+    $this->actingAs($this->user)
+        ->get(route('restock.sheets.show', $sheet))
+        ->assertOk()
+        ->assertSee('data-testid="restock-sku-lookup"', false)
+        ->assertSee('Smoke Asset', false);
 });
 
 it('does not expose the removed warehouse compare report', function () {

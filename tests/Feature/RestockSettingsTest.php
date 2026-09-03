@@ -97,3 +97,26 @@ test('settings lookup returns suppliers and warehouses', function () {
         ->assertSuccessful()
         ->assertJsonFragment(['id' => $supplier->id, 'name' => 'Alpha Supplier']);
 });
+
+test('settings item lookup resolves code or legacy_code via findBySku', function () {
+    $item = Item::factory()->create([
+        'code' => 'NEW-ELBOW-01-S',
+        'legacy_code' => 'OLD-ELBOW-01-S',
+        'name' => 'Elbow Soft S',
+    ]);
+
+    $this->actingAs($this->user)
+        ->getJson(route('restock.settings.lookup', ['type' => 'item', 'search' => 'NEW-ELBOW-01-S']))
+        ->assertSuccessful()
+        ->assertJsonFragment(['id' => $item->id, 'code' => 'NEW-ELBOW-01-S']);
+
+    $this->actingAs($this->user)
+        ->getJson(route('restock.settings.lookup', ['type' => 'item', 'code' => 'old-elbow-01-s']))
+        ->assertSuccessful()
+        ->assertJsonFragment(['id' => $item->id, 'legacy_code' => 'OLD-ELBOW-01-S']);
+
+    $this->actingAs($this->user)
+        ->getJson(route('restock.settings.lookup', ['type' => 'item', 'search' => 'UNKNOWN-SKU']))
+        ->assertSuccessful()
+        ->assertExactJson([]);
+});
