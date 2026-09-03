@@ -295,7 +295,7 @@ test('items index desc filter searches group description for grouped skus', func
     Item::factory()->create([
         'group_id' => $group->id,
         'code' => 'AJD-DESC-FILTER-M',
-        'description' => 'MIKRO MOTIF HIJAU',
+        'description' => 'PUTIH LEGACY ITEM TEXT',
     ]);
     Item::factory()->create([
         'group_id' => \App\Models\ItemGroup::factory()->create(['description' => 'OTHER GROUP DESC']),
@@ -310,7 +310,7 @@ test('items index desc filter searches group description for grouped skus', func
         ->assertDontSee('AJD-DESC-OTHER-M', false);
 
     $this->actingAs($this->user)
-        ->get(route('items.index', ['desc' => 'MIKRO MOTIF HIJAU']))
+        ->get(route('items.index', ['desc' => 'PUTIH LEGACY ITEM TEXT']))
         ->assertOk()
         ->assertDontSee('AJD-DESC-FILTER-M', false);
 });
