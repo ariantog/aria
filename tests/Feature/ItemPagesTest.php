@@ -110,6 +110,68 @@ test('items index name filter finds item by group product title energy', functio
         ->assertDontSee('AJD-OTHER-ITEM-M', false);
 });
 
+test('item and asset lancar code filter treats percent as a like wildcard', function (string $routeName, ItemType $type) {
+    Item::factory()->create([
+        'type' => $type,
+        'code' => 'CX00122-RED-03',
+        'legacy_code' => null,
+    ]);
+    Item::factory()->create([
+        'type' => $type,
+        'code' => 'CX00122-RED-01',
+        'legacy_code' => null,
+    ]);
+    Item::factory()->create([
+        'type' => $type,
+        'code' => 'ZZ99999-03',
+        'legacy_code' => 'OLDCX00122-LEGACY-01',
+    ]);
+    Item::factory()->create([
+        'type' => $type,
+        'code' => 'NEW-SKU-AFTER-CONVERT',
+        'legacy_code' => 'OLDCX00122-NAVY-03',
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route($routeName, ['code' => 'cx00122%03']))
+        ->assertOk()
+        ->assertSee('CX00122-RED-03', false)
+        ->assertSee('NEW-SKU-AFTER-CONVERT', false)
+        ->assertDontSee('CX00122-RED-01', false)
+        ->assertDontSee('ZZ99999-03', false);
+})->with([
+    'items' => ['items.index', ItemType::ITEM],
+    'assetlancar' => ['assetlancar.index', ItemType::ASSET_LANCAR],
+]);
+
+test('item and asset lancar name filter treats percent as a like wildcard', function (string $routeName, ItemType $type) {
+    Item::factory()->create([
+        'type' => $type,
+        'name' => 'ELBOW STRAP BLACK 03',
+        'code' => 'AL-NAME-MATCH-03',
+    ]);
+    Item::factory()->create([
+        'type' => $type,
+        'name' => 'ELBOW STRAP BLACK',
+        'code' => 'AL-NAME-PARTIAL',
+    ]);
+    Item::factory()->create([
+        'type' => $type,
+        'name' => 'OTHER PRODUCT 03',
+        'code' => 'AL-NAME-OTHER-03',
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route($routeName, ['name' => 'elbow%03']))
+        ->assertOk()
+        ->assertSee('AL-NAME-MATCH-03', false)
+        ->assertDontSee('AL-NAME-PARTIAL', false)
+        ->assertDontSee('AL-NAME-OTHER-03', false);
+})->with([
+    'items' => ['items.index', ItemType::ITEM],
+    'assetlancar' => ['assetlancar.index', ItemType::ASSET_LANCAR],
+]);
+
 test('items index name filter searches group alias when product title is stored there', function () {
     if (! \Illuminate\Support\Facades\Schema::hasColumn('item_group', 'alias')) {
         \Illuminate\Support\Facades\Schema::table('item_group', function (\Illuminate\Database\Schema\Blueprint $table) {

@@ -141,7 +141,10 @@ class Item extends Model
             return;
         }
 
-        $contains = LikeSearch::contains($term);
+        $contains = LikeSearch::contains($term, allowPercentWildcards: true);
+        if (LikeSearch::isMatchAll($contains)) {
+            return;
+        }
 
         $query->where(function ($q) use ($term, $contains) {
             $q->where($q->qualifyColumn('code'), 'like', $contains)
@@ -160,8 +163,8 @@ class Item extends Model
             return;
         }
 
-        $pattern = LikeSearch::containsInsensitive($term);
-        if ($pattern === '%') {
+        $pattern = LikeSearch::containsInsensitive($term, allowPercentWildcards: true);
+        if (LikeSearch::isMatchAll($pattern)) {
             return;
         }
 
