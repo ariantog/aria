@@ -11,6 +11,7 @@ use App\Services\Items\ItemIdentityBuilder;
 use Exception;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use InvalidArgumentException;
 
 class ItemService
@@ -30,6 +31,13 @@ class ItemService
 
         return DB::transaction(function () use ($id, $input, $tags, $file, $inputType) {
             $item = Item::with(['group', 'tags'])->findOrFail($id);
+            $sourceGroupId = (int) $item->group_id;
+            $siblings = $sourceGroupId > 0
+                ? Item::with('tags')
+                    ->where('group_id', $sourceGroupId)
+                    ->where('id', '!=', $item->id)
+                    ->get()
+                : collect();
             $pcode = $this->resolvePcodeForUpdate($item, $inputType, $input);
 
             try {
@@ -74,13 +82,6 @@ class ItemService
 
             $pcode = strtoupper(trim((string) $input->pcode));
             $groupName = $this->groupNameFromInput($input, $inputType, $pcode, $item->group, $item);
-            $variant = $this->identityBuilder->groupVariant($inputType, $pcode, $warnaTag);
-            $storedName = $this->identityBuilder->uniqueStoredGroupName(
-                $this->identityBuilder->storedGroupName($inputType, $groupName, $pcode, $variant),
-                $this->identityBuilder->parsePcode($inputType, $pcode)['master'],
-                $variant,
-            );
-            $nameChanged = strtoupper(trim((string) ($item->group?->name ?? ''))) !== strtoupper($storedName);
             $group = $this->resolveGroup($inputType, $pcode, $groupName, $warnaTag, $input);
 
             $this->applyItemIdentity(
@@ -102,9 +103,25 @@ class ItemService
             $item->save();
             $item->tags()->sync($tagIds);
 
-            if ($nameChanged) {
-                $this->syncItemNamesForGroup($group->fresh());
+            $this->persistGroupCatalogAttributes($group, $item, $input, $typeTag);
+
+            foreach ($siblings as $sibling) {
+                $this->applySharedUpdateToSibling(
+                    $sibling,
+                    $input,
+                    $inputType,
+                    $pcode,
+                    $group,
+                    $typeTag,
+                    $warnaTag,
+                    $tags,
+                    $typeId,
+                    $warnaId ?: null,
+                    $groupName,
+                );
             }
+
+            $this->syncItemNamesForGroup($group->fresh());
 
             if ($file) {
                 $this->imageService->saveImage($group, $file);
@@ -219,6 +236,8 @@ class ItemService
                             $groupName,
                         );
 
+                        $this->persistGroupCatalogAttributes($group, $item, $input, $typeTag);
+
                         if ($file) {
                             if (! $firstItemWithImage) {
                                 $this->imageService->saveItemImage($item, $file);
@@ -322,7 +341,7 @@ class ItemService
         );
         $item->size = $sizeTag?->id ?? 0;
         $item->genre = $typeTag?->id ?? 0;
-        $item->brand = $this->resolveBrand($pcode);
+        $item->brand = ItemBrand::fromPcode($pcode);
     }
 
     protected function resolveGroup(
@@ -383,7 +402,7 @@ class ItemService
     ): string {
         $name = trim((string) ($input->product_name ?? $input->alias ?? $input->name ?? ''));
 
-        if ($name !== '') {
+        if ($name !== '' && ! $this->isPcodeLikeProductName($name, $pcode, $item)) {
             return $this->identityBuilder->productDisplayName(
                 $type,
                 $name,
@@ -392,10 +411,14 @@ class ItemService
             );
         }
 
-        $fromPcode = $this->productNameForPcode($type, $pcode);
+        // Create: inherit a custom title already stored for this pcode.
+        // Update: an empty / pcode-like name means group.name tracks pcode.
+        if ($item === null) {
+            $fromPcode = $this->productNameForPcode($type, $pcode);
 
-        if ($fromPcode !== null) {
-            return $fromPcode;
+            if ($fromPcode !== null && ! $this->isPcodeLikeProductName($fromPcode, $pcode, null)) {
+                return $fromPcode;
+            }
         }
 
         if ($type === ItemType::ITEM) {
@@ -581,20 +604,103 @@ class ItemService
         return $tagIds;
     }
 
-    protected function resolveBrand(string $pcode): ItemBrand
-    {
-        $brandStr = strtoupper(substr($pcode, 0, 2));
-        if ($brandStr === 'CX') {
-            $brandStr = strtoupper(substr($pcode, 0, 3));
+    protected function applySharedUpdateToSibling(
+        Item $sibling,
+        object $input,
+        ItemType $itemType,
+        string $pcode,
+        ItemGroup $group,
+        ?Tag $typeTag,
+        ?Tag $warnaTag,
+        array $tags,
+        int $typeId,
+        ?int $warnaId,
+        string $groupName,
+    ): void {
+        $sizeTag = $sibling->tags->firstWhere('type', Tag::TYPE_SIZE);
+        if (! $sizeTag && (int) $sibling->size > 0) {
+            $sizeTag = Tag::find((int) $sibling->size);
         }
 
-        foreach (ItemBrand::cases() as $brandCase) {
-            if ($brandCase->label() === $brandStr) {
-                return $brandCase;
+        $siblingInput = clone $input;
+        $siblingInput->cost = $sibling->cost;
+        $siblingInput->restock_urgent_threshold = $sibling->restock_urgent_threshold;
+
+        $sibling->group_id = $group->id;
+
+        $this->applyItemIdentity(
+            $sibling,
+            $itemType,
+            $pcode,
+            $group,
+            $typeTag,
+            $warnaTag,
+            $sizeTag,
+            $siblingInput,
+            isUpdate: true,
+            productName: $groupName,
+        );
+
+        $sizeId = (int) ($sizeTag?->id ?? 0);
+        $tagIds = $this->collectTagIds($tags, $typeId, $sizeId, $warnaId);
+        $sibling->tag_ids = implode(',', $tagIds);
+        $sibling->save();
+        $sibling->tags()->sync($tagIds);
+    }
+
+    protected function persistGroupCatalogAttributes(ItemGroup $group, Item $item, object $input, ?Tag $typeTag): void
+    {
+        if (isset($input->description)) {
+            $group->description = strtoupper((string) $input->description);
+        }
+
+        if (isset($input->description2)) {
+            $group->description2 = strtoupper((string) $input->description2);
+        }
+
+        if (isset($input->url)) {
+            $group->url = $this->normalizeUrl($input->url);
+        }
+
+        $brand = $item->brand instanceof ItemBrand
+            ? $item->brand
+            : ItemBrand::fromPcode((string) $item->pcode);
+
+        if (Schema::hasColumn($group->getTable(), 'brand')) {
+            $group->brand = $brand;
+        }
+
+        if (Schema::hasColumn($group->getTable(), 'genre')) {
+            $group->genre = (int) ($typeTag?->id ?? $item->genre ?? 0);
+        }
+
+        $group->save();
+    }
+
+    /**
+     * Group name that is only the shared pcode (slash or hyphen form).
+     */
+    protected function isPcodeLikeProductName(string $name, string $pcode, ?Item $item): bool
+    {
+        $normalize = static fn (string $value): string => strtoupper(str_replace(['/', ' '], ['-', ''], trim($value)));
+        $nameNorm = $normalize($name);
+
+        foreach (array_filter([$pcode, (string) ($item?->pcode ?? '')]) as $candidate) {
+            if ($nameNorm === $normalize((string) $candidate)) {
+                return true;
             }
         }
 
-        return ItemBrand::NO_BRAND;
+        return $this->isPlaceholderProductName(
+            $item?->type instanceof ItemType ? $item->type : ItemType::ITEM,
+            $name,
+            $pcode,
+        );
+    }
+
+    protected function resolveBrand(string $pcode): ItemBrand
+    {
+        return ItemBrand::fromPcode($pcode);
     }
 
     protected function sortTags(array $tags, ItemType $type): array

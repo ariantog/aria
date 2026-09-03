@@ -2,6 +2,7 @@
 
 namespace App\Services\Items;
 
+use App\Enums\ItemBrand;
 use App\Enums\ItemType;
 use App\Models\Item;
 use App\Models\ItemGroup;
@@ -13,6 +14,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class LegacyItemConverterService
 {
@@ -312,7 +314,6 @@ class LegacyItemConverterService
             ->select(['items.id', 'items.code', 'items.type', 'items.group_id', 'items.legacy_code'])
             ->chunkByIdDesc(500, function ($items) use (
                 $parser,
-                $itemType,
                 $start,
                 $perPage,
                 &$eligibleIndex,
@@ -355,21 +356,21 @@ class LegacyItemConverterService
         $this->candidateBaseQuery($itemType)
             ->with(['tags', 'group'])
             ->select(['items.id', 'items.code', 'items.type', 'items.group_id', 'items.legacy_code'])
-            ->chunkByIdDesc(500, function ($items) use ($parser, $itemType, $limit, &$batchIds) {
-            foreach ($items as $item) {
-                if (! $this->isStructurallyEligible($item, $parser)) {
-                    continue;
+            ->chunkByIdDesc(500, function ($items) use ($parser, $limit, &$batchIds) {
+                foreach ($items as $item) {
+                    if (! $this->isStructurallyEligible($item, $parser)) {
+                        continue;
+                    }
+
+                    $batchIds[] = $item->id;
+
+                    if (count($batchIds) >= $limit) {
+                        return false;
+                    }
                 }
 
-                $batchIds[] = $item->id;
-
-                if (count($batchIds) >= $limit) {
-                    return false;
-                }
-            }
-
-            return count($batchIds) < $limit;
-        }, 'id');
+                return count($batchIds) < $limit;
+            }, 'id');
 
         if ($batchIds === []) {
             return collect();
@@ -658,7 +659,10 @@ class LegacyItemConverterService
         $item->name = $this->identityBuilder->buildName((string) $parse->groupName, $warnaTag, $sizeTag);
         $item->size = $sizeTag?->id ?? 0;
         $item->genre = $effectiveTypeTag?->id ?? 0;
+        $item->brand = ItemBrand::fromPcode((string) $parse->pcode);
         $item->save();
+
+        $this->persistGroupCatalogAttributes($group, $item, $effectiveTypeTag);
 
         $tagIds = $this->collectTagIds($item, $effectiveTypeTag, $warnaTag, $sizeTag);
         $item->tag_ids = implode(',', $tagIds);
@@ -703,6 +707,23 @@ class LegacyItemConverterService
         }
 
         return $group;
+    }
+
+    protected function persistGroupCatalogAttributes(ItemGroup $group, Item $item, ?Tag $typeTag): void
+    {
+        if (Schema::hasColumn($group->getTable(), 'brand')) {
+            $group->brand = $item->brand instanceof ItemBrand
+                ? $item->brand
+                : ItemBrand::fromPcode((string) $item->pcode);
+        }
+
+        if (Schema::hasColumn($group->getTable(), 'genre')) {
+            $group->genre = (int) ($typeTag?->id ?? $item->genre ?? 0);
+        }
+
+        if ($group->isDirty()) {
+            $group->save();
+        }
     }
 
     protected function resolveAssetLancarTypeTag(Item $item): ?Tag
