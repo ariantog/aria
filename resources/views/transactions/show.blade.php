@@ -671,7 +671,7 @@ function transactionShowPage(transactionId, initialNote, canEditNote, canEditPpn
         pphAmount: initialPph !== null ? Number(initialPph) : null,
         ppnRecord: Number(initialPpn || 0) > 0,
         pphRecord: Number(initialPph || 0) > 0,
-        ppnDisplay: formatAmountId(Number(initialSignedPpn ?? initialPpn || 0)),
+        ppnDisplay: formatAmountId(Number(initialSignedPpn ?? (initialPpn || 0))),
         ppnDppDisplay: initialPpnDpp !== null ? formatAmountId(Number(initialPpnDpp)) : '-',
         pphDisplay: initialPph !== null ? formatAmountId(Number(initialPph)) : '-',
         ppnModalOpen: false,
