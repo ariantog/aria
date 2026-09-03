@@ -75,6 +75,57 @@ test('catalog reads keep working when leftover item columns are empty', function
         ->and(ItemCatalog::genre($item))->toBe(42);
 });
 
+test('scanText prefers group catalog and falls back to leftover item text', function () {
+    $group = ItemGroup::factory()->make([
+        'description' => 'MIKRO MOTIF CAMO HIJAU',
+        'description2' => '',
+    ]);
+    $item = Item::factory()->make([
+        'group_id' => 11,
+        'description' => 'PUTIH',
+        'description2' => '',
+    ]);
+    $item->setRelation('group', $group);
+
+    expect(ItemCatalog::scanText($item))->toBe('MIKRO MOTIF CAMO HIJAU');
+
+    $group->description = '';
+    $item->setRelation('group', $group);
+
+    expect(ItemCatalog::scanText($item))->toBe('PUTIH')
+        ->and(ItemCatalog::leftoverDescription($item))->toBe('PUTIH');
+});
+
+test('seedEmptyDescriptions fills blank group text and never overwrites catalog', function () {
+    $source = ItemGroup::factory()->create([
+        'description' => 'MIKRO MOTIF CAMO HIJAU',
+        'description2' => 'NOTE',
+    ]);
+    $emptyGroup = ItemGroup::factory()->create([
+        'description' => '',
+        'description2' => '',
+    ]);
+    $item = Item::factory()->create([
+        'group_id' => $emptyGroup->id,
+        'description' => 'MIKRO MOTIF HIJAU',
+        'description2' => 'STALE',
+    ]);
+
+    ItemCatalog::seedEmptyDescriptions($emptyGroup, $item, $source);
+    $emptyGroup->refresh();
+
+    expect($emptyGroup->description)->toBe('MIKRO MOTIF CAMO HIJAU')
+        ->and($emptyGroup->description2)->toBe('NOTE');
+
+    $item->description = 'PUTIH';
+    $item->description2 = 'OTHER';
+    ItemCatalog::seedEmptyDescriptions($emptyGroup->fresh(), $item, null);
+    $emptyGroup->refresh();
+
+    expect($emptyGroup->description)->toBe('MIKRO MOTIF CAMO HIJAU')
+        ->and($emptyGroup->description2)->toBe('NOTE');
+});
+
 test('brand constraint matches group brand when the item mirror is stale', function () {
     $group = ItemGroup::factory()->create(['brand' => ItemBrand::CX9]);
     $item = Item::factory()->create([
