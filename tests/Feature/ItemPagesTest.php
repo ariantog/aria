@@ -19,11 +19,16 @@ test('items index page can be rendered', function () {
 });
 
 test('items index shows database columns and collapsible filters', function () {
-    $item = Item::factory()->create([
-        'name' => 'DISPLAY NAME - NAVY - S',
-        'code' => 'AJD-FILTER-COL-S',
+    $group = \App\Models\ItemGroup::factory()->create([
         'description' => 'Item description text',
         'description2' => 'Internal note',
+    ]);
+    $item = Item::factory()->create([
+        'group_id' => $group->id,
+        'name' => 'DISPLAY NAME - NAVY - S',
+        'code' => 'AJD-FILTER-COL-S',
+        'description' => 'Stale item description',
+        'description2' => 'Stale item note',
     ]);
 
     $this->actingAs($this->user)
@@ -37,6 +42,7 @@ test('items index shows database columns and collapsible filters', function () {
         ->assertSee('DISPLAY NAME - NAVY - S', false)
         ->assertSee('Item description text', false)
         ->assertSee('Internal note', false)
+        ->assertDontSee('Stale item description', false)
         ->assertSee('data-testid="items-index-filters-toggle"', false)
         ->assertSee('aria-items-index-filters-open', false);
 });
@@ -196,6 +202,35 @@ test('items index name filter searches group alias when product title is stored 
         ->assertSee('AJD-ENERGY-ALIAS-M', false);
 });
 
+test('catalogDescription prefers item_group description over items.description', function () {
+    $group = \App\Models\ItemGroup::factory()->make([
+        'description' => 'MIKRO MOTIF CAMO HIJAU',
+        'description2' => 'GROUP NB',
+    ]);
+    $item = Item::factory()->make([
+        'group_id' => 24961,
+        'description' => 'MIKRO MOTIF HIJAU',
+        'description2' => 'ITEM NB',
+        'type' => ItemType::ITEM,
+    ]);
+    $item->setRelation('group', $group);
+
+    expect($item->catalogDescription())->toBe('MIKRO MOTIF CAMO HIJAU')
+        ->and($item->catalogDescription2())->toBe('GROUP NB');
+});
+
+test('catalogDescription falls back to the item column when there is no group', function () {
+    $item = Item::factory()->make([
+        'group_id' => 0,
+        'description' => 'UNGROUPED DESC',
+        'description2' => 'UNGROUPED NB',
+    ]);
+    $item->setRelation('group', null);
+
+    expect($item->catalogDescription())->toBe('UNGROUPED DESC')
+        ->and($item->catalogDescription2())->toBe('UNGROUPED NB');
+});
+
 test('getItemName prefers non-empty group alias for manufactured items', function () {
     $group = \App\Models\ItemGroup::factory()->make(['name' => 'GROUP PRODUCT NAME']);
     $group->setRawAttributes(array_merge($group->getAttributes(), ['alias' => 'GROUP ALIAS NAME']));
@@ -255,28 +290,48 @@ test('asset lancar index shows the full sku without truncating the code column',
         ->assertDontSee('ELBOWSUPPORT-02-BLACKW...', false);
 });
 
-test('items index desc filter searches item description only', function () {
-    $group = \App\Models\ItemGroup::factory()->create(['description' => 'GROUP DESCRIPTION ONLY']);
-    $match = Item::factory()->create([
+test('items index desc filter searches group description for grouped skus', function () {
+    $group = \App\Models\ItemGroup::factory()->create(['description' => 'MIKRO MOTIF CAMO HIJAU']);
+    Item::factory()->create([
         'group_id' => $group->id,
         'code' => 'AJD-DESC-FILTER-M',
-        'description' => 'ITEM DESCRIPTION MATCH',
+        'description' => 'MIKRO MOTIF HIJAU',
     ]);
-    $other = Item::factory()->create([
+    Item::factory()->create([
+        'group_id' => \App\Models\ItemGroup::factory()->create(['description' => 'OTHER GROUP DESC']),
         'code' => 'AJD-DESC-OTHER-M',
         'description' => 'OTHER DESCRIPTION',
     ]);
 
     $this->actingAs($this->user)
-        ->get(route('items.index', ['desc' => 'ITEM DESCRIPTION MATCH']))
+        ->get(route('items.index', ['desc' => 'MIKRO MOTIF CAMO HIJAU']))
         ->assertOk()
         ->assertSee('AJD-DESC-FILTER-M', false)
         ->assertDontSee('AJD-DESC-OTHER-M', false);
 
     $this->actingAs($this->user)
-        ->get(route('items.index', ['desc' => 'GROUP DESCRIPTION ONLY']))
+        ->get(route('items.index', ['desc' => 'MIKRO MOTIF HIJAU']))
         ->assertOk()
         ->assertDontSee('AJD-DESC-FILTER-M', false);
+});
+
+test('items index desc filter searches item description when the sku has no group', function () {
+    Item::factory()->create([
+        'group_id' => null,
+        'code' => 'AJD-UNGROUPED-DESC-M',
+        'description' => 'UNGROUPED ITEM DESC',
+    ]);
+    Item::factory()->create([
+        'group_id' => \App\Models\ItemGroup::factory()->create(['description' => 'GROUPED DESC']),
+        'code' => 'AJD-GROUPED-DESC-M',
+        'description' => 'UNGROUPED ITEM DESC',
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('items.index', ['desc' => 'UNGROUPED ITEM DESC']))
+        ->assertOk()
+        ->assertSee('AJD-UNGROUPED-DESC-M', false)
+        ->assertDontSee('AJD-GROUPED-DESC-M', false);
 });
 
 test('items create page can be rendered', function () {
@@ -284,6 +339,35 @@ test('items create page can be rendered', function () {
         ->get(route('items.create'));
 
     $response->assertStatus(200);
+});
+
+test('item show and edit use the group description when it differs from the item column', function () {
+    $group = \App\Models\ItemGroup::factory()->create([
+        'master' => 'CX00122',
+        'variant' => '04',
+        'name' => 'CX00122/04',
+        'description' => 'MIKRO MOTIF CAMO HIJAU',
+    ]);
+    $item = Item::factory()->create([
+        'group_id' => $group->id,
+        'code' => 'CLNCX0012204S',
+        'pcode' => 'CX00122/04',
+        'name' => 'CLN CX00122/04 S',
+        'description' => 'MIKRO MOTIF HIJAU',
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('items.show', $item))
+        ->assertOk()
+        ->assertSee('data-testid="item-catalog-description"', false)
+        ->assertSee('MIKRO MOTIF CAMO HIJAU', false)
+        ->assertDontSee('>MIKRO MOTIF HIJAU<', false);
+
+    $this->actingAs($this->user)
+        ->get(route('items.edit', $item))
+        ->assertOk()
+        ->assertSee('>MIKRO MOTIF CAMO HIJAU<', false)
+        ->assertDontSee('>MIKRO MOTIF HIJAU<', false);
 });
 
 test('items show page links group and tags to filtered lists', function () {
