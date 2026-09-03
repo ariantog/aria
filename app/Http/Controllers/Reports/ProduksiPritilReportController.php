@@ -14,23 +14,14 @@ class ProduksiPritilReportController extends Controller
     {
         Gate::authorize(Report::getPermissions()['view-produksi-pritil']);
 
-        $month = $request->query('month');
-        $month = ($month === null || $month === '' || $month === '0') ? null : (int) $month;
-        $year = (int) ($request->query('year') ?? date('Y'));
-
-        [$startDate, $endDate, $resolvedMonth, $resolvedYear] = $stats->resolveDateRange($month, $year);
-
-        $workerSummary = $stats->pritilWorkerSummary($startDate, $endDate);
-        $monthlyTotals = $stats->pritilMonthlyTotals($resolvedYear);
+        $ctx = $stats->reportContext($request->query());
 
         return view('reports.produksi-pritil', [
-            'workerSummary' => $workerSummary,
-            'monthlyTotals' => $monthlyTotals,
-            'filters' => [
-                'month' => $resolvedMonth,
-                'year' => $resolvedYear,
-            ],
+            'workerSummary' => $stats->pritilWorkerSummary($ctx['startDate'], $ctx['endDate'], $ctx['status']),
+            'monthlyTotals' => $stats->pritilMonthlyTotals($ctx['filters']['year'], $ctx['status']),
+            'filters' => $ctx['filters'],
             'yearList' => $stats->yearList(),
+            'periodLabel' => $ctx['periodLabel'],
             'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
     }

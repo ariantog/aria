@@ -14,23 +14,14 @@ class ProduksiJahitReportController extends Controller
     {
         Gate::authorize(Report::getPermissions()['view-produksi-jahit']);
 
-        $month = $request->query('month');
-        $month = ($month === null || $month === '' || $month === '0') ? null : (int) $month;
-        $year = (int) ($request->query('year') ?? date('Y'));
-
-        [$startDate, $endDate, $resolvedMonth, $resolvedYear] = $stats->resolveDateRange($month, $year);
-
-        $workerSummary = $stats->jahitWorkerSummary($startDate, $endDate);
-        $monthlyTotals = $stats->jahitMonthlyTotals($resolvedYear);
+        $ctx = $stats->reportContext($request->query());
 
         return view('reports.produksi-jahit', [
-            'workerSummary' => $workerSummary,
-            'monthlyTotals' => $monthlyTotals,
-            'filters' => [
-                'month' => $resolvedMonth,
-                'year' => $resolvedYear,
-            ],
+            'workerSummary' => $stats->jahitWorkerSummary($ctx['startDate'], $ctx['endDate'], $ctx['status']),
+            'monthlyTotals' => $stats->jahitMonthlyTotals($ctx['filters']['year'], $ctx['status']),
+            'filters' => $ctx['filters'],
             'yearList' => $stats->yearList(),
+            'periodLabel' => $ctx['periodLabel'],
             'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
     }

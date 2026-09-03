@@ -13,6 +13,7 @@ $monthNames = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep'
 $totalKitir = $workerSummary->sum('kitir_count');
 $totalQty = $workerSummary->sum('total_qty');
 $yearlyQty = $monthlyTotals->sum('total_qty');
+$hasCustomRange = filled($filters['from'] ?? null) || filled($filters['to'] ?? null);
 @endphp
 
 <div class="flex flex-col gap-4 p-4">
@@ -21,7 +22,7 @@ $yearlyQty = $monthlyTotals->sum('total_qty');
             <h1 class="text-2xl font-bold tracking-tight text-gray-900">Statistik QC</h1>
             <p class="text-sm text-gray-500">
                 QC throughput for
-                {{ $filters['month'] ? $monthNames[$filters['month']].' '.$filters['year'] : 'year '.$filters['year'] }}
+                {{ $periodLabel }}
                 (grouped by <span class="font-medium">QC assignment date</span>).
             </p>
         </div>
@@ -44,12 +45,12 @@ $yearlyQty = $monthlyTotals->sum('total_qty');
             <p class="text-2xl font-bold tabular-nums text-indigo-600">{{ number_format($totalQty) }}</p>
         </div>
         <div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-            <p class="text-sm text-gray-500">Year {{ $filters['year'] }} Total Pieces</p>
-            <p class="text-2xl font-bold tabular-nums text-gray-900">{{ number_format($yearlyQty) }}</p>
+            <p class="text-sm text-gray-500">{{ $hasCustomRange ? 'Selected period Total Pieces' : 'Year '.$filters['year'].' Total Pieces' }}</p>
+            <p class="text-2xl font-bold tabular-nums text-gray-900">{{ number_format($hasCustomRange ? $totalQty : $yearlyQty) }}</p>
         </div>
     </div>
 
-    @if(! $filters['month'])
+    @if(! $filters['month'] && ! $hasCustomRange)
     <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
         <div class="border-b border-gray-100 px-4 py-3">
             <h2 class="font-semibold text-gray-900">Monthly Overview — {{ $filters['year'] }}</h2>

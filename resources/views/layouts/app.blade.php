@@ -599,7 +599,7 @@ function deferFocusElement(id, select = true) {
     }, 0);
 }
 
-// ─── Filter form Enter → next field (selects included) ───────────────────────
+// ─── Filter form Enter → submit (selects included) ───────────────────────────
 function filterFormFocusables(form) {
     const nodes = form.querySelectorAll(
         'input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]):not([disabled]),' +
@@ -688,12 +688,8 @@ function processFilterEnterNav(e) {
         return false;
     }
 
-    if (el.matches('[data-filter-enter-submit]') && el.matches('input, select')) {
-        return submitFilterForm(form);
-    }
-
     if (el.matches('input, select')) {
-        return focusNextInFilterForm(form, el);
+        return submitFilterForm(form);
     }
 
     return false;
@@ -1071,8 +1067,7 @@ function asyncCombobox(config) {
             if (key === 'Enter') {
                 const filterForm = this.$el.closest('form.filter-enter-nav');
                 if (filterForm && !this.open) {
-                    const input = this.$el.querySelector('input[type="text"], input:not([type="hidden"])');
-                    if (input && focusNextInFilterForm(filterForm, input)) {
+                    if (submitFilterForm(filterForm)) {
                         return true;
                     }
                 }

@@ -145,6 +145,85 @@ it('aggregates pritil statistics with lag metrics', function () {
     expect($summary->first()->avg_setor_lag_days)->toBe(2.0);
 });
 
+it('filters produksi statistics by date range and status including zero', function () {
+    $potong = Worker::create(['name' => 'Range Cutter', 'type' => Worker::TYPE_POTONG]);
+    $year = (int) date('Y');
+
+    Produksi::create([
+        'temp_name' => 'In-range Produksi',
+        'quantity' => 1234,
+        'potong_id' => $potong->id,
+        'potong_date' => "{$year}-03-10",
+        'status' => Produksi::STATUS_PRODUKSI,
+    ]);
+    Produksi::create([
+        'temp_name' => 'In-range Setor',
+        'quantity' => 77,
+        'potong_id' => $potong->id,
+        'potong_date' => "{$year}-03-11",
+        'status' => Produksi::STATUS_SETOR,
+    ]);
+    Produksi::create([
+        'temp_name' => 'Out-of-range Produksi',
+        'quantity' => 8888,
+        'potong_id' => $potong->id,
+        'potong_date' => "{$year}-05-01",
+        'status' => Produksi::STATUS_PRODUKSI,
+    ]);
+
+    $stats = app(ProduksiStatisticsService::class);
+    $ctx = $stats->reportContext([
+        'from' => "{$year}-03-01",
+        'to' => "{$year}-03-31",
+        'status' => '0',
+        'year' => $year,
+    ]);
+
+    expect($ctx['hasCustomRange'])->toBeTrue();
+    expect($ctx['status'])->toBe(Produksi::STATUS_PRODUKSI);
+    expect($ctx['periodLabel'])->toContain("{$year}-03-01")
+        ->and($ctx['periodLabel'])->toContain('Produksi');
+
+    $summary = $stats->potongWorkerSummary($ctx['startDate'], $ctx['endDate'], $ctx['status']);
+
+    expect($summary)->toHaveCount(1);
+    expect($summary->first()->total_qty)->toBe(1234);
+
+    $unfilteredRange = $stats->potongWorkerSummary($ctx['startDate'], $ctx['endDate']);
+    expect($unfilteredRange->first()->total_qty)->toBe(1311);
+});
+
+it('renders produksi report date and status filters including status zero', function () {
+    $potong = Worker::create(['name' => 'Report Cutter', 'type' => Worker::TYPE_POTONG]);
+    $year = (int) date('Y');
+
+    Produksi::create([
+        'temp_name' => 'Filterable Shirt',
+        'quantity' => 3210,
+        'potong_id' => $potong->id,
+        'potong_date' => "{$year}-03-08",
+        'status' => Produksi::STATUS_PRODUKSI,
+    ]);
+    Produksi::create([
+        'temp_name' => 'Later Shirt',
+        'quantity' => 9999,
+        'potong_id' => $potong->id,
+        'potong_date' => "{$year}-08-01",
+        'status' => Produksi::STATUS_PRODUKSI,
+    ]);
+
+    $this->actingAs($this->user)
+        ->get("/reports/produksi-potong?from={$year}-03-01&to={$year}-03-31&status=0")
+        ->assertSuccessful()
+        ->assertSee('data-testid="produksi-report-from"', false)
+        ->assertSee('data-testid="produksi-report-status"', false)
+        ->assertSee('Report Cutter')
+        ->assertSee('3,210')
+        ->assertDontSee('13,209')
+        ->assertDontSee('9,999')
+        ->assertSee('option value="0"', false);
+});
+
 it('denies potong statistics without permission', function () {
     $user = User::factory()->create();
     Permission::findOrCreate(Report::getPermissions()['view-produksi-potong']);
