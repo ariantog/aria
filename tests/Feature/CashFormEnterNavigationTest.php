@@ -25,6 +25,8 @@ it('renders cash in and cash out with Enter navigation hooks', function (string 
     expect($html)
         ->toContain('_queueFieldFocus')
         ->toContain('Do not reset _fieldKeyHandled on every keydown')
+        ->toContain('item.ledger_hint || item.description')
+        ->toContain('row.customer.ledger_hint || row.customer.description')
         ->not->toContain('this._fieldKeyHandled = false;'."\n            if (this._processFieldKey(idx, field, e)) {");
 })->with([
     '/transactions/cash-in',

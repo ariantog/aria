@@ -56,6 +56,7 @@ it('seeds typical operations and ledgers with reporting roles', function () {
 
         $operation = Operation::query()->where('name', $row['operation'])->first();
         expect((int) $ledger->parent_id)->toBe($operation->id)
+            ->and($ledger->description)->toBe($row['description'])
             ->and($ledger->ledger_hint)->toBe($row['hint']);
 
         if (isset($row['role'])) {
