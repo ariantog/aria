@@ -190,6 +190,12 @@ test('it saves image when provided', function () {
 test('it creates asset lancar variants with cartesian color and size', function () {
     $pinkTag = Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'PINK', 'name' => 'PINK']);
     $mediumTag = Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'M', 'name' => 'Medium']);
+    $assetType = Tag::factory()->create([
+        'type' => Tag::TYPE_TYPE,
+        'item_type' => ItemType::ASSET_LANCAR->value,
+        'code' => 'GLOVE',
+        'name' => 'Glove',
+    ]);
 
     $input = (object) [
         'pcode' => 'GLOVE-01',
@@ -200,7 +206,7 @@ test('it creates asset lancar variants with cartesian color and size', function 
     ];
 
     $tags = [
-        'types' => [$this->typeTag->id],
+        'types' => [$assetType->id],
         'sizes' => [$this->sizeTag->id, $mediumTag->id],
         'warna' => [$this->warnaTag->id, $pinkTag->id],
         'jahit' => [],
@@ -219,6 +225,84 @@ test('it creates asset lancar variants with cartesian color and size', function 
     ]);
 
     expect(Item::where('code', 'like', 'GLOVE-01-%')->count())->toBe(4);
+});
+
+test('it rewrites asset lancar pcode prefix from the selected type tag on create', function () {
+    $assetType = Tag::factory()->create([
+        'type' => Tag::TYPE_TYPE,
+        'item_type' => ItemType::ASSET_LANCAR->value,
+        'code' => 'GLOVE',
+        'name' => 'Glove',
+    ]);
+
+    $input = (object) [
+        'pcode' => 'gloves-03',
+        'type' => ItemType::ASSET_LANCAR->value,
+        'product_name' => 'Boxing Gloves',
+        'price' => 500000,
+        'cost' => 300000,
+    ];
+
+    $this->itemService->create($input, [
+        'types' => [$assetType->id],
+        'sizes' => [$this->sizeTag->id],
+        'warna' => [$this->warnaTag->id],
+        'jahit' => [],
+    ]);
+
+    $this->assertDatabaseHas('items', [
+        'code' => 'GLOVE-03-BLUE-S',
+        'pcode' => 'GLOVE-03',
+    ]);
+});
+
+test('it keeps three-segment asset pcodes when rewriting the type prefix on create', function () {
+    $assetType = Tag::factory()->create([
+        'type' => Tag::TYPE_TYPE,
+        'item_type' => ItemType::ASSET_LANCAR->value,
+        'code' => 'BAG',
+        'name' => 'Bag',
+    ]);
+
+    $input = (object) [
+        'pcode' => 'bag-16-03',
+        'type' => ItemType::ASSET_LANCAR->value,
+        'product_name' => 'Duffel Bag',
+        'price' => 250000,
+        'cost' => 150000,
+    ];
+
+    $this->itemService->create($input, [
+        'types' => [$assetType->id],
+        'sizes' => [$this->sizeTag->id],
+        'warna' => [$this->warnaTag->id],
+        'jahit' => [],
+    ]);
+
+    $this->assertDatabaseHas('items', [
+        'code' => 'BAG-16-03-BLUE-S',
+        'pcode' => 'BAG-16-03',
+    ]);
+});
+
+test('it does not rewrite manufactured item pcode from the type tag on create', function () {
+    $input = (object) [
+        'pcode' => 'CX90233-23',
+        'type' => ItemType::ITEM->value,
+        'price' => 150000,
+    ];
+
+    $this->itemService->create($input, [
+        'types' => [$this->typeTag->id],
+        'sizes' => [$this->sizeTag->id],
+        'warna' => [$this->warnaTag->id],
+        'jahit' => [$this->jahitTag->id],
+    ]);
+
+    $this->assertDatabaseHas('items', [
+        'code' => 'AJD-CX90233-23-S',
+        'pcode' => 'CX90233-23',
+    ]);
 });
 
 test('it rejects duplicate sku on create', function () {

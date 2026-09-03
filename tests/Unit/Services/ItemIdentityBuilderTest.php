@@ -75,6 +75,39 @@ describe('pcode validation', function () {
     })->throws(InvalidArgumentException::class);
 });
 
+describe('applyAssetTypePrefixToPcode', function () {
+    it('rewrites the first hyphen segment to the type tag code', function () {
+        $gloveType = Tag::factory()->create([
+            'type' => Tag::TYPE_TYPE,
+            'code' => 'GLOVE',
+            'name' => 'Glove',
+        ]);
+
+        expect($this->builder->applyAssetTypePrefixToPcode('gloves-03', $gloveType))->toBe('GLOVE-03')
+            ->and($this->builder->applyAssetTypePrefixToPcode('glove-21', $gloveType))->toBe('GLOVE-21');
+    });
+
+    it('keeps two-segment pcodes when the prefix already matches', function () {
+        $bagType = Tag::factory()->create([
+            'type' => Tag::TYPE_TYPE,
+            'code' => 'BAG',
+            'name' => 'Bag',
+        ]);
+
+        expect($this->builder->applyAssetTypePrefixToPcode('BAG-16', $bagType))->toBe('BAG-16');
+    });
+
+    it('preserves legacy three-segment asset pcodes', function () {
+        $bagType = Tag::factory()->create([
+            'type' => Tag::TYPE_TYPE,
+            'code' => 'BAG',
+            'name' => 'Bag',
+        ]);
+
+        expect($this->builder->applyAssetTypePrefixToPcode('BAG-16-03', $bagType))->toBe('BAG-16-03');
+    });
+});
+
 describe('buildCode', function () {
     it('builds manufactured item code without color segment', function () {
         $code = $this->builder->buildCode(
