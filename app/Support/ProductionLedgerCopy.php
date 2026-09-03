@@ -20,7 +20,10 @@ use Illuminate\Support\Facades\Schema;
 final class ProductionLedgerCopy
 {
     /**
-     * Soft-delete unused / entity-tax / catch-all ledgers (plan §4–§6, §9).
+     * Soft-delete unused / catch-all / retired-PT-Core ledgers (plan §9).
+     *
+     * Entity tax ledgers (PPH/SPT/PPN per company) stay active — staff still
+     * Cash Out to them. Reports attribute those ids via taxMaps().
      *
      * @return list<int>
      */
@@ -29,7 +32,19 @@ final class ProductionLedgerCopy
         return [
             817, 1644, 2731, // Gaji Harian, Plotter, Pendapatan FitBox
             891, 900, // vague catch-alls
-            2802, 2805, 2806, 2808, 2809, 2818, // generic PPN + PT Core
+            2805, 2806, 2808, 2809, // PT Core tax (entity retired)
+        ];
+    }
+
+    /**
+     * Live Cash Out destinations for setor pajak / PT Core leftovers.
+     *
+     * @return list<int>
+     */
+    public static function cashOutTaxLedgerIds(): array
+    {
+        return [
+            2802, 2818,
             2106, 2797, 2849, 2861, 2862, 2863, 2865,
             2883, 2884, 2885, 2896, 2941, 2944,
         ];
@@ -257,6 +272,68 @@ final class ProductionLedgerCopy
             2963 => ['description' => 'Biaya partner AF', 'hint' => 'Biaya channel / partner AF.'],
             2964 => ['description' => 'Biaya partner Prop', 'hint' => 'Biaya channel / partner Prop.'],
             2969 => ['description' => 'Komunitas Surabaya', 'hint' => 'Biaya komunitas SBY (bukan iklan marketplace).'],
+
+            // Per-entity tax / SPT — stay active so Cash Out can pick them.
+            2802 => [
+                'description' => 'PPN (setor)',
+                'hint' => 'Cash Out setor PPN. Laporan pajak memakai akun ini + reporting_tax_accounts.',
+            ],
+            2818 => [
+                'description' => 'Pengeluaran PT CORE',
+                'hint' => 'Cash Out sisa biaya PT Core (entitas sudah retired). Bukan akun setor pajak.',
+            ],
+            2106 => [
+                'description' => 'PPh Crystal',
+                'hint' => 'Cash Out setor PPh Crystal. Laporan pajak memakai akun ini + reporting_tax_accounts.',
+            ],
+            2797 => [
+                'description' => 'SPT Pribadi',
+                'hint' => 'Cash Out SPT pribadi. Laporan pajak memakai akun ini + reporting_tax_accounts.',
+            ],
+            2849 => [
+                'description' => 'PPN PT Indosport',
+                'hint' => 'Cash Out setor PPN Indosport. Laporan pajak memakai akun ini + reporting_tax_accounts.',
+            ],
+            2861 => [
+                'description' => 'PPh Cipta',
+                'hint' => 'Cash Out setor PPh Cipta. Laporan pajak memakai akun ini + reporting_tax_accounts.',
+            ],
+            2862 => [
+                'description' => 'PPh Indosport',
+                'hint' => 'Cash Out setor PPh Indosport. Laporan pajak memakai akun ini + reporting_tax_accounts.',
+            ],
+            2863 => [
+                'description' => 'PPh PT Cakra',
+                'hint' => 'Cash Out setor PPh PT Cakra. Laporan pajak memakai akun ini + reporting_tax_accounts.',
+            ],
+            2865 => [
+                'description' => 'PPh Pribadi',
+                'hint' => 'Cash Out setor PPh pribadi. Laporan pajak memakai akun ini + reporting_tax_accounts.',
+            ],
+            2883 => [
+                'description' => 'SPT Crystal',
+                'hint' => 'Cash Out SPT Crystal. Laporan pajak memakai akun ini + reporting_tax_accounts.',
+            ],
+            2884 => [
+                'description' => 'SPT Cipta',
+                'hint' => 'Cash Out SPT Cipta. Laporan pajak memakai akun ini + reporting_tax_accounts.',
+            ],
+            2885 => [
+                'description' => 'SPT Indosport',
+                'hint' => 'Cash Out SPT Indosport. Laporan pajak memakai akun ini + reporting_tax_accounts.',
+            ],
+            2896 => [
+                'description' => 'PPh CV Cakra',
+                'hint' => 'Cash Out setor PPh CV Cakra. Laporan pajak memakai akun ini + reporting_tax_accounts.',
+            ],
+            2941 => [
+                'description' => 'PPh AGM',
+                'hint' => 'Cash Out setor PPh AGM. Laporan pajak memakai akun ini + reporting_tax_accounts.',
+            ],
+            2944 => [
+                'description' => 'PPh UAI',
+                'hint' => 'Cash Out setor PPh UAI. Laporan pajak memakai akun ini + reporting_tax_accounts.',
+            ],
         ];
     }
 
@@ -268,7 +345,13 @@ final class ProductionLedgerCopy
         $marketplace = [
             2234, 2788, 2881, 2273, 2899, 2099, 2178, 2633, 2719, 2957, 2963, 2964, 2250,
         ];
-        $tax = [857, 1168, 856, 2364, 2405, 2841];
+        $tax = array_values(array_unique(array_merge(
+            [857, 1168, 856, 2364, 2405, 2841],
+            array_values(array_filter(
+                self::cashOutTaxLedgerIds(),
+                static fn (int $id): bool => $id !== 2818,
+            )),
+        )));
         $adjustment = [880, 2252, 2857, 879];
 
         $map = [
@@ -293,7 +376,10 @@ final class ProductionLedgerCopy
     }
 
     /**
-     * Deleted entity-tax ledgers → reporting entity + tax type (plan §4.6 / §9E).
+     * Live Cash Out tax ledgers → reporting entity + tax type (plan §4.6 / §9E).
+     *
+     * These ids stay on the chart so staff can still Cash Out setor pajak.
+     * 2802 (generic PPN) and 2818 (PT Core leftover) are not entity-mapped.
      *
      * @return array<int, array{0: string, 1: string}>
      */
@@ -317,6 +403,32 @@ final class ProductionLedgerCopy
     }
 
     /**
+     * Re-activate entity tax ledgers if an earlier apply soft-deleted them.
+     *
+     * @param  (callable(string): void)|null  $log
+     */
+    public static function restoreCashOutTaxLedgers(bool $dry = false, ?callable $log = null): void
+    {
+        $log ??= static function (string $message): void {};
+
+        if (! Schema::hasTable('customers')) {
+            return;
+        }
+
+        foreach (self::cashOutTaxLedgerIds() as $id) {
+            $ledger = Addrbook::onlyTrashed()->find($id);
+            if (! $ledger || (int) $ledger->type !== Addrbook::TYPE_ACCOUNT) {
+                continue;
+            }
+
+            $log("Restore cash-out tax ledger {$id} ({$ledger->name})");
+            if (! $dry) {
+                $ledger->restore();
+            }
+        }
+    }
+
+    /**
      * @param  (callable(string): void)|null  $log
      */
     public static function apply(bool $dry = false, ?callable $log = null): void
@@ -328,6 +440,8 @@ final class ProductionLedgerCopy
 
             return;
         }
+
+        self::restoreCashOutTaxLedgers($dry, $log);
 
         $catalog = self::copy();
         $hasHint = Schema::hasColumn('customers', 'ledger_hint');

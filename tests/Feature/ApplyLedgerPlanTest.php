@@ -128,9 +128,35 @@ it('fills descriptions and roles on prod-shaped ledgers', function () {
         ->and(Addrbook::find(2889)?->name)->toBe('Biaya Toko WTC')
         ->and(Addrbook::find(2889)?->description)->not->toBeEmpty()
         ->and(Addrbook::find(817))->toBeNull()
+        ->and(Addrbook::find(2106))->not->toBeNull()
+        ->and(Addrbook::find(2106)?->description)->toBe('PPh Crystal')
+        ->and(ReportingLedgerRoleModel::query()->where('customer_id', 2106)->value('role'))
+        ->toBe(ReportingLedgerRole::TaxPayment)
         ->and(ReportingLedgerRoleModel::query()->where('customer_id', 1558)->value('role'))
         ->toBe(ReportingLedgerRole::Material)
         ->and(ReportingTaxAccount::query()->where('legacy_ledger_id', 2106)->exists())->toBeTrue();
+});
+
+it('restores previously soft-deleted cash-out tax ledgers', function () {
+    Addrbook::unguarded(fn () => Addrbook::create([
+        'id' => 2802,
+        'name' => 'PPN',
+        'type' => Addrbook::TYPE_ACCOUNT,
+        'description' => '',
+    ]));
+    Addrbook::find(2802)?->delete();
+
+    expect(Addrbook::find(2802))->toBeNull()
+        ->and(Addrbook::withTrashed()->find(2802))->not->toBeNull();
+
+    Artisan::call('reporting:apply-ledger-plan');
+
+    $restored = Addrbook::find(2802);
+    expect($restored)->not->toBeNull()
+        ->and($restored->trashed())->toBeFalse()
+        ->and($restored->description)->toBe('PPN (setor)')
+        ->and(ReportingLedgerRoleModel::query()->where('customer_id', 2802)->value('role'))
+        ->toBe(ReportingLedgerRole::TaxPayment);
 });
 
 it('does not overwrite an existing ledger description or role', function () {
