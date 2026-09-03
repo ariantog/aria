@@ -65,9 +65,7 @@ final class ItemCatalog
             return trim((string) ($item->group->description ?? ''));
         }
 
-        return self::itemColumnExists('description')
-            ? trim((string) ($item->description ?? ''))
-            : '';
+        return self::leftoverDescription($item);
     }
 
     public static function description2(Item $item): string
@@ -76,9 +74,42 @@ final class ItemCatalog
             return trim((string) ($item->group->description2 ?? ''));
         }
 
+        return self::leftoverDescription2($item);
+    }
+
+    /**
+     * Leftover items.description, even when the SKU is grouped.
+     * Used to seed an empty group or scan warna when catalog text is blank.
+     */
+    public static function leftoverDescription(Item $item): string
+    {
+        return self::itemColumnExists('description')
+            ? trim((string) ($item->description ?? ''))
+            : '';
+    }
+
+    public static function leftoverDescription2(Item $item): string
+    {
         return self::itemColumnExists('description2')
             ? trim((string) ($item->description2 ?? ''))
             : '';
+    }
+
+    /**
+     * Colorway text for legacy parse / seed: group catalog first, leftover item only
+     * when the group has no description yet.
+     */
+    public static function scanText(Item $item): string
+    {
+        $item->loadMissing('group');
+
+        $catalog = trim(self::description($item).' '.self::description2($item));
+
+        if ($catalog !== '') {
+            return $catalog;
+        }
+
+        return trim(self::leftoverDescription($item).' '.self::leftoverDescription2($item));
     }
 
     public static function brand(Item $item): ItemBrand
@@ -145,6 +176,54 @@ final class ItemCatalog
         }
 
         $group->save();
+    }
+
+    /**
+     * Fill empty group description fields from a previous leftover group or the
+     * item leftover columns. Never overwrites a non-empty group value.
+     */
+    public static function seedEmptyDescriptions(ItemGroup $group, Item $item, ?ItemGroup $sourceGroup = null): void
+    {
+        $attributes = [];
+
+        if (trim((string) ($group->description ?? '')) === '') {
+            $seed = self::firstNonEmpty(
+                trim((string) ($sourceGroup?->description ?? '')),
+                self::leftoverDescription($item),
+            );
+
+            if ($seed !== '') {
+                $attributes['description'] = $seed;
+            }
+        }
+
+        if (trim((string) ($group->description2 ?? '')) === '') {
+            $seed = self::firstNonEmpty(
+                trim((string) ($sourceGroup?->description2 ?? '')),
+                self::leftoverDescription2($item),
+            );
+
+            if ($seed !== '') {
+                $attributes['description2'] = $seed;
+            }
+        }
+
+        if ($attributes !== []) {
+            self::applyToGroup($group, $attributes);
+        }
+    }
+
+    private static function firstNonEmpty(string ...$values): string
+    {
+        foreach ($values as $value) {
+            $trimmed = trim($value);
+
+            if ($trimmed !== '') {
+                return $trimmed;
+            }
+        }
+
+        return '';
     }
 
     /**
