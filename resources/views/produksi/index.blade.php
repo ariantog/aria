@@ -8,7 +8,7 @@ $breadcrumbs = [['title' => 'Produksi', 'href' => route('produksi.index')]];
 $f = $filters;
 @endphp
 
-<div class="flex flex-col gap-2 overflow-x-auto p-2 sm:p-4" x-data="produksiIndex()">
+<div class="flex flex-col gap-2 overflow-x-auto p-2 sm:p-4">
     <div class="mb-4 flex flex-col items-start justify-between gap-2 sm:flex-row sm:items-center">
         <div>
             <h2 class="text-2xl font-bold tracking-tight text-gray-900">Produksi</h2>
@@ -95,10 +95,16 @@ $f = $filters;
                             @if($p->jahit_date)
                             @include('produksi.partials.worker-cell', ['worker' => $p->jahit, 'type' => 'jahit', 'date' => $p->jahit_date])
                             @elseif($can['setor_produksi'])
-                            <button @click="openAssign({{ $p->id }}, @js($p->temp_name), @js($p->serial))" class="inline-flex h-7 items-center gap-1.5 rounded-md border border-emerald-200 px-3 text-xs font-bold text-emerald-700 shadow-sm hover:bg-emerald-50">
-                                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.121 14.121L19 19m-7-7l7-7m-7 7l-2.879 2.879M12 12L9.121 9.121m0 0a3 3 0 10-4.243-4.243 3 3 0 004.243 4.243z"/></svg>
-                                Assign
-                            </button>
+                            <form method="POST" action="{{ route('produksi.assign-jahit', $p->id) }}" class="mx-auto w-full max-w-[140px]">
+                                @csrf
+                                @method('PATCH')
+                                <select name="jahit_id" onchange="this.form.submit()" data-testid="assign-jahit-{{ $p->id }}" class="w-full rounded border border-emerald-200 bg-white px-1 py-0.5 text-xs font-medium text-emerald-800">
+                                    <option value="">— Jahit —</option>
+                                    @foreach($jahitList as $w)
+                                    <option value="{{ $w->id }}" @selected($p->jahit_id == $w->id)>{{ $w->name }}</option>
+                                    @endforeach
+                                </select>
+                            </form>
                             @else
                             <span class="font-medium text-gray-400">-</span>
                             @endif
@@ -139,55 +145,5 @@ $f = $filters;
         @include('partials.pagination', ['paginator' => $prod_produksi, 'label' => 'records'])
     </div>
 
-    {{-- Assign Jahit Modal --}}
-    <div x-show="assignOpen" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" @keydown.escape.window="assignOpen=false">
-        <div @click.away="assignOpen=false" class="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
-            <h3 class="text-xl font-semibold">Assign Jahit Worker</h3>
-            <p class="mt-2 text-sm text-gray-500">Select a worker to assign to the <span class="font-semibold text-emerald-600">Jahit</span> stage.</p>
-            <div class="mt-4 flex flex-col gap-1 rounded-lg border border-gray-200 bg-gray-50 p-3">
-                <span class="text-xs font-bold uppercase tracking-wider text-gray-400">Selected Item</span>
-                <span class="text-sm font-semibold text-gray-900" x-text="sel.name"></span>
-                <span class="font-mono text-xs text-gray-500">Kitir: <span x-text="sel.serial"></span></span>
-            </div>
-            <form :action="assignAction" method="POST" class="mt-4 space-y-3">
-                @csrf @method('PATCH')
-                <label class="block text-sm font-semibold text-gray-900">Worker Name</label>
-                <div class="relative" x-data="asyncCombobox({ endpoint: '{{ route('produksi.workers.lookup') }}', additionalParams: { type: 'jahit' }, placeholder: 'Search worker...', hiddenField: 'assign_jahit_id' })">
-                    <input type="text" x-model="query" @input="handleInput()" @focus="handleFocus()" @keydown="handleKeydown($event)" :placeholder="placeholder" autocomplete="off" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
-                    <input type="hidden" id="assign_jahit_id" name="jahit_id">
-                    <div x-show="open" x-cloak class="combobox-options" x-ref="optionsList">
-                        <template x-for="(item, i) in items" :key="item.id">
-                            <div class="combobox-option" :class="{ 'active': i === activeIndex }" @click="selectItem(item)" @mouseenter="activeIndex = i">
-                                <span x-text="item.name"></span>
-                            </div>
-                        </template>
-                        <div x-show="!loading && items.length === 0" class="combobox-option text-gray-400">No results</div>
-                    </div>
-                </div>
-                <div class="mt-2 flex justify-end gap-2">
-                    <button type="button" @click="assignOpen=false" class="rounded-md border border-gray-300 px-4 py-2 text-sm font-semibold hover:bg-gray-50">Cancel</button>
-                    <button type="submit" class="rounded-md bg-emerald-600 px-6 py-2 text-sm font-bold text-white hover:bg-emerald-700">Assign Worker</button>
-                </div>
-            </form>
-        </div>
-    </div>
 </div>
-
-@push('scripts')
-<script>
-function produksiIndex() {
-    return {
-        assignOpen: false,
-        sel: { id: null, name: '', serial: '' },
-        get assignAction() { return this.sel.id ? `{{ url('produksi') }}/${this.sel.id}/jahit` : '#'; },
-        openAssign(id, name, serial) {
-            this.sel = { id, name, serial };
-            const hidden = document.getElementById('assign_jahit_id');
-            if (hidden) hidden.value = '';
-            this.assignOpen = true;
-        },
-    };
-}
-</script>
-@endpush
 @endsection
