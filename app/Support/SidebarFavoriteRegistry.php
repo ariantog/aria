@@ -277,6 +277,15 @@ class SidebarFavoriteRegistry
                 'active_prefix' => '/reports/laba-rugi',
             ],
             [
+                'key' => 'report-channel-pnl',
+                'label' => 'Channel P&L',
+                'group' => 'Reports',
+                'permission' => 'report-channel-pnl',
+                'route' => 'reports.channel-pnl',
+                'params' => [],
+                'active_prefix' => '/reports/channel-pnl',
+            ],
+            [
                 'key' => 'report-receivables',
                 'label' => 'Piutang Usaha',
                 'group' => 'Reports',

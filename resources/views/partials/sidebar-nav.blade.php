@@ -115,6 +115,9 @@
     if ($hasPerm('report-laba-rugi') || $isSuperAdmin) {
         $reportNavLabels[] = 'Laba Rugi';
     }
+    if ($hasPerm('report-channel-pnl') || $isSuperAdmin) {
+        $reportNavLabels[] = 'Channel P&L';
+    }
     if ($hasPerm('report-receivables') || $isSuperAdmin) {
         $reportNavLabels[] = 'Piutang Usaha';
     }
@@ -426,6 +429,7 @@
     || $hasPerm('report-nett-cash')
     || $hasPerm('report-neraca')
     || $hasPerm('report-laba-rugi')
+    || $hasPerm('report-channel-pnl')
     || $hasPerm('report-receivables')
     || $hasPerm('report-payables')
     || $hasPerm('report-asset-tetap')
@@ -444,6 +448,7 @@
         || $isActive('/reports/nett-cash-sby')
         || $isActive('/reports/neraca')
         || $isActive('/reports/laba-rugi')
+        || $isActive('/reports/channel-pnl')
         || $isActive('/reports/receivables')
         || $isActive('/reports/payables')
         || $isActive('/reports/asset-tetap')
@@ -482,7 +487,7 @@
         <a href="{{ route('reports.inventory-health') }}" x-show="navLinkVisible('Inventory Health', 'Reports')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/inventory-health') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Inventory Health</a>
         @endif
 
-        @if($hasPerm('report-nett-cash') || $hasPerm('report-neraca') || $hasPerm('report-laba-rugi') || $hasPerm('report-receivables') || $hasPerm('report-payables') || $hasPerm('report-asset-tetap') || $isSuperAdmin)
+        @if($hasPerm('report-nett-cash') || $hasPerm('report-neraca') || $hasPerm('report-laba-rugi') || $hasPerm('report-channel-pnl') || $hasPerm('report-receivables') || $hasPerm('report-payables') || $hasPerm('report-asset-tetap') || $isSuperAdmin)
         <p class="px-2.5 pt-2 pb-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-400">Finance</p>
         @endif
         @if($hasPerm('report-nett-cash') || $isSuperAdmin)
@@ -493,6 +498,9 @@
         @endif
         @if($hasPerm('report-laba-rugi') || $isSuperAdmin)
         <a href="{{ route('reports.laba-rugi') }}" x-show="navLinkVisible('Laba Rugi', 'Reports')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/laba-rugi') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Laba Rugi</a>
+        @endif
+        @if($hasPerm('report-channel-pnl') || $isSuperAdmin)
+        <a href="{{ route('reports.channel-pnl') }}" x-show="navLinkVisible('Channel P&L', 'Reports')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/channel-pnl') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Channel P&L</a>
         @endif
         @if($hasPerm('report-receivables') || $isSuperAdmin)
         <a href="{{ route('reports.receivables') }}" x-show="navLinkVisible('Piutang Usaha', 'Reports')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/receivables') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Piutang Usaha</a>

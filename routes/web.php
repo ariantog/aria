@@ -407,6 +407,7 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
         Route::get('/produksi-qc', \App\Http\Controllers\Reports\ProduksiQcReportController::class)->name('produksi-qc');
         Route::get('/neraca', \App\Http\Controllers\Reports\NeracaReportController::class)->name('neraca');
         Route::get('/laba-rugi', \App\Http\Controllers\Reports\LabaRugiReportController::class)->name('laba-rugi');
+        Route::get('/channel-pnl', \App\Http\Controllers\Reports\ChannelPnlReportController::class)->name('channel-pnl');
         Route::get('/receivables', \App\Http\Controllers\Reports\ReceivablesReportController::class)->name('receivables');
         Route::get('/payables', \App\Http\Controllers\Reports\PayablesReportController::class)->name('payables');
         Route::get('/tax/ppn', \App\Http\Controllers\Reports\TaxPpnReportController::class)->name('tax.ppn');
