@@ -222,6 +222,7 @@ it('renders migrated GET pages with a 200', function (string $route) {
     'users' => 'users',
     'roles' => 'roles',
     'system-settings' => 'system-settings',
+    'recalculate running balances' => 'recalculate-running-balances',
     'cron manager' => 'cron-manager',
     'invoice branding settings' => 'system-settings/invoice/branding',
     'invoice maker index' => 'invoice-maker',

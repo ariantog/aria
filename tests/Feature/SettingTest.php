@@ -33,6 +33,7 @@ test('authorized user can view settings', function () {
         ->get(route('system-settings.index'))
         ->assertStatus(200)
         ->assertSee('PPN Rate', false)
+        ->assertSee('Running Balances', false)
         ->assertDontSee('start_time', false);
 });
 

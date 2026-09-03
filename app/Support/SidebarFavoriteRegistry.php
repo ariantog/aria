@@ -575,6 +575,15 @@ class SidebarFavoriteRegistry
                 'active_prefix' => '/warehouse-stat-backfill',
             ],
             [
+                'key' => 'recalculate-running-balances',
+                'label' => 'Running Balances',
+                'group' => 'System',
+                'permission' => 'setting-general-view',
+                'route' => 'recalculate-running-balances.index',
+                'params' => [],
+                'active_prefix' => '/recalculate-running-balances',
+            ],
+            [
                 'key' => 'users-list',
                 'label' => 'Users',
                 'group' => 'User Management',

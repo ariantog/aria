@@ -134,6 +134,10 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::post('warehouse-stat-backfill/resume', [App\Http\Controllers\WarehouseStatBackfillController::class, 'resume'])->name('warehouse-stat-backfill.resume');
     Route::post('warehouse-stat-backfill/run-batch', [App\Http\Controllers\WarehouseStatBackfillController::class, 'runBatch'])->name('warehouse-stat-backfill.run-batch');
 
+    Route::get('recalculate-running-balances', [App\Http\Controllers\RecalculateRunningBalancesController::class, 'index'])->name('recalculate-running-balances.index');
+    Route::get('recalculate-running-balances/lookup', [App\Http\Controllers\RecalculateRunningBalancesController::class, 'lookup'])->name('recalculate-running-balances.lookup');
+    Route::post('recalculate-running-balances', [App\Http\Controllers\RecalculateRunningBalancesController::class, 'run'])->name('recalculate-running-balances.run');
+
     // Data retention (archive copy + live cleanup)
     Route::get('data-retention', [App\Http\Controllers\DataRetentionController::class, 'index'])->name('data-retention.index');
     Route::post('data-retention/preview-archive', [App\Http\Controllers\DataRetentionController::class, 'previewArchive'])->name('data-retention.preview-archive');
