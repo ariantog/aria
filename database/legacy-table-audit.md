@@ -77,17 +77,17 @@ _43 tables._
 
 ## Manual review (referenced in L12, no Eloquent model)
 
-- `tags` (40 files) — `app/Console/Commands/MigrateLegacyItems.php`
+- `tags` (40 files) — `app/Models/Tag.php`, `app/Http/Controllers/Stuff/TagController.php`
 - `users` (25 files) — `app/Console/Commands/ImportLegacyAcl.php`
 - `roles` (21 files) — `app/Console/Commands/ImportLegacyAcl.php`
 - `locations` (16 files) — `app/Console/Commands/ImportLegacyAcl.php`
 - `settings` (16 files) — `app/Http/Controllers/Restock/RestockSettingsController.php`
-- `operations` (13 files) — `app/Console/Commands/MigrateLegacyJournalsCommand.php`
+- `operations` (13 files) — `app/Http/Controllers/Journal/OperationController.php`
 - `produksi` (13 files) — `app/Http/Controllers/BoronganController.php`
 - `gaji` (11 files) — `app/Http/Controllers/GajiController.php`
-- `item_tag` (10 files) — `app/Console/Commands/MigrateLegacyItems.php`
+- `item_tag` (10 files) — `app/Models/Item.php`, `app/Models/Tag.php`
 - `report` (10 files) — `app/Http/Controllers/Reports/ChannelPnlReportController.php`
-- `jubelioorders` (8 files) — `app/Console/Commands/ImportLegacyJubelioData.php`
+- `jubelioorders` (8 files) — `app/Console/Commands/OrderJubelioToAria.php`, `app/Services/JubelioGetOrdersService.php`
 - `borongan` (7 files) — `app/Http/Controllers/BoronganController.php`
 - `karyawans` (7 files) — `app/Http/Controllers/CutiController.php`
 - `location_customer` (7 files) — `app/Console/Commands/ImportLegacyAcl.php`
@@ -96,7 +96,7 @@ _43 tables._
 - `migrations` (5 files) — `database/migrations/2026_08_13_120000_add_production_not_null_column_defaults.php`
 - `acl` (4 files) — `app/Console/Commands/ImportLegacyAcl.php`
 - `cutis` (4 files) — `app/Http/Controllers/CutiController.php`
-- `jubeliosyncs` (4 files) — `app/Console/Commands/ImportLegacyJubelioData.php`
+- `jubeliosyncs` (4 files) — `app/Http/Controllers/JubelioSyncController.php`, `app/Services/Jubelio/JubelioStockSync.php`
 - `restock_histories` (4 files) — `database/migrations/2026_05_06_132335_create_restock_histories_table.php`
 - `restocks` (4 files) — `database/migrations/2026_05_06_132334_create_restocks_table.php`
 - `stat_sells` (4 files) — `app/Console/Commands/SyncStatSells.php`
@@ -104,8 +104,8 @@ _43 tables._
 - `sessions` (3 files) — `database/migrations/0001_01_01_000000_create_users_table.php`
 - `cron` (2 files) — `app/Services/DashboardService.php`
 - `failed_jobs` (2 files) — `database/migrations/0001_01_01_000002_create_jobs_table.php`
-- `jubelioreturns` (2 files) — `app/Console/Commands/ImportLegacyJubelioData.php`
-- `logjubelios` (2 files) — `app/Console/Commands/ImportLegacyJubelioData.php`
+- `jubelioreturns` (2 files) — `app/Console/Commands/OrderJubelioToAria.php`
+- `logjubelios` (2 files) — `app/Http/Controllers/JubelioController.php`
 - `warehouse_compares` (2 files) — `database/migrations/2026_04_09_074736_create_warehouse_compares_table.php`
 - `aria_permissions` (1 files) — `app/Support/PermissionTableConfig.php`
 - `aria_roles` (1 files) — `app/Support/PermissionTableConfig.php`
