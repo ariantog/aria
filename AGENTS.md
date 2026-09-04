@@ -27,6 +27,16 @@ The migration from the React/Inertia SPA to Blade+Alpine and a batch of UI/bug f
   (see `transactions/create.blade.php`, `transactions/cash.blade.php`).
 - **Palette normalized to `gray-*`** (journals/produksi were `zinc-*`); page-load slide-in animation
   removed.
+- **Transaction backend (signed posting + balances + Jubelio sync UI) is shipped.** Back-dated
+  insert/edit/delete recalculates later running balances (`TransactionObserver`, `TransactionService`,
+  `TransactionBalanceIntegrityTest`). Transaction show has Jubelio stock-sync buttons
+  (`resources/views/transactions/partials/jubelio-sync.blade.php`, `JubelioService`, dormant while
+  `JUBELIO_ACTIVE=false`). Manual batch tool: System Settings → Running Balances
+  (`/recalculate-running-balances`).
+- **Item catalog on `item_group` is shipped** (`App\Support\ItemCatalog`, `item_group.brand` /
+  `genre`). Leftover `items.*` mirror columns stay for L10 parity; new shared attributes belong on
+  the group. Colorway edit page, per-size price, asset TYPE→pcode autofill, and `item_group.name`
+  schema (varchar 255, not UNIQUE) landed in PRs **#575–#587** — see **Item group & item identity**.
 
 Already-fixed gotchas — don't reintroduce them:
 - Read query params with `request()->query('x')`, **not** `request('x')`, on routes that also have a
@@ -442,8 +452,8 @@ own branch, with its own PR.
 
 - **Start a fresh chat for each new task.** Each cloud agent runs on a clean VM and re-reads this file,
   so you don't need to re-explain the project — just give the task brief.
-- **Branch naming:** `cursor/<short-kebab-name>-e924` (lowercase; the `cursor/` prefix and `-e924`
-  suffix are required by this environment).
+- **Branch naming:** `cursor/<short-kebab-name>-4b37` (lowercase; the `cursor/` prefix and environment
+  suffix are required).
 - **Base each new branch off `main` _after_ the previous PR merges.** Do not stack new work on an
   already-merged branch (it causes messy rebases). If task B truly depends on unmerged task A, say so
   explicitly and I'll branch B off A.
@@ -458,45 +468,40 @@ own branch, with its own PR.
   Notes: <constraints, edge cases, anything unusual>
   ```
 
-## Roadmap: the next two branches
+## Roadmap & open work
 
-### 1. Transaction backend (`cursor/transaction-backend-e924`)
+Major tracks **transaction backend**, **expand items / item catalog**, and **item group identity**
+are **done** — do not reopen unless fixing a regression. Start new chats from `main` with a fresh
+goal brief (template above).
 
-How a transaction is written today (trace this flow before changing it):
-`Store*Request` (validation) → `TransactionsController@store*` → an action in
-`app/Actions/Transactions/` (`CreateItemTransaction`, `CreateCashTransaction`,
-`CreateTransferTransaction`, `CreateAdjustTransaction`; shared bits under `Concerns/`) which writes the
-`Transaction` + `TransactionDetail` rows inside a DB transaction. `app/Observers/TransactionObserver.php`
-and the `app/Jobs/UpdateTransactionSummaries.php` queued job keep balances/aggregates in sync (run
-`php artisan queue:listen`). Shared logic lives in `app/Services/TransactionService.php`;
-`BookClosingService` enforces the book-closing cutoff date; `InventoryService` adjusts
-`warehouse_items` stock. Batch recompute lives in `app/Console/Commands/Recalculate*`.
-- Balances are **signed** (not debit/credit): `total` is the only header payable that posts. Do
-  **not** use `real_total`. +total = sender owes receiver. buy / return / cash in / adjustment →
-  positive; sell / return-supplier / cash out / transfer / move → negative. Types are in
-  `App\Enums\TransactionType`; legal sender/receiver types per type are in
-  `config/transaction_rules.php`.
-- Likely goals here: solidify signed double-entry posting; **recalculate balances when a back-dated
-  transaction is inserted/edited/deleted** (later rows must re-derive their running balance); wire up
-  **Jubelio stock-sync buttons** (`app/Services/JubelioService.php`,
-  `TransactionsController@hydrateJubelioSyncData`, dormant while `JUBELIO_ACTIVE=false`).
-- Key files: `app/Http/Controllers/TransactionsController.php`, `app/Actions/Transactions/*`,
-  `app/Services/{TransactionService,BookClosingService,InventoryService,JubelioService}.php`,
-  `app/Observers/TransactionObserver.php`, `app/Jobs/UpdateTransactionSummaries.php`,
-  `app/Models/{Transaction,TransactionDetail,WarehouseItem}.php`. Cover changes with Pest feature tests
-  (see existing `tests/Feature/*Transaction*`, `TransferTest`).
+### Maintainer ops (not agent code)
 
-### 2. Expand the items table (`cursor/expand-items-table-e924`)
+- **Production migration:** run individually on live MySQL when ready:
+  `php artisan migrate --path=database/migrations/2026_09_03_150000_widen_item_group_name_drop_unique.php`
+  (and `2026_09_03_130000_add_brand_and_genre_to_item_group_table.php` if not applied). Until then,
+  prod still has `item_group.name` varchar(50) UNIQUE.
+- **Stale group names:** no backfill migration. Rows where `item_group.name` still equals pcode while
+  items show a real title are fixed by editing via **colorway edit**
+  (`/items-group/colorway/{group}/edit`) or single-item edit with Product Name filled.
 
-- Read **Item group & item identity** first — catalog fields belong on `item_group`; do not
-  reintroduce `legacy_name`, UNIQUE `item_group.name`, or wrong master/variant shapes.
-- Add columns with a **new dated migration** in `database/migrations/` (e.g.
-  `add_<cols>_to_items_table`) — do **not** edit the original `create_items_table` migration.
-- Then update `App\Models\Item` `$fillable` (and `$casts` if typed), surface the fields in the item
-  forms (`resources/views/items/*` — create/edit) and add validation in
-  `app/Http/Controllers/ItemsController.php`. Touch `app/Services/{ItemService,InventoryService}.php`
-  if a new column affects stock or pricing.
-- Current `items` columns: `id, group_id, name, code, pcode, brand, type, price, cost, qty, tag_ids,
-  description, description2, url, image_path, size, genre, jubelio_item_id, legacy_code, timestamps,
-  deleted_at`. Per-warehouse stock lives in `warehouse_items` (quantity + note), not on `items`.
-- Caveat: some item reports/stats use MySQL `DATE_FORMAT` and error on the SQLite dev DB only.
+### Next agent tasks (when maintainer asks)
+
+| Priority | Task | Branch hint | Notes |
+|----------|------|-------------|-------|
+| After conversion complete | **Remove legacy identity converter** — UI, routes, bulk/detail convert, parser/service | `cursor/remove-legacy-converter-4b37` | **Keep** `items.legacy_code`, `preserveLegacyCode()`, Jubelio/barcode legacy lookups. See **Do NOT remove `items.legacy_code`**. |
+| Optional / deferred | **Normalize legacy three-segment asset pcodes** (`BAG-16-03` → two segments + `legacy_code`) | `cursor/asset-pcode-two-segment-4b37` | Deferred in **Item group & item identity** — only if still causing restock/group confusion. |
+| Not built yet | **Restock sheet Tabulator UI** | TBD | Other list pages stay server-rendered HTML; Tabulator is reserved for restock only. |
+
+### Reference: transaction write path (for regressions only)
+
+`Store*Request` → `TransactionsController@store*` → `app/Actions/Transactions/*` →
+`Transaction` + `TransactionDetail` inside a DB transaction. `TransactionObserver` +
+`UpdateTransactionSummaries` (queue) keep balances and aggregates in sync. Shared logic:
+`TransactionService`, `BookClosingService`, `InventoryService`. Tests:
+`tests/Feature/TransactionBalanceIntegrityTest.php`, `tests/Feature/*Transaction*`.
+
+### Reference: items schema (for new columns)
+
+Read **Item group & item identity** first — shared catalog fields belong on `item_group`, not new
+duplicate columns on `items` unless mirroring leftovers. Per-warehouse stock is `warehouse_items`
+(quantity + note), not `items.qty`. Some reports use MySQL `DATE_FORMAT` (SQLite dev errors only).
