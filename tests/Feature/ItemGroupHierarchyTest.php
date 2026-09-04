@@ -52,6 +52,38 @@ it('lists parent groups by type and master pcode', function () {
     expect($parents->first()['label'])->toBe('AJD CX93024');
 });
 
+it('paginates parent groups without breaking the count query', function () {
+    foreach (['05', '06'] as $suffix) {
+        $group = ItemGroup::factory()->create([
+            'master' => 'CX94001-'.$suffix,
+            'variant' => $suffix,
+            'name' => 'PAGINATED SHIRT',
+        ]);
+
+        $item = Item::factory()->create([
+            'group_id' => $group->id,
+            'type' => ItemType::ITEM,
+            'pcode' => 'CX94001-'.$suffix,
+            'code' => 'AJD-CX94001-'.$suffix.'-S',
+        ]);
+        $item->tags()->attach([$this->typeTag->id, $this->pinkTag->id, $this->sizeS->id]);
+    }
+
+    $assetGroup = ItemGroup::factory()->create(['master' => 'GLOVE-02', 'variant' => 'RED', 'name' => 'GLOVE']);
+    $asset = Item::factory()->create([
+        'group_id' => $assetGroup->id,
+        'type' => ItemType::ASSET_LANCAR,
+        'pcode' => 'GLOVE-02',
+        'code' => 'GLOVE-02-RED-S',
+    ]);
+    $asset->tags()->attach([$this->pinkTag->id, $this->sizeS->id]);
+
+    $pageOne = $this->hierarchy->paginateParents([], 1);
+
+    expect($pageOne->total())->toBe(2)
+        ->and($pageOne->count())->toBe(1);
+});
+
 it('renders parent detail with color sections and size rows', function () {
     $pinkGroup = ItemGroup::factory()->create(['master' => 'CX93024', 'variant' => '05', 'name' => 'RUNNING SHIRT']);
 

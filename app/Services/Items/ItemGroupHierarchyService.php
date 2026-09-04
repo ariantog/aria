@@ -34,7 +34,7 @@ class ItemGroupHierarchyService
 
         $query = ItemGroup::query()
             ->select([
-                DB::raw($canonicalMasterSql.' as master'),
+                DB::raw($canonicalMasterSql.' as canonical_master'),
                 DB::raw('MIN(item_group.name) as product_name'),
                 DB::raw('MIN(item_group.description) as description'),
                 DB::raw('MIN(item_group.id) as sample_group_id'),
@@ -63,7 +63,7 @@ class ItemGroupHierarchyService
                 '%'.$filters['desc'].'%'
             ))
             ->groupBy(DB::raw($canonicalMasterSql))
-            ->orderBy('master');
+            ->orderBy(DB::raw($canonicalMasterSql));
 
         /** @var LengthAwarePaginator $paginator */
         $paginator = $query->paginate($perPage)->withQueryString();
@@ -73,7 +73,7 @@ class ItemGroupHierarchyService
 
         $paginator->setCollection(
             collect($paginator->items())->map(function ($row) use ($samplesByGroupId) {
-                $master = (string) $row->master;
+                $master = (string) $row->canonical_master;
                 $sample = $samplesByGroupId[$row->sample_group_id] ?? null;
                 $isAsset = $this->isAssetMaster($master, $sample);
                 $parentKey = $this->parentKeyForMaster($master, $sample, $isAsset);
