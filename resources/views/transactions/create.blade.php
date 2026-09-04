@@ -760,7 +760,29 @@ function createTransaction() {
                 jubelio_item_id: 0, jubelio_unlinked_warning: false,
                 subtotal: 0, note: '',
                 results: [], showDropdown: false, activeIndex: -1, searchTimer: null,
+                typeAheadPrefix: '', typeAheadTimer: null,
             };
+        },
+
+        resetRowTypeahead(row) {
+            if (!row) return;
+            clearTimeout(row.typeAheadTimer);
+            row.typeAheadPrefix = '';
+            row.typeAheadTimer = null;
+        },
+
+        applyRowTypeahead(row, key) {
+            const result = comboboxApplyTypeahead(row.results, row.activeIndex, row.typeAheadPrefix, key);
+            if (!result.handled) {
+                this.resetRowTypeahead(row);
+                return false;
+            }
+
+            clearTimeout(row.typeAheadTimer);
+            row.activeIndex = result.index;
+            row.typeAheadPrefix = result.prefix;
+            row.typeAheadTimer = setTimeout(() => { row.typeAheadPrefix = ''; }, COMBOBOX_TYPEAHEAD_MS);
+            return true;
         },
 
         addItemRow(focus = true) {
@@ -810,6 +832,7 @@ function createTransaction() {
             row.results = [];
             row.showDropdown = false;
             row.activeIndex = -1;
+            this.resetRowTypeahead(row);
         },
 
         jubelioWarehouseMapped() {
@@ -1068,6 +1091,7 @@ function createTransaction() {
             row.item_id = '';
             row.jubelio_item_id = 0;
             row.jubelio_unlinked_warning = false;
+            this.resetRowTypeahead(row);
             const q = String(row.name || '').trim();
             clearTimeout(row.searchTimer);
             if (!q || q.length < COMBOBOX_MIN_CHARS) { row.results = []; row.showDropdown = false; return; }
@@ -1166,12 +1190,14 @@ function createTransaction() {
             if (!row) return;
             row.showDropdown = true;
             row.activeIndex = -1;
+            this.resetRowTypeahead(row);
         },
 
         onNamePointerDown(idx) {
             const row = this.form.items[idx];
             if (!row || !isMobileComboboxContext()) return;
             row.activeIndex = -1;
+            this.resetRowTypeahead(row);
         },
 
         nameKeydown(idx, e) {
@@ -1210,6 +1236,19 @@ function createTransaction() {
             if (!key) return false;
             const len = row.results.length;
 
+            if (row.showDropdown && len > 0 && isPrintableComboboxKey(key, e)) {
+                if (this.applyRowTypeahead(row, key)) {
+                    return true;
+                }
+                if (this.nameKeyboardNavLock(row)) {
+                    row.name = String(row.name || '') + key;
+                    row.activeIndex = -1;
+                    this.resetRowTypeahead(row);
+                    this.searchItems(idx);
+                    return true;
+                }
+            }
+
             if (this.nameKeyboardNavLock(row)) {
                 if (key === 'Backspace') {
                     row.name = String(row.name || '').slice(0, -1);
@@ -1218,12 +1257,6 @@ function createTransaction() {
                 }
                 if (key === 'Delete') {
                     row.name = '';
-                    this.searchItems(idx);
-                    return true;
-                }
-                if (isPrintableComboboxKey(key, e)) {
-                    row.name = String(row.name || '') + key;
-                    row.activeIndex = -1;
                     this.searchItems(idx);
                     return true;
                 }
@@ -1251,6 +1284,7 @@ function createTransaction() {
             if (key === 'Escape') {
                 row.showDropdown = false;
                 row.activeIndex = -1;
+                this.resetRowTypeahead(row);
                 return true;
             }
             return false;

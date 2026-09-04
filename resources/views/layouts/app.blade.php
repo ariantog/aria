@@ -544,6 +544,51 @@ function isPrintableComboboxKey(key, e) {
     return key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey;
 }
 
+const COMBOBOX_TYPEAHEAD_MS = 500;
+
+function comboboxItemLabel(item) {
+    return String(item?.name ?? item?.label ?? '').trim();
+}
+
+function comboboxFindByPrefix(items, startIndex, prefix) {
+    const needle = String(prefix || '').toLowerCase();
+    if (!needle || !items?.length) {
+        return -1;
+    }
+
+    const len = items.length;
+    const start = Math.max(0, startIndex);
+    for (let i = 0; i < len; i++) {
+        const idx = (start + i) % len;
+        if (comboboxItemLabel(items[idx]).toLowerCase().startsWith(needle)) {
+            return idx;
+        }
+    }
+
+    return -1;
+}
+
+function comboboxApplyTypeahead(items, activeIndex, prefix, key) {
+    const nextPrefix = String(prefix || '') + String(key).toLowerCase();
+    const start = activeIndex >= 0 ? activeIndex + 1 : 0;
+    let match = comboboxFindByPrefix(items, start, nextPrefix);
+    let newPrefix = nextPrefix;
+
+    if (match < 0 && nextPrefix.length > 1) {
+        newPrefix = String(key).toLowerCase();
+        match = comboboxFindByPrefix(items, start, newPrefix);
+    }
+    if (match < 0) {
+        newPrefix = String(key).toLowerCase();
+        match = comboboxFindByPrefix(items, 0, newPrefix);
+    }
+    if (match >= 0) {
+        return { index: match, prefix: newPrefix, handled: true };
+    }
+
+    return { index: activeIndex, prefix: '', handled: false };
+}
+
 // Swallow Enter/Tab field navigation briefly after programmatic focus (Android IME).
 function suppressFieldNavigation(ms = 400) {
     window._suppressFieldNavUntil = Date.now() + ms;
@@ -868,6 +913,8 @@ function asyncCombobox(config) {
         selected: config.initial || null,
         activeIndex: -1,
         _keydownHandled: false,
+        _typeAheadPrefix: '',
+        _typeAheadTimer: null,
         _outsideClick: null,
         debounceTimer: null,
         endpoint: config.endpoint,
@@ -960,7 +1007,29 @@ function asyncCombobox(config) {
             }, 300);
         },
 
+        _resetTypeahead() {
+            clearTimeout(this._typeAheadTimer);
+            this._typeAheadPrefix = '';
+            this._typeAheadTimer = null;
+        },
+
+        _applyTypeahead(key) {
+            const result = comboboxApplyTypeahead(this.items, this.activeIndex, this._typeAheadPrefix, key);
+            if (!result.handled) {
+                this._resetTypeahead();
+                return false;
+            }
+
+            clearTimeout(this._typeAheadTimer);
+            this.activeIndex = result.index;
+            this._typeAheadPrefix = result.prefix;
+            this._typeAheadTimer = setTimeout(() => { this._typeAheadPrefix = ''; }, COMBOBOX_TYPEAHEAD_MS);
+            this.scrollActive();
+            return true;
+        },
+
         selectItem(item) {
+            this._resetTypeahead();
             this.selected = item;
             this.query = item ? (item.name || '') : '';
             this.open = false;
@@ -980,11 +1049,13 @@ function asyncCombobox(config) {
         },
 
         handleInput() {
+            this._resetTypeahead();
             this.open = true;
             this.doSearch(this.query);
         },
 
         handleFocus() {
+            this._resetTypeahead();
             this.activeIndex = -1;
             if (this.needsMoreChars() && this.items.length === 0) {
                 return;
@@ -1033,6 +1104,19 @@ function asyncCombobox(config) {
             if (!key) return false;
             const len = this.items.length;
 
+            if (this.open && len > 0 && isPrintableComboboxKey(key, e)) {
+                if (this._applyTypeahead(key)) {
+                    return true;
+                }
+                if (this.keyboardNavLock()) {
+                    this.query += key;
+                    this.activeIndex = -1;
+                    this._resetTypeahead();
+                    this.handleInput();
+                    return true;
+                }
+            }
+
             if (this.keyboardNavLock()) {
                 if (key === 'Backspace') {
                     this.query = this.query.slice(0, -1);
@@ -1041,12 +1125,6 @@ function asyncCombobox(config) {
                 }
                 if (key === 'Delete') {
                     this.query = '';
-                    this.handleInput();
-                    return true;
-                }
-                if (isPrintableComboboxKey(key, e)) {
-                    this.query += key;
-                    this.activeIndex = -1;
                     this.handleInput();
                     return true;
                 }
@@ -1092,6 +1170,7 @@ function asyncCombobox(config) {
             if (key === 'Escape') {
                 this.open = false;
                 this.activeIndex = -1;
+                this._resetTypeahead();
                 return true;
             }
             if (key === 'Tab') {
