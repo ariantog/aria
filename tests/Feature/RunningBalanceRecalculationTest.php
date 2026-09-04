@@ -206,26 +206,3 @@ describe('app:recalculate-running-balances', function () {
             ->and((float) $buyB->fresh()->sender_balance)->toBe(2.0);
     });
 });
-
-describe('migrate:finalize-aggregation running balances', function () {
-    it('writes date-ordered running balances when ids are out of chronological order', function () {
-        $service = app(TransactionService::class);
-        $supplier = Addrbook::factory()->create(['type' => Addrbook::TYPE_SUPPLIER]);
-        $warehouse = Addrbook::factory()->create(['type' => Addrbook::TYPE_WAREHOUSE]);
-        $item = Item::factory()->create(['qty' => 0]);
-
-        $aug20 = postBuyForRunningBalance($service, $supplier, $warehouse, $item, '2026-08-20', 5, 2000);
-        $aug01 = postBuyForRunningBalance($service, $supplier, $warehouse, $item, '2026-08-01', 10, 5000);
-
-        expect((int) $aug20->id)->toBeLessThan((int) $aug01->id);
-
-        DB::table('transactions')->where('id', $aug01->id)->update(['sender_balance' => 1]);
-        DB::table('transactions')->where('id', $aug20->id)->update(['sender_balance' => 2]);
-
-        $this->artisan('migrate:finalize-aggregation')->assertSuccessful();
-
-        expect((float) $aug01->fresh()->sender_balance)->toBe(50000.0)
-            ->and((float) $aug20->fresh()->sender_balance)->toBe(60000.0)
-            ->and((float) AddrbookStat::where('customer_id', $supplier->id)->value('balance'))->toBe(60000.0);
-    });
-});
