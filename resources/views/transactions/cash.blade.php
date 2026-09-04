@@ -105,12 +105,12 @@ $config = [
                 </div>
 
                 @php
-                    $rowInput = 'w-full h-8 min-h-8 box-border rounded border border-gray-200 px-2 py-0 text-sm leading-8 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 [-moz-appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none';
+                    $rowInput = 'w-full h-9 min-h-9 box-border rounded border border-gray-200 px-2 py-0 text-base leading-9 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 [-moz-appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none';
                 @endphp
                 <div class="divide-y divide-gray-100 px-0">
                     <template x-for="(row, idx) in form.items" :key="row.id">
                         {{-- Ledger hint is its own grid cell so the input row stays even. --}}
-                        <div class="flex flex-col gap-3 px-5 py-4 text-sm hover:bg-gray-50 sm:grid sm:grid-cols-12 sm:items-start sm:gap-x-2 sm:gap-y-1 sm:py-2"
+                        <div class="flex flex-col gap-3 px-5 py-4 hover:bg-gray-50 sm:grid sm:grid-cols-12 sm:items-start sm:gap-x-2 sm:gap-y-1 sm:py-2"
                              data-testid="cash-entry-row"
                              :class="rowInvalid(row) ? 'bg-red-50' : ''">
                             {{-- Source / recipient autocomplete --}}
@@ -121,14 +121,14 @@ $config = [
                                      onSelect: (item) => onRowSourceSelect(idx, row, item)
                                  })">
                                 <label class="mb-1 block text-xs font-medium text-gray-500 sm:hidden">{{ $config['sourceLabel'] }}</label>
-                                <div class="relative flex h-8 min-h-8 overflow-hidden rounded border focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500"
+                                <div class="relative flex h-9 min-h-9 overflow-hidden rounded border focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500"
                                      :class="rowInvalid(row) && !row.customer_id ? 'border-red-400 bg-red-50' : 'border-gray-200'">
                                     <input type="text" x-model="query" @input="handleInput()" @focus="handleFocus()"
                                            @keydown="handleKeydown($event)" @keyup="handleKeyup($event)"
                                            :readonly="keyboardNavLock()"
                                            :id="'source_' + idx"
                                            :data-testid="'cash-entry-source-' + idx"
-                                           :placeholder="placeholder" class="flex-1 border-none bg-transparent px-2 text-sm leading-8 outline-none" autocomplete="off">
+                                           :placeholder="placeholder" class="flex-1 border-none bg-transparent px-2 text-base leading-9 outline-none" autocomplete="off">
                                     <span x-show="loading" class="flex items-center pr-1.5"><svg class="h-3.5 w-3.5 animate-spin text-gray-400" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg></span>
                                 </div>
                                 <div x-show="open" class="combobox-options" x-ref="optionsList" style="z-index:60">
