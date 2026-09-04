@@ -28,9 +28,17 @@ The migration from the React/Inertia SPA to Blade+Alpine and a batch of UI/bug f
 - **Palette normalized to `gray-*`** (journals/produksi were `zinc-*`); page-load slide-in animation
   removed.
 - **Transaction backend (signed posting + balances + Jubelio sync UI) is shipped.** Back-dated
-  insert/edit/delete recalculates later running balances; transaction show has Jubelio stock-sync
-  buttons (dormant while `JUBELIO_ACTIVE=false`). Manual batch: `/recalculate-running-balances`.
-- **Item catalog / item group identity is shipped** (PRs #575–#587) — see **Item group & item identity**.
+  insert/edit/delete recalculates later running balances (`TransactionObserver`, `TransactionService`,
+  `TransactionBalanceIntegrityTest`). Transaction show has Jubelio stock-sync buttons
+  (`resources/views/transactions/partials/jubelio-sync.blade.php`, `JubelioService`, dormant while
+  `JUBELIO_ACTIVE=false`). Manual batch tool: System Settings → Running Balances
+  (`/recalculate-running-balances`).
+- **Item catalog on `item_group` is shipped** (`App\Support\ItemCatalog`, `item_group.brand` /
+  `genre`). Leftover `items.*` mirror columns stay for L10 parity; new shared attributes belong on
+  the group. Colorway edit page, per-size price, asset TYPE→pcode autofill, and `item_group.name`
+  schema (varchar 255, not UNIQUE) landed in PRs **#575–#587** — see **Item group & item identity**.
+- **L12 reporting stack is shipped** (Blade reports + summary tables) — see **Reporting (L12)**.
+  **Maintainer will still request confirmation and modifications**; do not treat report output as final.
 
 Already-fixed gotchas — don't reintroduce them:
 - Read query params with `request()->query('x')`, **not** `request('x')`, on routes that also have a
@@ -502,7 +510,8 @@ own branch, with its own PR.
 
 - **Start a fresh chat for each new task.** Each cloud agent runs on a clean VM and re-reads this file,
   so you don't need to re-explain the project — just give the task brief.
-- **Branch naming:** `cursor/<short-kebab-name>-4b37` (lowercase; `cursor/` prefix + environment suffix).
+- **Branch naming:** `cursor/<short-kebab-name>-4b37` (lowercase; the `cursor/` prefix and environment
+  suffix are required).
 - **Base each new branch off `main` _after_ the previous PR merges.** Do not stack new work on an
   already-merged branch (it causes messy rebases). If task B truly depends on unmerged task A, say so
   explicitly and I'll branch B off A.
@@ -574,22 +583,35 @@ obsolete permissions — **after** Phase 1 tables are dropped or confirmed unuse
 
 Branch hint: `cursor/remove-legacy-converter-4b37` (converter first), then `cursor/remove-legacy-acl-4b37`.
 
+### Maintainer ops (not agent code)
+
+- **Production migration:** run individually on live MySQL when ready:
+  `php artisan migrate --path=database/migrations/2026_09_03_150000_widen_item_group_name_drop_unique.php`
+  (and `2026_09_03_130000_add_brand_and_genre_to_item_group_table.php` if not applied). Until then,
+  prod still has `item_group.name` varchar(50) UNIQUE.
+- **Stale group names:** no backfill migration. Rows where `item_group.name` still equals pcode while
+  items show a real title are fixed by editing via **colorway edit**
+  (`/items-group/colorway/{group}/edit`) or single-item edit with Product Name filled.
+
 ### Other deferred / not built
 
 | Task | Notes |
 |------|-------|
 | **Reporting validation / tweaks** | Maintainer-driven — see **Reporting (L12)**; expect formula, filter, mapping, or UI changes |
-| Prod migration `2026_09_03_150000_widen_item_group_name_drop_unique` | Maintainer ops — run on live MySQL |
-| Stale `item_group.name = pcode` rows | Fix via colorway edit — no backfill |
-| 3-segment asset pcode normalization | Deferred — see **Item group & item identity** |
+| **Remove legacy identity converter** | After conversion complete — branch `cursor/remove-legacy-converter-4b37`; **keep** `items.legacy_code`, `preserveLegacyCode()`, Jubelio/barcode legacy lookups |
+| 3-segment asset pcode normalization | Optional/deferred — `cursor/asset-pcode-two-segment-4b37`; see **Item group & item identity** |
 | Restock sheet Tabulator UI | Not built; other lists stay server-rendered HTML |
 
-### Reference: transaction write path (regressions only)
+### Reference: transaction write path (for regressions only)
 
-`Store*Request` → `TransactionsController@store*` → `app/Actions/Transactions/*` → `Transaction` +
-`TransactionDetail`; `TransactionObserver` + `UpdateTransactionSummaries` (queue). Tests:
-`TransactionBalanceIntegrityTest`, `tests/Feature/*Transaction*`.
+`Store*Request` → `TransactionsController@store*` → `app/Actions/Transactions/*` →
+`Transaction` + `TransactionDetail` inside a DB transaction. `TransactionObserver` +
+`UpdateTransactionSummaries` (queue) keep balances and aggregates in sync. Shared logic:
+`TransactionService`, `BookClosingService`, `InventoryService`. Tests:
+`tests/Feature/TransactionBalanceIntegrityTest.php`, `tests/Feature/*Transaction*`.
 
-### Reference: items schema (new columns)
+### Reference: items schema (for new columns)
 
-Shared catalog on `item_group` (`ItemCatalog`); per-warehouse stock on `warehouse_items`.
+Read **Item group & item identity** first — shared catalog fields belong on `item_group`, not new
+duplicate columns on `items` unless mirroring leftovers. Per-warehouse stock is `warehouse_items`
+(quantity + note), not `items.qty`. Some reports use MySQL `DATE_FORMAT` (SQLite dev errors only).
