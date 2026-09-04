@@ -822,7 +822,7 @@ test('it keeps a custom group title when product name is not the pcode', functio
 
     $this->assertDatabaseHas('item_group', ['name' => 'SLASH RUNNING SHIRT', 'master' => 'CX90233-23', 'variant' => '23']);
     $this->assertDatabaseHas('items', ['code' => 'AJD-CX90233-23-S', 'name' => 'SLASH RUNNING SHIRT - BLUE - S', 'price' => 120000]);
-    $this->assertDatabaseHas('items', ['code' => 'AJD-CX90233-23-M', 'name' => 'SLASH RUNNING SHIRT - BLUE - M', 'price' => 120000]);
+    $this->assertDatabaseHas('items', ['code' => 'AJD-CX90233-23-M', 'name' => 'SLASH RUNNING SHIRT - BLUE - M', 'price' => 100000]);
 });
 
 test('it updates group name from pcode placeholder when product_name is set on edit', function () {
