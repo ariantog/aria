@@ -182,6 +182,28 @@ it('recalculates asset lancar qty from the assetlancar route', function () {
     expect((float) $item->fresh()->qty)->toBe(6.0);
 });
 
+it('recalculates when transaction history implies negative physical stock', function () {
+    $customer = Addrbook::factory()->customer()->create();
+    $physical = Addrbook::factory()->warehouse()->create();
+    $item = Item::factory()->create([
+        'type' => ItemType::ASSET_LANCAR,
+        'code' => 'KNEESUPPORT-06-BLACK-S',
+        'qty' => 0,
+    ]);
+
+    seedItemAvailabilityStock($item, $physical, 0);
+    $this->actingAs($this->user);
+    seedItemAvailabilityMovement(Transaction::TYPE_SELL, $physical, $customer, $item, 2);
+
+    $this->post(route('assetlancar.recalculate-qty', $item))
+        ->assertRedirect(route('assetlancar.show', $item))
+        ->assertSessionHas('success');
+
+    expect((float) WarehouseItem::where('item_id', $item->id)->where('warehouse_id', $physical->id)->value('quantity'))
+        ->toBe(-2.0)
+        ->and((float) $item->fresh()->qty)->toBe(-2.0);
+});
+
 it('forbids recalculate qty without edit permission', function () {
     User::factory()->create();
     $viewer = User::factory()->create();

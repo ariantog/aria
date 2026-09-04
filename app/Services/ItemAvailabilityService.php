@@ -134,7 +134,9 @@ class ItemAvailabilityService
             ]);
             $row->warehouse_type = (string) $addrbook->type;
             $row->quantity = $qty;
-            $row->save();
+            // Reconciliation from txn history may yield negative physical rows (legacy
+            // oversells). Bypass the live stock gate; it only guards new postings.
+            $row->saveQuietly();
             $touched[] = $warehouseId;
         }
 
