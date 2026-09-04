@@ -84,6 +84,30 @@ it('paginates parent groups without breaking the count query', function () {
         ->and($pageOne->count())->toBe(1);
 });
 
+it('lists parent groups newest item_group id first', function () {
+    $olderGroup = ItemGroup::factory()->create(['master' => 'CX95001', 'variant' => '01', 'name' => 'OLDER']);
+    $olderItem = Item::factory()->create([
+        'group_id' => $olderGroup->id,
+        'type' => ItemType::ITEM,
+        'pcode' => 'CX95001-01',
+        'code' => 'AJD-CX95001-01-S',
+    ]);
+    $olderItem->tags()->attach([$this->typeTag->id, $this->pinkTag->id, $this->sizeS->id]);
+
+    $newerGroup = ItemGroup::factory()->create(['master' => 'CX95002', 'variant' => '02', 'name' => 'NEWER']);
+    $newerItem = Item::factory()->create([
+        'group_id' => $newerGroup->id,
+        'type' => ItemType::ITEM,
+        'pcode' => 'CX95002-02',
+        'code' => 'AJD-CX95002-02-S',
+    ]);
+    $newerItem->tags()->attach([$this->typeTag->id, $this->blackTag->id, $this->sizeS->id]);
+
+    $parents = $this->hierarchy->paginateParents([], 50);
+
+    expect($parents->pluck('label')->all())->toBe(['AJD CX95002', 'AJD CX95001']);
+});
+
 it('renders parent detail with color sections and size rows', function () {
     $pinkGroup = ItemGroup::factory()->create(['master' => 'CX93024', 'variant' => '05', 'name' => 'RUNNING SHIRT']);
 
