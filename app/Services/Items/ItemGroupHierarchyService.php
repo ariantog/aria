@@ -75,7 +75,7 @@ class ItemGroupHierarchyService
                 DB::raw('COUNT(DISTINCT items.id) as sku_count'),
             ])
             ->groupBy('grouped_item_group.canonical_master')
-            ->orderBy('grouped_item_group.canonical_master');
+            ->orderByDesc(DB::raw('MAX(grouped_item_group.id)'));
 
         /** @var LengthAwarePaginator $paginator */
         $paginator = $query->paginate($perPage)->withQueryString();
