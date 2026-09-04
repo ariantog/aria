@@ -254,11 +254,11 @@
 
                 {{-- Item rows --}}
                 @php
-                    $rowInput = 'w-full h-8 min-h-8 box-border rounded border border-gray-200 px-2 py-0 text-sm leading-8 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 [-moz-appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none';
+                    $rowInput = 'w-full h-9 min-h-9 box-border rounded border border-gray-200 px-2 py-0 text-base leading-9 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 [-moz-appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none';
                 @endphp
                 <div class="divide-y divide-gray-100 px-0">
                     <template x-for="(item, idx) in form.items" :key="item.uid">
-                        <div class="flex flex-col gap-3 px-5 py-4 text-sm hover:bg-gray-50 sm:grid sm:grid-cols-12 sm:items-center sm:gap-2 sm:py-2"
+                        <div class="flex flex-col gap-3 px-5 py-4 hover:bg-gray-50 sm:grid sm:grid-cols-12 sm:items-center sm:gap-2 sm:py-2"
                              :class="(isOverStock(item) || itemInvalid(item)) ? 'bg-red-50' : ''">
                             {{-- Code / barcode --}}
                             <div class="sm:col-span-2">
@@ -324,7 +324,7 @@
                             {{-- Warehouse stock (read-only) --}}
                             <div class="flex items-center justify-between {{ $isMove ? 'sm:col-span-2' : 'sm:col-span-1' }} sm:block sm:text-center">
                                 <span class="text-xs font-medium text-gray-500 sm:hidden">Whs. Stock</span>
-                                <span class="text-xs tabular-nums"
+                                <span class="text-base tabular-nums"
                                       :class="isOverStock(item) ? 'font-semibold text-red-500' : 'text-gray-400'"
                                       x-text="item.item_id ? formatNumberId(item.warehouse_stock || 0) : '—'"></span>
                             </div>
@@ -355,12 +355,12 @@
                             {{-- Subtotal --}}
                             <div class="flex items-center justify-between sm:col-span-1 sm:block sm:text-right">
                                 <span class="text-xs font-medium text-gray-500 sm:hidden">Subtotal</span>
-                                <span class="text-sm font-medium tabular-nums" x-text="formatAmountId(item.subtotal || 0)"></span>
+                                <span class="font-medium tabular-nums" x-text="formatAmountId(item.subtotal || 0)"></span>
                             </div>
                             {{-- Remove --}}
                             <div class="sm:col-span-1 sm:text-center">
                                 <button type="button" @click="removeItem(idx)"
-                                        class="inline-flex h-8 w-full items-center justify-center gap-1.5 rounded border border-red-200 text-sm text-red-600 hover:bg-red-50 sm:w-8 sm:border-0 sm:text-gray-400">
+                                        class="inline-flex h-9 w-full items-center justify-center gap-1.5 rounded border border-red-200 text-red-600 hover:bg-red-50 sm:w-9 sm:border-0 sm:text-gray-400">
                                     <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                                     <span class="sm:hidden">Remove</span>
                                 </button>
