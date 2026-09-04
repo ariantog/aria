@@ -2,63 +2,37 @@
 
 namespace App\Console\Commands;
 
+use App\Services\ItemsQtySyncService;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 
 class ResetReports extends Command
 {
-    /**
-     * The name and signature of the console command.
-     *
-     * @var string
-     */
     protected $signature = 'app:reset-reports {--force : Skip confirmation}';
 
-    /**
-     * The console command description.
-     *
-     * @var string
-     */
-    protected $description = 'Reset all stock and warehouse reports data to zero/empty';
+    protected $description = 'Resync items.qty from physical warehouse_item rows (does not modify warehouse_item)';
 
-    /**
-     * Execute the console command.
-     */
-    public function handle(): int
+    public function handle(ItemsQtySyncService $sync): int
     {
-        if (! $this->option('force') && ! $this->confirm('Are you sure you want to reset all stock reports? This will empty warehouse_item and set all item quantities to zero.')) {
-            $this->info('Reset cancelled.');
+        if (! $this->option('force') && ! $this->confirm(
+            'Resync items.qty from existing physical warehouse stock? warehouse_item rows will not be changed.',
+        )) {
+            $this->info('Cancelled.');
 
-            return Command::SUCCESS;
+            return self::SUCCESS;
         }
 
-        $this->warn('Starting reset of stock reports data...');
-
-        Schema::disableForeignKeyConstraints();
+        $this->info('Syncing items.qty from warehouse_item...');
 
         try {
-            DB::transaction(function () {
-                $this->info('Emptying warehouse_item table...');
-                DB::table('warehouse_item')->truncate();
+            $updated = $sync->syncAllFromPhysicalWarehouse();
+        } catch (\RuntimeException $e) {
+            $this->error($e->getMessage());
 
-                $this->info('Resetting global item quantities to zero...');
-                DB::table('items')->update(['qty' => 0]);
-
-                // Optional: reset other report tables if needed
-                // DB::table('customerstat')->update(['balance' => 0]);
-                // DB::table('customer_class')->truncate();
-            });
-
-            $this->info('Reports data has been reset successfully!');
-
-            return Command::SUCCESS;
-        } catch (\Exception $e) {
-            $this->error('Reset failed: '.$e->getMessage());
-
-            return Command::FAILURE;
-        } finally {
-            Schema::enableForeignKeyConstraints();
+            return self::FAILURE;
         }
+
+        $this->info("Resynced {$updated} item row(s). warehouse_item was not modified.");
+
+        return self::SUCCESS;
     }
 }
