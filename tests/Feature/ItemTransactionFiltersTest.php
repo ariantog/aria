@@ -79,8 +79,8 @@ it('renders clickable sender and receiver links on item transaction pages', func
     $this->actingAs($this->user)
         ->get(route($routeName, $item))
         ->assertOk()
-        ->assertSee('href="/warehouse/'.$sender->id.'"', false)
-        ->assertSee('href="/customer/'.$receiver->id.'"', false)
+        ->assertSee('href="'.url('/warehouse/'.$sender->id).'"', false)
+        ->assertSee('href="'.url('/customer/'.$receiver->id).'"', false)
         ->assertSee('Warehouse Sender Link', false)
         ->assertSee('Customer Receiver Link', false);
 })->with([
