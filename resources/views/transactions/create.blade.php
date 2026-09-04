@@ -350,7 +350,7 @@
                                        @keyup="rowKeyup(idx, 'price', $event)"
                                        enterkeyhint="next"
                                        min="0" step="0.01"
-                                       class="{{ $rowInput }} text-right">
+                                       class="{{ $rowInput }}">
                             </div>
                             {{-- Subtotal --}}
                             <div class="flex items-center justify-between sm:col-span-1 sm:block sm:text-right">
@@ -685,7 +685,10 @@ function createTransaction() {
         senderValid() { return !!this.form.sender_id; },
         receiverValid() { return !!this.form.receiver_id; },
         itemStarted(i) { return !!(i.item_id || i.name || i.code); },
-        itemValid(i) { return !!i.item_id && Number(i.quantity) >= 0.01 && Number(i.price) >= 0; },
+        priceIsSet(value) {
+            return value !== null && value !== '' && value !== undefined && ! Number.isNaN(Number(value));
+        },
+        itemValid(i) { return !!i.item_id && Number(i.quantity) >= 0.01 && this.priceIsSet(i.price) && Number(i.price) >= 0; },
         itemInvalid(i) { return this.itemStarted(i) && !this.itemValid(i); },
         validItems() { return this.form.items.filter(i => this.itemValid(i)); },
         cashInDateValid() {
@@ -729,7 +732,7 @@ function createTransaction() {
             return {
                 uid: Math.random().toString(36).slice(2),
                 item_id: '', code: '', name: '',
-                quantity: 1, price: 0, discount: 0,
+                quantity: 1, price: null, discount: 0,
                 warehouse_stock: null, warehouse_item: [],
                 jubelio_item_id: 0, jubelio_unlinked_warning: false,
                 subtotal: 0, note: '',
