@@ -19,6 +19,7 @@ class AppearanceController extends Controller
     {
         return view('settings.appearance', [
             'appearance' => $this->preferences->appearanceFor($request->user()),
+            'fontSize' => $this->preferences->fontSizeFor($request->user()),
         ]);
     }
 
@@ -26,10 +27,12 @@ class AppearanceController extends Controller
     {
         $validated = $request->validate([
             'appearance' => ['required', 'in:light,dark,system'],
+            'font_size' => ['required', 'in:small,default,large'],
         ]);
 
         try {
             $this->preferences->setAppearance($request->user(), $validated['appearance']);
+            $this->preferences->setFontSize($request->user(), $validated['font_size']);
         } catch (InvalidArgumentException $e) {
             return back()->withInput()->with('error', $e->getMessage());
         }
@@ -37,6 +40,7 @@ class AppearanceController extends Controller
         return redirect()
             ->route('appearance.edit')
             ->with('success', 'Appearance saved.')
-            ->withCookie(cookie('appearance', $validated['appearance'], 60 * 24 * 365));
+            ->withCookie(cookie('appearance', $validated['appearance'], 60 * 24 * 365))
+            ->withCookie(cookie('font_size', $validated['font_size'], 60 * 24 * 365));
     }
 }

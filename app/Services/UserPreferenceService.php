@@ -69,6 +69,29 @@ class UserPreferenceService
         $this->set($user, UserPreferenceRegistry::APPEARANCE_SLUG, $appearance);
     }
 
+    public function fontSizeFor(User $user): string
+    {
+        $value = $this->get($user, UserPreferenceRegistry::FONT_SIZE_SLUG, 'default');
+
+        return in_array($value, UserPreferenceRegistry::fontSizeOptions(), true)
+            ? $value
+            : 'default';
+    }
+
+    public function fontSizePixelsFor(User $user): string
+    {
+        return UserPreferenceRegistry::fontSizePixels()[$this->fontSizeFor($user)];
+    }
+
+    public function setFontSize(User $user, string $fontSize): void
+    {
+        if (! in_array($fontSize, UserPreferenceRegistry::fontSizeOptions(), true)) {
+            throw new InvalidArgumentException('Invalid font size value.');
+        }
+
+        $this->set($user, UserPreferenceRegistry::FONT_SIZE_SLUG, $fontSize);
+    }
+
     /**
      * @return array<string, mixed>
      */
