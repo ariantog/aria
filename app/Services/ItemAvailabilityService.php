@@ -4,7 +4,6 @@ namespace App\Services;
 
 use App\Models\Addrbook;
 use App\Models\Item;
-use App\Models\Transaction;
 use App\Models\WarehouseItem;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -57,8 +56,8 @@ class ItemAvailabilityService
     }
 
     /**
-     * Rebuild per-warehouse quantities from completed transactions, then
-     * write items.qty to the available (physical, non-deleted) total.
+     * Sync items.qty from existing warehouse_item rows (physical, non-deleted).
+     * Does not modify per-warehouse quantities — those stay owned by transaction posting.
      *
      * @return array{available: float, previous_qty: float}
      */
@@ -66,8 +65,6 @@ class ItemAvailabilityService
     {
         return DB::transaction(function () use ($item) {
             $previousQty = (float) $item->qty;
-
-            $this->rebuildWarehouseQuantities($item);
 
             $available = $this->availableQuantity($item->id);
             $item->qty = $available;
@@ -78,77 +75,6 @@ class ItemAvailabilityService
                 'previous_qty' => $previousQty,
             ];
         });
-    }
-
-    protected function rebuildWarehouseQuantities(Item $item): void
-    {
-        $completed = Transaction::STATUS_COMPLETED;
-        $depreciation = Transaction::TYPE_DEPRECIATION;
-
-        $inbound = DB::table('transaction_details as td')
-            ->join('transactions as t', 't.id', '=', 'td.transaction_id')
-            ->where('td.item_id', $item->id)
-            ->where('t.status', $completed)
-            ->where('t.type', '!=', $depreciation)
-            ->whereNotNull('t.receiver_id')
-            ->select('t.receiver_id as warehouse_id', DB::raw('SUM(td.quantity) as qty'))
-            ->groupBy('t.receiver_id')
-            ->get();
-
-        $outbound = DB::table('transaction_details as td')
-            ->join('transactions as t', 't.id', '=', 'td.transaction_id')
-            ->where('td.item_id', $item->id)
-            ->where('t.status', $completed)
-            ->where('t.type', '!=', $depreciation)
-            ->whereNotNull('t.sender_id')
-            ->select('t.sender_id as warehouse_id', DB::raw('SUM(-td.quantity) as qty'))
-            ->groupBy('t.sender_id')
-            ->get();
-
-        $byWarehouse = [];
-        foreach ($inbound as $row) {
-            $id = (int) $row->warehouse_id;
-            $byWarehouse[$id] = ($byWarehouse[$id] ?? 0) + (float) $row->qty;
-        }
-        foreach ($outbound as $row) {
-            $id = (int) $row->warehouse_id;
-            $byWarehouse[$id] = ($byWarehouse[$id] ?? 0) + (float) $row->qty;
-        }
-
-        $addrbooks = Addrbook::withTrashed()
-            ->whereIn('id', array_keys($byWarehouse) ?: [0])
-            ->whereIn('type', WarehouseItem::warehouseAddrbookTypes())
-            ->get()
-            ->keyBy('id');
-
-        $touched = [];
-        foreach ($byWarehouse as $warehouseId => $qty) {
-            $addrbook = $addrbooks->get($warehouseId);
-            if (! $addrbook) {
-                continue;
-            }
-
-            $row = WarehouseItem::firstOrNew([
-                'warehouse_id' => $warehouseId,
-                'item_id' => $item->id,
-            ]);
-            $row->warehouse_type = (string) $addrbook->type;
-            $row->quantity = $qty;
-            // Reconciliation from txn history may yield negative physical rows (legacy
-            // oversells). Bypass the live stock gate; it only guards new postings.
-            $row->saveQuietly();
-            $touched[] = $warehouseId;
-        }
-
-        $leftovers = WarehouseItem::query()
-            ->where('item_id', $item->id)
-            ->forWarehouseAddrbooks(withTrashed: true);
-
-        if ($touched !== []) {
-            $leftovers->whereNotIn('warehouse_id', $touched);
-        }
-
-        $leftovers->update(['quantity' => 0]);
     }
 
     protected function isPhysicalActive(WarehouseItem $row): bool
