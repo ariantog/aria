@@ -9,20 +9,25 @@ namespace App\Support;
 class CronManager
 {
     /**
-     * Artisan commands that rewrite warehouse_item / items.qty. Manual ops only —
-     * never register these in Cron Manager (Jubelio stock writes use txn posting instead).
+     * Artisan commands that sync items.qty from warehouse_item (read-only on warehouse rows).
+     * Manual maintainer ops only — never register in Cron Manager.
      *
      * @return list<string>
      */
-    public static function manualOnlyStockCommands(): array
+    public static function manualOnlyItemsQtySyncCommands(): array
     {
         return [
             'inventory:recalculate',
             'report:recalculate',
             'app:backfill-items-qty',
             'app:reset-reports',
-            'migrate:finalize-aggregation',
         ];
+    }
+
+    /** @deprecated Use manualOnlyItemsQtySyncCommands() */
+    public static function manualOnlyStockCommands(): array
+    {
+        return self::manualOnlyItemsQtySyncCommands();
     }
 
     /**
@@ -64,7 +69,7 @@ class CronManager
 
     public static function isManualOnlyStockCommand(string $command): bool
     {
-        return in_array(self::commandBase($command), self::manualOnlyStockCommands(), true);
+        return in_array(self::commandBase($command), self::manualOnlyItemsQtySyncCommands(), true);
     }
 
     public static function isJubelioStockCronCommand(string $command): bool
@@ -73,7 +78,7 @@ class CronManager
     }
 
     /**
-     * Cron Manager must not run stock-rewrite commands unless they are the Jubelio order worker.
+     * Cron Manager must not run items.qty sync commands (manual maintainer tools only).
      */
     public static function isAllowedInCronManager(string $command): bool
     {
@@ -87,7 +92,7 @@ class CronManager
     public static function cronManagerBlockReason(string $command): ?string
     {
         if (! self::isAllowedInCronManager($command)) {
-            return 'This command rewrites item or warehouse stock and is manual-only. Only Jubelio order processing may change stock from cron.';
+            return 'This command syncs items.qty from warehouse_item and is manual-only. It never modifies warehouse_item. Only Jubelio order processing may change live stock from cron.';
         }
 
         return null;

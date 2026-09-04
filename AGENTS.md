@@ -169,32 +169,31 @@ Authoritative helper: `Transaction::signedAmount($type, $amount)` in `app/Models
 
 Per-warehouse quantities live in **`warehouse_item`** and change only through **transaction posting**
 (`InventoryService` / `WarehouseItem::applyDelta` on completed buys, sells, moves, returns, Jubelio
-SELL/RETURN, etc.). **`items.qty`** is a cached total (physical warehouses only) — sync it from
-existing `warehouse_item` rows; do **not** infer live warehouse stock from transaction history in
-application code or crons.
+SELL/RETURN, etc.). **`items.qty`** is a cached total (physical warehouses only) — sync it by **reading**
+existing `warehouse_item` rows; do **not** delete, truncate, insert, or rebuild `warehouse_item` from
+transaction history in application code, artisan commands, or crons.
 
-**Never run, schedule, re-enable, or "fix drift" with stock-rewrite artisan commands** unless the
-maintainer explicitly requests that specific manual operation:
+**Manual `items.qty` sync commands** (read `warehouse_item` only; may update `items.qty`):
 
-| Command | Why it is forbidden by default |
-|---------|--------------------------------|
-| **`inventory:recalculate`** | **`DELETE`s all `warehouse_item`**, zeros `items.qty`, then rebuilds both from `transaction_details` — destroys live posted stock and bypasses the stock gate. |
-| `report:recalculate` | Clears and re-imports `warehouse_item` from legacy DB |
-| `app:reset-reports` | Truncates `warehouse_item`, zeros `items.qty` |
-| `migrate:finalize-aggregation` | Legacy aggregation rebuild touching `warehouse_item` |
+| Command | Allowed behavior |
+|---------|------------------|
+| `inventory:recalculate` | Sync all `items.qty` from physical, non-deleted `warehouse_item` sums |
+| `report:recalculate` | Same as above (legacy alias) |
+| `app:backfill-items-qty` | Same as above |
+| `app:reset-reports` | Same as above (name is legacy; does not truncate stock tables) |
 
+- **Never** register the commands above in Cron Manager — manual maintainer use only.
 - **Item / asset lancar "Recalculate qty"** (`ItemAvailabilityService::recalculate()`) must **only**
-  write **`items.qty`** from the sum of existing physical `warehouse_item` rows — **never** rebuild
-  or overwrite `warehouse_item`.
-- **Cron Manager** must not run any stock-rewrite command above. The only scheduled path that may
-  change live stock is **`jubelio:order-jubelio-to-aria`** (posts SELL/RETURN transactions). Other
-  Jubelio crons (`app:jubelio-stock-check`, poll/get-orders, check-connection) are read-only or
+  write **`items.qty`** from existing physical `warehouse_item` rows — **never** touch `warehouse_item`.
+- **Cron Manager** must not run the sync commands above. The only scheduled path that may change live
+  **`warehouse_item`** stock is **`jubelio:order-jubelio-to-aria`** (posts SELL/RETURN transactions).
+  Other Jubelio crons (`app:jubelio-stock-check`, poll/get-orders, check-connection) are read-only or
   queue-only.
-- **`app:backfill-items-qty`** may update `items.qty` from existing warehouse rows only — it must
-  not touch `warehouse_item`. Manual maintainer use only; never cron it.
-- Do **not** add migrations, seeders, observers, or "repair" scripts that bulk-delete or
-  bulk-rebuild `warehouse_item` from transactions. Fix balance/stock bugs through transaction
-  posting, observer ordering, or targeted row fixes — not a global recalc.
+- Do **not** add migrations, seeders, observers, or "repair" scripts that bulk-delete or bulk-rebuild
+  `warehouse_item` from transactions. Fix balance/stock bugs through transaction posting, observer
+  ordering, or targeted row fixes — not a global warehouse recalc.
+- **`migrate:finalize-aggregation` was removed** — it rebuilt `warehouse_item` from transactions; use
+  `app:recalculate-running-balances` for running balances instead.
 
 ### Do NOT reintroduce React / Vite / a JS build
 

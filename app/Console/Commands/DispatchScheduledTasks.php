@@ -49,7 +49,7 @@ class DispatchScheduledTasks extends Command
             }
 
             if ($reason = CronManager::cronManagerBlockReason($task->command)) {
-                Log::error('Scheduled task blocked: stock rewrite command is manual-only', [
+                Log::error('Scheduled task blocked: manual items.qty sync command', [
                     'command' => $task->command,
                     'reason' => $reason,
                 ]);

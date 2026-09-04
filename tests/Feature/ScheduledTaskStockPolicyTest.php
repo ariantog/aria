@@ -28,7 +28,7 @@ it('seeded active crons do not register manual-only stock rewrite commands', fun
 
     foreach ($activeCommands as $command) {
         expect(CronManager::isAllowedInCronManager($command))
-            ->toBeTrue("Active cron {$command} must not rewrite warehouse stock (Jubelio order worker only).");
+            ->toBeTrue("Active cron {$command} must not sync items.qty from cron (manual tools only).");
     }
 });
 
