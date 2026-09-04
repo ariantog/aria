@@ -638,8 +638,8 @@ function createTransaction() {
                     row.code = ci.code || '';
                     row.name = ci.name || '';
                     row.quantity = Number(ci.quantity || 1);
-                    row.price = Number(ci.price ?? ci[_PriceSource] ?? 0);
-                    const gross = row.quantity * row.price;
+                    row.price = this.resolveRowPrice(ci, { preferLinePrice: true });
+                    const gross = Number(row.quantity || 0) * Number(row.price || 0);
                     row.discount = gross > 0 ? (Number(ci.discount || 0) / gross) * 100 : 0;
                     row.warehouse_item = this.warehouseItemsFrom(ci);
                     row.warehouse_stock = this.stockFor(row) || Number(ci.warehouse_stock || 0);
@@ -687,6 +687,29 @@ function createTransaction() {
         itemStarted(i) { return !!(i.item_id || i.name || i.code); },
         priceIsSet(value) {
             return value !== null && value !== '' && value !== undefined && ! Number.isNaN(Number(value));
+        },
+        // sell/return → items.price; buy/return-supplier → items.cost (via _PriceSource).
+        // Empty rows stay empty until an item is picked; return/CSV prefills may carry line price.
+        resolveRowPrice(source, { preferLinePrice = false } = {}) {
+            if (! source) {
+                return null;
+            }
+
+            if (preferLinePrice && source.price !== null && source.price !== undefined && source.price !== '') {
+                const linePrice = Number(source.price);
+                if (! Number.isNaN(linePrice)) {
+                    return linePrice;
+                }
+            }
+
+            const raw = source[_PriceSource];
+            if (raw === null || raw === undefined || raw === '') {
+                return null;
+            }
+
+            const amount = Number(raw);
+
+            return Number.isNaN(amount) ? null : amount;
         },
         itemValid(i) { return !!i.item_id && Number(i.quantity) >= 0.01 && this.priceIsSet(i.price) && Number(i.price) >= 0; },
         itemInvalid(i) { return this.itemStarted(i) && !this.itemValid(i); },
@@ -778,7 +801,7 @@ function createTransaction() {
             row.item_id = String(source.id ?? source.item_id ?? '');
             row.code = source.code || source.item_code || String(source.id ?? '');
             row.name = source.name || source.product_name || '';
-            row.price = Number(source[_PriceSource] ?? source.price ?? source.cost) || 0;
+            row.price = this.resolveRowPrice(source);
             row.warehouse_item = this.warehouseItemsFrom(source);
             if (!row.quantity || row.quantity < 0.01) row.quantity = 1;
             row.warehouse_stock = this.stockFor(row);
@@ -1302,8 +1325,8 @@ function createTransaction() {
                     row.code = ci.code || '';
                     row.name = ci.name || '';
                     row.quantity = Number(ci.quantity || 1);
-                    row.price = Number(ci.price ?? ci[_PriceSource] ?? 0);
-                    const gross = row.quantity * row.price;
+                    row.price = this.resolveRowPrice(ci, { preferLinePrice: true });
+                    const gross = Number(row.quantity || 0) * Number(row.price || 0);
                     row.discount = gross > 0 ? (Number(ci.discount || 0) / gross) * 100 : 0;
                     row.warehouse_item = this.warehouseItemsFrom(ci);
                     row.warehouse_stock = this.stockFor(row) || Number(ci.warehouse_stock || 0);
