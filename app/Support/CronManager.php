@@ -20,7 +20,6 @@ class CronManager
             'inventory:recalculate',
             'report:recalculate',
             'app:backfill-items-qty',
-            'app:reset-reports',
         ];
     }
 

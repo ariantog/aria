@@ -76,18 +76,6 @@ it('report recalculate syncs items qty without modifying warehouse_item', functi
         ->and((float) WarehouseItem::where('item_id', $item->id)->value('quantity'))->toBe(4.0);
 });
 
-it('reset reports resyncs items qty without truncating warehouse_item', function () {
-    $physical = Addrbook::factory()->warehouse()->create();
-    $item = Item::factory()->create(['qty' => 100]);
-
-    seedQtySyncWarehouseStock($item, $physical, 3);
-
-    $this->artisan('app:reset-reports', ['--force' => true])->assertSuccessful();
-
-    expect((float) $item->fresh()->qty)->toBe(3.0)
-        ->and(WarehouseItem::where('item_id', $item->id)->count())->toBe(1);
-});
-
 it('backfill items qty matches inventory recalculate behavior', function () {
     $physical = Addrbook::factory()->warehouse()->create();
     $item = Item::factory()->create(['qty' => 12]);
@@ -101,4 +89,8 @@ it('backfill items qty matches inventory recalculate behavior', function () {
 
 it('migrate finalize aggregation command was removed', function () {
     expect(collect(Artisan::all())->keys())->not->toContain('migrate:finalize-aggregation');
+});
+
+it('reset reports command was removed', function () {
+    expect(collect(Artisan::all())->keys())->not->toContain('app:reset-reports');
 });

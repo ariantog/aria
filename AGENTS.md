@@ -180,7 +180,6 @@ transaction history in application code, artisan commands, or crons.
 | `inventory:recalculate` | Sync all `items.qty` from physical, non-deleted `warehouse_item` sums |
 | `report:recalculate` | Same as above (legacy alias) |
 | `app:backfill-items-qty` | Same as above |
-| `app:reset-reports` | Same as above (name is legacy; does not truncate stock tables) |
 
 - **Never** register the commands above in Cron Manager — manual maintainer use only.
 - **Item / asset lancar "Recalculate qty"** (`ItemAvailabilityService::recalculate()`) must **only**
