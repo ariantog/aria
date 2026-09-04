@@ -901,7 +901,7 @@ test('two manufactured colorways can share the same product title without a suff
     ]);
 });
 
-test('it does not copy asset cost onto sibling sizes when price is edited', function () {
+test('it does not copy asset cost or price onto sibling sizes when one sku is edited', function () {
     $mediumTag = Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'M', 'name' => 'Medium']);
     $assetType = Tag::factory()->create([
         'type' => Tag::TYPE_TYPE,
@@ -943,7 +943,7 @@ test('it does not copy asset cost onto sibling sizes when price is edited', func
     $medium->refresh();
 
     expect((float) $small->price)->toBe(550000.0)
-        ->and((float) $medium->price)->toBe(550000.0)
+        ->and((float) $medium->price)->toBe(500000.0)
         ->and((float) $small->cost)->toBe(305000.0)
         ->and((float) $medium->cost)->toBe(310000.0)
         ->and($small->name)->toBe('BOXING GLOVES - BLUE - S')
