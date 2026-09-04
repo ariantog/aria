@@ -172,7 +172,7 @@ $config = [
                                        @keyup="fieldKeyup(idx, 'total', $event)"
                                        :id="'total_' + idx"
                                        :data-testid="'cash-entry-total-' + idx"
-                                       class="{{ $rowInput }} text-right"
+                                       class="{{ $rowInput }}"
                                        :class="rowInvalid(row) && !(Number(row.total) >= 0.01) ? 'border-red-400 bg-red-50' : ''">
                             </div>
                             <div class="order-6 sm:order-5 sm:col-span-1 sm:text-center">
