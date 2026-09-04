@@ -140,6 +140,7 @@ class CreateItemTransaction
         $totalBeforeTax = $itemsTotal - $discountAmount + $adjustment;
         $taxAmount = $isPpn ? ($totalBeforeTax * $this->getPpnRate()) : 0;
         $grandTotal = $totalBeforeTax + $taxAmount;
+        // total = signed net payable only. Never write line subtotal here or net to real_total.
         $transaction->update([
             'discount' => $discountPercent,
             'adjustment' => $adjustment,

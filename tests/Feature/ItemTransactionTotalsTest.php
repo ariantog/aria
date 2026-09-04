@@ -212,6 +212,50 @@ it('stores sell total after header discount and adjustment', function () {
     ]);
 });
 
+it('stores prod sell 618383 net payable on total not line subtotal', function () {
+    // One line Rp 135,000, invoice disc 5%, adj −250 → net Rp 128,000 (not Rp 135,000).
+    $user = User::factory()->create();
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    $customer = Addrbook::factory()->customer()->create(['ppn' => false]);
+    $item = Item::factory()->create(['price' => 135_000, 'cost' => 80_000]);
+    seedWarehouseStock($warehouse, $item);
+
+    postItemTransaction($user, [
+        'date' => '2026-09-01',
+        'type' => 'sell',
+        'sender_id' => $warehouse->id,
+        'receiver_id' => $customer->id,
+        'discount_percent' => 5,
+        'adjustment' => -250,
+        'items' => [[
+            'item_id' => $item->id,
+            'quantity' => 1,
+            'price' => 135_000,
+            'discount' => 0,
+        ]],
+    ])->assertRedirect();
+
+    $transaction = Transaction::query()
+        ->where('type', Transaction::TYPE_SELL)
+        ->where('discount', 5)
+        ->where('adjustment', -250)
+        ->latest('id')
+        ->first();
+
+    expect($transaction)->not->toBeNull()
+        ->and((float) $transaction->total)->toBe(-128_000.0)
+        ->and((float) $transaction->ppn)->toBe(0.0);
+
+    $this->assertDatabaseHas('transactions', [
+        'id' => $transaction->id,
+        'type' => Transaction::TYPE_SELL,
+        'total' => -128_000,
+        'discount' => 5,
+        'adjustment' => -250,
+        'ppn' => 0,
+    ]);
+});
+
 it('stores a zero total when sell invoice discount is 100 percent', function () {
     $user = User::factory()->create();
     $warehouse = Addrbook::factory()->warehouse()->create();
