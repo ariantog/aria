@@ -48,6 +48,15 @@ class DispatchScheduledTasks extends Command
                 continue;
             }
 
+            if ($reason = CronManager::cronManagerBlockReason($task->command)) {
+                Log::error('Scheduled task blocked: stock rewrite command is manual-only', [
+                    'command' => $task->command,
+                    'reason' => $reason,
+                ]);
+
+                continue;
+            }
+
             if (! $this->shouldRun($task)) {
                 continue;
             }
