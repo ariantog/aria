@@ -94,3 +94,26 @@ it('migrate finalize aggregation command was removed', function () {
 it('reset reports command was removed', function () {
     expect(collect(Artisan::all())->keys())->not->toContain('app:reset-reports');
 });
+
+it('dev migration and wipe commands were removed', function () {
+    $removed = [
+        'app:delete-transactions',
+        'app:recalculate-item-sales',
+        'import:legacy-jubelio',
+        'app:fix-warehouse-types',
+        'migrate:legacy-journals',
+        'migrate:legacy-transactions',
+        'app:migrate-legacy-addrbook',
+        'app:migrate-legacy-items',
+        'app:migrate-legacy-users',
+        'app:reset-legacy-items-migration',
+        'app:truncate-items',
+        'db:truncate-transactions',
+    ];
+
+    $registered = collect(Artisan::all())->keys();
+
+    foreach ($removed as $command) {
+        expect($registered)->not->toContain($command);
+    }
+});

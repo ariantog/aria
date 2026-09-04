@@ -193,6 +193,9 @@ transaction history in application code, artisan commands, or crons.
   ordering, or targeted row fixes — not a global warehouse recalc.
 - **`migrate:finalize-aggregation` was removed** — it rebuilt `warehouse_item` from transactions; use
   `app:recalculate-running-balances` for running balances instead.
+- **Dev / migration / wipe commands were removed** — do not reintroduce `app:delete-transactions`,
+  `app:recalculate-item-sales`, `import:legacy-jubelio`, `app:fix-warehouse-types`, `migrate:legacy-journals`,
+  `app:migrate-legacy-*`, `app:truncate-*`, `db:truncate-transactions`, or `app:reset-legacy-items-migration`.
 
 ### Do NOT reintroduce React / Vite / a JS build
 
