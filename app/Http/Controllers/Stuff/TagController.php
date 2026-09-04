@@ -4,8 +4,10 @@ namespace App\Http\Controllers\Stuff;
 
 use App\Enums\ItemType;
 use App\Http\Controllers\Controller;
+use App\Models\Item;
 use App\Models\Tag;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 
 class TagController extends Controller
@@ -49,8 +51,11 @@ class TagController extends Controller
 
         $query->orderBy('id');
 
+        $tags = $query->paginate(50)->withQueryString();
+        $this->attachSoleTaggedItems($tags->getCollection());
+
         return view('stuff.tags.index', [
-            'tags' => $query->paginate(50)->withQueryString(),
+            'tags' => $tags,
             'search' => $search,
             'typeFilter' => $typeFilter,
             'sort' => $sort,
@@ -125,5 +130,39 @@ class TagController extends Controller
         $tag->delete();
 
         return redirect()->back()->with('success', 'Tag deleted successfully.');
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<int, Tag>  $tags
+     */
+    protected function attachSoleTaggedItems($tags): void
+    {
+        $singleTagIds = $tags
+            ->filter(fn (Tag $tag) => (int) $tag->items_count === 1)
+            ->pluck('id');
+
+        if ($singleTagIds->isEmpty()) {
+            return;
+        }
+
+        $rows = DB::table('item_tag')
+            ->join('items', 'items.id', '=', 'item_tag.item_id')
+            ->whereIn('item_tag.tag_id', $singleTagIds)
+            ->select('item_tag.tag_id', 'items.id', 'items.type')
+            ->get()
+            ->keyBy('tag_id');
+
+        foreach ($tags as $tag) {
+            $row = $rows->get($tag->id);
+
+            if ($row === null) {
+                continue;
+            }
+
+            $tag->setRelation('soleTaggedItem', (new Item)->forceFill([
+                'id' => (int) $row->id,
+                'type' => (int) $row->type,
+            ]));
+        }
     }
 }

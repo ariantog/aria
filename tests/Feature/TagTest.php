@@ -385,3 +385,88 @@ it('links asset lancar tags to the asset lancar index', function () {
 
     expect($tag->itemsIndexFilterUrl())->toBe(route('assetlancar.index', ['tag_ids' => [$tag->id]]));
 });
+
+it('links a universal tag to asset lancar when its only item is asset lancar', function () {
+    $tag = Tag::create([
+        'name' => 'Lone Asset Tag',
+        'code' => 'LAT',
+        'type' => Tag::TYPE_NORMAL,
+        'item_type' => 0,
+    ]);
+
+    $asset = Item::factory()->create([
+        'type' => ItemType::ASSET_LANCAR,
+        'tag_ids' => (string) $tag->id,
+        'code' => 'GLOVE-01-RED',
+    ]);
+    $asset->tags()->sync([$tag->id]);
+    $tag->setAttribute('items_count', 1);
+
+    expect($tag->itemsIndexFilterUrl())->toBe(route('assetlancar.show', $asset))
+        ->and($tag->filterItemType())->toBe(ItemType::ASSET_LANCAR);
+});
+
+it('links a universal tag to the asset lancar index when all tagged items are asset lancar', function () {
+    $tag = Tag::create([
+        'name' => 'All Asset Tag',
+        'code' => 'AAT',
+        'type' => Tag::TYPE_NORMAL,
+        'item_type' => 0,
+    ]);
+
+    $assetOne = Item::factory()->create([
+        'type' => ItemType::ASSET_LANCAR,
+        'tag_ids' => (string) $tag->id,
+    ]);
+    $assetTwo = Item::factory()->create([
+        'type' => ItemType::ASSET_LANCAR,
+        'tag_ids' => (string) $tag->id,
+    ]);
+    $assetOne->tags()->sync([$tag->id]);
+    $assetTwo->tags()->sync([$tag->id]);
+    $tag->setAttribute('items_count', 2);
+
+    expect($tag->itemsIndexFilterUrl())->toBe(route('assetlancar.index', ['tag_ids' => [$tag->id]]))
+        ->and($tag->filterItemType())->toBe(ItemType::ASSET_LANCAR);
+});
+
+it('links a universal tag directly to the item when exactly one manufactured item is tagged', function () {
+    $tag = Tag::create([
+        'name' => 'Lone Item Tag',
+        'code' => 'LIT',
+        'type' => Tag::TYPE_NORMAL,
+        'item_type' => 0,
+    ]);
+
+    $item = Item::factory()->create([
+        'type' => ItemType::ITEM,
+        'tag_ids' => (string) $tag->id,
+    ]);
+    $item->tags()->sync([$tag->id]);
+    $tag->setAttribute('items_count', 1);
+
+    expect($tag->itemsIndexFilterUrl())->toBe(route('items.show', $item));
+});
+
+it('renders tag list links to asset lancar for a universal tag with one asset lancar item', function () {
+    $tag = Tag::create([
+        'name' => 'Visible Asset Tag',
+        'code' => 'VAT',
+        'type' => Tag::TYPE_NORMAL,
+        'item_type' => 0,
+    ]);
+
+    $asset = Item::factory()->create([
+        'type' => ItemType::ASSET_LANCAR,
+        'tag_ids' => (string) $tag->id,
+        'code' => 'GLOVE-02-BLUE',
+    ]);
+    $asset->tags()->sync([$tag->id]);
+
+    $this->actingAs($this->user)
+        ->get('/tags')
+        ->assertOk()
+        ->assertSee(route('assetlancar.show', $asset), false)
+        ->assertSee('Visible Asset Tag')
+        ->assertSee('>1</a>', false);
+});
