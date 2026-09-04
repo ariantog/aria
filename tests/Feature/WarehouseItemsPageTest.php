@@ -243,6 +243,8 @@ it('shows jubelio on-hand stock for synced warehouses', function () {
                         'location_id' => 10,
                         'on_hand' => 40,
                         'on_order' => 5,
+                        'reserved' => 2,
+                        'available' => 38,
                     ]],
                 ]],
             ]);
@@ -252,9 +254,15 @@ it('shows jubelio on-hand stock for synced warehouses', function () {
         ->get(route('addrbook.type.items', ['warehouse', $warehouse->id]));
 
     $response->assertOk()
-        ->assertSee('Jubelio', false)
+        ->assertSee('On hand', false)
+        ->assertSee('On order', false)
+        ->assertSee('Avail', false)
         ->assertSee('Gudang Pusat', false)
         ->assertSee('40', false)
+        ->assertSee('5', false)
+        ->assertSee('38', false)
+        ->assertSee('data-testid="warehouse-items-column-toggles"', false)
+        ->assertSee('data-testid="warehouse-items-scroll-top"', false)
         ->assertSee('Not linked', false)
         ->assertSee('item(s) on this page are not linked to Jubelio', false);
 });

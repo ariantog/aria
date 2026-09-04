@@ -6,6 +6,10 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>@yield('title', config('app.name')) - {{ config('app.name') }}</title>
 
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
     {{-- Tailwind CDN (v4 play CDN covers all utilities) --}}
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -47,8 +51,12 @@
             --sidebar-accent-foreground: 240 5.9% 10%;
             --sidebar-border: 220 13% 91%;
             --radius: 0.5rem;
+            --app-font-size: {{ $fontSizePixels ?? '14px' }};
         }
-        body { font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        html { font-size: var(--app-font-size); }
+        body {
+            font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+        }
         [x-cloak] { display: none !important; }
 
         /* Sidebar transition (desktop only — mobile opens/closes instantly) */

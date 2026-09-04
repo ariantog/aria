@@ -24,7 +24,14 @@ class WarehouseJubelioStockService
     /**
      * @param  Collection<int, Item>  $items
      * @return array{
-     *     stocks: array<int, array{linked: bool, on_hand: ?float, mismatch: bool}>,
+     *     stocks: array<int, array{
+     *         linked: bool,
+     *         on_hand: ?float,
+     *         on_order: ?float,
+     *         reserved: ?float,
+     *         available: ?float,
+     *         mismatch: bool,
+     *     }>,
      *     fetch_failed: bool,
      *     unlinked_count: int,
      * }
@@ -44,6 +51,9 @@ class WarehouseJubelioStockService
             $stocks[$item->id] = [
                 'linked' => $linked,
                 'on_hand' => null,
+                'on_order' => null,
+                'reserved' => null,
+                'available' => null,
                 'mismatch' => false,
             ];
         }
@@ -81,16 +91,20 @@ class WarehouseJubelioStockService
                 $locationId,
             );
 
-            $onHand = $locationStock !== null
-                ? (float) ($locationStock['on_hand'] ?? 0)
+            $quantities = $locationStock !== null
+                ? $this->stockCheckService->resolveLocationQuantities($locationStock)
                 : null;
 
             $ariaQty = (float) ($item->pivot->quantity ?? 0);
+            $available = $quantities['available'] ?? null;
 
             $stocks[$item->id] = [
                 'linked' => true,
-                'on_hand' => $onHand,
-                'mismatch' => $onHand !== null && $ariaQty !== $onHand,
+                'on_hand' => $quantities['on_hand'] ?? null,
+                'on_order' => $quantities['on_order'] ?? null,
+                'reserved' => $quantities['reserved'] ?? null,
+                'available' => $available,
+                'mismatch' => $available !== null && $ariaQty !== $available,
             ];
         }
 

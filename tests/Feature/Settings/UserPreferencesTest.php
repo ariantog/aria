@@ -71,11 +71,16 @@ test('cash in form preselects default bank account', function () {
 
 test('user can save appearance preference', function () {
     $this->actingAs($this->user)
-        ->patch(route('appearance.update'), ['appearance' => 'dark'])
+        ->patch(route('appearance.update'), [
+            'appearance' => 'dark',
+            'font_size' => 'large',
+        ])
         ->assertRedirect(route('appearance.edit'))
         ->assertSessionHas('success');
 
-    expect(app(UserPreferenceService::class)->appearanceFor($this->user))->toBe('dark');
+    $preferences = app(UserPreferenceService::class);
+    expect($preferences->appearanceFor($this->user))->toBe('dark')
+        ->and($preferences->fontSizeFor($this->user))->toBe('large');
 });
 
 test('transaction defaults lookup respects addrbook type', function () {
