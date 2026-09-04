@@ -28,11 +28,54 @@ function itemForm() {
         sizeCode: '???',
         warnaCodes: [],
         sizeCodes: [],
+        tagFilters: {
+            warna: '',
+            type: '',
+            size: '',
+        },
 
         init() {
             this.autoFilledName = (this.form.product_name || '').toUpperCase().trim();
             this.autoFilledPcode = (this.form.pcode || '').toUpperCase().trim();
-            this.$nextTick(() => this.syncFromDom());
+            this.$nextTick(() => {
+                this.syncFromDom();
+                ['warna', 'type', 'size'].forEach((field) => this.filterTagField(field));
+            });
+        },
+
+        tagOptionMatches(name, code, query) {
+            const q = String(query || '').trim().toLowerCase();
+            if (!q) {
+                return true;
+            }
+
+            const label = String(name || '').toLowerCase();
+            const tagCode = String(code || '').toLowerCase();
+
+            return label.includes(q) || tagCode.includes(q);
+        },
+
+        tagOptionVisible(field, name, code) {
+            return this.tagOptionMatches(name, code, this.tagFilters[field]);
+        },
+
+        filterTagField(field) {
+            const query = String(this.tagFilters[field] || '').trim().toLowerCase();
+            const select = this.$root.querySelector(`select[data-tag-field="${field}"]`);
+            if (!select) {
+                return;
+            }
+
+            [...select.options].forEach((opt) => {
+                if (opt.value === '') {
+                    opt.hidden = false;
+                    return;
+                }
+
+                const text = String(opt.textContent || '').toLowerCase();
+                const code = String(opt.dataset.code || '').toLowerCase();
+                opt.hidden = query !== '' && !text.includes(query) && !code.includes(query);
+            });
         },
 
         syncFromDom() {

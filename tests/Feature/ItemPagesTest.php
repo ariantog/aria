@@ -509,6 +509,9 @@ test('asset edit form shows the bare product title not the unique group name', f
     $this->actingAs($this->user)
         ->get(route('assetlancar.edit', $item))
         ->assertOk()
+        ->assertSee('data-testid="tag-filter-warna"', false)
+        ->assertSee('data-testid="tag-filter-type"', false)
+        ->assertSee('data-testid="tag-filter-size"', false)
         ->assertSee('value="ELBOW STRAP"', false)
         ->assertDontSee('ELBOW STRAP - BLACKWHITE (ELBOWSUPPORT-02) - BLACKWHITE', false);
 });

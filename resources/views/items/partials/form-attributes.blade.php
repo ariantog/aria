@@ -39,10 +39,12 @@
             <label class="mb-1 block text-sm font-medium text-gray-700">
                 Warna (Color) <span class="text-red-500">*</span>
             </label>
+            @include('items.partials.tag-filter-input', ['field' => 'warna', 'placeholder' => 'Filter warna…'])
             @if($isAsset && $multiSize)
                 <div class="max-h-40 space-y-1 overflow-y-auto rounded-lg border p-2 @if($warnaError) border-red-500 @else border-gray-300 @endif">
                     @foreach($warnaTags as $t)
-                    <label class="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-sm hover:bg-gray-50">
+                    <label x-show="tagOptionVisible('warna', @js($t->name), @js($t->code))"
+                           class="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-sm hover:bg-gray-50">
                         <input type="checkbox" name="tags[warna][]" value="{{ $t->id }}"
                                data-code="{{ $t->code }}"
                                @if(in_array((string)$t->id, array_map('strval',(array)$curWarna), true) || (string)$curWarna === (string)$t->id) checked @endif
@@ -52,7 +54,7 @@
                     @endforeach
                 </div>
             @else
-                <select name="tags[warna]" @change="onWarna($event)"
+                <select name="tags[warna]" data-tag-field="warna" @change="onWarna($event)"
                         class="w-full rounded-lg border px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 @if($warnaError) border-red-500 @else border-gray-300 @endif">
                     <option value="">— Select Warna —</option>
                     @foreach($warnaTags as $t)
@@ -86,7 +88,8 @@
             <label class="mb-1 block text-sm font-medium text-gray-700">
                 Type @if($isAsset)<span class="text-red-500">*</span>@endif
             </label>
-            <select name="{{ $isAsset ? 'tags[types][]' : 'tags[types]' }}" @change="onTypeChange($event)"
+            @include('items.partials.tag-filter-input', ['field' => 'type', 'placeholder' => 'Filter type…'])
+            <select name="{{ $isAsset ? 'tags[types][]' : 'tags[types]' }}" data-tag-field="type" @change="onTypeChange($event)"
                     class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 @error('tags.types') border-red-500 @enderror">
                 <option value="">— Select Type —</option>
                 @foreach($typeTags as $t)
@@ -121,10 +124,12 @@
             ])
         <div>
             <label class="mb-1 block text-sm font-medium text-gray-700">Size <span class="text-red-500">*</span></label>
+            @include('items.partials.tag-filter-input', ['field' => 'size', 'placeholder' => 'Filter size…'])
             @if($multiSize)
                 <div class="max-h-40 space-y-1 overflow-y-auto rounded-lg border p-2 @if($sizesError) border-red-500 @else border-gray-300 @endif">
                     @foreach($sizeTags as $t)
-                    <label class="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-sm hover:bg-gray-50">
+                    <label x-show="tagOptionVisible('size', @js($t->name), @js($t->code))"
+                           class="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-sm hover:bg-gray-50">
                         <input type="checkbox" name="tags[sizes][]" value="{{ $t->id }}"
                                data-code="{{ $t->code }}"
                                @if(in_array((string)$t->id, array_map('strval',(array)$curSizes), true)) checked @endif
@@ -134,7 +139,7 @@
                     @endforeach
                 </div>
             @else
-                <select name="tags[sizes][]" @change="onSize($event)"
+                <select name="tags[sizes][]" data-tag-field="size" @change="onSize($event)"
                         class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 @error('tags.sizes') border-red-500 @enderror">
                     <option value="">— Select Size —</option>
                     @foreach($sizeTags as $t)
