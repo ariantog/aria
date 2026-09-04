@@ -129,7 +129,7 @@ it('items index qty excludes virtual and deleted warehouses', function () {
         ->assertDontSee('>-6<', false);
 });
 
-it('recalculates warehouse rows from transactions and writes physical qty', function () {
+it('recalculates items qty from warehouse rows without changing warehouse stock', function () {
     $supplier = Addrbook::factory()->supplier()->create();
     $customer = Addrbook::factory()->customer()->create();
     $physical = Addrbook::factory()->warehouse()->create(['name' => 'WH Recalc']);
@@ -151,16 +151,16 @@ it('recalculates warehouse rows from transactions and writes physical qty', func
     $this->post(route('items.recalculate-qty', $item))
         ->assertRedirect(route('items.show', $item));
 
-    expect((float) $item->fresh()->qty)->toBe(10.0);
+    expect((float) $item->fresh()->qty)->toBe(1.0);
     expect((float) WarehouseItem::where('item_id', $item->id)->where('warehouse_id', $physical->id)->value('quantity'))
-        ->toBe(10.0);
+        ->toBe(1.0);
     expect((float) WarehouseItem::where('item_id', $item->id)->where('warehouse_id', $virtual->id)->value('quantity'))
-        ->toBe(-4.0);
+        ->toBe(-99.0);
 
     $this->get(route('items.show', $item))
         ->assertOk()
         ->assertSee('Quantity recalculated', false)
-        ->assertSee('10 Units', false)
+        ->assertSee('1 Units', false)
         ->assertDontSee('Stored qty', false);
 });
 
@@ -179,7 +179,31 @@ it('recalculates asset lancar qty from the assetlancar route', function () {
     $this->post(route('assetlancar.recalculate-qty', $item))
         ->assertRedirect(route('assetlancar.show', $item));
 
-    expect((float) $item->fresh()->qty)->toBe(6.0);
+    expect((float) $item->fresh()->qty)->toBe(2.0)
+        ->and((float) WarehouseItem::where('item_id', $item->id)->where('warehouse_id', $physical->id)->value('quantity'))
+        ->toBe(2.0);
+});
+
+it('recalculates stored qty without modifying warehouse rows when txn history differs', function () {
+    $customer = Addrbook::factory()->customer()->create();
+    $physical = Addrbook::factory()->warehouse()->create();
+    $item = Item::factory()->create([
+        'type' => ItemType::ASSET_LANCAR,
+        'code' => 'KNEESUPPORT-06-BLACK-S',
+        'qty' => 99,
+    ]);
+
+    seedItemAvailabilityStock($item, $physical, 0);
+    $this->actingAs($this->user);
+    seedItemAvailabilityMovement(Transaction::TYPE_SELL, $physical, $customer, $item, 2);
+
+    $this->post(route('assetlancar.recalculate-qty', $item))
+        ->assertRedirect(route('assetlancar.show', $item))
+        ->assertSessionHas('success');
+
+    expect((float) WarehouseItem::where('item_id', $item->id)->where('warehouse_id', $physical->id)->value('quantity'))
+        ->toBe(0.0)
+        ->and((float) $item->fresh()->qty)->toBe(0.0);
 });
 
 it('forbids recalculate qty without edit permission', function () {
