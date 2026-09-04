@@ -35,6 +35,7 @@ class NewDomainSettingsSeeder extends Seeder
 
         $this->fillIfEmpty('restock.default_supplier_id', $supplier?->id);
         $this->fillIfEmpty('restock.default_receiver_id', $gudang?->id);
+        $this->fillIfEmpty('restock.default_warehouse_ids', $gudang ? [$gudang->id] : null);
         $this->fillIfEmpty('produksi.default_warehouse_id', $gudang?->id);
         $this->fillIfEmpty('asset_tetap.depreciation_expense_account_id', $perawatan?->id);
         $this->fillIfEmpty('asset_tetap.depreciation_contra_account_id', $penyesuaian?->id);
