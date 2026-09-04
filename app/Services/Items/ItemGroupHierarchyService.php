@@ -32,19 +32,13 @@ class ItemGroupHierarchyService
     {
         $canonicalMasterSql = $this->canonicalParentMasterSql();
 
-        $query = ItemGroup::query()
+        $groupRowsQuery = ItemGroup::query()
             ->select([
+                'item_group.id',
+                'item_group.name',
+                'item_group.description',
                 DB::raw($canonicalMasterSql.' as canonical_master'),
-                DB::raw('MIN(item_group.name) as product_name'),
-                DB::raw('MIN(item_group.description) as description'),
-                DB::raw('MIN(item_group.id) as sample_group_id'),
-                DB::raw('COUNT(DISTINCT item_group.id) as variant_count'),
-                DB::raw('COUNT(DISTINCT items.id) as sku_count'),
             ])
-            ->leftJoin('items', function ($join) {
-                $join->on('items.group_id', '=', 'item_group.id')
-                    ->whereNull('items.deleted_at');
-            })
             ->whereNotNull('item_group.master')
             ->where('item_group.master', '!=', '')
             ->when(! empty($filters['kode']), fn (Builder $q) => $q->where(
@@ -61,9 +55,27 @@ class ItemGroupHierarchyService
                 'item_group.description',
                 'like',
                 '%'.$filters['desc'].'%'
-            ))
-            ->groupBy(DB::raw($canonicalMasterSql))
-            ->orderBy(DB::raw($canonicalMasterSql));
+            ));
+
+        // Compute canonical_master per row first, then aggregate — MySQL ONLY_FULL_GROUP_BY
+        // rejects GROUP BY on a CASE expression that references item_group.master when
+        // Laravel wraps the grouped query for paginate count.
+        $query = DB::query()
+            ->fromSub($groupRowsQuery, 'grouped_item_group')
+            ->leftJoin('items', function ($join) {
+                $join->on('items.group_id', '=', 'grouped_item_group.id')
+                    ->whereNull('items.deleted_at');
+            })
+            ->select([
+                'grouped_item_group.canonical_master',
+                DB::raw('MIN(grouped_item_group.name) as product_name'),
+                DB::raw('MIN(grouped_item_group.description) as description'),
+                DB::raw('MIN(grouped_item_group.id) as sample_group_id'),
+                DB::raw('COUNT(DISTINCT grouped_item_group.id) as variant_count'),
+                DB::raw('COUNT(DISTINCT items.id) as sku_count'),
+            ])
+            ->groupBy('grouped_item_group.canonical_master')
+            ->orderBy('grouped_item_group.canonical_master');
 
         /** @var LengthAwarePaginator $paginator */
         $paginator = $query->paginate($perPage)->withQueryString();
