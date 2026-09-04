@@ -198,6 +198,12 @@ Settled rules live in **Item group & item identity** below. In particular:
 - **Do NOT use manufactured master-only shapes for new writes** — canonical manufactured
   `master` is the full colorway pcode (`CX90233-23`). Legacy parent-only masters
   (`CX00122`, `CX00122/03`) are read/merge paths only (see PR #576).
+- **Do NOT propagate price, cost, or restock threshold to sibling sizes on single-item
+  `ItemService::update()`** — those fields are per-SKU; only shared catalog/name paths
+  propagate. Matrix edits belong on colorway edit (`updateColorway()`).
+- **Do NOT edit `ItemIdentityBuilder`, `ItemService` group resolution, pcode validation, or
+  `buildName()` / master-variant conventions** unless the task **explicitly** requests an
+  identity or catalog rule change (same bar as `Transaction::signedAmount()`).
 
 ### Do NOT change Alpine.js patterns
 
