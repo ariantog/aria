@@ -220,8 +220,8 @@ not "modernize" or refactor Alpine style:
   **Composer 2**, **Node 22**. The startup update script only refreshes deps (`composer install`).
 - Config in `.env` (from `.env.example`), DB is SQLite at `database/database.sqlite` (both gitignored,
   persist in the VM snapshot). Migrate + seed: `php artisan migrate`, then `SuperAdminSeeder`,
-  `SettingSeeder`, `DemoDataSeeder`. Grant the superadmin role its permissions once via
-  `PermissionGenerator::generateAll()` + `syncPermissions(...)` (see `replit.md`).
+  `SettingSeeder`, `DemoDataSeeder`. On a fresh dev DB, generate permissions once:
+  `php artisan tinker --execute="app(\App\Services\PermissionGenerator::class)->generateAll(); \Spatie\Permission\Models\Role::findByName('superadmin', 'web')?->syncPermissions(\Spatie\Permission\Models\Permission::all());"`.
 - Serve: `php artisan serve --host=0.0.0.0 --port=5000`. Run a queue worker
   (`php artisan queue:listen`) so `UpdateTransactionSummaries` jobs process.
 - Preview login: `superadmin` / `password`. **Login is by username, not email** (`config/fortify.php`).

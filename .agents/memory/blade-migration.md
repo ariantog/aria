@@ -3,7 +3,7 @@ name: Blade migration conventions
 description: How pages are built after the Inertia/React → Blade+Alpine migration; login/permission quirks for smoke testing.
 ---
 
-- All pages extend `layouts.app` (Tailwind/Alpine/Tabulator via CDN); guest pages use `layouts.guest`. Conventions live in `docs/blade-migration-conventions.md`.
+- All pages extend `layouts.app` (Tailwind/Alpine/Tabulator via CDN); guest pages use `layouts.guest`. See `AGENTS.md` (Blade + Alpine, no React/Vite).
 - **Why:** the whole app was migrated off Inertia/React (Aug 2026); mixing paradigms breaks the shared sidebar/flash/composer setup.
 - **How to apply:** new pages = Blade view + classic forms/Tabulator remote JSON; never reintroduce `Inertia::render`.
 - Login uses `username` (not email) — Fortify `config/fortify.php` `'username' => 'username'`.
