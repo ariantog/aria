@@ -165,6 +165,37 @@ Authoritative helper: `Transaction::signedAmount($type, $amount)` in `app/Models
 - **Balance bugs:** fix running-balance recalculation, observer/job ordering, or back-dated row
   updates — **not** the sign convention. Delete reverts whatever was posted from `total`.
 
+### Do NOT delete or rebuild `warehouse_item` stock
+
+Per-warehouse quantities live in **`warehouse_item`** and change only through **transaction posting**
+(`InventoryService` / `WarehouseItem::applyDelta` on completed buys, sells, moves, returns, Jubelio
+SELL/RETURN, etc.). **`items.qty`** is a cached total (physical warehouses only) — sync it from
+existing `warehouse_item` rows; do **not** infer live warehouse stock from transaction history in
+application code or crons.
+
+**Never run, schedule, re-enable, or "fix drift" with stock-rewrite artisan commands** unless the
+maintainer explicitly requests that specific manual operation:
+
+| Command | Why it is forbidden by default |
+|---------|--------------------------------|
+| **`inventory:recalculate`** | **`DELETE`s all `warehouse_item`**, zeros `items.qty`, then rebuilds both from `transaction_details` — destroys live posted stock and bypasses the stock gate. |
+| `report:recalculate` | Clears and re-imports `warehouse_item` from legacy DB |
+| `app:reset-reports` | Truncates `warehouse_item`, zeros `items.qty` |
+| `migrate:finalize-aggregation` | Legacy aggregation rebuild touching `warehouse_item` |
+
+- **Item / asset lancar "Recalculate qty"** (`ItemAvailabilityService::recalculate()`) must **only**
+  write **`items.qty`** from the sum of existing physical `warehouse_item` rows — **never** rebuild
+  or overwrite `warehouse_item`.
+- **Cron Manager** must not run any stock-rewrite command above. The only scheduled path that may
+  change live stock is **`jubelio:order-jubelio-to-aria`** (posts SELL/RETURN transactions). Other
+  Jubelio crons (`app:jubelio-stock-check`, poll/get-orders, check-connection) are read-only or
+  queue-only.
+- **`app:backfill-items-qty`** may update `items.qty` from existing warehouse rows only — it must
+  not touch `warehouse_item`. Manual maintainer use only; never cron it.
+- Do **not** add migrations, seeders, observers, or "repair" scripts that bulk-delete or
+  bulk-rebuild `warehouse_item` from transactions. Fix balance/stock bugs through transaction
+  posting, observer ordering, or targeted row fixes — not a global recalc.
+
 ### Do NOT reintroduce React / Vite / a JS build
 
 - The React/Inertia SPA is **gone**. Frontend is **Blade + Alpine.js + Tailwind (CDN)** only.
