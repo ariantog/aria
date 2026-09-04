@@ -589,6 +589,44 @@ function comboboxApplyTypeahead(items, activeIndex, prefix, key) {
     return { index: activeIndex, prefix: '', handled: false };
 }
 
+function selectTypeaheadItems(select) {
+    return [...select.options]
+        .filter((opt) => opt.value !== '')
+        .map((opt) => ({
+            optionIndex: opt.index,
+            name: String(opt.textContent || '').trim(),
+        }));
+}
+
+function selectTypeaheadActiveIndex(select, items) {
+    for (let i = 0; i < items.length; i++) {
+        if (items[i].optionIndex === select.selectedIndex) {
+            return i;
+        }
+    }
+
+    return -1;
+}
+
+function applySelectTypeahead(select, prefix, key) {
+    const items = selectTypeaheadItems(select);
+    if (!items.length) {
+        return { prefix: '', handled: false };
+    }
+
+    const activeIndex = selectTypeaheadActiveIndex(select, items);
+    const result = comboboxApplyTypeahead(items, activeIndex, prefix, key);
+    if (!result.handled) {
+        return { prefix: '', handled: false };
+    }
+
+    select.selectedIndex = items[result.index].optionIndex;
+    select.dispatchEvent(new Event('input', { bubbles: true }));
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+
+    return { prefix: result.prefix, handled: true };
+}
+
 // Swallow Enter/Tab field navigation briefly after programmatic focus (Android IME).
 function suppressFieldNavigation(ms = 400) {
     window._suppressFieldNavUntil = Date.now() + ms;
@@ -771,6 +809,50 @@ document.addEventListener('keyup', function (e) {
         e.preventDefault();
     }
 }, true);
+
+// ─── Native <select> letter typeahead (item tags, filter dropdowns, etc.) ───
+(function () {
+    const prefixBySelect = new WeakMap();
+    const timerBySelect = new WeakMap();
+
+    function resetSelectTypeahead(select) {
+        clearTimeout(timerBySelect.get(select));
+        prefixBySelect.delete(select);
+        timerBySelect.delete(select);
+    }
+
+    document.addEventListener('keydown', function (e) {
+        const el = e.target;
+        if (!(el instanceof HTMLSelectElement) || el.disabled || el.multiple) {
+            return;
+        }
+        if (el.hasAttribute('data-no-typeahead')) {
+            return;
+        }
+
+        const key = normalizeNavigationKey(e);
+        if (!isPrintableComboboxKey(key, e)) {
+            return;
+        }
+
+        const result = applySelectTypeahead(el, prefixBySelect.get(el) || '', key);
+        if (!result.handled) {
+            resetSelectTypeahead(el);
+            return;
+        }
+
+        prefixBySelect.set(el, result.prefix);
+        clearTimeout(timerBySelect.get(el));
+        timerBySelect.set(el, setTimeout(() => resetSelectTypeahead(el), COMBOBOX_TYPEAHEAD_MS));
+        e.preventDefault();
+    }, true);
+
+    document.addEventListener('blur', function (e) {
+        if (e.target instanceof HTMLSelectElement) {
+            resetSelectTypeahead(e.target);
+        }
+    }, true);
+})();
 
 // ─── Number inputs: block wheel + arrow-key value changes ───────────────────
 (function () {

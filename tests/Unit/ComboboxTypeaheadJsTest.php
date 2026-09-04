@@ -57,3 +57,57 @@ it('uses typeahead for item name rows in transaction create', function () {
     expect($view)->toContain('applyRowTypeahead(row, key)');
     expect($view)->toContain('if (row.showDropdown && len > 0 && isPrintableComboboxKey(key, e))');
 });
+
+it('ships native select typeahead for item tag dropdowns', function () {
+    $layout = file_get_contents(dirname(__DIR__, 2).'/resources/views/layouts/app.blade.php');
+
+    expect($layout)->toContain('function applySelectTypeahead(select, prefix, key)');
+    expect($layout)->toContain('Native <select> letter typeahead');
+});
+
+it('jumps native select options when typing while focused', function () {
+    $layout = file_get_contents(dirname(__DIR__, 2).'/resources/views/layouts/app.blade.php');
+
+    preg_match('/function comboboxItemLabel\(item\) \{.*?\n\}/s', $layout, $labelFn);
+    preg_match('/function comboboxFindByPrefix\(items, startIndex, prefix\) \{.*?\n\}/s', $layout, $findFn);
+    preg_match('/function comboboxApplyTypeahead\(items, activeIndex, prefix, key\) \{.*?\n\}/s', $layout, $applyFn);
+    preg_match('/function selectTypeaheadItems\(select\) \{.*?\n\}/s', $layout, $itemsFn);
+    preg_match('/function selectTypeaheadActiveIndex\(select, items\) \{.*?\n\}/s', $layout, $activeFn);
+    preg_match('/function applySelectTypeahead\(select, prefix, key\) \{.*?\n\}/s', $layout, $selectFn);
+
+    expect($selectFn)->not->toBeEmpty();
+
+    $script = $labelFn[0]."\n".$findFn[0]."\n".$applyFn[0]."\n".$itemsFn[0]."\n".$activeFn[0]."\n".$selectFn[0].<<<'JS'
+
+function mockSelect(labels, selectedIndex) {
+    const opts = labels.map((text, index) => ({
+        index,
+        value: index === 0 ? '' : String(index),
+        textContent: text,
+    }));
+
+    return {
+        selectedIndex,
+        options: opts,
+        dispatchEvent() {},
+    };
+}
+
+const select = mockSelect(['— Select Warna —', 'Black', 'Blue', 'Green'], 0);
+const first = applySelectTypeahead(select, '', 'b');
+if (!first.handled || select.selectedIndex !== 1) {
+    process.exit(1);
+}
+
+const wrapped = applySelectTypeahead(select, '', 'g');
+if (!wrapped.handled || select.selectedIndex !== 3) {
+    process.exit(2);
+}
+
+process.stdout.write('ok');
+JS;
+
+    $output = shell_exec('node -e '.escapeshellarg($script));
+
+    expect(trim((string) $output))->toBe('ok');
+});
