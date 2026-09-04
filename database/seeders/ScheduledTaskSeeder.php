@@ -124,9 +124,8 @@ class ScheduledTaskSeeder extends Seeder
             ]
         );
 
-        // Do not cron app:recalculate-inventory-health — it truncates daily_inventory_summaries
-        // and walks every year of transaction_details (the same unbounded scan that OOM'd
-        // warehouse stats). Inventory Health reads warehouse_item_monthly_stats instead.
+        // Legacy unbounded rebuild removed — use app:sync-inventory-health (daily cron below).
+        // Drop any stale scheduled_tasks row from older seeds.
         \App\Models\ScheduledTask::where('command', 'app:recalculate-inventory-health')->delete();
 
         \App\Models\ScheduledTask::updateOrCreate(

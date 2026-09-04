@@ -109,6 +109,8 @@ it('dev migration and wipe commands were removed', function () {
         'app:reset-legacy-items-migration',
         'app:truncate-items',
         'db:truncate-transactions',
+        'app:recalculate-inventory-health',
+        'app:jubelio-test-connection',
     ];
 
     $registered = collect(Artisan::all())->keys();
