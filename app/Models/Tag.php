@@ -277,16 +277,31 @@ class Tag extends Model
      */
     public function filterItemType(): ItemType
     {
-        return (int) $this->item_type === ItemType::ASSET_LANCAR->value
-            ? ItemType::ASSET_LANCAR
-            : ItemType::ITEM;
+        if ((int) $this->item_type === ItemType::ASSET_LANCAR->value) {
+            return ItemType::ASSET_LANCAR;
+        }
+
+        if ((int) $this->item_type === ItemType::ITEM->value) {
+            return ItemType::ITEM;
+        }
+
+        return $this->inferredTaggedItemType() ?? ItemType::ITEM;
     }
 
     /**
      * Item / asset lancar index URL filtered to items carrying this tag.
+     * When exactly one item carries the tag, links directly to that item's show page.
      */
     public function itemsIndexFilterUrl(?ItemType $itemType = null): string
     {
+        if ($itemType === null && $this->linkedItemsCount() === 1) {
+            $item = $this->soleTaggedItem();
+
+            if ($item !== null) {
+                return $this->itemShowRoute($item);
+            }
+        }
+
         $itemType ??= $this->filterItemType();
         $routeName = $itemType === ItemType::ASSET_LANCAR ? 'assetlancar.index' : 'items.index';
 
@@ -299,6 +314,57 @@ class Tag extends Model
         };
 
         return route($routeName, $params);
+    }
+
+    /**
+     * When item_type is universal (0), infer from tagged items when they share one type.
+     */
+    protected function inferredTaggedItemType(): ?ItemType
+    {
+        if ($this->linkedItemsCount() === 0) {
+            return null;
+        }
+
+        $types = $this->items()
+            ->distinct()
+            ->pluck('items.type')
+            ->map(fn ($type) => $type instanceof ItemType ? $type->value : (int) $type);
+
+        if ($types->count() !== 1) {
+            return null;
+        }
+
+        return ItemType::tryFrom($types->first());
+    }
+
+    protected function linkedItemsCount(): int
+    {
+        if (isset($this->items_count)) {
+            return (int) $this->items_count;
+        }
+
+        return (int) $this->items()->count();
+    }
+
+    protected function soleTaggedItem(): ?Item
+    {
+        if ($this->relationLoaded('soleTaggedItem')) {
+            return $this->getRelation('soleTaggedItem');
+        }
+
+        return $this->items()->first(['items.id', 'items.type']);
+    }
+
+    protected function itemShowRoute(Item $item): string
+    {
+        $type = $item->type instanceof ItemType
+            ? $item->type
+            : ItemType::tryFrom((int) $item->type);
+
+        return match ($type) {
+            ItemType::ASSET_LANCAR => route('assetlancar.show', $item),
+            default => route('items.show', $item),
+        };
     }
 
     /**
