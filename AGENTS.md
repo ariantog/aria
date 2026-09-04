@@ -27,6 +27,10 @@ The migration from the React/Inertia SPA to Blade+Alpine and a batch of UI/bug f
   (see `transactions/create.blade.php`, `transactions/cash.blade.php`).
 - **Palette normalized to `gray-*`** (journals/produksi were `zinc-*`); page-load slide-in animation
   removed.
+- **Transaction backend (signed posting + balances + Jubelio sync UI) is shipped.** Back-dated
+  insert/edit/delete recalculates later running balances; transaction show has Jubelio stock-sync
+  buttons (dormant while `JUBELIO_ACTIVE=false`). Manual batch: `/recalculate-running-balances`.
+- **Item catalog / item group identity is shipped** (PRs #575–#587) — see **Item group & item identity**.
 
 Already-fixed gotchas — don't reintroduce them:
 - Read query params with `request()->query('x')`, **not** `request('x')`, on routes that also have a
@@ -442,8 +446,7 @@ own branch, with its own PR.
 
 - **Start a fresh chat for each new task.** Each cloud agent runs on a clean VM and re-reads this file,
   so you don't need to re-explain the project — just give the task brief.
-- **Branch naming:** `cursor/<short-kebab-name>-e924` (lowercase; the `cursor/` prefix and `-e924`
-  suffix are required by this environment).
+- **Branch naming:** `cursor/<short-kebab-name>-4b37` (lowercase; `cursor/` prefix + environment suffix).
 - **Base each new branch off `main` _after_ the previous PR merges.** Do not stack new work on an
   already-merged branch (it causes messy rebases). If task B truly depends on unmerged task A, say so
   explicitly and I'll branch B off A.
@@ -458,45 +461,73 @@ own branch, with its own PR.
   Notes: <constraints, edge cases, anything unusual>
   ```
 
-## Roadmap: the next two branches
+## Roadmap & open work
 
-### 1. Transaction backend (`cursor/transaction-backend-e924`)
+**Done (do not reopen):** transaction backend, expand items / `ItemCatalog`, item group identity
+(PRs #575–#587), colorway edit, asset TYPE→pcode autofill.
 
-How a transaction is written today (trace this flow before changing it):
-`Store*Request` (validation) → `TransactionsController@store*` → an action in
-`app/Actions/Transactions/` (`CreateItemTransaction`, `CreateCashTransaction`,
-`CreateTransferTransaction`, `CreateAdjustTransaction`; shared bits under `Concerns/`) which writes the
-`Transaction` + `TransactionDetail` rows inside a DB transaction. `app/Observers/TransactionObserver.php`
-and the `app/Jobs/UpdateTransactionSummaries.php` queued job keep balances/aggregates in sync (run
-`php artisan queue:listen`). Shared logic lives in `app/Services/TransactionService.php`;
-`BookClosingService` enforces the book-closing cutoff date; `InventoryService` adjusts
-`warehouse_items` stock. Batch recompute lives in `app/Console/Commands/Recalculate*`.
-- Balances are **signed** (not debit/credit): `total` is the only header payable that posts. Do
-  **not** use `real_total`. +total = sender owes receiver. buy / return / cash in / adjustment →
-  positive; sell / return-supplier / cash out / transfer / move → negative. Types are in
-  `App\Enums\TransactionType`; legal sender/receiver types per type are in
-  `config/transaction_rules.php`.
-- Likely goals here: solidify signed double-entry posting; **recalculate balances when a back-dated
-  transaction is inserted/edited/deleted** (later rows must re-derive their running balance); wire up
-  **Jubelio stock-sync buttons** (`app/Services/JubelioService.php`,
-  `TransactionsController@hydrateJubelioSyncData`, dormant while `JUBELIO_ACTIVE=false`).
-- Key files: `app/Http/Controllers/TransactionsController.php`, `app/Actions/Transactions/*`,
-  `app/Services/{TransactionService,BookClosingService,InventoryService,JubelioService}.php`,
-  `app/Observers/TransactionObserver.php`, `app/Jobs/UpdateTransactionSummaries.php`,
-  `app/Models/{Transaction,TransactionDetail,WarehouseItem}.php`. Cover changes with Pest feature tests
-  (see existing `tests/Feature/*Transaction*`, `TransferTest`).
+**Next major cleanup (two phases):** legacy **tables** first (audit + maintainer manual drop), then
+legacy **code and permissions**. See `database/legacy-table-audit.md` for the living drop candidate list.
 
-### 2. Expand the items table (`cursor/expand-items-table-e924`)
+### Phase 1 — Legacy table audit & manual drop
 
-- Read **Item group & item identity** first — catalog fields belong on `item_group`; do not
-  reintroduce `legacy_name`, UNIQUE `item_group.name`, or wrong master/variant shapes.
-- Add columns with a **new dated migration** in `database/migrations/` (e.g.
-  `add_<cols>_to_items_table`) — do **not** edit the original `create_items_table` migration.
-- Then update `App\Models\Item` `$fillable` (and `$casts` if typed), surface the fields in the item
-  forms (`resources/views/items/*` — create/edit) and add validation in
-  `app/Http/Controllers/ItemsController.php`. Touch `app/Services/{ItemService,InventoryService}.php`
-  if a new column affects stock or pricing.
-- Current `items` columns: `id, group_id, name, code, pcode, brand, type, price, cost, qty, tag_ids,
-  description, description2, url, image_path, size, genre, jubelio_item_id, legacy_code, timestamps,
-  deleted_at`. Per-warehouse stock lives in `warehouse_items` (quantity + note), not on `items`.
-- Caveat: some item reports/stats use MySQL `DATE_FORMAT` and error on the SQLite dev DB only.
+**Goal:** Produce a maintainer-approved list of MySQL tables safe to drop. **No `DROP TABLE` in agent
+migrations or scripts** — the maintainer drops manually on production after sign-off.
+
+**Steps (each chat may cover one step):**
+
+1. **Pull table structure** — refresh `database/old.sql` from production (or export table list + `SHOW CREATE TABLE`).
+2. **Map models** — every `app/Models/**` `protected $table` → physical name (e.g. `customers` → `Addrbook`).
+3. **Ripgrep L12 usage** — for each `old.sql` table, search `app/`, `routes/`, `resources/views/`,
+   `database/migrations/`, `tests/` for model usage, `DB::table()`, raw SQL, `Schema::` references.
+   Exclude `database/old.sql` from hits.
+4. **Build the list** — update `database/legacy-table-audit.md`:
+   - **Strong candidates:** no model + no L12 code ref (first pass ~43 tables — Desty, ideas, promos, etc.).
+   - **Manual review:** referenced in L12 but no Eloquent model (e.g. `acl`, `roles`, `produksi` legacy names).
+   - **Active / do not drop:** has model, partitioned txn tables, Spatie tables in use (`aria_permissions`, …).
+5. **L10 check** — shared MySQL: confirm the legacy L10 app no longer reads a table before moving it to
+   **Approved to drop**.
+6. **Maintainer drops manually** — no automated drop script in the repo.
+
+Branch hint: `cursor/legacy-table-audit-4b37` (refresh audit) or per-table verification chats.
+
+### Phase 2 — Legacy code & permissions removal
+
+**Goal:** Remove L12 code paths that only existed for L10 migration / one-off conversion, and prune
+obsolete permissions — **after** Phase 1 tables are dropped or confirmed unused.
+
+**Likely removals (maintainer confirms conversion complete first):**
+
+| Area | Examples | Keep |
+|------|----------|------|
+| Item identity converter | `LegacyItemConverterService`, `LegacyItemIdentityParser`, `/items/legacy-converter`, `convert-identity` routes, `items-convert-legacy` permission | `items.legacy_code`, `preserveLegacyCode()`, Jubelio/barcode legacy lookups |
+| Legacy ACL import | `app:import-legacy-acl`, `LegacyAclMapper`, `database/acl/old_acl.sql` tests | Spatie `aria_permissions` / `aria_roles` (production permission store) |
+| Obsolete permissions | Unused `stuff-*` / L10-mapped permissions after role audit | Permissions still referenced in `Gate::`, sidebar, controllers |
+
+**Steps:**
+
+1. Ripgrep each legacy module; list routes, controllers, views, tests, permissions.
+2. Remove code + tests in focused PRs; run `./vendor/bin/pest`.
+3. Document removed permissions; maintainer may prune rows in `aria_permissions` / role pivots manually.
+4. Update this roadmap when Phase 2 is complete.
+
+Branch hint: `cursor/remove-legacy-converter-4b37` (converter first), then `cursor/remove-legacy-acl-4b37`.
+
+### Other deferred / not built
+
+| Task | Notes |
+|------|-------|
+| Prod migration `2026_09_03_150000_widen_item_group_name_drop_unique` | Maintainer ops — run on live MySQL |
+| Stale `item_group.name = pcode` rows | Fix via colorway edit — no backfill |
+| 3-segment asset pcode normalization | Deferred — see **Item group & item identity** |
+| Restock sheet Tabulator UI | Not built; other lists stay server-rendered HTML |
+
+### Reference: transaction write path (regressions only)
+
+`Store*Request` → `TransactionsController@store*` → `app/Actions/Transactions/*` → `Transaction` +
+`TransactionDetail`; `TransactionObserver` + `UpdateTransactionSummaries` (queue). Tests:
+`TransactionBalanceIntegrityTest`, `tests/Feature/*Transaction*`.
+
+### Reference: items schema (new columns)
+
+Shared catalog on `item_group` (`ItemCatalog`); per-warehouse stock on `warehouse_items`.
