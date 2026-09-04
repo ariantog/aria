@@ -75,6 +75,8 @@ migration file must be production-safe on its own**:
   `2026_08_19_040000` / `2026_08_19_070000`) — prod may have run the old version already.
 - Fresh prod bootstrap = `2026_08_13_100000_production_database_bootstrap` (+ seeder). Add new
   L12 tables to the bootstrap's `up()` list as well as shipping the standalone migration.
+- **Legacy table drops** (Phase 1 cleanup) are **maintainer manual only** — see **Roadmap & open work**
+  and `database/legacy-table-audit.md`. Agents must not add `DROP TABLE` migrations for audit candidates.
 
 ## AI agent restrictions (MUST follow)
 
@@ -356,6 +358,60 @@ On asset lancar **create** (`resources/views/items/create.blade.php`):
 - `resources/views/items/partials/form-{basic,attributes,preview,scripts}.blade.php` — create/edit UX.
 - `database/migrations/2026_09_03_150000_widen_item_group_name_drop_unique.php` — name width + drop UNIQUE.
 
+## Reporting (L12)
+
+**Status:** Core reporting is **implemented and merged**. The maintainer is **still validating**
+figures against production expectations — **expect follow-up tasks** to adjust mappings, filters,
+labels, or formulas. Do **not** assume the current output is final; do **not** refactor reporting
+code unprompted.
+
+### Architecture (read before changing reports)
+
+- **Reporting entities** (`ReportingEntity`, `/reports/entities`) — PKP flag, bank mapping
+  (`reporting_entity_banks`), tax accounts, ledger roles, warehouse fulfillment overrides.
+  Cash-in PPN / PPh final gating uses `ReportingEntity::is_pkp` via entity banks (see **Domain rules**).
+- **Summary layer** — incremental + rebuild paths write to `reporting_*_monthly_summaries`,
+  `reporting_monthly_tax_summaries`, `reporting_monthly_inventory_values`, balance snapshots.
+  Cutover: `config('reporting.cutover_date')` (default `2025-01-01`). Live path:
+  `ReportingSummaryRecorder` (from `UpdateTransactionSummaries` / transaction observers).
+  Batch rebuild: `php artisan reporting:rebuild-summaries`, `reporting:rebuild-inventory`,
+  `reporting:snapshot-balances`.
+- **Stored tax amounts** — reports use **`transactions.ppn`** and **`transactions.total`** as persisted;
+  do not infer 11% from contact PKP flags when reconstructing (see **Do NOT use `real_total`** and
+  **PPN is not always calculated** in Domain rules).
+- **Permissions** — `report-*` Spatie names; sidebar in `resources/views/partials/sidebar-nav.blade.php`.
+  Obsolete L10 names cleaned via `ObsoleteReportPermissions` / `app:remove-obsolete-report-permissions`.
+
+### Shipped report pages (`/reports/*`)
+
+| Area | Route / permission | Notes |
+|------|-------------------|--------|
+| Warehouse | `warehouse-item`, `warehouse-arrangement`, `product-performance`, `inventory-health` | Arrangement uses `warehouse_item_monthly_stats` + refresh jobs |
+| Finance | `nett-cash-sby`, `neraca`, `laba-rugi`, `channel-pnl`, `receivables`, `payables`, `asset-tetap` | Neraca/laba rugi use summary + snapshot tables |
+| Tax | `tax/ppn`, `tax/pph`, `tax/faktur/*` | Faktur import → review → link sells / post sell; DPP on `total` |
+| Produksi | `produksi-potong`, `produksi-jahit`, `produksi-qc`, `produksi-pritil` | Date/status filters on worker totals |
+| Admin | `entities/*` | Entity + ledger role + fulfillment setup |
+| Export | `report-export-sell` → `/transactions/export-sell` | Replaces removed item-sales / purchase reports |
+
+Removed / do not restore: legacy cash-flow, expense, purchase report pages (permissions in
+`ObsoleteReportPermissions`).
+
+### Key files
+
+- `app/Http/Controllers/Reports/*`, `resources/views/reports/*`
+- `app/Services/Reporting/*` — `TaxReportService`, `PphFinalReportService`, `AgingReportService`,
+  `ReportingSummaryRecorder`, `BalanceAsOfService`, `InventoryRollForwardService`, `ReportingExcelExport`
+- `config/reporting.php` — cutover, PPh rate, supplier umum needle, channel matchers
+- Tests: `tests/Feature/*Report*`, `tests/Feature/TaxFaktur*`, `tests/Feature/ChannelPnl*`
+
+### Agent workflow for reporting tasks
+
+1. **Wait for maintainer brief** — which report, which period, expected vs actual number.
+2. Trace **summary recorder → report query → Blade**; check cutover date and entity/bank mapping.
+3. Prefer **minimal diffs**; add/adjust Pest coverage for the changed formula or filter.
+4. **Do not** change signed `transactions.total` convention or reintroduce `real_total` to fix reports.
+5. After changes, note what the maintainer should re-verify on production data.
+
 ## Jubelio stock sync (read before touching a_*/b_* columns)
 
 Canonical map: `App\Services\Jubelio\JubelioStockSync` and the docblock on `App\Models\Transaction`.
@@ -463,11 +519,16 @@ own branch, with its own PR.
 
 ## Roadmap & open work
 
-**Done (do not reopen):** transaction backend, expand items / `ItemCatalog`, item group identity
-(PRs #575–#587), colorway edit, asset TYPE→pcode autofill.
+**Done (do not reopen unless fixing a regression):** transaction backend, expand items / `ItemCatalog`,
+item group identity (PRs #575–#587), **L12 reporting stack** (see **Reporting (L12)** — pages +
+summary tables shipped; **maintainer may still request modifications**).
 
 **Next major cleanup (two phases):** legacy **tables** first (audit + maintainer manual drop), then
 legacy **code and permissions**. See `database/legacy-table-audit.md` for the living drop candidate list.
+
+**Ongoing maintainer review:** **Reporting** — numbers and entity mappings need production confirmation;
+expect targeted fix/refinement chats from the maintainer. Do not treat reporting as frozen or schedule
+large unprompted refactors.
 
 ### Phase 1 — Legacy table audit & manual drop
 
@@ -517,6 +578,7 @@ Branch hint: `cursor/remove-legacy-converter-4b37` (converter first), then `curs
 
 | Task | Notes |
 |------|-------|
+| **Reporting validation / tweaks** | Maintainer-driven — see **Reporting (L12)**; expect formula, filter, mapping, or UI changes |
 | Prod migration `2026_09_03_150000_widen_item_group_name_drop_unique` | Maintainer ops — run on live MySQL |
 | Stale `item_group.name = pcode` rows | Fix via colorway edit — no backfill |
 | 3-segment asset pcode normalization | Deferred — see **Item group & item identity** |
