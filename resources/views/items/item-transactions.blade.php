@@ -72,14 +72,22 @@ $typeColors = [
                         <td class="whitespace-nowrap px-6 py-3 text-right font-medium text-gray-600">{{ format_currency($td->price) }}</td>
                         <td class="px-6 py-3">
                             <div class="flex flex-col">
-                                <span class="font-medium text-gray-700">{{ optional(optional($td->transaction)->sender)->name ?? '-' }}</span>
-                                @if(optional($td->transaction)->sender)<span class="text-[10px] font-bold uppercase text-gray-400">ID: {{ $td->transaction->sender->id }}</span>@endif
+                                @if(optional($td->transaction)->sender)
+                                    <a href="{{ url('/'.$td->transaction->sender->type_slug.'/'.$td->transaction->sender->id) }}" class="font-medium text-blue-600 hover:underline">{{ $td->transaction->sender->name }}</a>
+                                    <span class="text-[10px] font-bold uppercase text-gray-400">ID: {{ $td->transaction->sender->id }}</span>
+                                @else
+                                    <span class="font-medium text-gray-700">-</span>
+                                @endif
                             </div>
                         </td>
                         <td class="px-6 py-3">
                             <div class="flex flex-col">
-                                <span class="font-medium text-gray-700">{{ optional(optional($td->transaction)->receiver)->name ?? '-' }}</span>
-                                @if(optional($td->transaction)->receiver)<span class="text-[10px] font-bold uppercase text-gray-400">ID: {{ $td->transaction->receiver->id }}</span>@endif
+                                @if(optional($td->transaction)->receiver)
+                                    <a href="{{ url('/'.$td->transaction->receiver->type_slug.'/'.$td->transaction->receiver->id) }}" class="font-medium text-blue-600 hover:underline">{{ $td->transaction->receiver->name }}</a>
+                                    <span class="text-[10px] font-bold uppercase text-gray-400">ID: {{ $td->transaction->receiver->id }}</span>
+                                @else
+                                    <span class="font-medium text-gray-700">-</span>
+                                @endif
                             </div>
                         </td>
                         <td class="px-6 py-3">

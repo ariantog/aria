@@ -63,6 +63,31 @@ it('renders item transaction filters on items and assetlancar pages', function (
     'assetlancar' => ['assetlancar.transactions', ItemType::ASSET_LANCAR, 'aria-assetlancar-transaction-filters-open'],
 ]);
 
+it('renders clickable sender and receiver links on item transaction pages', function (string $routeName, ItemType $itemType) {
+    $item = Item::factory()->create(['type' => $itemType]);
+    $sender = Addrbook::factory()->warehouse()->create(['name' => 'Warehouse Sender Link']);
+    $receiver = Addrbook::factory()->customer()->create(['name' => 'Customer Receiver Link']);
+
+    seedItemTransactionLine($item, [
+        'invoice' => 'LINK-TEST-INV',
+        'sender_id' => $sender->id,
+        'sender_type' => (string) $sender->type,
+        'receiver_id' => $receiver->id,
+        'receiver_type' => (string) $receiver->type,
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route($routeName, $item))
+        ->assertOk()
+        ->assertSee('href="/warehouse/'.$sender->id.'"', false)
+        ->assertSee('href="/customer/'.$receiver->id.'"', false)
+        ->assertSee('Warehouse Sender Link', false)
+        ->assertSee('Customer Receiver Link', false);
+})->with([
+    'items' => ['items.transactions', ItemType::ITEM],
+    'assetlancar' => ['assetlancar.transactions', ItemType::ASSET_LANCAR],
+]);
+
 it('filters item transactions by date range', function () {
     $item = Item::factory()->create();
 
