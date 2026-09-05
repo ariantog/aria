@@ -330,17 +330,20 @@ class ItemIdentityBuilder
      */
     public function buildName(string $groupName, ?Tag $warnaTag, ?Tag $sizeTag): string
     {
-        $warna = $warnaTag ? strtoupper(trim((string) $warnaTag->code)) : '';
+        $warnaCode = $warnaTag ? strtoupper(trim((string) $warnaTag->code)) : '';
+        $warnaDisplay = $warnaTag
+            ? strtoupper(trim((string) ($warnaTag->name ?: $warnaTag->code)))
+            : '';
         $product = $this->productDisplayName(
             ItemType::ASSET_LANCAR,
             $groupName,
-            $warna,
+            $warnaCode,
         );
 
         $parts = [$product];
 
-        if ($warna !== '') {
-            $parts[] = $warna;
+        if ($warnaDisplay !== '') {
+            $parts[] = $warnaDisplay;
         }
 
         if ($sizeTag && ! $this->isAllSize($sizeTag)) {

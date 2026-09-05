@@ -24,6 +24,7 @@ $previewRows = collect($sizeRows)->map(fn ($row) => [
     'usesPlaceholder' => $usesPlaceholder,
     'rows' => $previewRows,
     'warnaCode' => $color['code'] ?? '',
+    'warnaName' => $color['name'] ?? '',
 ]))">
     <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <a href="{{ route('items.group-parent-detail', $parentSlug) }}" class="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-gray-600 hover:bg-gray-100">
@@ -229,6 +230,7 @@ function colorwayForm(config) {
         isAsset: config.isAsset,
         usesPlaceholder: config.usesPlaceholder,
         warnaCode: (config.warnaCode || '').toUpperCase(),
+        warnaName: (config.warnaName || config.warnaCode || '').toUpperCase(),
         allSizeCode: 'AS',
 
         get displayTitle() {
@@ -241,9 +243,9 @@ function colorwayForm(config) {
         },
 
         buildName(title, sizeCode) {
-            const wc = this.warnaCode || '???';
+            const wn = this.warnaName || this.warnaCode || '???';
             const sc = (sizeCode || '').toUpperCase();
-            const parts = [title, wc];
+            const parts = [title, wn];
             if (sc && sc !== this.allSizeCode && sc !== '—') {
                 parts.push(sc);
             }
