@@ -538,6 +538,45 @@ test('asset edit form shows the bare product title not the unique group name', f
         ->assertDontSee('ELBOW STRAP - BLACKWHITE (ELBOWSUPPORT-02) - BLACKWHITE', false);
 });
 
+test('manufactured item edit form pins selected tag pickers', function () {
+    $typeTag = \App\Models\Tag::factory()->create([
+        'type' => \App\Models\Tag::TYPE_TYPE,
+        'item_type' => \App\Enums\ItemType::ITEM->value,
+        'code' => 'AJD',
+        'name' => 'Jacket',
+    ]);
+    $warnaTag = \App\Models\Tag::factory()->create([
+        'type' => \App\Models\Tag::TYPE_WARNA,
+        'code' => '23',
+        'name' => '23',
+    ]);
+    $jahitTag = \App\Models\Tag::factory()->create([
+        'type' => \App\Models\Tag::TYPE_JAHIT,
+        'code' => 'J1',
+        'name' => 'Jahit 1',
+    ]);
+    $sizeTag = \App\Models\Tag::factory()->create([
+        'type' => \App\Models\Tag::TYPE_SIZE,
+        'code' => 'S',
+        'name' => 'Small',
+    ]);
+    $item = Item::factory()->create([
+        'type' => \App\Enums\ItemType::ITEM,
+        'pcode' => 'CX93024-23',
+        'code' => 'AJD-CX93024-23-S',
+    ]);
+    $item->tags()->attach([$typeTag->id, $warnaTag->id, $jahitTag->id, $sizeTag->id]);
+
+    $this->actingAs($this->user)
+        ->get(route('items.edit', $item))
+        ->assertOk()
+        ->assertSee('data-testid="tag-filter-jahit"', false)
+        ->assertSee('data-testid="tag-picker-jahit"', false)
+        ->assertSee('data-tag-selected="1"', false)
+        ->assertSee('name="tags[jahit]"', false)
+        ->assertSee('name="tags[types]"', false);
+});
+
 test('items json lookup resolves barcode by numeric item id', function () {
     $item = Item::factory()->create([
         'name' => 'Scanned SKU',

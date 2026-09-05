@@ -32,6 +32,7 @@ function itemForm() {
             warna: '',
             type: '',
             size: '',
+            jahit: '',
         },
 
         init() {

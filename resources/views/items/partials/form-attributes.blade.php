@@ -65,13 +65,16 @@
         @unless($isAsset)
         <div>
             <label class="mb-1 block text-sm font-medium text-gray-700">Jahit <span class="text-red-500">*</span></label>
-            <select name="tags[jahit]"
-                    class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 @error('tags.jahit') border-red-500 @enderror">
-                <option value="">— Select Jahit —</option>
-                @foreach($jahitTags as $t)
-                <option value="{{ $t->id }}" @selected((string)$curJahit === (string)$t->id)>{{ $t->name }}</option>
-                @endforeach
-            </select>
+            @include('items.partials.tag-filter-input', ['field' => 'jahit', 'placeholder' => 'Filter jahit…'])
+            @include('items.partials.tag-picker-list', [
+                'field' => 'jahit',
+                'tags' => $jahitTags,
+                'inputName' => 'tags[jahit]',
+                'multiple' => false,
+                'selected' => $curJahit,
+                'onChange' => null,
+                'errorBorder' => $errors->has('tags.jahit'),
+            ])
             @error('tags.jahit')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
         </div>
         @endunless
