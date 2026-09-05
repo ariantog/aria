@@ -96,7 +96,7 @@
                             endpoint: @js($config['sender_route']),
                             placeholder: 'Select {{ $config['sender_label'] }}...',
                             initial: @js(isset($prefill) ? ($prefill['sender'] ?? null) : null),
-                            onSelect: (item) => { form.sender_id = item ? String(item.id) : ''; form.sender = item; recalcTotals(); }
+                            onSelect: (item) => { form.sender_id = item ? String(item.id) : ''; form.sender = item; syncPpnModeFromContact(); }
                         })" class="relative">
                             <div class="relative flex h-10 w-full overflow-hidden rounded-lg border focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500"
                                  :class="errors.sender_id ? 'border-red-500' : 'border-gray-300'">
@@ -141,7 +141,7 @@
                             endpoint: @js($config['receiver_route']),
                             placeholder: 'Select {{ $config['receiver_label'] }}...',
                             initial: @js(isset($prefill) ? ($prefill['receiver'] ?? null) : null),
-                            onSelect: (item) => { form.receiver_id = item ? String(item.id) : ''; form.receiver = item; recalcTotals(); }
+                            onSelect: (item) => { form.receiver_id = item ? String(item.id) : ''; form.receiver = item; syncPpnModeFromContact(); }
                         })" class="relative">
                             <div class="relative flex h-10 w-full overflow-hidden rounded-lg border focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500"
                                  :class="errors.receiver_id ? 'border-red-500' : 'border-gray-300'">
@@ -400,6 +400,23 @@
                                class="w-24 rounded border border-gray-200 px-2 py-1 text-right text-sm focus:border-blue-500">
                     </div>
                     @endif
+                    @if($type !== 'move')
+                    <div class="flex items-center justify-between text-sm" data-testid="ppn-mode-switch">
+                        <div>
+                            <span class="text-gray-500">PPN mode</span>
+                            <p class="text-[11px] text-gray-400" x-text="form.ppn_included ? 'Prices include PPN' : 'PPN added on top'"></p>
+                        </div>
+                        <label class="inline-flex cursor-pointer items-center gap-2">
+                            <span class="text-xs font-medium text-gray-600" x-text="form.ppn_included ? 'Included' : 'Excluded'"></span>
+                            <span class="relative inline-flex h-6 w-11 shrink-0 items-center">
+                                <input type="checkbox" x-model="form.ppn_included" @change="recalcTotals()"
+                                       class="peer sr-only">
+                                <span class="absolute inset-0 rounded-full bg-gray-300 peer-checked:bg-blue-600"></span>
+                                <span class="absolute left-0.5 h-5 w-5 rounded-full bg-white shadow transition peer-checked:translate-x-5"></span>
+                            </span>
+                        </label>
+                    </div>
+                    @endif
                     <div class="flex justify-between text-sm">
                         <span class="text-gray-500">Total before PPN</span>
                         <span class="tabular-nums" x-text="'Rp ' + formatAmountId(form.total_before_ppn)"></span>
@@ -536,6 +553,7 @@ const _CanSellCashIn = @js((bool) ($type === 'sell' && ($sellCashIn['can_create'
 const _CashInDefaultAccount = @js($sellCashIn['default_account'] ?? null);
 const _CashInDefaultDate = @js($sellCashIn['default_date'] ?? null);
 const _CashInMinDate = @js($sellCashIn['min_date'] ?? '');
+const _SystemPpnIncludedDefault = true;
 
 function isFrontCameraLabel(label) {
     return /front|user|selfie|facetime|true.?depth|mirror/i.test(String(label || ''));
@@ -611,6 +629,7 @@ function createTransaction() {
             cash_in_amount: null,
             cash_in_account_id: '',
             cash_in_date: _CashInDefaultDate || startDate,
+            ppn_included: _SystemPpnIncludedDefault,
         },
         cashInAmountManual: false,
 
@@ -652,6 +671,8 @@ function createTransaction() {
                 this.recalcTotals();
             }
 
+            this.syncPpnModeFromContact();
+
             if (this.form.items.length === 0) {
                 this.addItemRow(false);
             }
@@ -668,6 +689,39 @@ function createTransaction() {
         // Warehouse whose on-hand stock is relevant: receiver for buy/return, sender otherwise.
         warehouseId() {
             return (_TxType === 'buy' || _TxType === 'return') ? this.form.receiver_id : this.form.sender_id;
+        },
+
+        taxContact() {
+            if (_TxType === 'buy' || _TxType === 'return') {
+                return this.form.sender;
+            }
+            if (_TxType === 'sell' || _TxType === 'return-supplier') {
+                return this.form.receiver;
+            }
+
+            return null;
+        },
+
+        resolvePpnIncludedFromContact(contact) {
+            if (!contact || contact.ppn_included === undefined || contact.ppn_included === null) {
+                return _SystemPpnIncludedDefault;
+            }
+
+            return !!contact.ppn_included;
+        },
+
+        syncPpnModeFromContact() {
+            this.form.ppn_included = this.resolvePpnIncludedFromContact(this.taxContact());
+            this.recalcTotals();
+        },
+
+        splitPpnFromGross(gross) {
+            const rate = _PPNRate / 100;
+            const divisor = 1 + rate;
+            const dpp = Math.round((gross / divisor) * 100) / 100;
+            const ppn = Math.round(dpp * rate * 100) / 100;
+
+            return { dpp, ppn };
         },
 
         // Laravel JSON uses warehouse_items; item-by-id uses warehouse_item.
@@ -1280,15 +1334,32 @@ function createTransaction() {
             const afterRowDisc = items.reduce((s, i) => s + Number(i.subtotal || 0), 0);
             const headerDisc = afterRowDisc * (Number(this.form.discount_percent || 0) / 100);
             const withAdj = (afterRowDisc - headerDisc) + Number(this.form.adjustment || 0);
-            const contact = _TxType === 'buy' ? this.form.sender : this.form.receiver;
-            const ppn = (contact?.ppn) ? withAdj * (_PPNRate / 100) : 0;
+            const contact = this.taxContact();
+            const applyPpn = !!(contact?.ppn);
+
+            let totalBeforePpn = withAdj;
+            let ppn = 0;
+            let grandTotal = withAdj;
+
+            if (applyPpn) {
+                if (this.form.ppn_included) {
+                    const split = this.splitPpnFromGross(withAdj);
+                    totalBeforePpn = split.dpp;
+                    ppn = split.ppn;
+                    grandTotal = withAdj;
+                } else {
+                    totalBeforePpn = withAdj;
+                    ppn = withAdj * (_PPNRate / 100);
+                    grandTotal = withAdj + ppn;
+                }
+            }
 
             this.form.total_quantity = totalQty;
             this.form.gross_total = gross;
             this.form.total_before_discount = afterRowDisc;
-            this.form.total_before_ppn = withAdj;
+            this.form.total_before_ppn = totalBeforePpn;
             this.form.ppn_amount = ppn;
-            this.form.grand_total = withAdj + ppn;
+            this.form.grand_total = grandTotal;
         },
 
         isOverStock(item) {
@@ -1374,6 +1445,7 @@ function createTransaction() {
                 }),
                 discount_percent: this.form.discount_percent,
                 adjustment: this.form.adjustment,
+                ppn_included: !!this.form.ppn_included,
                 create_cash_in: !!(_CanSellCashIn && this.form.cash_in_enabled),
                 cash_in_amount: _CanSellCashIn && this.form.cash_in_enabled ? Number(this.form.cash_in_amount || 0) : null,
                 cash_in_account_id: _CanSellCashIn && this.form.cash_in_enabled ? this.form.cash_in_account_id : null,

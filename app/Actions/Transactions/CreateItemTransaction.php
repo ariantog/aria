@@ -136,15 +136,16 @@ class CreateItemTransaction
         $discountPercent = (float) ($data['discount_percent'] ?? 0);
         $adjustment = (float) ($data['adjustment'] ?? 0);
         $isPpn = $this->shouldApplyPpn($type, $sender->id, $receiver->id);
-        $discountAmount = $this->calculateDiscountAmount($itemsTotal, $discountPercent);
-        $totalBeforeTax = $itemsTotal - $discountAmount + $adjustment;
-        $taxAmount = $isPpn ? ($totalBeforeTax * $this->getPpnRate()) : 0;
-        $grandTotal = $totalBeforeTax + $taxAmount;
+        $ppnIncluded = array_key_exists('ppn_included', $data)
+            ? (bool) $data['ppn_included']
+            : $this->resolveCounterpartyPpnIncluded($type, $sender, $receiver);
+        $totals = $this->calculateTaxTotals($itemsTotal, $discountPercent, $adjustment, $isPpn, $ppnIncluded);
+        $grandTotal = $totals['grand_total'];
         // total = signed net payable only. Never write line subtotal here or net to real_total.
         $transaction->update([
             'discount' => $discountPercent,
             'adjustment' => $adjustment,
-            'ppn' => $taxAmount,
+            'ppn' => $totals['tax_amount'],
             'total' => Transaction::signedAmount($type, $grandTotal),
             'total_items' => $totalItems,
         ]);

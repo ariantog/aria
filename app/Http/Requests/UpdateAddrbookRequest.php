@@ -36,6 +36,7 @@ class UpdateAddrbookRequest extends FormRequest
             'arrangement_source_ids' => 'nullable|array',
             'arrangement_source_ids.*' => 'integer|exists:customers,id',
             'ppn' => 'boolean',
+            'ppn_included' => 'boolean',
             'location_ids' => 'nullable|array',
             'location_ids.*' => 'integer|exists:locations,id',
             'npwp' => ['nullable', 'string', 'max:20'],

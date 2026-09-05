@@ -288,7 +288,7 @@ class UserPreferenceService
     }
 
     /**
-     * @return array{id: int, name: string, ppn: bool}
+     * @return array{id: int, name: string, ppn: bool, ppn_included: bool}
      */
     protected function partyPayload(Addrbook $addrbook): array
     {
@@ -296,6 +296,7 @@ class UserPreferenceService
             'id' => $addrbook->id,
             'name' => $addrbook->name,
             'ppn' => (bool) $addrbook->ppn,
+            'ppn_included' => $addrbook->resolvedPpnIncluded(),
         ];
     }
 

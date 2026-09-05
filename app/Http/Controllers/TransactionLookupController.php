@@ -58,6 +58,7 @@ class TransactionLookupController extends Controller
                 'customers.id',
                 'customers.name',
                 'customers.ppn',
+                'customers.ppn_included',
                 'customers.type',
                 'customers.description',
                 'customers.ledger_hint',

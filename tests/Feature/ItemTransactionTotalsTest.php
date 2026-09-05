@@ -128,7 +128,7 @@ it('stores return-supplier payable as a signed total', function () {
 
 it('includes supplier PPN in buy total', function () {
     $user = User::factory()->create();
-    $supplier = Addrbook::factory()->supplier()->create(['ppn' => true]);
+    $supplier = Addrbook::factory()->supplier()->create(['ppn' => true, 'ppn_included' => false]);
     $warehouse = Addrbook::factory()->warehouse()->create();
     $item = Item::factory()->create(['price' => 10_000, 'cost' => 5_000]);
 
@@ -137,6 +137,7 @@ it('includes supplier PPN in buy total', function () {
         'type' => 'buy',
         'sender_id' => $supplier->id,
         'receiver_id' => $warehouse->id,
+        'ppn_included' => false,
         'items' => [[
             'item_id' => $item->id,
             'quantity' => 10,

@@ -41,6 +41,7 @@ class Addrbook extends Model
         return [
             'type' => 'integer',
             'ppn' => 'boolean',
+            'ppn_included' => 'boolean',
             'is_online' => 'boolean',
             'arrangement_enabled' => 'boolean',
             'is_internal_lending' => 'boolean',
@@ -51,6 +52,16 @@ class Addrbook extends Model
     }
 
     public $appends = ['type_name', 'type_slug'];
+
+    public static function defaultPpnIncluded(): bool
+    {
+        return true;
+    }
+
+    public function resolvedPpnIncluded(): bool
+    {
+        return (bool) ($this->ppn_included ?? self::defaultPpnIncluded());
+    }
 
     public static function typeLabel(int $type): string
     {
