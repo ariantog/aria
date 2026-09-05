@@ -12,6 +12,7 @@
         : ($preselected ? (string) $preselected : ''));
     $isOnline = (bool) old('is_online', $isEdit && $addrbook ? $addrbook->is_online : false);
     $ppn = (bool) old('ppn', $isEdit && $addrbook ? $addrbook->ppn : false);
+    $ppnIncluded = (bool) old('ppn_included', $isEdit && $addrbook ? $addrbook->resolvedPpnIncluded() : true);
     $arrangementEnabled = (bool) old('arrangement_enabled', $isEdit && $addrbook ? ($addrbook->arrangement_enabled ?? false) : false);
     $warehouseType = (string) \App\Enums\AddrbookType::Warehouse->value;
     $accountType = (string) \App\Models\Addrbook::TYPE_ACCOUNT;
@@ -119,16 +120,30 @@
                 </button>
             </div>
 
-            <div x-data="{ on: {{ $ppn ? 'true' : 'false' }} }" class="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 p-4">
-                <div>
-                    <p class="text-sm font-medium text-gray-900">PPN ({{ $ppn_rate }}%)</p>
-                    <p class="text-xs text-gray-500">Apply {{ $ppn_rate }}% tax for this contact?</p>
+            <div x-data="{ on: {{ $ppn ? 'true' : 'false' }}, included: {{ $ppnIncluded ? 'true' : 'false' }} }" class="space-y-3">
+                <div class="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 p-4">
+                    <div>
+                        <p class="text-sm font-medium text-gray-900">PPN ({{ $ppn_rate }}%)</p>
+                        <p class="text-xs text-gray-500">Apply {{ $ppn_rate }}% tax for this contact?</p>
+                    </div>
+                    <input type="hidden" name="ppn" :value="on ? 1 : 0">
+                    <button type="button" @click="on = !on" :class="on ? 'bg-blue-600' : 'bg-gray-300'"
+                            class="relative inline-flex h-6 w-11 flex-shrink-0 rounded-full transition-colors">
+                        <span :class="on ? 'translate-x-5' : 'translate-x-0.5'" class="mt-0.5 inline-block h-5 w-5 transform rounded-full bg-white transition-transform"></span>
+                    </button>
                 </div>
-                <input type="hidden" name="ppn" :value="on ? 1 : 0">
-                <button type="button" @click="on = !on" :class="on ? 'bg-blue-600' : 'bg-gray-300'"
-                        class="relative inline-flex h-6 w-11 flex-shrink-0 rounded-full transition-colors">
-                    <span :class="on ? 'translate-x-5' : 'translate-x-0.5'" class="mt-0.5 inline-block h-5 w-5 transform rounded-full bg-white transition-transform"></span>
-                </button>
+
+                <div x-show="on" x-cloak class="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 p-4">
+                    <div>
+                        <p class="text-sm font-medium text-gray-900">PPN pricing</p>
+                        <p class="text-xs text-gray-500">When taxable, are this contact's prices entered with PPN included?</p>
+                    </div>
+                    <input type="hidden" name="ppn_included" :value="included ? 1 : 0">
+                    <button type="button" @click="included = !included" :class="included ? 'bg-blue-600' : 'bg-gray-300'"
+                            class="relative inline-flex h-6 w-11 flex-shrink-0 rounded-full transition-colors">
+                        <span :class="included ? 'translate-x-5' : 'translate-x-0.5'" class="mt-0.5 inline-block h-5 w-5 transform rounded-full bg-white transition-transform"></span>
+                    </button>
+                </div>
             </div>
 
             <div x-show="selectedType === '{{ $warehouseType }}'" x-cloak

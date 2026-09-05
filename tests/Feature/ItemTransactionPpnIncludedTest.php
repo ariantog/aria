@@ -4,7 +4,6 @@ use App\Models\Addrbook;
 use App\Models\Item;
 use App\Models\Transaction;
 use App\Models\User;
-use App\Services\UserPreferenceService;
 
 function postPpnItemTransaction(User $user, array $payload)
 {
@@ -23,7 +22,7 @@ function seedPpnWarehouseStock(Addrbook $warehouse, Item $item, float $quantity 
 
 it('stores buy total with included ppn without adding tax on top', function () {
     $user = User::factory()->create();
-    $supplier = Addrbook::factory()->supplier()->create(['ppn' => true]);
+    $supplier = Addrbook::factory()->supplier()->create(['ppn' => true, 'ppn_included' => true]);
     $warehouse = Addrbook::factory()->warehouse()->create();
     $item = Item::factory()->create(['price' => 10_000, 'cost' => 5_000]);
 
@@ -51,7 +50,7 @@ it('stores buy total with included ppn without adding tax on top', function () {
 it('stores sell total with included ppn as signed gross payable', function () {
     $user = User::factory()->create();
     $warehouse = Addrbook::factory()->warehouse()->create();
-    $customer = Addrbook::factory()->customer()->create(['ppn' => true]);
+    $customer = Addrbook::factory()->customer()->create(['ppn' => true, 'ppn_included' => true]);
     $item = Item::factory()->create(['price' => 11_100, 'cost' => 5_000]);
     seedPpnWarehouseStock($warehouse, $item);
 
@@ -78,7 +77,7 @@ it('stores sell total with included ppn as signed gross payable', function () {
 
 it('keeps excluded ppn behavior when ppn_included is false', function () {
     $user = User::factory()->create();
-    $supplier = Addrbook::factory()->supplier()->create(['ppn' => true]);
+    $supplier = Addrbook::factory()->supplier()->create(['ppn' => true, 'ppn_included' => false]);
     $warehouse = Addrbook::factory()->warehouse()->create();
     $item = Item::factory()->create(['price' => 10_000, 'cost' => 5_000]);
 
@@ -103,10 +102,36 @@ it('keeps excluded ppn behavior when ppn_included is false', function () {
     ]);
 });
 
+it('defaults to included ppn from counterparty when request omits ppn_included', function () {
+    $user = User::factory()->create();
+    $supplier = Addrbook::factory()->supplier()->create(['ppn' => true, 'ppn_included' => true]);
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    $item = Item::factory()->create(['price' => 10_000, 'cost' => 5_000]);
+
+    postPpnItemTransaction($user, [
+        'date' => now()->toDateString(),
+        'type' => 'buy',
+        'sender_id' => $supplier->id,
+        'receiver_id' => $warehouse->id,
+        'items' => [[
+            'item_id' => $item->id,
+            'quantity' => 10,
+            'price' => 5_550,
+            'discount' => 0,
+        ]],
+    ])->assertRedirect();
+
+    $this->assertDatabaseHas('transactions', [
+        'type' => Transaction::TYPE_BUY,
+        'total' => 55_500,
+        'ppn' => 5_500,
+    ]);
+});
+
 it('applies included ppn on return from taxable customer', function () {
     $user = User::factory()->create();
     $warehouse = Addrbook::factory()->warehouse()->create();
-    $customer = Addrbook::factory()->customer()->create(['ppn' => true]);
+    $customer = Addrbook::factory()->customer()->create(['ppn' => true, 'ppn_included' => true]);
     $item = Item::factory()->create(['price' => 11_100, 'cost' => 5_000]);
 
     postPpnItemTransaction($user, [
@@ -130,26 +155,47 @@ it('applies included ppn on return from taxable customer', function () {
     ]);
 });
 
-it('transaction create form defaults ppn switch from user preference', function () {
+it('transaction create form initializes ppn switch from counterparty default', function () {
     $user = User::factory()->create();
-    app(UserPreferenceService::class)->setPpnIncludedDefault($user, false);
+    $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'Pref Warehouse']);
+    $customer = Addrbook::factory()->customer()->create([
+        'name' => 'Pref Customer',
+        'ppn' => true,
+        'ppn_included' => false,
+    ]);
+
+    app(\App\Services\UserPreferenceService::class)->updateTransactionDefaults($user, [
+        'default_warehouse_id' => $warehouse->id,
+        'default_customer_id' => $customer->id,
+    ]);
 
     $this->actingAs($user)
         ->get(route('transactions.create', ['type' => 'sell']))
         ->assertOk()
         ->assertSee('data-testid="ppn-mode-switch"', false)
-        ->assertSee('const _PpnIncludedDefault = false;', false);
+        ->assertSee('"ppn_included":false', false);
 });
 
-it('user can save default ppn mode in transaction defaults', function () {
+it('can save counterparty ppn included default on addrbook', function () {
     $user = User::factory()->create();
+    $permissions = Addrbook::getPermissions();
+    foreach ($permissions as $permission) {
+        \Spatie\Permission\Models\Permission::firstOrCreate(['name' => $permission]);
+    }
+    $user->givePermissionTo(array_values($permissions));
 
     $this->actingAs($user)
-        ->put(route('transaction-defaults.update'), [
-            'default_ppn_included' => '0',
+        ->post(route('addrbook.store'), [
+            'name' => 'PKP Supplier',
+            'type' => Addrbook::TYPE_SUPPLIER,
+            'ppn' => true,
+            'ppn_included' => false,
         ])
-        ->assertRedirect(route('transaction-defaults.edit'))
-        ->assertSessionHas('success');
+        ->assertRedirect();
 
-    expect(app(UserPreferenceService::class)->ppnIncludedDefaultFor($user))->toBeFalse();
+    $this->assertDatabaseHas('customers', [
+        'name' => 'PKP Supplier',
+        'ppn' => 1,
+        'ppn_included' => 0,
+    ]);
 });

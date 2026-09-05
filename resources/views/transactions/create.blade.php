@@ -96,7 +96,7 @@
                             endpoint: @js($config['sender_route']),
                             placeholder: 'Select {{ $config['sender_label'] }}...',
                             initial: @js(isset($prefill) ? ($prefill['sender'] ?? null) : null),
-                            onSelect: (item) => { form.sender_id = item ? String(item.id) : ''; form.sender = item; recalcTotals(); }
+                            onSelect: (item) => { form.sender_id = item ? String(item.id) : ''; form.sender = item; syncPpnModeFromContact(); }
                         })" class="relative">
                             <div class="relative flex h-10 w-full overflow-hidden rounded-lg border focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500"
                                  :class="errors.sender_id ? 'border-red-500' : 'border-gray-300'">
@@ -141,7 +141,7 @@
                             endpoint: @js($config['receiver_route']),
                             placeholder: 'Select {{ $config['receiver_label'] }}...',
                             initial: @js(isset($prefill) ? ($prefill['receiver'] ?? null) : null),
-                            onSelect: (item) => { form.receiver_id = item ? String(item.id) : ''; form.receiver = item; recalcTotals(); }
+                            onSelect: (item) => { form.receiver_id = item ? String(item.id) : ''; form.receiver = item; syncPpnModeFromContact(); }
                         })" class="relative">
                             <div class="relative flex h-10 w-full overflow-hidden rounded-lg border focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500"
                                  :class="errors.receiver_id ? 'border-red-500' : 'border-gray-300'">
@@ -553,7 +553,7 @@ const _CanSellCashIn = @js((bool) ($type === 'sell' && ($sellCashIn['can_create'
 const _CashInDefaultAccount = @js($sellCashIn['default_account'] ?? null);
 const _CashInDefaultDate = @js($sellCashIn['default_date'] ?? null);
 const _CashInMinDate = @js($sellCashIn['min_date'] ?? '');
-const _PpnIncludedDefault = @js((bool) ($ppn_included_default ?? true));
+const _SystemPpnIncludedDefault = true;
 
 function isFrontCameraLabel(label) {
     return /front|user|selfie|facetime|true.?depth|mirror/i.test(String(label || ''));
@@ -629,7 +629,7 @@ function createTransaction() {
             cash_in_amount: null,
             cash_in_account_id: '',
             cash_in_date: _CashInDefaultDate || startDate,
-            ppn_included: _PpnIncludedDefault,
+            ppn_included: _SystemPpnIncludedDefault,
         },
         cashInAmountManual: false,
 
@@ -671,6 +671,8 @@ function createTransaction() {
                 this.recalcTotals();
             }
 
+            this.syncPpnModeFromContact();
+
             if (this.form.items.length === 0) {
                 this.addItemRow(false);
             }
@@ -698,6 +700,19 @@ function createTransaction() {
             }
 
             return null;
+        },
+
+        resolvePpnIncludedFromContact(contact) {
+            if (!contact || contact.ppn_included === undefined || contact.ppn_included === null) {
+                return _SystemPpnIncludedDefault;
+            }
+
+            return !!contact.ppn_included;
+        },
+
+        syncPpnModeFromContact() {
+            this.form.ppn_included = this.resolvePpnIncludedFromContact(this.taxContact());
+            this.recalcTotals();
         },
 
         splitPpnFromGross(gross) {
