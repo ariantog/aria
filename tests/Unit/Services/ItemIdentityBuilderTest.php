@@ -178,6 +178,28 @@ describe('buildName', function () {
 
         expect($name)->toBe('SLASH RUNNING SHIRT - BLUE');
     });
+
+    it('uses warna name for display while buildCode uses warna code', function () {
+        $warna = Tag::factory()->create([
+            'type' => Tag::TYPE_WARNA,
+            'code' => 'GW',
+            'name' => 'GREYWHITE',
+        ]);
+
+        expect($this->builder->buildCode(
+            ItemType::ASSET_LANCAR,
+            'GLOVE-01',
+            null,
+            $warna,
+            $this->sizeTag,
+        ))->toBe('GLOVE-01-GW-S');
+
+        expect($this->builder->buildName(
+            'ELBOW STRAP',
+            $warna,
+            $this->sizeTag,
+        ))->toBe('ELBOW STRAP - GREYWHITE - S');
+    });
 });
 
 describe('parsePcode', function () {
