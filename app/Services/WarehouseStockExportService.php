@@ -55,11 +55,10 @@ class WarehouseStockExportService
 
         $rowNum = 2;
         foreach ($items as $item) {
-            $group = $item->group;
             $row = [
                 (int) $item->id,
                 $item->code ?? '',
-                $group?->description ?? $item->name ?? '',
+                $item->name ?? '',
                 $item->catalogDescription(),
                 (float) $item->price,
                 (float) ($item->pivot->quantity ?? 0),

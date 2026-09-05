@@ -210,9 +210,8 @@ $jubelioQtyCell = function (?array $jubelio, string $field, bool $highlightMisma
             <tbody class="divide-y divide-gray-100">
                 @forelse($items as $item)
                     @php
-                        $g = $item->group;
-                        $normalName = $g->description ?? $item->name;
-                        $onlineNm = $g->description2 ?? $g->description ?? $item->name;
+                        $normalName = $item->name;
+                        $onlineNm = $item->catalogDescription2() ?: $item->name;
                         $desc = $item->catalogDescription() ?: '-';
                         $qty = (float) ($item->pivot->quantity ?? 0);
                         $jubelio = ($jubelioStocks ?? [])[$item->id] ?? null;
@@ -232,7 +231,6 @@ $jubelioQtyCell = function (?array $jubelio, string $field, bool $highlightMisma
                                 <span x-show="!onlineName">{{ $normalName }}</span>
                                 <span x-show="onlineName" x-cloak>{{ $onlineNm }}</span>
                             </a>
-                            <div class="truncate font-mono text-[10px] text-gray-400" title="{{ $item->name }}">{{ $item->name }}</div>
                         </td>
                         <td class="truncate px-1.5 py-1.5 font-mono text-xs" data-copy-col="code">
                             <a href="{{ $itemShowUrl }}" onclick="event.stopPropagation()" class="text-blue-600 hover:underline" title="{{ $item->code }}">{{ $item->code }}</a>
