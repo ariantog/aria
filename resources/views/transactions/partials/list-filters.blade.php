@@ -42,14 +42,9 @@
                        class="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
             </div>
             <div class="flex flex-col gap-1">
-                <label class="text-xs font-medium uppercase text-gray-500">Min Total</label>
-                <input type="number" name="min_total" value="{{ $filters['min_total'] ?? '' }}" placeholder="0"
-                       class="w-28 rounded-md border border-gray-300 px-2.5 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
-            </div>
-            <div class="flex flex-col gap-1">
-                <label class="text-xs font-medium uppercase text-gray-500">Max Total</label>
-                <input type="number" name="max_total" value="{{ $filters['max_total'] ?? '' }}" placeholder="∞"
-                       class="w-28 rounded-md border border-gray-300 px-2.5 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                <label class="text-xs font-medium uppercase text-gray-500">Total</label>
+                <input type="number" name="total" value="{{ $filters['total'] ?? '' }}" placeholder="Exact amount…" step="any"
+                       class="w-32 rounded-md border border-gray-300 px-2.5 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
             </div>
             <input type="hidden" name="sort" value="{{ $sort }}">
             <input type="hidden" name="direction" value="{{ $direction }}">

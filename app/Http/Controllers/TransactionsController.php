@@ -48,7 +48,7 @@ class TransactionsController extends Controller
         } else {
             $transactions->orderBy('date', 'desc')->orderBy('id', 'desc');
         }
-        $filters = $request->only(['from', 'to', 'sort', 'direction', 'type', 'invoice', 'min_total', 'max_total', 'per_page']);
+        $filters = $request->only(['from', 'to', 'sort', 'direction', 'type', 'invoice', 'total', 'per_page']);
         $can = $this->transactionPermissions();
         if ($request->expectsJson() || $request->ajax()) {
             return response()->json($transactions->paginate($perPage)->withQueryString());
@@ -817,8 +817,7 @@ class TransactionsController extends Controller
             ->visibleToUser(Auth::user())
             ->when($request->invoice, fn ($q, $v) => $q->where('invoice', 'like', "%{$v}%"))
             ->when($request->type, fn ($q, $v) => $q->where('type', $v))
-            ->when($request->min_total, fn ($q, $v) => $q->where('total', '>=', $v))
-            ->when($request->max_total, fn ($q, $v) => $q->where('total', '<=', $v))
+            ->when($request->filled('total'), fn ($q) => $q->where('total', '=', $request->input('total')))
             ->when($request->from, fn ($q, $v) => $q->whereDate('date', '>=', $v))
             ->when($request->to, fn ($q, $v) => $q->whereDate('date', '<=', $v));
     }

@@ -68,13 +68,13 @@ class TransactionFilterSortTest extends TestCase
         $this->assertStringNotContainsString('SELL-1', $html);
     }
 
-    public function test_it_filters_by_total_range(): void
+    public function test_it_filters_by_exact_total(): void
     {
         Transaction::factory()->create(['total' => 50000, 'invoice' => 'LOW']);
         Transaction::factory()->create(['total' => 150000, 'invoice' => 'MID']);
         Transaction::factory()->create(['total' => 250000, 'invoice' => 'HIGH']);
 
-        $html = $this->indexHtml(['min_total' => 100000, 'max_total' => 200000]);
+        $html = $this->indexHtml(['total' => 150000]);
 
         $this->assertStringContainsString('MID', $html);
         $this->assertStringNotContainsString('>LOW<', $html);
