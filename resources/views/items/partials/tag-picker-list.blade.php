@@ -25,6 +25,7 @@
                    name="{{ $inputName }}"
                    value="{{ $t->id }}"
                    data-code="{{ $t->code }}"
+                   data-name="{{ $t->name }}"
                    @checked($isChecked)
                    @if($onChange) @change="{{ $onChange }}($event)" @endif
                    class="{{ $multiple ? 'rounded' : 'text-blue-600' }} border-gray-300 focus:ring-blue-500">

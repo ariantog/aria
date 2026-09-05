@@ -25,6 +25,7 @@ function itemForm() {
         },
         typeCode: '???',
         warnaCode: '???',
+        warnaName: '???',
         sizeCode: '???',
         warnaCodes: [],
         sizeCodes: [],
@@ -77,6 +78,7 @@ function itemForm() {
             const warnaInput = root.querySelector('input[name="tags[warna]"]:checked');
             if (warnaInput) {
                 this.warnaCode = warnaInput.dataset.code || '???';
+                this.warnaName = warnaInput.dataset.name || this.warnaCode;
             }
 
             const sizeInput = root.querySelector('input[name="tags[sizes][]"]:checked');
@@ -86,7 +88,10 @@ function itemForm() {
 
             const warnaChecks = root.querySelectorAll('input[name="tags[warna][]"]:checked');
             if (warnaChecks.length) {
-                this.warnaCodes = [...warnaChecks].map(i => ({ code: i.dataset.code || '???' }));
+                this.warnaCodes = [...warnaChecks].map(i => ({
+                    code: i.dataset.code || '???',
+                    name: i.dataset.name || i.dataset.code || '???',
+                }));
             }
 
             const sizeChecks = root.querySelectorAll('input[name="tags[sizes][]"]:checked');
@@ -116,8 +121,9 @@ function itemForm() {
                     warnas.forEach(w => {
                         const sc = (s.code || '???').toUpperCase();
                         const wc = (w.code || '???').toUpperCase();
+                        const wn = (w.name || wc).toUpperCase();
                         const sku = this.appendSizeSegment(`${pcode}-${wc}`, sc);
-                        appendRow(sku, this.buildDisplayName(productName, wc, sc));
+                        appendRow(sku, this.buildDisplayName(productName, wn, sc));
                     });
                 });
 
@@ -127,6 +133,7 @@ function itemForm() {
             if (this.multiSize) {
                 const sizes = this.sizeCodes;
                 const wc = (this.warnaCode || '???').toUpperCase();
+                const wn = (this.warnaName || wc).toUpperCase();
                 const tc = (this.typeCode || '???').toUpperCase();
                 if (!sizes.length || (!this.isAsset && tc === '???')) {
                     return [];
@@ -136,27 +143,27 @@ function itemForm() {
                     const sku = this.isAsset
                         ? this.appendSizeSegment(`${pcode}-${wc}`, sc)
                         : this.appendSizeSegment(`${tc}-${pcode}`, sc);
-                    const nameSuffix = sc === this.allSizeCode ? '' : ` - ${sc}`;
-                    appendRow(sku, this.buildDisplayName(productName, wc, sc));
+                    appendRow(sku, this.buildDisplayName(productName, wn, sc));
                 });
 
                 return items;
             }
 
             const wc = (this.warnaCode || '???').toUpperCase();
+            const wn = (this.warnaName || wc).toUpperCase();
             const sc = (this.sizeCode || '???').toUpperCase();
             const tc = (this.typeCode || '???').toUpperCase();
             const sku = this.isAsset
                 ? this.appendSizeSegment(`${pcode}-${wc}`, sc)
                 : this.appendSizeSegment(`${tc}-${pcode}`, sc);
-            appendRow(sku, this.buildDisplayName(productName, wc, sc));
+            appendRow(sku, this.buildDisplayName(productName, wn, sc));
 
             return items;
         },
 
-        buildDisplayName(productName, warnaCode, sizeCode) {
+        buildDisplayName(productName, warnaLabel, sizeCode) {
             let title = (productName || '').toUpperCase().trim();
-            const warna = (warnaCode || '').toUpperCase().trim();
+            const warna = (warnaLabel || '').toUpperCase().trim();
             if (warna && title.endsWith(' - ' + warna)) {
                 title = title.slice(0, -(warna.length + 3)).trim();
             }
@@ -275,6 +282,7 @@ function itemForm() {
             const input = e.target;
             if (input?.checked) {
                 this.warnaCode = input.dataset.code || '???';
+                this.warnaName = input.dataset.name || this.warnaCode;
             }
         },
 
@@ -288,7 +296,10 @@ function itemForm() {
         onWarnaMulti(e) {
             const list = this.$root.querySelector('[data-testid="tag-picker-warna"]');
             this.warnaCodes = list
-                ? [...list.querySelectorAll('input[name="tags[warna][]"]:checked')].map(i => ({ code: i.dataset.code || '???' }))
+                ? [...list.querySelectorAll('input[name="tags[warna][]"]:checked')].map(i => ({
+                    code: i.dataset.code || '???',
+                    name: i.dataset.name || i.dataset.code || '???',
+                }))
                 : [];
         },
 
