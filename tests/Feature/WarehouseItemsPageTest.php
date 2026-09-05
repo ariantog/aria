@@ -26,6 +26,50 @@ function seedWarehouseJubelioSync(Addrbook $warehouse, int $locationId = 10, str
     ]);
 }
 
+it('shows item name in the name column instead of catalog description', function () {
+    User::factory()->create();
+    $user = User::factory()->create();
+    $user->givePermissionTo('addrbook-warehouse-items');
+
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    $group = \App\Models\ItemGroup::factory()->create([
+        'name' => 'RUNNING SHIRT',
+        'description' => 'MIKRO MOTIF CAMO HIJAU',
+        'description2' => 'ONLINE LISTING TITLE',
+    ]);
+    $item = Item::factory()->create([
+        'group_id' => $group->id,
+        'name' => 'RUNNING SHIRT - GREEN - M',
+        'code' => 'WH-NAME-COL-M',
+    ]);
+
+    WarehouseItem::create([
+        'warehouse_id' => $warehouse->id,
+        'item_id' => $item->id,
+        'warehouse_type' => Addrbook::TYPE_WAREHOUSE,
+        'quantity' => 3,
+    ]);
+
+    $html = $this->actingAs($user)
+        ->get(route('addrbook.type.items', ['warehouse', $warehouse->id]))
+        ->assertOk()
+        ->getContent();
+
+    $nameColPos = strpos($html, 'data-copy-col="name"');
+    $codePos = strpos($html, 'WH-NAME-COL-M');
+
+    expect($nameColPos)->not->toBeFalse()
+        ->and($codePos)->not->toBeFalse();
+
+    $nameCell = substr($html, $nameColPos, $codePos - $nameColPos);
+
+    expect($nameCell)
+        ->toContain('RUNNING SHIRT - GREEN - M')
+        ->not->toContain('MIKRO MOTIF CAMO HIJAU');
+
+    expect($html)->toContain('MIKRO MOTIF CAMO HIJAU');
+});
+
 it('requires warehouse-items permission for the stock list page', function () {
     User::factory()->create();
     $user = User::factory()->create();
