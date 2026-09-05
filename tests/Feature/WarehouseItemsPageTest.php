@@ -306,6 +306,11 @@ it('shows jubelio on-hand stock for synced warehouses', function () {
         ->assertSee('5', false)
         ->assertSee('38', false)
         ->assertSee('data-testid="warehouse-items-column-toggles"', false)
+        ->assertSee('x-model="showName"', false)
+        ->assertSee('x-model="showImage"', false)
+        ->assertSee('x-model="showDescription"', false)
+        ->assertSee('aria-warehouse-items-columns-', false)
+        ->assertDontSee('Show Image', false)
         ->assertSee('data-testid="warehouse-items-scroll-top"', false)
         ->assertSee('Not linked', false)
         ->assertSee('item(s) on this page are not linked to Jubelio', false);

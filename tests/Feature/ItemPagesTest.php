@@ -51,6 +51,29 @@ test('items index shows database columns and collapsible filters', function () {
         ->assertSee('aria-items-index-filters-open', false);
 });
 
+test('items index exposes column toggles with persisted storage keys', function () {
+    $this->actingAs($this->user)
+        ->get(route('items.index'))
+        ->assertOk()
+        ->assertSee('data-testid="items-index-column-toggles"', false)
+        ->assertSee('aria-items-index-columns', false)
+        ->assertSee('x-model="showName"', false)
+        ->assertSee('x-model="showDesc"', false)
+        ->assertSee('x-model="showImage"', false)
+        ->assertDontSee('x-model="showNb"', false)
+        ->assertDontSee('Show Images', false);
+});
+
+test('asset lancar index exposes nb column toggle with persisted storage keys', function () {
+    $this->actingAs($this->user)
+        ->get(route('assetlancar.index'))
+        ->assertOk()
+        ->assertSee('data-testid="items-index-column-toggles"', false)
+        ->assertSee('aria-assetlancar-index-columns', false)
+        ->assertSee('x-model="showNb"', false)
+        ->assertSee('x-show="showNb"', false);
+});
+
 test('items index lookup filter matches id code and legacy_code substrings', function () {
     $byCode = Item::factory()->create(['code' => 'AJD-CX90151-01-M', 'legacy_code' => null]);
     $byLegacy = Item::factory()->create(['code' => 'AJD-NEW-SKU-S', 'legacy_code' => 'OLD-90151-LEGACY']);

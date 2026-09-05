@@ -110,11 +110,6 @@ $jubelioQtyCell = function (?array $jubelio, string $field, bool $highlightMisma
             <div class="flex flex-col gap-3">
                 <div class="flex flex-wrap items-center gap-3">
                     <span class="text-[10px] font-bold uppercase text-gray-500">Display:</span>
-                    <button type="button" @click="showImage = !showImage"
-                            :class="showImage ? 'border-blue-500/20 bg-blue-50 text-blue-600' : 'border-gray-200 text-gray-500'"
-                            class="inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-medium">
-                        <span x-text="showImage ? 'Hide Image' : 'Show Image'"></span>
-                    </button>
                     <div class="flex rounded-lg border border-gray-200 bg-gray-50 p-1">
                         <button type="button" @click="onlineName = false" :class="!onlineName ? 'bg-gray-800 text-white' : 'text-gray-500'" class="rounded-md px-3 py-1 text-[10px] font-bold uppercase">Normal Name</button>
                         <button type="button" @click="onlineName = true" :class="onlineName ? 'bg-gray-800 text-white' : 'text-gray-500'" class="rounded-md px-3 py-1 text-[10px] font-bold uppercase">Online Name</button>
@@ -123,12 +118,20 @@ $jubelioQtyCell = function (?array $jubelio, string $field, bool $highlightMisma
                 <div class="flex flex-wrap items-center gap-x-4 gap-y-2" data-testid="warehouse-items-column-toggles">
                     <span class="text-[10px] font-bold uppercase text-gray-500">Columns:</span>
                     <label class="inline-flex items-center gap-1.5 text-xs text-gray-600">
+                        <input type="checkbox" x-model="showImage" class="rounded border-gray-300">
+                        Image
+                    </label>
+                    <label class="inline-flex items-center gap-1.5 text-xs text-gray-600">
+                        <input type="checkbox" x-model="showName" class="rounded border-gray-300">
+                        Name
+                    </label>
+                    <label class="inline-flex items-center gap-1.5 text-xs text-gray-600">
                         <input type="checkbox" x-model="showId" class="rounded border-gray-300">
                         ID
                     </label>
                     <label class="inline-flex items-center gap-1.5 text-xs text-gray-600">
                         <input type="checkbox" x-model="showDescription" class="rounded border-gray-300">
-                        Description
+                        Desc
                     </label>
                 </div>
             </div>
@@ -166,7 +169,7 @@ $jubelioQtyCell = function (?array $jubelio, string $field, bool $highlightMisma
             <colgroup>
                 <col x-show="showId" class="w-12">
                 <col x-show="showImage" class="w-12">
-                <col class="w-[11rem]">
+                <col x-show="showName" class="w-[11rem]">
                 <col class="w-[8rem]">
                 <col x-show="showDescription" class="w-[9rem]">
                 <col class="w-[5.5rem]">
@@ -185,7 +188,7 @@ $jubelioQtyCell = function (?array $jubelio, string $field, bool $highlightMisma
                         <a href="{{ $sortLink('id') }}" class="inline-flex items-center gap-0.5 hover:text-gray-900">ID @if($sortColumn === 'id')<span class="text-blue-600">{{ $sortDirection === 'asc' ? '↑' : '↓' }}</span>@endif</a>
                     </th>
                     <th class="px-1.5 py-2 font-bold" data-copy-col="image" x-show="showImage">Img</th>
-                    <th class="px-1.5 py-2 font-bold" data-copy-col="name">
+                    <th class="px-1.5 py-2 font-bold" data-copy-col="name" x-show="showName">
                         <a href="{{ $sortLink('name') }}" class="inline-flex items-center gap-0.5 hover:text-gray-900">Name @if($sortColumn === 'name')<span class="text-blue-600">{{ $sortDirection === 'asc' ? '↑' : '↓' }}</span>@endif</a>
                     </th>
                     <th class="px-1.5 py-2 font-bold" data-copy-col="code">
@@ -226,7 +229,7 @@ $jubelioQtyCell = function (?array $jubelio, string $field, bool $highlightMisma
                         <td class="px-1.5 py-1.5" data-copy-col="image" x-show="showImage">
                             <img src="{{ $item->image_url ?: '/images/default-item.png' }}" alt="{{ $item->name }}" onerror="this.src='/images/default-item.png'" class="h-8 w-8 rounded border border-gray-200 object-cover">
                         </td>
-                        <td class="truncate px-1.5 py-1.5" data-copy-col="name">
+                        <td class="truncate px-1.5 py-1.5" data-copy-col="name" x-show="showName">
                             <a href="{{ $itemShowUrl }}" onclick="event.stopPropagation()" class="block truncate font-medium text-gray-800 hover:text-blue-600" title="{{ $normalName }}">
                                 <span x-show="!onlineName">{{ $normalName }}</span>
                                 <span x-show="onlineName" x-cloak>{{ $onlineNm }}</span>
@@ -274,6 +277,7 @@ function warehouseItemsPage(filtersStorageKey, columnsStorageKey, hasJubelio) {
     return {
         showImage: false,
         showId: true,
+        showName: true,
         showDescription: true,
         onlineName: false,
         filtersOpen: true,
@@ -296,6 +300,9 @@ function warehouseItemsPage(filtersStorageKey, columnsStorageKey, hasJubelio) {
                 if (typeof columns.showId === 'boolean') {
                     this.showId = columns.showId;
                 }
+                if (typeof columns.showName === 'boolean') {
+                    this.showName = columns.showName;
+                }
                 if (typeof columns.showDescription === 'boolean') {
                     this.showDescription = columns.showDescription;
                 }
@@ -305,6 +312,7 @@ function warehouseItemsPage(filtersStorageKey, columnsStorageKey, hasJubelio) {
             } catch (e) {}
 
             this.$watch('showId', () => this.persistColumns());
+            this.$watch('showName', () => this.persistColumns());
             this.$watch('showDescription', () => this.persistColumns());
             this.$watch('showImage', () => this.persistColumns());
 
@@ -316,6 +324,7 @@ function warehouseItemsPage(filtersStorageKey, columnsStorageKey, hasJubelio) {
         persistColumns() {
             localStorage.setItem(this.columnsStorageKey, JSON.stringify({
                 showId: this.showId,
+                showName: this.showName,
                 showDescription: this.showDescription,
                 showImage: this.showImage,
             }));
@@ -351,6 +360,9 @@ function warehouseItemsPage(filtersStorageKey, columnsStorageKey, hasJubelio) {
         isCopyColumnVisible(col) {
             if (col === 'image') {
                 return this.showImage;
+            }
+            if (col === 'name') {
+                return this.showName;
             }
             if (col === 'id') {
                 return this.showId;

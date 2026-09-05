@@ -14,31 +14,38 @@ $warnaTags = ($tags[\App\Models\Tag::TYPE_WARNA] ?? collect());
 $jahitTags = ($tags[\App\Models\Tag::TYPE_JAHIT] ?? collect());
 $idr = fn ($v) => 'Rp ' . format_amount($v, 0);
 $filtersStorageKey = $isAsset ? 'aria-assetlancar-index-filters-open' : 'aria-items-index-filters-open';
+$columnsStorageKey = $isAsset ? 'aria-assetlancar-index-columns' : 'aria-items-index-columns';
 @endphp
 
-<div class="flex flex-col gap-3 p-3 sm:p-4" x-data="{
-    showImage: true,
-    filtersOpen: true,
-    filtersStorageKey: @js($filtersStorageKey),
-    init() {
-        const saved = localStorage.getItem(this.filtersStorageKey);
-        this.filtersOpen = saved === null ? true : saved === '1';
-        this.$watch('filtersOpen', (value) => {
-            localStorage.setItem(this.filtersStorageKey, value ? '1' : '0');
-        });
-    },
-}">
+<div class="flex flex-col gap-3 p-3 sm:p-4" x-data="itemsIndexPage(@js($filtersStorageKey), @js($columnsStorageKey), @js($isAsset))">
     {{-- Header --}}
     <div class="flex flex-col items-start justify-between gap-2 sm:flex-row sm:items-center">
         <div>
             <h2 class="text-2xl font-bold tracking-tight text-gray-900">{{ $isAsset ? 'Asset List' : 'Item List' }}</h2>
             <p class="mt-0.5 text-sm text-gray-500">Manage your {{ $isAsset ? 'asset' : 'product' }} inventory efficiently.</p>
         </div>
-        <div class="flex items-center gap-3">
-            <label class="flex items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600">
-                <input type="checkbox" x-model="showImage" class="rounded border-gray-300">
-                Show Images
-            </label>
+        <div class="flex flex-wrap items-center gap-3">
+            <div class="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2" data-testid="items-index-column-toggles">
+                <span class="text-[10px] font-bold uppercase text-gray-500">Columns:</span>
+                <label class="inline-flex items-center gap-1.5 text-sm text-gray-600">
+                    <input type="checkbox" x-model="showImage" class="rounded border-gray-300">
+                    Image
+                </label>
+                <label class="inline-flex items-center gap-1.5 text-sm text-gray-600">
+                    <input type="checkbox" x-model="showName" class="rounded border-gray-300">
+                    Name
+                </label>
+                <label class="inline-flex items-center gap-1.5 text-sm text-gray-600">
+                    <input type="checkbox" x-model="showDesc" class="rounded border-gray-300">
+                    Desc
+                </label>
+                @if($isAsset)
+                <label class="inline-flex items-center gap-1.5 text-sm text-gray-600">
+                    <input type="checkbox" x-model="showNb" class="rounded border-gray-300">
+                    NB
+                </label>
+                @endif
+            </div>
             @if(($isAsset && $can['create_asset']) || (! $isAsset && $can['create']))
             <a href="{{ $isAsset ? route('assetlancar.create') : route('items.create') }}"
                class="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
@@ -72,10 +79,14 @@ $filtersStorageKey = $isAsset ? 'aria-assetlancar-index-filters-open' : 'aria-it
                     <th class="w-16 px-2 py-2.5 font-bold">Barcode</th>
                     <th class="whitespace-nowrap px-2 py-2.5 font-bold">Code</th>
                     <th class="min-w-[8rem] px-2 py-2.5 font-bold">Group</th>
-                    <th class="min-w-[16rem] px-2 py-2.5 font-bold">Name</th>
-                    <th class="min-w-[8rem] px-2 py-2.5 font-bold">Desc</th>
+                    <th class="min-w-[16rem] px-2 py-2.5 font-bold" x-show="showName">Name</th>
+                    <th class="min-w-[8rem] px-2 py-2.5 font-bold" x-show="showDesc">Desc</th>
                     <th class="w-28 px-2 py-2.5 text-right font-bold">Price</th>
+                    @if($isAsset)
+                    <th class="min-w-[8rem] px-2 py-2.5 font-bold" x-show="showNb">NB</th>
+                    @else
                     <th class="min-w-[8rem] px-2 py-2.5 font-bold">NB</th>
+                    @endif
                     <th class="w-16 px-2 py-2.5 text-right font-bold">Qty</th>
                     <th class="w-20 px-2 py-2.5 font-bold">Jubelio</th>
                     <th class="w-12 px-2 py-2.5 text-center font-bold"></th>
@@ -105,10 +116,14 @@ $filtersStorageKey = $isAsset ? 'aria-assetlancar-index-filters-open' : 'aria-it
                                 <span class="text-xs text-gray-400">—</span>
                             @endif
                         </td>
-                        <td class="px-2 py-2 text-gray-800" data-testid="item-list-name-{{ $item->id }}">{{ $item->name ?: '-' }}</td>
-                        <td class="max-w-[14rem] px-2 py-2 text-gray-700" data-testid="item-list-desc-{{ $item->id }}" title="{{ $item->catalogDescription() }}">{{ $item->catalogDescription() ?: '-' }}</td>
+                        <td class="px-2 py-2 text-gray-800" data-testid="item-list-name-{{ $item->id }}" x-show="showName">{{ $item->name ?: '-' }}</td>
+                        <td class="max-w-[14rem] px-2 py-2 text-gray-700" data-testid="item-list-desc-{{ $item->id }}" title="{{ $item->catalogDescription() }}" x-show="showDesc">{{ $item->catalogDescription() ?: '-' }}</td>
                         <td class="whitespace-nowrap px-2 py-2 text-right font-bold tabular-nums text-gray-800">{{ $idr($item->price) }}</td>
+                        @if($isAsset)
+                        <td class="max-w-[14rem] px-2 py-2 text-gray-500" title="{{ $item->catalogDescription2() }}" x-show="showNb">{{ $item->catalogDescription2() ?: '--' }}</td>
+                        @else
                         <td class="max-w-[14rem] px-2 py-2 text-gray-500" title="{{ $item->catalogDescription2() }}">{{ $item->catalogDescription2() ?: '--' }}</td>
+                        @endif
                         <td class="whitespace-nowrap px-2 py-2 text-right font-bold tabular-nums text-emerald-600">{{ format_amount((float) ($item->active_qty ?? 0), 0) }}</td>
                         <td class="px-2 py-2">
                             @if($item->jubelio_item_id)
@@ -132,4 +147,62 @@ $filtersStorageKey = $isAsset ? 'aria-assetlancar-index-filters-open' : 'aria-it
         @include('partials.pagination', ['paginator' => $items, 'label' => $isAsset ? 'assets' : 'items'])
     </div>
 </div>
+
+@push('scripts')
+<script>
+function itemsIndexPage(filtersStorageKey, columnsStorageKey, isAsset) {
+    return {
+        showImage: true,
+        showName: true,
+        showDesc: true,
+        showNb: true,
+        filtersOpen: true,
+        filtersStorageKey: filtersStorageKey,
+        columnsStorageKey: columnsStorageKey,
+        isAsset: isAsset,
+        init() {
+            const savedFilters = localStorage.getItem(this.filtersStorageKey);
+            this.filtersOpen = savedFilters === null ? true : savedFilters === '1';
+            this.$watch('filtersOpen', (value) => {
+                localStorage.setItem(this.filtersStorageKey, value ? '1' : '0');
+            });
+
+            try {
+                const columns = JSON.parse(localStorage.getItem(this.columnsStorageKey) || '{}');
+                if (typeof columns.showImage === 'boolean') {
+                    this.showImage = columns.showImage;
+                }
+                if (typeof columns.showName === 'boolean') {
+                    this.showName = columns.showName;
+                }
+                if (typeof columns.showDesc === 'boolean') {
+                    this.showDesc = columns.showDesc;
+                }
+                if (this.isAsset && typeof columns.showNb === 'boolean') {
+                    this.showNb = columns.showNb;
+                }
+            } catch (e) {}
+
+            this.$watch('showImage', () => this.persistColumns());
+            this.$watch('showName', () => this.persistColumns());
+            this.$watch('showDesc', () => this.persistColumns());
+            if (this.isAsset) {
+                this.$watch('showNb', () => this.persistColumns());
+            }
+        },
+        persistColumns() {
+            const payload = {
+                showImage: this.showImage,
+                showName: this.showName,
+                showDesc: this.showDesc,
+            };
+            if (this.isAsset) {
+                payload.showNb = this.showNb;
+            }
+            localStorage.setItem(this.columnsStorageKey, JSON.stringify(payload));
+        },
+    };
+}
+</script>
+@endpush
 @endsection
