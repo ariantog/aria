@@ -13,7 +13,6 @@
     $sortedTags = collect($tags)
         ->sortBy(static fn ($t) => isset($selectedIdSet[(string) $t->id]) ? 0 : 1)
         ->values();
-    $selectedCount = count($selectedIdSet);
 @endphp
 <div class="max-h-48 space-y-1 overflow-y-auto rounded-lg border p-2 @if($errorBorder) border-red-500 @else border-gray-300 @endif"
      data-testid="tag-picker-{{ $field }}">
