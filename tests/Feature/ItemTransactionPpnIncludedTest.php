@@ -2,6 +2,7 @@
 
 use App\Models\Addrbook;
 use App\Models\Item;
+use App\Models\Setting;
 use App\Models\Transaction;
 use App\Models\User;
 
@@ -174,6 +175,19 @@ it('transaction create form initializes ppn switch from counterparty default', f
         ->assertOk()
         ->assertSee('data-testid="ppn-mode-switch"', false)
         ->assertSee('"ppn_included":false', false);
+});
+
+it('transaction create form uses system default when no counterparty is preselected', function () {
+    $user = User::factory()->create();
+    Setting::updateOrCreate(
+        ['slug' => 'transactions.default_ppn_included'],
+        ['group' => 'Accounting', 'name' => 'Default PPN Mode', 'value' => false],
+    );
+
+    $this->actingAs($user)
+        ->get(route('transactions.create', ['type' => 'sell']))
+        ->assertOk()
+        ->assertSee('const _SystemPpnIncludedDefault = false;', false);
 });
 
 it('can save counterparty ppn included default on addrbook', function () {

@@ -553,7 +553,7 @@ const _CanSellCashIn = @js((bool) ($type === 'sell' && ($sellCashIn['can_create'
 const _CashInDefaultAccount = @js($sellCashIn['default_account'] ?? null);
 const _CashInDefaultDate = @js($sellCashIn['default_date'] ?? null);
 const _CashInMinDate = @js($sellCashIn['min_date'] ?? '');
-const _SystemPpnIncludedDefault = true;
+const _SystemPpnIncludedDefault = @js((bool) ($ppn_included_system_default ?? true));
 
 function isFrontCameraLabel(label) {
     return /front|user|selfie|facetime|true.?depth|mirror/i.test(String(label || ''));
