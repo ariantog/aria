@@ -108,14 +108,14 @@ class RecalculateRunningBalancesController extends Controller
     private function coverage(): array
     {
         $bounds = Transaction::query()
-            ->selectRaw('COUNT(*) as rows, MIN(date) as earliest, MAX(date) as latest')
+            ->selectRaw('COUNT(*) as transaction_count, MIN(date) as earliest, MAX(date) as latest')
             ->first();
 
         $earliest = $bounds?->earliest ? substr((string) $bounds->earliest, 0, 10) : null;
         $latest = $bounds?->latest ? substr((string) $bounds->latest, 0, 10) : null;
 
         return [
-            'transactions' => (int) ($bounds->rows ?? 0),
+            'transactions' => (int) ($bounds->transaction_count ?? 0),
             'earliest' => $earliest === '0000-00-00' ? null : $earliest,
             'latest' => $latest === '0000-00-00' ? null : $latest,
         ];
