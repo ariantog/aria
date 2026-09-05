@@ -41,6 +41,15 @@
             }
         })();
     </script>
+    <script>
+        (function () {
+            if (!window.matchMedia('(min-width: 1024px)').matches) {
+                return;
+            }
+
+            document.documentElement.dataset.sidebarDesktop = localStorage.getItem('sidebarOpen') !== 'false' ? 'open' : 'collapsed';
+        })();
+    </script>
 
     @stack('head-css')
     <style>
@@ -59,9 +68,18 @@
         }
         [x-cloak] { display: none !important; }
 
-        /* Sidebar transition (desktop only — mobile opens/closes instantly) */
+        /*
+         * Desktop first paint: seed width/margin from localStorage before Alpine hydrates.
+         * Without this, Alpine applies w-64/w-14 while #sidebar already has a CSS transition,
+         * so every page load animates the sidebar open or closed.
+         */
         @media (min-width: 1024px) {
-            #sidebar { transition: width 0.2s ease, transform 0.2s ease; }
+            html[data-sidebar-desktop="open"] #sidebar { width: 16rem; }
+            html[data-sidebar-desktop="collapsed"] #sidebar { width: 3.5rem; }
+            html[data-sidebar-desktop="open"] #main-content { margin-left: 16rem; }
+            html[data-sidebar-desktop="collapsed"] #main-content { margin-left: 3.5rem; }
+
+            #sidebar.anim-ready { transition: width 0.2s ease, transform 0.2s ease; }
             #main-content.anim-ready { transition: margin-left 0.2s ease; }
         }
 
@@ -160,6 +178,7 @@
     {{-- SIDEBAR --}}
     <aside id="sidebar"
            :class="sidebarClass()"
+           x-init="$nextTick(() => $el.classList.add('anim-ready'))"
            class="fixed left-0 top-0 z-30 flex h-full flex-col border-r border-gray-200 bg-white overflow-hidden">
 
         {{-- Sidebar header --}}
@@ -455,6 +474,7 @@ function appShell() {
         persistSidebarOpen() {
             if (!this.isMobile) {
                 localStorage.setItem('sidebarOpen', this.sidebarOpen);
+                document.documentElement.dataset.sidebarDesktop = this.sidebarOpen ? 'open' : 'collapsed';
             }
         },
         matchesNav(...labels) {
