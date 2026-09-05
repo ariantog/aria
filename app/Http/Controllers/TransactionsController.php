@@ -110,7 +110,6 @@ class TransactionsController extends Controller
             'prefill' => $this->resolveCreatePrefill($type, $request, $draftService, $userPreferences),
             'jubelio_sync' => $jubelioSyncPresenter->createFormSyncConfig(),
             'sellCashIn' => $type === 'sell' ? app(SellCashInPresenter::class)->formData(Auth::user()) : null,
-            'ppn_included_default' => $userPreferences->ppnIncludedDefaultFor(Auth::user()),
         ]);
     }
 

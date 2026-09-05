@@ -50,7 +50,6 @@ class TransactionDefaultsController extends Controller
 
         return view('settings.transaction-defaults', [
             'groups' => $groups,
-            'ppnIncludedDefault' => $this->preferences->ppnIncludedDefaultFor($user),
             'lookupUrls' => [
                 'supplier' => route('transaction-defaults.lookup', ['type' => 'supplier']),
                 'warehouse' => route('transaction-defaults.lookup', ['type' => 'warehouse']),
@@ -73,17 +72,10 @@ class TransactionDefaultsController extends Controller
             'default_cash_out_bank_id' => ['nullable', 'integer', 'exists:customers,id'],
             'default_transfer_from_id' => ['nullable', 'integer', 'exists:customers,id'],
             'default_transfer_to_id' => ['nullable', 'integer', 'exists:customers,id'],
-            'default_ppn_included' => ['sometimes', 'boolean'],
         ]);
 
         try {
             $this->preferences->updateTransactionDefaults($request->user(), $validated);
-            if ($request->has('default_ppn_included')) {
-                $this->preferences->setPpnIncludedDefault(
-                    $request->user(),
-                    $request->boolean('default_ppn_included'),
-                );
-            }
         } catch (InvalidArgumentException $e) {
             return back()->withInput()->with('error', $e->getMessage());
         }

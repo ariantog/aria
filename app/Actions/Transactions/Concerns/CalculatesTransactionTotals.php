@@ -19,6 +19,24 @@ trait CalculatesTransactionTotals
         return (float) Setting::getValue('ppn_rate', 11);
     }
 
+    protected function taxCounterparty(int $type, Addrbook $sender, Addrbook $receiver): ?Addrbook
+    {
+        return match ($type) {
+            Transaction::TYPE_BUY => $sender,
+            Transaction::TYPE_SELL => $receiver,
+            Transaction::TYPE_RETURN => $sender,
+            Transaction::TYPE_RETURN_SUPPLIER => $receiver,
+            default => null,
+        };
+    }
+
+    protected function resolveCounterpartyPpnIncluded(int $type, Addrbook $sender, Addrbook $receiver): bool
+    {
+        $counterparty = $this->taxCounterparty($type, $sender, $receiver);
+
+        return $counterparty?->resolvedPpnIncluded() ?? Addrbook::defaultPpnIncluded();
+    }
+
     protected function shouldApplyPpn(int $type, int $senderId, int $receiverId): bool
     {
         $addrbook = match ($type) {

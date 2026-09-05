@@ -85,6 +85,7 @@ return new class extends Migration
         (require __DIR__.'/2026_09_02_210000_add_last_error_to_crongetorders_and_resume_stuck_imports.php')->up();
         (require __DIR__.'/2026_09_03_130000_add_brand_and_genre_to_item_group_table.php')->up();
         (require __DIR__.'/2026_09_03_150000_widen_item_group_name_drop_unique.php')->up();
+        (require __DIR__.'/2026_09_05_150000_add_ppn_included_to_customers_table.php')->up();
     }
 
     public function down(): void
