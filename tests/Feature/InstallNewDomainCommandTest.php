@@ -41,6 +41,21 @@ it('refuses to install when the database has a Crystal fingerprint', function ()
     expect(Addrbook::query()->count())->toBe(0);
 });
 
+it('ships a maintainer install guide', function () {
+    $guide = base_path('doc/new-domain-install.md');
+
+    expect(is_file($guide))->toBeTrue();
+
+    $source = file_get_contents($guide);
+
+    expect($source)->toContain('php artisan app:install-new-domain')
+        ->and($source)->toContain('scripts/install-new-domain.sh')
+        ->and($source)->toContain('NewDomainSeeder')
+        ->and($source)->toContain('ReportingBootstrapSeeder')
+        ->and($source)->toContain('DemoDataSeeder')
+        ->and($source)->toContain('ARIA_LEGACY_PRODUCTION');
+});
+
 it('seeds the new-domain baseline without re-running migrations', function () {
     $this->artisan('app:install-new-domain', [
         '--force' => true,

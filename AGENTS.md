@@ -296,6 +296,7 @@ not "modernize" or refactor Alpine style:
 - Serve: `php artisan serve --host=0.0.0.0 --port=5000`. Run a queue worker
   (`php artisan queue:listen`) so `UpdateTransactionSummaries` jobs process.
 - Preview login: `superadmin` / `password`. **Login is by username, not email** (`config/fortify.php`).
+- New subdomain (empty MySQL, not Crystal): `doc/new-domain-install.md` — `php artisan app:install-new-domain`.
 
 ## Domain rules that affect code
 
