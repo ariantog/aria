@@ -37,10 +37,7 @@ function itemForm() {
         init() {
             this.autoFilledName = (this.form.product_name || '').toUpperCase().trim();
             this.autoFilledPcode = (this.form.pcode || '').toUpperCase().trim();
-            this.$nextTick(() => {
-                this.syncFromDom();
-                ['warna', 'type', 'size'].forEach((field) => this.filterTagField(field));
-            });
+            this.$nextTick(() => this.syncFromDom());
         },
 
         tagOptionMatches(name, code, query) {
@@ -59,41 +56,31 @@ function itemForm() {
             return this.tagOptionMatches(name, code, this.tagFilters[field]);
         },
 
-        filterTagField(field) {
-            const query = String(this.tagFilters[field] || '').trim().toLowerCase();
-            const select = this.$root.querySelector(`select[data-tag-field="${field}"]`);
-            if (!select) {
-                return;
+        tagHasVisibleOptions(field) {
+            const list = this.$root.querySelector(`[data-testid="tag-picker-${field}"]`);
+            if (!list) {
+                return true;
             }
 
-            [...select.options].forEach((opt) => {
-                if (opt.value === '') {
-                    opt.hidden = false;
-                    return;
-                }
-
-                const text = String(opt.textContent || '').toLowerCase();
-                const code = String(opt.dataset.code || '').toLowerCase();
-                opt.hidden = query !== '' && !text.includes(query) && !code.includes(query);
-            });
+            return [...list.querySelectorAll('label')].some((el) => el.offsetParent !== null);
         },
 
         syncFromDom() {
             const root = this.$root;
 
-            const typeSel = root.querySelector('select[name="tags[types]"], select[name="tags[types][]"]');
-            if (typeSel?.selectedOptions[0]?.value) {
-                this.typeCode = typeSel.selectedOptions[0].dataset.code || '???';
+            const typeInput = root.querySelector('input[name="tags[types]"]:checked, input[name="tags[types][]"]:checked');
+            if (typeInput) {
+                this.typeCode = typeInput.dataset.code || '???';
             }
 
-            const warnaSel = root.querySelector('select[name="tags[warna]"]');
-            if (warnaSel?.selectedOptions[0]?.value) {
-                this.warnaCode = warnaSel.selectedOptions[0].dataset.code || '???';
+            const warnaInput = root.querySelector('input[name="tags[warna]"]:checked');
+            if (warnaInput) {
+                this.warnaCode = warnaInput.dataset.code || '???';
             }
 
-            const sizeSel = root.querySelector('select[name="tags[sizes][]"]');
-            if (sizeSel?.selectedOptions[0]?.value) {
-                this.sizeCode = sizeSel.selectedOptions[0].dataset.code || '???';
+            const sizeInput = root.querySelector('input[name="tags[sizes][]"]:checked');
+            if (sizeInput && !this.multiSize) {
+                this.sizeCode = sizeInput.dataset.code || '???';
             }
 
             const warnaChecks = root.querySelectorAll('input[name="tags[warna][]"]:checked');
@@ -276,33 +263,39 @@ function itemForm() {
         },
 
         onTypeChange(e) {
-            const opt = e.target.selectedOptions[0];
-            this.typeCode = opt?.value ? (opt.dataset.code || '???') : '???';
+            const input = e.target;
+            this.typeCode = input?.checked ? (input.dataset.code || '???') : this.typeCode;
             if (this.isAsset) {
                 this.rewritePcodeFromType(this.typeCode);
             }
         },
 
         onWarna(e) {
-            const opt = e.target.selectedOptions[0];
-            this.warnaCode = opt?.value ? (opt.dataset.code || '???') : '???';
+            const input = e.target;
+            if (input?.checked) {
+                this.warnaCode = input.dataset.code || '???';
+            }
         },
 
         onSize(e) {
-            const opt = e.target.selectedOptions[0];
-            this.sizeCode = opt?.value ? (opt.dataset.code || '???') : '???';
+            const input = e.target;
+            if (input?.checked) {
+                this.sizeCode = input.dataset.code || '???';
+            }
         },
 
         onWarnaMulti(e) {
-            const container = e.target.closest('[class*="overflow-y-auto"]') || e.target.closest('div');
-            this.warnaCodes = [...container.querySelectorAll('input[name="tags[warna][]"]:checked')]
-                .map(i => ({ code: i.dataset.code || '???' }));
+            const list = this.$root.querySelector('[data-testid="tag-picker-warna"]');
+            this.warnaCodes = list
+                ? [...list.querySelectorAll('input[name="tags[warna][]"]:checked')].map(i => ({ code: i.dataset.code || '???' }))
+                : [];
         },
 
         onSizeMulti(e) {
-            const container = e.target.closest('[class*="overflow-y-auto"]') || e.target.closest('div');
-            this.sizeCodes = [...container.querySelectorAll('input[name="tags[sizes][]"]:checked')]
-                .map(i => ({ code: i.dataset.code || '???' }));
+            const list = this.$root.querySelector('[data-testid="tag-picker-size"]');
+            this.sizeCodes = list
+                ? [...list.querySelectorAll('input[name="tags[sizes][]"]:checked')].map(i => ({ code: i.dataset.code || '???' }))
+                : [];
         },
     };
 }
