@@ -6,13 +6,22 @@
     $selectedIds = $multiple
         ? array_map('strval', (array) $selected)
         : [(string) ($selected ?? '')];
+    $selectedIdSet = array_fill_keys(
+        array_filter($selectedIds, static fn ($id) => $id !== ''),
+        true
+    );
+    $sortedTags = collect($tags)
+        ->sortBy(static fn ($t) => isset($selectedIdSet[(string) $t->id]) ? 0 : 1)
+        ->values();
+    $selectedCount = count($selectedIdSet);
 @endphp
 <div class="max-h-48 space-y-1 overflow-y-auto rounded-lg border p-2 @if($errorBorder) border-red-500 @else border-gray-300 @endif"
      data-testid="tag-picker-{{ $field }}">
-    @foreach($tags as $t)
-        @php $isChecked = in_array((string) $t->id, $selectedIds, true); @endphp
+    @foreach($sortedTags as $t)
+        @php $isChecked = isset($selectedIdSet[(string) $t->id]); @endphp
         <label x-show="tagOptionVisible('{{ $field }}', @js($t->name), @js($t->code))"
-               class="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-sm hover:bg-gray-50">
+               data-tag-selected="{{ $isChecked ? '1' : '0' }}"
+               class="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-gray-50 has-[:checked]:bg-blue-50 has-[:checked]:font-medium has-[:checked]:text-blue-900 has-[:checked]:ring-1 has-[:checked]:ring-blue-200">
             <input type="{{ $multiple ? 'checkbox' : 'radio' }}"
                    name="{{ $inputName }}"
                    value="{{ $t->id }}"

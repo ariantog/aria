@@ -498,6 +498,22 @@ test('asset edit form shows the bare product title not the unique group name', f
         'variant' => 'BLACKWHITE',
         'name' => 'ELBOW STRAP - BLACKWHITE (ELBOWSUPPORT-02)',
     ]);
+    $typeTag = \App\Models\Tag::factory()->create([
+        'type' => \App\Models\Tag::TYPE_TYPE,
+        'item_type' => \App\Enums\ItemType::ASSET_LANCAR->value,
+        'code' => 'ELBOW',
+        'name' => 'Elbow',
+    ]);
+    $warnaTag = \App\Models\Tag::factory()->create([
+        'type' => \App\Models\Tag::TYPE_WARNA,
+        'code' => 'BLACKWHITE',
+        'name' => 'BLACKWHITE',
+    ]);
+    $sizeTag = \App\Models\Tag::factory()->create([
+        'type' => \App\Models\Tag::TYPE_SIZE,
+        'code' => 'AS',
+        'name' => 'All Size',
+    ]);
     $item = Item::factory()->create([
         'type' => \App\Enums\ItemType::ASSET_LANCAR,
         'group_id' => $group->id,
@@ -505,6 +521,7 @@ test('asset edit form shows the bare product title not the unique group name', f
         'code' => 'ELBOWSUPPORT-02-BLACKWHITE',
         'name' => 'ELBOW STRAP - BLACKWHITE',
     ]);
+    $item->tags()->attach([$typeTag->id, $warnaTag->id, $sizeTag->id]);
 
     $this->actingAs($this->user)
         ->get(route('assetlancar.edit', $item))
@@ -515,6 +532,8 @@ test('asset edit form shows the bare product title not the unique group name', f
         ->assertSee('data-testid="tag-picker-type"', false)
         ->assertSee('data-testid="tag-filter-size"', false)
         ->assertSee('data-testid="tag-picker-size"', false)
+        ->assertSee('data-tag-selected="1"', false)
+        ->assertSee('checked', false)
         ->assertSee('value="ELBOW STRAP"', false)
         ->assertDontSee('ELBOW STRAP - BLACKWHITE (ELBOWSUPPORT-02) - BLACKWHITE', false);
 });
