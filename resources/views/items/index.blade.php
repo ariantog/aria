@@ -72,31 +72,31 @@ $columnsStorageKey = $isAsset ? 'aria-assetlancar-index-columns' : 'aria-items-i
     {{-- Table --}}
     <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
         <div class="overflow-x-auto">
-        <table class="w-full min-w-[1180px] text-left text-sm">
-            <thead class="border-b border-gray-200 bg-gray-50 text-[10px] uppercase tracking-wider text-gray-500">
+        <table class="w-full min-w-[980px] text-sm">
+            <thead class="border-b border-gray-200 bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
                 <tr>
-                    <th class="w-16 px-2 py-2.5 font-bold" x-show="showImage">Image</th>
-                    <th class="w-16 px-2 py-2.5 font-bold">Barcode</th>
-                    <th class="whitespace-nowrap px-2 py-2.5 font-bold">Code</th>
-                    <th class="min-w-[8rem] px-2 py-2.5 font-bold">Group</th>
-                    <th class="min-w-[16rem] px-2 py-2.5 font-bold" x-show="showName">Name</th>
-                    <th class="min-w-[8rem] px-2 py-2.5 font-bold" x-show="showDesc">Desc</th>
-                    <th class="w-28 px-2 py-2.5 text-right font-bold">Price</th>
+                    <th class="px-3 py-2.5 text-left font-medium" x-show="showImage">Image</th>
+                    <th class="px-3 py-2.5 text-left font-medium">Barcode</th>
+                    <th class="px-3 py-2.5 text-left font-medium">Code</th>
+                    <th class="px-3 py-2.5 text-left font-medium">Group</th>
+                    <th class="px-3 py-2.5 text-left font-medium" x-show="showName">Name</th>
+                    <th class="px-3 py-2.5 text-left font-medium" x-show="showDesc">Desc</th>
+                    <th class="px-3 py-2.5 text-right font-medium">Price</th>
                     @if($isAsset)
-                    <th class="min-w-[8rem] px-2 py-2.5 font-bold" x-show="showNb">NB</th>
+                    <th class="px-3 py-2.5 text-left font-medium" x-show="showNb">NB</th>
                     @else
-                    <th class="min-w-[8rem] px-2 py-2.5 font-bold">NB</th>
+                    <th class="px-3 py-2.5 text-left font-medium">NB</th>
                     @endif
-                    <th class="w-16 px-2 py-2.5 text-right font-bold">Qty</th>
-                    <th class="w-20 px-2 py-2.5 font-bold">Jubelio</th>
-                    <th class="w-12 px-2 py-2.5 text-center font-bold"></th>
+                    <th class="px-3 py-2.5 text-right font-medium">Qty</th>
+                    <th class="px-3 py-2.5 text-left font-medium">Jubelio</th>
+                    <th class="w-12 px-3 py-2.5 text-center font-medium"></th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-gray-100">
                 @forelse($items as $item)
                     @php $groupUrl = $item->groupParentUrl(); @endphp
                     <tr class="align-middle hover:bg-gray-50">
-                        <td class="px-2 py-2" x-show="showImage">
+                        <td class="px-3 py-2.5" x-show="showImage">
                             @if($item->image_url)
                                 <img src="{{ $item->image_url }}" class="h-10 w-10 rounded-md border border-gray-200 object-cover">
                             @else
@@ -105,34 +105,42 @@ $columnsStorageKey = $isAsset ? 'aria-assetlancar-index-columns' : 'aria-items-i
                                 </div>
                             @endif
                         </td>
-                        <td class="px-2 py-2">
+                        <td class="whitespace-nowrap px-3 py-2.5">
                             <a href="{{ $baseUrl }}/{{ $item->id }}" class="font-medium text-blue-600 hover:underline">{{ $item->id }}</a>
                         </td>
-                        <td class="whitespace-nowrap px-2 py-2 font-mono text-xs text-gray-800" data-testid="item-list-code-{{ $item->id }}">{{ $item->code ?: '-' }}</td>
-                        <td class="whitespace-nowrap px-2 py-2" data-testid="item-list-group-{{ $item->id }}">
+                        <td class="whitespace-nowrap px-3 py-2.5 font-mono text-xs text-gray-800" data-testid="item-list-code-{{ $item->id }}">{{ $item->code ?: '-' }}</td>
+                        <td class="max-w-[160px] px-3 py-2.5" data-testid="item-list-group-{{ $item->id }}">
                             @if($groupUrl)
-                                <a href="{{ $groupUrl }}" class="font-mono text-xs text-blue-600 hover:underline">{{ $item->group?->name ?: '-' }}</a>
+                                <a href="{{ $groupUrl }}" class="block truncate font-mono text-xs text-blue-600 hover:underline" title="{{ $item->group?->name ?: '-' }}">{{ $item->group?->name ?: '-' }}</a>
                             @else
                                 <span class="text-xs text-gray-400">—</span>
                             @endif
                         </td>
-                        <td class="px-2 py-2 text-gray-800" data-testid="item-list-name-{{ $item->id }}" x-show="showName">{{ $item->name ?: '-' }}</td>
-                        <td class="max-w-[14rem] px-2 py-2 text-gray-700" data-testid="item-list-desc-{{ $item->id }}" title="{{ $item->catalogDescription() }}" x-show="showDesc">{{ $item->catalogDescription() ?: '-' }}</td>
-                        <td class="whitespace-nowrap px-2 py-2 text-right font-bold tabular-nums text-gray-800">{{ $idr($item->price) }}</td>
+                        <td class="max-w-[220px] px-3 py-2.5 text-gray-800" data-testid="item-list-name-{{ $item->id }}" x-show="showName">
+                            <div class="truncate" title="{{ $item->name ?: '-' }}">{{ $item->name ?: '-' }}</div>
+                        </td>
+                        <td class="max-w-[200px] px-3 py-2.5 text-gray-700" data-testid="item-list-desc-{{ $item->id }}" x-show="showDesc">
+                            <div class="truncate" title="{{ $item->catalogDescription() }}">{{ $item->catalogDescription() ?: '-' }}</div>
+                        </td>
+                        <td class="whitespace-nowrap px-3 py-2.5 text-right font-semibold tabular-nums text-gray-800">{{ $idr($item->price) }}</td>
                         @if($isAsset)
-                        <td class="max-w-[14rem] px-2 py-2 text-gray-500" title="{{ $item->catalogDescription2() }}" x-show="showNb">{{ $item->catalogDescription2() ?: '--' }}</td>
+                        <td class="max-w-[200px] px-3 py-2.5 text-gray-500" x-show="showNb">
+                            <div class="truncate" title="{{ $item->catalogDescription2() }}">{{ $item->catalogDescription2() ?: '--' }}</div>
+                        </td>
                         @else
-                        <td class="max-w-[14rem] px-2 py-2 text-gray-500" title="{{ $item->catalogDescription2() }}">{{ $item->catalogDescription2() ?: '--' }}</td>
+                        <td class="max-w-[200px] px-3 py-2.5 text-gray-500">
+                            <div class="truncate" title="{{ $item->catalogDescription2() }}">{{ $item->catalogDescription2() ?: '--' }}</div>
+                        </td>
                         @endif
-                        <td class="whitespace-nowrap px-2 py-2 text-right font-bold tabular-nums text-emerald-600">{{ format_amount((float) ($item->active_qty ?? 0), 0) }}</td>
-                        <td class="px-2 py-2">
+                        <td class="whitespace-nowrap px-3 py-2.5 text-right font-semibold tabular-nums text-emerald-600">{{ format_amount((float) ($item->active_qty ?? 0), 0) }}</td>
+                        <td class="whitespace-nowrap px-3 py-2.5">
                             @if($item->jubelio_item_id)
                                 <span class="inline-flex rounded-full border border-blue-200 bg-blue-100 px-2 py-0.5 text-[10px] text-blue-700">{{ $item->jubelio_item_id }}</span>
                             @else
                                 <span class="text-[10px] text-gray-400">no sync</span>
                             @endif
                         </td>
-                        <td class="px-2 py-2 text-center">
+                        <td class="px-3 py-2.5 text-center">
                             <a href="{{ $baseUrl }}/{{ $item->id }}/edit" class="inline-flex h-8 w-8 items-center justify-center rounded text-gray-500 hover:bg-gray-100 hover:text-blue-600">
                                 <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                             </a>

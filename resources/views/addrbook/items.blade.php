@@ -165,49 +165,33 @@ $jubelioQtyCell = function (?array $jubelio, string $field, bool $highlightMisma
              x-ref="scrollBody"
              @scroll="syncHorizontalScroll('body')"
              data-testid="warehouse-items-scroll-body">
-        <table x-ref="itemsTable" class="w-full min-w-[960px] table-fixed text-left text-sm">
-            <colgroup>
-                <col x-show="showId" class="w-12">
-                <col x-show="showImage" class="w-12">
-                <col x-show="showName" class="w-[11rem]">
-                <col class="w-[8rem]">
-                <col x-show="showDescription" class="w-[9rem]">
-                <col class="w-[5.5rem]">
-                <col class="w-[4rem]">
-                @if($hasJubelio)
-                    <col class="w-[4rem]">
-                    <col class="w-[4rem]">
-                    <col class="w-[4rem]">
-                    <col class="w-[4.5rem]">
-                @endif
-                <col class="w-10">
-            </colgroup>
-            <thead class="sticky top-0 z-[1] border-b border-gray-200 bg-gray-50 text-[10px] uppercase tracking-wide text-gray-500">
+        <table x-ref="itemsTable" class="w-full min-w-[960px] text-sm">
+            <thead class="sticky top-0 z-[1] border-b border-gray-200 bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
                 <tr>
-                    <th class="px-1.5 py-2 font-bold" data-copy-col="id" x-show="showId">
+                    <th class="px-3 py-2.5 text-left font-medium" data-copy-col="id" x-show="showId">
                         <a href="{{ $sortLink('id') }}" class="inline-flex items-center gap-0.5 hover:text-gray-900">ID @if($sortColumn === 'id')<span class="text-blue-600">{{ $sortDirection === 'asc' ? '↑' : '↓' }}</span>@endif</a>
                     </th>
-                    <th class="px-1.5 py-2 font-bold" data-copy-col="image" x-show="showImage">Img</th>
-                    <th class="px-1.5 py-2 font-bold" data-copy-col="name" x-show="showName">
+                    <th class="px-3 py-2.5 text-left font-medium" data-copy-col="image" x-show="showImage">Img</th>
+                    <th class="px-3 py-2.5 text-left font-medium" data-copy-col="name" x-show="showName">
                         <a href="{{ $sortLink('name') }}" class="inline-flex items-center gap-0.5 hover:text-gray-900">Name @if($sortColumn === 'name')<span class="text-blue-600">{{ $sortDirection === 'asc' ? '↑' : '↓' }}</span>@endif</a>
                     </th>
-                    <th class="px-1.5 py-2 font-bold" data-copy-col="code">
+                    <th class="px-3 py-2.5 text-left font-medium" data-copy-col="code">
                         <a href="{{ $sortLink('code') }}" class="inline-flex items-center gap-0.5 hover:text-gray-900">Code @if($sortColumn === 'code')<span class="text-blue-600">{{ $sortDirection === 'asc' ? '↑' : '↓' }}</span>@endif</a>
                     </th>
-                    <th class="px-1.5 py-2 font-bold" data-copy-col="description" x-show="showDescription">Desc</th>
-                    <th class="px-1.5 py-2 text-right font-bold" data-copy-col="price">
+                    <th class="px-3 py-2.5 text-left font-medium" data-copy-col="description" x-show="showDescription">Desc</th>
+                    <th class="px-3 py-2.5 text-right font-medium" data-copy-col="price">
                         <a href="{{ $sortLink('price') }}" class="inline-flex items-center justify-end gap-0.5 hover:text-gray-900">Price @if($sortColumn === 'price')<span class="text-blue-600">{{ $sortDirection === 'asc' ? '↑' : '↓' }}</span>@endif</a>
                     </th>
-                    <th class="px-1.5 py-2 text-right font-bold" data-copy-col="qty">
+                    <th class="px-3 py-2.5 text-right font-medium" data-copy-col="qty">
                         <a href="{{ $sortLink('qty') }}" class="inline-flex items-center justify-end gap-0.5 hover:text-gray-900">Stock @if($sortColumn === 'qty')<span class="text-blue-600">{{ $sortDirection === 'asc' ? '↑' : '↓' }}</span>@endif</a>
                     </th>
                     @if($hasJubelio)
-                        <th class="px-1.5 py-2 text-right font-bold" data-copy-col="jb_on_hand" title="Jubelio on hand">On hand</th>
-                        <th class="px-1.5 py-2 text-right font-bold" data-copy-col="jb_on_order" title="Jubelio on order">On order</th>
-                        <th class="px-1.5 py-2 text-right font-bold" data-copy-col="jb_reserved" title="Jubelio reserved">Rsv</th>
-                        <th class="px-1.5 py-2 text-right font-bold" data-copy-col="jb_available" title="Jubelio available">Avail</th>
+                        <th class="px-3 py-2.5 text-right font-medium" data-copy-col="jb_on_hand" title="Jubelio on hand">On hand</th>
+                        <th class="px-3 py-2.5 text-right font-medium" data-copy-col="jb_on_order" title="Jubelio on order">On order</th>
+                        <th class="px-3 py-2.5 text-right font-medium" data-copy-col="jb_reserved" title="Jubelio reserved">Rsv</th>
+                        <th class="px-3 py-2.5 text-right font-medium" data-copy-col="jb_available" title="Jubelio available">Avail</th>
                     @endif
-                    <th class="px-1.5 py-2 text-center font-bold"></th>
+                    <th class="w-12 px-3 py-2.5 text-center font-medium"></th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-gray-100">
@@ -224,40 +208,42 @@ $jubelioQtyCell = function (?array $jubelio, string $field, bool $highlightMisma
                         $jubelioLinked = $jubelio && ($jubelio['linked'] ?? false);
                     @endphp
                     <tr class="cursor-pointer align-top hover:bg-gray-50" onclick="window.location='{{ $itemShowUrl }}'">
-                        <td class="truncate px-1.5 py-1.5 font-mono text-xs" data-copy-col="id" x-show="showId">
+                        <td class="whitespace-nowrap px-3 py-2.5 font-mono text-xs" data-copy-col="id" x-show="showId">
                             <a href="{{ $itemShowUrl }}" onclick="event.stopPropagation()" class="text-blue-600 hover:underline">{{ $item->id }}</a>
                         </td>
-                        <td class="px-1.5 py-1.5" data-copy-col="image" x-show="showImage">
+                        <td class="px-3 py-2.5" data-copy-col="image" x-show="showImage">
                             <img src="{{ $item->image_url ?: '/images/default-item.png' }}" alt="{{ $item->name }}" onerror="this.src='/images/default-item.png'" class="h-8 w-8 rounded border border-gray-200 object-cover">
                         </td>
-                        <td class="truncate px-1.5 py-1.5" data-copy-col="name" x-show="showName">
+                        <td class="max-w-[220px] px-3 py-2.5" data-copy-col="name" x-show="showName">
                             <a href="{{ $itemShowUrl }}" onclick="event.stopPropagation()" class="block truncate font-medium text-gray-800 hover:text-blue-600" title="{{ $normalName }}">
                                 <span x-show="!onlineName">{{ $normalName }}</span>
                                 <span x-show="onlineName" x-cloak>{{ $onlineNm }}</span>
                             </a>
                             <div class="truncate font-mono text-[10px] text-gray-400" title="{{ $item->name }}">{{ $item->name }}</div>
                         </td>
-                        <td class="truncate px-1.5 py-1.5 font-mono text-xs" data-copy-col="code">
+                        <td class="whitespace-nowrap px-3 py-2.5 font-mono text-xs" data-copy-col="code">
                             <a href="{{ $itemShowUrl }}" onclick="event.stopPropagation()" class="text-blue-600 hover:underline" title="{{ $item->code }}">{{ $item->code }}</a>
                         </td>
-                        <td class="truncate px-1.5 py-1.5 text-xs text-gray-500" data-copy-col="description" x-show="showDescription" title="{{ $desc }}">{{ $desc }}</td>
-                        <td class="truncate px-1.5 py-1.5 text-right text-xs font-semibold tabular-nums text-gray-700" data-copy-col="price" data-copy-value="{{ format_copy_number($item->price) }}">{{ $idr($item->price) }}</td>
-                        <td class="whitespace-nowrap px-1.5 py-1.5 text-right font-mono text-xs font-bold tabular-nums {{ $qty > 0 ? 'text-emerald-600' : 'text-gray-400' }}" data-copy-col="qty" data-copy-value="{{ format_copy_number($qty) }}">{{ format_amount($qty, 0) }}</td>
+                        <td class="max-w-[200px] px-3 py-2.5 text-xs text-gray-500" data-copy-col="description" x-show="showDescription">
+                            <div class="truncate" title="{{ $desc }}">{{ $desc }}</div>
+                        </td>
+                        <td class="whitespace-nowrap px-3 py-2.5 text-right text-xs font-semibold tabular-nums text-gray-700" data-copy-col="price" data-copy-value="{{ format_copy_number($item->price) }}">{{ $idr($item->price) }}</td>
+                        <td class="whitespace-nowrap px-3 py-2.5 text-right font-mono text-xs font-bold tabular-nums {{ $qty > 0 ? 'text-emerald-600' : 'text-gray-400' }}" data-copy-col="qty" data-copy-value="{{ format_copy_number($qty) }}">{{ format_amount($qty, 0) }}</td>
                         @if($hasJubelio)
                             @if(! $jubelioLinked)
-                                <td colspan="4" class="px-1.5 py-1.5 text-right" data-copy-col="jb_on_hand">
+                                <td colspan="4" class="px-3 py-2.5 text-right" data-copy-col="jb_on_hand">
                                     <span class="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700" title="Item is not linked to Jubelio">
                                         Not linked
                                     </span>
                                 </td>
                             @else
-                                <td class="whitespace-nowrap px-1.5 py-1.5 text-right text-xs" data-copy-col="jb_on_hand" @if($jubelio['on_hand'] !== null) data-copy-value="{{ format_copy_number($jubelio['on_hand']) }}" @endif>{!! $jubelioQtyCell($jubelio, 'on_hand') !!}</td>
-                                <td class="whitespace-nowrap px-1.5 py-1.5 text-right text-xs" data-copy-col="jb_on_order" @if($jubelio['on_order'] !== null) data-copy-value="{{ format_copy_number($jubelio['on_order']) }}" @endif>{!! $jubelioQtyCell($jubelio, 'on_order') !!}</td>
-                                <td class="whitespace-nowrap px-1.5 py-1.5 text-right text-xs" data-copy-col="jb_reserved" @if($jubelio['reserved'] !== null) data-copy-value="{{ format_copy_number($jubelio['reserved']) }}" @endif>{!! $jubelioQtyCell($jubelio, 'reserved') !!}</td>
-                                <td class="whitespace-nowrap px-1.5 py-1.5 text-right text-xs" data-copy-col="jb_available" @if($jubelio['available'] !== null) data-copy-value="{{ format_copy_number($jubelio['available']) }}" @endif>{!! $jubelioQtyCell($jubelio, 'available', true) !!}</td>
+                                <td class="whitespace-nowrap px-3 py-2.5 text-right text-xs" data-copy-col="jb_on_hand" @if($jubelio['on_hand'] !== null) data-copy-value="{{ format_copy_number($jubelio['on_hand']) }}" @endif>{!! $jubelioQtyCell($jubelio, 'on_hand') !!}</td>
+                                <td class="whitespace-nowrap px-3 py-2.5 text-right text-xs" data-copy-col="jb_on_order" @if($jubelio['on_order'] !== null) data-copy-value="{{ format_copy_number($jubelio['on_order']) }}" @endif>{!! $jubelioQtyCell($jubelio, 'on_order') !!}</td>
+                                <td class="whitespace-nowrap px-3 py-2.5 text-right text-xs" data-copy-col="jb_reserved" @if($jubelio['reserved'] !== null) data-copy-value="{{ format_copy_number($jubelio['reserved']) }}" @endif>{!! $jubelioQtyCell($jubelio, 'reserved') !!}</td>
+                                <td class="whitespace-nowrap px-3 py-2.5 text-right text-xs" data-copy-col="jb_available" @if($jubelio['available'] !== null) data-copy-value="{{ format_copy_number($jubelio['available']) }}" @endif>{!! $jubelioQtyCell($jubelio, 'available', true) !!}</td>
                             @endif
                         @endif
-                        <td class="px-1.5 py-1.5 text-center">
+                        <td class="px-3 py-2.5 text-center">
                             <a href="{{ $itemEditUrl }}" onclick="event.stopPropagation()" class="inline-flex h-7 w-7 items-center justify-center rounded text-gray-500 hover:bg-blue-50 hover:text-blue-600">
                                 <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                             </a>
