@@ -25,6 +25,9 @@ use Illuminate\Database\Migrations\Migration;
  * 14. `2026_09_01_210000_install_jubelio_stock_check_columns` — sync_cursor + discrepancy qty columns
  * 15. `2026_09_02_120000_make_produksi_worker_ids_nullable` — jahit/qc/pritil NULL default
  * 16. `2026_09_02_210000_add_last_error_to_crongetorders_and_resume_stuck_imports` — get-orders resume
+ * 17. `2026_09_01_100000_add_soft_deletes_to_checklist_templates` — catalog_key / route_query / soft deletes
+ * 18. `2026_09_03_130000_add_brand_and_genre_to_item_group_table` — item_group.brand / genre
+ * 19. `2026_09_03_150000_widen_item_group_name_drop_unique` — item_group.name VARCHAR(255)
  *
  * Safe to run on a fresh prod copy in one step:
  *
@@ -69,6 +72,7 @@ return new class extends Migration
         (require __DIR__.'/2026_08_29_100000_install_depreciation_register.php')->up();
         (require __DIR__.'/2026_08_31_100000_install_inventory_health_snapshots_table.php')->up();
         (require __DIR__.'/2026_08_31_120000_install_staff_role_checklists.php')->up();
+        (require __DIR__.'/2026_09_01_100000_add_soft_deletes_to_checklist_templates.php')->up();
         (require __DIR__.'/2026_09_01_150000_add_nama_absensi_to_karyawans_table.php')->up();
         (require __DIR__.'/2026_09_01_150100_add_izin_to_cutis_table.php')->up();
         (require __DIR__.'/2026_09_01_160000_add_absen_id_and_jam_kerja_to_karyawans_table.php')->up();
@@ -79,6 +83,7 @@ return new class extends Migration
         (require __DIR__.'/2026_09_01_210000_install_jubelio_stock_check_columns.php')->up();
         (require __DIR__.'/2026_09_02_120000_make_produksi_worker_ids_nullable.php')->up();
         (require __DIR__.'/2026_09_02_210000_add_last_error_to_crongetorders_and_resume_stuck_imports.php')->up();
+        (require __DIR__.'/2026_09_03_130000_add_brand_and_genre_to_item_group_table.php')->up();
         (require __DIR__.'/2026_09_03_150000_widen_item_group_name_drop_unique.php')->up();
     }
 

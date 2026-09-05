@@ -115,6 +115,7 @@ it('runs the main new-domain seeder on an empty database', function () {
         ->and(Setting::query()->where('slug', 'si_gap_weight')->exists())->toBeTrue()
         ->and((int) Setting::getValue('restock.default_receiver_id'))->toBe($gudang->id)
         ->and((int) Setting::getValue('restock.default_supplier_id'))->toBe($supplier->id)
+        ->and(Setting::getValue('restock.default_warehouse_ids'))->toBe([$gudang->id])
         ->and((int) Setting::getValue('produksi.default_warehouse_id'))->toBe($gudang->id)
         ->and((int) Setting::getValue('asset_tetap.depreciation_expense_account_id'))->toBe($perawatan->id);
 });
@@ -136,6 +137,14 @@ it('wires typical ledgers into DatabaseSeeder for new domains', function () {
         ->and($source)->toContain('AddrbookPlaceholderSeeder::class')
         ->and($source)->toContain('NewDomainSettingsSeeder::class')
         ->and($source)->toContain('NewDomainInstall::allowsBaselineSeed()');
+});
+
+it('includes post-merge item_group and checklist schema in production bootstrap', function () {
+    $source = file_get_contents(base_path('database/migrations/2026_08_13_100000_production_database_bootstrap.php'));
+
+    expect($source)->toContain('2026_09_01_100000_add_soft_deletes_to_checklist_templates.php')
+        ->and($source)->toContain('2026_09_03_130000_add_brand_and_genre_to_item_group_table.php')
+        ->and($source)->toContain('2026_09_03_150000_widen_item_group_name_drop_unique.php');
 });
 
 it('signs demo transaction totals and runs after the new-domain baseline', function () {
