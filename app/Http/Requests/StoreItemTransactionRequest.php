@@ -29,6 +29,7 @@ class StoreItemTransactionRequest extends FormRequest
             'items.*.note' => ['nullable', 'string', 'max:1000'],
             'discount_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'adjustment' => ['nullable', 'numeric'],
+            'ppn_included' => ['sometimes', 'boolean'],
             'create_cash_in' => ['sometimes', 'boolean'],
             'cash_in_amount' => [$creatingCashIn ? 'required' : 'nullable', 'numeric', 'min:0.01'],
             'cash_in_account_id' => [$creatingCashIn ? 'required' : 'nullable', 'integer', 'exists:customers,id'],

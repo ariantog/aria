@@ -92,6 +92,22 @@ class UserPreferenceService
         $this->set($user, UserPreferenceRegistry::FONT_SIZE_SLUG, $fontSize);
     }
 
+    public function ppnIncludedDefaultFor(User $user): bool
+    {
+        $value = $this->get($user, UserPreferenceRegistry::PPN_INCLUDED_SLUG);
+
+        if ($value === null) {
+            return true;
+        }
+
+        return filter_var($value, FILTER_VALIDATE_BOOLEAN);
+    }
+
+    public function setPpnIncludedDefault(User $user, bool $included): void
+    {
+        $this->set($user, UserPreferenceRegistry::PPN_INCLUDED_SLUG, $included ? '1' : '0');
+    }
+
     /**
      * @return array<string, mixed>
      */

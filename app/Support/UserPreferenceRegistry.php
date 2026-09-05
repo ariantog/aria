@@ -15,6 +15,8 @@ class UserPreferenceRegistry
 
     public const FAVORITES_MAX = 5;
 
+    public const PPN_INCLUDED_SLUG = 'transactions.default_ppn_included';
+
     /**
      * @return list<string>
      */
