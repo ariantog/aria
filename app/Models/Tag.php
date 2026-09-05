@@ -368,13 +368,15 @@ class Tag extends Model
     }
 
     /**
-     * Warna tags use code identical to name (uppercase) for universal SKU generation.
+     * Warna tags store a display name and a separate SKU code (both uppercase).
+     * When code is omitted, default it from the name.
      */
     public static function normalizeWarnaAttributes(array $attributes): array
     {
         if ((int) ($attributes['type'] ?? 0) === self::TYPE_WARNA) {
-            $attributes['name'] = strtoupper(trim($attributes['name']));
-            $attributes['code'] = $attributes['name'];
+            $attributes['name'] = strtoupper(trim((string) ($attributes['name'] ?? '')));
+            $code = strtoupper(trim((string) ($attributes['code'] ?? '')));
+            $attributes['code'] = $code !== '' ? $code : $attributes['name'];
         }
 
         return $attributes;
@@ -409,8 +411,9 @@ class Tag extends Model
     {
         static::saving(function (Tag $tag) {
             if ((int) $tag->type === self::TYPE_WARNA) {
-                $tag->name = strtoupper(trim($tag->name));
-                $tag->code = $tag->name;
+                $tag->name = strtoupper(trim((string) $tag->name));
+                $code = strtoupper(trim((string) $tag->code));
+                $tag->code = $code !== '' ? $code : $tag->name;
             }
         });
 

@@ -76,6 +76,26 @@ it('can update tag', function () {
     ]);
 });
 
+it('persists warna tag code edits independently from name', function () {
+    $tag = Tag::create([
+        'name' => 'BLACK WHITE',
+        'code' => 'BLACK WHITE',
+        'type' => Tag::TYPE_WARNA,
+        'item_type' => 0,
+    ]);
+
+    $this->actingAs($this->user)->put("/tags/{$tag->id}", [
+        'name' => 'BLACK WHITE',
+        'code' => 'BLACKWHITE',
+        'type' => Tag::TYPE_WARNA,
+        'item_type' => 0,
+    ])->assertSessionHasNoErrors();
+
+    expect($tag->fresh())
+        ->name->toBe('BLACK WHITE')
+        ->code->toBe('BLACKWHITE');
+});
+
 it('can delete tag', function () {
     $tag = Tag::create([
         'name' => 'To Delete',
