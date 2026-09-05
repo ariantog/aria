@@ -135,6 +135,16 @@ $selectedWarehouseIds = old('warehouse_ids', is_array($setting->value) ? $settin
                            class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500">
                     @error('value')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
                 </div>
+            @elseif($type === 'boolean')
+                <div>
+                    <label for="setting-boolean-value" class="mb-1 block text-sm font-medium text-gray-700">Value</label>
+                    <select id="setting-boolean-value" name="value"
+                            class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500">
+                        <option value="1" @selected(filter_var($currentValue, FILTER_VALIDATE_BOOLEAN))>Included — prices include PPN</option>
+                        <option value="0" @selected(! filter_var($currentValue, FILTER_VALIDATE_BOOLEAN))>Excluded — PPN added on top</option>
+                    </select>
+                    @error('value')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
+                </div>
             @else
                 <div>
                     <label class="mb-1 block text-sm font-medium text-gray-700">Value</label>

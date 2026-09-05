@@ -44,6 +44,13 @@ class SettingRegistry
                 'default' => '11',
                 'hint' => 'VAT percentage applied to taxable transaction lines.',
             ],
+            'transactions.default_ppn_included' => [
+                'group' => 'Accounting',
+                'name' => 'Default PPN Mode',
+                'type' => 'boolean',
+                'default' => true,
+                'hint' => 'When a taxable counterparty has no PPN pricing preference, new Buy / Sell / Return / Return Supplier forms start with prices included or excluded.',
+            ],
             'batas_cuti_tahunan' => [
                 'group' => 'HR',
                 'name' => 'Batas Cuti Tahunan',

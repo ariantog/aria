@@ -55,7 +55,9 @@ class Addrbook extends Model
 
     public static function defaultPpnIncluded(): bool
     {
-        return true;
+        $value = Setting::getValue('transactions.default_ppn_included', true);
+
+        return filter_var($value, FILTER_VALIDATE_BOOLEAN);
     }
 
     public function resolvedPpnIncluded(): bool

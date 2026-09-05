@@ -14,6 +14,7 @@ use App\Http\Requests\StoreSellCashInRequest;
 use App\Http\Requests\StoreTransferRequest;
 use App\Models\DeletedTransaction;
 use App\Models\DeletedTransactionDetail;
+use App\Models\Addrbook;
 use App\Models\Transaction;
 use App\Services\BookClosingService;
 use App\Services\Jubelio\JubelioTransactionSyncPresenter;
@@ -110,6 +111,7 @@ class TransactionsController extends Controller
             'prefill' => $this->resolveCreatePrefill($type, $request, $draftService, $userPreferences),
             'jubelio_sync' => $jubelioSyncPresenter->createFormSyncConfig(),
             'sellCashIn' => $type === 'sell' ? app(SellCashInPresenter::class)->formData(Auth::user()) : null,
+            'ppn_included_system_default' => Addrbook::defaultPpnIncluded(),
         ]);
     }
 

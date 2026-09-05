@@ -179,6 +179,7 @@ class SettingController extends Controller
         return match ($type) {
             'addrbook_supplier', 'addrbook_warehouse', 'account' => Addrbook::find((int) $value)?->name ?? (string) $value,
             'warehouse_ids' => $this->formatWarehouseIdsDisplay(is_array($value) ? $value : []),
+            'boolean' => filter_var($value, FILTER_VALIDATE_BOOLEAN) ? 'Included' : 'Excluded',
             default => is_array($value) || is_object($value)
                 ? json_encode($value)
                 : (string) $value,
@@ -237,6 +238,7 @@ class SettingController extends Controller
             'addrbook_supplier' => $this->normalizeAddrbookId($request->input('value'), AddrbookType::Supplier),
             'addrbook_warehouse' => $this->normalizeAddrbookId($request->input('value'), AddrbookType::Warehouse),
             'account' => $this->normalizeAddrbookId($request->input('value'), AddrbookType::Account),
+            'boolean' => filter_var($request->input('value'), FILTER_VALIDATE_BOOLEAN),
             'number' => $request->input('value'),
             default => $request->input('value'),
         };
