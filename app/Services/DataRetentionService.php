@@ -716,6 +716,50 @@ class DataRetentionService
     }
 
     /**
+     * @return list<int>
+     */
+    public function deletableAddrbookIdsOnPage(int $type, int $page, int $perPage = 50): array
+    {
+        if ($page < 1) {
+            return [];
+        }
+
+        return $this->deletableAddrbooksQuery($type)
+            ->orderBy('customers.name')
+            ->orderBy('customers.id')
+            ->forPage($page, $perPage)
+            ->pluck('customers.id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+    }
+
+    /**
+     * Delete only unchecked rows on one paginated page. Page membership is resolved
+     * server-side; client-submitted ids cannot purge rows from other pages.
+     *
+     * @param  list<int>  $keepIds
+     */
+    public function purgeDeletableAddrbooksOnPage(
+        int $type,
+        int $page,
+        array $keepIds = [],
+        int $perPage = 50,
+    ): int {
+        $allowedPageIds = $this->deletableAddrbookIdsOnPage($type, $page, $perPage);
+        $keepIds = array_values(array_intersect(
+            array_values(array_unique(array_map('intval', $keepIds))),
+            $allowedPageIds,
+        ));
+        $purgeIds = array_values(array_diff($allowedPageIds, $keepIds));
+
+        if ($purgeIds === []) {
+            return 0;
+        }
+
+        return $this->purgeDeletableAddrbooksByIds($type, $purgeIds);
+    }
+
+    /**
      * @param  list<int>  $ids
      */
     public function purgeDeletableAddrbooksByIds(int $type, array $ids): int
