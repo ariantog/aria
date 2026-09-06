@@ -111,6 +111,21 @@ it('lists deletable addrbooks by type', function () {
         ->assertDontSee('Used Ledger');
 });
 
+it('shows an inline delete panel when a list row is selected', function () {
+    $addrbook = Addrbook::factory()->account()->create(['name' => 'Pick Me Ledger']);
+
+    $this->actingAs($this->superadmin)
+        ->get(route('data-retention.addrbook-purge.index', [
+            'type' => Addrbook::TYPE_ACCOUNT,
+            'addrbook_id' => $addrbook->id,
+        ]))
+        ->assertSuccessful()
+        ->assertSee('Pick Me Ledger')
+        ->assertSee('Selected addrbook')
+        ->assertSee('data-testid="addrbook-purge-form"', false)
+        ->assertSee('View addrbook →');
+});
+
 it('bulk deletes selected addrbooks on the current page', function () {
     $first = Addrbook::factory()->warehouse()->create(['name' => 'Empty Warehouse A']);
     $second = Addrbook::factory()->warehouse()->create(['name' => 'Empty Warehouse B']);
