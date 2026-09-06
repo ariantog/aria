@@ -661,10 +661,8 @@ class DataRetentionService
         }
 
         return $this->live()->table('transactions')
-            ->where(function ($query) use ($id) {
-                $query->where('sender_id', $id)
-                    ->orWhere('receiver_id', $id);
-            })
+            ->where('sender_id', $id)
+            ->orWhere('receiver_id', $id)
             ->exists();
     }
 
@@ -1210,17 +1208,18 @@ class DataRetentionService
             ->where('customers.type', $type);
 
         if (Schema::hasTable('transactions')) {
-            $query->whereNotExists(function ($subquery) {
-                $subquery->select(DB::raw(1))
-                    ->from('transactions')
-                    ->where(function ($partyQuery) {
-                        $partyQuery->whereColumn('transactions.sender_id', 'customers.id')
-                            ->orWhereColumn('transactions.receiver_id', 'customers.id');
-                    });
-            });
+            $query->whereNotIn('customers.id', $this->transactionPartyIdsSubquery());
         }
 
         return $query;
+    }
+
+    protected function transactionPartyIdsSubquery(): \Illuminate\Database\Query\Builder
+    {
+        $senderIds = $this->live()->table('transactions')->select('sender_id');
+        $receiverIds = $this->live()->table('transactions')->select('receiver_id');
+
+        return $senderIds->union($receiverIds);
     }
 
     /**

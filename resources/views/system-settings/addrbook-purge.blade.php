@@ -114,7 +114,7 @@ $pageAddrbookCount = $list ? $list->count() : 0;
                 <p class="text-xs text-gray-500">Only rows with no transactions are listed.</p>
             </div>
             <div class="text-sm text-gray-500">
-                <span>{{ number_format($totalCandidates) }} eligible total</span>
+                <span>{{ number_format($list->total()) }} eligible total</span>
                 <span class="mx-1">·</span>
                 <span>page {{ $list->currentPage() }} of {{ max(1, $list->lastPage()) }}</span>
                 <span class="mx-1">·</span>
