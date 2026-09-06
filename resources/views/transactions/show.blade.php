@@ -483,13 +483,25 @@
                             </div>
                         </td>
                         <td class="whitespace-nowrap px-3 py-2.5 align-middle font-mono text-xs" data-copy-col="barcode" data-sort-value="{{ $item?->id ?? 0 }}" x-show="showBarcode">
-                            <a href="{{ $item ? route('items.show', $item->id) : '#' }}" class="text-blue-600 hover:underline">{{ $item?->id }}</a>
+                            @if($item)
+                                <a href="{{ $item->showUrl() }}" class="text-blue-600 hover:underline">{{ $item->id }}</a>
+                            @else
+                                <span class="text-gray-400">—</span>
+                            @endif
                         </td>
-                        <td class="whitespace-nowrap px-3 py-2.5 align-middle font-mono text-xs italic text-gray-500"
+                        <td class="whitespace-nowrap px-3 py-2.5 align-middle font-mono text-xs"
                             data-copy-col="sku"
                             data-sort-value="{{ $item?->code ?: '' }}"
-                            x-show="showSkuColumn()"
-                            x-text="skuCellText(@js($item?->code ?: ''), @js($item?->distinctLegacyCode() ?: ''))"></td>
+                            x-show="showSkuColumn()">
+                            @if($item)
+                                <a href="{{ $item->showUrl() }}" class="italic text-blue-600 hover:underline" data-testid="tx-item-sku-link-{{ $item->id }}">
+                                    <span x-show="showLegacyCode" x-cloak>{{ $item->distinctLegacyCode() ?: ($item->code ?: '—') }}</span>
+                                    <span x-show="!showLegacyCode" x-cloak>{{ $item->code ?: '—' }}</span>
+                                </a>
+                            @else
+                                <span class="italic text-gray-500">—</span>
+                            @endif
+                        </td>
                         <td class="px-3 py-2.5 align-middle" data-copy-col="name" data-sort-value="{{ $item?->getItemName() ?: '' }}" x-show="showName">
                             <div class="font-bold text-gray-900">{{ $item?->getItemName() }}</div>
                             @if($item?->code)
@@ -840,7 +852,12 @@ function transactionShowPage(transactionId, initialNote, canEditNote, canEditPpn
             }
 
             this.$watch('showImage', () => this.persistViewPrefs());
-            this.$watch('showBarcode', () => this.persistViewPrefs());
+            this.$watch('showBarcode', (value) => {
+                if (!value && !this.showSkuColumn()) {
+                    this.showSku = true;
+                }
+                this.persistViewPrefs();
+            });
             this.$watch('showLegacyCode', (value) => {
                 if (value) {
                     this.showSku = true;
@@ -867,17 +884,6 @@ function transactionShowPage(transactionId, initialNote, canEditNote, canEditPpn
             }
 
             return this.showLegacyCode ? 'Legacy code' : 'SKU';
-        },
-        skuCellText(code, legacy) {
-            if (! this.showSkuColumn()) {
-                return '';
-            }
-
-            if (this.showLegacyCode) {
-                return legacy || code || '-';
-            }
-
-            return code || '-';
         },
         persistViewPrefs() {
             localStorage.setItem(storageKey, JSON.stringify({
