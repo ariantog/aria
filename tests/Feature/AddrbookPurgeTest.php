@@ -94,3 +94,38 @@ it('checks only the transactions table for eligibility', function () {
 
     expect($retention->addrbookAppearsInTransactions($addrbook->id))->toBeTrue();
 });
+
+it('lists deletable addrbooks by type', function () {
+    $eligible = Addrbook::factory()->account()->create(['name' => 'Unused Ledger A']);
+    $blocked = Addrbook::factory()->account()->create(['name' => 'Used Ledger']);
+    Transaction::factory()->create([
+        'sender_id' => $blocked->id,
+        'receiver_id' => $blocked->id,
+    ]);
+
+    $this->actingAs($this->superadmin)
+        ->get(route('data-retention.addrbook-purge.index', ['type' => Addrbook::TYPE_ACCOUNT]))
+        ->assertSuccessful()
+        ->assertSee('Browse by type')
+        ->assertSee('Unused Ledger A')
+        ->assertDontSee('Used Ledger');
+});
+
+it('bulk deletes selected addrbooks on the current page', function () {
+    $first = Addrbook::factory()->warehouse()->create(['name' => 'Empty Warehouse A']);
+    $second = Addrbook::factory()->warehouse()->create(['name' => 'Empty Warehouse B']);
+
+    $this->actingAs($this->superadmin)
+        ->post(route('data-retention.addrbook-purge.purge'), [
+            'type' => Addrbook::TYPE_WAREHOUSE,
+            'page' => 1,
+            'page_addrbook_ids' => [$first->id, $second->id],
+            'keep_ids' => [$second->id],
+            'confirm' => 'DELETE-ADDRBOOK',
+        ])
+        ->assertRedirect(route('data-retention.addrbook-purge.index', ['type' => Addrbook::TYPE_WAREHOUSE]))
+        ->assertSessionHas('success');
+
+    expect(DB::table('customers')->where('id', $first->id)->exists())->toBeFalse()
+        ->and(DB::table('customers')->where('id', $second->id)->exists())->toBeTrue();
+});

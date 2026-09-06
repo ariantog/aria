@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Addrbook;
 use App\Models\DataRetentionRun;
 use Illuminate\Database\Connection;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -680,6 +681,74 @@ class DataRetentionService
         DB::transaction(fn () => $this->hardDeleteAddrbook($id));
     }
 
+    public function countDeletableAddrbooks(int $type): int
+    {
+        return (int) $this->deletableAddrbooksQuery($type)->count('customers.id');
+    }
+
+    /**
+     * @return LengthAwarePaginator<int, array{id: int, name: string, type: int, type_label: string, member_id: ?string, deleted_at: ?string}>
+     */
+    public function paginateDeletableAddrbooks(int $type, int $perPage = 50): LengthAwarePaginator
+    {
+        return $this->deletableAddrbooksQuery($type)
+            ->select([
+                'customers.id',
+                'customers.name',
+                'customers.type',
+                'customers.memberId',
+                'customers.deleted_at',
+            ])
+            ->orderBy('customers.name')
+            ->orderBy('customers.id')
+            ->paginate($perPage)
+            ->withQueryString()
+            ->through(function ($row) {
+                return [
+                    'id' => (int) $row->id,
+                    'name' => (string) $row->name,
+                    'type' => (int) $row->type,
+                    'type_label' => Addrbook::typeLabel((int) $row->type),
+                    'member_id' => $row->memberId !== null ? (string) $row->memberId : null,
+                    'deleted_at' => $row->deleted_at
+                        ? Carbon::parse($row->deleted_at)->toDateString()
+                        : null,
+                ];
+            });
+    }
+
+    /**
+     * @param  list<int>  $ids
+     */
+    public function purgeDeletableAddrbooksByIds(int $type, array $ids): int
+    {
+        $ids = array_values(array_unique(array_map('intval', $ids)));
+
+        if ($ids === []) {
+            return 0;
+        }
+
+        $eligibleIds = $this->deletableAddrbooksQuery($type)
+            ->whereIn('customers.id', $ids)
+            ->orderBy('customers.id')
+            ->pluck('customers.id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        if (count($eligibleIds) !== count($ids)) {
+            throw new \InvalidArgumentException('One or more selected addrbooks are not eligible for deletion.');
+        }
+
+        $purged = 0;
+
+        foreach ($eligibleIds as $id) {
+            DB::transaction(fn () => $this->hardDeleteAddrbook($id));
+            $purged++;
+        }
+
+        return $purged;
+    }
+
     public function confirmTokenForAddrbookType(int $type): string
     {
         return match ($type) {
@@ -1128,6 +1197,25 @@ class DataRetentionService
                     ->where(function ($partyQuery) use ($table) {
                         $partyQuery->whereColumn("{$table}.sender_id", 'customers.id')
                             ->orWhereColumn("{$table}.receiver_id", 'customers.id');
+                    });
+            });
+        }
+
+        return $query;
+    }
+
+    protected function deletableAddrbooksQuery(int $type): \Illuminate\Database\Query\Builder
+    {
+        $query = $this->live()->table('customers')
+            ->where('customers.type', $type);
+
+        if (Schema::hasTable('transactions')) {
+            $query->whereNotExists(function ($subquery) {
+                $subquery->select(DB::raw(1))
+                    ->from('transactions')
+                    ->where(function ($partyQuery) {
+                        $partyQuery->whereColumn('transactions.sender_id', 'customers.id')
+                            ->orWhereColumn('transactions.receiver_id', 'customers.id');
                     });
             });
         }

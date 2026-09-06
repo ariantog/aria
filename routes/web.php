@@ -152,6 +152,7 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::get('data-retention/addrbook-purge', [App\Http\Controllers\AddrbookPurgeController::class, 'index'])->name('data-retention.addrbook-purge.index');
     Route::get('data-retention/addrbook-purge/lookup', [App\Http\Controllers\AddrbookPurgeController::class, 'lookup'])->name('data-retention.addrbook-purge.lookup');
     Route::post('data-retention/addrbook-purge', [App\Http\Controllers\AddrbookPurgeController::class, 'destroy'])->name('data-retention.addrbook-purge.destroy');
+    Route::post('data-retention/addrbook-purge/purge', [App\Http\Controllers\AddrbookPurgeController::class, 'purge'])->name('data-retention.addrbook-purge.purge');
 
     // Archive (read-only)
     Route::get('archive', [App\Http\Controllers\ArchiveDashboardController::class, 'index'])->name('archive.index');
