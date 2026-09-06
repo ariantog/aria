@@ -420,11 +420,6 @@ it('shows optional item and group alias column toggles on warehouse stock page',
             $table->string('alias')->nullable();
         });
     }
-    if (! Schema::hasColumn('items', 'alias')) {
-        Schema::table('items', function ($table) {
-            $table->string('alias')->nullable();
-        });
-    }
 
     User::factory()->create();
     $user = User::factory()->create();

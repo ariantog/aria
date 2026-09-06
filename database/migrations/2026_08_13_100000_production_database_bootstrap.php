@@ -28,6 +28,7 @@ use Illuminate\Database\Migrations\Migration;
  * 17. `2026_09_01_100000_add_soft_deletes_to_checklist_templates` — catalog_key / route_query / soft deletes
  * 18. `2026_09_03_130000_add_brand_and_genre_to_item_group_table` — item_group.brand / genre
  * 19. `2026_09_03_150000_widen_item_group_name_drop_unique` — item_group.name VARCHAR(255)
+ * 20. `2026_09_06_150000_add_alias_to_items_table` — items.alias for per-SKU alias display
  *
  * Safe to run on a fresh prod copy in one step:
  *
@@ -85,6 +86,7 @@ return new class extends Migration
         (require __DIR__.'/2026_09_02_210000_add_last_error_to_crongetorders_and_resume_stuck_imports.php')->up();
         (require __DIR__.'/2026_09_03_130000_add_brand_and_genre_to_item_group_table.php')->up();
         (require __DIR__.'/2026_09_03_150000_widen_item_group_name_drop_unique.php')->up();
+        (require __DIR__.'/2026_09_06_150000_add_alias_to_items_table.php')->up();
         (require __DIR__.'/2026_09_05_150000_add_ppn_included_to_customers_table.php')->up();
     }
 
