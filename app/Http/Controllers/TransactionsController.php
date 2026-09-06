@@ -691,13 +691,32 @@ class TransactionsController extends Controller
             return back()->with('error', 'Jubelio-synced transactions cannot be deleted.');
         }
 
-        $transaction->load(['details', 'sender', 'receiver']);
-        $sender = $transaction->sender;
-        $receiver = $transaction->receiver;
+        $transactionId = (int) $transaction->id;
         $invoiceNumber = (string) $transaction->invoice;
         $bookClosingService->validateDate($transaction->date->format('Y-m-d'));
 
-        DB::transaction(function () use ($transaction, $service, $sender, $receiver) {
+        $completed = false;
+
+        DB::transaction(function () use ($transactionId, $service, &$completed) {
+            $transaction = Transaction::query()
+                ->whereKey($transactionId)
+                ->lockForUpdate()
+                ->with(['details', 'sender', 'receiver'])
+                ->first();
+
+            if ($transaction === null) {
+                $completed = DeletedTransaction::query()->whereKey($transactionId)->exists();
+
+                return;
+            }
+
+            if ($transaction->isFromJubelio()) {
+                return;
+            }
+
+            $sender = $transaction->sender;
+            $receiver = $transaction->receiver;
+
             $deletedColumns = array_flip(Schema::getColumnListing((new DeletedTransaction)->getTable()));
             $transactionData = $this->attributesForArchiveTable($transaction->getAttributes(), $deletedColumns);
 
@@ -710,10 +729,7 @@ class TransactionsController extends Controller
             $service->revertTransaction($transaction);
             app(WarehouseItemStatsRecorder::class)->revertTransaction($transaction);
 
-            DeletedTransaction::create($transactionData);
-            foreach ($detailRows as $detailData) {
-                DeletedTransactionDetail::create($detailData);
-            }
+            $this->archiveTransactionToDeleted($transactionData, $detailRows);
 
             $transaction->details()->delete();
             $transaction->delete();
@@ -724,11 +740,42 @@ class TransactionsController extends Controller
             if ($receiver instanceof \App\Models\Addrbook) {
                 $service->syncStatFromLatestTransaction($receiver);
             }
+
+            $completed = true;
         });
+
+        if (! $completed) {
+            return back()->with('error', 'Transaction could not be deleted.');
+        }
 
         app(StandaloneInvoiceSettlement::class)->reconcileByNumber($invoiceNumber, Auth::user());
 
         return redirect()->route('transactions.index')->with('success', 'Transaction moved to deleted.');
+    }
+
+    /**
+     * Copy a live transaction onto `deleted` / `deleted_details`, skipping rows
+     * that were already archived (e.g. concurrent delete or a prior partial run).
+     *
+     * @param  array<string, mixed>  $transactionData
+     * @param  array<int, array<string, mixed>>  $detailRows
+     */
+    private function archiveTransactionToDeleted(array $transactionData, array $detailRows): void
+    {
+        $transactionId = (int) $transactionData['id'];
+
+        if (! DeletedTransaction::query()->whereKey($transactionId)->exists()) {
+            DeletedTransaction::create($transactionData);
+        }
+
+        foreach ($detailRows as $detailData) {
+            $detailId = (int) ($detailData['id'] ?? 0);
+            if ($detailId > 0 && DeletedTransactionDetail::query()->whereKey($detailId)->exists()) {
+                continue;
+            }
+
+            DeletedTransactionDetail::create($detailData);
+        }
     }
 
     /**
