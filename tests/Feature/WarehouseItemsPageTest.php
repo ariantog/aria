@@ -7,6 +7,8 @@ use App\Models\User;
 use App\Models\WarehouseItem;
 use App\Services\JubelioService;
 use App\Services\PermissionGenerator;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Mockery\MockInterface;
 
 beforeEach(function () {
@@ -410,4 +412,49 @@ it('renders sortable column headers on warehouse stock page', function () {
         ->assertOk()
         ->assertSee('sort=codedesc', false)
         ->assertSee('sort=qtyasc', false);
+});
+
+it('shows optional item and group alias column toggles on warehouse stock page', function () {
+    if (! Schema::hasColumn('item_group', 'alias')) {
+        Schema::table('item_group', function ($table) {
+            $table->string('alias')->nullable();
+        });
+    }
+    if (! Schema::hasColumn('items', 'alias')) {
+        Schema::table('items', function ($table) {
+            $table->string('alias')->nullable();
+        });
+    }
+
+    User::factory()->create();
+    $user = User::factory()->create();
+    $user->givePermissionTo('addrbook-warehouse-items');
+
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    $group = \App\Models\ItemGroup::factory()->create(['name' => 'RUNNING SHIRT']);
+    DB::table('item_group')->where('id', $group->id)->update(['alias' => 'GROUP ALIAS SKU']);
+
+    $item = Item::factory()->create([
+        'group_id' => $group->id,
+        'name' => 'RUNNING SHIRT - GREEN - M',
+        'code' => 'WH-ALIAS-COL-M',
+    ]);
+    DB::table('items')->where('id', $item->id)->update(['alias' => 'ITEM ALIAS SKU']);
+
+    WarehouseItem::create([
+        'warehouse_id' => $warehouse->id,
+        'item_id' => $item->id,
+        'warehouse_type' => Addrbook::TYPE_WAREHOUSE,
+        'quantity' => 3,
+    ]);
+
+    $this->actingAs($user)
+        ->get(route('addrbook.type.items', ['warehouse', $warehouse->id]))
+        ->assertOk()
+        ->assertSee('x-model="showItemAlias"', false)
+        ->assertSee('x-model="showGroupAlias"', false)
+        ->assertSee('data-copy-col="item_alias"', false)
+        ->assertSee('data-copy-col="group_alias"', false)
+        ->assertSee('ITEM ALIAS SKU', false)
+        ->assertSee('GROUP ALIAS SKU', false);
 });
