@@ -1453,7 +1453,7 @@ function createTransaction() {
             };
 
             try {
-                const res = await fetch('{{ route('transactions.store') }}', {
+                const res = await fetch(@js(route('transactions.store', [], false)), {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -1462,19 +1462,31 @@ function createTransaction() {
                         'X-Requested-With': 'XMLHttpRequest',
                         ...idempotencyHeaders(this),
                     },
-                    redirect: 'follow',
+                    redirect: 'manual',
                     body: JSON.stringify(payload),
                 });
 
-                if (res.redirected) {
-                    keepLocked = true;
-                    window.location.href = res.url;
-                    return;
+                if (res.status === 201 || res.status === 200) {
+                    const data = await res.json().catch(() => ({}));
+                    if (data.redirect) {
+                        keepLocked = true;
+                        window.location.href = data.redirect;
+                        return;
+                    }
                 }
 
-                if (res.status === 302 || res.status === 200) {
+                if (res.status === 302 || res.status === 301) {
+                    const location = res.headers.get('Location');
+                    if (location) {
+                        keepLocked = true;
+                        window.location.href = location;
+                        return;
+                    }
+                }
+
+                if (res.type === 'opaqueredirect' || res.status === 0) {
                     keepLocked = true;
-                    window.location.href = '{{ route('transactions.index') }}';
+                    window.location.href = '{{ route('transactions.index', [], false) }}';
                     return;
                 }
 
