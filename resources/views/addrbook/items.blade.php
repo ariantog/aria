@@ -10,7 +10,7 @@ $baseUrl = '/' . $addrbook->type_slug . '/' . $addrbook->id . '/items';
 $exportUrl = '/' . $addrbook->type_slug . '/' . $addrbook->id . '/items/export';
 $exportQuery = request()->query();
 $perPage = $perPage ?? (int) request()->query('per_page', 1000);
-$hasItemAliasColumn = Schema::hasColumn('items', 'alias');
+$hasItemAliasColumn = true;
 $hasGroupAliasColumn = Schema::hasColumn('item_group', 'alias');
 $breadcrumbs = [
     ['title' => 'Address Book', 'href' => \App\Models\Addrbook::typeIndexRoute($addrbook->type_slug)],
@@ -62,7 +62,7 @@ $jubelioQtyCell = function (?array $jubelio, string $field, bool $highlightMisma
 };
 @endphp
 
-<div class="flex flex-col gap-4 p-3 sm:p-4" x-data="warehouseItemsPage(@js($filtersStorageKey), @js($columnsStorageKey), @js($hasJubelio), @js($hasItemAliasColumn), @js($hasGroupAliasColumn))">
+<div class="flex flex-col gap-4 p-3 sm:p-4" x-data="warehouseItemsPage(@js($filtersStorageKey), @js($columnsStorageKey), @js($hasJubelio), @js($hasGroupAliasColumn))">
     {{-- Header --}}
     <div class="flex flex-col justify-between gap-4 md:flex-row md:items-end">
         <div>
@@ -141,12 +141,10 @@ $jubelioQtyCell = function (?array $jubelio, string $field, bool $highlightMisma
                         <input type="checkbox" x-model="showDescription" class="rounded border-gray-300">
                         Desc
                     </label>
-                    @if($hasItemAliasColumn)
                     <label class="inline-flex items-center gap-1.5 text-xs text-gray-600">
                         <input type="checkbox" x-model="showItemAlias" class="rounded border-gray-300">
                         Item alias
                     </label>
-                    @endif
                     @if($hasGroupAliasColumn)
                     <label class="inline-flex items-center gap-1.5 text-xs text-gray-600">
                         <input type="checkbox" x-model="showGroupAlias" class="rounded border-gray-300">
@@ -198,9 +196,7 @@ $jubelioQtyCell = function (?array $jubelio, string $field, bool $highlightMisma
                     <th class="px-3 py-2.5 text-left font-medium" data-copy-col="code">
                         <a href="{{ $sortLink('code') }}" class="inline-flex items-center gap-0.5 hover:text-gray-900">Code @if($sortColumn === 'code')<span class="text-blue-600">{{ $sortDirection === 'asc' ? '↑' : '↓' }}</span>@endif</a>
                     </th>
-                    @if($hasItemAliasColumn)
                     <th class="px-3 py-2.5 text-left font-medium" data-copy-col="item_alias" x-show="showItemAlias">Item alias</th>
-                    @endif
                     @if($hasGroupAliasColumn)
                     <th class="px-3 py-2.5 text-left font-medium" data-copy-col="group_alias" x-show="showGroupAlias">Group alias</th>
                     @endif
@@ -231,7 +227,7 @@ $jubelioQtyCell = function (?array $jubelio, string $field, bool $highlightMisma
                         $itemShowUrl = $item->showUrl();
                         $itemEditUrl = $item->editUrl();
                         $jubelioLinked = $jubelio && ($jubelio['linked'] ?? false);
-                        $itemAlias = $hasItemAliasColumn ? trim((string) ($item->alias ?? '')) : '';
+                        $itemAlias = trim((string) ($item->alias ?? ''));
                         $groupAlias = $hasGroupAliasColumn ? trim((string) ($item->group?->alias ?? '')) : '';
                     @endphp
                     <tr class="cursor-pointer align-top hover:bg-gray-50" onclick="window.location='{{ $itemShowUrl }}'">
@@ -250,11 +246,9 @@ $jubelioQtyCell = function (?array $jubelio, string $field, bool $highlightMisma
                         <td class="whitespace-nowrap px-3 py-2.5 font-mono text-xs" data-copy-col="code">
                             <a href="{{ $itemShowUrl }}" onclick="event.stopPropagation()" class="text-blue-600 hover:underline" title="{{ $item->code }}">{{ $item->code }}</a>
                         </td>
-                        @if($hasItemAliasColumn)
                         <td class="max-w-[180px] px-3 py-2.5 text-xs text-gray-600" data-copy-col="item_alias" x-show="showItemAlias">
                             <div class="truncate" title="{{ $itemAlias !== '' ? $itemAlias : '—' }}">{{ $itemAlias !== '' ? $itemAlias : '—' }}</div>
                         </td>
-                        @endif
                         @if($hasGroupAliasColumn)
                         <td class="max-w-[180px] px-3 py-2.5 text-xs text-gray-600" data-copy-col="group_alias" x-show="showGroupAlias">
                             <div class="truncate" title="{{ $groupAlias !== '' ? $groupAlias : '—' }}">{{ $groupAlias !== '' ? $groupAlias : '—' }}</div>
@@ -297,7 +291,7 @@ $jubelioQtyCell = function (?array $jubelio, string $field, bool $highlightMisma
 
 @push('scripts')
 <script>
-function warehouseItemsPage(filtersStorageKey, columnsStorageKey, hasJubelio, hasItemAliasColumn, hasGroupAliasColumn) {
+function warehouseItemsPage(filtersStorageKey, columnsStorageKey, hasJubelio, hasGroupAliasColumn) {
     return {
         showImage: false,
         showId: true,
@@ -310,7 +304,6 @@ function warehouseItemsPage(filtersStorageKey, columnsStorageKey, hasJubelio, ha
         filtersStorageKey: filtersStorageKey,
         columnsStorageKey: columnsStorageKey,
         hasJubelio: hasJubelio,
-        hasItemAliasColumn: hasItemAliasColumn,
         hasGroupAliasColumn: hasGroupAliasColumn,
         copyFeedback: false,
         copyFeedbackTimer: null,
@@ -337,7 +330,7 @@ function warehouseItemsPage(filtersStorageKey, columnsStorageKey, hasJubelio, ha
                 if (typeof columns.showImage === 'boolean') {
                     this.showImage = columns.showImage;
                 }
-                if (this.hasItemAliasColumn && typeof columns.showItemAlias === 'boolean') {
+                if (typeof columns.showItemAlias === 'boolean') {
                     this.showItemAlias = columns.showItemAlias;
                 }
                 if (this.hasGroupAliasColumn && typeof columns.showGroupAlias === 'boolean') {
@@ -349,9 +342,7 @@ function warehouseItemsPage(filtersStorageKey, columnsStorageKey, hasJubelio, ha
             this.$watch('showName', () => this.persistColumns());
             this.$watch('showDescription', () => this.persistColumns());
             this.$watch('showImage', () => this.persistColumns());
-            if (this.hasItemAliasColumn) {
-                this.$watch('showItemAlias', () => this.persistColumns());
-            }
+            this.$watch('showItemAlias', () => this.persistColumns());
             if (this.hasGroupAliasColumn) {
                 this.$watch('showGroupAlias', () => this.persistColumns());
             }
@@ -367,10 +358,8 @@ function warehouseItemsPage(filtersStorageKey, columnsStorageKey, hasJubelio, ha
                 showName: this.showName,
                 showDescription: this.showDescription,
                 showImage: this.showImage,
+                showItemAlias: this.showItemAlias,
             };
-            if (this.hasItemAliasColumn) {
-                columns.showItemAlias = this.showItemAlias;
-            }
             if (this.hasGroupAliasColumn) {
                 columns.showGroupAlias = this.showGroupAlias;
             }
@@ -418,7 +407,7 @@ function warehouseItemsPage(filtersStorageKey, columnsStorageKey, hasJubelio, ha
                 return this.showDescription;
             }
             if (col === 'item_alias') {
-                return this.hasItemAliasColumn && this.showItemAlias;
+                return this.showItemAlias;
             }
             if (col === 'group_alias') {
                 return this.hasGroupAliasColumn && this.showGroupAlias;
