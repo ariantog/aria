@@ -1,9 +1,7 @@
 @php
     $accent = $accent ?? 'blue';
     $sideStatus = $sideStatus ?? null;
-    $partyUrl = $party
-        ? route('addrbook.type.show', ['type' => $party->type_slug, 'addrbook' => $party->id])
-        : null;
+    $partyUrl = \App\Models\Addrbook::transactionsUrlFor($party);
 @endphp
 <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
     <div class="flex items-center justify-between border-b border-gray-100 bg-gray-50/50 px-4 py-3">

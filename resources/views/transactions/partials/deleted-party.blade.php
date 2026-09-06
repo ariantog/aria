@@ -1,7 +1,5 @@
 @php
-    $partyUrl = $party
-        ? route('addrbook.type.show', ['type' => $party->type_slug, 'addrbook' => $party->id])
-        : null;
+    $partyUrl = \App\Models\Addrbook::transactionsUrlFor($party);
 @endphp
 <div class="rounded-xl bg-white shadow-sm">
     <div class="flex flex-row items-center justify-between space-y-0 border-b bg-gray-50/50 p-6 pb-3">

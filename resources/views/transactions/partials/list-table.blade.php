@@ -113,7 +113,7 @@
                         </td>
                         <td class="hidden max-w-[180px] px-3 py-2.5 lg:table-cell" data-copy-col="sender">
                             @if($tx->sender)
-                                <a href="{{ url('/'.$tx->sender->type_slug.'/'.$tx->sender->id) }}" class="block truncate hover:underline {{ $highlightId && $tx->sender->id === $highlightId ? 'font-bold text-blue-700' : 'text-blue-600' }}">{{ $tx->sender->name }}</a>
+                                <a href="{{ $tx->sender->transactionsUrl() }}" class="block truncate hover:underline {{ $highlightId && $tx->sender->id === $highlightId ? 'font-bold text-blue-700' : 'text-blue-600' }}">{{ $tx->sender->name }}</a>
                                 @unless($hideBank && $tx->sender->type_slug === 'bank')
                                     <span class="text-xs tabular-nums {{ (float) $tx->sender_balance < 0 ? 'text-rose-500' : 'text-gray-400' }}">{{ format_amount($tx->sender_balance) }}</span>
                                 @endunless
@@ -123,7 +123,7 @@
                         </td>
                         <td class="hidden max-w-[180px] px-3 py-2.5 lg:table-cell" data-copy-col="receiver">
                             @if($tx->receiver)
-                                <a href="{{ url('/'.$tx->receiver->type_slug.'/'.$tx->receiver->id) }}" class="block truncate hover:underline {{ $highlightId && $tx->receiver->id === $highlightId ? 'font-bold text-blue-700' : 'text-blue-600' }}">{{ $tx->receiver->name }}</a>
+                                <a href="{{ $tx->receiver->transactionsUrl() }}" class="block truncate hover:underline {{ $highlightId && $tx->receiver->id === $highlightId ? 'font-bold text-blue-700' : 'text-blue-600' }}">{{ $tx->receiver->name }}</a>
                                 @unless($hideBank && $tx->receiver->type_slug === 'bank')
                                     <span class="text-xs tabular-nums {{ (float) $tx->receiver_balance < 0 ? 'text-rose-500' : 'text-gray-400' }}">{{ format_amount($tx->receiver_balance) }}</span>
                                 @endunless

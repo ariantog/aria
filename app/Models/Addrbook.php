@@ -190,6 +190,16 @@ class Addrbook extends Model
         return route('addrbook.type.index', $slug);
     }
 
+    public function transactionsUrl(): string
+    {
+        return route('addrbook.type.transactions', ['type' => $this->type_slug, 'addrbook' => $this->id]);
+    }
+
+    public static function transactionsUrlFor(?self $addrbook): ?string
+    {
+        return $addrbook?->transactionsUrl();
+    }
+
     public static function getPermissions(?string $type = null): array
     {
         $permissions = [];
