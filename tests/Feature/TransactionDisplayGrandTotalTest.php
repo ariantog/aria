@@ -419,6 +419,53 @@ it('does not invent PPN when reconstructing a non-tax sell', function () {
         ->and($transaction->hasLegacyTotalMismatch())->toBeFalse();
 });
 
+it('does not flag included-ppn sells that store gross on total', function () {
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    $customer = Addrbook::factory()->customer()->create(['ppn' => true]);
+    $item = Item::factory()->create();
+
+    // Gross 22,200 − 10% invoice discount = 19,980 payable; PPN extracted, not added again.
+    $transaction = Transaction::factory()->create([
+        'type' => Transaction::TYPE_SELL,
+        'submit_type' => Transaction::SUBMIT_TYPE_MANUAL,
+        'invoice' => 'INV-PPN-INCL',
+        'total' => -19_980,
+        'discount' => 10,
+        'adjustment' => 0,
+        'ppn' => 1_980,
+        'sender_id' => $warehouse->id,
+        'sender_type' => (string) Addrbook::TYPE_WAREHOUSE,
+        'receiver_id' => $customer->id,
+        'receiver_type' => (string) Addrbook::TYPE_CUSTOMER,
+        'user_id' => $this->user->id,
+    ]);
+    TransactionDetail::create([
+        'transaction_id' => $transaction->id,
+        'date' => $transaction->date,
+        'transaction_type' => Transaction::TYPE_SELL,
+        'sender_id' => $warehouse->id,
+        'receiver_id' => $customer->id,
+        'item_id' => $item->id,
+        'quantity' => 2,
+        'price' => 11_100,
+        'discount' => 0,
+        'total' => 22_200,
+    ]);
+    $transaction->load('details');
+
+    expect($transaction->storedPpnIsIncludedInPayable())->toBeTrue()
+        ->and($transaction->displayReconstructedSignedTotal())->toBe(-19_980.0)
+        ->and($transaction->displaySignedGrandTotal())->toBe(-19_980.0)
+        ->and($transaction->hasLegacyTotalMismatch())->toBeFalse();
+
+    $html = $this->actingAs($this->user)
+        ->get(route('transactions.show', $transaction))
+        ->assertOk()
+        ->getContent();
+
+    expect($html)->not->toContain('data-testid="legacy-total-mismatch"');
+});
+
 it('does not flag faktur sells that store DPP on total and PPN separately', function () {
     $transaction = Transaction::factory()->create([
         'type' => Transaction::TYPE_SELL,
@@ -442,7 +489,8 @@ it('does not flag faktur sells that store DPP on total and PPN separately', func
     ]);
     $transaction->load('details');
 
-    expect($transaction->displayReconstructedSignedTotal())->toBe(-111_000.0)
+    expect($transaction->storedPpnIsIncludedInPayable())->toBeTrue()
+        ->and($transaction->displayReconstructedSignedTotal())->toBe(-100_000.0)
         ->and($transaction->displaySignedGrandTotal())->toBe(-100_000.0)
         ->and($transaction->hasLegacyTotalMismatch())->toBeFalse();
 });
