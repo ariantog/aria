@@ -129,3 +129,14 @@ it('bulk deletes selected addrbooks on the current page', function () {
     expect(DB::table('customers')->where('id', $first->id)->exists())->toBeFalse()
         ->and(DB::table('customers')->where('id', $second->id)->exists())->toBeTrue();
 });
+
+it('lists deletable addrbooks using a not-in union of transaction party ids', function () {
+    DB::enableQueryLog();
+
+    app(DataRetentionService::class)->countDeletableAddrbooks(Addrbook::TYPE_CUSTOMER);
+
+    $sql = collect(DB::getQueryLog())->pluck('query')->join(' ');
+
+    expect($sql)->toContain('not in')
+        ->and($sql)->toContain('union');
+});

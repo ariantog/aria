@@ -21,10 +21,8 @@ class AddrbookPurgeController extends Controller
         $addrbookTypes = $this->addrbookTypeOptions();
         $selectedType = $this->selectedType(request()->query('type'), $addrbookTypes);
         $list = null;
-        $totalCandidates = 0;
 
         if ($selectedType !== null) {
-            $totalCandidates = $retention->countDeletableAddrbooks($selectedType);
             $list = $retention->paginateDeletableAddrbooks($selectedType);
         }
 
@@ -53,7 +51,6 @@ class AddrbookPurgeController extends Controller
             'selectedTypeLabel' => $selectedType !== null
                 ? Addrbook::typeLabel($selectedType)
                 : null,
-            'totalCandidates' => $totalCandidates,
             'list' => $list,
             'addrbookInitial' => $addrbookInitial,
             'preview' => $preview,
