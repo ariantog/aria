@@ -2,7 +2,7 @@
 
 <td class="{{ $tdClass }}">
     @if($warehouse)
-    <a href="{{ route('addrbook.type.show', ['type' => $warehouse->type_slug, 'addrbook' => $warehouse->id]) }}"
+    <a href="{{ $warehouse->transactionsUrl() }}"
        class="text-blue-600 hover:underline">
         {{ $warehouse->name }}
     </a>

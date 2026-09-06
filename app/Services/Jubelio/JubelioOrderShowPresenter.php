@@ -149,7 +149,7 @@ class JubelioOrderShowPresenter
         return [
             'id' => $party->id,
             'name' => $party->name,
-            'url' => route('addrbook.type.show', ['type' => $party->type_slug, 'addrbook' => $party->id]),
+            'url' => $party->transactionsUrl(),
         ];
     }
 

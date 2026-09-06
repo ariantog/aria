@@ -388,8 +388,8 @@ test('stock alert viewers see unread list without jubelio widgets', function () 
         ->assertSee('data-testid="dashboard-stock-alerts-list"', false)
         ->assertSee('ALERT-SKU', false)
         ->assertSee(route('items.show', $item->id), false)
-        ->assertSee(route('addrbook.type.show', ['type' => 'warehouse', 'addrbook' => $shop->id]), false)
-        ->assertSee(route('addrbook.type.show', ['type' => 'warehouse', 'addrbook' => $source->id]), false)
+        ->assertSee(route('addrbook.type.transactions', ['type' => 'warehouse', 'addrbook' => $shop->id]), false)
+        ->assertSee(route('addrbook.type.transactions', ['type' => 'warehouse', 'addrbook' => $source->id]), false)
         ->assertDontSee('data-testid="dashboard-jubelio-connection"', false)
         ->assertDontSee('data-testid="dashboard-kpi-jubelio-pending"', false);
 });
