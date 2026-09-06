@@ -630,6 +630,56 @@ class DataRetentionService
         return $purged;
     }
 
+    /**
+     * @return array{id: int, name: string, type: int, type_label: string, has_transactions: bool, deletable: bool}|null
+     */
+    public function previewAddrbookPurge(int $id): ?array
+    {
+        $row = $this->live()->table('customers')->where('id', $id)->first();
+
+        if ($row === null) {
+            return null;
+        }
+
+        $hasTransactions = $this->addrbookAppearsInTransactions($id);
+
+        return [
+            'id' => (int) $row->id,
+            'name' => (string) $row->name,
+            'type' => (int) $row->type,
+            'type_label' => Addrbook::typeLabel((int) $row->type),
+            'has_transactions' => $hasTransactions,
+            'deletable' => ! $hasTransactions,
+        ];
+    }
+
+    public function addrbookAppearsInTransactions(int $id): bool
+    {
+        if (! Schema::hasTable('transactions')) {
+            return false;
+        }
+
+        return $this->live()->table('transactions')
+            ->where(function ($query) use ($id) {
+                $query->where('sender_id', $id)
+                    ->orWhere('receiver_id', $id);
+            })
+            ->exists();
+    }
+
+    public function deleteAddrbookFromLive(int $id): void
+    {
+        if ($this->addrbookAppearsInTransactions($id)) {
+            throw new \InvalidArgumentException('This addrbook appears in the transactions table and cannot be deleted.');
+        }
+
+        if (! $this->live()->table('customers')->where('id', $id)->exists()) {
+            throw new \InvalidArgumentException('Addrbook not found.');
+        }
+
+        DB::transaction(fn () => $this->hardDeleteAddrbook($id));
+    }
+
     public function confirmTokenForAddrbookType(int $type): string
     {
         return match ($type) {
