@@ -263,8 +263,8 @@ it('renders clickable item and warehouse links on the stock notifications page',
         ->get(route('stock-notifications.index'))
         ->assertOk()
         ->assertSee(route('items.show', $item->id), false)
-        ->assertSee(route('addrbook.type.show', ['type' => 'warehouse', 'addrbook' => $soldOut->id]), false)
-        ->assertSee(route('addrbook.type.show', ['type' => 'warehouse', 'addrbook' => $source->id]), false)
+        ->assertSee(route('addrbook.type.transactions', ['type' => 'warehouse', 'addrbook' => $soldOut->id]), false)
+        ->assertSee(route('addrbook.type.transactions', ['type' => 'warehouse', 'addrbook' => $source->id]), false)
         ->assertSee('LINK-SKU', false)
         ->assertSee('Sold Out Shop', false)
         ->assertSee('Source Warehouse', false);

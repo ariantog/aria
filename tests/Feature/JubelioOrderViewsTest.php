@@ -220,7 +220,7 @@ it('shows jubelio and aria warehouse names on orders list', function () {
         ->assertSuccessful()
         ->assertSee('Gudang Jubelio Pusat')
         ->assertSee('Gudang Aria Utama')
-        ->assertSee(route('addrbook.type.show', ['type' => $warehouse->type_slug, 'addrbook' => $warehouse->id]), false);
+        ->assertSee(route('addrbook.type.transactions', ['type' => $warehouse->type_slug, 'addrbook' => $warehouse->id]), false);
 });
 
 it('filters jubelio orders by warehouse using jubelio store location keys', function () {
@@ -338,7 +338,7 @@ it('shows return warehouse from original sell not return payload sync', function
         'status' => 0,
     ]);
 
-    $warehouseUrl = route('addrbook.type.show', ['type' => $warehouseA->type_slug, 'addrbook' => $warehouseA->id]);
+    $warehouseUrl = route('addrbook.type.transactions', ['type' => $warehouseA->type_slug, 'addrbook' => $warehouseA->id]);
 
     $this->actingAs($user)
         ->get(route('jubelio.index', ['invoice' => 'RET-LIST-1']))
@@ -504,8 +504,8 @@ it('shows clickable customer warehouse and item links on order detail', function
         'status' => 0,
     ]);
 
-    $warehouseUrl = route('addrbook.type.show', ['type' => $warehouse->type_slug, 'addrbook' => $warehouse->id]);
-    $customerUrl = route('addrbook.type.show', ['type' => $customer->type_slug, 'addrbook' => $customer->id]);
+    $warehouseUrl = route('addrbook.type.transactions', ['type' => $warehouse->type_slug, 'addrbook' => $warehouse->id]);
+    $customerUrl = route('addrbook.type.transactions', ['type' => $customer->type_slug, 'addrbook' => $customer->id]);
     $itemUrl = route('items.show', $item);
 
     $this->actingAs($user)

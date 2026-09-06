@@ -234,9 +234,7 @@ class JubelioOrderWarehouseResolver
                 ?? ($payload['location_name'] ?? null),
             'aria_warehouse' => $warehouse?->name,
             'aria_warehouse_id' => $warehouse?->id,
-            'aria_warehouse_url' => $warehouse
-                ? route('addrbook.type.show', ['type' => $warehouse->type_slug, 'addrbook' => $warehouse->id])
-                : null,
+            'aria_warehouse_url' => Addrbook::transactionsUrlFor($warehouse),
         ];
     }
 
@@ -262,9 +260,7 @@ class JubelioOrderWarehouseResolver
             'jubelio_warehouse' => $payload['location_name'] ?? null,
             'aria_warehouse' => $warehouse?->name,
             'aria_warehouse_id' => $warehouse?->id,
-            'aria_warehouse_url' => $warehouse
-                ? route('addrbook.type.show', ['type' => $warehouse->type_slug, 'addrbook' => $warehouse->id])
-                : null,
+            'aria_warehouse_url' => Addrbook::transactionsUrlFor($warehouse),
         ];
     }
 
