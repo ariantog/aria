@@ -5,6 +5,7 @@ use App\Models\Transaction;
 use App\Models\User;
 use App\Services\DataRetentionService;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 beforeEach(function () {
     $this->superadmin = User::query()->find(1) ?? User::factory()->create(['id' => 1]);
@@ -154,4 +155,55 @@ it('lists deletable addrbooks using a not-in union of transaction party ids', fu
 
     expect($sql)->toContain('not in')
         ->and($sql)->toContain('union');
+});
+
+it('hard deletes related rows such as customerstat, warehouse_item, and jubeliosyncs', function () {
+    $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'Empty Warehouse']);
+    $item = \App\Models\Item::factory()->create();
+
+    DB::table('customerstat')->insert([
+        'customer_id' => $warehouse->id,
+        'balance' => 0,
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    DB::table('warehouse_item')->insert([
+        'item_id' => $item->id,
+        'warehouse_id' => $warehouse->id,
+        'warehouse_type' => (string) Addrbook::TYPE_WAREHOUSE,
+        'quantity' => 4,
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    if (Schema::hasTable('jubeliosyncs')) {
+        DB::table('jubeliosyncs')->insert([
+            'jubelio_store_id' => 1,
+            'jubelio_store_name' => 'Test Store',
+            'jubelio_location_id' => 1,
+            'jubelio_location_name' => 'Test Location',
+            'warehouse_id' => $warehouse->id,
+            'customer_id' => Addrbook::factory()->customer()->create()->id,
+            'bin_id' => 1,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+    }
+
+    $this->actingAs($this->superadmin)
+        ->post(route('data-retention.addrbook-purge.destroy'), [
+            'addrbook_id' => $warehouse->id,
+            'confirm' => 'DELETE-ADDRBOOK',
+        ])
+        ->assertRedirect()
+        ->assertSessionHas('success');
+
+    expect(DB::table('customers')->where('id', $warehouse->id)->exists())->toBeFalse()
+        ->and(DB::table('customerstat')->where('customer_id', $warehouse->id)->exists())->toBeFalse()
+        ->and(DB::table('warehouse_item')->where('warehouse_id', $warehouse->id)->exists())->toBeFalse();
+
+    if (Schema::hasTable('jubeliosyncs')) {
+        expect(DB::table('jubeliosyncs')->where('warehouse_id', $warehouse->id)->exists())->toBeFalse();
+    }
 });
