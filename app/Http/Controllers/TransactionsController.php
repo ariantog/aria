@@ -191,6 +191,12 @@ class TransactionsController extends Controller
         }
         $transaction = $action->execute($request);
 
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json([
+                'redirect' => route('transactions.show', $transaction, absolute: false),
+            ], 201);
+        }
+
         return redirect()->route('transactions.show', $transaction)->with('success', 'Transaction created.');
     }
 
