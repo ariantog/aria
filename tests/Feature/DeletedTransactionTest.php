@@ -315,8 +315,8 @@ test('deleted transaction show page renders clickable item and party links', fun
     $this->get(route('transactions.deleted.show', $transaction->id))
         ->assertOk()
         ->assertSee(route('items.show', $item->id), false)
-        ->assertSee(route('addrbook.type.show', ['type' => $supplier->type_slug, 'addrbook' => $supplier->id]), false)
-        ->assertSee(route('addrbook.type.show', ['type' => $warehouse->type_slug, 'addrbook' => $warehouse->id]), false);
+        ->assertSee(route('addrbook.type.transactions', ['type' => $supplier->type_slug, 'addrbook' => $supplier->id]), false)
+        ->assertSee(route('addrbook.type.transactions', ['type' => $warehouse->type_slug, 'addrbook' => $warehouse->id]), false);
 });
 
 test('deleted detail model does not use eloquent timestamps', function () {

@@ -311,7 +311,7 @@
                 <div class="px-3 py-2.5">
                     <div class="text-[10px] font-semibold tracking-wide text-gray-400 uppercase">{{ $contact['label'] }} ({{ $contact['direction'] }})</div>
                     @if($contact['party'])
-                        @php $contactUrl = route('addrbook.type.show', ['type' => $contact['party']->type_slug, 'addrbook' => $contact['party']->id]); @endphp
+                        @php $contactUrl = $contact['party']->transactionsUrl(); @endphp
                         <div class="mt-1 flex items-center gap-2">
                             <div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-{{ $contact['accent'] }}-100 text-xs font-bold text-{{ $contact['accent'] }}-600">
                                 {{ mb_substr($contact['party']->name, 0, 1) }}
