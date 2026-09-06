@@ -98,8 +98,6 @@ class AddrbookPurgeController extends Controller
         $validated = $request->validate([
             'type' => ['required', 'integer'],
             'page' => ['nullable', 'integer', 'min:1'],
-            'page_addrbook_ids' => ['required', 'array', 'min:1'],
-            'page_addrbook_ids.*' => ['integer', 'min:1'],
             'keep_ids' => ['nullable', 'array'],
             'keep_ids.*' => ['integer', 'min:1'],
             'confirm' => ['required', 'string', 'in:DELETE-ADDRBOOK'],
@@ -112,18 +110,16 @@ class AddrbookPurgeController extends Controller
         }
 
         $page = isset($validated['page']) ? (int) $validated['page'] : 1;
-        $pageAddrbookIds = $this->normalizeIds($validated['page_addrbook_ids']);
         $keepIds = $this->normalizeIds($validated['keep_ids'] ?? []);
-        $purgeIds = array_values(array_diff($pageAddrbookIds, $keepIds));
-
-        if ($purgeIds === []) {
-            return back()->with('error', 'No addrbooks selected for deletion on this page.');
-        }
 
         try {
-            $purged = $retention->purgeDeletableAddrbooksByIds($type, $purgeIds);
+            $purged = $retention->purgeDeletableAddrbooksOnPage($type, $page, $keepIds);
         } catch (Throwable $e) {
             return back()->with('error', $e->getMessage());
+        }
+
+        if ($purged === 0) {
+            return back()->with('error', 'No addrbooks selected for deletion on this page.');
         }
 
         return redirect()

@@ -135,7 +135,6 @@ it('bulk deletes selected addrbooks on the current page', function () {
         ->post(route('data-retention.addrbook-purge.purge'), [
             'type' => Addrbook::TYPE_WAREHOUSE,
             'page' => 1,
-            'page_addrbook_ids' => [$first->id, $second->id],
             'keep_ids' => [$second->id],
             'confirm' => 'DELETE-ADDRBOOK',
         ])
@@ -144,6 +143,42 @@ it('bulk deletes selected addrbooks on the current page', function () {
 
     expect(DB::table('customers')->where('id', $first->id)->exists())->toBeFalse()
         ->and(DB::table('customers')->where('id', $second->id)->exists())->toBeTrue();
+});
+
+it('bulk delete only purges unchecked rows on the server-resolved page', function () {
+    $retention = app(DataRetentionService::class);
+    $first = Addrbook::factory()->warehouse()->create(['name' => 'AAA Warehouse']);
+    $second = Addrbook::factory()->warehouse()->create(['name' => 'ZZZ Warehouse']);
+
+    expect($retention->deletableAddrbookIdsOnPage(Addrbook::TYPE_WAREHOUSE, 1, 1))->toBe([$first->id]);
+
+    $purged = $retention->purgeDeletableAddrbooksOnPage(
+        Addrbook::TYPE_WAREHOUSE,
+        1,
+        keepIds: [],
+        perPage: 1,
+    );
+
+    expect($purged)->toBe(1)
+        ->and(DB::table('customers')->where('id', $first->id)->exists())->toBeFalse()
+        ->and(DB::table('customers')->where('id', $second->id)->exists())->toBeTrue();
+});
+
+it('bulk delete ignores keep ids that are not on the current page', function () {
+    $retention = app(DataRetentionService::class);
+    $onPage = Addrbook::factory()->warehouse()->create(['name' => 'AAA Warehouse']);
+    $offPage = Addrbook::factory()->warehouse()->create(['name' => 'ZZZ Warehouse']);
+
+    $purged = $retention->purgeDeletableAddrbooksOnPage(
+        Addrbook::TYPE_WAREHOUSE,
+        1,
+        keepIds: [$offPage->id],
+        perPage: 1,
+    );
+
+    expect($purged)->toBe(1)
+        ->and(DB::table('customers')->where('id', $onPage->id)->exists())->toBeFalse()
+        ->and(DB::table('customers')->where('id', $offPage->id)->exists())->toBeTrue();
 });
 
 it('lists deletable addrbooks using a not-in union of transaction party ids', function () {
