@@ -83,6 +83,15 @@ $pageAddrbookCount = $list ? $list->count() : 0;
         </div>
     </form>
 
+    @if($preview !== null && $list === null)
+    @include('system-settings.partials.addrbook-purge-selected', [
+        'preview' => $preview,
+        'previewShowUrl' => $previewShowUrl,
+        'selectedType' => $selectedType,
+        'list' => $list,
+    ])
+    @endif
+
     @if($selectedType !== null && $list !== null)
     <form method="POST"
           action="{{ route('data-retention.addrbook-purge.purge') }}"
@@ -111,7 +120,7 @@ $pageAddrbookCount = $list ? $list->count() : 0;
         <div class="flex flex-wrap items-center justify-between gap-2 p-4 pb-0">
             <div>
                 <h2 class="text-lg font-semibold text-gray-900">{{ $selectedTypeLabel }}</h2>
-                <p class="text-xs text-gray-500">Only rows with no transactions are listed.</p>
+                <p class="text-xs text-gray-500">Click a row to select it for deletion. Check Keep to exclude a row from bulk delete.</p>
             </div>
             <div class="text-sm text-gray-500">
                 <span>{{ number_format($list->total()) }} eligible total</span>
@@ -122,6 +131,17 @@ $pageAddrbookCount = $list ? $list->count() : 0;
             </div>
         </div>
 
+        @if($preview !== null)
+        <div class="px-4 pt-4">
+            @include('system-settings.partials.addrbook-purge-selected', [
+                'preview' => $preview,
+                'previewShowUrl' => $previewShowUrl,
+                'selectedType' => $selectedType,
+                'list' => $list,
+            ])
+        </div>
+        @endif
+
         <div class="mt-3 overflow-x-auto">
             <table class="w-full text-sm" data-testid="addrbook-purge-list-table">
                 <thead class="bg-gray-50 text-left text-xs text-gray-500">
@@ -131,13 +151,22 @@ $pageAddrbookCount = $list ? $list->count() : 0;
                         <th class="px-3 py-2 font-medium">Name</th>
                         <th class="px-3 py-2 font-medium">Member ID</th>
                         <th class="px-3 py-2 font-medium">Soft deleted</th>
-                        <th class="px-3 py-2 font-medium">Actions</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y">
                     @forelse($list as $row)
-                    <tr>
-                        <td class="px-3 py-2">
+                    @php
+                    $rowUrl = route('data-retention.addrbook-purge.index', array_filter([
+                        'type' => $selectedType,
+                        'page' => $list->currentPage(),
+                        'addrbook_id' => $row['id'],
+                    ], fn ($value) => $value !== null && $value !== ''));
+                    $isSelected = $selectedAddrbookId === $row['id'];
+                    @endphp
+                    <tr class="cursor-pointer transition-colors {{ $isSelected ? 'bg-blue-50' : 'hover:bg-gray-50' }}"
+                        data-testid="addrbook-purge-row-{{ $row['id'] }}"
+                        onclick="window.location='{{ $rowUrl }}'">
+                        <td class="px-3 py-2" onclick="event.stopPropagation()">
                             <input type="checkbox"
                                    name="keep_ids[]"
                                    value="{{ $row['id'] }}"
@@ -147,19 +176,13 @@ $pageAddrbookCount = $list ? $list->count() : 0;
                             <input type="hidden" name="page_addrbook_ids[]" value="{{ $row['id'] }}">
                         </td>
                         <td class="px-3 py-2 font-mono text-xs">{{ $row['id'] }}</td>
-                        <td class="px-3 py-2">{{ $row['name'] }}</td>
+                        <td class="px-3 py-2 font-medium text-gray-900">{{ $row['name'] }}</td>
                         <td class="px-3 py-2 font-mono text-xs">{{ $row['member_id'] ?: '—' }}</td>
                         <td class="px-3 py-2 tabular-nums">{{ $row['deleted_at'] ?? '—' }}</td>
-                        <td class="px-3 py-2">
-                            <a href="{{ route('data-retention.addrbook-purge.index', ['type' => $selectedType, 'page' => $list->currentPage(), 'addrbook_id' => $row['id']]) }}"
-                               class="text-blue-600 hover:underline">
-                                Preview
-                            </a>
-                        </td>
                     </tr>
                     @empty
                     <tr>
-                        <td colspan="6" class="px-3 py-6 text-center text-gray-500" data-testid="addrbook-purge-empty">
+                        <td colspan="5" class="px-3 py-6 text-center text-gray-500" data-testid="addrbook-purge-empty">
                             No eligible {{ strtolower($selectedTypeLabel) }} rows found.
                         </td>
                     </tr>
@@ -240,95 +263,11 @@ $pageAddrbookCount = $list ? $list->count() : 0;
                 </div>
 
                 <button type="submit"
-                        data-testid="addrbook-purge-preview"
+                        data-testid="addrbook-purge-lookup"
                         class="h-9 rounded-md bg-blue-600 px-4 text-sm font-medium text-white hover:bg-blue-700">
-                    Preview
+                    Look up
                 </button>
             </form>
-
-            @if($preview !== null)
-            <div class="rounded-lg border border-gray-200 bg-gray-50 p-4">
-                <h3 class="text-sm font-semibold text-gray-900">Preview</h3>
-                <dl class="mt-3 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
-                    <div>
-                        <dt class="text-xs font-medium uppercase tracking-wide text-gray-500">ID</dt>
-                        <dd class="mt-0.5 font-medium text-gray-900" data-testid="addrbook-purge-preview-id">{{ $preview['id'] }}</dd>
-                    </div>
-                    <div>
-                        <dt class="text-xs font-medium uppercase tracking-wide text-gray-500">Type</dt>
-                        <dd class="mt-0.5 font-medium text-gray-900">{{ $preview['type_label'] }}</dd>
-                    </div>
-                    <div class="sm:col-span-2">
-                        <dt class="text-xs font-medium uppercase tracking-wide text-gray-500">Name</dt>
-                        <dd class="mt-0.5 font-medium text-gray-900">{{ $preview['name'] }}</dd>
-                    </div>
-                    <div class="sm:col-span-2">
-                        <dt class="text-xs font-medium uppercase tracking-wide text-gray-500">Transactions</dt>
-                        <dd class="mt-0.5">
-                            @if($preview['has_transactions'])
-                            <span class="inline-flex items-center rounded-full bg-red-50 px-2.5 py-0.5 text-xs font-medium text-red-700" data-testid="addrbook-purge-not-deletable">
-                                Present in transactions — cannot delete
-                            </span>
-                            @else
-                            <span class="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700" data-testid="addrbook-purge-deletable">
-                                No transactions — eligible for deletion
-                            </span>
-                            @endif
-                        </dd>
-                    </div>
-                </dl>
-
-                @if($preview['deletable'])
-                <form method="POST"
-                      action="{{ route('data-retention.addrbook-purge.destroy') }}"
-                      id="addrbook-purge-form"
-                      data-testid="addrbook-purge-form"
-                      class="mt-4 space-y-4 border-t border-gray-200 pt-4"
-                      @submit="if (!markSubmitting() || ! confirm('Permanently delete {{ addslashes($preview['name']) }} ({{ $preview['type_label'] }} #{{ $preview['id'] }})?')) { $event.preventDefault(); submitting = false; }">
-                    @csrf
-                    <input type="hidden" name="addrbook_id" value="{{ $preview['id'] }}">
-                    @if($selectedType !== null)
-                    <input type="hidden" name="type" value="{{ $selectedType }}">
-                    @if($list)
-                    <input type="hidden" name="page" value="{{ $list->currentPage() }}">
-                    @endif
-                    @endif
-
-                    <div>
-                        <label for="addrbook-purge-confirm-text" class="mb-1 block text-sm font-medium text-gray-700">
-                            Type <code class="rounded bg-gray-100 px-1 text-xs">DELETE-ADDRBOOK</code> to confirm
-                        </label>
-                        <input type="text"
-                               id="addrbook-purge-confirm-text"
-                               data-testid="addrbook-purge-confirm-text"
-                               name="confirm"
-                               required
-                               autocomplete="off"
-                               class="h-9 w-full max-w-xs rounded-md border border-gray-300 bg-white px-2 text-sm text-gray-900">
-                    </div>
-
-                    <label class="flex items-start gap-2 text-sm text-gray-700">
-                        <input type="checkbox"
-                               id="addrbook-purge-confirm"
-                               data-testid="addrbook-purge-confirm"
-                               required
-                               class="mt-0.5 rounded border-gray-300"
-                               x-model="confirmed">
-                        <span>I understand this permanently deletes the addrbook and related pivot/stat rows.</span>
-                    </label>
-
-                    <button type="submit"
-                            id="addrbook-purge-submit"
-                            data-testid="addrbook-purge-submit"
-                            :disabled="!canSubmit()"
-                            :class="canSubmit() ? 'bg-red-600 hover:bg-red-700' : 'cursor-not-allowed bg-gray-300'"
-                            class="h-9 rounded-md px-4 text-sm font-medium text-white">
-                        Delete addrbook
-                    </button>
-                </form>
-                @endif
-            </div>
-            @endif
         </div>
     </details>
 </div>

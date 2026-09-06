@@ -51,9 +51,15 @@ class AddrbookPurgeController extends Controller
             'selectedTypeLabel' => $selectedType !== null
                 ? Addrbook::typeLabel($selectedType)
                 : null,
+            'selectedAddrbookId' => ($addrbookId !== null && $addrbookId !== '' && ctype_digit((string) $addrbookId))
+                ? (int) $addrbookId
+                : null,
             'list' => $list,
             'addrbookInitial' => $addrbookInitial,
             'preview' => $preview,
+            'previewShowUrl' => $preview !== null
+                ? $this->showUrlFor($preview['id'], $preview['type'])
+                : null,
             'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
     }
@@ -233,5 +239,17 @@ class AddrbookPurgeController extends Controller
             'id' => (int) $addrbook->id,
             'name' => $addrbook->name.' ('.Addrbook::typeLabel((int) $addrbook->type).' #'.$addrbook->id.')',
         ];
+    }
+
+    private function showUrlFor(int $id, int $type): string
+    {
+        if (in_array($type, Addrbook::navigableTypeIds(), true)) {
+            return route('addrbook.type.show', [
+                'type' => Addrbook::typeSlug($type),
+                'addrbook' => $id,
+            ]);
+        }
+
+        return route('addrbook.show', $id);
     }
 }
