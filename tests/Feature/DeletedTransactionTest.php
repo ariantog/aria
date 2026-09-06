@@ -323,6 +323,53 @@ test('deleted detail model does not use eloquent timestamps', function () {
     expect((new DeletedTransactionDetail)->usesTimestamps())->toBeFalse();
 });
 
+test('deleting succeeds when deleted header already exists from a prior partial archive', function () {
+    $user = User::factory()->create();
+    $this->actingAs($user);
+
+    $supplier = Addrbook::create([
+        'name' => 'Partial Archive Supplier',
+        'type' => Addrbook::TYPE_SUPPLIER,
+    ]);
+    $warehouse = Addrbook::create([
+        'name' => 'Partial Archive Warehouse',
+        'type' => Addrbook::TYPE_WAREHOUSE,
+    ]);
+    $item = Item::factory()->create(['qty' => 0]);
+
+    $this->post(route('transactions.store'), [
+        'date' => now()->toDateString(),
+        'type' => 'buy',
+        'sender_id' => $supplier->id,
+        'receiver_id' => $warehouse->id,
+        'items' => [
+            [
+                'item_id' => $item->id,
+                'quantity' => 1,
+                'price' => 2500,
+            ],
+        ],
+    ])->assertRedirect();
+
+    $transaction = Transaction::latest('id')->first();
+    $transaction->load('details');
+
+    $deletedColumns = array_flip(Schema::getColumnListing((new DeletedTransaction)->getTable()));
+    $archivedHeader = array_intersect_key($transaction->getAttributes(), $deletedColumns);
+    DeletedTransaction::create($archivedHeader);
+
+    $detailCount = $transaction->details->count();
+
+    $this->delete(route('transactions.destroy', $transaction))
+        ->assertRedirect(route('transactions.index'))
+        ->assertSessionHas('success');
+
+    expect(Transaction::find($transaction->id))->toBeNull();
+    expect(DeletedTransaction::find($transaction->id))->not->toBeNull();
+    expect(DeletedTransactionDetail::query()->where('transaction_id', $transaction->id)->count())
+        ->toBe($detailCount);
+});
+
 test('deleting archives onto production deleted_details columns without timestamps', function () {
     dropNonProductionDeletedArchiveColumns();
 
