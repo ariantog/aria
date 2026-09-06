@@ -729,6 +729,7 @@
         @if($isSuperAdmin)
         <a href="{{ route('data-retention.index') }}" x-show="navLinkVisible('Data Retention', 'System Settings')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/data-retention') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Data Retention</a>
         <a href="{{ route('data-retention.item-purge.index') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/data-retention/item-purge') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Selective Item Purge</a>
+        <a href="{{ route('data-retention.addrbook-purge.index') }}" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/data-retention/addrbook-purge') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Delete Addrbook</a>
         @endif
     </div>
 </div>
