@@ -22,6 +22,8 @@ class LegacyItemConverterService
 
     public const PENDING_PAGE_SIZE = 500;
 
+    public const PREP_PAGE_SIZE = 100;
+
     public function __construct(
         protected ItemIdentityBuilder $identityBuilder,
     ) {}
@@ -394,6 +396,78 @@ class LegacyItemConverterService
         }
 
         return $deleted;
+    }
+
+    public function paginateUseless(
+        ItemType $itemType,
+        int $perPage = self::PREP_PAGE_SIZE,
+    ): LengthAwarePaginator {
+        return $this->uselessQuery($itemType)
+            ->orderByDesc('id')
+            ->paginate($perPage)
+            ->withQueryString();
+    }
+
+    public function paginateSuperOld(
+        ItemType $itemType,
+        int $perPage = self::PREP_PAGE_SIZE,
+    ): LengthAwarePaginator {
+        return $this->superOldQuery($itemType)
+            ->orderByDesc('id')
+            ->paginate($perPage)
+            ->withQueryString();
+    }
+
+    public function paginateUnparseable(
+        ItemType $itemType,
+        int $perPage = self::PREP_PAGE_SIZE,
+        ?int $page = null,
+    ): LengthAwarePaginator {
+        $parser = $this->makeParser();
+        $page = max(1, $page ?? (int) request()->query('page', 1));
+        $start = ($page - 1) * $perPage;
+        $total = 0;
+        $matchIndex = 0;
+        $pageItemIds = [];
+
+        $this->candidateBaseQuery($itemType)
+            ->select(['items.id', 'items.code', 'items.type', 'items.group_id', 'items.legacy_code'])
+            ->chunkByIdDesc(500, function ($items) use (
+                $parser,
+                $itemType,
+                $start,
+                $perPage,
+                &$total,
+                &$matchIndex,
+                &$pageItemIds,
+            ) {
+                foreach ($items as $item) {
+                    if (! $parser->hasMinimumIdentityStructure((string) $item->code, $itemType)) {
+                        if ($matchIndex >= $start && count($pageItemIds) < $perPage) {
+                            $pageItemIds[] = $item->id;
+                        }
+
+                        $matchIndex++;
+                        $total++;
+                    }
+                }
+            }, 'id');
+
+        $pageItems = $pageItemIds === []
+            ? collect()
+            : $this->baseQuery($itemType)
+                ->whereIn('items.id', $pageItemIds)
+                ->get()
+                ->sortBy(fn (Item $item) => array_search($item->id, $pageItemIds, true))
+                ->values();
+
+        return new LengthAwarePaginator(
+            $pageItems,
+            $total,
+            $perPage,
+            $page,
+            ['path' => request()->url(), 'query' => request()->query()],
+        );
     }
 
     protected function hardDeleteItem(Item $item): void
