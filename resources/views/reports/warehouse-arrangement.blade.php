@@ -360,8 +360,24 @@ $queryParams = fn (array $extra = []) => array_filter(array_merge([
             <div class="border-b border-gray-100 bg-gray-50 px-4 py-3">
                 <div class="flex flex-wrap items-center justify-between gap-3">
                     <div class="flex flex-wrap items-center gap-2 text-sm">
+                        @if(($section['group_url'] ?? null) && auth()->user()?->can('stuff-group-list'))
+                        <a href="{{ $section['group_url'] }}"
+                           class="font-mono font-semibold text-blue-700 hover:text-blue-900 hover:underline"
+                           title="Open item group">
+                            {{ $section['pcode'] }}
+                        </a>
+                        @else
                         <span class="font-mono font-semibold text-gray-900">{{ $section['pcode'] }}</span>
+                        @endif
+                        @if($section['name'] ?? null)
                         <span class="text-gray-600">{{ $section['name'] }}</span>
+                        @endif
+                        @if(! ($section['group_exists'] ?? false))
+                        <span class="rounded bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800"
+                              title="No item group record for this pcode yet">
+                            No group
+                        </span>
+                        @endif
                         @if($section['warna'] && $section['warna'] !== '—')
                         <span class="text-gray-500">· {{ $section['warna'] }}</span>
                         @endif

@@ -1176,3 +1176,148 @@ it('defaults source warehouses to those with the most matching sku stock', funct
     expect($result['top_source_matches'][0]['match_count'])->toBe(3);
     expect($result['top_source_matches'][1]['match_count'])->toBe(2);
 });
+
+it('hides legacy pcode-like group names from section headers', function () {
+    $source = Addrbook::factory()->warehouse()->create();
+    $destination = Addrbook::factory()->warehouse()->create(['arrangement_enabled' => true]);
+
+    $group = ItemGroup::factory()->create([
+        'master' => 'CB00207/02',
+        'variant' => '',
+        'name' => 'CB00207/01',
+    ]);
+
+    $anchor = Item::factory()->create([
+        'group_id' => $group->id,
+        'type' => ItemType::ITEM,
+        'pcode' => 'CB00207/02',
+        'code' => 'AJD-CB00207-02-S',
+    ]);
+    $missing = Item::factory()->create([
+        'group_id' => $group->id,
+        'type' => ItemType::ITEM,
+        'pcode' => 'CB00207/02',
+        'code' => 'AJD-CB00207-02-M',
+    ]);
+
+    WarehouseItem::create(['warehouse_id' => $source->id, 'item_id' => $missing->id, 'quantity' => 3]);
+    WarehouseItem::create(['warehouse_id' => $destination->id, 'item_id' => $anchor->id, 'quantity' => 1]);
+
+    $now = now();
+    foreach ([$anchor, $missing] as $item) {
+        WarehouseItemMonthlyStat::create([
+            'warehouse_id' => $destination->id,
+            'item_id' => $item->id,
+            'month' => $now->month,
+            'year' => $now->year,
+            'sold_qty' => 2,
+            'returned_qty' => 0,
+        ]);
+    }
+
+    $result = arrangementPage($destination->id);
+
+    expect($result['sections'])->toHaveCount(1);
+    expect($result['sections'][0]['pcode'])->toBe('CB00207/02');
+    expect($result['sections'][0]['name'])->toBeNull();
+    expect($result['sections'][0]['group_exists'])->toBeTrue();
+    expect($result['sections'][0]['group_id'])->toBe($group->id);
+});
+
+it('shows real product titles in section headers when available', function () {
+    $source = Addrbook::factory()->warehouse()->create();
+    $destination = Addrbook::factory()->warehouse()->create(['arrangement_enabled' => true]);
+
+    $group = ItemGroup::factory()->create([
+        'master' => 'CX90036-02',
+        'variant' => '02',
+        'name' => 'SLASH RUNNING SHIRT',
+    ]);
+
+    $anchor = Item::factory()->create([
+        'group_id' => $group->id,
+        'type' => ItemType::ITEM,
+        'pcode' => 'CX90036-02',
+        'code' => 'AJD-CX90036-02-S',
+    ]);
+    $missing = Item::factory()->create([
+        'group_id' => $group->id,
+        'type' => ItemType::ITEM,
+        'pcode' => 'CX90036-02',
+        'code' => 'AJD-CX90036-02-M',
+    ]);
+
+    WarehouseItem::create(['warehouse_id' => $source->id, 'item_id' => $missing->id, 'quantity' => 2]);
+    WarehouseItem::create(['warehouse_id' => $destination->id, 'item_id' => $anchor->id, 'quantity' => 1]);
+
+    $now = now();
+    foreach ([$anchor, $missing] as $item) {
+        WarehouseItemMonthlyStat::create([
+            'warehouse_id' => $destination->id,
+            'item_id' => $item->id,
+            'month' => $now->month,
+            'year' => $now->year,
+            'sold_qty' => 1,
+            'returned_qty' => 0,
+        ]);
+    }
+
+    $result = arrangementPage($destination->id);
+
+    expect($result['sections'][0]['name'])->toBe('SLASH RUNNING SHIRT');
+    expect($result['sections'][0]['group_url'])->toBe(route('items.group-detail', $group));
+});
+
+it('marks sections without item groups and renders a no-group badge', function () {
+    $source = Addrbook::factory()->warehouse()->create();
+    $destination = Addrbook::factory()->warehouse()->create(['arrangement_enabled' => true]);
+
+    $group = ItemGroup::factory()->create([
+        'master' => 'CB00207/04',
+        'variant' => '',
+        'name' => 'CB00207/01',
+    ]);
+
+    $anchor = Item::factory()->create([
+        'group_id' => $group->id,
+        'type' => ItemType::ITEM,
+        'pcode' => 'CB00207/04',
+        'code' => 'AJD-CB00207-04-S',
+    ]);
+    $missing = Item::factory()->create([
+        'group_id' => $group->id,
+        'type' => ItemType::ITEM,
+        'pcode' => 'CB00207/04',
+        'code' => 'AJD-CB00207-04-M',
+    ]);
+
+    WarehouseItem::create(['warehouse_id' => $source->id, 'item_id' => $missing->id, 'quantity' => 2]);
+    WarehouseItem::create(['warehouse_id' => $destination->id, 'item_id' => $anchor->id, 'quantity' => 1]);
+
+    $now = now();
+    foreach ([$anchor, $missing] as $item) {
+        WarehouseItemMonthlyStat::create([
+            'warehouse_id' => $destination->id,
+            'item_id' => $item->id,
+            'month' => $now->month,
+            'year' => $now->year,
+            'sold_qty' => 1,
+            'returned_qty' => 0,
+        ]);
+    }
+
+    arrangementPage($destination->id);
+    $group->delete();
+
+    $result = app(WarehouseArrangementService::class)->buildPage($destination->id);
+
+    expect($result['sections'][0]['group_exists'])->toBeFalse();
+    expect($result['sections'][0]['group_url'])->toBeNull();
+    expect($result['sections'][0]['name'])->toBeNull();
+
+    $this->actingAs($this->user)
+        ->get(route('reports.warehouse-arrangement', ['warehouse_id' => $destination->id]))
+        ->assertOk()
+        ->assertSee('CB00207/04', false)
+        ->assertSee('No group', false);
+});
