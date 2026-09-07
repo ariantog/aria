@@ -2,7 +2,8 @@
 
 @php
     $isAsset = $itemType == 2;
-    $formItem = [
+    $duplicateFrom = $duplicateFrom ?? null;
+    $formItem = $formItem ?? [
         'pcode' => old('pcode'),
         'product_name' => old('product_name'),
         'price' => old('price'),
@@ -13,29 +14,44 @@
         'restock_urgent_threshold' => old('restock_urgent_threshold'),
     ];
 @endphp
-@section('title', $isAsset ? 'Create New Asset' : 'Create New Item')
+@section('title', $duplicateFrom ? 'Duplicate SKU' : ($isAsset ? 'Create New Asset' : 'Create New Item'))
 
 @section('content')
 @php
 $breadcrumbs = [
     ['title' => 'Dashboard', 'href' => route('dashboard')],
     ['title' => $isAsset ? 'Asset Lancar' : 'Items', 'href' => $isAsset ? route('assetlancar.index') : route('items.index')],
-    ['title' => 'Create New', 'href' => '#'],
+    ['title' => $duplicateFrom ? 'Duplicate SKU' : 'Create New', 'href' => '#'],
 ];
 $actionUrl = $isAsset ? route('assetlancar.store') : route('items.store');
 @endphp
 
 <div class="flex flex-col gap-4 p-4" x-data="itemForm()" x-init="init()">
     <div class="mb-2">
-        <h2 class="mb-1 text-3xl font-bold tracking-tight text-gray-900">{{ $isAsset ? 'Create New Asset' : 'Create New Item' }}</h2>
+        <h2 class="mb-1 text-3xl font-bold tracking-tight text-gray-900">
+            @if($duplicateFrom)
+                Duplicate SKU
+            @else
+                {{ $isAsset ? 'Create New Asset' : 'Create New Item' }}
+            @endif
+        </h2>
         <p class="text-gray-500">
-            @if($isAsset)
+            @if($duplicateFrom)
+                Pre-filled from <span class="font-mono text-sm">{{ $duplicateFrom->code }}</span>. Select size(s) to create additional SKUs for this colorway.
+            @elseif($isAsset)
                 Add asset lancar variants — select multiple colors and sizes; each combination becomes one SKU.
             @else
                 Add manufactured item sizes for one production code and color (pcode suffix).
             @endif
         </p>
     </div>
+
+    @if($duplicateFrom)
+    <div class="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900" data-testid="duplicate-sku-banner">
+        Duplicating from <span class="font-mono font-medium">{{ $duplicateFrom->code }}</span>.
+        Warna, type, jahit, and catalog fields are copied; choose one or more sizes that do not exist yet.
+    </div>
+    @endif
 
     @include('items.partials.form-errors')
 
@@ -49,7 +65,12 @@ $actionUrl = $isAsset ? route('assetlancar.store') : route('items.store');
                 @include('items.partials.form-details', ['formItem' => $formItem])
             </div>
             <div class="space-y-6">
-                @include('items.partials.form-attributes', ['multiSize' => true])
+                @include('items.partials.form-attributes', [
+                    'multiSize' => true,
+                    'curType' => $curType ?? null,
+                    'curJahit' => $curJahit ?? null,
+                    'curWarna' => $curWarna ?? null,
+                ])
                 @include('items.partials.form-image')
             </div>
         </div>
@@ -58,7 +79,13 @@ $actionUrl = $isAsset ? route('assetlancar.store') : route('items.store');
 
         <div class="flex justify-end gap-4 border-t border-gray-200 pt-8">
             <button type="button" onclick="window.history.back()" class="rounded-lg px-4 py-2 text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900">Cancel</button>
-            <button type="submit" class="min-w-[150px] rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Create {{ $isAsset ? 'Asset' : 'Item' }}</button>
+            <button type="submit" class="min-w-[150px] rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
+                @if($duplicateFrom)
+                    Create {{ $isAsset ? 'Asset' : 'Item' }} Size(s)
+                @else
+                    Create {{ $isAsset ? 'Asset' : 'Item' }}
+                @endif
+            </button>
         </div>
     </form>
 </div>

@@ -23,6 +23,10 @@ $groupProductName = optional($item->group)->name ?? '-';
 $desc = $item->catalogDescription() !== '' ? $item->catalogDescription() : '-';
 $nb = $item->catalogDescription2() !== '' ? $item->catalogDescription2() : '-';
 $legacyCode = $item->distinctLegacyCode();
+$createPermission = $isAsset
+    ? \App\Models\Item::getPermissions()['asset-lancar-create']
+    : \App\Models\Item::getPermissions()['create'];
+$canDuplicate = \Illuminate\Support\Facades\Gate::check($createPermission);
 @endphp
 
 <div class="p-4 sm:p-6" x-data="{ showZero: false, showVirtualWarehouses: false, showDeletedWarehouses: false }">
@@ -49,6 +53,14 @@ $legacyCode = $item->distinctLegacyCode();
                 <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
                 Print Label
             </button>
+            @if($canDuplicate)
+            <a href="{{ route($isAsset ? 'assetlancar.duplicate' : 'items.duplicate', $item) }}"
+               data-testid="duplicate-sku"
+               class="inline-flex items-center gap-2 rounded-lg border border-blue-300 bg-blue-50 px-4 py-2 text-sm font-medium text-blue-900 hover:bg-blue-100">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                Duplicate SKU
+            </a>
+            @endif
             <a href="{{ $base }}/{{ $item->id }}/edit" class="inline-flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700">
                 <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                 Edit Details

@@ -151,6 +151,20 @@ class ItemsController extends Controller
         return view('items.create', $this->formProps(ItemType::ASSET_LANCAR));
     }
 
+    public function duplicate(Item $item)
+    {
+        abort_unless($item->type === ItemType::ITEM, 404);
+
+        return $this->duplicateCreateView($item);
+    }
+
+    public function duplicateAsset(Item $item)
+    {
+        abort_unless($item->type === ItemType::ASSET_LANCAR, 404);
+
+        return $this->duplicateCreateView($item);
+    }
+
     public function store(StoreItemRequest $request)
     {
         $type = ItemType::from((int) $request->input('type'));
@@ -779,6 +793,51 @@ class ItemsController extends Controller
     private function isJson(Request $r): bool
     {
         return ($r->wantsJson() || $r->has('json')) && ! $r->header('X-Inertia');
+    }
+
+    protected function duplicateCreateView(Item $item)
+    {
+        $permissions = Item::getPermissions();
+        Gate::authorize($item->type === ItemType::ASSET_LANCAR
+            ? $permissions['asset-lancar-create']
+            : $permissions['create']);
+
+        $item->load(['group', 'tags']);
+        $isAsset = $item->type === ItemType::ASSET_LANCAR;
+        $productTitle = $this->identityBuilder->productDisplayName(
+            $item->type,
+            (string) ($item->group?->name ?: $item->name),
+            (string) ($item->group?->variant ?? ''),
+            (string) ($item->group?->master ?? ''),
+        );
+
+        $legacyAssetProductName = '';
+        if ($isAsset && ! $item->group) {
+            $legacyAssetProductName = str_contains($item->name, ' - ')
+                ? trim(explode(' - ', $item->name, 2)[0])
+                : $item->name;
+        }
+
+        $formItem = [
+            'pcode' => old('pcode', $item->pcode),
+            'product_name' => old('product_name', $productTitle !== '' && strtoupper($productTitle) !== strtoupper((string) $item->pcode)
+                ? $productTitle
+                : ($legacyAssetProductName ?: '')),
+            'price' => old('price', $item->price),
+            'cost' => old('cost', $item->cost),
+            'description' => old('description', $item->catalogDescription()),
+            'description2' => old('description2', $item->catalogDescription2()),
+            'url' => old('url', optional($item->group)->url),
+            'restock_urgent_threshold' => old('restock_urgent_threshold', $item->restock_urgent_threshold),
+        ];
+
+        return view('items.create', array_merge($this->formProps($item->type), [
+            'formItem' => $formItem,
+            'curType' => optional($item->tags->firstWhere('type', Tag::TYPE_TYPE))->id,
+            'curJahit' => optional($item->tags->firstWhere('type', Tag::TYPE_JAHIT))->id,
+            'curWarna' => optional($item->tags->firstWhere('type', Tag::TYPE_WARNA))->id,
+            'duplicateFrom' => $item,
+        ]));
     }
 
     private function formProps(ItemType $t): array
