@@ -57,7 +57,9 @@ it('renders item transaction filters on items and assetlancar pages', function (
         ->assertSee('data-testid="item-tx-party-combobox"', false)
         ->assertSee($storageKey, false)
         ->assertSee('localStorage.getItem(this.filtersStorageKey)', false)
-        ->assertSee("localStorage.setItem(this.filtersStorageKey, value ? '1' : '0')", false);
+        ->assertSee("localStorage.setItem(this.filtersStorageKey, value ? '1' : '0')", false)
+        ->assertSee('data-testid="copy-item-transactions-table"', false)
+        ->assertSee('copyRowsTable()', false);
 })->with([
     'items' => ['items.transactions', ItemType::ITEM, 'aria-items-transaction-filters-open'],
     'assetlancar' => ['assetlancar.transactions', ItemType::ASSET_LANCAR, 'aria-assetlancar-transaction-filters-open'],
