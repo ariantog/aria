@@ -353,7 +353,8 @@ class TransactionsController extends Controller
             'jubelioSync' => $jubelioSync,
             'config' => ['sender_label' => $getLabel('sender'), 'receiver_label' => $getLabel('receiver'), 'type_slug' => $typeSlug],
             'can' => [
-                'delete_transaction' => Auth::user()->can(Transaction::getPermissions()['delete']),
+                'delete_transaction' => Auth::user()->can(Transaction::getPermissions()['delete'])
+                    && ! $transaction->blocksDeletionBecauseJubelioSync(),
                 'edit_transaction' => Auth::user()->can(Transaction::getPermissions()['edit']),
                 'edit_invoice' => Auth::user()->can(Transaction::getPermissions()['edit-invoice']),
                 'bank_hidden_balance' => ! Auth::user()->is_superadmin && Auth::user()->can('addrbook-bank-account-hidden-balance'),
@@ -693,7 +694,7 @@ class TransactionsController extends Controller
     public function destroy(Transaction $transaction, TransactionService $service, BookClosingService $bookClosingService)
     {
         Gate::authorize(Transaction::getPermissions()['delete']);
-        if ($transaction->isFromJubelio()) {
+        if ($transaction->blocksDeletionBecauseJubelioSync()) {
             return back()->with('error', 'Jubelio-synced transactions cannot be deleted.');
         }
 
@@ -716,7 +717,7 @@ class TransactionsController extends Controller
                 return;
             }
 
-            if ($transaction->isFromJubelio()) {
+            if ($transaction->blocksDeletionBecauseJubelioSync()) {
                 return;
             }
 
