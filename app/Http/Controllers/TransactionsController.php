@@ -337,8 +337,16 @@ class TransactionsController extends Controller
         $invoiceService = app(TransactionInvoiceService::class);
         $canDraftReturn = $this->canDraftReturn($transaction);
         $invoiceSettlement = app(StandaloneInvoiceSettlement::class)->snapshotForTransaction($transaction);
-        $sellCashIn = app(SellCashInPresenter::class)
-            ->forSell($transaction, Auth::user(), $invoiceSettlement);
+        $sellCashInPresenter = app(SellCashInPresenter::class);
+        $sellCashIn = $sellCashInPresenter->forSell($transaction, Auth::user(), $invoiceSettlement);
+        $invoiceLinked = match ((int) $transaction->type) {
+            Transaction::TYPE_CASH_IN => $invoiceSettlement
+                ? null
+                : $sellCashInPresenter->forCashIn($transaction),
+            Transaction::TYPE_CASH_OUT => $sellCashInPresenter->forCashOut($transaction),
+            Transaction::TYPE_BUY => $sellCashInPresenter->forBuy($transaction),
+            default => null,
+        };
         $cashBankId = match ((int) $transaction->type) {
             Transaction::TYPE_CASH_IN => (int) $transaction->receiver_id,
             Transaction::TYPE_CASH_OUT => (int) $transaction->sender_id,
@@ -366,6 +374,7 @@ class TransactionsController extends Controller
             ],
             'invoiceSettlement' => $invoiceSettlement,
             'sellCashIn' => $sellCashIn,
+            'invoiceLinked' => $invoiceLinked,
             'flash' => [
                 'success' => session('success'),
                 'error' => session('errorMessage') ?? session('error'),

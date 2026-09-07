@@ -77,16 +77,107 @@ class SellCashInPresenter
         $data = $this->formData($user, $defaultAmount);
         $data['can_create'] = $data['can_create']
             && (int) $transaction->status !== Transaction::STATUS_CANCELLED;
-        $data['linked'] = Transaction::query()
+        $data['linked'] = $this->linkedTransactions(
+            (string) $transaction->invoice,
+            Transaction::TYPE_CASH_IN,
+        );
+
+        return $data;
+    }
+
+    /**
+     * @return array{title: string, linked: Collection<int, Transaction>, party: 'sender'|'receiver'}|null
+     */
+    public function forCashIn(Transaction $transaction): ?array
+    {
+        if ((int) $transaction->type !== Transaction::TYPE_CASH_IN) {
+            return null;
+        }
+
+        $linked = $this->linkedTransactions(
+            (string) $transaction->invoice,
+            Transaction::TYPE_SELL,
+        );
+
+        if ($linked->isEmpty()) {
+            return null;
+        }
+
+        return [
+            'title' => 'Linked sell',
+            'linked' => $linked,
+            'party' => 'receiver',
+        ];
+    }
+
+    /**
+     * @return array{title: string, linked: Collection<int, Transaction>, party: 'sender'|'receiver'}|null
+     */
+    public function forCashOut(Transaction $transaction): ?array
+    {
+        if ((int) $transaction->type !== Transaction::TYPE_CASH_OUT) {
+            return null;
+        }
+
+        $linked = $this->linkedTransactions(
+            (string) $transaction->invoice,
+            Transaction::TYPE_BUY,
+        );
+
+        if ($linked->isEmpty()) {
+            return null;
+        }
+
+        return [
+            'title' => 'Linked buy',
+            'linked' => $linked,
+            'party' => 'receiver',
+        ];
+    }
+
+    /**
+     * @return array{title: string, linked: Collection<int, Transaction>, party: 'sender'|'receiver'}|null
+     */
+    public function forBuy(Transaction $transaction): ?array
+    {
+        if ((int) $transaction->type !== Transaction::TYPE_BUY) {
+            return null;
+        }
+
+        $linked = $this->linkedTransactions(
+            (string) $transaction->invoice,
+            Transaction::TYPE_CASH_OUT,
+        );
+
+        if ($linked->isEmpty()) {
+            return null;
+        }
+
+        return [
+            'title' => 'Linked cash-out',
+            'linked' => $linked,
+            'party' => 'sender',
+        ];
+    }
+
+    /**
+     * @return Collection<int, Transaction>
+     */
+    private function linkedTransactions(string $invoice, int $type): Collection
+    {
+        $invoice = trim($invoice);
+        if ($invoice === '') {
+            return collect();
+        }
+
+        return Transaction::query()
             ->with(['sender', 'receiver'])
-            ->where('type', Transaction::TYPE_CASH_IN)
-            ->where('invoice', $transaction->invoice)
+            ->where('type', $type)
+            ->where('invoice', $invoice)
             ->where('status', Transaction::STATUS_COMPLETED)
             ->orderBy('date')
             ->orderBy('id')
             ->get();
-
-        return $data;
     }
 
     /**

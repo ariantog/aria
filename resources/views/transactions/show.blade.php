@@ -372,6 +372,11 @@
         'sellCashIn' => $sellCashIn ?? null,
     ])
 
+    @include('transactions.partials.invoice-linked-transactions', [
+        'transaction' => $transaction,
+        'invoiceLinked' => $invoiceLinked ?? null,
+    ])
+
     @if($invoiceSettlement)
     <div class="print:hidden">
         <div class="mb-2 flex items-center justify-between gap-3">
