@@ -34,6 +34,8 @@ class LegacyItemConverterController extends Controller
             ->latest('id')
             ->first();
 
+        $prepTabs = ['useless', 'super-old', 'unparseable'];
+
         if ($tab === 'pending') {
             $pendingData = $this->converterService->pendingIndexData(
                 $itemType,
@@ -42,6 +44,17 @@ class LegacyItemConverterController extends Controller
             );
             $queueStats = $pendingData['stats'];
             $data = $pendingData['paginator']->withQueryString();
+        } elseif (in_array($tab, $prepTabs, true)) {
+            $queueStats = $this->converterService->queueStats($itemType);
+            $data = match ($tab) {
+                'useless' => $this->converterService->paginateUseless($itemType),
+                'super-old' => $this->converterService->paginateSuperOld($itemType),
+                'unparseable' => $this->converterService->paginateUnparseable(
+                    $itemType,
+                    LegacyItemConverterService::PREP_PAGE_SIZE,
+                    $currentPage,
+                ),
+            };
         } else {
             $queueStats = $this->converterService->queueStats($itemType);
             $data = match ($tab) {
@@ -70,6 +83,8 @@ class LegacyItemConverterController extends Controller
             'previews' => $previews,
             'batchSize' => LegacyItemConverterService::DEFAULT_BATCH_SIZE,
             'pageSize' => LegacyItemConverterService::PENDING_PAGE_SIZE,
+            'prepPageSize' => LegacyItemConverterService::PREP_PAGE_SIZE,
+            'prepTabs' => $prepTabs,
             'currentPage' => $currentPage,
             'currentPageCount' => $tab === 'pending' ? $data->count() : 0,
             'convertiblePageCount' => $tab === 'pending'

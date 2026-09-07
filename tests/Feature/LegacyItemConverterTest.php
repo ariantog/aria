@@ -887,3 +887,37 @@ it('shows per-row convert action on legacy converter pending table', function ()
         ->assertSee('data-testid="legacy-converter-convert-'.$item->id.'"', false)
         ->assertSee(route('items.legacy-converter.run-item', $item), false);
 });
+
+it('lists prep category items on legacy converter tabs', function () {
+    Item::factory()->create([
+        'type' => ItemType::ASSET_LANCAR,
+        'code' => 'PURGE-ME',
+        'created_at' => now()->subYears(2),
+    ]);
+
+    Item::factory()->create([
+        'type' => ItemType::ASSET_LANCAR,
+        'group_id' => null,
+        'code' => 'HANGER-01',
+        'created_at' => now()->subYears(2),
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('items.legacy-converter', [
+            'type' => ItemType::ASSET_LANCAR->value,
+            'tab' => 'useless',
+        ]))
+        ->assertOk()
+        ->assertSee('Useless SKUs', false)
+        ->assertSee('PURGE-ME', false)
+        ->assertSee('data-testid="legacy-converter-prep-table"', false);
+
+    $this->actingAs($this->user)
+        ->get(route('items.legacy-converter', [
+            'type' => ItemType::ASSET_LANCAR->value,
+            'tab' => 'unparseable',
+        ]))
+        ->assertOk()
+        ->assertSee('Unparseable', false)
+        ->assertSee('HANGER-01', false);
+});

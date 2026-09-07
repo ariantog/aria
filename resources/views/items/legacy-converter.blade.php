@@ -10,8 +10,19 @@
         'completed' => 'Completed',
         'failed' => 'Failed',
     ];
+    $prepTabLabels = [
+        'useless' => 'Useless SKUs',
+        'super-old' => 'Super-old',
+        'unparseable' => 'Unparseable',
+    ];
+    $prepCounts = [
+        'useless' => $uselessCount,
+        'super-old' => $superOldCount,
+        'unparseable' => $unparseableCount,
+    ];
+    $isPrepTab = in_array($tab, $prepTabs, true);
     $baseParams = ['type' => $itemType->value];
-    if ($tab === 'pending') {
+    if ($tab === 'pending' || $tab === 'unparseable') {
         $baseParams['page'] = $currentPage;
     }
     $itemShowUrl = function ($item) use ($itemType) {
@@ -73,18 +84,58 @@
         <dl class="mt-2 grid gap-2 text-sm text-amber-900 sm:grid-cols-2 lg:grid-cols-3">
             <div>
                 <dt class="font-medium">Useless SKUs (hard delete)</dt>
-                <dd class="text-amber-800">{{ number_format($uselessCount) }} — created &gt;1 year ago, never in any transaction</dd>
+                <dd class="text-amber-800">
+                    @if($uselessCount > 0)
+                        <a href="{{ route('items.legacy-converter', array_merge($baseParams, ['tab' => 'useless'])) }}"
+                           class="font-medium underline decoration-amber-400 underline-offset-2 hover:text-amber-950">
+                            {{ number_format($uselessCount) }}
+                        </a>
+                    @else
+                        {{ number_format($uselessCount) }}
+                    @endif
+                    — created &gt;1 year ago, never in any transaction
+                </dd>
             </div>
             <div>
                 <dt class="font-medium">Super-old (excluded)</dt>
-                <dd class="text-amber-800">{{ number_format($superOldCount) }} — created &gt;5 years ago, no transactions in last 2 years</dd>
+                <dd class="text-amber-800">
+                    @if($superOldCount > 0)
+                        <a href="{{ route('items.legacy-converter', array_merge($baseParams, ['tab' => 'super-old'])) }}"
+                           class="font-medium underline decoration-amber-400 underline-offset-2 hover:text-amber-950">
+                            {{ number_format($superOldCount) }}
+                        </a>
+                    @else
+                        {{ number_format($superOldCount) }}
+                    @endif
+                    — created &gt;5 years ago, no transactions in last 2 years
+                </dd>
             </div>
             <div>
                 <dt class="font-medium">Unparseable structure (excluded)</dt>
-                <dd class="text-amber-800">{{ number_format($unparseableCount) }} — missing PCODE-COLOR (asset) or TYPE-PCODE (manufactured), e.g. HANGER-01</dd>
+                <dd class="text-amber-800">
+                    @if($unparseableCount > 0)
+                        <a href="{{ route('items.legacy-converter', array_merge($baseParams, ['tab' => 'unparseable'])) }}"
+                           class="font-medium underline decoration-amber-400 underline-offset-2 hover:text-amber-950">
+                            {{ number_format($unparseableCount) }}
+                        </a>
+                    @else
+                        {{ number_format($unparseableCount) }}
+                    @endif
+                    — missing PCODE-COLOR (asset) or TYPE-PCODE (manufactured), e.g. HANGER-01
+                </dd>
             </div>
         </dl>
-        @if($uselessCount > 0)
+        <div class="mt-3 flex flex-wrap gap-1">
+            @foreach($prepTabLabels as $prepKey => $prepLabel)
+                @php $prepCount = $prepCounts[$prepKey] ?? 0; @endphp
+                <a href="{{ route('items.legacy-converter', array_merge($baseParams, ['tab' => $prepKey])) }}"
+                   class="rounded-md px-3 py-1.5 text-sm font-medium {{ $tab === $prepKey ? 'bg-amber-900 text-white' : ($prepCount > 0 ? 'bg-white text-amber-900 ring-1 ring-amber-300 hover:bg-amber-100' : 'cursor-default text-amber-400 ring-1 ring-amber-200') }}"
+                   @if($prepCount === 0) aria-disabled="true" @endif>
+                    {{ $prepLabel }} ({{ number_format($prepCount) }})
+                </a>
+            @endforeach
+        </div>
+        @if($tab === 'useless' && $uselessCount > 0)
         <form method="POST" action="{{ route('items.legacy-converter.purge-useless') }}" class="mt-3"
               onsubmit="return confirm('Permanently delete up to {{ number_format($batchSize) }} useless {{ strtolower($typeLabel) }} SKUs? This cannot be undone.');">
             @csrf
@@ -277,7 +328,63 @@
                     @endforelse
                 </tbody>
             </table>
-        @else
+        @elseif($isPrepTab)
+            <div class="border-b border-gray-200 bg-gray-50 px-4 py-3">
+                <h3 class="text-sm font-semibold text-gray-900">{{ $prepTabLabels[$tab] ?? 'Prep review' }}</h3>
+                <p class="mt-0.5 text-xs text-gray-500">
+                    @if($tab === 'useless')
+                        Hard-delete candidates — created more than one year ago and never used in any transaction.
+                    @elseif($tab === 'super-old')
+                        Excluded from the conversion queue — created more than five years ago with no transactions in the last two years.
+                    @else
+                        Excluded from the conversion queue — SKU code does not match the minimum legacy structure for this item type.
+                    @endif
+                </p>
+            </div>
+            <table class="min-w-full divide-y divide-gray-200 text-sm" data-testid="legacy-converter-prep-table">
+                <thead class="bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    <tr>
+                        <th class="px-4 py-3">ID</th>
+                        <th class="px-4 py-3">Code</th>
+                        <th class="px-4 py-3">Name</th>
+                        <th class="px-4 py-3">Created</th>
+                        <th class="px-4 py-3">Group</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    @forelse($dataList as $item)
+                        @php $showUrl = $itemShowUrl($item); @endphp
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-4 py-2 text-gray-500">
+                                @if($showUrl)
+                                    <a href="{{ $showUrl }}" class="font-medium text-blue-600 hover:underline">{{ $item->id }}</a>
+                                @else
+                                    {{ $item->id }}
+                                @endif
+                            </td>
+                            <td class="px-4 py-2 font-mono">
+                                @if($showUrl)
+                                    <a href="{{ $showUrl }}" class="text-blue-600 hover:underline">{{ $item->code }}</a>
+                                @else
+                                    <span class="text-gray-900">{{ $item->code }}</span>
+                                @endif
+                            </td>
+                            <td class="px-4 py-2 text-gray-700">
+                                @if($showUrl)
+                                    <a href="{{ $showUrl }}" class="hover:text-blue-600 hover:underline">{{ $item->name }}</a>
+                                @else
+                                    {{ $item->name }}
+                                @endif
+                            </td>
+                            <td class="px-4 py-2 text-gray-500">{{ $item->created_at?->format('Y-m-d') ?? '—' }}</td>
+                            <td class="px-4 py-2 text-gray-500">{{ $item->group_id ?: '—' }}</td>
+                        </tr>
+                    @empty
+                        <tr><td colspan="5" class="px-4 py-8 text-center text-gray-500">No items in this prep category.</td></tr>
+                    @endforelse
+                </tbody>
+            </table>
+        @elseif($tab === 'failed')
             <table class="min-w-full divide-y divide-gray-200 text-sm">
                 <thead class="bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
                     <tr>
