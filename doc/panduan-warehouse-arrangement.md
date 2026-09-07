@@ -138,7 +138,8 @@ Setiap kartu mewakili satu **pcode warna** (contoh `CX90028-02`).
 
 Header kartu:
 
-- **Pcode** dan **nama produk**
+- **Pcode** — jika grup item sudah ada di Aria, pcode bisa diklik menuju halaman grup (`items-group/{id}`). Jika belum ada, muncul badge **No group**.
+- **Nama produk** — hanya ditampilkan jika bukan pcode duplikat/legacy (mis. tidak menampilkan `CB00207/01` di samping `CB00207/02`).
 - **Warna** (jika ada)
 - **demand (365d)** — skor permintaan keluarga 365 hari (sorting prioritas)
 - **X/Y sizes (Z%)** — berapa ukuran yang ada stok di tujuan vs total ukuran yang dikenali
