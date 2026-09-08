@@ -212,8 +212,8 @@ it('shows separate global and per-sku description fields on asset lancar edit pa
         ->assertOk()
         ->assertSee('name="item_description"', false)
         ->assertSee('name="item_reseller_price"', false)
-        ->assertSee('data-testid="item-form-sku-local-desc"', false)
-        ->assertSee('Local description overrides (optional)', false)
+        ->assertSee('data-testid="item-form-sku-details"', false)
+        ->assertSee('Optional per-SKU overrides for rare cases', false)
         ->assertSee('GROUP DESC', false)
         ->assertSee('SKU DESC', false);
 });
