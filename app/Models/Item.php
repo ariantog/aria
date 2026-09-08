@@ -295,6 +295,11 @@ class Item extends Model
         return ItemCatalog::resellerPrice($this);
     }
 
+    public function resellerSellPrice(): float
+    {
+        return ItemCatalog::sellPriceForReseller($this);
+    }
+
     public function catalogBrand(): ItemBrand
     {
         return ItemCatalog::brand($this);

@@ -142,6 +142,30 @@ test('dedupeItemDescriptionsFromGroup clears mirrored text but keeps local overr
         ->and($item->description2)->toBe('LOCAL NB');
 });
 
+test('sellPriceForReseller falls back sku, group, then normal price', function () {
+    $group = ItemGroup::factory()->make([
+        'reseller_price' => 120000,
+    ]);
+    $item = Item::factory()->make([
+        'group_id' => 11,
+        'price' => 150000,
+        'reseller_price' => 95000,
+    ]);
+    $item->setRelation('group', $group);
+
+    expect(ItemCatalog::sellPriceForReseller($item))->toBe(95000.0);
+
+    $item->reseller_price = 0;
+    $item->setRelation('group', $group);
+
+    expect(ItemCatalog::sellPriceForReseller($item))->toBe(120000.0);
+
+    $group->reseller_price = 0;
+    $item->setRelation('group', $group);
+
+    expect(ItemCatalog::sellPriceForReseller($item))->toBe(150000.0);
+});
+
 test('resellerPrice prefers item override then group default', function () {
     $group = ItemGroup::factory()->make([
         'reseller_price' => 120000,

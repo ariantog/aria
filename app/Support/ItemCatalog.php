@@ -111,6 +111,19 @@ final class ItemCatalog
     }
 
     /**
+     * Unit price for sell transactions to resellers: SKU reseller price, then
+     * group reseller price, then normal selling price.
+     */
+    public static function sellPriceForReseller(Item $item): float
+    {
+        $reseller = self::resellerPrice($item);
+
+        return $reseller > 0
+            ? $reseller
+            : (float) ($item->price ?? 0);
+    }
+
+    /**
      * Leftover items.description, even when the SKU is grouped.
      * Used to seed an empty group or scan warna when catalog text is blank.
      */
