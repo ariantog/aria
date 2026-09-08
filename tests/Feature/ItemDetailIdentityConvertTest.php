@@ -355,7 +355,9 @@ it('converts a single asset lancar item from the detail page', function () {
         ->and($item->group?->genre)->toBe($gloveType->id)
         ->and($item->group?->description)->toBe('FOAM BLACK')
         ->and($item->group?->description2)->toBe('NOTE')
-        ->and($item->description)->toBe('FOAM BLACK')
+        ->and((string) $item->description)->toBe('')
+        ->and($item->catalogDescription())->toBe('FOAM BLACK')
+        ->and($item->catalogDescription2())->toBe('NOTE')
         ->and($item->catalogGenre())->toBe($gloveType->id)
         ->and($item->tags->contains(fn (Tag $tag) => $tag->id === $gloveType->id))->toBeTrue()
         ->and($item->tags->contains(fn (Tag $tag) => $tag->type === Tag::TYPE_WARNA))->toBeTrue()
@@ -404,7 +406,7 @@ it('converts a manufactured item from the items detail page onto the group catal
         ->and($item->group?->description2)->toBe('NB')
         ->and($item->group?->brand)->toBe(\App\Enums\ItemBrand::CX0)
         ->and($item->group?->genre)->toBe($typeTag->id)
-        ->and($item->description)->toBe('MIKRO MOTIF HIJAU')
+        ->and((string) $item->description)->toBe('')
         ->and($item->catalogDescription())->toBe('MIKRO MOTIF HIJAU');
 });
 
@@ -448,8 +450,10 @@ it('seeds a new group from the leftover group catalog when relinking from items 
         ->and($item->group?->master)->toBe('CX00122-04')
         ->and($item->group?->description)->toBe('MIKRO MOTIF CAMO HIJAU')
         ->and($item->group?->description2)->toBe('KEEP')
-        ->and($item->description)->toBe('MIKRO MOTIF CAMO HIJAU')
-        ->and($item->description2)->toBe('KEEP');
+        ->and($item->description)->toBe('MIKRO MOTIF HIJAU')
+        ->and($item->description2)->toBe('STALE')
+        ->and($item->catalogDescription())->toBe('MIKRO MOTIF HIJAU')
+        ->and($item->catalogDescription2())->toBe('STALE');
 });
 
 it('links converted asset lancar items to parent group and restock type', function () {

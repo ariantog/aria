@@ -61,6 +61,7 @@ class ProductionColumnDefaults
             // Leftover mirrors of item_group — keep filling until ItemCatalog::MIRROR_ITEM_COLUMNS is false and the columns are dropped.
             'description' => '',
             'description2' => '',
+            'reseller_price' => 0,
             'variant' => '',
             'pcode' => '',
         ],
@@ -70,6 +71,7 @@ class ProductionColumnDefaults
             'description' => '',
             'alias' => '',
             'description2' => '',
+            'reseller_price' => 0,
             'brand' => 0,
             'genre' => 0,
         ],

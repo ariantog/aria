@@ -772,14 +772,15 @@ it('convert page writes shared catalog onto the group and mirrors leftovers', fu
         ->and($item->group->description2)->toBe('NB')
         ->and($item->group->brand)->toBe(\App\Enums\ItemBrand::CX0)
         ->and($item->group->genre)->toBe($this->typeTag->id)
-        ->and($item->description)->toBe('MIKRO MOTIF HIJAU')
-        ->and($item->description2)->toBe('NB')
+        ->and((string) $item->description)->toBe('')
+        ->and((string) $item->description2)->toBe('')
         ->and($item->brand)->toBe(\App\Enums\ItemBrand::CX0)
         ->and($item->genre)->toBe($this->typeTag->id)
-        ->and($item->catalogDescription())->toBe('MIKRO MOTIF HIJAU');
+        ->and($item->catalogDescription())->toBe('MIKRO MOTIF HIJAU')
+        ->and($item->catalogDescription2())->toBe('NB');
 });
 
-it('convert row keeps existing group catalog and overwrites leftover item text', function () {
+it('convert row keeps existing group catalog and preserves a differing item override', function () {
     $group = \App\Models\ItemGroup::factory()->create([
         'master' => 'CX00122',
         'variant' => '04',
@@ -822,9 +823,10 @@ it('convert row keeps existing group catalog and overwrites leftover item text',
         ->and($group->description2)->toBe('CATALOG NB')
         ->and($group->brand)->toBe(\App\Enums\ItemBrand::CX0)
         ->and($group->genre)->toBe($this->typeTag->id)
-        ->and($item->description)->toBe('MIKRO MOTIF CAMO HIJAU')
-        ->and($item->description2)->toBe('CATALOG NB')
-        ->and($item->catalogDescription())->toBe('MIKRO MOTIF CAMO HIJAU');
+        ->and($item->description)->toBe('MIKRO MOTIF HIJAU')
+        ->and($item->description2)->toBe('STALE')
+        ->and($item->catalogDescription())->toBe('MIKRO MOTIF HIJAU')
+        ->and($item->catalogDescription2())->toBe('STALE');
 });
 
 it('second sibling convert does not overwrite a seeded group description', function () {
@@ -868,8 +870,62 @@ it('second sibling convert does not overwrite a seeded group description', funct
     $this->service->runItems(ItemType::ITEM, collect([$second]), $this->user);
 
     expect($first->fresh('group')->group->description)->toBe('MIKRO MOTIF CAMO HIJAU')
-        ->and($second->fresh()->description)->toBe('MIKRO MOTIF CAMO HIJAU')
-        ->and($second->fresh()->catalogDescription())->toBe('MIKRO MOTIF CAMO HIJAU');
+        ->and($second->fresh()->description)->toBe('MIKRO MOTIF HIJAU')
+        ->and($second->fresh()->catalogDescription())->toBe('MIKRO MOTIF HIJAU');
+});
+
+it('asset lancar sibling converts keep per-size description overrides', function () {
+    $size5 = Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => '5KG', 'name' => '5KG']);
+    $size6 = Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => '6KG', 'name' => '6KG']);
+    $black = Tag::where('code', 'BLACK')->first();
+    $dumbbellType = Tag::factory()->create([
+        'type' => Tag::TYPE_TYPE,
+        'item_type' => ItemType::ASSET_LANCAR->value,
+        'code' => 'DUMBBELL',
+        'name' => 'Dumbbell',
+    ]);
+
+    $first = Item::factory()->create([
+        'type' => ItemType::ASSET_LANCAR,
+        'group_id' => null,
+        'code' => 'DUMBBELL-04-BLACK-5KG',
+        'pcode' => 'DUMBBELL-04',
+        'name' => 'DUMBBELL - BLACK - 5KG',
+        'description' => 'SHARED COLORWAY DESC',
+        'description2' => 'SHARED NB',
+        'genre' => $dumbbellType->id,
+    ]);
+    $first->tags()->sync([$dumbbellType->id, $black->id, $size5->id]);
+
+    $this->service->runItems(ItemType::ASSET_LANCAR, collect([$first]), $this->user);
+
+    $first->refresh()->load('group');
+    $groupId = $first->group_id;
+
+    $second = Item::factory()->create([
+        'type' => ItemType::ASSET_LANCAR,
+        'group_id' => $groupId,
+        'code' => 'DUMBBELL-04-BLACK-6KG',
+        'pcode' => 'DUMBBELL-04',
+        'name' => 'DUMBBELL - BLACK - 6KG',
+        'description' => '6KG SPECIAL DESC',
+        'description2' => '6KG NOTES',
+        'genre' => $dumbbellType->id,
+    ]);
+    $second->tags()->sync([$dumbbellType->id, $black->id, $size6->id]);
+
+    $this->service->runItems(ItemType::ASSET_LANCAR, collect([$second]), $this->user);
+
+    $first->refresh();
+    $second->refresh();
+
+    expect($first->group->description)->toBe('SHARED COLORWAY DESC')
+        ->and((string) $first->description)->toBe('')
+        ->and($first->catalogDescription())->toBe('SHARED COLORWAY DESC')
+        ->and($second->description)->toBe('6KG SPECIAL DESC')
+        ->and($second->description2)->toBe('6KG NOTES')
+        ->and($second->catalogDescription())->toBe('6KG SPECIAL DESC')
+        ->and($second->catalogDescription2())->toBe('6KG NOTES');
 });
 
 it('shows per-row convert action on legacy converter pending table', function () {

@@ -23,6 +23,7 @@ class ItemGroup extends Model
         'name',
         'description',
         'description2',
+        'reseller_price',
         'url',
         'master',
         'variant',
@@ -35,6 +36,7 @@ class ItemGroup extends Model
         return [
             'brand' => ItemBrand::class,
             'genre' => 'integer',
+            'reseller_price' => 'decimal:2',
         ];
     }
 

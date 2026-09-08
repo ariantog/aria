@@ -50,6 +50,7 @@ class Item extends Model
         'tag_ids',
         'description',
         'description2',
+        'reseller_price',
         'jubelio_item_id',
         'restock_urgent_threshold',
     ];
@@ -63,6 +64,7 @@ class Item extends Model
             'genre' => 'integer',
             'price' => 'decimal:2',
             'cost' => 'decimal:2',
+            'reseller_price' => 'decimal:2',
             'qty' => 'decimal:2',
             'jubelio_item_id' => 'integer',
         ];
@@ -286,6 +288,11 @@ class Item extends Model
     public function catalogDescription2(): string
     {
         return ItemCatalog::description2($this);
+    }
+
+    public function catalogResellerPrice(): float
+    {
+        return ItemCatalog::resellerPrice($this);
     }
 
     public function catalogBrand(): ItemBrand
