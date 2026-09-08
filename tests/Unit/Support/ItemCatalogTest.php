@@ -126,6 +126,22 @@ test('seedEmptyDescriptions fills blank group text and never overwrites catalog'
         ->and($emptyGroup->description2)->toBe('NOTE');
 });
 
+test('dedupeItemDescriptionsFromGroup clears mirrored text but keeps local overrides', function () {
+    $group = ItemGroup::factory()->make([
+        'description' => 'SHARED DESC',
+        'description2' => 'SHARED NB',
+    ]);
+    $item = Item::factory()->make([
+        'description' => 'SHARED DESC',
+        'description2' => 'LOCAL NB',
+    ]);
+
+    ItemCatalog::dedupeItemDescriptionsFromGroup($item, $group);
+
+    expect((string) $item->description)->toBe('')
+        ->and($item->description2)->toBe('LOCAL NB');
+});
+
 test('resellerPrice prefers item override then group default', function () {
     $group = ItemGroup::factory()->make([
         'reseller_price' => 120000,

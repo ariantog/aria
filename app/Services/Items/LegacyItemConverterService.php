@@ -777,13 +777,14 @@ class LegacyItemConverterService
             : null;
 
         ItemCatalog::seedEmptyDescriptions($group, $item, $sourceGroup);
+        $group->refresh();
 
         ItemCatalog::mirrorToItem($item, [
-            'description' => $group->description ?? '',
-            'description2' => $group->description2 ?? '',
             'brand' => $group->brand,
             'genre' => (int) ($group->genre ?? 0),
         ]);
+
+        ItemCatalog::dedupeItemDescriptionsFromGroup($item, $group);
 
         $item->setRelation('group', $group);
     }

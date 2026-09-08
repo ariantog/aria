@@ -349,13 +349,13 @@ it('shows group alias as item name on transaction detail', function () {
 
 it('shows item description toggle and column on transaction detail', function () {
     $group = ItemGroup::factory()->create([
-        'description' => 'ITEM DESCRIPTION FOR TX SHOW',
+        'description' => 'GROUP DESC FOR TX SHOW',
     ]);
     $item = Item::factory()->create([
         'group_id' => $group->id,
         'name' => 'Desc Toggle Item',
         'code' => 'AJD-DESC-TOGGLE-M',
-        'description' => 'STALE ITEM DESCRIPTION FOR TX SHOW',
+        'description' => 'LOCAL DESC FOR TX SHOW',
     ]);
 
     $transaction = Transaction::factory()->create(['invoice' => 'TX-DESC-COL']);
@@ -370,10 +370,35 @@ it('shows item description toggle and column on transaction detail', function ()
         ->get(route('transactions.show', $transaction))
         ->assertOk()
         ->assertSee('x-model="showDescription"', false)
-        ->assertSee('ITEM DESCRIPTION FOR TX SHOW', false)
-        ->assertDontSee('STALE ITEM DESCRIPTION FOR TX SHOW', false)
+        ->assertSee('LOCAL DESC FOR TX SHOW', false)
+        ->assertDontSee('GROUP DESC FOR TX SHOW', false)
         ->assertSee('data-copy-col="desc"', false)
         ->assertSee('data-copy-value="214500"', false);
+});
+
+it('transaction detail description falls back to group when item description is empty', function () {
+    $group = ItemGroup::factory()->create([
+        'description' => 'GROUP DESCRIPTION FOR TX SHOW',
+    ]);
+    $item = Item::factory()->create([
+        'group_id' => $group->id,
+        'name' => 'Desc Fallback Item',
+        'code' => 'AJD-DESC-FALLBACK-M',
+        'description' => '',
+    ]);
+
+    $transaction = Transaction::factory()->create(['invoice' => 'TX-DESC-FALLBACK']);
+    TransactionDetail::factory()->create([
+        'transaction_id' => $transaction->id,
+        'item_id' => $item->id,
+        'price' => 214500,
+        'total' => 214500,
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('transactions.show', $transaction))
+        ->assertOk()
+        ->assertSee('GROUP DESCRIPTION FOR TX SHOW', false);
 });
 
 it('print invoice respects view column query params', function () {
@@ -384,7 +409,7 @@ it('print invoice respects view column query params', function () {
         'group_id' => $group->id,
         'name' => 'RAW ITEM NAME',
         'code' => 'AJD-PRINT-COL-M',
-        'description' => 'STALE PRINT DESCRIPTION COLUMN',
+        'description' => '',
     ]);
 
     $transaction = Transaction::factory()->create(['invoice' => 'TX-PRINT-COLS']);
@@ -408,7 +433,6 @@ it('print invoice respects view column query params', function () {
         ->assertOk()
         ->assertSee('AJD-PRINT-COL-M', false)
         ->assertSee('PRINT DESCRIPTION COLUMN', false)
-        ->assertDontSee('STALE PRINT DESCRIPTION COLUMN', false)
         ->assertDontSee('RAW ITEM NAME', false)
         ->assertDontSee('>Img<', false)
         ->assertDontSee('>Barcode<', false);

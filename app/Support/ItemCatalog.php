@@ -136,6 +136,31 @@ final class ItemCatalog
     }
 
     /**
+     * Clear item description mirrors that only duplicate the group catalog so reads
+     * fall back to item_group unless this SKU has a real local override.
+     */
+    public static function dedupeItemDescriptionsFromGroup(Item $item, ItemGroup $group): void
+    {
+        if (self::itemColumnExists('description')) {
+            $itemDescription = trim((string) ($item->description ?? ''));
+            $groupDescription = trim((string) ($group->description ?? ''));
+
+            if ($itemDescription !== '' && strtoupper($itemDescription) === strtoupper($groupDescription)) {
+                $item->description = '';
+            }
+        }
+
+        if (self::itemColumnExists('description2')) {
+            $itemDescription = trim((string) ($item->description2 ?? ''));
+            $groupDescription = trim((string) ($group->description2 ?? ''));
+
+            if ($itemDescription !== '' && strtoupper($itemDescription) === strtoupper($groupDescription)) {
+                $item->description2 = '';
+            }
+        }
+    }
+
+    /**
      * Colorway text for legacy parse / seed: group catalog first, leftover item only
      * when the group has no description yet.
      */
