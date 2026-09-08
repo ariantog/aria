@@ -12,7 +12,7 @@ class StaffChecklistOverviewController extends Controller
 {
     public function index(Request $request, StaffChecklistOverviewService $overviewService)
     {
-        Gate::authorize(User::getPermissions()['staff-roles-view']);
+        Gate::authorize(ChecklistTemplate::getPermissions()['view']);
 
         $date = $request->query('date');
 
@@ -22,7 +22,7 @@ class StaffChecklistOverviewController extends Controller
                 'date' => $date,
             ],
             'canAssignStaffRoles' => $request->user()?->can(User::getPermissions()['staff-roles-edit']) ?? false,
-            'canManageTemplates' => $request->user()?->can(User::getPermissions()['staff-roles-view']) ?? false,
+            'canManageTemplates' => $request->user()?->can(ChecklistTemplate::getPermissions()['view']) ?? false,
             'canEditTemplates' => $request->user()?->can(ChecklistTemplate::getPermissions()['edit']) ?? false,
         ]);
     }

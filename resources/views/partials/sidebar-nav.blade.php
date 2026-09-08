@@ -220,7 +220,7 @@
     if ($hasPerm('users-locations-list') || $isSuperAdmin) {
         $userNavLabels[] = 'Locations';
     }
-    if ($hasPerm('users-staff-roles-view') || $isSuperAdmin) {
+    if ($hasPerm('staff-checklists-view') || $isSuperAdmin) {
         $userNavLabels[] = 'Checklist Peran';
         $userNavLabels[] = 'Template Checklist';
     }
@@ -777,7 +777,7 @@
 @endif
 
 {{-- ── User Management ───────────────────────────────────────────────── --}}
-@if($hasPerm('users-list') || $hasPerm('users-roles-list') || $hasPerm('users-staff-roles-view') || $isSuperAdmin)
+@if($hasPerm('users-list') || $hasPerm('users-roles-list') || $hasPerm('staff-checklists-view') || $isSuperAdmin)
 @php $umActive = $isActive('/users') || $isActive('/roles') || $isActive('/permissions') || $isActive('/staff-checklists'); @endphp
 <div x-data="{ open: {{ $umActive ? 'true' : 'false' }} }"
      class="mb-1"
@@ -803,7 +803,7 @@
         @if($hasPerm('users-locations-list') || $isSuperAdmin)
         <a href="{{ route('locations.index') }}" x-show="navLinkVisible('Locations', 'User Management')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/locations') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Locations</a>
         @endif
-        @if($hasPerm('users-staff-roles-view') || $isSuperAdmin)
+        @if($hasPerm('staff-checklists-view') || $isSuperAdmin)
         <a href="{{ route('staff-checklists.index') }}" x-show="navLinkVisible('Checklist Peran', 'User Management')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/staff-checklists') && ! $isActive('/staff-checklists/templates') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Checklist Peran</a>
         <a href="{{ route('staff-checklists.templates.index') }}" x-show="navLinkVisible('Template Checklist', 'User Management')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/staff-checklists/templates') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Template Checklist</a>
         @endif
