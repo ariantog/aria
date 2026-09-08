@@ -75,6 +75,7 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::post('items/{item}/jubelio-link', [App\Http\Controllers\ItemsController::class, 'updateJubelioId'])->name('items.jubelio-link');
     Route::post('items/{item}/convert-identity', [App\Http\Controllers\ItemIdentityConvertController::class, 'store'])->name('items.convert-identity');
     Route::post('items/{item}/recalculate-qty', [App\Http\Controllers\ItemsController::class, 'recalculateQuantity'])->name('items.recalculate-qty');
+    Route::patch('items/{item}/legacy-code', [App\Http\Controllers\ItemsController::class, 'updateLegacyCode'])->name('items.update-legacy-code');
     Route::get('items/{item}/duplicate', [App\Http\Controllers\ItemsController::class, 'duplicate'])->name('items.duplicate');
     Route::resource('items', App\Http\Controllers\ItemsController::class);
     Route::get('jubelio/order/cek', [App\Http\Controllers\JubelioController::class, 'cekOrder'])->name('jubelio.order.cek');
@@ -234,6 +235,7 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::get('assetlancar/{item}/stats', [App\Http\Controllers\ItemsController::class, 'itemStats'])->name('assetlancar.stats');
     Route::post('assetlancar/{item}/convert-identity', [App\Http\Controllers\ItemIdentityConvertController::class, 'store'])->name('assetlancar.convert-identity');
     Route::post('assetlancar/{item}/recalculate-qty', [App\Http\Controllers\ItemsController::class, 'recalculateQuantity'])->name('assetlancar.recalculate-qty');
+    Route::patch('assetlancar/{item}/legacy-code', [App\Http\Controllers\ItemsController::class, 'updateLegacyCode'])->name('assetlancar.update-legacy-code');
     Route::get('assetlancar/{item}/duplicate', [App\Http\Controllers\ItemsController::class, 'duplicateAsset'])->name('assetlancar.duplicate');
 
     Route::get('assettetap', [App\Http\Controllers\AssetTetapController::class, 'index'])->name('assettetap.index');

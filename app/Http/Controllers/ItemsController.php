@@ -230,7 +230,35 @@ class ItemsController extends Controller
                 ? route('items.colorway-edit', $item->group_id)
                 : null,
             'identityConvert' => $this->detailIdentityConvertContext($item),
+            'canEditLegacyCode' => $this->canEditLegacyCode($item),
         ]);
+    }
+
+    public function updateLegacyCode(Request $request, Item $item)
+    {
+        Gate::authorize($item->type === ItemType::ASSET_LANCAR
+            ? Item::getPermissions()['asset-lancar-edit']
+            : Item::getPermissions()['edit']
+        );
+
+        $validated = $request->validate([
+            'legacy_code' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $legacyCode = trim((string) ($validated['legacy_code'] ?? ''));
+        if ($legacyCode === '' || strcasecmp($legacyCode, (string) $item->code) === 0) {
+            $legacyCode = null;
+        }
+
+        $item->update(['legacy_code' => $legacyCode]);
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'legacy_code' => $item->distinctLegacyCode(),
+            ]);
+        }
+
+        return redirect($item->showUrl())->with('success', 'Legacy code updated.');
     }
 
     public function recalculateQuantity(Item $item)
@@ -250,6 +278,11 @@ class ItemsController extends Controller
     }
 
     protected function canRecalculateQty(Item $item): bool
+    {
+        return $this->canEditLegacyCode($item);
+    }
+
+    protected function canEditLegacyCode(Item $item): bool
     {
         $permission = $item->type === ItemType::ASSET_LANCAR
             ? Item::getPermissions()['asset-lancar-edit']
