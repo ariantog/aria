@@ -188,15 +188,7 @@ class ScheduledTaskSeeder extends Seeder
             ]
         );
 
-        \App\Models\ScheduledTask::updateOrCreate(
-            ['command' => 'jubelio:get-orders'],
-            [
-                'name' => 'Jubelio Get Orders (legacy resume)',
-                'frequency' => 'everyMinute',
-                'active' => false,
-                'description' => 'Resumes a running manual Get Orders import one short batch per minute. Enabled automatically while an import is in progress.',
-            ]
-        );
+        \App\Models\ScheduledTask::where('command', 'jubelio:get-orders')->delete();
 
         \App\Models\ScheduledTask::updateOrCreate(
             ['command' => 'app:jubelio-stock-check'],

@@ -4,24 +4,12 @@ use App\Jobs\SyncJubelioMissingOrders;
 use App\Models\Addrbook;
 use App\Models\Crongetorder;
 use App\Models\Jubelioorder;
-use App\Models\ScheduledTask;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Services\JubelioGetOrdersService;
 use App\Services\JubelioService;
 use Illuminate\Support\Facades\Queue;
 use Mockery\MockInterface;
-
-function seedGetOrdersScheduledTask(): ScheduledTask
-{
-    return ScheduledTask::create([
-        'command' => 'jubelio:get-orders',
-        'name' => 'Jubelio Get Orders (legacy resume)',
-        'frequency' => 'everyMinute',
-        'active' => false,
-        'description' => 'Test task',
-    ]);
-}
 
 it('renders get orders page with start form when no import exists', function () {
     $user = User::factory()->create();
@@ -35,7 +23,6 @@ it('renders get orders page with start form when no import exists', function () 
 
 it('starts a get orders sync and dispatches background job', function () {
     Queue::fake();
-    $task = seedGetOrdersScheduledTask();
     $user = User::factory()->create();
 
     $this->actingAs($user)
@@ -49,7 +36,6 @@ it('starts a get orders sync and dispatches background job', function () {
     $import = Crongetorder::first();
     expect($import->from->toDateString())->toBe('2026-08-01');
     expect($import->to)->toBe(2);
-    expect($task->fresh()->active)->toBeTrue();
 
     Queue::assertPushed(SyncJubelioMissingOrders::class, fn ($job) => $job->importId === $import->id);
 });
@@ -102,8 +88,6 @@ it('fetches api pages and queues only eligible missing orders', function () {
 });
 
 it('skips orders already present in aria when syncing', function () {
-    seedGetOrdersScheduledTask();
-
     $import = Crongetorder::create([
         'from' => '2026-08-01',
         'to' => 0,
@@ -196,8 +180,6 @@ it('can fetch multiple pages in one cron run', function () {
 });
 
 it('advances page count when api returns an empty data page', function () {
-    seedGetOrdersScheduledTask();
-
     $import = Crongetorder::create([
         'from' => '2026-08-01',
         'to' => 0,
@@ -259,7 +241,6 @@ it('resumes a full sync from the next unread page', function () {
 
 it('re-queues a short batch when the import is not finished', function () {
     Queue::fake();
-    $task = seedGetOrdersScheduledTask();
 
     $import = Crongetorder::create([
         'from' => '2026-08-01',
@@ -282,7 +263,6 @@ it('re-queues a short batch when the import is not finished', function () {
     $import->refresh();
     expect($import->count)->toBe(10);
     expect($import->status)->toBe(0);
-    expect($task->fresh()->active)->toBeTrue();
 
     Queue::assertPushed(SyncJubelioMissingOrders::class, fn ($job) => $job->importId === $import->id);
 });
@@ -310,7 +290,6 @@ it('records an error when the jubelio list api fails', function () {
 
 it('resumes a stuck import from the ui', function () {
     Queue::fake();
-    $task = seedGetOrdersScheduledTask();
 
     $import = Crongetorder::create([
         'from' => '2026-08-01',
@@ -326,7 +305,6 @@ it('resumes a stuck import from the ui', function () {
         ->post(route('jubelio.get-orders.resume'))
         ->assertRedirect(route('jubelio.get-orders.index'));
 
-    expect($task->fresh()->active)->toBeTrue();
     Queue::assertPushed(SyncJubelioMissingOrders::class, fn ($job) => $job->importId === $import->id);
 });
 

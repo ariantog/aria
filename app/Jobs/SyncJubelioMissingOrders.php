@@ -3,7 +3,6 @@
 namespace App\Jobs;
 
 use App\Models\Crongetorder;
-use App\Models\ScheduledTask;
 use App\Services\JubelioGetOrdersService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -31,8 +30,6 @@ class SyncJubelioMissingOrders implements ShouldQueue
     {
         $import = Crongetorder::find($this->importId);
         if (! $import || ! $import->isRunning()) {
-            $this->disableScheduledTask();
-
             return;
         }
 
@@ -43,7 +40,6 @@ class SyncJubelioMissingOrders implements ShouldQueue
                 'import_id' => $this->importId,
                 'message' => $e->getMessage(),
             ]);
-            $this->enableScheduledTask();
 
             throw $e;
         }
@@ -51,13 +47,8 @@ class SyncJubelioMissingOrders implements ShouldQueue
         $import->refresh();
 
         if ($import->isRunning() && ! $result['completed']) {
-            $this->enableScheduledTask();
             static::dispatch($this->importId)->delay(now()->addSeconds(8));
-
-            return;
         }
-
-        $this->disableScheduledTask();
     }
 
     public function failed(?\Throwable $exception): void
@@ -66,17 +57,5 @@ class SyncJubelioMissingOrders implements ShouldQueue
             'import_id' => $this->importId,
             'message' => $exception?->getMessage(),
         ]);
-
-        $this->enableScheduledTask();
-    }
-
-    protected function enableScheduledTask(): void
-    {
-        ScheduledTask::where('command', 'jubelio:get-orders')->update(['active' => true]);
-    }
-
-    protected function disableScheduledTask(): void
-    {
-        ScheduledTask::where('command', 'jubelio:get-orders')->update(['active' => false]);
     }
 }
