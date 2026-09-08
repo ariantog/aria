@@ -10,7 +10,7 @@ uses(Tests\TestCase::class, RefreshDatabase::class);
 
 test('leftover item columns are listed so they can be dropped later', function () {
     expect(ItemCatalog::MIRROR_ITEM_COLUMNS)->toBeTrue()
-        ->and(ItemCatalog::LEFTOVER_ITEM_COLUMNS)->toContain('description', 'description2', 'brand', 'genre', 'variant');
+        ->and(ItemCatalog::LEFTOVER_ITEM_COLUMNS)->toContain('description', 'description2', 'reseller_price', 'brand', 'genre', 'variant');
 });
 
 test('sync writes the group and mirrors leftover item columns', function () {
@@ -75,7 +75,7 @@ test('catalog reads keep working when leftover item columns are empty', function
         ->and(ItemCatalog::genre($item))->toBe(42);
 });
 
-test('scanText prefers group catalog and falls back to leftover item text', function () {
+test('scanText prefers item description and falls back to group catalog', function () {
     $group = ItemGroup::factory()->make([
         'description' => 'MIKRO MOTIF CAMO HIJAU',
         'description2' => '',
@@ -87,13 +87,13 @@ test('scanText prefers group catalog and falls back to leftover item text', func
     ]);
     $item->setRelation('group', $group);
 
-    expect(ItemCatalog::scanText($item))->toBe('MIKRO MOTIF CAMO HIJAU');
+    expect(ItemCatalog::scanText($item))->toBe('PUTIH');
 
-    $group->description = '';
+    $item->description = '';
     $item->setRelation('group', $group);
 
-    expect(ItemCatalog::scanText($item))->toBe('PUTIH')
-        ->and(ItemCatalog::leftoverDescription($item))->toBe('PUTIH');
+    expect(ItemCatalog::scanText($item))->toBe('MIKRO MOTIF CAMO HIJAU')
+        ->and(ItemCatalog::leftoverDescription($item))->toBe('');
 });
 
 test('seedEmptyDescriptions fills blank group text and never overwrites catalog', function () {
@@ -124,6 +124,24 @@ test('seedEmptyDescriptions fills blank group text and never overwrites catalog'
 
     expect($emptyGroup->description)->toBe('MIKRO MOTIF CAMO HIJAU')
         ->and($emptyGroup->description2)->toBe('NOTE');
+});
+
+test('resellerPrice prefers item override then group default', function () {
+    $group = ItemGroup::factory()->make([
+        'reseller_price' => 120000,
+    ]);
+    $item = Item::factory()->make([
+        'group_id' => 11,
+        'reseller_price' => 95000,
+    ]);
+    $item->setRelation('group', $group);
+
+    expect(ItemCatalog::resellerPrice($item))->toBe(95000.0);
+
+    $item->reseller_price = 0;
+    $item->setRelation('group', $group);
+
+    expect(ItemCatalog::resellerPrice($item))->toBe(120000.0);
 });
 
 test('brand constraint matches group brand when the item mirror is stale', function () {

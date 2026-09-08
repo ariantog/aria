@@ -36,6 +36,7 @@ final class ItemCatalog
     public const LEFTOVER_ITEM_COLUMNS = [
         'description',
         'description2',
+        'reseller_price',
         'brand',
         'genre',
         'variant',
@@ -61,20 +62,52 @@ final class ItemCatalog
 
     public static function description(Item $item): string
     {
+        $item->loadMissing('group');
+
+        $itemDescription = self::leftoverDescription($item);
+        if ($itemDescription !== '') {
+            return $itemDescription;
+        }
+
         if ($item->hasCatalogGroup()) {
             return trim((string) ($item->group->description ?? ''));
         }
 
-        return self::leftoverDescription($item);
+        return '';
     }
 
     public static function description2(Item $item): string
     {
+        $item->loadMissing('group');
+
+        $itemDescription = self::leftoverDescription2($item);
+        if ($itemDescription !== '') {
+            return $itemDescription;
+        }
+
         if ($item->hasCatalogGroup()) {
             return trim((string) ($item->group->description2 ?? ''));
         }
 
-        return self::leftoverDescription2($item);
+        return '';
+    }
+
+    public static function resellerPrice(Item $item): float
+    {
+        $item->loadMissing('group');
+
+        if (self::itemColumnExists('reseller_price')) {
+            $itemPrice = (float) ($item->reseller_price ?? 0);
+            if ($itemPrice > 0) {
+                return $itemPrice;
+            }
+        }
+
+        if ($item->hasCatalogGroup() && self::groupColumnExists('reseller_price')) {
+            return (float) ($item->group->reseller_price ?? 0);
+        }
+
+        return 0.0;
     }
 
     /**
@@ -93,6 +126,13 @@ final class ItemCatalog
         return self::itemColumnExists('description2')
             ? trim((string) ($item->description2 ?? ''))
             : '';
+    }
+
+    public static function leftoverResellerPrice(Item $item): float
+    {
+        return self::itemColumnExists('reseller_price')
+            ? (float) ($item->reseller_price ?? 0)
+            : 0.0;
     }
 
     /**
@@ -148,6 +188,7 @@ final class ItemCatalog
      * @param  array{
      *     description?: mixed,
      *     description2?: mixed,
+     *     reseller_price?: mixed,
      *     url?: mixed,
      *     brand?: ItemBrand|int|null,
      *     genre?: int|null
@@ -161,6 +202,10 @@ final class ItemCatalog
 
         if (array_key_exists('description2', $attributes) && $attributes['description2'] !== null) {
             $group->description2 = strtoupper((string) $attributes['description2']);
+        }
+
+        if (array_key_exists('reseller_price', $attributes) && self::groupColumnExists('reseller_price')) {
+            $group->reseller_price = max(0, (float) ($attributes['reseller_price'] ?? 0));
         }
 
         if (array_key_exists('url', $attributes)) {
@@ -233,6 +278,7 @@ final class ItemCatalog
      * @param  array{
      *     description?: mixed,
      *     description2?: mixed,
+     *     reseller_price?: mixed,
      *     brand?: ItemBrand|int|null,
      *     genre?: int|null
      * }  $attributes
@@ -249,6 +295,10 @@ final class ItemCatalog
 
         if (array_key_exists('description2', $attributes) && self::itemColumnExists('description2')) {
             $item->description2 = $attributes['description2'] ?? '';
+        }
+
+        if (array_key_exists('reseller_price', $attributes) && self::itemColumnExists('reseller_price')) {
+            $item->reseller_price = max(0, (float) ($attributes['reseller_price'] ?? 0));
         }
 
         if (array_key_exists('brand', $attributes) && self::itemColumnExists('brand')) {

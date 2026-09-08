@@ -2,14 +2,23 @@
     $fi = $formItem ?? [
         'description' => old('description'),
         'description2' => old('description2'),
+        'item_description' => old('item_description'),
+        'item_description2' => old('item_description2'),
+        'reseller_price' => old('reseller_price'),
+        'item_reseller_price' => old('item_reseller_price'),
         'url' => old('url'),
         'restock_urgent_threshold' => old('restock_urgent_threshold'),
     ];
     $fi['description'] = $fi['description'] ?? old('description');
     $fi['description2'] = $fi['description2'] ?? old('description2');
+    $fi['item_description'] = $fi['item_description'] ?? old('item_description');
+    $fi['item_description2'] = $fi['item_description2'] ?? old('item_description2');
+    $fi['reseller_price'] = $fi['reseller_price'] ?? old('reseller_price');
+    $fi['item_reseller_price'] = $fi['item_reseller_price'] ?? old('item_reseller_price');
     $fi['url'] = $fi['url'] ?? old('url');
     $fi['restock_urgent_threshold'] = $fi['restock_urgent_threshold'] ?? old('restock_urgent_threshold');
     $editingItem = isset($item);
+    $showSkuDescriptions = ($isAsset ?? false) && $editingItem;
 @endphp
 <div class="rounded-xl border border-gray-200 bg-white shadow-sm">
     <div class="flex items-center gap-3 border-b border-gray-100 px-5 py-4">
@@ -24,7 +33,9 @@
             @include('items.partials.form-shared-banner', [
                 'sharedTestId' => 'item-form-shared-details-banner',
                 'sharedHint' => $editingItem
-                    ? 'Description, notes, and URL are stored on the item group and copied to every size.'
+                    ? ($showSkuDescriptions
+                        ? 'Description, notes, reseller price, and URL are stored on the item group and shared by every size.'
+                        : 'Description, notes, and URL are stored on the item group and copied to every size.')
                     : 'Description, notes, and URL apply to every size created in this batch.',
             ])
             <div>
@@ -43,6 +54,17 @@
                 <p class="mt-1 text-xs text-gray-500">Shared notes for the colorway (item group).</p>
                 @error('description2')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
             </div>
+            @if($showSkuDescriptions)
+            <div>
+                <label class="mb-1 block text-sm font-medium text-gray-700" for="item-form-reseller-price">Reseller price (default)</label>
+                <input type="number" step="any" id="item-form-reseller-price" name="reseller_price" min="0"
+                       value="{{ $fi['reseller_price'] }}" placeholder="0"
+                       data-testid="item-form-reseller-price"
+                       class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 @error('reseller_price') border-red-500 @enderror">
+                @error('reseller_price')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
+                <p class="mt-1 text-xs text-gray-500">Default reseller price for every size in this colorway.</p>
+            </div>
+            @endif
             <div>
                 <label class="mb-1 block text-sm font-medium text-gray-700" for="item-form-url">Product URL</label>
                 <input type="url" id="item-form-url" name="url" value="{{ $fi['url'] }}" placeholder="https://..."
@@ -59,10 +81,38 @@
                 'sharedTone' => 'sku',
                 'sharedTitle' => 'This size only',
                 'sharedHint' => $editingItem
-                    ? 'Restock urgency stays on this SKU. Other sizes are not changed.'
+                    ? ($showSkuDescriptions
+                        ? 'Optional per-SKU overrides. Leave blank to use the shared colorway values.'
+                        : 'Restock urgency stays on this SKU. Other sizes are not changed.')
                     : 'Used as the starting threshold on each new SKU; later edits stay per size.',
-                'sharedTestId' => 'item-form-sku-restock',
+                'sharedTestId' => $showSkuDescriptions ? 'item-form-sku-details' : 'item-form-sku-restock',
             ])
+            @if($showSkuDescriptions)
+            <div>
+                <label class="mb-1 block text-sm font-medium text-gray-700" for="item-form-item-description">Description (this size)</label>
+                <textarea id="item-form-item-description" name="item_description" rows="4" placeholder="Override description for this SKU..."
+                          data-testid="item-form-item-description"
+                          class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">{{ $fi['item_description'] }}</textarea>
+                <p class="mt-1 text-xs text-gray-500">When filled, this replaces the shared description for this SKU only.</p>
+                @error('item_description')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
+            </div>
+            <div>
+                <label class="mb-1 block text-sm font-medium text-gray-700" for="item-form-item-description2">Notes (NB) (this size)</label>
+                <textarea id="item-form-item-description2" name="item_description2" rows="3" placeholder="Override notes for this SKU..."
+                          data-testid="item-form-item-description2"
+                          class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">{{ $fi['item_description2'] }}</textarea>
+                @error('item_description2')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
+            </div>
+            <div>
+                <label class="mb-1 block text-sm font-medium text-gray-700" for="item-form-item-reseller-price">Reseller price (this size)</label>
+                <input type="number" step="any" id="item-form-item-reseller-price" name="item_reseller_price" min="0"
+                       value="{{ $fi['item_reseller_price'] }}" placeholder="0"
+                       data-testid="item-form-item-reseller-price"
+                       class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 @error('item_reseller_price') border-red-500 @enderror">
+                <p class="mt-1 text-xs text-gray-500">When set above zero, overrides the shared reseller price for this SKU.</p>
+                @error('item_reseller_price')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
+            </div>
+            @endif
             <div>
                 <label class="mb-1 block text-sm font-medium text-gray-700" for="item-form-restock-threshold">Restock urgent threshold</label>
                 <input type="number" id="item-form-restock-threshold" name="restock_urgent_threshold" min="1" step="1"

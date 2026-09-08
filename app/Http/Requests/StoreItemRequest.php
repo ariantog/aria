@@ -18,6 +18,7 @@ class StoreItemRequest extends FormRequest
             'price' => ['nullable', 'numeric'],
             'description' => ['nullable', 'string'],
             'description2' => ['nullable', 'string'],
+            'reseller_price' => ['nullable', 'numeric', 'min:0'],
             'url' => ['nullable', 'string', 'max:255'],
             'restock_urgent_threshold' => ['nullable', 'integer', 'min:1'],
             'image' => ['nullable', 'image', 'max:2048'],

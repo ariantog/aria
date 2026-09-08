@@ -104,6 +104,8 @@ class ItemService
             $item->tags()->sync($tagIds);
 
             $this->persistGroupCatalogAttributes($group, $item, $input, $typeTag);
+            $this->persistItemLocalAttributes($item, $input);
+            $item->save();
 
             foreach ($siblings as $sibling) {
                 $this->applySharedUpdateToSibling(
@@ -199,14 +201,6 @@ class ItemService
                 'brand' => $catalogAttributes['brand'],
                 'genre' => $catalogAttributes['genre'],
             ];
-
-            if (isset($input->description)) {
-                $mirror['description'] = $input->description;
-            }
-
-            if (isset($input->description2)) {
-                $mirror['description2'] = $input->description2;
-            }
 
             foreach ($items as $item) {
                 ItemCatalog::mirrorToItem($item, $mirror);
@@ -474,12 +468,6 @@ class ItemService
             'brand' => ItemBrand::fromPcode($pcode),
             'genre' => $typeTag?->id ?? 0,
         ];
-        if (isset($input->description)) {
-            $mirror['description'] = $input->description;
-        }
-        if (isset($input->description2)) {
-            $mirror['description2'] = $input->description2;
-        }
         ItemCatalog::mirrorToItem($item, $mirror);
     }
 
@@ -862,11 +850,38 @@ class ItemService
             $attributes['description2'] = $input->description2;
         }
 
+        if (isset($input->reseller_price)) {
+            $attributes['reseller_price'] = $input->reseller_price;
+        }
+
         if (isset($input->url)) {
             $attributes['url'] = $this->normalizeUrl($input->url);
         }
 
         ItemCatalog::applyToGroup($group, $attributes);
+    }
+
+    protected function persistItemLocalAttributes(Item $item, object $input): void
+    {
+        $attributes = [];
+
+        if (property_exists($input, 'item_description') || isset($input->item_description)) {
+            $attributes['description'] = strtoupper((string) ($input->item_description ?? ''));
+        }
+
+        if (property_exists($input, 'item_description2') || isset($input->item_description2)) {
+            $attributes['description2'] = strtoupper((string) ($input->item_description2 ?? ''));
+        }
+
+        if (property_exists($input, 'item_reseller_price') || isset($input->item_reseller_price)) {
+            $attributes['reseller_price'] = max(0, (float) ($input->item_reseller_price ?? 0));
+        }
+
+        if ($attributes === []) {
+            return;
+        }
+
+        ItemCatalog::mirrorToItem($item, $attributes);
     }
 
     /**

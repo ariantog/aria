@@ -28,8 +28,8 @@ test('items index shows database columns and collapsible filters', function () {
         'group_id' => $group->id,
         'name' => 'DISPLAY NAME - NAVY - S',
         'code' => 'AJD-FILTER-COL-S',
-        'description' => 'Stale item description',
-        'description2' => 'Stale item note',
+        'description' => '',
+        'description2' => '',
     ]);
 
     $this->actingAs($this->user)
@@ -229,7 +229,7 @@ test('items index name filter searches group alias when product title is stored 
         ->assertSee('AJD-ENERGY-ALIAS-M', false);
 });
 
-test('catalogDescription prefers item_group description over items.description', function () {
+test('catalogDescription prefers items.description over item_group when set', function () {
     $group = \App\Models\ItemGroup::factory()->make([
         'description' => 'MIKRO MOTIF CAMO HIJAU',
         'description2' => 'GROUP NB',
@@ -242,7 +242,24 @@ test('catalogDescription prefers item_group description over items.description',
     ]);
     $item->setRelation('group', $group);
 
-    expect($item->catalogDescription())->toBe('MIKRO MOTIF CAMO HIJAU')
+    expect($item->catalogDescription())->toBe('MIKRO MOTIF HIJAU')
+        ->and($item->catalogDescription2())->toBe('ITEM NB');
+});
+
+test('catalogDescription falls back to item_group when items.description is empty', function () {
+    $group = \App\Models\ItemGroup::factory()->make([
+        'description' => 'GROUP DESC',
+        'description2' => 'GROUP NB',
+    ]);
+    $item = Item::factory()->make([
+        'group_id' => 24961,
+        'description' => '',
+        'description2' => '',
+        'type' => ItemType::ITEM,
+    ]);
+    $item->setRelation('group', $group);
+
+    expect($item->catalogDescription())->toBe('GROUP DESC')
         ->and($item->catalogDescription2())->toBe('GROUP NB');
 });
 
@@ -419,7 +436,7 @@ test('items create page can be rendered', function () {
     $response->assertStatus(200);
 });
 
-test('item show and edit use the group description when it differs from the item column', function () {
+test('item show and edit prefer the item description when it differs from the group column', function () {
     $group = \App\Models\ItemGroup::factory()->create([
         'master' => 'CX00122',
         'variant' => '04',
@@ -438,14 +455,14 @@ test('item show and edit use the group description when it differs from the item
         ->get(route('items.show', $item))
         ->assertOk()
         ->assertSee('data-testid="item-catalog-description"', false)
-        ->assertSee('MIKRO MOTIF CAMO HIJAU', false)
-        ->assertDontSee('>MIKRO MOTIF HIJAU<', false);
+        ->assertSee('MIKRO MOTIF HIJAU', false)
+        ->assertDontSee('>MIKRO MOTIF CAMO HIJAU<', false);
 
     $this->actingAs($this->user)
         ->get(route('items.edit', $item))
         ->assertOk()
-        ->assertSee('>MIKRO MOTIF CAMO HIJAU<', false)
-        ->assertDontSee('>MIKRO MOTIF HIJAU<', false);
+        ->assertSee('>MIKRO MOTIF HIJAU<', false)
+        ->assertDontSee('>MIKRO MOTIF CAMO HIJAU<', false);
 });
 
 test('items show page links group and tags to filtered lists', function () {

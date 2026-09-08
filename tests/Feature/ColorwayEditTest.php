@@ -130,7 +130,7 @@ test('single item update does not broadcast price to sibling sizes', function ()
 
     expect((float) $small->price)->toBe(175000.0)
         ->and((float) $medium->price)->toBe(100000.0)
-        ->and($medium->description)->toBe('Updated desc');
+        ->and($medium->catalogDescription())->toBe('UPDATED DESC');
 });
 
 test('colorway edit page renders with size matrix and preview', function () {
