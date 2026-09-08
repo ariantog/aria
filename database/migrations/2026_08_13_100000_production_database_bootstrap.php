@@ -30,6 +30,7 @@ use Illuminate\Database\Migrations\Migration;
  * 19. `2026_09_03_150000_widen_item_group_name_drop_unique` — item_group.name VARCHAR(255)
  * 20. `2026_09_06_150000_add_alias_to_items_table` — items.alias for per-SKU alias display
  * 21. `2026_09_08_120000_add_reseller_price_to_items_and_item_group` — reseller price on items + item_group
+ * 22. `2026_09_08_130000_remove_jubelio_get_orders_cron` — drop legacy get-orders resume cron
  *
  * Safe to run on a fresh prod copy in one step:
  *
@@ -90,6 +91,7 @@ return new class extends Migration
         (require __DIR__.'/2026_09_03_150000_widen_item_group_name_drop_unique.php')->up();
         (require __DIR__.'/2026_09_06_150000_add_alias_to_items_table.php')->up();
         (require __DIR__.'/2026_09_08_120000_add_reseller_price_to_items_and_item_group.php')->up();
+        (require __DIR__.'/2026_09_08_130000_remove_jubelio_get_orders_cron.php')->up();
         (require __DIR__.'/2026_09_05_150000_add_ppn_included_to_customers_table.php')->up();
     }
 

@@ -3,7 +3,6 @@
 namespace App\Console\Commands;
 
 use App\Models\Crongetorder;
-use App\Models\ScheduledTask;
 use App\Services\JubelioGetOrdersService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
@@ -15,7 +14,7 @@ class GetOrderJubelio extends Command
                             {--timeout=40 : Max seconds per run}
                             {--sync : Fetch all remaining pages in one run}';
 
-    protected $description = 'Resume a manual Jubelio missing-order import (prefer the queued job after starting from UI)';
+    protected $description = 'Run a manual Jubelio missing-order import from the CLI (UI uses the queued job)';
 
     public function handle(JubelioGetOrdersService $service): int
     {
@@ -60,7 +59,7 @@ class GetOrderJubelio extends Command
 
             $import->refresh();
             if ($import->status === 1) {
-                $this->disableScheduledTask();
+                $this->info('Import complete.');
             }
 
             return self::SUCCESS;
@@ -74,10 +73,5 @@ class GetOrderJubelio extends Command
 
             return self::FAILURE;
         }
-    }
-
-    protected function disableScheduledTask(): void
-    {
-        ScheduledTask::where('command', 'jubelio:get-orders')->update(['active' => false]);
     }
 }

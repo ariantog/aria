@@ -6,7 +6,6 @@ use App\Jobs\SyncJubelioMissingOrders;
 use App\Models\Crongetorder;
 use App\Models\Jubelio;
 use App\Models\Jubelioorder;
-use App\Models\ScheduledTask;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -92,14 +91,11 @@ class JubelioGetOrderController extends Controller
             $import->delete();
         }
 
-        ScheduledTask::where('command', 'jubelio:get-orders')->update(['active' => false]);
-
         return back()->with('success', 'Sinkronisasi direset.');
     }
 
     protected function resumeImport(Crongetorder $import): void
     {
-        ScheduledTask::where('command', 'jubelio:get-orders')->update(['active' => true]);
         SyncJubelioMissingOrders::dispatch($import->id);
     }
 }
