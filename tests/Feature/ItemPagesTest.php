@@ -685,7 +685,8 @@ test('item and assetlancar show pages hide legacy code when it is empty', functi
         ->assertSee('ONLY-CURRENT-SKU', false)
         ->assertSee('SKU Reference', false)
         ->assertDontSee('data-testid="item-legacy-code"', false)
-        ->assertDontSee('Legacy Code', false);
+        ->assertSee('Legacy Code', false)
+        ->assertSee('data-testid="edit-item-legacy-code"', false);
 })->with([
     'items' => ['items.show', ItemType::ITEM],
     'assetlancar' => ['assetlancar.show', ItemType::ASSET_LANCAR],
@@ -703,8 +704,79 @@ test('item and assetlancar show pages hide legacy code when it matches the curre
         ->assertOk()
         ->assertSee('SAME-SKU-01', false)
         ->assertDontSee('data-testid="item-legacy-code"', false)
-        ->assertDontSee('Legacy Code', false);
+        ->assertSee('Legacy Code', false)
+        ->assertSee('data-testid="edit-item-legacy-code"', false);
 })->with([
     'items' => ['items.show', ItemType::ITEM],
     'assetlancar' => ['assetlancar.show', ItemType::ASSET_LANCAR],
+]);
+
+test('item and assetlancar show pages offer legacy code edit for editors', function (string $routeName, ItemType $type) {
+    $item = Item::factory()->create([
+        'type' => $type,
+        'code' => 'NEW-SKU-EDIT',
+        'legacy_code' => null,
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route($routeName, $item))
+        ->assertOk()
+        ->assertSee('data-testid="edit-item-legacy-code"', false)
+        ->assertSee('Legacy Code', false);
+})->with([
+    'items' => ['items.show', ItemType::ITEM],
+    'assetlancar' => ['assetlancar.show', ItemType::ASSET_LANCAR],
+]);
+
+test('editors can update legacy code from item detail', function (string $routeName, string $updateRouteName, ItemType $type) {
+    $item = Item::factory()->create([
+        'type' => $type,
+        'code' => 'NEW-SKU-RESTORE',
+        'legacy_code' => null,
+    ]);
+
+    $this->actingAs($this->user)
+        ->patch(route($updateRouteName, $item), ['legacy_code' => 'OLD-JUBELIO-SKU'])
+        ->assertRedirect(route($routeName, $item))
+        ->assertSessionHas('success');
+
+    expect($item->fresh()->legacy_code)->toBe('OLD-JUBELIO-SKU');
+})->with([
+    'items' => ['items.show', 'items.update-legacy-code', ItemType::ITEM],
+    'assetlancar' => ['assetlancar.show', 'assetlancar.update-legacy-code', ItemType::ASSET_LANCAR],
+]);
+
+test('editors can clear legacy code from item detail', function (string $updateRouteName, ItemType $type) {
+    $item = Item::factory()->create([
+        'type' => $type,
+        'code' => 'CURRENT-SKU',
+        'legacy_code' => 'OLD-SKU-TO-CLEAR',
+    ]);
+
+    $this->actingAs($this->user)
+        ->patch(route($updateRouteName, $item), ['legacy_code' => ''])
+        ->assertSessionHas('success');
+
+    expect($item->fresh()->legacy_code)->toBeNull();
+})->with([
+    'items' => ['items.update-legacy-code', ItemType::ITEM],
+    'assetlancar' => ['assetlancar.update-legacy-code', ItemType::ASSET_LANCAR],
+]);
+
+test('legacy code update requires edit permission', function (string $updateRouteName, ItemType $type) {
+    $viewer = User::factory()->create();
+    $item = Item::factory()->create([
+        'type' => $type,
+        'code' => 'LOCKED-SKU',
+        'legacy_code' => 'OLD-SKU',
+    ]);
+
+    $this->actingAs($viewer)
+        ->patch(route($updateRouteName, $item), ['legacy_code' => 'HACKED'])
+        ->assertForbidden();
+
+    expect($item->fresh()->legacy_code)->toBe('OLD-SKU');
+})->with([
+    'items' => ['items.update-legacy-code', ItemType::ITEM],
+    'assetlancar' => ['assetlancar.update-legacy-code', ItemType::ASSET_LANCAR],
 ]);

@@ -27,9 +27,13 @@ $createPermission = $isAsset
     ? \App\Models\Item::getPermissions()['asset-lancar-create']
     : \App\Models\Item::getPermissions()['create'];
 $canDuplicate = \Illuminate\Support\Facades\Gate::check($createPermission);
+$canEditLegacyCode = $canEditLegacyCode ?? false;
+$legacyCodeUpdateRoute = $isAsset
+    ? route('assetlancar.update-legacy-code', $item)
+    : route('items.update-legacy-code', $item);
 @endphp
 
-<div class="p-4 sm:p-6" x-data="{ showZero: false, showVirtualWarehouses: false, showDeletedWarehouses: false }">
+<div class="p-4 sm:p-6" x-data="{ showZero: false, showVirtualWarehouses: false, showDeletedWarehouses: false, legacyModalOpen: {{ $errors->has('legacy_code') ? 'true' : 'false' }} }">
     {{-- Header --}}
     <div class="mb-6 flex flex-col justify-between gap-4 md:flex-row md:items-end">
         <div>
@@ -79,6 +83,37 @@ $canDuplicate = \Illuminate\Support\Facades\Gate::check($createPermission);
 
     @include('items.partials.identity-convert', ['identityConvert' => $identityConvert ?? null])
 
+    @if($canEditLegacyCode)
+    <div x-show="legacyModalOpen" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+         @keydown.window.escape="legacyModalOpen = false">
+        <div @click.away="legacyModalOpen = false" class="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
+            <h3 class="text-lg font-semibold text-gray-900">Edit Legacy Code</h3>
+            <p class="mt-1 text-sm text-gray-500">Preserved pre-conversion SKU used by Jubelio order matching. Leave blank to clear.</p>
+            <form method="POST" action="{{ $legacyCodeUpdateRoute }}" class="mt-4 space-y-4">
+                @csrf
+                @method('PATCH')
+                <div>
+                    <label for="item-legacy-code-input" class="mb-1 block text-sm font-medium text-gray-700">Legacy code</label>
+                    <input type="text" id="item-legacy-code-input" name="legacy_code" maxlength="255"
+                           value="{{ old('legacy_code', $item->legacy_code) }}"
+                           data-testid="item-legacy-code-input"
+                           placeholder="Previous SKU before identity conversion"
+                           class="w-full rounded-lg border border-gray-300 px-3 py-2 font-mono text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                    @error('legacy_code')
+                        <p class="mt-2 text-sm text-rose-600">{{ $message }}</p>
+                    @enderror
+                </div>
+                <div class="flex justify-end gap-2">
+                    <button type="button" @click="legacyModalOpen = false"
+                            class="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Cancel</button>
+                    <button type="submit" data-testid="item-legacy-code-save"
+                            class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    @endif
+
     <div class="grid grid-cols-1 gap-6 xl:grid-cols-12">
         {{-- Image --}}
         <div class="xl:col-span-5">
@@ -109,9 +144,23 @@ $canDuplicate = \Illuminate\Support\Facades\Gate::check($createPermission);
                         <div>
                             <p class="mb-1 text-[10px] font-bold uppercase tracking-widest text-gray-500">SKU Reference</p>
                             <span class="inline-block rounded border border-blue-200 bg-blue-50 px-2 py-1 font-mono text-sm text-blue-600">{{ $item->code }}</span>
-                            @if($legacyCode)
-                                <p class="mb-1 mt-3 text-[10px] font-bold uppercase tracking-widest text-gray-500">Legacy Code</p>
-                                <span data-testid="item-legacy-code" class="inline-block rounded border border-amber-200 bg-amber-50 px-2 py-1 font-mono text-sm text-amber-800">{{ $legacyCode }}</span>
+                            @if($legacyCode || $canEditLegacyCode)
+                                <div class="mt-3">
+                                    <p class="mb-1 flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-gray-500">
+                                        Legacy Code
+                                        @if($canEditLegacyCode)
+                                        <button type="button" @click="legacyModalOpen = true" data-testid="edit-item-legacy-code"
+                                                class="inline-flex items-center rounded border border-gray-300 bg-white px-1.5 py-0.5 text-[10px] font-medium normal-case tracking-normal text-gray-600 hover:bg-gray-50">
+                                            Edit
+                                        </button>
+                                        @endif
+                                    </p>
+                                    @if($legacyCode)
+                                        <span data-testid="item-legacy-code" class="inline-block rounded border border-amber-200 bg-amber-50 px-2 py-1 font-mono text-sm text-amber-800">{{ $legacyCode }}</span>
+                                    @elseif($canEditLegacyCode)
+                                        <span class="text-sm text-gray-400">—</span>
+                                    @endif
+                                </div>
                             @endif
                         </div>
                     </div>
