@@ -212,6 +212,8 @@ it('shows separate global and per-sku description fields on asset lancar edit pa
         ->assertOk()
         ->assertSee('name="item_description"', false)
         ->assertSee('name="item_reseller_price"', false)
+        ->assertSee('data-testid="item-form-sku-local-desc"', false)
+        ->assertSee('Local description overrides (optional)', false)
         ->assertSee('GROUP DESC', false)
         ->assertSee('SKU DESC', false);
 });
@@ -315,4 +317,51 @@ it('rejects invalid restock urgent threshold on create', function () {
         ])
         ->assertRedirect(route('items.create'))
         ->assertSessionHasErrors('restock_urgent_threshold');
+});
+
+it('stores per-sku overrides when creating multiple asset lancar sizes', function () {
+    $assetType = Tag::factory()->create([
+        'type' => Tag::TYPE_TYPE,
+        'item_type' => ItemType::ASSET_LANCAR->value,
+        'code' => 'GLOVE',
+        'name' => 'Glove',
+    ]);
+    $sizeS = Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'S', 'name' => 'S']);
+    $sizeM = Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'M', 'name' => 'M']);
+    $warnaTag = Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'BLACK', 'name' => 'BLACK']);
+
+    $this->actingAs($this->user)
+        ->post(route('assetlancar.store'), [
+            'type' => ItemType::ASSET_LANCAR->value,
+            'pcode' => 'GLOVE-09',
+            'product_name' => 'Training Glove',
+            'price' => 100000,
+            'cost' => 60000,
+            'reseller_price' => 90000,
+            'description' => 'SHARED DESC',
+            'tags' => [
+                'types' => [$assetType->id],
+                'sizes' => [$sizeS->id, $sizeM->id],
+                'warna' => [$warnaTag->id],
+            ],
+            'sku_overrides' => [
+                'GLOVE-09-BLACK-S' => [
+                    'price' => 110000,
+                    'description' => 'SMALL ONLY',
+                    'reseller_price' => 95000,
+                ],
+            ],
+        ])
+        ->assertRedirect(route('assetlancar.index'))
+        ->assertSessionHas('success');
+
+    $small = Item::query()->where('code', 'GLOVE-09-BLACK-S')->first();
+    $medium = Item::query()->where('code', 'GLOVE-09-BLACK-M')->first();
+
+    expect($small)->not->toBeNull()
+        ->and((float) $small->price)->toBe(110000.0)
+        ->and($small->description)->toBe('SMALL ONLY')
+        ->and((float) $small->reseller_price)->toBe(95000.0)
+        ->and((float) $medium->price)->toBe(100000.0)
+        ->and(trim((string) ($medium->description ?? '')))->toBe('');
 });

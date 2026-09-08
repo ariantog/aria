@@ -227,6 +227,63 @@ test('it creates asset lancar variants with cartesian color and size', function 
     expect(Item::where('code', 'like', 'GLOVE-01-%')->count())->toBe(4);
 });
 
+test('it applies per-sku overrides when creating asset lancar variants', function () {
+    $pinkTag = Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'PINK', 'name' => 'PINK']);
+    $mediumTag = Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'M', 'name' => 'Medium']);
+    $assetType = Tag::factory()->create([
+        'type' => Tag::TYPE_TYPE,
+        'item_type' => ItemType::ASSET_LANCAR->value,
+        'code' => 'GLOVE',
+        'name' => 'Glove',
+    ]);
+
+    $input = (object) [
+        'pcode' => 'GLOVE-01',
+        'type' => ItemType::ASSET_LANCAR->value,
+        'product_name' => 'Boxing Gloves',
+        'price' => 5000000,
+        'cost' => 3000000,
+        'description' => 'SHARED DESC',
+        'description2' => 'SHARED NB',
+        'reseller_price' => 4500000,
+        'sku_overrides' => [
+            'GLOVE-01-BLUE-S' => [
+                'price' => 5100000,
+                'cost' => 3100000,
+                'reseller_price' => 4600000,
+                'description' => 'BLUE S ONLY',
+                'description2' => 'BLUE S NB',
+            ],
+            'GLOVE-01-PINK-M' => [
+                'price' => 5200000,
+            ],
+        ],
+    ];
+
+    $tags = [
+        'types' => [$assetType->id],
+        'sizes' => [$this->sizeTag->id, $mediumTag->id],
+        'warna' => [$this->warnaTag->id, $pinkTag->id],
+        'jahit' => [],
+    ];
+
+    expect($this->itemService->create($input, $tags))->toBeTrue();
+
+    $blueSmall = Item::where('code', 'GLOVE-01-BLUE-S')->first();
+    $pinkMedium = Item::where('code', 'GLOVE-01-PINK-M')->first();
+    $blueMedium = Item::where('code', 'GLOVE-01-BLUE-M')->first();
+
+    expect((float) $blueSmall->price)->toBe(5100000.0)
+        ->and((float) $blueSmall->cost)->toBe(3100000.0)
+        ->and((float) $blueSmall->reseller_price)->toBe(4600000.0)
+        ->and($blueSmall->description)->toBe('BLUE S ONLY')
+        ->and($blueSmall->description2)->toBe('BLUE S NB')
+        ->and((float) $pinkMedium->price)->toBe(5200000.0)
+        ->and((float) $pinkMedium->cost)->toBe(3000000.0)
+        ->and(trim((string) ($pinkMedium->description ?? '')))->toBe('')
+        ->and((float) $blueMedium->price)->toBe(5000000.0);
+});
+
 test('it rewrites asset lancar pcode prefix from the selected type tag on create', function () {
     $assetType = Tag::factory()->create([
         'type' => Tag::TYPE_TYPE,

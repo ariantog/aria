@@ -10,6 +10,7 @@
         'cost' => old('cost'),
         'description' => old('description'),
         'description2' => old('description2'),
+        'reseller_price' => old('reseller_price'),
         'url' => old('url'),
         'restock_urgent_threshold' => old('restock_urgent_threshold'),
     ];

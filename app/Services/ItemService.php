@@ -364,6 +364,8 @@ class ItemService
                             $groupName,
                         );
 
+                        $this->applySkuOverrides($item, $input);
+
                         $this->persistGroupCatalogAttributes($group, $item, $input, $typeTag);
 
                         if ($file) {
@@ -882,6 +884,52 @@ class ItemService
         }
 
         ItemCatalog::mirrorToItem($item, $attributes);
+    }
+
+    protected function applySkuOverrides(Item $item, object $input): void
+    {
+        $overrides = $input->sku_overrides ?? null;
+        if (! is_array($overrides)) {
+            return;
+        }
+
+        $code = strtoupper(trim((string) $item->code));
+        $row = $overrides[$code] ?? null;
+        if (! is_array($row)) {
+            return;
+        }
+
+        $local = [];
+
+        if (array_key_exists('price', $row) && $row['price'] !== '' && $row['price'] !== null) {
+            $item->price = max(0, (float) $row['price']);
+        }
+
+        if (array_key_exists('cost', $row) && $row['cost'] !== '' && $row['cost'] !== null) {
+            $item->cost = max(0, (float) $row['cost']);
+        }
+
+        if (array_key_exists('reseller_price', $row) && $row['reseller_price'] !== '' && $row['reseller_price'] !== null) {
+            $local['reseller_price'] = max(0, (float) $row['reseller_price']);
+        }
+
+        if (array_key_exists('description', $row)) {
+            $local['description'] = strtoupper(trim((string) ($row['description'] ?? '')));
+        }
+
+        if (array_key_exists('description2', $row)) {
+            $local['description2'] = strtoupper(trim((string) ($row['description2'] ?? '')));
+        }
+
+        if (array_key_exists('restock_urgent_threshold', $row) && $row['restock_urgent_threshold'] !== '' && $row['restock_urgent_threshold'] !== null) {
+            $item->restock_urgent_threshold = $this->normalizeRestockUrgentThreshold($row['restock_urgent_threshold']);
+        }
+
+        if ($local !== []) {
+            ItemCatalog::mirrorToItem($item, $local);
+        }
+
+        $item->save();
     }
 
     /**
