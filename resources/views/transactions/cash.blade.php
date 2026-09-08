@@ -100,12 +100,13 @@ $config = [
                     <div class="col-span-4">{{ $config['sourceLabel'] }}</div>
                     <div class="col-span-3">Invoice #</div>
                     <div class="col-span-2">Note</div>
-                    <div class="col-span-2 text-right">Total (Rp)</div>
+                    <div class="col-span-2">Total (Rp)</div>
                     <div class="col-span-1 text-center">×</div>
                 </div>
 
                 @php
                     $rowInput = 'w-full h-9 min-h-9 box-border rounded border border-gray-200 px-2 py-0 text-base leading-9 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 [-moz-appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none';
+                    $amountInput = $rowInput.' text-left';
                 @endphp
                 <div class="divide-y divide-gray-100 px-0">
                     <template x-for="(row, idx) in form.items" :key="row.id">
@@ -172,7 +173,7 @@ $config = [
                                        @keyup="fieldKeyup(idx, 'total', $event)"
                                        :id="'total_' + idx"
                                        :data-testid="'cash-entry-total-' + idx"
-                                       class="{{ $rowInput }}"
+                                       class="{{ $amountInput }}"
                                        :class="rowInvalid(row) && !(Number(row.total) >= 0.01) ? 'border-red-400 bg-red-50' : ''">
                             </div>
                             <div class="order-6 sm:order-5 sm:col-span-1 sm:text-center">
@@ -207,7 +208,7 @@ $config = [
                                                step="any"
                                                placeholder="0"
                                                @input="markPpnManual(row)"
-                                               class="{{ $rowInput }}"
+                                               class="{{ $amountInput }}"
                                                :class="rowInvalid(row) && row.record_ppn && !(Number(row.ppn_dpp) >= 0.01) ? 'border-red-400 bg-red-50' : ''">
                                     </div>
                                     <div>
@@ -218,7 +219,7 @@ $config = [
                                                step="any"
                                                placeholder="0"
                                                @input="markPpnManual(row)"
-                                               class="{{ $rowInput }}"
+                                               class="{{ $amountInput }}"
                                                :class="rowInvalid(row) && row.record_ppn && !(Number(row.ppn) >= 0.01) ? 'border-red-400 bg-red-50' : ''">
                                     </div>
                                     <div x-show="row.record_pph" x-cloak>
@@ -229,7 +230,7 @@ $config = [
                                                step="any"
                                                placeholder="0"
                                                @input="markPpnManual(row)"
-                                               class="{{ $rowInput }}"
+                                               class="{{ $amountInput }}"
                                                :class="rowInvalid(row) && row.record_pph && !(Number(row.pph) >= 0.01) ? 'border-red-400 bg-red-50' : ''">
                                     </div>
                                     </div>
