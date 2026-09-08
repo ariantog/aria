@@ -61,7 +61,7 @@ it('skips replenish for items with zero ROAS performance history', function () {
     expect($result['created'])->toBe(1);
 });
 
-it('skips items recently advertised with spend', function () {
+it('skips items with recent ad spend and ROAS below minimum even via tag fallback', function () {
     Carbon::setTestNow(Carbon::parse('2026-09-08 06:00:00', 'Asia/Jakarta'));
 
     $settings = ShopeeAdsSetting::current();
@@ -77,7 +77,7 @@ it('skips items recently advertised with spend', function () {
     ShopeeAdsItemPerformanceSnapshot::query()->create([
         'item_id' => 7001,
         'snapshot_date' => '2026-09-07',
-        'roas' => 8.5,
+        'roas' => 2.5,
         'spend' => 30000,
         'budget' => 100000,
     ]);
@@ -86,9 +86,10 @@ it('skips items recently advertised with spend', function () {
     $api->shouldReceive('hasShopAuthorization')->andReturn(true);
     $api->shouldReceive('listManualProductAds')->andReturn([]);
     $api->shouldReceive('getGmsItemPerformance')->andReturn([
-        ['item_id' => 7001, 'roas' => 8.5, 'orders' => 5, 'gmv' => 250000],
+        ['item_id' => 7001, 'roas' => 2.5, 'orders' => 1, 'gmv' => 50000],
     ]);
     $api->shouldReceive('getRecommendedItems')->andReturn([
+        shopeeRecommendedItem(7001, ['best selling']),
         shopeeRecommendedItem(8001, ['best selling']),
     ]);
     $api->shouldReceive('createManualProductAd')

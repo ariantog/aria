@@ -665,7 +665,7 @@ class ShopeeAdsEngineService
         $exclude = $liveByCampaign->pluck('item_id')->map(fn ($id) => (int) $id)->all();
         $exclude = array_values(array_unique(array_merge(
             $exclude,
-            array_keys($this->recentlyAdvertisedItemIds()),
+            array_keys($this->recentlyAdvertisedItemIds($settings)),
         )));
         $candidates = collect($this->rankItemAdCandidates($settings, $exclude))
             ->filter(fn (array $candidate) => $this->candidateEligibleForReplenish($candidate, $settings))
@@ -1517,17 +1517,20 @@ class ShopeeAdsEngineService
     }
 
     /**
-     * Item ids that had ad spend in the last few days — skip re-picking right after delete/reset.
+     * Item ids with recent ad spend and sub-threshold ROAS — skip re-picking via any source
+     * (including Shopee tag fallbacks) for a few days after a bad run.
      *
      * @return array<int, true>
      */
-    private function recentlyAdvertisedItemIds(int $withinDays = 3): array
+    private function recentlyAdvertisedItemIds(ShopeeAdsSetting $settings, int $withinDays = 3): array
     {
         $since = $this->jakartaNow()->copy()->subDays(max(1, $withinDays) - 1)->toDateString();
+        $minRoas = $this->itemReplenishMinRoas($settings);
 
         return ShopeeAdsItemPerformanceSnapshot::query()
             ->where('snapshot_date', '>=', $since)
             ->where('spend', '>', 0)
+            ->where('roas', '<', $minRoas)
             ->pluck('item_id')
             ->map(fn ($id) => (int) $id)
             ->unique()
