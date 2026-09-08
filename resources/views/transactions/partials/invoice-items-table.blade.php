@@ -86,7 +86,7 @@
             </tr>
         @endforeach
     </tbody>
-    @if(! ($forPdf ?? false) && ! ($plainPrint ?? false))
+    @if(! ($forPdf ?? false))
     <tfoot>
         <tr><td colspan="{{ $totalCols }}"><hr></td></tr>
         <tr>
