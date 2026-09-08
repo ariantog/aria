@@ -523,7 +523,21 @@ class LegacyItemIdentityParser
      */
     protected function manufacturedColorScanText(Item $item): string
     {
-        return ItemCatalog::scanText($item);
+        $item->loadMissing('group');
+
+        if ($item->hasCatalogGroup()) {
+            $groupText = trim(
+                (string) ($item->group->description ?? '').' '.(string) ($item->group->description2 ?? '')
+            );
+
+            if ($groupText !== '') {
+                return $groupText;
+            }
+        }
+
+        return trim(
+            ItemCatalog::leftoverDescription($item).' '.ItemCatalog::leftoverDescription2($item)
+        );
     }
 
     /**
