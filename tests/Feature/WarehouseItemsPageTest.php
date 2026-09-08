@@ -43,6 +43,8 @@ it('shows item name in the name column instead of catalog description', function
         'group_id' => $group->id,
         'name' => 'RUNNING SHIRT - GREEN - M',
         'code' => 'WH-NAME-COL-M',
+        'description' => '',
+        'description2' => '',
     ]);
 
     WarehouseItem::create([

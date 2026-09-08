@@ -19,6 +19,9 @@
     $fi['restock_urgent_threshold'] = $fi['restock_urgent_threshold'] ?? old('restock_urgent_threshold');
     $editingItem = isset($item);
     $showSkuDescriptions = ($isAsset ?? false) && $editingItem;
+    $showAssetCatalogFields = ($isAsset ?? false);
+    $localDescOpen = trim((string) ($fi['item_description'] ?? '')) !== ''
+        || trim((string) ($fi['item_description2'] ?? '')) !== '';
 @endphp
 <div class="rounded-xl border border-gray-200 bg-white shadow-sm">
     <div class="flex items-center gap-3 border-b border-gray-100 px-5 py-4">
@@ -54,7 +57,7 @@
                 <p class="mt-1 text-xs text-gray-500">Shared notes for the colorway (item group).</p>
                 @error('description2')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
             </div>
-            @if($showSkuDescriptions)
+            @if($showAssetCatalogFields)
             <div>
                 <label class="mb-1 block text-sm font-medium text-gray-700" for="item-form-reseller-price">Reseller price (default)</label>
                 <input type="number" step="any" id="item-form-reseller-price" name="reseller_price" min="0"
@@ -88,21 +91,28 @@
                 'sharedTestId' => $showSkuDescriptions ? 'item-form-sku-details' : 'item-form-sku-restock',
             ])
             @if($showSkuDescriptions)
-            <div>
-                <label class="mb-1 block text-sm font-medium text-gray-700" for="item-form-item-description">Description (this size)</label>
-                <textarea id="item-form-item-description" name="item_description" rows="4" placeholder="Override description for this SKU..."
-                          data-testid="item-form-item-description"
-                          class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">{{ $fi['item_description'] }}</textarea>
-                <p class="mt-1 text-xs text-gray-500">When filled, this replaces the shared description for this SKU only.</p>
-                @error('item_description')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
-            </div>
-            <div>
-                <label class="mb-1 block text-sm font-medium text-gray-700" for="item-form-item-description2">Notes (NB) (this size)</label>
-                <textarea id="item-form-item-description2" name="item_description2" rows="3" placeholder="Override notes for this SKU..."
-                          data-testid="item-form-item-description2"
-                          class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">{{ $fi['item_description2'] }}</textarea>
-                @error('item_description2')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
-            </div>
+            <details class="rounded-lg border border-gray-200 bg-white" data-testid="item-form-sku-local-desc" @if($localDescOpen) open @endif>
+                <summary class="cursor-pointer select-none px-4 py-3 text-sm font-medium text-gray-800 hover:bg-gray-50">
+                    Local description overrides (optional)
+                </summary>
+                <div class="space-y-4 border-t border-gray-100 px-4 py-4">
+                    <div>
+                        <label class="mb-1 block text-sm font-medium text-gray-700" for="item-form-item-description">Description (this size)</label>
+                        <textarea id="item-form-item-description" name="item_description" rows="4" placeholder="Override description for this SKU..."
+                                  data-testid="item-form-item-description"
+                                  class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">{{ $fi['item_description'] }}</textarea>
+                        <p class="mt-1 text-xs text-gray-500">When filled, this replaces the shared description for this SKU only.</p>
+                        @error('item_description')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-sm font-medium text-gray-700" for="item-form-item-description2">Notes (NB) (this size)</label>
+                        <textarea id="item-form-item-description2" name="item_description2" rows="3" placeholder="Override notes for this SKU..."
+                                  data-testid="item-form-item-description2"
+                                  class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">{{ $fi['item_description2'] }}</textarea>
+                        @error('item_description2')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
+                    </div>
+                </div>
+            </details>
             <div>
                 <label class="mb-1 block text-sm font-medium text-gray-700" for="item-form-item-reseller-price">Reseller price (this size)</label>
                 <input type="number" step="any" id="item-form-item-reseller-price" name="item_reseller_price" min="0"

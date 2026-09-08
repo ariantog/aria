@@ -4,6 +4,9 @@
     $formItem = $formItem ?? [
         'pcode' => old('pcode', ''),
         'product_name' => old('product_name', ''),
+        'price' => old('price', ''),
+        'cost' => old('cost', ''),
+        'reseller_price' => old('reseller_price', ''),
     ];
 @endphp
 @push('scripts')
@@ -23,6 +26,10 @@ function itemForm() {
             pcode: @js($formItem['pcode'] ?? ''),
             product_name: @js($formItem['product_name'] ?? ''),
         },
+        defaultPrice: @js($formItem['price'] ?? ''),
+        defaultCost: @js($formItem['cost'] ?? ''),
+        defaultResellerPrice: @js($formItem['reseller_price'] ?? ''),
+        skuOverrides: @js(old('sku_overrides', [])),
         typeCode: '???',
         warnaCode: '???',
         warnaName: '???',
@@ -308,6 +315,23 @@ function itemForm() {
             this.sizeCodes = list
                 ? [...list.querySelectorAll('input[name="tags[sizes][]"]:checked')].map(i => ({ code: i.dataset.code || '???' }))
                 : [];
+        },
+
+        skuOverrideRow(sku) {
+            const key = String(sku || '').toUpperCase();
+            return this.skuOverrides[key] || this.skuOverrides[sku] || {};
+        },
+
+        skuOverrideValue(sku, field) {
+            const row = this.skuOverrideRow(sku);
+            return row[field] ?? '';
+        },
+
+        previewOverrideOpen(sku) {
+            const row = this.skuOverrideRow(sku);
+
+            return ['price', 'cost', 'reseller_price', 'description', 'description2']
+                .some((field) => String(row[field] ?? '').trim() !== '');
         },
     };
 }

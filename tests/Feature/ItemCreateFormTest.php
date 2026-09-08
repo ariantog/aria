@@ -169,6 +169,8 @@ it('renders item summary preview below tag selection on create forms', function 
             ->get($url)
             ->assertOk()
             ->assertSee('data-testid="item-form-preview"', false)
+            ->assertSee('data-testid="item-form-sku-override"', false)
+            ->assertSee('sku_overrides', false)
             ->content();
 
         $attributesPos = strpos($html, 'data-testid="item-form-shared-tags"');
