@@ -12,6 +12,8 @@ $breadcrumbs = [
 @endphp
 
 <div class="flex flex-col gap-4 p-3 sm:p-4">
+    @include('addrbook.partials.deleted-banner', ['addrbook' => $addrbook])
+
     <form method="POST" action="{{ route('addrbook.update', $addrbook->id) }}" x-data="formSubmitGuard()" @submit="guardFormSubmit($event)">
         @csrf
         @method('PUT')

@@ -460,6 +460,21 @@ class AddrbookController extends Controller
         return redirect()->to(Addrbook::typeIndexRoute((int) $a->type))->with('success', 'Deleted.');
     }
 
+    public function restore(Addrbook $addrbook)
+    {
+        $a = $addrbook;
+        Gate::authorize(Addrbook::getPermissions($this->addrbookTypeSlug($a))['edit']);
+        $this->authorizeAddrbookLocation($a);
+
+        if (! $a->trashed()) {
+            return redirect()->back()->with('error', 'Entry is not deleted.');
+        }
+
+        $a->restore();
+
+        return redirect()->to(Addrbook::typeIndexRoute((int) $a->type))->with('success', 'Restored.');
+    }
+
     private function tagGroupsForWarehouseItems(): \Illuminate\Support\Collection
     {
         $tags = Tag::all()->groupBy('type');
