@@ -157,25 +157,36 @@ class RestockSheetService
   }
 
   /**
-   * @return int Number of cells added
+   * Align sheet cells with the current TYPE-tagged item catalog: add missing SKUs and
+   * remove cells whose items no longer belong to this type (e.g. after correcting tags).
+   *
+   * @return array{added: int, removed: int}
    */
-  public function syncSkus(RestockSheet $sheet): int
+  public function syncSkus(RestockSheet $sheet): array
   {
     $items = $this->assetLancarItemsForType($sheet->typeTag)
       ->with('tags')
       ->get();
 
+    $catalogItemIds = $items->pluck('id');
     $existingItemIds = $sheet->cells()->pluck('item_id');
 
     $newItems = $items->reject(fn (Item $item) => $existingItemIds->contains($item->id));
+    $staleItemIds = $existingItemIds->reject(fn (int $itemId) => $catalogItemIds->contains($itemId));
 
-    if ($newItems->isEmpty()) {
-      return 0;
+    if ($newItems->isNotEmpty()) {
+      $this->seedCells($sheet, $newItems);
     }
 
-    $this->seedCells($sheet, $newItems);
+    $removed = 0;
+    if ($staleItemIds->isNotEmpty()) {
+      $removed = $sheet->cells()->whereIn('item_id', $staleItemIds->all())->delete();
+    }
 
-    return $newItems->count();
+    return [
+      'added' => $newItems->count(),
+      'removed' => $removed,
+    ];
   }
 
   /**
