@@ -370,7 +370,7 @@ function ariaCopyCellText(cell) {
 
     const link = cell.querySelector('a');
     if (link) {
-        return link.textContent.trim();
+        return link.innerText.replace(/\s+/g, ' ').trim();
     }
 
     return cell.innerText.replace(/\s+/g, ' ').trim();
@@ -391,7 +391,7 @@ function ariaPrepareCopyTable(table, isColumnVisible) {
         }
 
         cell.querySelectorAll('a').forEach((anchor) => {
-            anchor.replaceWith(document.createTextNode(anchor.textContent.trim()));
+            anchor.replaceWith(document.createTextNode(anchor.innerText.replace(/\s+/g, ' ').trim()));
         });
     });
 
