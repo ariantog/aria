@@ -96,7 +96,7 @@
                             endpoint: @js($config['sender_route']),
                             placeholder: 'Select {{ $config['sender_label'] }}...',
                             initial: @js(isset($prefill) ? ($prefill['sender'] ?? null) : null),
-                            onSelect: (item) => { form.sender_id = item ? String(item.id) : ''; form.sender = item; syncPpnModeFromContact(); }
+                            onSelect: (item) => { form.sender_id = item ? String(item.id) : ''; form.sender = item; syncPpnModeFromContact(); refreshRowPricesForContact(); }
                         })" class="relative">
                             <div class="relative flex h-10 w-full overflow-hidden rounded-lg border focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500"
                                  :class="errors.sender_id ? 'border-red-500' : 'border-gray-300'">
@@ -141,7 +141,7 @@
                             endpoint: @js($config['receiver_route']),
                             placeholder: 'Select {{ $config['receiver_label'] }}...',
                             initial: @js(isset($prefill) ? ($prefill['receiver'] ?? null) : null),
-                            onSelect: (item) => { form.receiver_id = item ? String(item.id) : ''; form.receiver = item; syncPpnModeFromContact(); }
+                            onSelect: (item) => { form.receiver_id = item ? String(item.id) : ''; form.receiver = item; syncPpnModeFromContact(); refreshRowPricesForContact(); }
                         })" class="relative">
                             <div class="relative flex h-10 w-full overflow-hidden rounded-lg border focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500"
                                  :class="errors.receiver_id ? 'border-red-500' : 'border-gray-300'">
@@ -543,6 +543,7 @@ const _PPNRate = {{ $ppn_rate }};
 const _TxType  = '{{ $type }}';
 const _MinDate = '{{ $min_date ?? '' }}';
 const _PriceSource = @json($config['price_source'] ?? 'price');
+const _AddrbookTypeReseller = @json(\App\Models\Addrbook::TYPE_RESELLER);
 const _Prefill = @json($prefill ?? null);
 const _ItemLookupUrl = @json(route('transactions.item-by-id', ['type' => $type]));
 const _ItemLookupByCodeUrl = @json(route('transactions.item-by-code', ['type' => $type]));
@@ -657,6 +658,7 @@ function createTransaction() {
                     row.code = ci.code || '';
                     row.name = ci.name || '';
                     row.quantity = Number(ci.quantity || 1);
+                    this.storeCatalogPricesOnRow(row, ci);
                     row.price = this.resolveRowPrice(ci, { preferLinePrice: true });
                     const gross = Number(row.quantity || 0) * Number(row.price || 0);
                     row.discount = gross > 0 ? (Number(ci.discount || 0) / gross) * 100 : 0;
@@ -715,6 +717,34 @@ function createTransaction() {
             this.recalcTotals();
         },
 
+        isResellerSale() {
+            return _TxType === 'sell' && Number(this.form.receiver?.type) === Number(_AddrbookTypeReseller);
+        },
+
+        storeCatalogPricesOnRow(row, source) {
+            row._catalog_price = Number(source?.price ?? 0);
+            row._reseller_sell_price = Number(source?.reseller_sell_price ?? 0);
+        },
+
+        refreshRowPricesForContact() {
+            if (_TxType !== 'sell') {
+                return;
+            }
+
+            this.form.items.forEach(row => {
+                if (!row.item_id) {
+                    return;
+                }
+
+                if (this.isResellerSale() && row._reseller_sell_price > 0) {
+                    row.price = row._reseller_sell_price;
+                } else if (row._catalog_price > 0) {
+                    row.price = row._catalog_price;
+                }
+            });
+            this.recalcTotals();
+        },
+
         splitPpnFromGross(gross) {
             const rate = _PPNRate / 100;
             const divisor = 1 + rate;
@@ -743,6 +773,7 @@ function createTransaction() {
             return value !== null && value !== '' && value !== undefined && ! Number.isNaN(Number(value));
         },
         // sell/return → items.price; buy/return-supplier → items.cost (via _PriceSource).
+        // Sell to reseller → reseller_sell_price (SKU, then group, then price).
         // Empty rows stay empty until an item is picked; return/CSV prefills may carry line price.
         resolveRowPrice(source, { preferLinePrice = false } = {}) {
             if (! source) {
@@ -753,6 +784,13 @@ function createTransaction() {
                 const linePrice = Number(source.price);
                 if (! Number.isNaN(linePrice)) {
                     return linePrice;
+                }
+            }
+
+            if (this.isResellerSale()) {
+                const resellerPrice = Number(source.reseller_sell_price ?? 0);
+                if (! Number.isNaN(resellerPrice) && resellerPrice > 0) {
+                    return resellerPrice;
                 }
             }
 
@@ -855,6 +893,7 @@ function createTransaction() {
             row.item_id = String(source.id ?? source.item_id ?? '');
             row.code = source.code || source.item_code || String(source.id ?? '');
             row.name = source.name || source.product_name || '';
+            this.storeCatalogPricesOnRow(row, source);
             row.price = this.resolveRowPrice(source);
             row.warehouse_item = this.warehouseItemsFrom(source);
             if (!row.quantity || row.quantity < 0.01) row.quantity = 1;

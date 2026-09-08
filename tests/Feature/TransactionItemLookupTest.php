@@ -35,6 +35,44 @@ it('allows transaction users without items-list to lookup an item by id', functi
         ->assertJsonPath('item.jubelio_item_id', 0);
 });
 
+it('includes reseller sell price with sku then group then price fallback', function () {
+    $this->user->givePermissionTo('transactions-type-sell');
+
+    $group = \App\Models\ItemGroup::factory()->create([
+        'reseller_price' => 120000,
+    ]);
+    $item = Item::factory()->create([
+        'group_id' => $group->id,
+        'name' => 'Reseller Priced Product',
+        'code' => 'AJD-RESELL-01-S',
+        'price' => 150000,
+        'reseller_price' => 95000,
+    ]);
+
+    $response = $this->actingAs($this->user)
+        ->getJson(route('transactions.item-by-id', ['type' => 'sell', 'id' => $item->id]));
+
+    $response->assertSuccessful();
+    expect((float) $response->json('item.price'))->toBe(150000.0)
+        ->and((float) $response->json('item.reseller_sell_price'))->toBe(95000.0);
+
+    $item->update(['reseller_price' => 0]);
+
+    $response = $this->actingAs($this->user)
+        ->getJson(route('transactions.item-by-id', ['type' => 'sell', 'id' => $item->id]));
+
+    $response->assertSuccessful();
+    expect((float) $response->json('item.reseller_sell_price'))->toBe(120000.0);
+
+    $group->update(['reseller_price' => 0]);
+
+    $response = $this->actingAs($this->user)
+        ->getJson(route('transactions.item-by-id', ['type' => 'sell', 'id' => $item->id]));
+
+    $response->assertSuccessful();
+    expect((float) $response->json('item.reseller_sell_price'))->toBe(150000.0);
+});
+
 it('returns null item when barcode id does not exist', function () {
     $this->user->givePermissionTo('transactions-type-sell');
 

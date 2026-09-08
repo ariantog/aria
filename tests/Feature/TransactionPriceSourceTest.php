@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Addrbook;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -22,6 +23,18 @@ class TransactionPriceSourceTest extends TestCase
 
         $response->assertSee('const _PriceSource = "cost"', false);
         $response->assertSee('resolveRowPrice', false);
+    }
+
+    public function test_sell_transaction_exposes_reseller_price_helpers()
+    {
+        $user = User::factory()->create();
+        $this->actingAs($user);
+
+        $response = $this->get(route('transactions.create', ['type' => 'sell']));
+        $response->assertOk();
+        $response->assertSee('const _AddrbookTypeReseller = '.Addrbook::TYPE_RESELLER, false);
+        $response->assertSee('isResellerSale()', false);
+        $response->assertSee('reseller_sell_price', false);
     }
 
     public function test_sell_transaction_has_price_price_source()

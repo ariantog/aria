@@ -163,12 +163,15 @@ class TransactionsController extends Controller
      */
     private function itemLookupPayload(\App\Models\Item $item): array
     {
+        $item->loadMissing(['warehouseItems', 'group']);
+
         return [
             'id' => $item->id,
             'code' => $item->getItemCode(),
             'name' => $item->name ?: $item->getItemName(),
             'type' => $item->type->value,
             'price' => (float) $item->price,
+            'reseller_sell_price' => $item->resellerSellPrice(),
             'cost' => (float) $item->cost,
             'jubelio_item_id' => (int) ($item->jubelio_item_id ?? 0),
             'warehouse_item' => $item->warehouseItems->map(fn ($wi) => [
