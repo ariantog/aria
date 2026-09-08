@@ -219,9 +219,39 @@ test('sync skus adds cells when new variants are created', function () {
 
     $this->actingAs($this->user)
         ->post(route('restock.sheets.sync', $sheet))
-        ->assertRedirect();
+        ->assertRedirect()
+        ->assertSessionHas('success');
 
     expect($sheet->fresh()->cells)->toHaveCount(5);
+});
+
+test('sync skus removes cells when item no longer belongs to the type', function () {
+    createAssetLancarSkus($this);
+
+    $kneeType = Tag::factory()->create([
+        'type' => Tag::TYPE_TYPE,
+        'code' => 'KNEE',
+        'name' => 'Knee Support',
+        'item_type' => ItemType::ASSET_LANCAR->value,
+    ]);
+
+    $sheet = app(RestockSheetService::class)->createSheet($this->typeTag, $this->user);
+    expect($sheet->cells)->toHaveCount(4);
+
+    $wrongItem = $sheet->cells()->with('item.tags')->first()->item;
+    $wrongItem->tags()->sync([
+        $kneeType->id,
+        $this->warnaBlue->id,
+        $this->sizeS->id,
+    ]);
+
+    $this->actingAs($this->user)
+        ->post(route('restock.sheets.sync', $sheet))
+        ->assertRedirect()
+        ->assertSessionHas('success');
+
+    expect($sheet->fresh()->cells)->toHaveCount(3);
+    expect($sheet->cells()->where('item_id', $wrongItem->id)->exists())->toBeFalse();
 });
 
 test('grid groups legacy full-sku pcodes into parent color rows and size columns', function () {
@@ -409,6 +439,7 @@ test('grid includes parent image url', function () {
     $grid = app(RestockGridBuilder::class)->build($sheet);
 
     expect($grid['parents'][0]['image_url'])->toBeString()->not->toBeEmpty();
+    expect($grid['parents'][0]['group_url'])->toContain('/items-group/parent/');
 });
 
 test('grid resolves parent from code when pcode stores the full sku', function () {
