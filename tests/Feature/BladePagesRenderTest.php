@@ -252,8 +252,8 @@ it('renders the invoice maker show page with payment status', function () {
         ->assertOk()
         ->assertSee('Payment', false)
         ->assertSee('Unpaid', false)
-        ->assertSee('data-testid="copy-invoice-url"', false)
-        ->assertSee(route('invoice-maker.show', $invoice, absolute: true), false);
+        ->assertSee('data-testid="copy-invoice-number"', false)
+        ->assertSee('INV/CA/2026/SMOKE', false);
 });
 
 it('does not expose the removed warehouse compare report', function () {
