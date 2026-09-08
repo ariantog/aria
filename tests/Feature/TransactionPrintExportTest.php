@@ -128,6 +128,43 @@ it('renders the dot matrix print page with item view columns and signature block
         ->assertSee('css/print.css', false);
 });
 
+it('shows grand total below subtotal on print invoice instead of header meta', function () {
+    $transaction = Transaction::factory()->create([
+        'invoice' => 'PRT-TOTAL',
+        'discount' => 5,
+        'adjustment' => -250,
+        'total' => -128_000,
+        'total_items' => 1,
+    ]);
+    $item = Item::factory()->create(['name' => 'Invoice Shirt', 'code' => 'SKU-TOTAL-01']);
+    TransactionDetail::factory()->create([
+        'transaction_id' => $transaction->id,
+        'item_id' => $item->id,
+        'quantity' => 1,
+        'price' => 135_000,
+        'discount' => 0,
+        'total' => 135_000,
+    ]);
+
+    $response = $this->actingAs($this->user)
+        ->get(route('transactions.print', [
+            'transaction' => $transaction,
+            'image' => 0,
+            'barcode' => 0,
+            'sku' => 0,
+            'name' => 1,
+        ]))
+        ->assertOk();
+
+    $html = $response->getContent();
+
+    expect($html)
+        ->not->toContain('<tr><td>Total</td><td>')
+        ->toContain('Subtotal')
+        ->toContain('Grand Total')
+        ->and(strpos($html, 'Subtotal'))->toBeLessThan(strpos($html, 'Grand Total'));
+});
+
 it('generates invoice pdf with item view columns from request', function () {
     $item = Item::factory()->create(['name' => 'PDF Shirt', 'code' => 'SKU-PDF-01']);
     $transaction = Transaction::factory()->create([

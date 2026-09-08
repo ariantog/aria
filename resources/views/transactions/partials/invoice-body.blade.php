@@ -36,7 +36,6 @@
                         <tr><td>Date</td><td>{{ $transaction->date?->format('d/m/Y') }}</td></tr>
                         <tr><td>Discount</td><td>{{ $transaction->discount }}%</td></tr>
                         <tr><td>Adjustment</td><td>{{ $fmt($transaction->adjustment) }}</td></tr>
-                        <tr><td>Total</td><td>{{ $fmt($transaction->displayGrandTotal()) }}</td></tr>
                         <tr><td>Items</td><td>{{ $fmt($transaction->total_items) }}</td></tr>
                     </tbody>
                 </table>
@@ -53,6 +52,15 @@
             'plainPrint' => true,
             'fmt' => $fmt,
         ])
+    @else
+        <table class="invoice-items" width="100%">
+            <tbody>
+                <tr>
+                    <td style="text-align:right;"><strong>Total</strong></td>
+                    <td class="num" style="text-align:right; width: 1%; white-space: nowrap;"><strong>{{ $fmt($transaction->displayGrandTotal()) }}</strong></td>
+                </tr>
+            </tbody>
+        </table>
     @endif
 
     <hr>
