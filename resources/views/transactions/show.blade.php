@@ -52,9 +52,10 @@
                         Edit
                     </button>
                     @endif
-                    @include('partials.copy-url-button', [
-                        'url' => route('transactions.show', $transaction, absolute: true),
+                    @include('partials.copy-button', [
+                        'value' => route('transactions.show', $transaction, absolute: true),
                         'testid' => 'copy-tx-url',
+                        'label' => 'Copy link',
                     ])
                     @if($invoiceSettlement)
                         @include('invoice-maker.partials.status-badge', [
