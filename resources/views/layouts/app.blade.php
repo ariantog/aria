@@ -420,6 +420,20 @@ function ariaTableToTsv(table, isColumnVisible) {
     return rows.join('\n');
 }
 
+async function ariaCopyText(text) {
+    if (!text) {
+        return false;
+    }
+
+    try {
+        await navigator.clipboard.writeText(text);
+        return true;
+    } catch (e) {
+        console.error('Failed to copy text', e);
+        return false;
+    }
+}
+
 async function ariaCopyTable(table, isColumnVisible) {
     if (!table) {
         return false;
