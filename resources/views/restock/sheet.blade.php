@@ -117,6 +117,14 @@
         text-overflow: ellipsis;
         white-space: nowrap;
     }
+    .restock-section-image {
+        cursor: pointer;
+        transition: width 0.15s ease, height 0.15s ease;
+    }
+    .restock-section-image.restock-section-image-lg {
+        height: 6rem;
+        width: 6rem;
+    }
     .restock-sheet-actions {
         position: sticky;
         top: 0;
@@ -452,8 +460,14 @@ function restockSheetPage() {
             const img = document.createElement('img');
             img.src = data.image_url || this.defaultImageUrl;
             img.alt = '';
-            img.className = 'h-9 w-9 rounded border border-gray-200 object-cover';
+            img.className = 'restock-section-image h-9 w-9 rounded border border-gray-200 object-cover';
             img.onerror = () => { img.onerror = null; img.src = this.defaultImageUrl; };
+            img.addEventListener('click', (event) => {
+                event.stopPropagation();
+                img.classList.toggle('restock-section-image-lg');
+                img.classList.toggle('h-9');
+                img.classList.toggle('w-9');
+            });
 
             return img;
         },
@@ -516,8 +530,20 @@ function restockSheetPage() {
 
                 const name = document.createElement('div');
                 name.className = 'restock-section-title font-semibold text-gray-900 leading-tight';
-                name.textContent = data.name || data.pcode || '';
-                name.title = data.name || data.pcode || '';
+                const displayName = data.name || data.pcode || '';
+                name.title = displayName;
+
+                if (data.group_url) {
+                    const link = document.createElement('a');
+                    link.href = data.group_url;
+                    link.target = '_blank';
+                    link.rel = 'noopener noreferrer';
+                    link.className = 'text-blue-700 hover:text-blue-900 hover:underline';
+                    link.textContent = displayName;
+                    name.appendChild(link);
+                } else {
+                    name.textContent = displayName;
+                }
 
                 const pcode = document.createElement('div');
                 pcode.className = 'restock-section-title font-mono text-xs text-gray-500';

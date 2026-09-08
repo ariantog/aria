@@ -48,6 +48,7 @@ class RestockGridBuilder
                     'pcode' => $parentPcode,
                     'name' => $this->parentDisplayName($cells, $parentPcode),
                     'image_url' => $this->parentImageUrl($cells),
+                    'group_url' => $this->parentGroupUrl($cells),
                     'sizes' => $sizes,
                     'rows' => $rows,
                 ];
@@ -153,6 +154,7 @@ class RestockGridBuilder
                 'pcode' => $parent['pcode'],
                 'name' => $parent['name'],
                 'image_url' => $parent['image_url'],
+                'group_url' => $parent['group_url'] ?? null,
                 'sizes' => $parent['sizes'],
             ];
 
@@ -234,6 +236,24 @@ class RestockGridBuilder
         $item = $cells->first(fn (RestockCell $cell) => $cell->item !== null)?->item;
 
         return $item?->image_url ?? asset('images/default-item.svg');
+    }
+
+    /**
+     * @param  Collection<int, RestockCell>  $cells
+     */
+    protected function parentGroupUrl(Collection $cells): ?string
+    {
+        $item = $cells->first(fn (RestockCell $cell) => $cell->item !== null)?->item;
+
+        if ($item === null) {
+            return null;
+        }
+
+        $slug = $this->identityBuilder->parentKeyToSlug(
+            $this->identityBuilder->itemParentKey($item)
+        );
+
+        return route('items.group-parent-detail', $slug);
     }
 
     /**
