@@ -136,18 +136,6 @@
     if ($hasPerm('report-tax-faktur') || $hasPerm('report-tax-faktur-import') || $isSuperAdmin) {
         $reportNavLabels[] = 'Faktur Pajak';
     }
-    if ($hasPerm('report-produksi-potong') || $isSuperAdmin) {
-        $reportNavLabels[] = 'Statistik Potong';
-    }
-    if ($hasPerm('report-produksi-jahit') || $isSuperAdmin) {
-        $reportNavLabels[] = 'Statistik Jahit';
-    }
-    if ($hasPerm('report-produksi-qc') || $isSuperAdmin) {
-        $reportNavLabels[] = 'Statistik QC';
-    }
-    if ($hasPerm('report-produksi-pritil') || $isSuperAdmin) {
-        $reportNavLabels[] = 'Statistik Pritil';
-    }
     if ($isSuperAdmin) {
         $reportNavLabels[] = 'Reporting Entities';
     }
@@ -182,6 +170,20 @@
     if ($hasPerm('production-worker-list') || $isSuperAdmin) {
         $produksiNavLabels = array_merge($produksiNavLabels, ['Potong Workers', 'Jahit Workers', 'QC Workers', 'Pritil Workers']);
     }
+    if ($hasPerm('report-produksi-potong') || $isSuperAdmin) {
+        $produksiNavLabels[] = 'Statistik Potong';
+    }
+    if ($hasPerm('report-produksi-jahit') || $isSuperAdmin) {
+        $produksiNavLabels[] = 'Statistik Jahit';
+    }
+    if ($hasPerm('report-produksi-qc') || $isSuperAdmin) {
+        $produksiNavLabels[] = 'Statistik QC';
+    }
+    if ($hasPerm('report-produksi-pritil') || $isSuperAdmin) {
+        $produksiNavLabels[] = 'Statistik Pritil';
+    }
+
+    $navSubcategoryClass = 'px-2.5 pt-2 pb-0.5 text-[10px] font-semibold uppercase tracking-wide text-indigo-600';
 
     $systemNavLabels = ['System Settings'];
     if ($hasPerm('setting-general-view') || $isSuperAdmin) {
@@ -445,10 +447,6 @@
     || $hasPerm('report-tax-ppn')
     || $hasPerm('report-tax-faktur')
     || $hasPerm('report-tax-faktur-import')
-    || $hasPerm('report-produksi-potong')
-    || $hasPerm('report-produksi-jahit')
-    || $hasPerm('report-produksi-qc')
-    || $hasPerm('report-produksi-pritil')
     || $isSuperAdmin
 )
 @php
@@ -466,10 +464,6 @@
         || $isActive('/reports/tax/ppn')
         || $isActive('/reports/tax/pph')
         || $isActive('/reports/tax/faktur')
-        || $isActive('/reports/produksi-potong')
-        || $isActive('/reports/produksi-jahit')
-        || $isActive('/reports/produksi-qc')
-        || $isActive('/reports/produksi-pritil')
         || $isActive('/reports/entities');
 @endphp
 <div x-data="{ open: {{ $repActive ? 'true' : 'false' }} }"
@@ -485,7 +479,7 @@
     </button>
     <div x-show="open && sidebarOpen" x-cloak class="ml-6 mt-1 space-y-0.5">
         @if($hasPerm('report-warehouse-item') || $hasPerm('report-warehouse-arrangement') || $hasPerm('report-product-performance') || $hasPerm('report-inventory-health') || $isSuperAdmin)
-        <p class="px-2.5 pt-2 pb-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-400">Inventory</p>
+        <p class="{{ $navSubcategoryClass }}">Inventory</p>
         @endif
         @if($hasPerm('report-warehouse-item') || $isSuperAdmin)
         <a href="{{ route('reports.warehouse-item') }}" x-show="navLinkVisible('Item Gudang', 'Reports')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/warehouse-item') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Item Gudang</a>
@@ -501,7 +495,7 @@
         @endif
 
         @if($hasPerm('report-nett-cash') || $hasPerm('report-neraca') || $hasPerm('report-laba-rugi') || $hasPerm('report-channel-pnl') || $hasPerm('report-receivables') || $hasPerm('report-payables') || $hasPerm('report-asset-tetap') || $isSuperAdmin)
-        <p class="px-2.5 pt-2 pb-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-400">Finance</p>
+        <p class="{{ $navSubcategoryClass }}">Finance</p>
         @endif
         @if($hasPerm('report-nett-cash') || $isSuperAdmin)
         <a href="{{ route('reports.nett-cash-sby') }}" x-show="navLinkVisible('Nett Cash', 'Reports')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/nett-cash-sby') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Nett Cash</a>
@@ -526,7 +520,7 @@
         @endif
 
         @if($hasPerm('report-tax-ppn') || $hasPerm('report-tax-pph') || $hasPerm('report-tax-faktur') || $hasPerm('report-tax-faktur-import') || $isSuperAdmin)
-        <p class="px-2.5 pt-2 pb-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-400">Tax</p>
+        <p class="{{ $navSubcategoryClass }}">Tax</p>
         @endif
         @if($hasPerm('report-tax-ppn') || $isSuperAdmin)
         <a href="{{ route('reports.tax.ppn') }}" x-show="navLinkVisible('Laporan PPN', 'Reports')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/tax/ppn') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Laporan PPN</a>
@@ -538,24 +532,8 @@
         <a href="{{ route('reports.tax.faktur.index') }}" x-show="navLinkVisible('Faktur Pajak', 'Reports')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/tax/faktur') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Faktur Pajak</a>
         @endif
 
-        @if($hasPerm('report-produksi-potong') || $hasPerm('report-produksi-jahit') || $hasPerm('report-produksi-qc') || $hasPerm('report-produksi-pritil') || $isSuperAdmin)
-        <p class="px-2.5 pt-2 pb-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-400">Production</p>
-        @endif
-        @if($hasPerm('report-produksi-potong') || $isSuperAdmin)
-        <a href="{{ route('reports.produksi-potong') }}" x-show="navLinkVisible('Statistik Potong', 'Reports')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/produksi-potong') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Statistik Potong</a>
-        @endif
-        @if($hasPerm('report-produksi-jahit') || $isSuperAdmin)
-        <a href="{{ route('reports.produksi-jahit') }}" x-show="navLinkVisible('Statistik Jahit', 'Reports')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/produksi-jahit') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Statistik Jahit</a>
-        @endif
-        @if($hasPerm('report-produksi-qc') || $isSuperAdmin)
-        <a href="{{ route('reports.produksi-qc') }}" x-show="navLinkVisible('Statistik QC', 'Reports')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/produksi-qc') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Statistik QC</a>
-        @endif
-        @if($hasPerm('report-produksi-pritil') || $isSuperAdmin)
-        <a href="{{ route('reports.produksi-pritil') }}" x-show="navLinkVisible('Statistik Pritil', 'Reports')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/produksi-pritil') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Statistik Pritil</a>
-        @endif
-
         @if($isSuperAdmin)
-        <p class="px-2.5 pt-2 pb-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-400">Admin</p>
+        <p class="{{ $navSubcategoryClass }}">Admin</p>
         <a href="{{ route('reports.entities.index') }}" x-show="navLinkVisible('Reporting Entities', 'Reports')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/entities') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Reporting Entities</a>
         @endif
     </div>
@@ -633,9 +611,22 @@
 @endif
 
 {{-- ── Produksi ──────────────────────────────────────────────────────── --}}
-@if($hasPerm('production-list') || $hasPerm('production-setoran-list') || $hasPerm('production-worker-list') || $isSuperAdmin)
+@if(
+    $hasPerm('production-list')
+    || $hasPerm('production-setoran-list')
+    || $hasPerm('production-worker-list')
+    || $hasPerm('report-produksi-potong')
+    || $hasPerm('report-produksi-jahit')
+    || $hasPerm('report-produksi-qc')
+    || $hasPerm('report-produksi-pritil')
+    || $isSuperAdmin
+)
 @php
-    $prdActive = $isActive('/produksi');
+    $prdActive = $isActive('/produksi')
+        || $isActive('/reports/produksi-potong')
+        || $isActive('/reports/produksi-jahit')
+        || $isActive('/reports/produksi-qc')
+        || $isActive('/reports/produksi-pritil');
 @endphp
 <div x-data="{ open: {{ $prdActive ? 'true' : 'false' }} }"
      class="mb-1"
@@ -660,6 +651,22 @@
         <a href="{{ route('produksi.jahit.index') }}" x-show="navLinkVisible('Jahit Workers', 'Produksi')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/produksi/jahit') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Jahit Workers</a>
         <a href="{{ route('produksi.qc.index') }}" x-show="navLinkVisible('QC Workers', 'Produksi')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/produksi/qc') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">QC Workers</a>
         <a href="{{ route('produksi.pritil.index') }}" x-show="navLinkVisible('Pritil Workers', 'Produksi')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/produksi/pritil') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Pritil Workers</a>
+        @endif
+
+        @if($hasPerm('report-produksi-potong') || $hasPerm('report-produksi-jahit') || $hasPerm('report-produksi-qc') || $hasPerm('report-produksi-pritil') || $isSuperAdmin)
+        <p class="{{ $navSubcategoryClass }}">Report</p>
+        @endif
+        @if($hasPerm('report-produksi-potong') || $isSuperAdmin)
+        <a href="{{ route('reports.produksi-potong') }}" x-show="navLinkVisible('Statistik Potong', 'Produksi')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/produksi-potong') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Statistik Potong</a>
+        @endif
+        @if($hasPerm('report-produksi-jahit') || $isSuperAdmin)
+        <a href="{{ route('reports.produksi-jahit') }}" x-show="navLinkVisible('Statistik Jahit', 'Produksi')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/produksi-jahit') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Statistik Jahit</a>
+        @endif
+        @if($hasPerm('report-produksi-qc') || $isSuperAdmin)
+        <a href="{{ route('reports.produksi-qc') }}" x-show="navLinkVisible('Statistik QC', 'Produksi')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/produksi-qc') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Statistik QC</a>
+        @endif
+        @if($hasPerm('report-produksi-pritil') || $isSuperAdmin)
+        <a href="{{ route('reports.produksi-pritil') }}" x-show="navLinkVisible('Statistik Pritil', 'Produksi')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/produksi-pritil') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Statistik Pritil</a>
         @endif
     </div>
 </div>
