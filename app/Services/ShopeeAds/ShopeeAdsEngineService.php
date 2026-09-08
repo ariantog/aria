@@ -266,7 +266,7 @@ class ShopeeAdsEngineService
         } elseif (! $settings->item_ads_enabled) {
             $replenishNotes[] = 'Item ads subsystem disabled.';
         } else {
-            $replenishNotes[] = 'Create: saat daily reset (isi penuh sampai max '.$settings->max_item_ads.') + setelah jadwal increment produk_manual jika active < max (max '.$settings->item_replenish_max_per_run.' per jadwal).';
+            $replenishNotes[] = 'Create: saat daily reset (isi penuh sampai max '.$settings->max_item_ads.') + setelah jadwal increment produk_manual jika active < max (max '.$settings->item_replenish_max_per_run.' per jadwal). Min ROAS replenish: '.$this->itemReplenishMinRoas($settings).'.';
         }
 
         if (! $this->api->hasShopAuthorization()) {
@@ -663,7 +663,12 @@ class ShopeeAdsEngineService
         }
 
         $exclude = $liveByCampaign->pluck('item_id')->map(fn ($id) => (int) $id)->all();
+        $exclude = array_values(array_unique(array_merge(
+            $exclude,
+            array_keys($this->recentlyAdvertisedItemIds()),
+        )));
         $candidates = collect($this->rankItemAdCandidates($settings, $exclude))
+            ->filter(fn (array $candidate) => $this->candidateEligibleForReplenish($candidate, $settings))
             ->take($need);
 
         $created = 0;
@@ -1488,14 +1493,79 @@ class ShopeeAdsEngineService
 
     private function candidatePriority(array $row): int
     {
+        $avgRoas = (float) ($row['avg_roas'] ?? 0);
+
         return match ($row['source']) {
-            'performance_history', 'gms_roas' => 400,
-            'gms_sales', 'transaction_sales' => 350,
+            'performance_history', 'gms_roas' => $avgRoas > 0 ? 400 : 100,
+            'gms_sales' => $avgRoas > 0 ? 380 : 320,
+            'transaction_sales' => 350,
             'best_roi' => 300,
             'best_selling' => 250,
             'top_search' => 200,
             default => 100,
         };
+    }
+
+    private function itemReplenishMinRoas(ShopeeAdsSetting $settings): float
+    {
+        $configured = (float) ($settings->item_replenish_min_roas ?? 0);
+        if ($configured > 0) {
+            return $configured;
+        }
+
+        return max(0.0, (float) $settings->item_roas_off_threshold);
+    }
+
+    /**
+     * Item ids that had ad spend in the last few days — skip re-picking right after delete/reset.
+     *
+     * @return array<int, true>
+     */
+    private function recentlyAdvertisedItemIds(int $withinDays = 3): array
+    {
+        $since = $this->jakartaNow()->copy()->subDays(max(1, $withinDays) - 1)->toDateString();
+
+        return ShopeeAdsItemPerformanceSnapshot::query()
+            ->where('snapshot_date', '>=', $since)
+            ->where('spend', '>', 0)
+            ->pluck('item_id')
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->mapWithKeys(fn (int $id) => [$id => true])
+            ->all();
+    }
+
+    /**
+     * @param  array{item_id: int, source: string, avg_roas: float, sales_score: float, reason: string}  $candidate
+     */
+    private function candidateEligibleForReplenish(array $candidate, ShopeeAdsSetting $settings): bool
+    {
+        $minRoas = $this->itemReplenishMinRoas($settings);
+        $source = (string) $candidate['source'];
+        $avgRoas = (float) $candidate['avg_roas'];
+        $salesScore = (float) $candidate['sales_score'];
+
+        if (in_array($source, ['best_roi', 'best_selling', 'top_search', 'recommended'], true)) {
+            return $salesScore > 0;
+        }
+
+        if ($source === 'transaction_sales') {
+            return $salesScore > 0;
+        }
+
+        if (in_array($source, ['performance_history', 'gms_roas', 'gms_sales'], true)) {
+            if ($avgRoas <= 0) {
+                return false;
+            }
+
+            return $avgRoas >= $minRoas;
+        }
+
+        if ($avgRoas <= 0) {
+            return false;
+        }
+
+        return $avgRoas >= $minRoas;
     }
 
     /**

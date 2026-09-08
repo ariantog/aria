@@ -409,11 +409,13 @@ $saInnerCardWhite = 'space-y-3 rounded-lg border border-gray-200 bg-white p-4';
                     </div>
                 </label>
                 <label class="block">
-                    <span class="{{ $saLabel }}">Item ROAS off / after N checks</span>
+                    <span class="{{ $saLabel }}">Item ROAS off / min replenish / after N checks</span>
                     <div class="mt-1 flex gap-2">
-                        <input type="number" step="0.01" name="item_roas_off_threshold" value="{{ $settings->item_roas_off_threshold }}" class="{{ $saInputSm }}" required>
+                        <input type="number" step="0.01" name="item_roas_off_threshold" value="{{ $settings->item_roas_off_threshold }}" class="{{ $saInputSm }}" required title="Turn off when ROAS stays below this">
+                        <input type="number" step="0.01" name="item_replenish_min_roas" value="{{ $settings->item_replenish_min_roas ?? $settings->item_roas_off_threshold }}" class="{{ $saInputSm }}" required title="Min ROAS to create new item ads">
                         <input type="number" name="item_off_after_checks" value="{{ $settings->item_off_after_checks }}" class="{{ $saInputSm }}" required>
                     </div>
+                    <p class="mt-1 text-xs {{ $saTextMuted }}">Min replenish: skip items with known ROAS below this (history/GMS). Shopee tag picks without ROAS data still allowed.</p>
                 </label>
                 <label class="block">
                     <span class="{{ $saLabel }}">New item ROAS target (0 = auto)</span>
