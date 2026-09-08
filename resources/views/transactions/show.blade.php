@@ -502,11 +502,13 @@
                         <td class="whitespace-nowrap px-3 py-2.5 align-middle font-mono text-xs"
                             data-copy-col="sku"
                             data-sort-value="{{ $item?->code ?: '' }}"
+                            @if($item)
+                            :data-copy-value="showLegacyCode ? @js($item->distinctLegacyCode() ?: ($item->code ?: '')) : @js($item->code ?: '')"
+                            @endif
                             x-show="showSkuColumn()">
                             @if($item)
                                 <a href="{{ $item->showUrl() }}" class="italic text-blue-600 hover:underline" data-testid="tx-item-sku-link-{{ $item->id }}">
-                                    <span x-show="showLegacyCode" x-cloak>{{ $item->distinctLegacyCode() ?: ($item->code ?: '—') }}</span>
-                                    <span x-show="!showLegacyCode" x-cloak>{{ $item->code ?: '—' }}</span>
+                                    <span x-text="showLegacyCode ? @js($item->distinctLegacyCode() ?: ($item->code ?: '—')) : @js($item->code ?: '—')"></span>
                                 </a>
                             @else
                                 <span class="italic text-gray-500">—</span>

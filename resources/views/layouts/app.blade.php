@@ -378,21 +378,17 @@ function ariaCopyCellText(cell) {
 
 function ariaPrepareCopyTable(table, isColumnVisible) {
     const clone = table.cloneNode(true);
+    const liveCells = table.querySelectorAll('[data-copy-col]');
 
-    clone.querySelectorAll('[data-copy-col]').forEach((cell) => {
+    clone.querySelectorAll('[data-copy-col]').forEach((cell, index) => {
+        const live = liveCells[index] ?? cell;
+
         if (typeof isColumnVisible === 'function' && !isColumnVisible(cell.dataset.copyCol)) {
             cell.remove();
             return;
         }
 
-        if (cell.hasAttribute('data-copy-value')) {
-            cell.textContent = ariaFormatCopyNumber(cell.getAttribute('data-copy-value'));
-            return;
-        }
-
-        cell.querySelectorAll('a').forEach((anchor) => {
-            anchor.replaceWith(document.createTextNode(anchor.innerText.replace(/\s+/g, ' ').trim()));
-        });
+        cell.textContent = ariaCopyCellText(live);
     });
 
     return clone;
@@ -439,8 +435,8 @@ async function ariaCopyTable(table, isColumnVisible) {
         return false;
     }
 
+    const plain = ariaTableToTsv(table, isColumnVisible);
     const clone = ariaPrepareCopyTable(table, isColumnVisible);
-    const plain = ariaTableToTsv(clone, isColumnVisible);
     const html = clone.outerHTML;
 
     try {

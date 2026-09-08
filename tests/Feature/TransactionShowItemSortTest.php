@@ -52,6 +52,40 @@ it('renders transaction item rows sorted by sku by default', function () {
     expect($matches[1])->toBe(['ALPHA-01', 'MID-10', 'ZEBRA-99']);
 });
 
+it('renders sku copy value on item rows for clipboard export', function () {
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    $customer = Addrbook::factory()->customer()->create();
+    $item = Item::factory()->create(['name' => 'Copy Shirt', 'code' => 'ACCHJ0000601M']);
+
+    $sell = Transaction::factory()->create([
+        'type' => Transaction::TYPE_SELL,
+        'invoice' => 'INV-SKU-COPY',
+        'sender_id' => $warehouse->id,
+        'sender_type' => (string) Addrbook::TYPE_WAREHOUSE,
+        'receiver_id' => $customer->id,
+        'receiver_type' => (string) Addrbook::TYPE_CUSTOMER,
+        'total' => -10_000,
+        'real_total' => -10_000,
+        'total_items' => 1,
+        'user_id' => $this->user->id,
+    ]);
+
+    TransactionDetail::factory()->create([
+        'transaction_id' => $sell->id,
+        'item_id' => $item->id,
+        'quantity' => 1,
+        'price' => 10_000,
+        'total' => 10_000,
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('transactions.show', $sell))
+        ->assertOk()
+        ->assertSee(':data-copy-value="showLegacyCode ?', false)
+        ->assertSee('ACCHJ0000601M', false)
+        ->assertDontSee('x-show="showLegacyCode" x-cloak', false);
+});
+
 it('renders clickable sku links on transaction item rows', function () {
     $warehouse = Addrbook::factory()->warehouse()->create();
     $customer = Addrbook::factory()->customer()->create();
