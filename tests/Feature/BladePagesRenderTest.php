@@ -130,7 +130,9 @@ it('renders the transaction show page', function () {
         ->get(route('transactions.show', $transaction))
         ->assertOk()
         ->assertSee('sortItems(', false)
-        ->assertSee('data-testid="delete-transaction-button"', false);
+        ->assertSee('data-testid="delete-transaction-button"', false)
+        ->assertSee('data-testid="copy-tx-url"', false)
+        ->assertSee(route('transactions.show', $transaction, absolute: true), false);
 });
 
 it('renders the cash in switch on a sell transaction show page', function () {
@@ -249,7 +251,9 @@ it('renders the invoice maker show page with payment status', function () {
         ->get(route('invoice-maker.show', $invoice))
         ->assertOk()
         ->assertSee('Payment', false)
-        ->assertSee('Unpaid', false);
+        ->assertSee('Unpaid', false)
+        ->assertSee('data-testid="copy-invoice-url"', false)
+        ->assertSee(route('invoice-maker.show', $invoice, absolute: true), false);
 });
 
 it('does not expose the removed warehouse compare report', function () {
