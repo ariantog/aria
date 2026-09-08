@@ -422,6 +422,23 @@ it('renders the warehouse arrangement report page without tabulator', function (
         ->assertSee('Demand', false);
 });
 
+it('renders a bright warehouse 1 draft move button', function () {
+    $source = Addrbook::factory()->warehouse()->create(['name' => 'Source WH']);
+    $destination = Addrbook::factory()->warehouse()->create([
+        'name' => 'Flagship WH',
+        'arrangement_enabled' => true,
+    ]);
+
+    arrangementPage($destination->id, ['source_ids' => [$source->id]]);
+
+    $this->actingAs($this->user)
+        ->get(route('reports.warehouse-arrangement', ['warehouse_id' => $destination->id]))
+        ->assertOk()
+        ->assertSee('data-testid="arrangement-draft-wh1"', false)
+        ->assertSee('bg-blue-600', false)
+        ->assertSee('Source WH → Flagship WH', false);
+});
+
 it('groups sections by color pcode', function () {
     $source = Addrbook::factory()->warehouse()->create(['name' => 'Source WH']);
     $destination = Addrbook::factory()->warehouse()->create([
