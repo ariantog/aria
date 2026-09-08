@@ -310,7 +310,8 @@ $queryParams = fn (array $extra = []) => array_filter(array_merge([
                 <button type="button"
                         @click="draftFromWarehouse(1)"
                         :disabled="selectedCountWh1() === 0"
-                        class="rounded-lg border border-blue-300 bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-900 hover:bg-blue-100 disabled:opacity-50 dark:border-blue-700 dark:bg-blue-900/40 dark:text-blue-100 dark:hover:bg-blue-900/60">
+                        data-testid="arrangement-draft-wh1"
+                        class="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">
                     {{ $sourceWarehouse1['name'] }} → {{ $destinationName }}
                     <span x-show="selectedCountWh1() > 0" x-cloak>(<span x-text="selectedCountWh1()"></span>)</span>
                 </button>
