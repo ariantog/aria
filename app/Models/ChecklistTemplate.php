@@ -17,6 +17,7 @@ class ChecklistTemplate extends Model
     public static function getPermissions(): array
     {
         return [
+            'view' => 'staff-checklists-view',
             'edit' => 'checklist-templates-edit',
             'delete' => 'checklist-templates-delete',
         ];
