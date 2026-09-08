@@ -345,4 +345,12 @@ class Addrbook extends Model
     {
         return app(\App\Services\LocationAccessService::class)->applyAddrbookScope($query, $user);
     }
+
+    /**
+     * Allow detail/edit routes to resolve soft-deleted contacts (list filter "Only Deleted").
+     */
+    public function resolveRouteBinding($value, $field = null)
+    {
+        return $this->where($field ?? $this->getRouteKeyName(), $value)->withTrashed()->first();
+    }
 }

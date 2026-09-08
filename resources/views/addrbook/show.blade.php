@@ -12,6 +12,8 @@ $balance = (float) ($addrbook->stat->balance ?? 0);
 @endphp
 
 <div class="flex flex-col gap-4 p-3 sm:p-4">
+    @include('addrbook.partials.deleted-banner', ['addrbook' => $addrbook])
+
     {{-- Header --}}
     <div class="mb-4 flex flex-col items-start justify-between gap-6 md:flex-row md:items-center">
         <div class="flex items-start gap-5">

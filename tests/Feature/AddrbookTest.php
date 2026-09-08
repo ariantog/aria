@@ -136,6 +136,51 @@ test('can delete addrbook', function () {
     expect(Addrbook::withTrashed()->find($addrbook->id))->not->toBeNull();
 });
 
+test('can view soft deleted addrbook detail', function () {
+    $addrbook = Addrbook::create([
+        'name' => 'Deleted Detail',
+        'type' => Addrbook::TYPE_CUSTOMER,
+    ]);
+    $addrbook->delete();
+
+    $this->actingAs($this->user)
+        ->get("/customer/{$addrbook->id}")
+        ->assertOk()
+        ->assertSee('Deleted Detail', false)
+        ->assertSee('This contact was deleted', false);
+});
+
+test('can view soft deleted addrbook edit form', function () {
+    $addrbook = Addrbook::create([
+        'name' => 'Deleted Edit',
+        'type' => Addrbook::TYPE_SUPPLIER,
+    ]);
+    $addrbook->delete();
+
+    $this->actingAs($this->user)
+        ->get("/supplier/{$addrbook->id}/edit")
+        ->assertOk()
+        ->assertSee('Deleted Edit', false)
+        ->assertSee('This contact was deleted', false);
+});
+
+test('can restore soft deleted addrbook', function () {
+    $addrbook = Addrbook::create([
+        'name' => 'Restore Me',
+        'type' => Addrbook::TYPE_CUSTOMER,
+    ]);
+    $addrbook->delete();
+
+    $this->assertSoftDeleted('customers', ['id' => $addrbook->id]);
+
+    $this->actingAs($this->user)
+        ->post(route('addrbook.restore', $addrbook))
+        ->assertRedirect(Addrbook::typeIndexRoute(Addrbook::TYPE_CUSTOMER));
+
+    $addrbook->refresh();
+    expect($addrbook->trashed())->toBeFalse();
+});
+
 test('addrbook list trash button soft deletes via fetch delete', function () {
     $addrbook = Addrbook::create([
         'name' => 'Trash Button Target',
