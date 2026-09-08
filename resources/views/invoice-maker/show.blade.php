@@ -20,7 +20,14 @@ $fmt = fn ($n) => format_currency($n);
             </a>
             <div>
                 <h1 class="text-2xl font-bold tracking-tight">Invoice Detail</h1>
-                <p class="text-sm text-gray-500">{{ $invoice->number }} · {{ $invoice->formattedDate() }}</p>
+                <p class="flex items-center gap-1.5 text-sm text-gray-500">
+                    <span>{{ $invoice->number }}</span>
+                    @include('partials.copy-url-button', [
+                        'url' => route('invoice-maker.show', $invoice, absolute: true),
+                        'testid' => 'copy-invoice-url',
+                    ])
+                    <span>· {{ $invoice->formattedDate() }}</span>
+                </p>
                 <div class="mt-1">
                     @include('invoice-maker.partials.status-badge', [
                         'status' => $settlement['status'],
