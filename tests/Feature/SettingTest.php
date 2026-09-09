@@ -126,6 +126,17 @@ test('authorized user can view default ppn mode on settings index', function () 
         ->assertSee('Included', false);
 });
 
+test('setting seeder does not overwrite existing managed values', function () {
+    $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'Persist WH']);
+    $setting = Setting::where('slug', 'produksi.default_warehouse_id')->firstOrFail();
+
+    $setting->update(['value' => $warehouse->id]);
+
+    $this->seed(SettingSeeder::class);
+
+    expect(Setting::getValue('produksi.default_warehouse_id'))->toBe($warehouse->id);
+});
+
 test('authorized user can update produksi default warehouse via autocomplete value', function () {
     $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'Prod WH']);
     $setting = Setting::where('slug', 'produksi.default_warehouse_id')->firstOrFail();
