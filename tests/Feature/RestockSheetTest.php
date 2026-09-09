@@ -254,6 +254,53 @@ test('sync skus removes cells when item no longer belongs to the type', function
     expect($sheet->cells()->where('item_id', $wrongItem->id)->exists())->toBeFalse();
 });
 
+test('grid merges color rows when cells have stale color_id tags', function () {
+    createAssetLancarSkus($this);
+
+    $sheet = app(RestockSheetService::class)->createSheet($this->typeTag, $this->user);
+    $gridBuilder = app(RestockGridBuilder::class);
+
+    $legacyLavender = Tag::factory()->create([
+        'type' => Tag::TYPE_WARNA,
+        'code' => 'LAVENDER',
+        'name' => 'LAVENDER',
+    ]);
+
+    $sheet->cells()->update(['color_id' => $legacyLavender->id]);
+
+    $parent = $gridBuilder->build($sheet->fresh())['parents'][0];
+    expect(collect($parent['rows'])->where('color_name', 'BLUE'))->toHaveCount(1);
+    expect(collect($parent['rows'])->where('color_name', 'RED'))->toHaveCount(1);
+
+    $sheet->cells()->take(2)->update(['color_id' => null]);
+
+    $parent = $gridBuilder->build($sheet->fresh())['parents'][0];
+    expect(collect($parent['rows'])->where('color_name', 'BLUE'))->toHaveCount(1);
+    expect(collect($parent['rows'])->where('color_name', 'RED'))->toHaveCount(1);
+});
+
+test('sync skus refreshes stale cell color and size tags', function () {
+    createAssetLancarSkus($this);
+
+    $sheet = app(RestockSheetService::class)->createSheet($this->typeTag, $this->user);
+    $cell = $sheet->cells()->with('item.tags')->first();
+
+    $staleColor = Tag::factory()->create([
+        'type' => Tag::TYPE_WARNA,
+        'code' => 'LAVENDER',
+        'name' => 'LAVENDER',
+    ]);
+    $cell->update(['color_id' => $staleColor->id]);
+
+    $warnaTag = $cell->item->tags->firstWhere('type', Tag::TYPE_WARNA);
+
+    $this->actingAs($this->user)
+        ->post(route('restock.sheets.sync', $sheet))
+        ->assertRedirect();
+
+    expect($cell->fresh()->color_id)->toBe($warnaTag?->id);
+});
+
 test('grid groups legacy full-sku pcodes into parent color rows and size columns', function () {
     createAssetLancarSkus($this);
 

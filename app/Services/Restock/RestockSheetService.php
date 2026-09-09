@@ -183,6 +183,8 @@ class RestockSheetService
       $removed = $sheet->cells()->whereIn('item_id', $staleItemIds->all())->delete();
     }
 
+    $this->refreshCellMetadata($sheet, $items);
+
     return [
       'added' => $newItems->count(),
       'removed' => $removed,
@@ -204,6 +206,28 @@ class RestockSheetService
         fn (RestockCell $cell) => $cell->size?->name ?? '',
       ])
       ->groupBy(fn (RestockCell $cell) => $this->identityBuilder->assetLancarParentPcode($cell->item));
+  }
+
+  /**
+   * @param  Collection<int, Item>  $items
+   */
+  protected function refreshCellMetadata(RestockSheet $sheet, Collection $items): void
+  {
+    foreach ($items as $item) {
+      $cell = $sheet->cells()->where('item_id', $item->id)->first();
+
+      if ($cell === null) {
+        continue;
+      }
+
+      $warnaTag = $item->tags->firstWhere('type', Tag::TYPE_WARNA);
+      $sizeTag = $item->tags->firstWhere('type', Tag::TYPE_SIZE);
+
+      $cell->update([
+        'color_id' => $warnaTag?->id,
+        'size_id' => $sizeTag && ! $this->identityBuilder->isAllSize($sizeTag) ? $sizeTag->id : null,
+      ]);
+    }
   }
 
   /**
