@@ -293,6 +293,7 @@ class RestockGridBuilder
                 $row = [
                     'color_id' => $first->color_id,
                     'color_name' => $this->colorLabelForCells($colorCells),
+                    'color_url' => $this->colorGroupUrl($colorCells),
                     'is_urgent' => $colorCells->contains(fn (RestockCell $c) => $c->is_urgent),
                     '_meta' => [],
                 ];
@@ -385,6 +386,18 @@ class RestockGridBuilder
         $code = strtoupper(trim($cells->first()?->color?->code ?? ''));
 
         return $code !== '' ? $code : '—';
+    }
+
+    /**
+     * @param  Collection<int, RestockCell>  $cells
+     */
+    protected function colorGroupUrl(Collection $cells): ?string
+    {
+        $groupId = $cells
+            ->map(fn (RestockCell $cell) => $cell->item?->group_id)
+            ->first(fn (?int $id) => ($id ?? 0) > 0);
+
+        return $groupId > 0 ? route('items.colorway-edit', $groupId) : null;
     }
 
     protected function cellSizeCode(RestockCell $cell): ?string
