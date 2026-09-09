@@ -394,3 +394,97 @@ it('forbids party lookup without item or asset permissions', function () {
         ->getJson(route('items.party-lookup', ['search' => 'Alpha']))
         ->assertForbidden();
 });
+
+it('shows signed quantities from global stock perspective without a party filter', function () {
+    $item = Item::factory()->create();
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    $customer = Addrbook::factory()->customer()->create();
+
+    seedItemTransactionLine($item, [
+        'type' => Transaction::TYPE_SELL,
+        'invoice' => 'QTY-SELL-GLOBAL',
+        'sender_id' => $warehouse->id,
+        'sender_type' => (string) $warehouse->type,
+        'receiver_id' => $customer->id,
+        'receiver_type' => (string) $customer->type,
+    ], ['quantity' => 3]);
+
+    $moveReceiver = Addrbook::factory()->warehouse()->create();
+    seedItemTransactionLine($item, [
+        'type' => Transaction::TYPE_MOVE,
+        'invoice' => 'QTY-MOVE-GLOBAL',
+        'sender_id' => $warehouse->id,
+        'sender_type' => (string) $warehouse->type,
+        'receiver_id' => $moveReceiver->id,
+        'receiver_type' => (string) $moveReceiver->type,
+    ], ['quantity' => 4]);
+
+    $html = $this->actingAs($this->user)
+        ->get(route('items.transactions', $item))
+        ->assertOk()
+        ->assertSee('QTY-SELL-GLOBAL', false)
+        ->assertSee('QTY-MOVE-GLOBAL', false)
+        ->getContent();
+
+    expect($html)->toContain('data-copy-value="-3"')
+        ->and($html)->toContain('data-copy-value="0"')
+        ->and($html)->toContain('text-gray-500');
+});
+
+it('shows signed quantities from the filtered party perspective', function () {
+    $item = Item::factory()->create();
+    $source = Addrbook::factory()->warehouse()->create(['name' => 'Move Source WH']);
+    $destination = Addrbook::factory()->warehouse()->create(['name' => 'Move Dest WH']);
+
+    seedItemTransactionLine($item, [
+        'type' => Transaction::TYPE_MOVE,
+        'invoice' => 'QTY-MOVE-PARTY',
+        'sender_id' => $source->id,
+        'sender_type' => (string) $source->type,
+        'receiver_id' => $destination->id,
+        'receiver_type' => (string) $destination->type,
+    ], ['quantity' => 6]);
+
+    $sourceHtml = $this->actingAs($this->user)
+        ->get(route('items.transactions', ['item' => $item, 'party' => $source->id]))
+        ->assertOk()
+        ->getContent();
+
+    $destinationHtml = $this->actingAs($this->user)
+        ->get(route('items.transactions', ['item' => $item, 'party' => $destination->id]))
+        ->assertOk()
+        ->getContent();
+
+    expect($sourceHtml)->toContain('data-copy-value="-6"')
+        ->and($destinationHtml)->toContain('data-copy-value="6"');
+});
+
+it('shows header description when line notes are blank', function () {
+    $item = Item::factory()->create();
+
+    seedItemTransactionLine($item, [
+        'invoice' => 'DESC-HEADER-ONLY',
+        'description' => 'OL 09.09.26',
+        'notes' => null,
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('items.transactions', $item))
+        ->assertOk()
+        ->assertSee('OL 09.09.26', false);
+});
+
+it('shows transaction notes when description is blank', function () {
+    $item = Item::factory()->create();
+
+    seedItemTransactionLine($item, [
+        'invoice' => 'DESC-TX-NOTES',
+        'description' => '',
+        'notes' => 'TITIP SALES 11-15 AGST 2026 - 158pcs',
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('items.transactions', $item))
+        ->assertOk()
+        ->assertSee('TITIP SALES 11-15 AGST 2026 - 158pcs', false);
+});

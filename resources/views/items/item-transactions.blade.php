@@ -73,9 +73,8 @@ $typeColors = [
                     @forelse($transactions as $td)
                     @php
                         $tt = (int) $td->transaction_type;
-                        $isOut = in_array($tt, [2, 17], true);
-                        $signedQty = $isOut ? -abs((float) $td->quantity) : abs((float) $td->quantity);
-                        $description = $td->notes ?? optional($td->transaction)->description ?? '-';
+                        $signedQty = \App\Support\ItemTransactionPresentation::signedQuantity($td, $partyId ?? null);
+                        $description = \App\Support\ItemTransactionPresentation::descriptionText($td);
                     @endphp
                     <tr class="hover:bg-gray-50/50">
                         <td class="whitespace-nowrap px-6 py-3 font-medium text-gray-700" data-copy-col="date">{{ \Carbon\Carbon::parse($td->date)->format('d M Y') }}</td>
@@ -109,8 +108,8 @@ $typeColors = [
                         <td class="px-6 py-3" data-copy-col="description">
                             <p class="max-w-[200px] truncate text-xs text-gray-500" title="{{ $description !== '-' ? $description : '' }}">{{ $description }}</p>
                         </td>
-                        <td class="whitespace-nowrap px-6 py-3 text-right font-mono font-bold {{ $isOut ? 'text-rose-500' : 'text-emerald-500' }}" data-copy-col="qty" data-copy-value="{{ format_copy_number($signedQty) }}">
-                            {{ $isOut ? '-' : '+' }}{{ format_amount($td->quantity) }}
+                        <td class="whitespace-nowrap px-6 py-3 text-right font-mono font-bold {{ \App\Support\ItemTransactionPresentation::quantityToneClass($signedQty) }}" data-copy-col="qty" data-copy-value="{{ format_copy_number($signedQty) }}">
+                            {{ \App\Support\ItemTransactionPresentation::formattedSignedQuantity($signedQty, (float) $td->quantity) }}
                         </td>
                     </tr>
                     @empty
