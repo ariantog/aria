@@ -127,6 +127,7 @@ it('renders parent detail with color sections and size rows', function () {
     expect($detail['colors'])->toHaveCount(1);
     expect($detail['colors'][0]['code'])->toBe('PINK');
     expect($detail['colors'][0]['name'])->toBe('PINK');
+    expect($detail['colors'][0]['anchor_id'])->toBe('color-pink');
     expect($detail['colors'][0]['size_rows'])->toHaveCount(1);
     expect($detail['colors'][0]['size_rows'][0]['size'])->toBe('S');
     expect($detail['warehouse_breakdown'])->toBeArray();
@@ -201,6 +202,7 @@ it('renders group list and parent detail pages', function () {
         ->get(route('items.group-parent-detail', $slug))
         ->assertOk()
         ->assertSee('BLACK', false)
+        ->assertSee('id="color-black"', false)
         ->assertSee('Warehouse focus', false)
         ->assertSee('Total only', false)
         ->assertSee('Export Excel', false)
