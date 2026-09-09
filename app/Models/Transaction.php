@@ -284,19 +284,69 @@ class Transaction extends Model
         return $this->b_submit_by !== null;
     }
 
+    /**
+     * Invoice keys that should be treated as the same Jubelio order (SP- prefix variants).
+     *
+     * @return list<string>
+     */
+    public static function jubelioInvoiceMatchCandidates(?string ...$values): array
+    {
+        $candidates = [];
+
+        foreach ($values as $value) {
+            $trimmed = trim((string) $value);
+            if ($trimmed === '') {
+                continue;
+            }
+
+            $candidates[] = $trimmed;
+
+            $withoutPrefix = preg_replace('/^SP-/i', '', $trimmed) ?? $trimmed;
+            if ($withoutPrefix !== '' && strcasecmp($withoutPrefix, $trimmed) !== 0) {
+                $candidates[] = $withoutPrefix;
+            }
+
+            if (! preg_match('/^SP-/i', $trimmed)) {
+                $candidates[] = 'SP-'.$trimmed;
+            }
+        }
+
+        return array_values(array_unique($candidates));
+    }
+
+    public static function existsForJubelioInvoice(int $type, ?string $invoice, ?string $description = null): bool
+    {
+        $candidates = self::jubelioInvoiceMatchCandidates($invoice, $description);
+
+        if ($candidates === []) {
+            return false;
+        }
+
+        return static::query()
+            ->where('type', $type)
+            ->where(function (Builder $query) use ($candidates) {
+                $query->whereIn('invoice', $candidates)
+                    ->orWhereIn('description', $candidates);
+            })
+            ->exists();
+    }
+
     /** Another live transaction shares this type + invoice (empty invoice does not count). */
     public function hasDuplicateInvoice(): bool
     {
-        $invoice = trim((string) $this->invoice);
+        $candidates = self::jubelioInvoiceMatchCandidates($this->invoice, $this->description);
 
-        if ($invoice === '') {
+        if ($candidates === []) {
             return false;
         }
 
         return static::query()
             ->where('type', $this->type)
-            ->where('invoice', $invoice)
             ->whereKeyNot($this->getKey())
+            ->where(function (Builder $query) use ($candidates) {
+                $query->whereIn('invoice', $candidates)
+                    ->orWhereIn('description', $candidates);
+            })
             ->exists();
     }
 
