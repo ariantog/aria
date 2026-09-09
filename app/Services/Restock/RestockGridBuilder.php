@@ -4,6 +4,7 @@ namespace App\Services\Restock;
 
 use App\Models\RestockCell;
 use App\Models\RestockSheet;
+use App\Services\Items\ItemGroupHierarchyService;
 use App\Services\Items\ItemIdentityBuilder;
 use Illuminate\Support\Collection;
 
@@ -393,11 +394,25 @@ class RestockGridBuilder
      */
     protected function colorGroupUrl(Collection $cells): ?string
     {
-        $groupId = $cells
-            ->map(fn (RestockCell $cell) => $cell->item?->group_id)
-            ->first(fn (?int $id) => ($id ?? 0) > 0);
+        $item = $cells->first(fn (RestockCell $cell) => $cell->item !== null)?->item;
 
-        return $groupId > 0 ? route('items.colorway-edit', $groupId) : null;
+        if ($item === null) {
+            return null;
+        }
+
+        $label = $this->identityBuilder->assetLancarColorLabel($item);
+
+        if ($label === '—') {
+            return null;
+        }
+
+        $parentUrl = $this->parentGroupUrl($cells);
+
+        if ($parentUrl === null) {
+            return null;
+        }
+
+        return $parentUrl.'#'.ItemGroupHierarchyService::colorAnchorId($label);
     }
 
     protected function cellSizeCode(RestockCell $cell): ?string

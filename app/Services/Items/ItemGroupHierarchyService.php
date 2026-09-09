@@ -19,6 +19,23 @@ class ItemGroupHierarchyService
 {
     private const SIZE_ORDER = ['S', 'M', 'L', 'XL', 'XXL'];
 
+    /**
+     * Stable HTML id for a color section on the parent group detail page.
+     */
+    public static function colorAnchorId(string $colorCode): string
+    {
+        $normalized = strtoupper(trim($colorCode));
+
+        if ($normalized === '' || $normalized === '—') {
+            return 'color-unknown';
+        }
+
+        $slug = strtolower(preg_replace('/[^A-Z0-9]+/', '-', $normalized));
+        $slug = trim($slug, '-');
+
+        return $slug !== '' ? 'color-'.$slug : 'color-unknown';
+    }
+
     public function __construct(
         protected ItemIdentityBuilder $identityBuilder,
         protected JubelioService $jubelioService,
@@ -383,6 +400,7 @@ class ItemGroupHierarchyService
                 $section = [
                     'code' => $color['code'],
                     'name' => $color['name'],
+                    'anchor_id' => self::colorAnchorId($color['code']),
                     'pcode' => $sample->pcode,
                     'group_id' => $group->id,
                     'image_url' => $this->imageResolver->resolveUrlForGroup($group, $colorItems),

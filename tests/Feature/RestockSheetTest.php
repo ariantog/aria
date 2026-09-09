@@ -479,7 +479,7 @@ test('sheet export returns xlsx download with all parent sections', function () 
     @unlink($tempPath);
 });
 
-test('grid includes colorway edit url for color rows', function () {
+test('grid includes group parent anchor url for color rows', function () {
     createAssetLancarSkus($this);
     $sheet = app(RestockSheetService::class)->createSheet($this->typeTag, $this->user);
 
@@ -487,8 +487,8 @@ test('grid includes colorway edit url for color rows', function () {
     $blueRow = collect($grid['parents'][0]['rows'])->firstWhere('color_name', 'BLUE');
 
     expect($blueRow)->not->toBeNull();
-    expect($blueRow['color_url'])->toContain('/items-group/colorway/');
-    expect($blueRow['color_url'])->toContain('/edit');
+    expect($blueRow['color_url'])->toContain('/items-group/parent/');
+    expect($blueRow['color_url'])->toContain('#color-blue');
 });
 
 test('grid includes parent image url', function () {

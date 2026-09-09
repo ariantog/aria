@@ -185,7 +185,7 @@ $fmt = fn ($v) => format_amount($v, 0);
 
     <div class="space-y-8">
         @foreach($detail['colors'] as $color)
-        <section class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+        <section id="{{ $color['anchor_id'] }}" class="scroll-mt-6 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
             <div class="border-b-4 border-purple-300 bg-purple-50 px-6 py-4">
                 <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div class="flex items-start gap-4">
