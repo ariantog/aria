@@ -748,6 +748,7 @@ class ItemsController extends Controller
             'resetUrl' => $formAction,
             'partyLookupUrl' => route('items.party-lookup'),
             'selectedParty' => $queryService->resolveSelectedParty($filters['party'], $request->user()),
+            'partyId' => $queryService->resolvePartyId($filters['party']),
             'hasActiveFilters' => $queryService->hasActiveFilters($filters),
         ]);
     }

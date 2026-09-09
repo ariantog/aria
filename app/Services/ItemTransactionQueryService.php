@@ -81,6 +81,11 @@ class ItemTransactionQueryService
         return collect($filters)->contains(fn ($value) => trim((string) $value) !== '');
     }
 
+    public function resolvePartyId(mixed $value): ?int
+    {
+        return $this->partyId($value);
+    }
+
     private function applyPartyIdFilter(Builder $query, int $partyId): Builder
     {
         return $query->whereHas('transaction', function (Builder $tq) use ($partyId) {
