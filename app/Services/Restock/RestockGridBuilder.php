@@ -161,7 +161,7 @@ class RestockGridBuilder
             foreach ($parent['rows'] as $colorRow) {
                 $rows[] = array_merge([
                     '_type' => 'data',
-                    '_rowKey' => 'data:'.$parent['pcode'].':'.($colorRow['color_id'] ?? $colorRow['color_name']),
+                    '_rowKey' => 'data:'.$parent['pcode'].':'.$colorRow['color_name'],
                     'pcode' => $parent['pcode'],
                     'parent_sizes' => $parent['sizes'],
                 ], $colorRow);
@@ -292,8 +292,8 @@ class RestockGridBuilder
                 $item = $first->item;
                 $row = [
                     'color_id' => $first->color_id,
-                    'color_name' => $first->color?->name
-                        ?? ($item ? $this->identityBuilder->assetLancarColorLabel($item) : '—'),
+                    'color_name' => $this->colorLabelForCells($colorCells),
+                    'color_url' => $this->colorGroupUrl($colorCells),
                     'is_urgent' => $colorCells->contains(fn (RestockCell $c) => $c->is_urgent),
                     '_meta' => [],
                 ];
@@ -304,7 +304,12 @@ class RestockGridBuilder
                 $stockTotal = 0;
 
                 foreach ($sizes as $sizeCode) {
-                    $cell = $colorCells->first(fn (RestockCell $c) => $this->cellMatchesSize($c, $sizeCode));
+                    $cell = $colorCells
+                        ->filter(fn (RestockCell $c) => $this->cellMatchesSize($c, $sizeCode))
+                        ->sortByDesc(fn (RestockCell $c) => (int) $c->qty_restock
+                            + (int) $c->qty_production
+                            + (int) $c->qty_shipped)
+                        ->first();
 
                     if (! $cell) {
                         continue;
@@ -346,15 +351,53 @@ class RestockGridBuilder
 
     protected function colorGroupKey(RestockCell $cell): string
     {
-        if ($cell->color_id) {
-            return 'tag:'.$cell->color_id;
+        if ($cell->item) {
+            $label = $this->identityBuilder->assetLancarColorLabel($cell->item);
+
+            if ($label !== '—') {
+                return 'color:'.$label;
+            }
         }
 
-        if ($cell->item) {
-            return $this->identityBuilder->assetLancarColorGroupKey($cell->item);
+        $code = strtoupper(trim($cell->color?->code ?? ''));
+
+        if ($code !== '') {
+            return 'color:'.$code;
         }
 
         return 'none';
+    }
+
+    /**
+     * @param  Collection<int, RestockCell>  $cells
+     */
+    protected function colorLabelForCells(Collection $cells): string
+    {
+        foreach ($cells as $cell) {
+            if ($cell->item) {
+                $label = $this->identityBuilder->assetLancarColorLabel($cell->item);
+
+                if ($label !== '—') {
+                    return $label;
+                }
+            }
+        }
+
+        $code = strtoupper(trim($cells->first()?->color?->code ?? ''));
+
+        return $code !== '' ? $code : '—';
+    }
+
+    /**
+     * @param  Collection<int, RestockCell>  $cells
+     */
+    protected function colorGroupUrl(Collection $cells): ?string
+    {
+        $groupId = $cells
+            ->map(fn (RestockCell $cell) => $cell->item?->group_id)
+            ->first(fn (?int $id) => ($id ?? 0) > 0);
+
+        return $groupId > 0 ? route('items.colorway-edit', $groupId) : null;
     }
 
     protected function cellSizeCode(RestockCell $cell): ?string

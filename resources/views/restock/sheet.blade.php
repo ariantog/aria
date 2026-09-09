@@ -554,7 +554,20 @@ function restockSheetPage() {
                 return wrap;
             }
 
-            return document.createTextNode(data.color_name ?? '');
+            const label = data.color_name ?? '';
+
+            if (data.color_url) {
+                const link = document.createElement('a');
+                link.href = data.color_url;
+                link.target = '_blank';
+                link.rel = 'noopener noreferrer';
+                link.className = 'text-blue-700 hover:text-blue-900 hover:underline';
+                link.textContent = label;
+
+                return link;
+            }
+
+            return document.createTextNode(label);
         },
 
         buildMatrixColumns(sizes) {
