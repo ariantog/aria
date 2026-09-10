@@ -808,6 +808,12 @@ class ItemService
             $sizeTag = Tag::find((int) $sibling->size);
         }
 
+        $targetCode = $this->identityBuilder->buildCode($itemType, $pcode, $typeTag, $warnaTag, $sizeTag);
+
+        if (Item::query()->whereSku($targetCode)->where('id', '!=', $sibling->id)->exists()) {
+            return;
+        }
+
         $siblingInput = clone $input;
         $siblingInput->price = $sibling->price;
         $siblingInput->cost = $sibling->cost;
