@@ -32,7 +32,7 @@ it('blocks deleting a sole jubelio-synced transaction', function () {
     expect(Transaction::find($transaction->id))->not->toBeNull();
 });
 
-it('allows deleting a duplicate jubelio-synced transaction when invoices differ only by SP- prefix', function () {
+it('does not treat invoices that differ only by SP- prefix as duplicates', function () {
     $user = User::factory()->create();
     $warehouse = Addrbook::factory()->warehouse()->create();
     $customer = Addrbook::factory()->create(['type' => Addrbook::TYPE_CUSTOMER]);
@@ -45,26 +45,20 @@ it('allows deleting a duplicate jubelio-synced transaction when invoices differ 
         'receiver_id' => $customer->id,
     ]);
 
-    $duplicate = Transaction::factory()->create([
+    $otherShape = Transaction::factory()->create([
         'type' => Transaction::TYPE_SELL,
         'submit_type' => Transaction::SUBMIT_TYPE_JUBELIO,
         'invoice' => 'SP-260825AEKPSTXG',
-        'description' => 'SP-260825AEKPSTXG',
         'sender_id' => $warehouse->id,
         'receiver_id' => $customer->id,
     ]);
 
+    expect($otherShape->hasDuplicateInvoice())->toBeFalse();
+
     $this->actingAs($user)
-        ->get(route('transactions.show', $duplicate))
+        ->get(route('transactions.show', $otherShape))
         ->assertSuccessful()
-        ->assertSee('data-testid="delete-transaction-button"', false);
-
-    $this->actingAs($user)
-        ->delete(route('transactions.destroy', $duplicate))
-        ->assertRedirect(route('transactions.index'))
-        ->assertSessionHas('success');
-
-    expect(Transaction::find($duplicate->id))->toBeNull();
+        ->assertDontSee('data-testid="delete-transaction-button"', false);
 });
 
 it('allows deleting a duplicate jubelio-synced transaction when another shares the invoice', function () {

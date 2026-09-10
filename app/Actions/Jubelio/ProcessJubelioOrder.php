@@ -106,7 +106,7 @@ class ProcessJubelioOrder
 
         $arrayInvoice = $dataApi['salesorder_no'] ?? $order->invoice;
 
-        if (Transaction::existsForJubelioInvoice(Transaction::TYPE_SELL, $arrayInvoice)) {
+        if (Transaction::where('type', Transaction::TYPE_SELL)->where('invoice', $arrayInvoice)->exists()) {
             $order->update([
                 'run_count' => $runCount,
                 'error_type' => 2,
@@ -209,7 +209,7 @@ class ProcessJubelioOrder
             return ['success' => false, 'message' => $matched['error']];
         }
 
-        if (Transaction::existsForJubelioInvoice(Transaction::TYPE_RETURN, $dataApi['return_no'], $dataApi['salesorder_no'] ?? null)) {
+        if (Transaction::where('type', Transaction::TYPE_RETURN)->where('invoice', $dataApi['return_no'])->exists()) {
             $order->update([
                 'run_count' => $runCount,
                 'error_type' => 2,
