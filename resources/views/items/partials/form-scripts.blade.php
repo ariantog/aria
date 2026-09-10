@@ -21,6 +21,12 @@ function itemForm() {
         pcodeNameUrl: @js(route('items.pcode-name')),
         autoFilledName: '',
         autoFilledPcode: '',
+        autoFilledShared: {
+            description: '',
+            description2: '',
+            url: '',
+            reseller_price: '',
+        },
         pcodeLookupTimer: null,
         form: {
             pcode: @js($formItem['pcode'] ?? ''),
@@ -46,7 +52,36 @@ function itemForm() {
         init() {
             this.autoFilledName = (this.form.product_name || '').toUpperCase().trim();
             this.autoFilledPcode = (this.form.pcode || '').toUpperCase().trim();
+            this.captureAutoFilledSharedFromDom();
             this.$nextTick(() => this.syncFromDom());
+        },
+
+        sharedFieldValue(fieldId) {
+            const el = document.getElementById(fieldId);
+            return el ? String(el.value || '').trim() : '';
+        },
+
+        setSharedFieldValue(fieldId, value) {
+            const el = document.getElementById(fieldId);
+            if (el) {
+                el.value = value ?? '';
+            }
+        },
+
+        captureAutoFilledSharedFromDom() {
+            this.autoFilledShared = {
+                description: this.sharedFieldValue('item-form-description'),
+                description2: this.sharedFieldValue('item-form-description2'),
+                url: this.sharedFieldValue('item-form-url'),
+                reseller_price: this.sharedFieldValue('item-form-reseller-price'),
+            };
+        },
+
+        canAutoFillSharedField(fieldId, key) {
+            const current = this.sharedFieldValue(fieldId);
+            const auto = String(this.autoFilledShared[key] ?? '').trim();
+
+            return current === '' || current === auto;
         },
 
         tagOptionMatches(name, code, query) {
@@ -260,9 +295,39 @@ function itemForm() {
                     return;
                 }
                 const data = await res.json();
-                if (data.found && data.product_name) {
-                    this.form.product_name = data.product_name;
-                    this.autoFilledName = (data.product_name || '').toUpperCase().trim();
+                if (!data.found) {
+                    return;
+                }
+
+                if (data.product_name) {
+                    const current = (this.form.product_name || '').toUpperCase().trim();
+                    if (current === '' || current === this.autoFilledName) {
+                        this.form.product_name = data.product_name;
+                        this.autoFilledName = (data.product_name || '').toUpperCase().trim();
+                    }
+                }
+
+                if (this.canAutoFillSharedField('item-form-description', 'description') && data.description) {
+                    this.setSharedFieldValue('item-form-description', data.description);
+                    this.autoFilledShared.description = String(data.description).trim();
+                }
+
+                if (this.canAutoFillSharedField('item-form-description2', 'description2') && data.description2) {
+                    this.setSharedFieldValue('item-form-description2', data.description2);
+                    this.autoFilledShared.description2 = String(data.description2).trim();
+                }
+
+                if (this.canAutoFillSharedField('item-form-url', 'url') && data.url) {
+                    this.setSharedFieldValue('item-form-url', data.url);
+                    this.autoFilledShared.url = String(data.url).trim();
+                }
+
+                if (this.isAsset && this.canAutoFillSharedField('item-form-reseller-price', 'reseller_price')) {
+                    const resellerPrice = data.reseller_price;
+                    if (resellerPrice !== null && resellerPrice !== undefined && String(resellerPrice) !== '' && Number(resellerPrice) > 0) {
+                        this.setSharedFieldValue('item-form-reseller-price', resellerPrice);
+                        this.autoFilledShared.reseller_price = String(resellerPrice).trim();
+                    }
                 }
             } catch (e) {
                 // Keep the field as-is when lookup fails.

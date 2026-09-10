@@ -231,6 +231,11 @@ class ItemsController extends Controller
                 : null,
             'identityConvert' => $this->detailIdentityConvertContext($item),
             'canEditLegacyCode' => $this->canEditLegacyCode($item),
+            'canDelete' => Gate::check(
+                $item->type === ItemType::ASSET_LANCAR
+                    ? Item::getPermissions()['asset-lancar-delete']
+                    : Item::getPermissions()['delete']
+            ),
         ]);
     }
 
@@ -394,7 +399,9 @@ class ItemsController extends Controller
         Gate::authorize($item->type === ItemType::ASSET_LANCAR ? $p['asset-lancar-delete'] : $p['delete']);
         $item->delete();
 
-        return redirect()->route('items.index')->with('success', 'Item deleted.');
+        $route = $item->type === ItemType::ASSET_LANCAR ? 'assetlancar.index' : 'items.index';
+
+        return redirect()->route($route)->with('success', 'Item archived (hidden from lists; historical transactions and reports are unchanged).');
     }
 
     public function jubelio(Item $item, JubelioService $s)
@@ -768,12 +775,16 @@ class ItemsController extends Controller
         abort_unless(Gate::check($create) || Gate::check($edit), 403);
 
         $pcode = strtoupper(trim((string) $request->query('pcode', '')));
-        $productName = $this->itemService->productNameForPcode($type, $pcode);
+        $catalog = $this->itemService->catalogHintsForPcode($type, $pcode);
 
         return response()->json([
             'pcode' => $pcode,
-            'product_name' => $productName,
-            'found' => $productName !== null,
+            'product_name' => $catalog['product_name'] ?? null,
+            'description' => $catalog['description'] ?? '',
+            'description2' => $catalog['description2'] ?? '',
+            'url' => $catalog['url'] ?? '',
+            'reseller_price' => $catalog['reseller_price'] ?? 0,
+            'found' => $catalog !== null,
         ]);
     }
 

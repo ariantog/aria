@@ -18,7 +18,6 @@ class ItemDimensionResolver
     {
         $row = DB::table('items')
             ->where('id', $itemId)
-            ->whereNull('deleted_at')
             ->first();
 
         if (! $row) {
@@ -128,7 +127,6 @@ class ItemDimensionResolver
 
         $rows = DB::table('items')
             ->whereIn('id', $itemIds)
-            ->whereNull('deleted_at')
             ->get();
 
         if ($rows->isEmpty()) {

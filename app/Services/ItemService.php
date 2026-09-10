@@ -634,6 +634,22 @@ class ItemService
      */
     public function productNameForPcode(ItemType $type, string $pcode): ?string
     {
+        return $this->catalogHintsForPcode($type, $pcode)['product_name'] ?? null;
+    }
+
+    /**
+     * Shared colorway catalog hints from an existing pcode (title + group details).
+     *
+     * @return array{
+     *     product_name: ?string,
+     *     description: string,
+     *     description2: string,
+     *     url: string,
+     *     reseller_price: float,
+     * }|null
+     */
+    public function catalogHintsForPcode(ItemType $type, string $pcode): ?array
+    {
         $pcode = strtoupper(trim($pcode));
 
         if ($pcode === '') {
@@ -643,7 +659,6 @@ class ItemService
         $item = Item::query()
             ->where('type', $type)
             ->whereRaw('UPPER(TRIM(pcode)) = ?', [$pcode])
-            ->whereNull('deleted_at')
             ->with('group')
             ->orderByDesc('id')
             ->first();
@@ -651,6 +666,8 @@ class ItemService
         if (! $item) {
             return null;
         }
+
+        $productName = null;
 
         if ($item->group) {
             $fromGroup = $this->identityBuilder->productDisplayName(
@@ -661,19 +678,35 @@ class ItemService
             );
 
             if ($fromGroup !== '' && $fromGroup !== $pcode) {
-                return $fromGroup;
+                $productName = $fromGroup;
             }
         }
 
-        $fromItem = $type === ItemType::ASSET_LANCAR
-            ? $this->deriveLegacyAssetProductName($item)
-            : strtoupper(trim(explode(' - ', (string) $item->name, 2)[0]));
+        if ($productName === null) {
+            $fromItem = $type === ItemType::ASSET_LANCAR
+                ? $this->deriveLegacyAssetProductName($item)
+                : strtoupper(trim(explode(' - ', (string) $item->name, 2)[0]));
 
-        if ($fromItem === '' || $fromItem === $pcode) {
-            return null;
+            if ($fromItem !== '' && $fromItem !== $pcode) {
+                $productName = $this->identityBuilder->productDisplayName($type, $fromItem, '', '');
+            }
         }
 
-        return $this->identityBuilder->productDisplayName($type, $fromItem, '', '');
+        $group = $item->group;
+
+        return [
+            'product_name' => $productName,
+            'description' => $group
+                ? trim((string) ($group->description ?? ''))
+                : ItemCatalog::description($item),
+            'description2' => $group
+                ? trim((string) ($group->description2 ?? ''))
+                : ItemCatalog::description2($item),
+            'url' => $group
+                ? trim((string) ($group->url ?? ''))
+                : '',
+            'reseller_price' => (float) ($group?->reseller_price ?? $item->reseller_price ?? 0),
+        ];
     }
 
     /**
