@@ -960,6 +960,77 @@ test('two manufactured colorways can share the same product title without a suff
     ]);
 });
 
+test('it skips sibling identity rewrite when the target sku already exists elsewhere', function () {
+    $assetType = Tag::factory()->create([
+        'type' => Tag::TYPE_TYPE,
+        'item_type' => ItemType::ASSET_LANCAR->value,
+        'code' => 'FABRICBAND',
+        'name' => 'Fabric Band',
+    ]);
+    $mintTag = Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'MINT', 'name' => 'MINT']);
+    $lightTag = Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'LIGHT', 'name' => 'Light']);
+    $mediumTag = Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'MEDIUM', 'name' => 'Medium']);
+
+    $legacyGroup = ItemGroup::factory()->create([
+        'master' => 'FABRICBAND-03-09',
+        'variant' => '',
+        'name' => 'FABRIC BAND - 09',
+    ]);
+
+    $light = Item::factory()->create([
+        'type' => ItemType::ASSET_LANCAR,
+        'code' => 'FABRICBAND-03-09-LIGHT',
+        'pcode' => 'FABRICBAND-03-09',
+        'group_id' => $legacyGroup->id,
+        'name' => 'FABRIC BAND - 09 - LIGHT',
+    ]);
+    $light->tags()->sync([$assetType->id, $lightTag->id]);
+
+    $legacyMedium = Item::factory()->create([
+        'type' => ItemType::ASSET_LANCAR,
+        'code' => 'FABRICBAND-03-09-MEDIUM',
+        'pcode' => 'FABRICBAND-03-09',
+        'group_id' => $legacyGroup->id,
+        'name' => 'FABRIC BAND - 09 - MEDIUM',
+    ]);
+    $legacyMedium->tags()->sync([$assetType->id, $mediumTag->id]);
+
+    $canonicalGroup = ItemGroup::factory()->create([
+        'master' => 'FABRICBAND-03',
+        'variant' => 'MINT',
+        'name' => 'FABRIC BAND',
+    ]);
+
+    $canonicalMedium = Item::factory()->create([
+        'type' => ItemType::ASSET_LANCAR,
+        'code' => 'FABRICBAND-03-MINT-MEDIUM',
+        'pcode' => 'FABRICBAND-03',
+        'group_id' => $canonicalGroup->id,
+        'name' => 'FABRIC BAND - MINT - MEDIUM',
+    ]);
+    $canonicalMedium->tags()->sync([$assetType->id, $mintTag->id, $mediumTag->id]);
+
+    $this->itemService->update($light->id, (object) [
+        'pcode' => 'FABRICBAND-03',
+        'type' => ItemType::ASSET_LANCAR->value,
+        'product_name' => 'Fabric Band',
+        'price' => 49000,
+        'cost' => 8189,
+    ], [
+        'types' => [$assetType->id],
+        'sizes' => [$lightTag->id],
+        'warna' => $mintTag->id,
+    ]);
+
+    $light->refresh();
+    $legacyMedium->refresh();
+
+    expect($light->code)->toBe('FABRICBAND-03-MINT-LIGHT')
+        ->and($light->name)->toBe('FABRIC BAND - MINT - LIGHT')
+        ->and($legacyMedium->code)->toBe('FABRICBAND-03-09-MEDIUM')
+        ->and(Item::where('code', 'FABRICBAND-03-MINT-MEDIUM')->count())->toBe(1);
+});
+
 test('it does not copy asset cost or price onto sibling sizes when one sku is edited', function () {
     $mediumTag = Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'M', 'name' => 'Medium']);
     $assetType = Tag::factory()->create([
