@@ -187,6 +187,10 @@ it('returns the product title for an existing pcode', function () {
         'master' => 'ELBOWSUPPORT-02',
         'variant' => 'BLACKWHITE',
         'name' => 'ELBOW STRAP - BLACKWHITE (ELBOWSUPPORT-02)',
+        'description' => 'Shared elbow strap copy',
+        'description2' => 'sale 25000 reseller 15000',
+        'url' => 'https://example.com/elbow',
+        'reseller_price' => 15000,
     ]);
     \App\Models\Item::factory()->create([
         'type' => ItemType::ASSET_LANCAR,
@@ -205,5 +209,9 @@ it('returns the product title for an existing pcode', function () {
         ->assertJson([
             'found' => true,
             'product_name' => 'ELBOW STRAP',
+            'description' => 'Shared elbow strap copy',
+            'description2' => 'sale 25000 reseller 15000',
+            'url' => 'https://example.com/elbow',
+            'reseller_price' => 15000,
         ]);
 });
