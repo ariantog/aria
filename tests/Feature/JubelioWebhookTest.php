@@ -58,12 +58,12 @@ it('accepts jubelio webhook with valid signature and stores shipped order', func
     expect($order->payload)->toBeNull();
 });
 
-it('skips shipped webhook when sell transaction already exists', function () {
+it('skips shipped webhook when sell transaction already exists with the same invoice', function () {
     config(['services.jubelio.webhook_secret' => 'test-secret']);
 
     Transaction::factory()->create([
         'type' => Transaction::TYPE_SELL,
-        'invoice' => '260814A8Y3HDS7',
+        'invoice' => 'SP-260814A8Y3HDS7',
     ]);
 
     $body = json_encode([

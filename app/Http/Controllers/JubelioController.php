@@ -285,15 +285,8 @@ class JubelioController extends Controller
                 return response()->json(['status' => 'ok', 'message' => 'Already exists']);
             }
 
-            $invoice = $d['salesorder_no'];
-            $destyInvoice = str_replace('SP-', '', $invoice);
             $sellExists = Transaction::where('type', Transaction::TYPE_SELL)
-                ->where(function ($query) use ($invoice, $destyInvoice) {
-                    $query->where('invoice', $invoice);
-                    if ($destyInvoice !== $invoice) {
-                        $query->orWhere('invoice', $destyInvoice);
-                    }
-                })
+                ->where('invoice', $d['salesorder_no'])
                 ->exists();
 
             if ($sellExists) {

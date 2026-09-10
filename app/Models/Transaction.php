@@ -284,28 +284,6 @@ class Transaction extends Model
         return $this->b_submit_by !== null;
     }
 
-    /** Another live transaction shares this type + invoice (empty invoice does not count). */
-    public function hasDuplicateInvoice(): bool
-    {
-        $invoice = trim((string) $this->invoice);
-
-        if ($invoice === '') {
-            return false;
-        }
-
-        return static::query()
-            ->where('type', $this->type)
-            ->where('invoice', $invoice)
-            ->whereKeyNot($this->getKey())
-            ->exists();
-    }
-
-    /** Jubelio-synced rows are normally locked; duplicates from double cron/webhook may be removed. */
-    public function blocksDeletionBecauseJubelioSync(): bool
-    {
-        return $this->isFromJubelio() && ! $this->hasDuplicateInvoice();
-    }
-
     public function scopeVisibleToUser(Builder $query, ?User $user): Builder
     {
         return app(\App\Services\LocationAccessService::class)->applyTransactionScope($query, $user);
