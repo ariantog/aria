@@ -178,9 +178,19 @@ class ReportingSummaryRecorder
 
     private function reconcileNonPkpPphFinal(int $year, int $month, int $entityId): void
     {
-        $pphFinal = app(CashPartyOmzetNetting::class)->totalPphFinal($year, $month, [$entityId]);
-        $summary = $this->taxSummary($year, $month, $entityId);
-        $summary->update(['pph_final' => $pphFinal]);
+        unset($year, $month);
+
+        $netting = app(CashPartyOmzetNetting::class);
+        $now = now();
+
+        for ($targetYear = PphFinalReportService::MIN_YEAR; $targetYear <= $now->year; $targetYear++) {
+            $maxMonth = $targetYear < $now->year ? 12 : $now->month;
+
+            for ($targetMonth = 1; $targetMonth <= $maxMonth; $targetMonth++) {
+                $pphFinal = $netting->totalPphFinal($targetYear, $targetMonth, [$entityId]);
+                $this->taxSummary($targetYear, $targetMonth, $entityId)->update(['pph_final' => $pphFinal]);
+            }
+        }
     }
 
     private function recordItemTax(Transaction $transaction): void

@@ -11,7 +11,7 @@ class CashPartyOmzetNetting
 {
     /**
      * Trade parties whose Cash In to an entity bank may be reduced by Cash Out
-     * back to the same party in the same month (consignment / pass-through).
+     * back to the same party (same month or a later month, FIFO).
      *
      * @return list<int>
      */
@@ -23,6 +23,17 @@ class CashPartyOmzetNetting
             Addrbook::TYPE_SUPPLIER,
         ];
     }
+
+    private ?string $allocationCacheKey = null;
+
+    /**
+     * @var array<string, array<string, array{
+     *     cash_in_gross: float,
+     *     cash_out_allocated: float,
+     *     net_remaining: float,
+     * }>>
+     */
+    private array $allocationsByEntityParty = [];
 
     /**
      * @param  list<int>  $nonPkpEntityIds
@@ -37,21 +48,95 @@ class CashPartyOmzetNetting
      *     pph_final: float,
      * }>
      */
-    public function netRows(int $year, int $month, array $nonPkpEntityIds): Collection
+    public function netRows(int $year, int $month, array $nonPkpEntityIds, ?\DateTimeInterface $asOf = null): Collection
     {
         if ($nonPkpEntityIds === []) {
             return collect();
         }
 
-        [$startDate, $endDate] = ReportingPeriod::monthQueryRange($year, $month);
         $rate = (float) config('reporting.pph_final_rate', 0.005);
+        $this->ensureAllocations($nonPkpEntityIds, $asOf);
+        $monthKey = sprintf('%04d-%02d', $year, $month);
 
-        /** @var array<string, array{entity: ReportingEntity, party_id: int, cash_in_gross: float, cash_out_gross: float}> $buckets */
-        $buckets = [];
+        return collect($this->allocationsByEntityParty)
+            ->map(function (array $months, string $entityPartyKey) use ($monthKey, $rate) {
+                $monthSlice = $months[$monthKey] ?? null;
+                if ($monthSlice === null || $monthSlice['cash_in_gross'] <= 0) {
+                    return null;
+                }
+
+                [$entityId, $partyId] = array_map('intval', explode(':', $entityPartyKey, 2));
+                $entity = ReportingEntity::query()->find($entityId);
+
+                return [
+                    'party_id' => $partyId,
+                    'party' => $this->partyName($partyId),
+                    'entity_id' => $entityId,
+                    'entity_name' => $entity?->name ?? 'Entitas',
+                    'cash_in_gross' => round($monthSlice['cash_in_gross'], 2),
+                    'cash_out_gross' => round($monthSlice['cash_out_allocated'], 2),
+                    'net_omzet' => round($monthSlice['net_remaining'], 2),
+                    'pph_final' => round($monthSlice['net_remaining'] * $rate, 2),
+                ];
+            })
+            ->filter()
+            ->sortBy([
+                ['entity_name', 'asc'],
+                ['party', 'asc'],
+            ])
+            ->values();
+    }
+
+    /**
+     * @param  list<int>  $nonPkpEntityIds
+     */
+    public function totalPphFinal(int $year, int $month, array $nonPkpEntityIds, ?\DateTimeInterface $asOf = null): float
+    {
+        return round((float) $this->netRows($year, $month, $nonPkpEntityIds, $asOf)->sum('pph_final'), 2);
+    }
+
+    /**
+     * @param  list<int>  $nonPkpEntityIds
+     */
+    private function ensureAllocations(array $nonPkpEntityIds, ?\DateTimeInterface $asOf = null): void
+    {
+        sort($nonPkpEntityIds);
+        $cacheKey = implode(',', $nonPkpEntityIds).'|'.ReportingPeriod::queryEnd($asOf ?? now());
+
+        if ($this->allocationCacheKey === $cacheKey) {
+            return;
+        }
+
+        $this->allocationCacheKey = $cacheKey;
+        $this->allocationsByEntityParty = $this->buildAllocations($nonPkpEntityIds, $asOf);
+    }
+
+    /**
+     * @param  list<int>  $nonPkpEntityIds
+     * @return array<string, array<string, array{
+     *     cash_in_gross: float,
+     *     cash_out_allocated: float,
+     *     net_remaining: float,
+     * }>>
+     */
+    private function buildAllocations(array $nonPkpEntityIds, ?\DateTimeInterface $asOf = null): array
+    {
+        $rangeStart = ReportingPeriod::monthStart(PphFinalReportService::MIN_YEAR, 1)->toDateString();
+        $rangeEnd = ReportingPeriod::queryEnd($asOf ?? now());
+
+        /** @var array<string, list<array{
+         *     year: int,
+         *     month: int,
+         *     gross: float,
+         *     remaining: float,
+         *     allocated_out: float,
+         * }>> $depositBuckets
+         */
+        $depositBuckets = [];
 
         $cashIns = Transaction::query()
             ->countsInReporting()
-            ->whereBetween('date', [$startDate, $endDate])
+            ->whereBetween('date', [$rangeStart, $rangeEnd])
             ->where('type', Transaction::TYPE_CASH_IN)
             ->where('receiver_type', Addrbook::TYPE_BANK)
             ->where('sender_type', '!=', Addrbook::TYPE_ACCOUNT)
@@ -70,12 +155,19 @@ class CashPartyOmzetNetting
                 continue;
             }
 
-            $this->accumulate($buckets, $entity, (int) $transaction->sender_id, 'cash_in_gross', abs((float) $transaction->total));
+            $key = $this->entityPartyKey($entity->id, (int) $transaction->sender_id);
+            $depositBuckets[$key][] = [
+                'year' => (int) $transaction->date->year,
+                'month' => (int) $transaction->date->month,
+                'gross' => abs((float) $transaction->total),
+                'remaining' => abs((float) $transaction->total),
+                'allocated_out' => 0.0,
+            ];
         }
 
         $cashOuts = Transaction::query()
             ->countsInReporting()
-            ->whereBetween('date', [$startDate, $endDate])
+            ->whereBetween('date', [$rangeStart, $rangeEnd])
             ->where('type', Transaction::TYPE_CASH_OUT)
             ->where('sender_type', Addrbook::TYPE_BANK)
             ->whereIn('receiver_type', self::nettingPartyTypes())
@@ -89,57 +181,58 @@ class CashPartyOmzetNetting
                 continue;
             }
 
-            $this->accumulate($buckets, $entity, (int) $transaction->receiver_id, 'cash_out_gross', abs((float) $transaction->total));
+            $key = $this->entityPartyKey($entity->id, (int) $transaction->receiver_id);
+            if (! isset($depositBuckets[$key])) {
+                continue;
+            }
+
+            $remainingRefund = abs((float) $transaction->total);
+
+            foreach ($depositBuckets[$key] as &$bucket) {
+                if ($remainingRefund <= 0) {
+                    break;
+                }
+
+                if ($bucket['remaining'] <= 0) {
+                    continue;
+                }
+
+                $applied = min($remainingRefund, $bucket['remaining']);
+                $bucket['remaining'] -= $applied;
+                $bucket['allocated_out'] += $applied;
+                $remainingRefund -= $applied;
+            }
+
+            unset($bucket);
         }
 
-        return collect($buckets)
-            ->map(function (array $bucket) use ($rate) {
-                $net = max(0, $bucket['cash_in_gross'] - $bucket['cash_out_gross']);
+        /** @var array<string, array<string, array{cash_in_gross: float, cash_out_allocated: float, net_remaining: float}>> $allocations */
+        $allocations = [];
 
-                return [
-                    'party_id' => $bucket['party_id'],
-                    'party' => $this->partyName($bucket['party_id']),
-                    'entity_id' => $bucket['entity']->id,
-                    'entity_name' => $bucket['entity']->name,
-                    'cash_in_gross' => round($bucket['cash_in_gross'], 2),
-                    'cash_out_gross' => round($bucket['cash_out_gross'], 2),
-                    'net_omzet' => round($net, 2),
-                    'pph_final' => round($net * $rate, 2),
-                ];
-            })
-            ->filter(fn (array $row) => $row['cash_in_gross'] > 0)
-            ->sortBy([
-                ['entity_name', 'asc'],
-                ['party', 'asc'],
-            ])
-            ->values();
-    }
+        foreach ($depositBuckets as $key => $buckets) {
+            foreach ($buckets as $bucket) {
+                $monthKey = sprintf('%04d-%02d', $bucket['year'], $bucket['month']);
 
-    /**
-     * @param  list<int>  $nonPkpEntityIds
-     */
-    public function totalPphFinal(int $year, int $month, array $nonPkpEntityIds): float
-    {
-        return round((float) $this->netRows($year, $month, $nonPkpEntityIds)->sum('pph_final'), 2);
-    }
+                if (! isset($allocations[$key][$monthKey])) {
+                    $allocations[$key][$monthKey] = [
+                        'cash_in_gross' => 0.0,
+                        'cash_out_allocated' => 0.0,
+                        'net_remaining' => 0.0,
+                    ];
+                }
 
-    /**
-     * @param  array<string, array{entity: ReportingEntity, party_id: int, cash_in_gross: float, cash_out_gross: float}>  $buckets
-     */
-    private function accumulate(array &$buckets, ReportingEntity $entity, int $partyId, string $column, float $amount): void
-    {
-        $key = $entity->id.':'.$partyId;
-
-        if (! isset($buckets[$key])) {
-            $buckets[$key] = [
-                'entity' => $entity,
-                'party_id' => $partyId,
-                'cash_in_gross' => 0.0,
-                'cash_out_gross' => 0.0,
-            ];
+                $allocations[$key][$monthKey]['cash_in_gross'] += $bucket['gross'];
+                $allocations[$key][$monthKey]['cash_out_allocated'] += $bucket['allocated_out'];
+                $allocations[$key][$monthKey]['net_remaining'] += $bucket['remaining'];
+            }
         }
 
-        $buckets[$key][$column] += $amount;
+        return $allocations;
+    }
+
+    private function entityPartyKey(int $entityId, int $partyId): string
+    {
+        return $entityId.':'.$partyId;
     }
 
     private function partyName(int $addrbookId): string
