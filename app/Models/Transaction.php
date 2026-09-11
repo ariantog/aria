@@ -284,6 +284,15 @@ class Transaction extends Model
         return $this->b_submit_by !== null;
     }
 
+    /**
+     * Cash-based reporting rows. Legacy production may leave status at 0 (pending)
+     * even when balances are posted; cancelled rows are excluded.
+     */
+    public function scopeCountsInReporting(Builder $query): Builder
+    {
+        return $query->whereIn('status', [self::STATUS_PENDING, self::STATUS_COMPLETED]);
+    }
+
     public function scopeVisibleToUser(Builder $query, ?User $user): Builder
     {
         return app(\App\Services\LocationAccessService::class)->applyTransactionScope($query, $user);
