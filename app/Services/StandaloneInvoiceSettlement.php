@@ -49,7 +49,7 @@ class StandaloneInvoiceSettlement
 
         $rows = Transaction::query()
             ->whereIn('type', [Transaction::TYPE_CASH_IN, Transaction::TYPE_SELL])
-            ->where('status', Transaction::STATUS_COMPLETED)
+            ->countsInReporting()
             ->whereIn('invoice', $numbers)
             ->selectRaw('invoice, type, SUM(ABS(total)) as amount')
             ->groupBy('invoice', 'type')
@@ -231,7 +231,7 @@ class StandaloneInvoiceSettlement
             ->with(['sender', 'receiver'])
             ->where('invoice', $number)
             ->where('type', $type)
-            ->where('status', Transaction::STATUS_COMPLETED)
+            ->countsInReporting()
             ->orderBy('date')
             ->orderBy('id')
             ->get();

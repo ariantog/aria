@@ -65,6 +65,15 @@ function sellFor(string $invoiceNumber, float $amount, ?int $senderId = null, ?i
     ]);
 }
 
+it('counts pending cash-ins toward invoice settlement totals', function () {
+    cashInFor($this->invoice->number, 4_000_000, Transaction::STATUS_PENDING);
+
+    $snapshot = app(StandaloneInvoiceSettlement::class)->snapshot($this->invoice);
+
+    expect($snapshot['paid_total'])->toBe(4_000_000.0)
+        ->and($snapshot['payments'])->toHaveCount(1);
+});
+
 it('sums multiple cash-in and sell transactions toward one invoice', function () {
     cashInFor($this->invoice->number, 3_000_000);
     cashInFor($this->invoice->number, 2_500_000, Transaction::STATUS_COMPLETED, test()->otherCustomer->id, test()->otherBank->id);
