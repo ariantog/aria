@@ -165,6 +165,105 @@ it('defaults the cash in amount to the invoice remaining when invoice maker is l
     expect($html)->toContain('amount: 1100000');
 });
 
+it('shows all linked cash-ins on a sell and defaults the next amount to the sell remaining', function () {
+    Transaction::factory()->create([
+        'type' => Transaction::TYPE_CASH_IN,
+        'invoice' => $this->sell->invoice,
+        'sender_type' => (string) Addrbook::TYPE_CUSTOMER,
+        'sender_id' => $this->customer->id,
+        'receiver_type' => (string) Addrbook::TYPE_BANK,
+        'receiver_id' => $this->bank->id,
+        'total' => 400_000,
+        'real_total' => 400_000,
+        'status' => Transaction::STATUS_COMPLETED,
+        'user_id' => $this->user->id,
+    ]);
+
+    $secondCashIn = Transaction::factory()->create([
+        'type' => Transaction::TYPE_CASH_IN,
+        'invoice' => $this->sell->invoice,
+        'sender_type' => (string) Addrbook::TYPE_CUSTOMER,
+        'sender_id' => $this->customer->id,
+        'receiver_type' => (string) Addrbook::TYPE_BANK,
+        'receiver_id' => $this->bank->id,
+        'total' => 250_000,
+        'real_total' => 250_000,
+        'status' => Transaction::STATUS_COMPLETED,
+        'user_id' => $this->user->id,
+    ]);
+
+    $html = $this->actingAs($this->user)
+        ->get(route('transactions.show', $this->sell))
+        ->assertOk()
+        ->assertSee('Linked cash-in (2)', false)
+        ->assertSee('data-testid="sell-cash-in-summary"', false)
+        ->assertSee(route('transactions.show', $secondCashIn), false)
+        ->getContent();
+
+    expect($html)->toContain('amount: 850000')
+        ->and($html)->toContain('Remaining')
+        ->and($html)->toContain('Paid');
+});
+
+it('hides the cash in create form when the sell is fully paid by linked cash-ins', function () {
+    Transaction::factory()->create([
+        'type' => Transaction::TYPE_CASH_IN,
+        'invoice' => $this->sell->invoice,
+        'sender_type' => (string) Addrbook::TYPE_CUSTOMER,
+        'sender_id' => $this->customer->id,
+        'receiver_type' => (string) Addrbook::TYPE_BANK,
+        'receiver_id' => $this->bank->id,
+        'total' => 900_000,
+        'real_total' => 900_000,
+        'status' => Transaction::STATUS_COMPLETED,
+        'user_id' => $this->user->id,
+    ]);
+
+    Transaction::factory()->create([
+        'type' => Transaction::TYPE_CASH_IN,
+        'invoice' => $this->sell->invoice,
+        'sender_type' => (string) Addrbook::TYPE_CUSTOMER,
+        'sender_id' => $this->customer->id,
+        'receiver_type' => (string) Addrbook::TYPE_BANK,
+        'receiver_id' => $this->bank->id,
+        'total' => 600_000,
+        'real_total' => 600_000,
+        'status' => Transaction::STATUS_COMPLETED,
+        'user_id' => $this->user->id,
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('transactions.show', $this->sell))
+        ->assertOk()
+        ->assertSee('Linked cash-in (2)', false)
+        ->assertDontSee('data-testid="sell-cash-in-switch"', false)
+        ->assertDontSee('data-testid="sell-cash-in-submit"', false);
+});
+
+it('allows a second partial cash in from a sell', function () {
+    $this->actingAs($this->user)
+        ->post(route('transactions.sell-cash-in.store', $this->sell), [
+            'amount' => 500_000,
+            'account_id' => $this->bank->id,
+            'date' => '2026-08-15',
+        ])
+        ->assertRedirect(route('transactions.show', $this->sell));
+
+    $this->actingAs($this->user)
+        ->post(route('transactions.sell-cash-in.store', $this->sell), [
+            'amount' => 1_000_000,
+            'account_id' => $this->bank->id,
+            'date' => '2026-08-16',
+        ])
+        ->assertRedirect(route('transactions.show', $this->sell))
+        ->assertSessionHas('success', 'Cash In created.');
+
+    expect(Transaction::query()
+        ->where('type', Transaction::TYPE_CASH_IN)
+        ->where('invoice', $this->sell->invoice)
+        ->count())->toBe(2);
+});
+
 it('forbids creating cash in from a sell without cash-in permission', function () {
     $staff = User::factory()->create();
     Permission::firstOrCreate(['name' => 'transactions-show']);
