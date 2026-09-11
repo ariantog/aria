@@ -2,6 +2,7 @@
 
 use App\Models\Addrbook;
 use App\Models\Produksi;
+use App\Models\User;
 use App\Support\ProductionColumnDefaults;
 use Illuminate\Database\Connection;
 use Illuminate\Support\Facades\Schema;
@@ -55,6 +56,21 @@ it('fills null customer email on update via model events on mysql', function () 
     $addrbook->save();
 
     expect($addrbook->fresh()->email)->toBe('');
+});
+
+it('fills null legacy users role_id when applying production defaults on mysql', function () {
+    mockMysqlSchemaForTableColumns('users', ['role_id']);
+
+    $user = new User([
+        'name' => 'Tyas',
+        'username' => 'tyas',
+        'password' => 'secret',
+        'active' => true,
+    ]);
+
+    ProductionColumnDefaults::apply($user);
+
+    expect($user->role_id)->toBe(0);
 });
 
 it('leaves null produksi worker ids unset when applying production defaults on mysql', function () {
