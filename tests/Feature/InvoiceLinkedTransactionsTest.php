@@ -4,6 +4,7 @@ use App\Models\Addrbook;
 use App\Models\StandaloneInvoice;
 use App\Models\Transaction;
 use App\Models\User;
+use Illuminate\Support\Carbon;
 
 beforeEach(function () {
     $this->user = User::factory()->create();
@@ -81,6 +82,62 @@ it('shows linked cash-in on a sell transaction page', function () {
         ->assertOk()
         ->assertSee('Linked cash-in', false)
         ->assertSee(route('transactions.show', $cashIn), false);
+});
+
+it('shows pending cash-ins on a sell even when dated before the book-closing cutoff', function () {
+    Carbon::setTestNow('2026-03-15');
+
+    $sell = Transaction::factory()->create([
+        'type' => Transaction::TYPE_SELL,
+        'invoice' => 'INV/LINK/SELL/PENDING',
+        'sender_type' => (string) Addrbook::TYPE_WAREHOUSE,
+        'sender_id' => $this->warehouse->id,
+        'receiver_type' => (string) Addrbook::TYPE_CUSTOMER,
+        'receiver_id' => $this->customer->id,
+        'total' => -1_000_000,
+        'real_total' => -1_000_000,
+        'status' => Transaction::STATUS_COMPLETED,
+        'user_id' => $this->user->id,
+    ]);
+
+    $completedCashIn = Transaction::factory()->create([
+        'type' => Transaction::TYPE_CASH_IN,
+        'invoice' => $sell->invoice,
+        'date' => '2026-01-15',
+        'sender_type' => (string) Addrbook::TYPE_CUSTOMER,
+        'sender_id' => $this->customer->id,
+        'receiver_type' => (string) Addrbook::TYPE_BANK,
+        'receiver_id' => $this->bank->id,
+        'total' => 400_000,
+        'real_total' => 400_000,
+        'status' => Transaction::STATUS_COMPLETED,
+        'user_id' => $this->user->id,
+    ]);
+
+    $pendingCashIn = Transaction::factory()->create([
+        'type' => Transaction::TYPE_CASH_IN,
+        'invoice' => $sell->invoice,
+        'date' => '2026-01-20',
+        'sender_type' => (string) Addrbook::TYPE_CUSTOMER,
+        'sender_id' => $this->customer->id,
+        'receiver_type' => (string) Addrbook::TYPE_BANK,
+        'receiver_id' => $this->bank->id,
+        'total' => 600_000,
+        'real_total' => 600_000,
+        'status' => Transaction::STATUS_PENDING,
+        'user_id' => $this->user->id,
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('transactions.show', $sell))
+        ->assertOk()
+        ->assertSee('Linked cash-in (2)', false)
+        ->assertSee(route('transactions.show', $completedCashIn), false)
+        ->assertSee(route('transactions.show', $pendingCashIn), false)
+        ->assertSee('Paid 1,000,000', false)
+        ->assertDontSee('data-testid="sell-cash-in-switch"', false);
+
+    Carbon::setTestNow();
 });
 
 it('shows all linked cash-ins on a sell when payments use mixed invoice numbers', function () {

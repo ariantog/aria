@@ -208,7 +208,7 @@ class SellCashInPresenter
                 ->with(['sender', 'receiver'])
                 ->where('type', Transaction::TYPE_SELL)
                 ->where('id', (int) $invoice)
-                ->where('status', Transaction::STATUS_COMPLETED)
+                ->countsInReporting()
                 ->get();
 
             $linked = $linked
@@ -250,7 +250,7 @@ class SellCashInPresenter
             ->with(['sender', 'receiver'])
             ->where('type', $type)
             ->whereIn('invoice', $numbers)
-            ->where('status', Transaction::STATUS_COMPLETED)
+            ->countsInReporting()
             ->orderBy('date')
             ->orderBy('id')
             ->get();
