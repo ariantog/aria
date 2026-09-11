@@ -127,6 +127,10 @@ class ProductionColumnDefaults
         'tags' => [
             'price' => 0,
         ],
+        'users' => [
+            // Legacy L10 column — Spatie aria_roles is authoritative; dummy 0 satisfies NOT NULL on MySQL.
+            'role_id' => 0,
+        ],
     ];
 
     /** @var array<string, array<string, array{type: string, nullable: bool}>> */
