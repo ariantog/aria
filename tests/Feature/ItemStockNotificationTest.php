@@ -302,14 +302,14 @@ it('renders a long stock alert list including the last row and pagination', func
         ->assertDontSee('flex h-full flex-1 flex-col gap-4 overflow-x-auto', false)
         ->assertSee('SCROLL-SKU-35', false)
         ->assertSee('SCROLL-SKU-06', false)
-        ->assertDontSee('SCROLL-SKU-05', false)
         ->assertSee('page=2', false)
         ->getContent();
 
     expect($html)
         ->toContain('id="app-main-scroll"')
         ->toContain('data-testid="stock-notifications-page"')
-        ->not->toContain('h-full flex-1 flex-col gap-4 overflow-x-auto');
+        ->not->toContain('h-full flex-1 flex-col gap-4 overflow-x-auto')
+        ->and(substr_count($html, 'data-testid="stock-notification-row"'))->toBe(30);
 });
 
 it('forbids stock notifications page without permission', function () {
@@ -318,6 +318,65 @@ it('forbids stock notifications page without permission', function () {
     $this->actingAs($other)
         ->get(route('stock-notifications.index'))
         ->assertForbidden();
+});
+
+it('filters stock notifications by item, sold out warehouse, and stock at warehouse', function () {
+    $soldOutA = Addrbook::factory()->warehouse()->create(['name' => 'Filter Shop A']);
+    $soldOutB = Addrbook::factory()->warehouse()->create(['name' => 'Filter Shop B']);
+    $sourceA = Addrbook::factory()->warehouse()->create(['name' => 'Filter Source A']);
+    $sourceB = Addrbook::factory()->warehouse()->create(['name' => 'Filter Source B']);
+
+    $itemA = Item::factory()->create(['code' => 'FILTER-A', 'name' => 'Filter Item A']);
+    $itemB = Item::factory()->create(['code' => 'FILTER-B', 'name' => 'Filter Item B']);
+
+    ItemStockNotification::query()->create([
+        'item_id' => $itemA->id,
+        'sold_out_warehouse_id' => $soldOutA->id,
+        'source_warehouse_id' => $sourceA->id,
+        'source_stock' => 2,
+        'source_status' => ItemStockSourceStatus::Available,
+    ]);
+
+    ItemStockNotification::query()->create([
+        'item_id' => $itemB->id,
+        'sold_out_warehouse_id' => $soldOutB->id,
+        'source_warehouse_id' => $sourceB->id,
+        'source_stock' => 4,
+        'source_status' => ItemStockSourceStatus::SlowMoving,
+    ]);
+
+    $rowCount = fn (string $html): int => substr_count($html, 'data-testid="stock-notification-row"');
+
+    $itemFilterHtml = $this->actingAs($this->user)
+        ->get(route('stock-notifications.index', ['item_id' => $itemA->id]))
+        ->assertOk()
+        ->assertSee('FILTER-A', false)
+        ->getContent();
+
+    expect($rowCount($itemFilterHtml))->toBe(1);
+
+    $soldOutFilterHtml = $this->actingAs($this->user)
+        ->get(route('stock-notifications.index', ['sold_out_warehouse_id' => $soldOutB->id]))
+        ->assertOk()
+        ->assertSee('FILTER-B', false)
+        ->getContent();
+
+    expect($rowCount($soldOutFilterHtml))->toBe(1);
+
+    $sourceFilterHtml = $this->actingAs($this->user)
+        ->get(route('stock-notifications.index', ['source_warehouse_id' => $sourceA->id]))
+        ->assertOk()
+        ->assertSee('FILTER-A', false)
+        ->getContent();
+
+    expect($rowCount($sourceFilterHtml))->toBe(1);
+
+    $this->actingAs($this->user)
+        ->get(route('stock-notifications.index'))
+        ->assertOk()
+        ->assertSee('data-testid="stock-notifications-filter-item"', false)
+        ->assertSee('data-testid="stock-notifications-filter-sold-out"', false)
+        ->assertSee('data-testid="stock-notifications-filter-stock-at"', false);
 });
 
 it('marks notifications read and dismissed', function () {
