@@ -157,6 +157,35 @@ it('exports pph final as csv and xlsx', function () {
         ->and($values->all())->toContain('Toko PPh');
 });
 
+it('includes pending-status cash in when computing pph final', function () {
+    $nonPkp = ReportingEntity::create(['name' => 'Pribadi Legacy', 'slug' => 'pribadi-legacy', 'is_pkp' => false]);
+    $bank = Addrbook::create(['name' => 'BCA Legacy', 'type' => Addrbook::TYPE_BANK]);
+    $nonPkp->banks()->attach($bank->id, ['is_active' => true]);
+    $customer = Addrbook::factory()->customer()->create(['name' => 'Toko Legacy']);
+
+    Transaction::withoutEvents(fn () => Transaction::create([
+        'date' => '2026-08-19',
+        'type' => Transaction::TYPE_CASH_IN,
+        'sender_type' => Addrbook::TYPE_CUSTOMER,
+        'sender_id' => $customer->id,
+        'receiver_type' => Addrbook::TYPE_BANK,
+        'receiver_id' => $bank->id,
+        'invoice' => '611210',
+        'total' => 6_681_857,
+        'real_total' => 0,
+        'status' => Transaction::STATUS_PENDING,
+        'user_id' => User::factory()->create()->id,
+        'submit_type' => Transaction::SUBMIT_TYPE_MANUAL,
+    ]));
+
+    $report = app(PphFinalReportService::class)->build(2026, 8, $nonPkp->id);
+
+    expect($report['gross_cash_in'])->toBe(6_681_857.0)
+        ->and($report['net_omzet'])->toBe(6_681_857.0)
+        ->and($report['pph_final'])->toBe(33_409.29)
+        ->and($report['rows'])->toHaveCount(1);
+});
+
 it('forbids users without report-tax-pph permission', function () {
     $restricted = User::factory()->create();
     expect($restricted->is_superadmin)->toBeFalse();

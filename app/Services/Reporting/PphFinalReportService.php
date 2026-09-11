@@ -65,7 +65,7 @@ class PphFinalReportService
             'rate' => $rate,
             'gross_cash_in' => $grossCashIn,
             'net_omzet' => $netOmzet,
-            'pph_final' => $totals['pph_final'],
+            'pph_final' => $computedPph,
             'computed_pph' => $computedPph,
             'tax_paid' => $totals['tax_paid'],
             'rows' => $rows,

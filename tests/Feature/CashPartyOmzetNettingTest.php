@@ -112,6 +112,48 @@ it('does not net cash out to a different party', function () {
         ->and($rows->first()['pph_final'])->toBe(1_750.0);
 });
 
+it('does not net a refund in the next month against prior month cash in', function () {
+    $entity = ReportingEntity::create(['name' => 'Pribadi Cross Month', 'slug' => 'pribadi-cross-month', 'is_pkp' => false]);
+    $bank = Addrbook::create(['name' => 'BCA Cross Month', 'type' => Addrbook::TYPE_BANK]);
+    $entity->banks()->attach($bank->id, ['is_active' => true]);
+    $customer = Addrbook::factory()->customer()->create(['name' => 'Customer Cross Month']);
+    $userId = User::factory()->create()->id;
+
+    Transaction::withoutEvents(fn () => Transaction::create([
+        'date' => '2026-08-05',
+        'type' => Transaction::TYPE_CASH_IN,
+        'sender_type' => Addrbook::TYPE_CUSTOMER,
+        'sender_id' => $customer->id,
+        'receiver_type' => Addrbook::TYPE_BANK,
+        'receiver_id' => $bank->id,
+        'total' => 1_000_000,
+        'real_total' => 1_000_000,
+        'status' => Transaction::STATUS_PENDING,
+        'user_id' => $userId,
+        'submit_type' => Transaction::SUBMIT_TYPE_MANUAL,
+    ]));
+
+    Transaction::withoutEvents(fn () => Transaction::create([
+        'date' => '2026-09-10',
+        'type' => Transaction::TYPE_CASH_OUT,
+        'sender_type' => Addrbook::TYPE_BANK,
+        'sender_id' => $bank->id,
+        'receiver_type' => Addrbook::TYPE_CUSTOMER,
+        'receiver_id' => $customer->id,
+        'total' => -200_000,
+        'real_total' => -200_000,
+        'status' => Transaction::STATUS_PENDING,
+        'user_id' => $userId,
+        'submit_type' => Transaction::SUBMIT_TYPE_MANUAL,
+    ]));
+
+    $netting = app(CashPartyOmzetNetting::class);
+
+    expect($netting->totalPphFinal(2026, 8, [$entity->id]))->toBe(5_000.0)
+        ->and($netting->totalPphFinal(2026, 9, [$entity->id]))->toBe(0.0)
+        ->and($netting->netRows(2026, 9, [$entity->id]))->toBeEmpty();
+});
+
 it('does not net cash out to expense ledgers', function () {
     $entity = ReportingEntity::create(['name' => 'Pribadi Ledger', 'slug' => 'pribadi-ledger', 'is_pkp' => false]);
     $bank = Addrbook::create(['name' => 'BCA Ledger', 'type' => Addrbook::TYPE_BANK]);

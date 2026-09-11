@@ -50,7 +50,7 @@ class CashPartyOmzetNetting
         $buckets = [];
 
         $cashIns = Transaction::query()
-            ->where('status', Transaction::STATUS_COMPLETED)
+            ->countsInReporting()
             ->whereBetween('date', [$startDate, $endDate])
             ->where('type', Transaction::TYPE_CASH_IN)
             ->where('receiver_type', Addrbook::TYPE_BANK)
@@ -74,7 +74,7 @@ class CashPartyOmzetNetting
         }
 
         $cashOuts = Transaction::query()
-            ->where('status', Transaction::STATUS_COMPLETED)
+            ->countsInReporting()
             ->whereBetween('date', [$startDate, $endDate])
             ->where('type', Transaction::TYPE_CASH_OUT)
             ->where('sender_type', Addrbook::TYPE_BANK)
