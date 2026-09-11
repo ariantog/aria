@@ -132,7 +132,9 @@ it('renders the transaction show page', function () {
         ->assertSee('sortItems(', false)
         ->assertSee('data-testid="delete-transaction-button"', false)
         ->assertSee('data-testid="copy-tx-url"', false)
-        ->assertSee(route('transactions.show', $transaction, absolute: true), false);
+        ->assertSee('data-testid="copy-tx-invoice"', false)
+        ->assertSee(route('transactions.show', $transaction, absolute: true), false)
+        ->assertSee((string) $transaction->invoice, false);
 });
 
 it('renders the cash in switch on a sell transaction show page', function () {
