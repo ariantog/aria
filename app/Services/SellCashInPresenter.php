@@ -35,6 +35,9 @@ class SellCashInPresenter
      *     min_date: string,
      *     default_date: string,
      *     default_amount: float,
+     *     paid_total: float,
+     *     remaining: float,
+     *     sell_total: float,
      *     linked: Collection<int, Transaction>
      * }
      */
@@ -55,6 +58,9 @@ class SellCashInPresenter
             'min_date' => $minDate,
             'default_date' => $today < $minDate ? $minDate : $today,
             'default_amount' => $defaultAmount,
+            'paid_total' => 0.0,
+            'remaining' => $defaultAmount,
+            'sell_total' => $defaultAmount,
             'linked' => collect(),
         ];
     }
@@ -69,18 +75,27 @@ class SellCashInPresenter
             return null;
         }
 
-        $defaultAmount = $transaction->displayGrandTotal();
+        $sellTotal = $transaction->displayGrandTotal();
+        $linkedCashIns = $this->linkedTransactions(
+            (string) $transaction->invoice,
+            Transaction::TYPE_CASH_IN,
+        );
+        $paidTotal = $this->sumAbsTotals($linkedCashIns);
+        $sellRemaining = round(max(0, $sellTotal - $paidTotal), 2);
+
+        $defaultAmount = $sellRemaining;
         if ($invoiceSettlement && (float) ($invoiceSettlement['remaining'] ?? 0) > 0.009) {
-            $defaultAmount = (float) $invoiceSettlement['remaining'];
+            $defaultAmount = min($sellRemaining, (float) $invoiceSettlement['remaining']);
         }
 
         $data = $this->formData($user, $defaultAmount);
         $data['can_create'] = $data['can_create']
-            && (int) $transaction->status !== Transaction::STATUS_CANCELLED;
-        $data['linked'] = $this->linkedTransactions(
-            (string) $transaction->invoice,
-            Transaction::TYPE_CASH_IN,
-        );
+            && (int) $transaction->status !== Transaction::STATUS_CANCELLED
+            && $defaultAmount > 0.009;
+        $data['linked'] = $linkedCashIns;
+        $data['paid_total'] = $paidTotal;
+        $data['remaining'] = round($defaultAmount, 2);
+        $data['sell_total'] = $sellTotal;
 
         return $data;
     }
@@ -224,5 +239,13 @@ class SellCashInPresenter
         }
 
         return Addrbook::withTrashed()->find((int) $sell->receiver_id);
+    }
+
+    /**
+     * @param  Collection<int, Transaction>  $transactions
+     */
+    private function sumAbsTotals(Collection $transactions): float
+    {
+        return (float) $transactions->sum(fn (Transaction $transaction) => abs((float) $transaction->total));
     }
 }

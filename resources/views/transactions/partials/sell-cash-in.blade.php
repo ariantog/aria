@@ -8,6 +8,9 @@
     $defaultAmount = (float) ($sellCashIn['default_amount'] ?? 0);
     $defaultDate = $sellCashIn['default_date'] ?? now()->toDateString();
     $minDate = $sellCashIn['min_date'] ?? '';
+    $paidTotal = (float) ($sellCashIn['paid_total'] ?? 0);
+    $remaining = (float) ($sellCashIn['remaining'] ?? 0);
+    $sellTotal = (float) ($sellCashIn['sell_total'] ?? 0);
     $hasCashInErrors = $errors->has('amount') || $errors->has('account_id') || $errors->has('date');
     $fmt = fn ($n) => format_amount($n);
     $initialEnabled = $hasCashInErrors ? 'true' : 'false';
@@ -41,6 +44,14 @@
         <div>
             <h2 class="text-sm font-semibold text-gray-900">Cash In</h2>
             <p class="mt-0.5 text-xs text-gray-500">Record payment from {{ $transaction->receiver?->name ?: 'the receiver' }} with the same invoice.</p>
+            @if($paidTotal > 0.009)
+            <p class="mt-1 text-xs text-gray-600" data-testid="sell-cash-in-summary">
+                Paid {{ $fmt($paidTotal) }} of {{ $fmt($sellTotal) }}
+                @if($remaining > 0.009)
+                    · Remaining {{ $fmt($remaining) }}
+                @endif
+            </p>
+            @endif
         </div>
         @if($canCreate)
         <label class="inline-flex cursor-pointer items-center gap-2" title="Create cash in">
@@ -57,7 +68,7 @@
 
     @if($linked->isNotEmpty())
     <div class="border-b border-gray-100 px-4 py-3 sm:px-5">
-        <h3 class="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">Linked cash-in</h3>
+        <h3 class="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">Linked cash-in ({{ $linked->count() }})</h3>
         <ul class="divide-y divide-gray-100 rounded-lg border border-gray-100">
             @foreach($linked as $cashIn)
             <li class="flex items-center justify-between gap-3 px-3 py-2 text-sm">

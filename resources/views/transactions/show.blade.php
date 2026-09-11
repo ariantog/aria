@@ -57,6 +57,11 @@
                         'testid' => 'copy-tx-url',
                         'label' => 'Copy link',
                     ])
+                    @include('partials.copy-button', [
+                        'value' => (string) $transaction->invoice,
+                        'testid' => 'copy-tx-invoice',
+                        'label' => 'Copy invoice #',
+                    ])
                     @if($invoiceSettlement)
                         @include('invoice-maker.partials.status-badge', [
                             'status' => $invoiceSettlement['status'],
