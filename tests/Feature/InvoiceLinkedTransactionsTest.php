@@ -83,6 +83,62 @@ it('shows linked cash-in on a sell transaction page', function () {
         ->assertSee(route('transactions.show', $cashIn), false);
 });
 
+it('shows all linked cash-ins on a sell when payments use mixed invoice numbers', function () {
+    $sell = Transaction::factory()->create([
+        'type' => Transaction::TYPE_SELL,
+        'invoice' => 'INV/LINK/SELL/MIXED',
+        'sender_type' => (string) Addrbook::TYPE_WAREHOUSE,
+        'sender_id' => $this->warehouse->id,
+        'receiver_type' => (string) Addrbook::TYPE_CUSTOMER,
+        'receiver_id' => $this->customer->id,
+        'total' => -1_000_000,
+        'real_total' => -1_000_000,
+        'status' => Transaction::STATUS_COMPLETED,
+        'user_id' => $this->user->id,
+    ]);
+
+    $cashInByInvoice = Transaction::factory()->create([
+        'type' => Transaction::TYPE_CASH_IN,
+        'invoice' => $sell->invoice,
+        'sender_type' => (string) Addrbook::TYPE_CUSTOMER,
+        'sender_id' => $this->customer->id,
+        'receiver_type' => (string) Addrbook::TYPE_BANK,
+        'receiver_id' => $this->bank->id,
+        'total' => 400_000,
+        'real_total' => 400_000,
+        'status' => Transaction::STATUS_COMPLETED,
+        'user_id' => $this->user->id,
+    ]);
+
+    $cashInBySellId = Transaction::factory()->create([
+        'type' => Transaction::TYPE_CASH_IN,
+        'invoice' => (string) $sell->id,
+        'sender_type' => (string) Addrbook::TYPE_CUSTOMER,
+        'sender_id' => $this->customer->id,
+        'receiver_type' => (string) Addrbook::TYPE_BANK,
+        'receiver_id' => $this->bank->id,
+        'total' => 600_000,
+        'real_total' => 600_000,
+        'status' => Transaction::STATUS_COMPLETED,
+        'user_id' => $this->user->id,
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('transactions.show', $sell))
+        ->assertOk()
+        ->assertSee('data-testid="sell-cash-in-card"', false)
+        ->assertSee('Linked cash-in (2)', false)
+        ->assertSee(route('transactions.show', $cashInByInvoice), false)
+        ->assertSee(route('transactions.show', $cashInBySellId), false);
+
+    $this->actingAs($this->user)
+        ->get(route('transactions.show', $cashInBySellId))
+        ->assertOk()
+        ->assertSee('data-testid="invoice-linked-transactions"', false)
+        ->assertSee('Linked sell', false)
+        ->assertSee('#'.$sell->id, false);
+});
+
 it('shows linked buy on a cash-out transaction page', function () {
     $buy = Transaction::factory()->create([
         'type' => Transaction::TYPE_BUY,

@@ -76,10 +76,7 @@ class SellCashInPresenter
         }
 
         $sellTotal = $transaction->displayGrandTotal();
-        $linkedCashIns = $this->linkedTransactions(
-            (string) $transaction->invoice,
-            Transaction::TYPE_CASH_IN,
-        );
+        $linkedCashIns = $this->linkedCashInsForSell($transaction, $invoiceSettlement);
         $paidTotal = $this->sumAbsTotals($linkedCashIns);
         $sellRemaining = round(max(0, $sellTotal - $paidTotal), 2);
 
@@ -109,10 +106,7 @@ class SellCashInPresenter
             return null;
         }
 
-        $linked = $this->linkedTransactions(
-            (string) $transaction->invoice,
-            Transaction::TYPE_SELL,
-        );
+        $linked = $this->linkedSellsForCashIn($transaction);
 
         if ($linked->isEmpty()) {
             return null;
@@ -176,23 +170,112 @@ class SellCashInPresenter
     }
 
     /**
+     * Cash-ins linked to this sell match either the sell invoice or its transaction id.
+     * Staff often edit a manual cash-in to the sell id while the sell keeps an invoice-maker number.
+     *
      * @return Collection<int, Transaction>
      */
-    private function linkedTransactions(string $invoice, int $type): Collection
+    private function linkedCashInsForSell(Transaction $sell, ?array $invoiceSettlement = null): Collection
     {
-        $invoice = trim($invoice);
-        if ($invoice === '') {
+        $linked = $this->linkedTransactionsByNumbers(
+            $this->invoiceNumbersFor($sell),
+            Transaction::TYPE_CASH_IN,
+        );
+
+        if ($invoiceSettlement) {
+            $payments = $invoiceSettlement['payments'] ?? collect();
+            if ($payments instanceof Collection && $payments->isNotEmpty()) {
+                $linked = $linked
+                    ->merge($payments)
+                    ->unique(fn (Transaction $transaction) => $transaction->id)
+                    ->values();
+            }
+        }
+
+        return $this->sortLinkedTransactions($linked);
+    }
+
+    /**
+     * @return Collection<int, Transaction>
+     */
+    private function linkedSellsForCashIn(Transaction $cashIn): Collection
+    {
+        $invoice = trim((string) $cashIn->invoice);
+        $linked = $this->linkedTransactionsByNumbers([$invoice], Transaction::TYPE_SELL);
+
+        if ($invoice !== '' && ctype_digit($invoice)) {
+            $byId = Transaction::query()
+                ->with(['sender', 'receiver'])
+                ->where('type', Transaction::TYPE_SELL)
+                ->where('id', (int) $invoice)
+                ->where('status', Transaction::STATUS_COMPLETED)
+                ->get();
+
+            $linked = $linked
+                ->merge($byId)
+                ->unique(fn (Transaction $transaction) => $transaction->id)
+                ->values();
+        }
+
+        return $this->sortLinkedTransactions($linked);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function invoiceNumbersFor(Transaction $transaction): array
+    {
+        return array_values(array_unique(array_filter([
+            trim((string) $transaction->invoice),
+            (string) $transaction->id,
+        ], static fn (string $number) => $number !== '')));
+    }
+
+    /**
+     * @param  list<string>  $numbers
+     * @return Collection<int, Transaction>
+     */
+    private function linkedTransactionsByNumbers(array $numbers, int $type): Collection
+    {
+        $numbers = array_values(array_unique(array_filter(array_map(
+            static fn ($number) => trim((string) $number),
+            $numbers,
+        ), static fn (string $number) => $number !== '')));
+
+        if ($numbers === []) {
             return collect();
         }
 
         return Transaction::query()
             ->with(['sender', 'receiver'])
             ->where('type', $type)
-            ->where('invoice', $invoice)
+            ->whereIn('invoice', $numbers)
             ->where('status', Transaction::STATUS_COMPLETED)
             ->orderBy('date')
             ->orderBy('id')
             ->get();
+    }
+
+    /**
+     * @return Collection<int, Transaction>
+     */
+    private function linkedTransactions(string $invoice, int $type): Collection
+    {
+        return $this->linkedTransactionsByNumbers([$invoice], $type);
+    }
+
+    /**
+     * @param  Collection<int, Transaction>  $transactions
+     * @return Collection<int, Transaction>
+     */
+    private function sortLinkedTransactions(Collection $transactions): Collection
+    {
+        return $transactions
+            ->sortBy(fn (Transaction $transaction) => [
+                $transaction->date?->format('Y-m-d') ?? '',
+                $transaction->id,
+            ])
+            ->values();
     }
 
     /**
