@@ -227,8 +227,35 @@ function itemForm() {
             return parts.join(' - ');
         },
 
+        canAutoFillProductName() {
+            const name = (this.form.product_name || '').toUpperCase().trim();
+            const pcode = (this.form.pcode || '').toUpperCase().trim();
+
+            if (name === '') {
+                return true;
+            }
+
+            if (name === this.autoFilledName) {
+                return true;
+            }
+
+            return pcode !== '' && name === pcode;
+        },
+
         onPcodeInput() {
+            const previousPcode = (this.autoFilledPcode || '').toUpperCase().trim();
             this.form.pcode = (this.form.pcode || '').toUpperCase();
+            const pcode = (this.form.pcode || '').toUpperCase().trim();
+
+            if (previousPcode !== '' && pcode !== previousPcode && this.canAutoFillProductName()) {
+                const name = (this.form.product_name || '').toUpperCase().trim();
+                if (name === '' || name === previousPcode || name === pcode) {
+                    this.form.product_name = '';
+                    this.autoFilledName = '';
+                }
+            }
+
+            this.autoFilledPcode = pcode;
             this.schedulePcodeLookup();
         },
 
@@ -286,8 +313,7 @@ function itemForm() {
                 return;
             }
 
-            const current = (this.form.product_name || '').toUpperCase().trim();
-            if (current !== '' && current !== this.autoFilledName) {
+            if (!this.canAutoFillProductName()) {
                 return;
             }
 
@@ -297,7 +323,10 @@ function itemForm() {
                     ? `&type_code=${encodeURIComponent(typeCode)}`
                     : '';
                 const url = `${this.pcodeNameUrl}?pcode=${encodeURIComponent(pcode)}&type=${this.itemType}${typeCodeParam}`;
-                const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+                const res = await fetch(url, {
+                    headers: { 'Accept': 'application/json' },
+                    credentials: 'same-origin',
+                });
                 if (!res.ok) {
                     return;
                 }
@@ -306,12 +335,9 @@ function itemForm() {
                     return;
                 }
 
-                if (data.product_name) {
-                    const current = (this.form.product_name || '').toUpperCase().trim();
-                    if (current === '' || current === this.autoFilledName) {
-                        this.form.product_name = data.product_name;
-                        this.autoFilledName = (data.product_name || '').toUpperCase().trim();
-                    }
+                if (data.product_name && this.canAutoFillProductName()) {
+                    this.form.product_name = data.product_name;
+                    this.autoFilledName = (data.product_name || '').toUpperCase().trim();
                 }
 
                 if (this.canAutoFillSharedField('item-form-description', 'description') && data.description) {

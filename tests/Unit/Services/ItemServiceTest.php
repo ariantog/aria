@@ -624,6 +624,61 @@ test('it loads manufactured product name from sibling colorways under the same p
         ]);
 });
 
+test('it loads manufactured parent title across type tags when the scoped lookup misses', function () {
+    $ajdType = Tag::factory()->create([
+        'type' => Tag::TYPE_TYPE,
+        'item_type' => ItemType::ITEM->value,
+        'code' => 'AJD',
+        'name' => 'Jacket',
+    ]);
+    $clnType = Tag::factory()->create([
+        'type' => Tag::TYPE_TYPE,
+        'item_type' => ItemType::ITEM->value,
+        'code' => 'CLN',
+        'name' => 'Clean',
+    ]);
+
+    $existingGroup = ItemGroup::factory()->create([
+        'master' => 'CX00122-03',
+        'variant' => '03',
+        'name' => 'ESSENTIAL SHORTS',
+    ]);
+
+    Item::factory()->create([
+        'type' => ItemType::ITEM,
+        'group_id' => $existingGroup->id,
+        'pcode' => 'CX00122-03',
+        'code' => 'AJD-CX00122-03-S',
+        'name' => 'ESSENTIAL SHORTS - BLUE - S',
+    ])->tags()->sync([$ajdType->id, $this->sizeTag->id, $this->warnaTag->id]);
+
+    expect($this->itemService->catalogHintsForPcode(ItemType::ITEM, 'CX00122-33', 'CLN'))
+        ->toMatchArray([
+            'product_name' => 'ESSENTIAL SHORTS',
+        ]);
+});
+
+test('it loads manufactured parent title from legacy parent-only group master', function () {
+    $legacyGroup = ItemGroup::factory()->create([
+        'master' => 'CX00122',
+        'variant' => '',
+        'name' => 'ESSENTIAL SHORTS',
+    ]);
+
+    Item::factory()->create([
+        'type' => ItemType::ITEM,
+        'group_id' => $legacyGroup->id,
+        'pcode' => 'CX00122/03',
+        'code' => 'AJD-CX00122-03-S',
+        'name' => 'ESSENTIAL SHORTS - BLUE - S',
+    ])->tags()->sync([$this->typeTag->id, $this->sizeTag->id, $this->warnaTag->id]);
+
+    expect($this->itemService->catalogHintsForPcode(ItemType::ITEM, 'CX00122-33'))
+        ->toMatchArray([
+            'product_name' => 'ESSENTIAL SHORTS',
+        ]);
+});
+
 test('it does not append color twice when the submitted name is a unique stored group name', function () {
     $assetType = Tag::factory()->create([
         'type' => Tag::TYPE_TYPE,

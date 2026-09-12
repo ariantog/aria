@@ -331,12 +331,26 @@ class ItemsController extends Controller
         Gate::authorize($item->type === ItemType::ASSET_LANCAR ? $p['asset-lancar-edit'] : $p['edit']);
 
         $item->load(['group', 'tags']);
+        $groupName = (string) ($item->group?->name ?: $item->name);
         $productTitle = $this->identityBuilder->productDisplayName(
             $item->type,
-            (string) ($item->group?->name ?: $item->name),
+            $groupName,
             (string) ($item->group?->variant ?? ''),
             (string) ($item->group?->master ?? ''),
         );
+
+        if ($item->type === ItemType::ITEM
+            && $this->itemService->isPlaceholderProductName($item->type, $groupName, (string) $item->pcode)) {
+            $parentHints = $this->itemService->catalogHintsForPcode(
+                $item->type,
+                (string) $item->pcode,
+                $this->identityBuilder->manufacturedTypeCode($item),
+            );
+
+            if (($parentHints['product_name'] ?? null) !== null) {
+                $productTitle = $parentHints['product_name'];
+            }
+        }
 
         return view('items.edit', array_merge($this->formProps($item->type), [
             'item' => $item,
