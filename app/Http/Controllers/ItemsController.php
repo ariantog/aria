@@ -339,17 +339,18 @@ class ItemsController extends Controller
             (string) ($item->group?->master ?? ''),
         );
 
-        if ($item->type === ItemType::ITEM
-            && $this->itemService->isPlaceholderProductName($item->type, $groupName, (string) $item->pcode)) {
+        $catalogPcode = $item->type === ItemType::ITEM
+            ? $this->identityBuilder->normalizeManufacturedPcode((string) $item->pcode)
+            : (string) $item->pcode;
+
+        if ($this->itemService->productNameIsPcodePlaceholder($item->type, $productTitle, $catalogPcode, $item)) {
             $parentHints = $this->itemService->catalogHintsForPcode(
                 $item->type,
-                (string) $item->pcode,
-                $this->identityBuilder->manufacturedTypeCode($item),
+                $catalogPcode,
+                $item->type === ItemType::ITEM ? $this->identityBuilder->manufacturedTypeCode($item) : null,
             );
 
-            if (($parentHints['product_name'] ?? null) !== null) {
-                $productTitle = $parentHints['product_name'];
-            }
+            $productTitle = (string) ($parentHints['product_name'] ?? '');
         }
 
         return view('items.edit', array_merge($this->formProps($item->type), [

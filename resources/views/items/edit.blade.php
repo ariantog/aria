@@ -26,7 +26,7 @@ if ($isAsset && ! $item->group) {
 }
 $formItem = [
     'pcode' => old('pcode', $item->pcode),
-    'product_name' => old('product_name', $productTitle !== '' && strtoupper($productTitle) !== strtoupper((string) $item->pcode)
+    'product_name' => old('product_name', $productTitle !== ''
         ? $productTitle
         : ($legacyAssetProductName ?: '')),
     'price' => old('price', $item->price),

@@ -227,7 +227,48 @@ function itemForm() {
             return parts.join(' - ');
         },
 
+        normalizeManufacturedPcode(value) {
+            return String(value || '').toUpperCase().trim().replace(/\//g, '-');
+        },
+
+        manufacturedParentMaster(pcode) {
+            const normalized = this.normalizeManufacturedPcode(pcode);
+            const colorway = normalized.match(/^([A-Z]{2,3}\d{5})-\d{2,3}$/);
+
+            if (colorway) {
+                return colorway[1];
+            }
+
+            if (/^[A-Z]{2,3}\d{5}$/.test(normalized)) {
+                return normalized;
+            }
+
+            return '';
+        },
+
+        productNameIsPcodePlaceholder(name, pcode) {
+            const nameNorm = this.normalizeManufacturedPcode(name).replace(/\s/g, '');
+            const pcodeNorm = this.normalizeManufacturedPcode(pcode).replace(/\s/g, '');
+
+            if (nameNorm === '') {
+                return true;
+            }
+
+            if (pcodeNorm !== '' && nameNorm === pcodeNorm) {
+                return true;
+            }
+
+            const parent = this.manufacturedParentMaster(pcode);
+
+            return parent !== '' && nameNorm === parent;
+        },
+
         canAutoFillProductName() {
+            if (!this.isAsset) {
+                return this.productNameIsPcodePlaceholder(this.form.product_name, this.form.pcode)
+                    || (this.form.product_name || '').toUpperCase().trim() === this.autoFilledName;
+            }
+
             const name = (this.form.product_name || '').toUpperCase().trim();
             const pcode = (this.form.pcode || '').toUpperCase().trim();
 
@@ -244,12 +285,16 @@ function itemForm() {
 
         onPcodeInput() {
             const previousPcode = (this.autoFilledPcode || '').toUpperCase().trim();
-            this.form.pcode = (this.form.pcode || '').toUpperCase();
+            if (this.isAsset) {
+                this.form.pcode = (this.form.pcode || '').toUpperCase();
+            } else {
+                this.form.pcode = this.normalizeManufacturedPcode(this.form.pcode);
+            }
             const pcode = (this.form.pcode || '').toUpperCase().trim();
 
             if (previousPcode !== '' && pcode !== previousPcode && this.canAutoFillProductName()) {
-                const name = (this.form.product_name || '').toUpperCase().trim();
-                if (name === '' || name === previousPcode || name === pcode) {
+                if (this.productNameIsPcodePlaceholder(this.form.product_name, previousPcode)
+                    || this.productNameIsPcodePlaceholder(this.form.product_name, pcode)) {
                     this.form.product_name = '';
                     this.autoFilledName = '';
                 }
@@ -260,7 +305,11 @@ function itemForm() {
         },
 
         onPcodeBlur() {
-            this.form.pcode = (this.form.pcode || '').toUpperCase().trim();
+            if (this.isAsset) {
+                this.form.pcode = (this.form.pcode || '').toUpperCase().trim();
+            } else {
+                this.form.pcode = this.normalizeManufacturedPcode(this.form.pcode);
+            }
             this.lookupProductName();
         },
 
