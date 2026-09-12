@@ -281,10 +281,10 @@ it('filters jubelio orders by warehouse using jubelio store location keys', func
         ->assertDontSee('INV-WH-BACKFILL-B');
 });
 
-it('shows return warehouse from original sell not return payload sync', function () {
+it('shows return warehouse from payload jubelio sync not original sell warehouse', function () {
     $user = User::factory()->create();
     $warehouseA = Addrbook::factory()->warehouse()->create(['name' => 'Gudang Sell Asal']);
-    $warehouseB = Addrbook::factory()->warehouse()->create(['name' => 'Gudang Return Salah']);
+    $warehouseB = Addrbook::factory()->warehouse()->create(['name' => 'Gudang Return Sync']);
     $customer = Addrbook::factory()->create(['type' => Addrbook::TYPE_CUSTOMER]);
 
     Jubeliosync::create([
@@ -338,12 +338,12 @@ it('shows return warehouse from original sell not return payload sync', function
         'status' => 0,
     ]);
 
-    $warehouseUrl = route('addrbook.type.transactions', ['type' => $warehouseA->type_slug, 'addrbook' => $warehouseA->id]);
+    $warehouseUrl = route('addrbook.type.transactions', ['type' => $warehouseB->type_slug, 'addrbook' => $warehouseB->id]);
 
     $this->actingAs($user)
         ->get(route('jubelio.index', ['invoice' => 'RET-LIST-1']))
         ->assertSuccessful()
-        ->assertSee('Gudang Sell Asal')
+        ->assertSee('Gudang Return Sync')
         ->assertSee($warehouseUrl, false);
 });
 
@@ -521,9 +521,9 @@ it('shows clickable customer warehouse and item links on order detail', function
         ->assertSee('Stok Aria');
 });
 
-it('processes jubelio return into the original sell warehouse', function () {
+it('processes jubelio return into payload jubelio sync warehouse', function () {
     $warehouseA = Addrbook::factory()->warehouse()->create(['name' => 'Gudang Asal']);
-    $warehouseB = Addrbook::factory()->warehouse()->create(['name' => 'Gudang Lain']);
+    $warehouseB = Addrbook::factory()->warehouse()->create(['name' => 'Gudang Retur Payload']);
     $customer = Addrbook::factory()->create(['type' => Addrbook::TYPE_CUSTOMER]);
     $item = Item::factory()->create(['code' => 'SKU-RET-WH']);
 
@@ -552,8 +552,8 @@ it('processes jubelio return into the original sell warehouse', function () {
         'invoice' => 'INV-SELL-ORIG',
         'sender_id' => $warehouseA->id,
         'sender_type' => $warehouseA->type,
-        'receiver_id' => $customer->id,
-        'receiver_type' => $customer->type,
+        'receiver_id' => 0,
+        'receiver_type' => Addrbook::TYPE_CUSTOMER,
     ]);
 
     mockJubelioSalesReturn('ret-wh-1', [
@@ -582,7 +582,7 @@ it('processes jubelio return into the original sell warehouse', function () {
 
     $returnTrx = Transaction::where('type', Transaction::TYPE_RETURN)->where('invoice', 'RET-WH-1')->first();
     expect($returnTrx)->not->toBeNull()
-        ->and($returnTrx->receiver_id)->toBe($warehouseA->id)
+        ->and($returnTrx->receiver_id)->toBe($warehouseB->id)
         ->and($returnTrx->sender_id)->toBe($customer->id)
         ->and((float) $returnTrx->total)->toBe(10000.0);
 });

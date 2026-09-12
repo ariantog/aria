@@ -504,6 +504,16 @@ Column meanings (A/B is sender/receiver, not debit/credit):
 A **move** is two independent adjustments, not a Jubelio transfer. Mapping lives in
 `jubeliosyncs` (Aria `warehouse_id` → `jubelio_location_id`); items need `jubelio_item_id`.
 
+**Inbound Jubelio order warehouse mapping (`jubelioorders`, `ProcessJubelioOrder`).** SELL and
+RETURN both resolve Aria **warehouse + channel customer** from **`jubeliosyncs`** using
+`store_id` + `location_id` on the fetched payload (`JubelioOrderWarehouseResolver`,
+`JubelioOrderShowPresenter`). List/filter columns on `jubelioorders` use the same store/location
+keys for RETURN rows (not the original sell’s `sender_id`). RETURN still requires the original
+sell invoice (`salesorder_no`) to exist in Aria for linkage, but **does not** copy warehouse/customer
+off that sell row — L10 used sync mapping only. RETURN posting does **not** run sell-style stock
+shortage checks (stock is added back). `customer_id` on the sync row must be a real addrbook id;
+`0` yields `Customer or Warehouse not found` at post time.
+
 HTTP 200 with `{message: "..."}` or a listing `{data, totalCount}` means **nothing was created**.
 The Aug 2026 move incident: Aria showed "status tidak jelas" and allowed confirm-as-success
 without an adj id. We **did not persist Jubelio's response body**, so the exact API reject

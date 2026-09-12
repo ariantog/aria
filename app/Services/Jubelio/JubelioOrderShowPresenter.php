@@ -59,8 +59,20 @@ class JubelioOrderShowPresenter
         }
 
         if (! $warehouse || ! $customer) {
-            if ($order->type === 'RETURN') {
-                $payload = $order->payloadArray();
+            $syncIndex = $this->warehouseResolver->syncIndex();
+            $payload = $order->payloadArray();
+            $storeId = (int) ($payload['store_id'] ?? 0);
+            $locationId = (int) ($payload['location_id'] ?? 0);
+
+            if ($storeId > 0 && $locationId > 0) {
+                $sync = $syncIndex->get("{$storeId}:{$locationId}");
+                if ($sync) {
+                    $warehouse ??= $sync->warehouse ?? Addrbook::find($sync->warehouse_id);
+                    $customer ??= $sync->customer ?? Addrbook::find($sync->customer_id);
+                }
+            }
+
+            if ($order->type === 'RETURN' && (! $warehouse || ! $customer)) {
                 $sell = Transaction::query()
                     ->where('type', Transaction::TYPE_SELL)
                     ->where('invoice', $payload['salesorder_no'] ?? '')
@@ -69,19 +81,6 @@ class JubelioOrderShowPresenter
                 if ($sell) {
                     $warehouse ??= Addrbook::find($sell->sender_id);
                     $customer ??= Addrbook::find($sell->receiver_id);
-                }
-            } else {
-                $syncIndex = $this->warehouseResolver->syncIndex();
-                $payload = $order->payloadArray();
-                $storeId = (int) ($payload['store_id'] ?? 0);
-                $locationId = (int) ($payload['location_id'] ?? 0);
-
-                if ($storeId > 0 && $locationId > 0) {
-                    $sync = $syncIndex->get("{$storeId}:{$locationId}");
-                    if ($sync) {
-                        $warehouse ??= $sync->warehouse ?? Addrbook::find($sync->warehouse_id);
-                        $customer ??= $sync->customer ?? Addrbook::find($sync->customer_id);
-                    }
                 }
             }
         }

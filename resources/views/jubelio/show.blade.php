@@ -196,7 +196,7 @@ $sc = $statusConfig[$order->status] ?? ['label' => 'Unknown', 'cls' => 'border b
                         <thead class="border-b border-gray-100 text-xs font-semibold uppercase text-gray-500">
                             <tr>
                                 <th class="px-3 py-2">SKU</th>
-                                @if($parties['warehouse'])
+                                @if($parties['warehouse'] && $order->type === 'SELL')
                                 <th class="px-3 py-2 text-right">Stok Aria</th>
                                 @endif
                                 <th class="px-3 py-2 text-right">Qty</th>
@@ -218,7 +218,7 @@ $sc = $statusConfig[$order->status] ?? ['label' => 'Unknown', 'cls' => 'border b
                                     {{ $item['item_code'] }}
                                     @endif
                                 </td>
-                                @if($parties['warehouse'])
+                                @if($parties['warehouse'] && $order->type === 'SELL')
                                 <td class="px-3 py-2 text-right font-mono text-xs {{ isset($item['aria_stock']) && (float) $item['quantity'] > (float) $item['aria_stock'] ? 'text-red-600 font-semibold' : '' }}">
                                     {{ $item['aria_stock'] !== null ? format_amount((float) $item['aria_stock'], 0) : '—' }}
                                 </td>
@@ -239,7 +239,7 @@ $sc = $statusConfig[$order->status] ?? ['label' => 'Unknown', 'cls' => 'border b
             @if($order->error)
             <div class="rounded-xl border border-red-900/30 bg-red-50 p-6 shadow-sm">
                 <h2 class="mb-2 text-lg font-semibold text-red-600">Error Details</h2>
-                @if($order->status === 1)
+                @if($order->status === 1 && $order->type === 'SELL')
                 <p class="mb-4 text-sm text-red-700">
                     Biasanya terjadi karena stok di Aria tidak cukup di gudang yang dipetakan
                     @if($parties['warehouse'])
@@ -247,6 +247,11 @@ $sc = $statusConfig[$order->status] ?? ['label' => 'Unknown', 'cls' => 'border b
                     @endif
                     — Jubelio masih punya stok, tapi gudang Aria sudah 0 atau kurang.
                     Perbaiki stok di Aria terlebih dahulu, lalu klik <strong>Buat Transaksi Manual</strong> di atas.
+                </p>
+                @elseif($order->status === 1 && $order->type === 'RETURN')
+                <p class="mb-4 text-sm text-red-700">
+                    Retur memakai gudang dan pelanggan dari <strong>Jubelio Sync</strong> (store/location di payload),
+                    bukan saldo stok gudang. Pastikan mapping store/location sudah benar dan pelanggan channel terisi di Jubelio Sync.
                 </p>
                 @endif
                 @if($order->hasStockError())
