@@ -215,3 +215,40 @@ it('returns the product title for an existing pcode', function () {
             'reseller_price' => 15000,
         ]);
 });
+
+it('returns a manufactured parent title for a new colorway pcode', function () {
+    $typeTag = \App\Models\Tag::factory()->create([
+        'type' => \App\Models\Tag::TYPE_TYPE,
+        'item_type' => ItemType::ITEM->value,
+        'code' => 'AJD',
+        'name' => 'Jacket',
+    ]);
+    $sizeTag = \App\Models\Tag::factory()->create(['type' => \App\Models\Tag::TYPE_SIZE, 'code' => 'S', 'name' => 'Small']);
+    $warnaTag = \App\Models\Tag::factory()->create(['type' => \App\Models\Tag::TYPE_WARNA, 'code' => 'BLUE', 'name' => 'BLUE']);
+
+    $group = \App\Models\ItemGroup::factory()->create([
+        'master' => 'CX00122-03',
+        'variant' => '03',
+        'name' => 'RUNNING SHIRT',
+    ]);
+    $existing = \App\Models\Item::factory()->create([
+        'type' => ItemType::ITEM,
+        'group_id' => $group->id,
+        'pcode' => 'CX00122-03',
+        'code' => 'AJD-CX00122-03-S',
+        'name' => 'RUNNING SHIRT - BLUE - S',
+    ]);
+    $existing->tags()->sync([$typeTag->id, $sizeTag->id, $warnaTag->id]);
+
+    $this->actingAs($this->user)
+        ->getJson(route('items.pcode-name', [
+            'pcode' => 'CX00122-35',
+            'type' => ItemType::ITEM->value,
+            'type_code' => 'AJD',
+        ]))
+        ->assertOk()
+        ->assertJson([
+            'found' => true,
+            'product_name' => 'RUNNING SHIRT',
+        ]);
+});
