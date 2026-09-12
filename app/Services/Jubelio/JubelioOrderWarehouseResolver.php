@@ -18,9 +18,109 @@ class JubelioOrderWarehouseResolver
     public function syncIndex(): Collection
     {
         return Jubeliosync::query()
-            ->with('warehouse')
+            ->with(['warehouse', 'customer'])
             ->get()
             ->keyBy(fn (Jubeliosync $sync) => $this->key((int) $sync->jubelio_store_id, (int) $sync->jubelio_location_id));
+    }
+
+    /**
+     * @return Collection<int, Collection<int, Jubeliosync>>
+     */
+    public function syncsGroupedByWarehouse(): Collection
+    {
+        return Jubeliosync::query()
+            ->with(['warehouse', 'customer'])
+            ->where('warehouse_id', '>', 0)
+            ->get()
+            ->groupBy(fn (Jubeliosync $sync) => (int) $sync->warehouse_id);
+    }
+
+    /**
+     * List page mapping — denormalized jubelioorders columns + jubeliosync only (no Jubelio API).
+     *
+     * @param  Collection<int, Addrbook>  $warehousesById
+     * @param  Collection<int, Collection<int, Jubeliosync>>  $syncsByWarehouseId
+     * @return array{
+     *     jubelio_warehouse: ?string,
+     *     aria_warehouse: ?string,
+     *     aria_warehouse_url: ?string,
+     *     payload_store_id: int,
+     *     payload_location_id: int,
+     *     summary: array{
+     *         store_name: ?string,
+     *         location_name: ?string,
+     *         customer_name: ?string,
+     *         transaction_date: null,
+     *         real_total: null,
+     *         item_count: int
+     *     }
+     * }
+     */
+    public function resolveForIndex(
+        Jubelioorder $order,
+        Collection $syncIndex,
+        Collection $warehousesById,
+        Collection $syncsByWarehouseId,
+    ): array {
+        $storeId = (int) $order->jubelio_store_id;
+        $locationId = (int) $order->jubelio_location_id;
+        $sync = ($storeId > 0 && $locationId > 0)
+            ? $syncIndex->get($this->key($storeId, $locationId))
+            : null;
+
+        if ($order->type === 'RETURN') {
+            $resolved = $this->resolveReturnSync($order, $syncIndex, [], false);
+            if ($sync === null) {
+                $sync = $resolved['sync'];
+            }
+            if ($storeId <= 0 || $locationId <= 0) {
+                $storeId = $resolved['store_id'];
+                $locationId = $resolved['location_id'];
+            }
+        }
+
+        if ($sync === null && (int) $order->warehouse_id > 0) {
+            $sync = $this->pickSyncForWarehouse((int) $order->warehouse_id, $syncsByWarehouseId);
+            if ($sync !== null) {
+                $storeId = (int) $sync->jubelio_store_id;
+                $locationId = (int) $sync->jubelio_location_id;
+            }
+        }
+
+        $warehouse = $sync?->warehouse ?? $warehousesById->get((int) $order->warehouse_id);
+
+        return [
+            'jubelio_warehouse' => $sync?->jubelio_location_name,
+            'aria_warehouse' => $warehouse?->name,
+            'aria_warehouse_url' => Addrbook::transactionsUrlFor($warehouse),
+            'payload_store_id' => $storeId,
+            'payload_location_id' => $locationId,
+            'summary' => [
+                'store_name' => $sync?->jubelio_store_name,
+                'location_name' => $sync?->jubelio_location_name,
+                'customer_name' => $sync?->customer?->name,
+                'transaction_date' => null,
+                'real_total' => null,
+                'item_count' => 0,
+            ],
+        ];
+    }
+
+    /**
+     * @param  Collection<int, Collection<int, Jubeliosync>>  $syncsByWarehouseId
+     */
+    public function pickSyncForWarehouse(int $warehouseId, Collection $syncsByWarehouseId): ?Jubeliosync
+    {
+        if ($warehouseId <= 0) {
+            return null;
+        }
+
+        $rows = $syncsByWarehouseId->get($warehouseId);
+        if ($rows === null || $rows->isEmpty()) {
+            return null;
+        }
+
+        return $rows->sortByDesc(fn (Jubeliosync $sync) => (int) $sync->customer_id)->first();
     }
 
     /**
@@ -159,9 +259,13 @@ class JubelioOrderWarehouseResolver
      *     location_name: ?string
      * }
      */
-    public function resolveReturnSync(Jubelioorder $order, ?Collection $syncIndex = null, array $payload = []): array
-    {
-        if ($payload === []) {
+    public function resolveReturnSync(
+        Jubelioorder $order,
+        ?Collection $syncIndex = null,
+        array $payload = [],
+        bool $fetchPayloadWhenEmpty = true,
+    ): array {
+        if ($payload === [] && $fetchPayloadWhenEmpty) {
             $payload = $order->payloadArray();
         }
 

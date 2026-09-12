@@ -10,6 +10,46 @@ use App\Models\WarehouseItem;
 use App\Services\JubelioService;
 use Mockery\MockInterface;
 
+it('does not call jubelio api when rendering orders index', function () {
+    $user = User::factory()->create();
+    $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'Gudang Index Tanpa API']);
+    $customer = Addrbook::factory()->create(['type' => Addrbook::TYPE_CUSTOMER, 'name' => 'Channel Index']);
+
+    Jubeliosync::create([
+        'jubelio_store_id' => 9011,
+        'jubelio_store_name' => 'Shopee',
+        'jubelio_location_id' => 9022,
+        'jubelio_location_name' => 'Pusat',
+        'warehouse_id' => $warehouse->id,
+        'customer_id' => $customer->id,
+        'bin_id' => 0,
+    ]);
+
+    Jubelioorder::create([
+        'jubelio_order_id' => 'index-no-api',
+        'source' => 1,
+        'invoice' => 'INV-INDEX-NO-API',
+        'type' => 'SELL',
+        'order_status' => 'SHIPPED',
+        'run_count' => 0,
+        'jubelio_store_id' => 9011,
+        'jubelio_location_id' => 9022,
+        'warehouse_id' => $warehouse->id,
+        'status' => 0,
+    ]);
+
+    test()->mock(JubelioService::class, function (MockInterface $mock) {
+        $mock->shouldNotReceive('fetchSalesOrder');
+        $mock->shouldNotReceive('fetchSalesReturn');
+    });
+
+    $this->actingAs($user)
+        ->get(route('jubelio.index', ['invoice' => 'INV-INDEX-NO-API']))
+        ->assertSuccessful()
+        ->assertSee('Gudang Index Tanpa API')
+        ->assertSee('Shopee');
+});
+
 it('defaults jubelio orders index to pending only', function () {
     $user = User::factory()->create();
 
@@ -43,17 +83,16 @@ it('defaults jubelio orders index to pending only', function () {
 
 it('shows jubelio order summary without raw payload on list page', function () {
     $user = User::factory()->create();
+    $warehouse = Addrbook::factory()->warehouse()->create();
 
-    mockJubelioSalesOrder('jb-100', [
-        'salesorder_no' => 'INV-SUMMARY-TEST',
-        'transaction_date' => '2026-05-10T10:00:00',
-        'source_name' => 'Tokopedia',
-        'location_name' => 'Gudang Pusat',
-        'real_total' => 150000,
-        'sub_total' => 150000,
-        'items' => [
-            ['item_code' => 'SKU-1', 'qty' => 2, 'price' => 75000],
-        ],
+    Jubeliosync::create([
+        'jubelio_store_id' => 1001,
+        'jubelio_store_name' => 'Tokopedia',
+        'jubelio_location_id' => 1002,
+        'jubelio_location_name' => 'Gudang Pusat',
+        'warehouse_id' => $warehouse->id,
+        'customer_id' => 0,
+        'bin_id' => 0,
     ]);
 
     Jubelioorder::create([
@@ -63,6 +102,9 @@ it('shows jubelio order summary without raw payload on list page', function () {
         'type' => 'SELL',
         'order_status' => 'SHIPPED',
         'run_count' => 0,
+        'jubelio_store_id' => 1001,
+        'jubelio_location_id' => 1002,
+        'warehouse_id' => $warehouse->id,
         'status' => 0,
     ]);
 
@@ -195,16 +237,6 @@ it('shows jubelio and aria warehouse names on orders list', function () {
         'bin_id' => 0,
     ]);
 
-    mockJubelioSalesOrder('wh-ware-1', [
-        'salesorder_no' => 'INV-WAREHOUSE-TEST',
-        'store_id' => 55,
-        'location_id' => 66,
-        'source_name' => 'Tokopedia',
-        'location_name' => 'Gudang Jubelio Pusat',
-        'real_total' => 100000,
-        'items' => [],
-    ]);
-
     Jubelioorder::create([
         'jubelio_order_id' => 'wh-ware-1',
         'source' => 1,
@@ -212,6 +244,9 @@ it('shows jubelio and aria warehouse names on orders list', function () {
         'type' => 'SELL',
         'order_status' => 'SHIPPED',
         'run_count' => 0,
+        'jubelio_store_id' => 55,
+        'jubelio_location_id' => 66,
+        'warehouse_id' => $warehouse->id,
         'status' => 0,
     ]);
 
@@ -316,15 +351,6 @@ it('shows return warehouse from payload jubelio sync not original sell warehouse
         'receiver_type' => $customer->type,
     ]);
 
-    mockJubelioSalesReturn('ret-list-1', [
-        'return_no' => 'RET-LIST-1',
-        'salesorder_no' => 'INV-RET-LIST',
-        'store_id' => 1,
-        'location_id' => 99,
-        'location_name' => 'Loc Return',
-        'items' => [],
-    ]);
-
     Jubelioorder::create([
         'jubelio_order_id' => 'ret-list-1',
         'source' => 1,
@@ -332,9 +358,9 @@ it('shows return warehouse from payload jubelio sync not original sell warehouse
         'type' => 'RETURN',
         'order_status' => 'RETURN',
         'run_count' => 0,
-        'warehouse_id' => $warehouseA->id,
-        'jubelio_store_id' => 0,
-        'jubelio_location_id' => 0,
+        'warehouse_id' => $warehouseB->id,
+        'jubelio_store_id' => 1,
+        'jubelio_location_id' => 99,
         'status' => 0,
     ]);
 

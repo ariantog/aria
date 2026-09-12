@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Actions\Jubelio\AdjustStock;
 use App\Actions\Jubelio\ProcessJubelioOrder;
+use App\Models\Addrbook;
 use App\Models\Jubelio;
 use App\Models\Jubelioorder;
 use App\Models\Jubelioreturn;
@@ -106,21 +107,27 @@ class JubelioController extends Controller
 
         $stats = Jubelioorder::selectRaw('COUNT(CASE WHEN status=0 THEN 1 END) as pending, COUNT(CASE WHEN status=2 AND error_type=10 THEN 1 END) as success, COUNT(CASE WHEN status=2 AND error_type=2 THEN 1 END) as warning, COUNT(CASE WHEN status=1 AND error_type=1 THEN 1 END) as error')->first();
         $syncIndex = $resolver->syncIndex();
+        $syncsByWarehouseId = $resolver->syncsGroupedByWarehouse();
         $orders = $q->paginate(15)->withQueryString();
-        $orders->getCollection()->transform(function (Jubelioorder $order) use ($resolver, $syncIndex) {
-            $warehouses = $resolver->resolve($order, $syncIndex);
-            $payload = $order->payloadArray();
-            $order->jubelio_warehouse = $warehouses['jubelio_warehouse'];
-            $order->aria_warehouse = $warehouses['aria_warehouse'];
-            $order->aria_warehouse_url = $warehouses['aria_warehouse_url'];
-            if ($order->type === 'RETURN') {
-                $keys = $resolver->resolveReturnSync($order, $syncIndex, $payload);
-                $order->payload_store_id = $keys['store_id'];
-                $order->payload_location_id = $keys['location_id'];
-            } else {
-                $order->payload_store_id = (int) ($payload['store_id'] ?? 0);
-                $order->payload_location_id = (int) ($payload['location_id'] ?? 0);
-            }
+        $warehouseIds = $orders->getCollection()
+            ->pluck('warehouse_id')
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn (int $id) => $id > 0)
+            ->unique()
+            ->values()
+            ->all();
+        $warehousesById = $warehouseIds === []
+            ? collect()
+            : Addrbook::query()->whereIn('id', $warehouseIds)->get()->keyBy('id');
+
+        $orders->getCollection()->transform(function (Jubelioorder $order) use ($resolver, $syncIndex, $warehousesById, $syncsByWarehouseId) {
+            $resolved = $resolver->resolveForIndex($order, $syncIndex, $warehousesById, $syncsByWarehouseId);
+            $order->jubelio_warehouse = $resolved['jubelio_warehouse'];
+            $order->aria_warehouse = $resolved['aria_warehouse'];
+            $order->aria_warehouse_url = $resolved['aria_warehouse_url'];
+            $order->payload_store_id = $resolved['payload_store_id'];
+            $order->payload_location_id = $resolved['payload_location_id'];
+            $order->list_summary = $resolved['summary'];
 
             return $order;
         });
