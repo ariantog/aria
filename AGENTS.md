@@ -506,13 +506,15 @@ A **move** is two independent adjustments, not a Jubelio transfer. Mapping lives
 
 **Inbound Jubelio order warehouse mapping (`jubelioorders`, `ProcessJubelioOrder`).** SELL and
 RETURN both resolve Aria **warehouse + channel customer** from **`jubeliosyncs`** using
-`store_id` + `location_id` on the fetched payload (`JubelioOrderWarehouseResolver`,
-`JubelioOrderShowPresenter`). List/filter columns on `jubelioorders` use the same store/location
-keys for RETURN rows (not the original sell’s `sender_id`). RETURN still requires the original
-sell invoice (`salesorder_no`) to exist in Aria for linkage, but **does not** copy warehouse/customer
-off that sell row — L10 used sync mapping only. RETURN posting does **not** run sell-style stock
-shortage checks (stock is added back). `customer_id` on the sync row must be a real addrbook id;
-`0` yields `Customer or Warehouse not found` at post time.
+`store_id` + `location_id` on the fetched payload when present (`JubelioOrderWarehouseResolver`,
+`JubelioOrderShowPresenter`). **RETURN payloads often omit `store_id` / `location_id`** (only
+`location_name`); resolve via, in order: denormalized `jubelioorders.jubelio_*` columns, the
+matching **SELL** `jubelioorders` row for `salesorder_no`, **`location_name` → jubeliosync** (with
+`warehouse_id` hint), then `jubelioorders.warehouse_id` / original sell transaction parties for
+display fallback. List/filter uses the same resolver so index rows match the detail summary.
+RETURN still requires the original sell invoice in Aria for linkage; posting uses the resolved
+sync row (not sell `sender_id`/`receiver_id`). RETURN does **not** run sell-style stock shortage
+checks. `customer_id` on the sync row must be a real addrbook id; `0` fails at post time.
 
 HTTP 200 with `{message: "..."}` or a listing `{data, totalCount}` means **nothing was created**.
 The Aug 2026 move incident: Aria showed "status tidak jelas" and allowed confirm-as-success
