@@ -814,13 +814,27 @@ class ItemService
             return null;
         }
 
-        $groups = $this->manufacturedGroupsForParentMaster($master, $typeCode);
+        $groups = collect();
+        $productName = null;
+        $typeScopes = $typeCode !== null ? [$typeCode, null] : [null];
+
+        foreach ($typeScopes as $scope) {
+            $groups = $this->manufacturedGroupsForParentMaster($master, $scope);
+
+            if ($groups->isEmpty()) {
+                continue;
+            }
+
+            $productName = $this->resolveManufacturedParentProductName($groups, $master, $pcode);
+
+            if ($productName !== null) {
+                break;
+            }
+        }
 
         if ($groups->isEmpty()) {
             return null;
         }
-
-        $productName = $this->resolveManufacturedParentProductName($groups, $master, $pcode);
 
         $description = $this->firstNonEmptyGroupField($groups, 'description');
         $description2 = $this->firstNonEmptyGroupField($groups, 'description2');
@@ -856,10 +870,21 @@ class ItemService
             ->whereHas('items', fn (Builder $q) => $q
                 ->where('type', ItemType::ITEM)
                 ->whereNull('deleted_at'))
-            ->where(function (Builder $masterQuery) use ($master) {
-                $masterQuery->whereRaw('UPPER(TRIM(item_group.master)) = ?', [$master])
-                    ->orWhereRaw("UPPER(REPLACE(TRIM(item_group.master), '/', '-')) = ?", [$master])
-                    ->orWhereRaw("UPPER(REPLACE(TRIM(item_group.master), '/', '-')) LIKE ?", [$master.'-%']);
+            ->where(function (Builder $outer) use ($master) {
+                $outer->where(function (Builder $masterQuery) use ($master) {
+                    $masterQuery->whereRaw('UPPER(TRIM(item_group.master)) = ?', [$master])
+                        ->orWhereRaw("UPPER(REPLACE(TRIM(item_group.master), '/', '-')) = ?", [$master])
+                        ->orWhereRaw("UPPER(REPLACE(TRIM(item_group.master), '/', '-')) LIKE ?", [$master.'-%'])
+                        ->orWhereRaw("UPPER(REPLACE(TRIM(item_group.master), '/', '-')) LIKE ?", ['%-'.$master])
+                        ->orWhereRaw("UPPER(REPLACE(TRIM(item_group.master), '/', '-')) LIKE ?", ['%-'.$master.'-%']);
+                })->orWhereHas('items', function (Builder $itemQuery) use ($master) {
+                    $itemQuery->where('type', ItemType::ITEM)
+                        ->whereNull('deleted_at')
+                        ->where(function (Builder $pcodeQuery) use ($master) {
+                            $pcodeQuery->whereRaw('UPPER(REPLACE(TRIM(items.pcode), "/", "-")) LIKE ?', [$master.'-%'])
+                                ->orWhereRaw('UPPER(REPLACE(TRIM(items.pcode), "/", "-")) = ?', [$master]);
+                        });
+                });
             });
 
         if ($typeCode !== null) {
