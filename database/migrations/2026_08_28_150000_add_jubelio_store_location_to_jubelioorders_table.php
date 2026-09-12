@@ -18,7 +18,7 @@ return new class extends Migration
             }
 
             if (! Schema::hasColumn('jubelioorders', 'jubelio_location_id')) {
-                $table->unsignedInteger('jubelio_location_id')->default(0)->after('jubelio_store_id');
+                $table->integer('jubelio_location_id')->default(0)->after('jubelio_store_id');
                 $table->index(
                     ['jubelio_store_id', 'jubelio_location_id'],
                     'jubelioorders_store_loc_idx'

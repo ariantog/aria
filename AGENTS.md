@@ -530,6 +530,10 @@ Canonical code: `App\Services\Jubelio\JubelioOrderWarehouseResolver`,
   `location_id <= 0` as “invalid Jubelio id”.
 - Helpers: `Jubeliosync::isMappedStoreId()` (`> 0`), `isMappedLocationId()` (`!== 0`),
   `hasMappedStoreLocationPair()`. Use these everywhere (resolver, webhooks, refresh, Blade hints).
+- **`jubelioorders.jubelio_location_id` must be signed `INT`** (same as `jubeliosyncs`). An early L12
+  migration used `UNSIGNED`; production needs
+  `2026_09_12_150000_allow_negative_jubelio_location_id_on_jubelioorders.php` or refresh/posting
+  fails with MySQL 1264 when persisting `-1`.
 
 #### SELL (inbound)
 
