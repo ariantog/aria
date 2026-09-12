@@ -6,8 +6,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * jubeliosyncs.jubelio_location_id is signed int(11) (production uses -1 = "Pusat").
- * L12 added jubelioorders.jubelio_location_id as UNSIGNED — MySQL rejects persisting -1 on refresh.
+ * Re-apply signed jubelio_location_id when the first fix migration no-op'd (e.g. DB_CONNECTION=mariadb).
  */
 return new class extends Migration
 {
@@ -17,17 +16,17 @@ return new class extends Migration
             return;
         }
 
-        if ($this->usesMysqlFamily()) {
-            DB::statement(
-                'ALTER TABLE `jubelioorders` MODIFY `jubelio_location_id` INT(11) NOT NULL DEFAULT 0'
-            );
+        if (! $this->usesMysqlFamily()) {
+            Schema::table('jubelioorders', function (Blueprint $table) {
+                $table->integer('jubelio_location_id')->default(0)->change();
+            });
 
             return;
         }
 
-        Schema::table('jubelioorders', function (Blueprint $table) {
-            $table->integer('jubelio_location_id')->default(0)->change();
-        });
+        DB::statement(
+            'ALTER TABLE `jubelioorders` MODIFY `jubelio_location_id` INT(11) NOT NULL DEFAULT 0'
+        );
     }
 
     public function down(): void

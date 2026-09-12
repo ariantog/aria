@@ -20,7 +20,7 @@ return new class extends Migration
             $table->string('order_status');
             $table->unsignedInteger('warehouse_id')->default(0);
             $table->unsignedInteger('jubelio_store_id')->default(0);
-            $table->unsignedInteger('jubelio_location_id')->default(0);
+            $table->integer('jubelio_location_id')->default(0);
             $table->integer('run_count')->default(0);
             $table->integer('error_type')->nullable();
             $table->longText('error')->nullable();

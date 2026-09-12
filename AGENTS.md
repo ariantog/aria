@@ -532,8 +532,11 @@ Canonical code: `App\Services\Jubelio\JubelioOrderWarehouseResolver`,
   `hasMappedStoreLocationPair()`. Use these everywhere (resolver, webhooks, refresh, Blade hints).
 - **`jubelioorders.jubelio_location_id` must be signed `INT`** (same as `jubeliosyncs`). An early L12
   migration used `UNSIGNED`; production needs
-  `2026_09_12_150000_allow_negative_jubelio_location_id_on_jubelioorders.php` or refresh/posting
-  fails with MySQL 1264 when persisting `-1`.
+  `2026_09_12_190000_ensure_signed_jubelio_location_id_on_jubelioorders.php` (and/or `…150000…`)
+  or refresh/posting fails with MySQL **1264** when persisting `-1`. If migrate “succeeded” but
+  refresh still 1264, the first fix may have no-op'd on **`DB_CONNECTION=mariadb`** — run the
+  `…190000…` migration. Verify: `SHOW COLUMNS FROM jubelioorders LIKE 'jubelio_location_id';`
+  must be `int(11)` **without** `unsigned`.
 
 #### SELL (inbound)
 
