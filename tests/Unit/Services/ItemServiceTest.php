@@ -658,6 +658,44 @@ test('it loads manufactured parent title across type tags when the scoped lookup
         ]);
 });
 
+test('it replaces parent-master placeholder when slash pcode is normalized to hyphen', function () {
+    $legacyGroup = ItemGroup::factory()->create([
+        'master' => 'CX00122/03',
+        'variant' => '03',
+        'name' => 'CX00122',
+    ]);
+
+    $legacyItem = Item::factory()->create([
+        'type' => ItemType::ITEM,
+        'group_id' => $legacyGroup->id,
+        'pcode' => 'CX00122/03',
+        'code' => 'AJD-CX00122-03-S',
+        'name' => 'CX00122 - BLUE - S',
+    ]);
+    $legacyItem->tags()->sync([$this->typeTag->id, $this->sizeTag->id, $this->warnaTag->id]);
+
+    $titledGroup = ItemGroup::factory()->create([
+        'master' => 'CX00122-04',
+        'variant' => '04',
+        'name' => 'ESSENTIAL SHORTS',
+    ]);
+
+    Item::factory()->create([
+        'type' => ItemType::ITEM,
+        'group_id' => $titledGroup->id,
+        'pcode' => 'CX00122-04',
+        'code' => 'AJD-CX00122-04-S',
+        'name' => 'ESSENTIAL SHORTS - BLUE - S',
+    ])->tags()->sync([$this->typeTag->id, $this->sizeTag->id, $this->warnaTag->id]);
+
+    expect($this->itemService->productNameIsPcodePlaceholder(ItemType::ITEM, 'CX00122', 'CX00122-33', $legacyItem))
+        ->toBeTrue()
+        ->and($this->itemService->catalogHintsForPcode(ItemType::ITEM, 'CX00122-33'))
+        ->toMatchArray([
+            'product_name' => 'ESSENTIAL SHORTS',
+        ]);
+});
+
 test('it loads manufactured parent title from legacy parent-only group master', function () {
     $legacyGroup = ItemGroup::factory()->create([
         'master' => 'CX00122',

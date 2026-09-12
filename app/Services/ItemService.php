@@ -658,9 +658,19 @@ class ItemService
             return null;
         }
 
+        $normalizedPcode = $type === ItemType::ITEM
+            ? $this->identityBuilder->normalizeManufacturedPcode($pcode)
+            : $pcode;
+
         $item = Item::query()
             ->where('type', $type)
-            ->whereRaw('UPPER(TRIM(pcode)) = ?', [$pcode])
+            ->where(function (Builder $query) use ($pcode, $normalizedPcode, $type) {
+                $query->whereRaw('UPPER(TRIM(pcode)) = ?', [$pcode]);
+
+                if ($type === ItemType::ITEM && $normalizedPcode !== $pcode) {
+                    $query->orWhereRaw('UPPER(REPLACE(TRIM(pcode), "/", "-")) = ?', [$normalizedPcode]);
+                }
+            })
             ->with(['group', 'tags'])
             ->orderByDesc('id')
             ->first();
@@ -673,12 +683,21 @@ class ItemService
             $resolvedTypeCode = $this->normalizeManufacturedTypeCodeHint($typeCode)
                 ?? ($item !== null ? $this->identityBuilder->manufacturedTypeCode($item) : null);
 
-            $needsParent = $catalog === null || ($catalog['product_name'] ?? null) === null;
+            $catalogProductName = $catalog['product_name'] ?? null;
+            $needsParent = $catalog === null
+                || $catalogProductName === null
+                || $this->isPcodeLikeProductName((string) $catalogProductName, $normalizedPcode, $item);
 
             if ($needsParent) {
-                $parent = $this->manufacturedParentCatalogHints($pcode, $resolvedTypeCode);
+                $parent = $this->manufacturedParentCatalogHints($normalizedPcode, $resolvedTypeCode);
 
                 if ($parent !== null) {
+                    if ($catalog !== null
+                        && $catalogProductName !== null
+                        && $this->isPcodeLikeProductName((string) $catalogProductName, $normalizedPcode, $item)) {
+                        $catalog['product_name'] = null;
+                    }
+
                     $catalog = $catalog === null
                         ? $parent
                         : $this->mergeCatalogHints($catalog, $parent);
@@ -687,6 +706,15 @@ class ItemService
         }
 
         return $catalog;
+    }
+
+    public function productNameIsPcodePlaceholder(ItemType $type, string $name, string $pcode, ?Item $item = null): bool
+    {
+        if ($type === ItemType::ITEM) {
+            $pcode = $this->identityBuilder->normalizeManufacturedPcode($pcode);
+        }
+
+        return $this->isPcodeLikeProductName($name, $pcode, $item);
     }
 
     /**
@@ -723,6 +751,12 @@ class ItemService
             if ($fromItem !== '' && $fromItem !== $pcode) {
                 $productName = $this->identityBuilder->productDisplayName($type, $fromItem, '', '');
             }
+        }
+
+        if ($type === ItemType::ITEM
+            && $productName !== null
+            && $this->isPcodeLikeProductName($productName, $pcode, $item)) {
+            $productName = null;
         }
 
         $group = $item->group;
@@ -1217,6 +1251,7 @@ class ItemService
     {
         $normalize = static fn (string $value): string => strtoupper(str_replace(['/', ' '], ['-', ''], trim($value)));
         $nameNorm = $normalize($name);
+        $pcodeNorm = $normalize($pcode);
 
         foreach (array_filter([$pcode, (string) ($item?->pcode ?? '')]) as $candidate) {
             if ($nameNorm === $normalize((string) $candidate)) {
@@ -1224,10 +1259,24 @@ class ItemService
             }
         }
 
+        $master = $this->identityBuilder->canonicalManufacturedMaster($pcodeNorm);
+
+        if ($master !== null && $nameNorm === $normalize($master)) {
+            return true;
+        }
+
+        foreach (array_filter([$pcodeNorm, $normalize((string) ($item?->pcode ?? ''))]) as $candidate) {
+            $candidateMaster = $this->identityBuilder->canonicalManufacturedMaster($candidate);
+
+            if ($candidateMaster !== null && $nameNorm === $normalize($candidateMaster)) {
+                return true;
+            }
+        }
+
         return $this->isPlaceholderProductName(
             $item?->type instanceof ItemType ? $item->type : ItemType::ITEM,
             $name,
-            $pcode,
+            $pcodeNorm,
         );
     }
 
