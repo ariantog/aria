@@ -6,6 +6,7 @@ use App\Models\Addrbook;
 use App\Models\Jubelioorder;
 use App\Models\Jubeliosync;
 use App\Models\Transaction;
+use App\Services\JubelioService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -290,15 +291,35 @@ class JubelioOrderWarehouseResolver
             }
         }
 
+        if ($storeId <= 0 || $locationId <= 0) {
+            $apiSellKeys = $this->storeLocationIdsFromSellJubelioApi(
+                (string) ($payload['salesorder_no'] ?? '')
+            );
+            if ($apiSellKeys['store_id'] > 0 && $apiSellKeys['location_id'] > 0) {
+                $storeId = $apiSellKeys['store_id'];
+                $locationId = $apiSellKeys['location_id'];
+            }
+        }
+
         $index = $syncIndex ?? $this->syncIndex();
         $sync = null;
         if ($storeId > 0 && $locationId > 0) {
             $sync = $index->get($this->key($storeId, $locationId));
         }
 
+        $storeName = $this->payloadStoreName($payload);
         $warehouseHint = (int) ($order->warehouse_id ?? 0);
+
         if ($sync === null && $locationName !== null) {
-            $sync = $this->findSyncByLocationName($locationName, $warehouseHint > 0 ? $warehouseHint : null);
+            $sync = $this->findSyncByLocationName($locationName, null, $storeName);
+            if ($sync !== null) {
+                $storeId = (int) $sync->jubelio_store_id;
+                $locationId = (int) $sync->jubelio_location_id;
+            }
+        }
+
+        if ($sync === null && $locationName !== null && $warehouseHint > 0) {
+            $sync = $this->findSyncByLocationName($locationName, $warehouseHint, $storeName);
             if ($sync !== null) {
                 $storeId = (int) $sync->jubelio_store_id;
                 $locationId = (int) $sync->jubelio_location_id;
@@ -306,7 +327,7 @@ class JubelioOrderWarehouseResolver
         }
 
         if ($sync === null && $warehouseHint > 0) {
-            $sync = $this->findSyncForWarehouse($warehouseHint, $locationName);
+            $sync = $this->findSyncForWarehouse($warehouseHint, $locationName, $storeName);
             if ($sync !== null) {
                 $storeId = (int) $sync->jubelio_store_id;
                 $locationId = (int) $sync->jubelio_location_id;
@@ -328,9 +349,23 @@ class JubelioOrderWarehouseResolver
     public function storeLocationIdsFromPayload(array $payload): array
     {
         return [
-            (int) ($payload['store_id'] ?? 0),
-            (int) ($payload['location_id'] ?? 0),
+            (int) ($payload['store_id'] ?? $payload['source_store_id'] ?? 0),
+            (int) ($payload['location_id'] ?? $payload['warehouse_location_id'] ?? 0),
         ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    public function payloadStoreName(array $payload): ?string
+    {
+        foreach (['source_name', 'store_name', 'channel_name'] as $key) {
+            if (! empty($payload[$key]) && is_string($payload[$key])) {
+                return $payload[$key];
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -353,16 +388,62 @@ class JubelioOrderWarehouseResolver
         ];
     }
 
-    public function findSyncByLocationName(string $locationName, ?int $warehouseId = null): ?Jubeliosync
+    /**
+     * @return array{store_id: int, location_id: int}
+     */
+    public function storeLocationIdsFromSellJubelioApi(string $salesInvoice): array
     {
+        if ($salesInvoice === '') {
+            return ['store_id' => 0, 'location_id' => 0];
+        }
+
+        $columns = $this->storeLocationIdsFromSellJubelioOrder($salesInvoice);
+        if ($columns['store_id'] > 0 && $columns['location_id'] > 0) {
+            return $columns;
+        }
+
+        $sellOrder = Jubelioorder::query()
+            ->where('type', 'SELL')
+            ->where('invoice', $salesInvoice)
+            ->first(['jubelio_order_id']);
+
+        if ($sellOrder === null || $sellOrder->jubelio_order_id === '') {
+            return ['store_id' => 0, 'location_id' => 0];
+        }
+
+        $sellPayload = app(JubelioService::class)->fetchSalesOrder($sellOrder->jubelio_order_id);
+        if (! is_array($sellPayload) || $sellPayload === []) {
+            return ['store_id' => 0, 'location_id' => 0];
+        }
+
+        [$storeId, $locationId] = $this->storeLocationIdsFromPayload($sellPayload);
+
+        return [
+            'store_id' => $storeId,
+            'location_id' => $locationId,
+        ];
+    }
+
+    public function findSyncByLocationName(
+        string $locationName,
+        ?int $warehouseId = null,
+        ?string $storeName = null,
+    ): ?Jubeliosync {
         $needle = $this->normalizeLocationName($locationName);
         if ($needle === '') {
             return null;
         }
 
-        $candidates = Jubeliosync::query()
-            ->with('warehouse')
-            ->when($warehouseId !== null && $warehouseId > 0, fn ($query) => $query->where('warehouse_id', $warehouseId))
+        $query = Jubeliosync::query()
+            ->with(['warehouse', 'customer'])
+            ->where('jubelio_store_id', '>', 0)
+            ->where('jubelio_location_id', '>', 0);
+
+        if ($warehouseId !== null && $warehouseId > 0) {
+            $query->where('warehouse_id', $warehouseId);
+        }
+
+        $candidates = $query
             ->get()
             ->filter(function (Jubeliosync $sync) use ($needle): bool {
                 $candidate = $this->normalizeLocationName((string) $sync->jubelio_location_name);
@@ -373,6 +454,26 @@ class JubelioOrderWarehouseResolver
                         || str_contains($needle, $candidate));
             })
             ->values();
+
+        if ($storeName !== null && $storeName !== '') {
+            $storeNeedle = $this->normalizeLocationName($storeName);
+            $byStore = $candidates->filter(function (Jubeliosync $sync) use ($storeNeedle): bool {
+                $candidate = $this->normalizeLocationName((string) $sync->jubelio_store_name);
+
+                return $candidate !== ''
+                    && ($candidate === $storeNeedle
+                        || str_contains($candidate, $storeNeedle)
+                        || str_contains($storeNeedle, $candidate));
+            })->values();
+
+            if ($byStore->count() === 1) {
+                return $byStore->first();
+            }
+
+            if ($byStore->isNotEmpty()) {
+                $candidates = $byStore;
+            }
+        }
 
         if ($candidates->count() === 1) {
             return $candidates->first();
@@ -385,25 +486,27 @@ class JubelioOrderWarehouseResolver
         return null;
     }
 
-    public function findSyncForWarehouse(int $warehouseId, ?string $locationName = null): ?Jubeliosync
-    {
+    public function findSyncForWarehouse(
+        int $warehouseId,
+        ?string $locationName = null,
+        ?string $storeName = null,
+    ): ?Jubeliosync {
         if ($warehouseId <= 0) {
             return null;
         }
 
-        $query = Jubeliosync::query()
-            ->where('warehouse_id', $warehouseId)
-            ->where('jubelio_store_id', '>', 0)
-            ->where('jubelio_location_id', '>', 0);
-
         if ($locationName !== null && $locationName !== '') {
-            $sync = $this->findSyncByLocationName($locationName, $warehouseId);
+            $sync = $this->findSyncByLocationName($locationName, $warehouseId, $storeName);
             if ($sync !== null) {
                 return $sync;
             }
         }
 
-        return $query
+        return Jubeliosync::query()
+            ->with(['warehouse', 'customer'])
+            ->where('warehouse_id', $warehouseId)
+            ->where('jubelio_store_id', '>', 0)
+            ->where('jubelio_location_id', '>', 0)
             ->orderByDesc('customer_id')
             ->first();
     }
@@ -617,7 +720,9 @@ class JubelioOrderWarehouseResolver
             $storeId = $returnMapping['store_id'];
             $locationId = $returnMapping['location_id'];
             $locationName = $returnMapping['location_name'];
-            $ariaWarehouse = $returnMapping['sync']?->warehouse?->name
+            $sync = $returnMapping['sync'];
+            $ariaWarehouse = $sync?->warehouse?->name
+                ?? ($sync ? Addrbook::find($sync->warehouse_id)?->name : null)
                 ?? Addrbook::find($order->warehouse_id)?->name;
         } else {
             $resolved = $this->resolveSellFromPayload($order, $payload, $syncIndex);
