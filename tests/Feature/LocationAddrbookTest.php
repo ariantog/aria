@@ -27,7 +27,43 @@ it('shows the location customer assignment page', function () {
     $this->actingAs($this->user)
         ->get(route('locations.customers', $this->location))
         ->assertOk()
-        ->assertSee('Manage customers linked to this location');
+        ->assertSee('Manage addrbook contacts linked to this location');
+});
+
+it('links a supplier to a location from the assignment page', function () {
+    $supplier = Addrbook::factory()->supplier()->create(['name' => 'Loc Supplier']);
+
+    $this->actingAs($this->user)
+        ->post(route('locations.customers.attach', $this->location), [
+            'customer_id' => $supplier->id,
+        ])
+        ->assertRedirect(route('locations.customers', $this->location))
+        ->assertSessionHas('success');
+
+    expect($this->location->customers()->pluck('customers.id'))->toContain($supplier->id);
+});
+
+it('finds non-customer addrbook entries in location search', function () {
+    $supplier = Addrbook::factory()->supplier()->create(['name' => 'Unique Loc Supplier']);
+
+    $this->actingAs($this->user)
+        ->get(route('locations.customers', ['location' => $this->location, 'q' => 'Unique Loc Supplier']))
+        ->assertOk()
+        ->assertSee('Unique Loc Supplier')
+        ->assertSee('Supplier');
+});
+
+it('rejects linking a ledger account to a location', function () {
+    $ledger = Addrbook::factory()->account()->create(['name' => 'Expense Ledger']);
+
+    $this->actingAs($this->user)
+        ->post(route('locations.customers.attach', $this->location), [
+            'customer_id' => $ledger->id,
+        ])
+        ->assertRedirect(route('locations.customers', $this->location))
+        ->assertSessionHas('error');
+
+    expect($this->location->customers()->pluck('customers.id'))->not->toContain($ledger->id);
 });
 
 it('links a customer to a location from the assignment page', function () {

@@ -36,6 +36,21 @@ it('filters customers by user location', function () {
         ->not->toContain($this->addrbookB->id);
 });
 
+it('does not filter ledger accounts by user location', function () {
+    $ledger = Addrbook::factory()->account()->create(['name' => 'Global Ledger']);
+
+    $visible = Addrbook::query()->visibleToUser($this->user)->pluck('id');
+
+    expect($visible)->toContain($ledger->id);
+});
+
+it('allows location-restricted users to access ledger accounts without a location link', function () {
+    $ledger = Addrbook::factory()->account()->create(['name' => 'Cash Ledger']);
+    $service = app(LocationAccessService::class);
+
+    expect($service->canAccessAddrbook($this->user, $ledger))->toBeTrue();
+});
+
 it('filters the addrbook index by user location', function () {
     $this->addrbookA->update(['type' => Addrbook::TYPE_SUPPLIER, 'name' => 'LOC Supplier Visible']);
     $this->addrbookB->update(['type' => Addrbook::TYPE_SUPPLIER, 'name' => 'LOC Supplier Hidden']);

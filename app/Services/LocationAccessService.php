@@ -35,9 +35,7 @@ class LocationAccessService
             return $query;
         }
 
-        $locationId = $user->location_id;
-
-        return $query->whereHas('locations', fn (Builder $q) => $q->where('locations.id', $locationId));
+        return $query->visibleAtLocation((int) $user->location_id);
     }
 
     /**
@@ -52,14 +50,18 @@ class LocationAccessService
         $locationId = $user->location_id;
 
         return $query->where(function (Builder $q) use ($locationId) {
-            $q->whereHas('sender.locations', fn (Builder $lq) => $lq->where('locations.id', $locationId))
-                ->orWhereHas('receiver.locations', fn (Builder $lq) => $lq->where('locations.id', $locationId));
+            $q->whereHas('sender', fn (Builder $sq) => $sq->visibleAtLocation($locationId))
+                ->orWhereHas('receiver', fn (Builder $rq) => $rq->visibleAtLocation($locationId));
         });
     }
 
     public function canAccessAddrbook(?User $user, Addrbook $addrbook): bool
     {
         if ($this->hasUnrestrictedLocationAccess($user)) {
+            return true;
+        }
+
+        if (Addrbook::typeIsLedger((int) $addrbook->type)) {
             return true;
         }
 
