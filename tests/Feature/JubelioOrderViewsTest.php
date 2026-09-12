@@ -490,6 +490,73 @@ it('can refresh jubelio order payload without changing updated_at or status', fu
         ->and($order->stockErrorItemsList()[0]['item_id'])->toBe($item->id);
 });
 
+it('refreshes payload from index and keeps filters with visible feedback', function () {
+    $user = User::factory()->create();
+    $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'Gudang After Refresh']);
+
+    Jubeliosync::create([
+        'jubelio_store_id' => 8801,
+        'jubelio_store_name' => 'Shopee',
+        'jubelio_location_id' => 8802,
+        'jubelio_location_name' => 'Pusat',
+        'warehouse_id' => $warehouse->id,
+        'customer_id' => 0,
+        'bin_id' => 0,
+    ]);
+
+    mockJubelioSalesOrder('index-refresh-1', [
+        'salesorder_no' => 'INV-INDEX-REFRESH',
+        'store_id' => 8801,
+        'location_id' => 8802,
+        'source_name' => 'Shopee',
+        'location_name' => 'Pusat',
+        'real_total' => 88000,
+        'sub_total' => 88000,
+        'items' => [
+            ['item_code' => 'SKU-IDX-REF', 'qty' => 2, 'price' => 44000],
+        ],
+    ]);
+
+    $order = Jubelioorder::create([
+        'jubelio_order_id' => 'index-refresh-1',
+        'source' => 1,
+        'invoice' => 'INV-INDEX-REFRESH',
+        'type' => 'SELL',
+        'order_status' => 'SHIPPED',
+        'run_count' => 0,
+        'status' => 2,
+        'error_type' => 10,
+    ]);
+
+    $this->actingAs($user)
+        ->post(route('jubelio.refresh-payload', $order), [
+            'return_to_index' => '1',
+            'return_status' => 'success',
+            'return_warehouse_id' => $warehouse->id,
+            'return_page' => '1',
+        ])
+        ->assertRedirect(route('jubelio.index', [
+            'status' => 'success',
+            'warehouse_id' => $warehouse->id,
+            'page' => '1',
+        ]))
+        ->assertSessionHas('success')
+        ->assertSessionHas('jubelio_refreshed_order_id', $order->id);
+
+    $order->refresh();
+    expect($order->warehouse_id)->toBe($warehouse->id);
+
+    $this->actingAs($user)
+        ->get(route('jubelio.index', [
+            'status' => 'success',
+            'warehouse_id' => $warehouse->id,
+            'invoice' => 'INV-INDEX-REFRESH',
+        ]))
+        ->assertSuccessful()
+        ->assertSee('Gudang After Refresh')
+        ->assertSee('88,000');
+});
+
 it('can refresh jubelio order payload and report warehouse mapping', function () {
     $user = User::factory()->create();
     $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'Gudang Refresh']);
