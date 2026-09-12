@@ -501,32 +501,79 @@ Column meanings (A/B is sender/receiver, not debit/credit):
 - `submit_*_count` > 0 and `*_submit_by` null = **warning** (POST sent, result unclear).
   Confirm only with a real Jubelio adj number; otherwise clear and retry.
 
-A **move** is two independent adjustments, not a Jubelio transfer. Mapping lives in
-`jubeliosyncs` (Aria `warehouse_id` → `jubelio_location_id`); items need `jubelio_item_id`.
-**`jubelio_location_id` may be negative** (production uses `-1` for `"Pusat"`). Treat `0` as
-unset only — do not require `location_id > 0` when resolving sync rows or persisting
-`jubelioorders` keys (`Jubeliosync::hasMappedStoreLocationPair()`).
+A **move** is two independent adjustments, not a Jubelio transfer. Outbound push uses
+`jubeliosyncs` looked up by **Aria `warehouse_id`** (plus `jubelio_location_id` / `bin_id` on the
+row); items need `jubelio_item_id`. That lookup path is **not** the same as inbound order mapping
+below — do not reuse sell-transaction `sender_id` logic for outbound `AdjustStock`.
 
-**Inbound Jubelio order warehouse mapping (`jubelioorders`, `ProcessJubelioOrder`).** SELL and
-RETURN both resolve Aria **warehouse + channel customer** from **`jubeliosyncs`** using
-`store_id` + `location_id` on the fetched payload when present (`JubelioOrderWarehouseResolver`,
-`JubelioOrderShowPresenter`). **RETURN payloads often omit `store_id` / `location_id`** (only
-`location_name`); resolve via, in order: payload `store_id`/`location_id`, denormalized
-`jubelioorders.jubelio_*`, the matching **SELL** `jubelioorders` row (or its Jubelio API payload)
-for `salesorder_no`, then **`location_name` (+ `source_name` when ambiguous) → jubeliosync across
-all warehouses** — do **not** treat `jubelioorders.warehouse_id` or the original sell transaction
-warehouse as the primary filter (stale/wrong hints are common on RETURN). Only after that, retry
-`location_name` scoped to `warehouse_id` / pick any sync on that warehouse. Sell transaction
-parties are display fallback only. List/filter uses the same resolver so index rows match detail.
-RETURN still requires the original sell invoice in Aria for linkage; posting uses the resolved
-sync row (not sell `sender_id`/`receiver_id`). RETURN does **not** run sell-style stock shortage
-checks. `customer_id` on the sync row must be a real addrbook id; `0` fails at post time.
+### Inbound Jubelio orders (`jubelioorders` → SELL/RETURN transactions)
 
-**Jubelio orders index (`/jubelio`) must not call the Jubelio API per row.** The list uses
-denormalized `jubelioorders.jubelio_store_id` / `jubelio_location_id` / `warehouse_id` plus
-`JubelioOrderWarehouseResolver::resolveForIndex()` (preloaded `jubeliosync` index). Qty/total on
-the list may show `—` until the user opens the detail page or hits Refresh payload; that is
-intentional to keep the index fast.
+**Do not confuse these three things:**
+
+| Concept | What maps | Used for |
+|--------|-----------|----------|
+| **`jubeliosyncs` row** | Jubelio `(jubelio_store_id, jubelio_location_id)` → Aria **`warehouse_id` + `customer_id`** (channel) | Posting inbound **SELL** and **RETURN** (`ProcessJubelioOrder`) |
+| **`jubelioorders.warehouse_id`** | Denormalized cache for list/filter; may be **wrong on RETURN** | SQL filters only — **not** authoritative for RETURN posting |
+| **Original sell `transactions` parties** | Historical `sender_id` / `receiver_id` on the linked invoice | RETURN **linkage** (invoice must exist); **not** where stock/customer come from on post |
+
+Canonical code: `App\Services\Jubelio\JubelioOrderWarehouseResolver`,
+`App\Actions\Jubelio\ProcessJubelioOrder`, `JubelioOrderShowPresenter`.
+
+#### `jubeliosyncs` lookup key (SELL and RETURN)
+
+- One row = one **store + location** pair → one Aria gudang + one channel customer.
+- Match on **`jubelio_store_id` + `jubelio_location_id`** exactly (same as L10 / `ProcessJubelioOrder`
+  `where` clauses).
+- **`jubelio_location_id` may be negative.** Production uses **`-1`** for location name **`Pusat`**
+  (Shopee/TikTok/Tokopedia/Lazada/Blibli/Zalora @ central online). Positive ids are other hubs
+  (e.g. `8` = BSD - ONLINE, `5` = CITOS - Online). **`0` = unset** in Aria only — never treat
+  `location_id <= 0` as “invalid Jubelio id”.
+- Helpers: `Jubeliosync::isMappedStoreId()` (`> 0`), `isMappedLocationId()` (`!== 0`),
+  `hasMappedStoreLocationPair()`. Use these everywhere (resolver, webhooks, refresh, Blade hints).
+
+#### SELL (inbound)
+
+- Payload from Jubelio usually includes **`store_id`** and **`location_id`**.
+- Resolve sync: `jubeliosyncs` where `jubelio_store_id` + `jubelio_location_id` match payload
+  (including **`location_id = -1`** when Jubelio sends it).
+- Post transaction: **`warehouse_id` = sync.warehouse_id**, **`customer_id` = sync.customer_id**
+  (not inferred from addrbook PKP flags).
+- Persist on `jubelioorders`: `jubelio_store_id`, `jubelio_location_id`, `warehouse_id` from payload
+  → sync (`persistWarehouseKeysFromPayload` / webhook `sellWarehouseColumnsFromPayload`).
+- **Stock check** runs on the **mapped** warehouse before post (`validateWarehouseStock`).
+
+#### RETURN (inbound)
+
+- Payload often has **`location_name`** only (e.g. `Pusat`) and may omit or duplicate store/loc ids.
+- **Posting warehouse + customer come from the same `jubeliosync` row as SELL would** for that
+  channel/location — **not** from the original sell transaction’s `sender_id`/`receiver_id`.
+- **Original sell invoice** in Aria (`salesorder_no`) is still **required** for linkage only.
+- **No** sell-style stock shortage check on RETURN.
+- **`customer_id` on the sync row must be > 0**; `0` fails at post time.
+
+**RETURN sync resolution order** (`resolveReturnSync` — same on list, detail, refresh, process):
+
+1. Payload `store_id` / `location_id` (and aliases `source_store_id`, `warehouse_location_id`).
+2. Denormalized `jubelioorders.jubelio_store_id` / `jubelio_location_id`.
+3. Matching **SELL** `jubelioorders` row for `salesorder_no`, then that order’s Jubelio API payload
+   if keys still missing.
+4. **`location_name` → `jubeliosync`** on **all warehouses**, disambiguate with **`source_name`**
+   / `store_name` / `channel_name` when several rows share the same location name (many channels
+   use `Pusat` + `location_id -1` with different `jubelio_store_id`).
+5. Only then: `location_name` scoped to `jubelioorders.warehouse_id`, then any sync on that warehouse.
+6. Display fallback only: sell transaction parties — **do not** use for posting.
+
+**Common RETURN bugs (do not reintroduce):** filtering `jubeliosync` with `jubelio_location_id > 0`
+(excludes Pusat); using sell txn warehouse as primary filter; copying sell `sender_id` in
+`processReturn`; calling Jubelio API per row on `/jubelio` index.
+
+#### Jubelio orders index (`/jubelio`)
+
+- **Must not call the Jubelio API per row.** Use denormalized `jubelioorders` columns +
+  `resolveForIndex()` + preloaded `jubeliosync` index.
+- List qty/total may be `—` until detail or **Refresh payload** — intentional.
+- Empty gudang hint: “store/loc kosong” only when **both** store unset (`0`) **and** location
+  unset (`0`); **`location_id = -1` is not empty**.
 
 HTTP 200 with `{message: "..."}` or a listing `{data, totalCount}` means **nothing was created**.
 The Aug 2026 move incident: Aria showed "status tidak jelas" and allowed confirm-as-success
