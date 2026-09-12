@@ -181,6 +181,11 @@ $td = 'px-1.5 py-2 align-top';
                                 @include('jubelio.partials.sync-status-badge', ['status' => $order->status, 'errorType' => $order->error_type, 'executeBy' => $order->user->name ?? null])
                                 <form method="POST" action="{{ route('jubelio.refresh-payload', $order) }}" class="inline">
                                     @csrf
+                                    <input type="hidden" name="return_to_index" value="1">
+                                    <input type="hidden" name="return_status" value="{{ $filters['status'] ?? '' }}">
+                                    <input type="hidden" name="return_invoice" value="{{ $filters['invoice'] ?? '' }}">
+                                    <input type="hidden" name="return_warehouse_id" value="{{ $filters['warehouse_id'] ?? '' }}">
+                                    <input type="hidden" name="return_page" value="{{ $orders->currentPage() }}">
                                     <button type="submit"
                                             class="text-[10px] font-medium text-gray-500 hover:text-blue-600"
                                             title="Ambil ulang payload dari Jubelio API dan perbarui mapping gudang"

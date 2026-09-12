@@ -120,7 +120,17 @@ class JubelioController extends Controller
             ? collect()
             : Addrbook::query()->whereIn('id', $warehouseIds)->get()->keyBy('id');
 
-        $orders->getCollection()->transform(function (Jubelioorder $order) use ($resolver, $syncIndex, $warehousesById, $syncsByWarehouseId) {
+        $refreshedOrderId = (int) session('jubelio_refreshed_order_id', 0);
+        $refreshedSummary = session('jubelio_refreshed_summary');
+
+        $orders->getCollection()->transform(function (Jubelioorder $order) use (
+            $resolver,
+            $syncIndex,
+            $warehousesById,
+            $syncsByWarehouseId,
+            $refreshedOrderId,
+            $refreshedSummary,
+        ) {
             $resolved = $resolver->resolveForIndex($order, $syncIndex, $warehousesById, $syncsByWarehouseId);
             $order->jubelio_warehouse = $resolved['jubelio_warehouse'];
             $order->aria_warehouse = $resolved['aria_warehouse'];
@@ -128,6 +138,12 @@ class JubelioController extends Controller
             $order->payload_store_id = $resolved['payload_store_id'];
             $order->payload_location_id = $resolved['payload_location_id'];
             $order->list_summary = $resolved['summary'];
+
+            if ($refreshedOrderId > 0
+                && $order->id === $refreshedOrderId
+                && is_array($refreshedSummary)) {
+                $order->list_summary = array_merge($order->list_summary, $refreshedSummary);
+            }
 
             return $order;
         });
@@ -172,16 +188,37 @@ class JubelioController extends Controller
         ]);
     }
 
-    public function refreshPayload(Jubelioorder $jubelio, JubelioOrderWarehouseResolver $resolver): RedirectResponse
+    public function refreshPayload(Request $request, Jubelioorder $jubelio, JubelioOrderWarehouseResolver $resolver): RedirectResponse
     {
         Gate::authorize(Jubelio::getPermissions()['view']);
 
         $result = $resolver->refreshFromApi($jubelio);
 
-        return back()->with(
-            $result['success'] ? 'success' : 'error',
-            $result['message'],
-        );
+        $redirect = $this->redirectAfterJubelioOrderAction($request);
+        $flashKey = $result['success'] ? 'success' : 'error';
+
+        $redirect = $redirect->with($flashKey, $result['message']);
+
+        if ($result['success'] && is_array($result['payload_summary'] ?? null)) {
+            $redirect->with('jubelio_refreshed_order_id', $jubelio->id)
+                ->with('jubelio_refreshed_summary', $result['payload_summary']);
+        }
+
+        return $redirect;
+    }
+
+    private function redirectAfterJubelioOrderAction(Request $request): RedirectResponse
+    {
+        if ($request->boolean('return_to_index')) {
+            return redirect()->route('jubelio.index', array_filter([
+                'status' => $request->input('return_status'),
+                'invoice' => $request->input('return_invoice'),
+                'warehouse_id' => $request->input('return_warehouse_id'),
+                'page' => $request->input('return_page'),
+            ], fn ($value) => $value !== null && $value !== ''));
+        }
+
+        return back();
     }
 
     public function processOrder(Jubelioorder $jubelio, ProcessJubelioOrder $processor): RedirectResponse
