@@ -503,6 +503,9 @@ Column meanings (A/B is sender/receiver, not debit/credit):
 
 A **move** is two independent adjustments, not a Jubelio transfer. Mapping lives in
 `jubeliosyncs` (Aria `warehouse_id` → `jubelio_location_id`); items need `jubelio_item_id`.
+**`jubelio_location_id` may be negative** (production uses `-1` for `"Pusat"`). Treat `0` as
+unset only — do not require `location_id > 0` when resolving sync rows or persisting
+`jubelioorders` keys (`Jubeliosync::hasMappedStoreLocationPair()`).
 
 **Inbound Jubelio order warehouse mapping (`jubelioorders`, `ProcessJubelioOrder`).** SELL and
 RETURN both resolve Aria **warehouse + channel customer** from **`jubeliosyncs`** using

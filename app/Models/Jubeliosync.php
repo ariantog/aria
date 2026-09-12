@@ -21,6 +21,24 @@ class Jubeliosync extends Model
 
     protected $guarded = [];
 
+    /**
+     * Jubelio uses negative location ids (e.g. -1 = "Pusat"). Only 0 means unset in Aria.
+     */
+    public static function isMappedStoreId(int $storeId): bool
+    {
+        return $storeId > 0;
+    }
+
+    public static function isMappedLocationId(int $locationId): bool
+    {
+        return $locationId !== 0;
+    }
+
+    public static function hasMappedStoreLocationPair(int $storeId, int $locationId): bool
+    {
+        return self::isMappedStoreId($storeId) && self::isMappedLocationId($locationId);
+    }
+
     public function warehouse(): HasOne
     {
         return $this->hasOne(Addrbook::class, 'id', 'warehouse_id');

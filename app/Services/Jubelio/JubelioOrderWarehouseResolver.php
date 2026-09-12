@@ -65,7 +65,7 @@ class JubelioOrderWarehouseResolver
     ): array {
         $storeId = (int) $order->jubelio_store_id;
         $locationId = (int) $order->jubelio_location_id;
-        $sync = ($storeId > 0 && $locationId > 0)
+        $sync = Jubeliosync::hasMappedStoreLocationPair($storeId, $locationId)
             ? $syncIndex->get($this->key($storeId, $locationId))
             : null;
 
@@ -74,7 +74,7 @@ class JubelioOrderWarehouseResolver
             if ($sync === null) {
                 $sync = $resolved['sync'];
             }
-            if ($storeId <= 0 || $locationId <= 0) {
+            if (! Jubeliosync::hasMappedStoreLocationPair($storeId, $locationId)) {
                 $storeId = $resolved['store_id'];
                 $locationId = $resolved['location_id'];
             }
@@ -157,13 +157,13 @@ class JubelioOrderWarehouseResolver
         return Jubeliosync::query()
             ->where('warehouse_id', $warehouseId)
             ->where('jubelio_store_id', '>', 0)
-            ->where('jubelio_location_id', '>', 0)
+            ->where('jubelio_location_id', '!=', 0)
             ->get(['jubelio_store_id', 'jubelio_location_id', 'warehouse_id']);
     }
 
     public function warehouseIdFromStoreLocation(int $storeId, int $locationId, ?Collection $syncIndex = null): int
     {
-        if ($storeId <= 0 || $locationId <= 0) {
+        if (! Jubeliosync::hasMappedStoreLocationPair($storeId, $locationId)) {
             return 0;
         }
 
@@ -189,7 +189,7 @@ class JubelioOrderWarehouseResolver
         $storeId = (int) ($payload['store_id'] ?? 0);
         $locationId = (int) ($payload['location_id'] ?? 0);
 
-        if ($storeId <= 0 || $locationId <= 0) {
+        if (! Jubeliosync::hasMappedStoreLocationPair($storeId, $locationId)) {
             return;
         }
 
@@ -224,7 +224,10 @@ class JubelioOrderWarehouseResolver
             'warehouse_id' => (int) ($resolved['sync']?->warehouse_id ?? $order->warehouse_id ?? 0),
         ];
 
-        if ($columns['jubelio_store_id'] <= 0 || $columns['jubelio_location_id'] <= 0) {
+        if (! Jubeliosync::hasMappedStoreLocationPair(
+            (int) $columns['jubelio_store_id'],
+            (int) $columns['jubelio_location_id'],
+        )) {
             if ($columns['warehouse_id'] > 0 && (int) $order->warehouse_id !== $columns['warehouse_id']) {
                 $this->updateColumnsWithoutTouchingTimestamps($order->id, [
                     'warehouse_id' => $columns['warehouse_id'],
@@ -276,26 +279,26 @@ class JubelioOrderWarehouseResolver
 
         [$storeId, $locationId] = $this->storeLocationIdsFromPayload($payload);
 
-        if ($storeId <= 0 || $locationId <= 0) {
+        if (! Jubeliosync::hasMappedStoreLocationPair($storeId, $locationId)) {
             $storeId = (int) $order->jubelio_store_id;
             $locationId = (int) $order->jubelio_location_id;
         }
 
-        if ($storeId <= 0 || $locationId <= 0) {
+        if (! Jubeliosync::hasMappedStoreLocationPair($storeId, $locationId)) {
             $sellOrderKeys = $this->storeLocationIdsFromSellJubelioOrder(
                 (string) ($payload['salesorder_no'] ?? '')
             );
-            if ($sellOrderKeys['store_id'] > 0 && $sellOrderKeys['location_id'] > 0) {
+            if (Jubeliosync::hasMappedStoreLocationPair($sellOrderKeys['store_id'], $sellOrderKeys['location_id'])) {
                 $storeId = $sellOrderKeys['store_id'];
                 $locationId = $sellOrderKeys['location_id'];
             }
         }
 
-        if ($storeId <= 0 || $locationId <= 0) {
+        if (! Jubeliosync::hasMappedStoreLocationPair($storeId, $locationId)) {
             $apiSellKeys = $this->storeLocationIdsFromSellJubelioApi(
                 (string) ($payload['salesorder_no'] ?? '')
             );
-            if ($apiSellKeys['store_id'] > 0 && $apiSellKeys['location_id'] > 0) {
+            if (Jubeliosync::hasMappedStoreLocationPair($apiSellKeys['store_id'], $apiSellKeys['location_id'])) {
                 $storeId = $apiSellKeys['store_id'];
                 $locationId = $apiSellKeys['location_id'];
             }
@@ -303,7 +306,7 @@ class JubelioOrderWarehouseResolver
 
         $index = $syncIndex ?? $this->syncIndex();
         $sync = null;
-        if ($storeId > 0 && $locationId > 0) {
+        if (Jubeliosync::hasMappedStoreLocationPair($storeId, $locationId)) {
             $sync = $index->get($this->key($storeId, $locationId));
         }
 
@@ -398,7 +401,7 @@ class JubelioOrderWarehouseResolver
         }
 
         $columns = $this->storeLocationIdsFromSellJubelioOrder($salesInvoice);
-        if ($columns['store_id'] > 0 && $columns['location_id'] > 0) {
+        if (Jubeliosync::hasMappedStoreLocationPair($columns['store_id'], $columns['location_id'])) {
             return $columns;
         }
 
@@ -437,7 +440,7 @@ class JubelioOrderWarehouseResolver
         $query = Jubeliosync::query()
             ->with(['warehouse', 'customer'])
             ->where('jubelio_store_id', '>', 0)
-            ->where('jubelio_location_id', '>', 0);
+            ->where('jubelio_location_id', '!=', 0);
 
         if ($warehouseId !== null && $warehouseId > 0) {
             $query->where('warehouse_id', $warehouseId);
@@ -506,7 +509,7 @@ class JubelioOrderWarehouseResolver
             ->with(['warehouse', 'customer'])
             ->where('warehouse_id', $warehouseId)
             ->where('jubelio_store_id', '>', 0)
-            ->where('jubelio_location_id', '>', 0)
+            ->where('jubelio_location_id', '!=', 0)
             ->orderByDesc('customer_id')
             ->first();
     }
@@ -734,7 +737,7 @@ class JubelioOrderWarehouseResolver
 
         if ($ariaWarehouse) {
             $message = "Mapping: store {$storeId} / loc {$locationId} ({$locationName}) → {$ariaWarehouse}";
-        } elseif ($storeId > 0 && $locationId > 0) {
+        } elseif (Jubeliosync::hasMappedStoreLocationPair($storeId, $locationId)) {
             $message = "store {$storeId} / loc {$locationId} ({$locationName}) belum ada di Jubelio Sync — tambahkan mapping di Jubelio Sync.";
         } else {
             $message = "Payload tidak punya store_id/location_id (location_name: {$locationName}) — tidak bisa map ke gudang Aria.";
@@ -766,7 +769,7 @@ class JubelioOrderWarehouseResolver
         $locationId = (int) ($payload['location_id'] ?? 0);
 
         $sync = null;
-        if ($storeId > 0 && $locationId > 0) {
+        if (Jubeliosync::hasMappedStoreLocationPair($storeId, $locationId)) {
             $index = $syncIndex ?? $this->syncIndex();
             $sync = $index->get($this->key($storeId, $locationId));
         }
