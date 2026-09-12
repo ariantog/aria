@@ -10,6 +10,7 @@ use App\Models\Transaction;
 use App\Models\TransactionDetail;
 use App\Models\WarehouseItem;
 use App\Services\Jubelio\JubelioOrderPayloadService;
+use App\Services\Jubelio\JubelioOrderWarehouseResolver;
 use App\Services\Jubelio\JubelioSellerIncomeResolver;
 use App\Services\LocationAccessService;
 use App\Services\TransactionService;
@@ -22,6 +23,7 @@ class ProcessJubelioOrder
     public function __construct(
         private TransactionService $transactionService,
         private JubelioOrderPayloadService $payloadService,
+        private JubelioOrderWarehouseResolver $warehouseResolver,
         private LocationAccessService $locationAccessService,
         private JubelioSellerIncomeResolver $sellerIncomeResolver,
     ) {}
@@ -193,11 +195,10 @@ class ProcessJubelioOrder
             return ['success' => false, 'message' => 'Transaksi jual (asal) tidak ditemukan untuk retur ini'];
         }
 
-        $jubelioSync = Jubeliosync::where('jubelio_store_id', $dataApi['store_id'])
-            ->where('jubelio_location_id', $dataApi['location_id'])
-            ->first();
+        $returnMapping = $this->warehouseResolver->resolveReturnSync($order, null, $dataApi);
+        $jubelioSync = $returnMapping['sync'];
 
-        if (! $jubelioSync) {
+        if (! $jubelioSync || (int) $jubelioSync->customer_id <= 0) {
             $order->update([
                 'run_count' => $runCount,
                 'error_type' => 1,

@@ -347,6 +347,58 @@ it('shows return warehouse from payload jubelio sync not original sell warehouse
         ->assertSee($warehouseUrl, false);
 });
 
+it('shows return aria warehouse on list when payload omits store and location ids', function () {
+    $user = User::factory()->create();
+    $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'Gudang - Online Sambisari']);
+    $customer = Addrbook::factory()->create(['type' => Addrbook::TYPE_CUSTOMER, 'name' => 'TikTok - Customer']);
+
+    Jubeliosync::create([
+        'jubelio_store_id' => 44,
+        'jubelio_store_name' => 'TikTok',
+        'jubelio_location_id' => 55,
+        'jubelio_location_name' => 'Pusat',
+        'warehouse_id' => $warehouse->id,
+        'customer_id' => $customer->id,
+        'bin_id' => 0,
+    ]);
+
+    Transaction::factory()->create([
+        'type' => Transaction::TYPE_SELL,
+        'invoice' => 'INV-RET-NO-IDS',
+        'sender_id' => $warehouse->id,
+        'sender_type' => $warehouse->type,
+        'receiver_id' => $customer->id,
+        'receiver_type' => $customer->type,
+    ]);
+
+    mockJubelioSalesReturn('ret-no-ids', [
+        'return_no' => 'SR-RET-NO-IDS',
+        'salesorder_no' => 'INV-RET-NO-IDS',
+        'location_name' => 'Pusat',
+        'items' => [],
+    ]);
+
+    Jubelioorder::create([
+        'jubelio_order_id' => 'ret-no-ids',
+        'source' => 1,
+        'invoice' => 'SR-RET-NO-IDS',
+        'type' => 'RETURN',
+        'order_status' => 'RETURN',
+        'run_count' => 0,
+        'warehouse_id' => $warehouse->id,
+        'jubelio_store_id' => 0,
+        'jubelio_location_id' => 0,
+        'status' => 2,
+        'error_type' => 10,
+    ]);
+
+    $this->actingAs($user)
+        ->get(route('jubelio.index', ['invoice' => 'SR-RET-NO-IDS']))
+        ->assertSuccessful()
+        ->assertSee('Gudang - Online Sambisari')
+        ->assertDontSee('store/loc kosong di payload Jubelio');
+});
+
 it('can refresh jubelio order payload without changing updated_at or status', function () {
     $user = User::factory()->create();
     $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'Gudang Refresh']);

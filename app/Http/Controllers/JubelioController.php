@@ -113,8 +113,14 @@ class JubelioController extends Controller
             $order->jubelio_warehouse = $warehouses['jubelio_warehouse'];
             $order->aria_warehouse = $warehouses['aria_warehouse'];
             $order->aria_warehouse_url = $warehouses['aria_warehouse_url'];
-            $order->payload_store_id = (int) ($payload['store_id'] ?? 0);
-            $order->payload_location_id = (int) ($payload['location_id'] ?? 0);
+            if ($order->type === 'RETURN') {
+                $keys = $resolver->resolveReturnSync($order, $syncIndex, $payload);
+                $order->payload_store_id = $keys['store_id'];
+                $order->payload_location_id = $keys['location_id'];
+            } else {
+                $order->payload_store_id = (int) ($payload['store_id'] ?? 0);
+                $order->payload_location_id = (int) ($payload['location_id'] ?? 0);
+            }
 
             return $order;
         });
@@ -244,6 +250,10 @@ class JubelioController extends Controller
             ->first();
 
         $warehouseId = (int) ($sellTransaction?->sender_id ?? 0);
+        $sellJubelioKeys = app(JubelioOrderWarehouseResolver::class)
+            ->storeLocationIdsFromSellJubelioOrder((string) ($dataApi['salesorder_no'] ?? ''));
+        [$payloadStoreId, $payloadLocationId] = app(JubelioOrderWarehouseResolver::class)
+            ->storeLocationIdsFromPayload($dataApi);
 
         Jubelioorder::create([
             'jubelio_order_id' => $dataApi['return_id'],
@@ -253,8 +263,8 @@ class JubelioController extends Controller
             'order_status' => 'RETURN',
             'run_count' => 0,
             'warehouse_id' => $warehouseId,
-            'jubelio_store_id' => 0,
-            'jubelio_location_id' => 0,
+            'jubelio_store_id' => $payloadStoreId > 0 ? $payloadStoreId : $sellJubelioKeys['store_id'],
+            'jubelio_location_id' => $payloadLocationId > 0 ? $payloadLocationId : $sellJubelioKeys['location_id'],
             'status' => 0,
         ]);
 
