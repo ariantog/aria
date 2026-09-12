@@ -14,7 +14,7 @@ $breadcrumbs = [
     <div class="flex flex-col items-start justify-between gap-2 sm:flex-row sm:items-center">
         <div>
             <h2 class="text-2xl font-bold tracking-tight text-gray-900">{{ $location->name }}</h2>
-            <p class="mt-0.5 text-sm text-gray-500">Manage customers linked to this location.</p>
+            <p class="mt-0.5 text-sm text-gray-500">Manage addrbook contacts linked to this location (ledger accounts are excluded).</p>
         </div>
         <a href="{{ route('locations.index') }}"
            class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50">
@@ -30,11 +30,11 @@ $breadcrumbs = [
     @endif
 
     <div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-        <h3 class="text-sm font-semibold text-gray-900">Add customer</h3>
-        <p class="mt-0.5 text-sm text-gray-500">Search by name, phone, or member ID.</p>
+        <h3 class="text-sm font-semibold text-gray-900">Add contact</h3>
+        <p class="mt-0.5 text-sm text-gray-500">Search addrbook by name, phone, or member ID (all types except ledger).</p>
         <form method="GET" action="{{ route('locations.customers', $location) }}" class="mt-3 flex flex-wrap items-end gap-2">
             <div class="min-w-[16rem] flex-1">
-                <input type="search" name="q" value="{{ $filters['q'] ?? '' }}" placeholder="Search customers..."
+                <input type="search" name="q" value="{{ $filters['q'] ?? '' }}" placeholder="Search contacts..."
                        class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
             </div>
             <button type="submit" class="rounded-lg bg-blue-700 px-4 py-2 text-sm font-medium text-white hover:bg-blue-800">Search</button>
@@ -47,7 +47,8 @@ $breadcrumbs = [
                 <div>
                     <div class="font-medium text-gray-900">{{ $candidate->name }}</div>
                     <div class="text-xs text-gray-500">
-                        @if($candidate->phone) {{ $candidate->phone }} @endif
+                        {{ $candidate->type_name }}
+                        @if($candidate->phone) · {{ $candidate->phone }} @endif
                         @if($candidate->memberId) · {{ $candidate->memberId }} @endif
                     </div>
                 </div>
@@ -60,18 +61,19 @@ $breadcrumbs = [
             @endforeach
         </div>
         @elseif(($filters['q'] ?? '') !== '')
-        <p class="mt-3 text-sm text-gray-500">No matching customers found, or they are already linked.</p>
+        <p class="mt-3 text-sm text-gray-500">No matching contacts found, or they are already linked.</p>
         @endif
     </div>
 
     <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
         <div class="border-b border-gray-100 px-6 py-4">
-            <h3 class="text-sm font-semibold text-gray-900">Linked customers ({{ $assigned->count() }})</h3>
+            <h3 class="text-sm font-semibold text-gray-900">Linked contacts ({{ $assigned->count() }})</h3>
         </div>
         <div class="overflow-x-auto">
             <table class="min-w-full divide-y divide-gray-200 text-sm">
                 <thead class="bg-gray-50">
                     <tr>
+                        <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Type</th>
                         <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Name</th>
                         <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Phone</th>
                         <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Member ID</th>
@@ -81,13 +83,14 @@ $breadcrumbs = [
                 <tbody class="divide-y divide-gray-200 bg-white">
                     @forelse($assigned as $addrbook)
                     <tr class="hover:bg-gray-50">
+                        <td class="whitespace-nowrap px-6 py-4 text-gray-500">{{ $addrbook->type_name }}</td>
                         <td class="whitespace-nowrap px-6 py-4 font-medium text-gray-900">
-                            <a href="{{ route('addrbook.type.show', ['type' => 'customer', 'addrbook' => $addrbook->id]) }}" class="text-blue-600 hover:underline">{{ $addrbook->name }}</a>
+                            <a href="{{ route('addrbook.type.show', ['type' => $addrbook->type_slug, 'addrbook' => $addrbook->id]) }}" class="text-blue-600 hover:underline">{{ $addrbook->name }}</a>
                         </td>
                         <td class="whitespace-nowrap px-6 py-4 text-gray-500">{{ $addrbook->phone ?: '—' }}</td>
                         <td class="whitespace-nowrap px-6 py-4 text-gray-500">{{ $addrbook->memberId ?: '—' }}</td>
                         <td class="whitespace-nowrap px-6 py-4 text-right">
-                            <form method="POST" action="{{ route('locations.customers.detach', [$location, $addrbook]) }}" onsubmit="return confirm('Remove this customer from {{ $location->name }}?')">
+                            <form method="POST" action="{{ route('locations.customers.detach', [$location, $addrbook]) }}" onsubmit="return confirm('Remove this contact from {{ $location->name }}?')">
                                 @csrf
                                 @method('DELETE')
                                 <button type="submit" class="rounded-md border border-red-200 px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50">Remove</button>
@@ -95,7 +98,7 @@ $breadcrumbs = [
                         </td>
                     </tr>
                     @empty
-                    <tr><td colspan="4" class="px-6 py-12 text-center text-sm text-gray-500">No customers linked to this location yet.</td></tr>
+                    <tr><td colspan="5" class="px-6 py-12 text-center text-sm text-gray-500">No contacts linked to this location yet.</td></tr>
                     @endforelse
                 </tbody>
             </table>

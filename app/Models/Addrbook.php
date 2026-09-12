@@ -112,6 +112,12 @@ class Addrbook extends Model
         return in_array($type, [self::TYPE_BANK, self::TYPE_ACCOUNT, self::TYPE_V_ACCOUNT], true);
     }
 
+    /** Chart-of-accounts ledger (journal) contacts are not location-scoped. */
+    public static function typeIsLedger(int $type): bool
+    {
+        return $type === self::TYPE_ACCOUNT;
+    }
+
     public static function typeSupportsItemSales(int $type): bool
     {
         return ! self::typeIsFinancial($type);
@@ -256,6 +262,22 @@ class Addrbook extends Model
     public function scopeAccount(Builder $query): Builder
     {
         return $query->where('type', self::TYPE_ACCOUNT);
+    }
+
+    public function scopeWithoutLedgers(Builder $query): Builder
+    {
+        return $query->where('type', '!=', self::TYPE_ACCOUNT);
+    }
+
+    /**
+     * Visible to a location-restricted user: ledgers are global; other types need a pivot row.
+     */
+    public function scopeVisibleAtLocation(Builder $query, int $locationId): Builder
+    {
+        return $query->where(function (Builder $q) use ($locationId) {
+            $q->where('type', self::TYPE_ACCOUNT)
+                ->orWhereHas('locations', fn (Builder $lq) => $lq->where('locations.id', $locationId));
+        });
     }
 
     public function getTypeNameAttribute(): string
