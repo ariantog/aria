@@ -53,7 +53,10 @@ function itemForm() {
             this.autoFilledName = (this.form.product_name || '').toUpperCase().trim();
             this.autoFilledPcode = (this.form.pcode || '').toUpperCase().trim();
             this.captureAutoFilledSharedFromDom();
-            this.$nextTick(() => this.syncFromDom());
+            this.$nextTick(() => {
+                this.syncFromDom();
+                this.schedulePcodeLookup();
+            });
         },
 
         sharedFieldValue(fieldId) {
@@ -289,7 +292,11 @@ function itemForm() {
             }
 
             try {
-                const url = `${this.pcodeNameUrl}?pcode=${encodeURIComponent(pcode)}&type=${this.itemType}`;
+                const typeCode = (this.typeCode || '').toUpperCase().trim();
+                const typeCodeParam = typeCode && typeCode !== '???'
+                    ? `&type_code=${encodeURIComponent(typeCode)}`
+                    : '';
+                const url = `${this.pcodeNameUrl}?pcode=${encodeURIComponent(pcode)}&type=${this.itemType}${typeCodeParam}`;
                 const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
                 if (!res.ok) {
                     return;

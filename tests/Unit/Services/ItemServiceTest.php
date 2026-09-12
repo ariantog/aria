@@ -594,6 +594,36 @@ test('it loads the product name from an existing pcode when the form leaves it b
     expect($existing->fresh()->name)->toBe('ELBOW STRAP - BLACKWHITE');
 });
 
+test('it loads manufactured product name from sibling colorways under the same production master', function () {
+    $clnType = Tag::factory()->create([
+        'type' => Tag::TYPE_TYPE,
+        'item_type' => ItemType::ITEM->value,
+        'code' => 'CLN',
+        'name' => 'Clean',
+    ]);
+
+    $existingGroup = ItemGroup::factory()->create([
+        'master' => 'CX00122-03',
+        'variant' => '03',
+        'name' => 'RUNNING SHIRT',
+        'description' => 'Shared running shirt copy',
+    ]);
+
+    Item::factory()->create([
+        'type' => ItemType::ITEM,
+        'group_id' => $existingGroup->id,
+        'pcode' => 'CX00122-03',
+        'code' => 'CLN-CX00122-03-S',
+        'name' => 'RUNNING SHIRT - BLUE - S',
+    ])->tags()->sync([$clnType->id, $this->sizeTag->id, $this->warnaTag->id]);
+
+    expect($this->itemService->catalogHintsForPcode(ItemType::ITEM, 'CX00122-35', 'CLN'))
+        ->toMatchArray([
+            'product_name' => 'RUNNING SHIRT',
+            'description' => 'Shared running shirt copy',
+        ]);
+});
+
 test('it does not append color twice when the submitted name is a unique stored group name', function () {
     $assetType = Tag::factory()->create([
         'type' => Tag::TYPE_TYPE,

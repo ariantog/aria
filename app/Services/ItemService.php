@@ -10,7 +10,9 @@ use App\Models\Tag;
 use App\Services\Items\ItemIdentityBuilder;
 use App\Support\ItemCatalog;
 use Exception;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 
@@ -648,7 +650,7 @@ class ItemService
      *     reseller_price: float,
      * }|null
      */
-    public function catalogHintsForPcode(ItemType $type, string $pcode): ?array
+    public function catalogHintsForPcode(ItemType $type, string $pcode, ?string $typeCode = null): ?array
     {
         $pcode = strtoupper(trim($pcode));
 
@@ -659,14 +661,45 @@ class ItemService
         $item = Item::query()
             ->where('type', $type)
             ->whereRaw('UPPER(TRIM(pcode)) = ?', [$pcode])
-            ->with('group')
+            ->with(['group', 'tags'])
             ->orderByDesc('id')
             ->first();
 
-        if (! $item) {
-            return null;
+        $catalog = $item !== null
+            ? $this->catalogHintsFromItem($type, $pcode, $item)
+            : null;
+
+        if ($type === ItemType::ITEM) {
+            $resolvedTypeCode = $this->normalizeManufacturedTypeCodeHint($typeCode)
+                ?? ($item !== null ? $this->identityBuilder->manufacturedTypeCode($item) : null);
+
+            $needsParent = $catalog === null || ($catalog['product_name'] ?? null) === null;
+
+            if ($needsParent) {
+                $parent = $this->manufacturedParentCatalogHints($pcode, $resolvedTypeCode);
+
+                if ($parent !== null) {
+                    $catalog = $catalog === null
+                        ? $parent
+                        : $this->mergeCatalogHints($catalog, $parent);
+                }
+            }
         }
 
+        return $catalog;
+    }
+
+    /**
+     * @return array{
+     *     product_name: ?string,
+     *     description: string,
+     *     description2: string,
+     *     url: string,
+     *     reseller_price: float,
+     * }
+     */
+    protected function catalogHintsFromItem(ItemType $type, string $pcode, Item $item): array
+    {
         $productName = null;
 
         if ($item->group) {
@@ -707,6 +740,187 @@ class ItemService
                 : '',
             'reseller_price' => (float) ($group?->reseller_price ?? $item->reseller_price ?? 0),
         ];
+    }
+
+    /**
+     * @param  array{
+     *     product_name: ?string,
+     *     description: string,
+     *     description2: string,
+     *     url: string,
+     *     reseller_price: float,
+     * }  $primary
+     * @param  array{
+     *     product_name: ?string,
+     *     description: string,
+     *     description2: string,
+     *     url: string,
+     *     reseller_price: float,
+     * }  $fallback
+     * @return array{
+     *     product_name: ?string,
+     *     description: string,
+     *     description2: string,
+     *     url: string,
+     *     reseller_price: float,
+     * }
+     */
+    protected function mergeCatalogHints(array $primary, array $fallback): array
+    {
+        if (($primary['product_name'] ?? null) === null && ($fallback['product_name'] ?? null) !== null) {
+            $primary['product_name'] = $fallback['product_name'];
+        }
+
+        foreach (['description', 'description2', 'url'] as $field) {
+            if (trim((string) ($primary[$field] ?? '')) === '' && trim((string) ($fallback[$field] ?? '')) !== '') {
+                $primary[$field] = $fallback[$field];
+            }
+        }
+
+        if ((float) ($primary['reseller_price'] ?? 0) === 0.0 && (float) ($fallback['reseller_price'] ?? 0) !== 0.0) {
+            $primary['reseller_price'] = $fallback['reseller_price'];
+        }
+
+        return $primary;
+    }
+
+    protected function normalizeManufacturedTypeCodeHint(?string $typeCode): ?string
+    {
+        $typeCode = strtoupper(trim((string) $typeCode));
+
+        if ($typeCode === '' || $typeCode === '???' || $typeCode === 'UNK') {
+            return null;
+        }
+
+        return $typeCode;
+    }
+
+    /**
+     * Product title and shared catalog from sibling colorways under the same production master (e.g. CX00122).
+     *
+     * @return array{
+     *     product_name: ?string,
+     *     description: string,
+     *     description2: string,
+     *     url: string,
+     *     reseller_price: float,
+     * }|null
+     */
+    protected function manufacturedParentCatalogHints(string $pcode, ?string $typeCode = null): ?array
+    {
+        $master = $this->identityBuilder->canonicalManufacturedMaster($pcode);
+
+        if ($master === null) {
+            return null;
+        }
+
+        $groups = $this->manufacturedGroupsForParentMaster($master, $typeCode);
+
+        if ($groups->isEmpty()) {
+            return null;
+        }
+
+        $productName = $this->resolveManufacturedParentProductName($groups, $master, $pcode);
+
+        $description = $this->firstNonEmptyGroupField($groups, 'description');
+        $description2 = $this->firstNonEmptyGroupField($groups, 'description2');
+        $url = $this->firstNonEmptyGroupField($groups, 'url');
+        $resellerPrice = (float) $groups
+            ->map(fn (ItemGroup $group) => (float) ($group->reseller_price ?? 0))
+            ->filter(fn (float $value) => $value !== 0.0)
+            ->first() ?? 0.0;
+
+        if ($productName === null
+            && $description === ''
+            && $description2 === ''
+            && $url === ''
+            && $resellerPrice === 0.0) {
+            return null;
+        }
+
+        return [
+            'product_name' => $productName,
+            'description' => $description,
+            'description2' => $description2,
+            'url' => $url,
+            'reseller_price' => $resellerPrice,
+        ];
+    }
+
+    /**
+     * @return Collection<int, ItemGroup>
+     */
+    protected function manufacturedGroupsForParentMaster(string $master, ?string $typeCode = null): Collection
+    {
+        $query = ItemGroup::query()
+            ->whereHas('items', fn (Builder $q) => $q
+                ->where('type', ItemType::ITEM)
+                ->whereNull('deleted_at'))
+            ->where(function (Builder $masterQuery) use ($master) {
+                $masterQuery->whereRaw('UPPER(TRIM(item_group.master)) = ?', [$master])
+                    ->orWhereRaw("UPPER(REPLACE(TRIM(item_group.master), '/', '-')) = ?", [$master])
+                    ->orWhereRaw("UPPER(REPLACE(TRIM(item_group.master), '/', '-')) LIKE ?", [$master.'-%']);
+            });
+
+        if ($typeCode !== null) {
+            $query->whereHas('items', function (Builder $q) use ($typeCode) {
+                $q->where(function (Builder $inner) use ($typeCode) {
+                    $inner->whereHas('tags', fn (Builder $t) => $t
+                        ->where('tags.type', Tag::TYPE_TYPE)
+                        ->whereRaw('UPPER(tags.code) = ?', [$typeCode]))
+                        ->orWhereRaw('UPPER(items.code) LIKE ?', [$typeCode.'-%']);
+                });
+            });
+        }
+
+        return $query->get();
+    }
+
+    /**
+     * @param  Collection<int, ItemGroup>  $groups
+     */
+    protected function resolveManufacturedParentProductName(Collection $groups, string $master, string $pcode): ?string
+    {
+        $names = $groups
+            ->map(fn (ItemGroup $group) => trim((string) ($group->name ?? '')))
+            ->filter()
+            ->unique()
+            ->values();
+
+        $preferred = $names->first(
+            fn (string $name) => strtoupper($name) !== $master
+                && strtoupper($name) !== strtoupper($pcode)
+        );
+
+        $raw = $preferred ?? $names->first();
+
+        if ($raw === null || $raw === '') {
+            return null;
+        }
+
+        $display = $this->identityBuilder->productDisplayName(
+            ItemType::ITEM,
+            $raw,
+            '',
+            $master,
+        );
+
+        if ($display === '' || strtoupper($display) === $master || strtoupper($display) === strtoupper($pcode)) {
+            return null;
+        }
+
+        return $display;
+    }
+
+    /**
+     * @param  Collection<int, ItemGroup>  $groups
+     */
+    protected function firstNonEmptyGroupField(Collection $groups, string $field): string
+    {
+        return (string) $groups
+            ->map(fn (ItemGroup $group) => trim((string) ($group->{$field} ?? '')))
+            ->filter(fn (string $value) => $value !== '')
+            ->first() ?? '';
     }
 
     /**

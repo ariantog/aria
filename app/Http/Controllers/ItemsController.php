@@ -775,7 +775,12 @@ class ItemsController extends Controller
         abort_unless(Gate::check($create) || Gate::check($edit), 403);
 
         $pcode = strtoupper(trim((string) $request->query('pcode', '')));
-        $catalog = $this->itemService->catalogHintsForPcode($type, $pcode);
+        $typeCode = strtoupper(trim((string) $request->query('type_code', '')));
+        $catalog = $this->itemService->catalogHintsForPcode(
+            $type,
+            $pcode,
+            $typeCode !== '' ? $typeCode : null,
+        );
 
         return response()->json([
             'pcode' => $pcode,
