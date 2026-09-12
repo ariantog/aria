@@ -109,7 +109,7 @@ $td = 'px-1.5 py-2 align-top';
                 <tbody class="divide-y divide-gray-100">
                     @forelse($orders as $order)
                     @php
-                        $summary = $order->payloadSummary();
+                        $summary = $order->list_summary ?? $order->payloadSummary();
                         $payloadDate = $summary['transaction_date'];
                     @endphp
                     <tr class="hover:bg-gray-50">
