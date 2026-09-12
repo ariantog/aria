@@ -570,9 +570,10 @@ Canonical code: `App\Services\Jubelio\JubelioOrderWarehouseResolver`,
 5. Only then: `location_name` scoped to `jubelioorders.warehouse_id`, then any sync on that warehouse.
 6. Display fallback only: sell transaction parties — **do not** use for posting.
 
-**Common RETURN bugs (do not reintroduce):** filtering `jubeliosync` with `jubelio_location_id > 0`
-(excludes Pusat); using sell txn warehouse as primary filter; copying sell `sender_id` in
-`processReturn`; calling Jubelio API per row on `/jubelio` index.
+**Common bugs (do not reintroduce):** filtering `jubeliosync` with `jubelio_location_id > 0` (excludes
+Pusat `-1`) — applies to RETURN mapping, **warehouse stock page** (`WarehouseJubelioStockService`),
+and Jubelio stock-check scans; using sell txn warehouse as primary RETURN filter; copying sell
+`sender_id` in `processReturn`; calling Jubelio API per row on `/jubelio` index.
 
 #### Jubelio orders index (`/jubelio`)
 

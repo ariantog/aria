@@ -24,7 +24,11 @@ class JubelioStockCheckController extends Controller
                 ->orderBy('created_at', 'desc')
                 ->paginate(10),
             'activeJob' => JubelioStockCheck::whereIn('status', ['created', 'processing'])->first(),
-            'syncedWarehouseCount' => \App\Models\Jubeliosync::where('warehouse_id', '>', 0)->where('jubelio_location_id', '>', 0)->count(),
+            'syncedWarehouseCount' => \App\Models\Jubeliosync::query()
+                ->where('warehouse_id', '>', 0)
+                ->where('jubelio_store_id', '>', 0)
+                ->whereMappedJubelioLocation()
+                ->count(),
             'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
     }
@@ -89,7 +93,11 @@ class JubelioStockCheckController extends Controller
             'stockCheck' => $jubelioStockCheck,
             'discrepancies' => $discrepanciesQuery->get(),
             'sort' => $sort,
-            'syncedWarehouseCount' => \App\Models\Jubeliosync::where('warehouse_id', '>', 0)->where('jubelio_location_id', '>', 0)->count(),
+            'syncedWarehouseCount' => \App\Models\Jubeliosync::query()
+                ->where('warehouse_id', '>', 0)
+                ->where('jubelio_store_id', '>', 0)
+                ->whereMappedJubelioLocation()
+                ->count(),
             'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
     }

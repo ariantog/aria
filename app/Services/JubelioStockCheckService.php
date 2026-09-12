@@ -29,7 +29,8 @@ class JubelioStockCheckService
     {
         return Jubeliosync::query()
             ->where('warehouse_id', '>', 0)
-            ->where('jubelio_location_id', '>', 0)
+            ->where('jubelio_store_id', '>', 0)
+            ->whereMappedJubelioLocation()
             ->orderBy('id')
             ->get()
             ->all();
