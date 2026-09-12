@@ -516,6 +516,12 @@ RETURN still requires the original sell invoice in Aria for linkage; posting use
 sync row (not sell `sender_id`/`receiver_id`). RETURN does **not** run sell-style stock shortage
 checks. `customer_id` on the sync row must be a real addrbook id; `0` fails at post time.
 
+**Jubelio orders index (`/jubelio`) must not call the Jubelio API per row.** The list uses
+denormalized `jubelioorders.jubelio_store_id` / `jubelio_location_id` / `warehouse_id` plus
+`JubelioOrderWarehouseResolver::resolveForIndex()` (preloaded `jubeliosync` index). Qty/total on
+the list may show `—` until the user opens the detail page or hits Refresh payload; that is
+intentional to keep the index fast.
+
 HTTP 200 with `{message: "..."}` or a listing `{data, totalCount}` means **nothing was created**.
 The Aug 2026 move incident: Aria showed "status tidak jelas" and allowed confirm-as-success
 without an adj id. We **did not persist Jubelio's response body**, so the exact API reject
