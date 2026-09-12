@@ -425,6 +425,135 @@ it('shows return aria warehouse on list when payload omits store and location id
         ->assertDontSee('store/loc kosong di payload Jubelio');
 });
 
+it('maps return by jubelio sync location name even when order warehouse_id is wrong', function () {
+    $user = User::factory()->create();
+    $wrongWarehouse = Addrbook::factory()->warehouse()->create(['name' => 'Gudang Salah Dari Sell']);
+    $mappedWarehouse = Addrbook::factory()->warehouse()->create(['name' => 'Gudang - Online Sambisari']);
+    $customer = Addrbook::factory()->create(['type' => Addrbook::TYPE_CUSTOMER, 'name' => 'TikTok - Customer']);
+
+    Jubeliosync::create([
+        'jubelio_store_id' => 44,
+        'jubelio_store_name' => 'TikTok',
+        'jubelio_location_id' => 55,
+        'jubelio_location_name' => 'Pusat',
+        'warehouse_id' => $mappedWarehouse->id,
+        'customer_id' => $customer->id,
+        'bin_id' => 0,
+    ]);
+
+    Transaction::factory()->create([
+        'type' => Transaction::TYPE_SELL,
+        'invoice' => 'INV-RET-WRONG-WH',
+        'sender_id' => $wrongWarehouse->id,
+        'sender_type' => $wrongWarehouse->type,
+        'receiver_id' => $customer->id,
+        'receiver_type' => $customer->type,
+    ]);
+
+    mockJubelioSalesReturn('ret-wrong-wh', [
+        'return_no' => 'SR-RET-WRONG-WH',
+        'salesorder_no' => 'INV-RET-WRONG-WH',
+        'source_name' => 'TikTok',
+        'location_name' => 'Pusat',
+        'items' => [],
+    ]);
+
+    $order = Jubelioorder::create([
+        'jubelio_order_id' => 'ret-wrong-wh',
+        'source' => 1,
+        'invoice' => 'SR-RET-WRONG-WH',
+        'type' => 'RETURN',
+        'order_status' => 'RETURN',
+        'run_count' => 0,
+        'warehouse_id' => $wrongWarehouse->id,
+        'jubelio_store_id' => 0,
+        'jubelio_location_id' => 0,
+        'status' => 2,
+        'error_type' => 10,
+    ]);
+
+    $this->actingAs($user)
+        ->post(route('jubelio.refresh-payload', $order))
+        ->assertRedirect()
+        ->assertSessionHas('success');
+
+    $order->refresh();
+    expect($order->warehouse_id)->toBe($mappedWarehouse->id)
+        ->and($order->jubelio_store_id)->toBe(44)
+        ->and($order->jubelio_location_id)->toBe(55);
+
+    $this->actingAs($user)
+        ->get(route('jubelio.index', ['invoice' => 'SR-RET-WRONG-WH']))
+        ->assertSuccessful()
+        ->assertSee('Gudang - Online Sambisari')
+        ->assertDontSee('Gudang Salah Dari Sell');
+});
+
+it('treats jubelio location id -1 as valid pusat mapping from production sync rows', function () {
+    $user = User::factory()->create();
+    $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'Gudang - Online Sambisari']);
+    $customer = Addrbook::factory()->create(['type' => Addrbook::TYPE_CUSTOMER, 'name' => 'TIKTOK Channel']);
+
+    Jubeliosync::create([
+        'jubelio_store_id' => 32327,
+        'jubelio_store_name' => 'TIKTOK - TIKTOK',
+        'jubelio_location_id' => -1,
+        'jubelio_location_name' => 'Pusat',
+        'warehouse_id' => $warehouse->id,
+        'customer_id' => $customer->id,
+        'bin_id' => 2,
+    ]);
+
+    Transaction::factory()->create([
+        'type' => Transaction::TYPE_SELL,
+        'invoice' => 'INV-PUSAT-MINUS-ONE',
+        'sender_id' => $warehouse->id,
+        'sender_type' => $warehouse->type,
+        'receiver_id' => $customer->id,
+        'receiver_type' => $customer->type,
+    ]);
+
+    mockJubelioSalesReturn('ret-pusat-minus-one', [
+        'return_no' => 'SR-PUSAT-MINUS-ONE',
+        'salesorder_no' => 'INV-PUSAT-MINUS-ONE',
+        'source_name' => 'TIKTOK - TIKTOK',
+        'location_name' => 'Pusat',
+        'store_id' => 32327,
+        'location_id' => -1,
+        'items' => [],
+    ]);
+
+    $order = Jubelioorder::create([
+        'jubelio_order_id' => 'ret-pusat-minus-one',
+        'source' => 1,
+        'invoice' => 'SR-PUSAT-MINUS-ONE',
+        'type' => 'RETURN',
+        'order_status' => 'RETURN',
+        'run_count' => 0,
+        'warehouse_id' => 0,
+        'jubelio_store_id' => 0,
+        'jubelio_location_id' => 0,
+        'status' => 2,
+        'error_type' => 10,
+    ]);
+
+    $this->actingAs($user)
+        ->post(route('jubelio.refresh-payload', $order))
+        ->assertRedirect()
+        ->assertSessionHas('success');
+
+    $order->refresh();
+    expect($order->jubelio_store_id)->toBe(32327)
+        ->and($order->jubelio_location_id)->toBe(-1)
+        ->and($order->warehouse_id)->toBe($warehouse->id);
+
+    $this->actingAs($user)
+        ->get(route('jubelio.index', ['invoice' => 'SR-PUSAT-MINUS-ONE']))
+        ->assertSuccessful()
+        ->assertSee('Gudang - Online Sambisari')
+        ->assertDontSee('store/loc kosong di payload Jubelio');
+});
+
 it('can refresh jubelio order payload without changing updated_at or status', function () {
     $user = User::factory()->create();
     $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'Gudang Refresh']);

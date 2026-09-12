@@ -8,6 +8,7 @@ use App\Models\Addrbook;
 use App\Models\Jubelio;
 use App\Models\Jubelioorder;
 use App\Models\Jubelioreturn;
+use App\Models\Jubeliosync;
 use App\Models\Transaction;
 use App\Services\Jubelio\JubelioAdjustmentHint;
 use App\Services\Jubelio\JubelioOrderShowPresenter;
@@ -307,8 +308,12 @@ class JubelioController extends Controller
             'order_status' => 'RETURN',
             'run_count' => 0,
             'warehouse_id' => $warehouseId,
-            'jubelio_store_id' => $payloadStoreId > 0 ? $payloadStoreId : $sellJubelioKeys['store_id'],
-            'jubelio_location_id' => $payloadLocationId > 0 ? $payloadLocationId : $sellJubelioKeys['location_id'],
+            'jubelio_store_id' => Jubeliosync::isMappedStoreId($payloadStoreId)
+                ? $payloadStoreId
+                : $sellJubelioKeys['store_id'],
+            'jubelio_location_id' => Jubeliosync::isMappedLocationId($payloadLocationId)
+                ? $payloadLocationId
+                : $sellJubelioKeys['location_id'],
             'status' => 0,
         ]);
 
@@ -349,7 +354,10 @@ class JubelioController extends Controller
 
             $resolver = app(JubelioOrderWarehouseResolver::class);
             $payload = $d;
-            if ((int) ($d['store_id'] ?? 0) <= 0 || (int) ($d['location_id'] ?? 0) <= 0) {
+            if (! Jubeliosync::hasMappedStoreLocationPair(
+                (int) ($d['store_id'] ?? 0),
+                (int) ($d['location_id'] ?? 0),
+            )) {
                 $apiPayload = app(JubelioService::class)->fetchSalesOrder((string) ($d['salesorder_id'] ?? ''));
                 if (is_array($apiPayload)) {
                     $payload = array_merge($d, $apiPayload);

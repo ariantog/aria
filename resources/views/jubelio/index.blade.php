@@ -152,7 +152,7 @@ $td = 'px-1.5 py-2 align-top';
                                     <span class="font-medium text-gray-700">{{ $order->aria_warehouse ?: '—' }}</span>
                                     @if(!$order->aria_warehouse)
                                     <div class="mt-0.5 text-[10px] leading-tight text-amber-700" title="Cek mapping di Jubelio Sync">
-                                        @if(($order->payload_store_id ?? 0) > 0 && ($order->payload_location_id ?? 0) > 0)
+                                        @if(($order->payload_store_id ?? 0) > 0 && ($order->payload_location_id ?? 0) != 0)
                                             store {{ $order->payload_store_id }} / loc {{ $order->payload_location_id }} — belum di-sync
                                         @else
                                             store/loc kosong di payload Jubelio

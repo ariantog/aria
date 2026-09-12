@@ -503,15 +503,21 @@ Column meanings (A/B is sender/receiver, not debit/credit):
 
 A **move** is two independent adjustments, not a Jubelio transfer. Mapping lives in
 `jubeliosyncs` (Aria `warehouse_id` → `jubelio_location_id`); items need `jubelio_item_id`.
+**`jubelio_location_id` may be negative** (production uses `-1` for `"Pusat"`). Treat `0` as
+unset only — do not require `location_id > 0` when resolving sync rows or persisting
+`jubelioorders` keys (`Jubeliosync::hasMappedStoreLocationPair()`).
 
 **Inbound Jubelio order warehouse mapping (`jubelioorders`, `ProcessJubelioOrder`).** SELL and
 RETURN both resolve Aria **warehouse + channel customer** from **`jubeliosyncs`** using
 `store_id` + `location_id` on the fetched payload when present (`JubelioOrderWarehouseResolver`,
 `JubelioOrderShowPresenter`). **RETURN payloads often omit `store_id` / `location_id`** (only
-`location_name`); resolve via, in order: denormalized `jubelioorders.jubelio_*` columns, the
-matching **SELL** `jubelioorders` row for `salesorder_no`, **`location_name` → jubeliosync** (with
-`warehouse_id` hint), then `jubelioorders.warehouse_id` / original sell transaction parties for
-display fallback. List/filter uses the same resolver so index rows match the detail summary.
+`location_name`); resolve via, in order: payload `store_id`/`location_id`, denormalized
+`jubelioorders.jubelio_*`, the matching **SELL** `jubelioorders` row (or its Jubelio API payload)
+for `salesorder_no`, then **`location_name` (+ `source_name` when ambiguous) → jubeliosync across
+all warehouses** — do **not** treat `jubelioorders.warehouse_id` or the original sell transaction
+warehouse as the primary filter (stale/wrong hints are common on RETURN). Only after that, retry
+`location_name` scoped to `warehouse_id` / pick any sync on that warehouse. Sell transaction
+parties are display fallback only. List/filter uses the same resolver so index rows match detail.
 RETURN still requires the original sell invoice in Aria for linkage; posting uses the resolved
 sync row (not sell `sender_id`/`receiver_id`). RETURN does **not** run sell-style stock shortage
 checks. `customer_id` on the sync row must be a real addrbook id; `0` fails at post time.

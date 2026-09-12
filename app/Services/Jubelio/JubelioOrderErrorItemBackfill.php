@@ -23,7 +23,7 @@ class JubelioOrderErrorItemBackfill
 
         $storeId = (int) ($payload['store_id'] ?? 0);
         $locationId = (int) ($payload['location_id'] ?? 0);
-        if ($storeId <= 0 || $locationId <= 0) {
+        if (! Jubeliosync::hasMappedStoreLocationPair($storeId, $locationId)) {
             return null;
         }
 
