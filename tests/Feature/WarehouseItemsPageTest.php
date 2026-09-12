@@ -320,6 +320,52 @@ it('shows jubelio on-hand stock for synced warehouses', function () {
         ->assertSee('item(s) on this page are not linked to Jubelio', false);
 });
 
+it('shows jubelio stock when mapped location id is -1 pusat', function () {
+    User::factory()->create();
+    $user = User::factory()->create();
+    $user->givePermissionTo('addrbook-warehouse-items');
+
+    $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'Gudang Online Pusat']);
+    seedWarehouseJubelioSync($warehouse, -1, 'Pusat');
+
+    $linkedItem = Item::factory()->create([
+        'code' => 'JUB-PUSAT',
+        'jubelio_item_id' => 456,
+    ]);
+
+    WarehouseItem::create([
+        'warehouse_id' => $warehouse->id,
+        'item_id' => $linkedItem->id,
+        'warehouse_type' => Addrbook::TYPE_WAREHOUSE,
+        'quantity' => 12,
+    ]);
+
+    $this->mock(JubelioService::class, function (MockInterface $mock) {
+        $mock->shouldReceive('fetchItemsAllStocks')
+            ->once()
+            ->with([456])
+            ->andReturn([
+                'data' => [[
+                    'item_id' => 456,
+                    'location_stocks' => [[
+                        'location_id' => -1,
+                        'on_hand' => 9,
+                        'on_order' => 0,
+                        'reserved' => 1,
+                        'available' => 8,
+                    ]],
+                ]],
+            ]);
+    });
+
+    $this->actingAs($user)
+        ->get(route('addrbook.type.items', ['warehouse', $warehouse->id]))
+        ->assertOk()
+        ->assertSee('Pusat', false)
+        ->assertSee('9', false)
+        ->assertSee('8', false);
+});
+
 it('does not show jubelio column when warehouse is not mapped', function () {
     User::factory()->create();
     $user = User::factory()->create();

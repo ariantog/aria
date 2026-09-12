@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasOne;
@@ -37,6 +38,15 @@ class Jubeliosync extends Model
     public static function hasMappedStoreLocationPair(int $storeId, int $locationId): bool
     {
         return self::isMappedStoreId($storeId) && self::isMappedLocationId($locationId);
+    }
+
+    /**
+     * @param  Builder<Jubeliosync>  $query
+     * @return Builder<Jubeliosync>
+     */
+    public function scopeWhereMappedJubelioLocation(Builder $query): Builder
+    {
+        return $query->where('jubelio_location_id', '!=', 0);
     }
 
     public function warehouse(): HasOne
