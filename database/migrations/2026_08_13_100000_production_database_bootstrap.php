@@ -93,6 +93,8 @@ return new class extends Migration
         (require __DIR__.'/2026_09_08_120000_add_reseller_price_to_items_and_item_group.php')->up();
         (require __DIR__.'/2026_09_08_130000_remove_jubelio_get_orders_cron.php')->up();
         (require __DIR__.'/2026_09_05_150000_add_ppn_included_to_customers_table.php')->up();
+        (require __DIR__.'/2026_09_13_100000_install_item_insight_tables.php')->up();
+        (require __DIR__.'/2026_09_13_100100_grant_item_insights_report_permission.php')->up();
     }
 
     public function down(): void

@@ -106,6 +106,9 @@
     if ($hasPerm('report-inventory-health') || $isSuperAdmin) {
         $reportNavLabels[] = 'Inventory Health';
     }
+    if ($hasPerm('report-item-insights') || $isSuperAdmin) {
+        $reportNavLabels[] = 'Item Insights';
+    }
     if ($hasPerm('report-nett-cash') || $isSuperAdmin) {
         $reportNavLabels[] = 'Nett Cash';
     }
@@ -437,6 +440,7 @@
     || $hasPerm('report-warehouse-arrangement')
     || $hasPerm('report-product-performance')
     || $hasPerm('report-inventory-health')
+    || $hasPerm('report-item-insights')
     || $hasPerm('report-nett-cash')
     || $hasPerm('report-neraca')
     || $hasPerm('report-laba-rugi')
@@ -454,6 +458,7 @@
         || $isActive('/reports/warehouse-arrangement')
         || $isActive('/reports/product-performance')
         || $isActive('/reports/inventory-health')
+        || $isActive('/reports/item-insights')
         || $isActive('/reports/nett-cash-sby')
         || $isActive('/reports/neraca')
         || $isActive('/reports/laba-rugi')
@@ -478,7 +483,7 @@
         <svg x-show="sidebarOpen" x-cloak :class="open ? 'rotate-90' : ''" class="h-3.5 w-3.5 flex-shrink-0 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
     </button>
     <div x-show="open && sidebarOpen" x-cloak class="ml-6 mt-1 space-y-0.5">
-        @if($hasPerm('report-warehouse-item') || $hasPerm('report-warehouse-arrangement') || $hasPerm('report-product-performance') || $hasPerm('report-inventory-health') || $isSuperAdmin)
+        @if($hasPerm('report-warehouse-item') || $hasPerm('report-warehouse-arrangement') || $hasPerm('report-product-performance') || $hasPerm('report-inventory-health') || $hasPerm('report-item-insights') || $isSuperAdmin)
         <p class="{{ $navSubcategoryClass }}">Inventory</p>
         @endif
         @if($hasPerm('report-warehouse-item') || $isSuperAdmin)
@@ -492,6 +497,9 @@
         @endif
         @if($hasPerm('report-inventory-health') || $isSuperAdmin)
         <a href="{{ route('reports.inventory-health') }}" x-show="navLinkVisible('Inventory Health', 'Reports')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/inventory-health') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Inventory Health</a>
+        @endif
+        @if($hasPerm('report-item-insights') || $isSuperAdmin)
+        <a href="{{ route('reports.item-insights') }}" x-show="navLinkVisible('Item Insights', 'Reports')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/item-insights') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Item Insights</a>
         @endif
 
         @if($hasPerm('report-nett-cash') || $hasPerm('report-neraca') || $hasPerm('report-laba-rugi') || $hasPerm('report-channel-pnl') || $hasPerm('report-receivables') || $hasPerm('report-payables') || $hasPerm('report-asset-tetap') || $isSuperAdmin)

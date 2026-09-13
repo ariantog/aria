@@ -250,6 +250,15 @@ class SidebarFavoriteRegistry
                 'active_prefix' => '/reports/inventory-health',
             ],
             [
+                'key' => 'report-item-insights',
+                'label' => 'Item Insights',
+                'group' => 'Reports',
+                'permission' => 'report-item-insights',
+                'route' => 'reports.item-insights',
+                'params' => [],
+                'active_prefix' => '/reports/item-insights',
+            ],
+            [
                 'key' => 'report-nett-cash',
                 'label' => 'Nett Cash',
                 'group' => 'Reports',

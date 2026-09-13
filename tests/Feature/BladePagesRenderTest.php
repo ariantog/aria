@@ -206,6 +206,7 @@ it('renders migrated GET pages with a 200', function (string $route) {
     'stock notifications' => 'stock-notifications',
     'report product-performance' => 'reports/product-performance',
     'report inventory-health' => 'reports/inventory-health',
+    'report item-insights' => 'reports/item-insights',
     'report produksi potong' => 'reports/produksi-potong',
     'report produksi jahit' => 'reports/produksi-jahit',
     'report produksi qc' => 'reports/produksi-qc',
