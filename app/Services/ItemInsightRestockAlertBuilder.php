@@ -10,6 +10,9 @@ class ItemInsightRestockAlertBuilder
 {
     public const LOW_COVER_DAYS = 14;
 
+    /** Best sellers get a restock warning up to this cover (stricter than generic low stock). */
+    public const BEST_SELLER_COVER_DAYS = 30;
+
     public const HIGH_SOLD_RATIO = 1.0;
 
     public const MIN_NET_QTY = 1.0;
@@ -20,19 +23,30 @@ class ItemInsightRestockAlertBuilder
 
     /**
      * @param  list<array<string, mixed>>  $aggregates
+     * @param  list<array<string, mixed>>  $bestSellingRanked
      * @return list<array<string, mixed>>
      */
-    public function rank(array $aggregates, int $daysInPeriod): array
-    {
+    public function rank(
+        array $aggregates,
+        int $daysInPeriod,
+        \DateTimeInterface $asOf,
+        array $bestSellingRanked = [],
+    ): array {
         if ($aggregates === []) {
             return [];
         }
 
+        $asOfDay = Carbon::parse($asOf)->startOfDay();
+        $bestSellerIds = array_map(
+            fn (array $row) => (int) $row['item_id'],
+            array_slice($bestSellingRanked, 0, ItemInsightSyncService::TOP_LIMIT),
+        );
+        $bestSellerSet = array_fill_keys($bestSellerIds, true);
+
         $itemIds = array_map(fn (array $row) => (int) $row['item_id'], $aggregates);
-        $stockByItem = $this->physicalStockByItem($itemIds);
-        $buyByItem = $this->lastBuys->forItems($itemIds);
+        $stockRows = $this->physicalStockAndThresholdsByItem($itemIds);
+        $buyByItem = $this->lastBuys->forItems($itemIds, $asOfDay);
         $daysInPeriod = max(1, $daysInPeriod);
-        $today = now()->startOfDay();
 
         $candidates = [];
         foreach ($aggregates as $row) {
@@ -42,7 +56,9 @@ class ItemInsightRestockAlertBuilder
                 continue;
             }
 
-            $stock = max(0.0, (float) ($stockByItem[$itemId] ?? 0));
+            $stockRow = $stockRows[$itemId] ?? ['stock_qty' => 0.0, 'restock_urgent_threshold' => null];
+            $stock = max(0.0, (float) $stockRow['stock_qty']);
+            $urgentThreshold = $stockRow['restock_urgent_threshold'];
             $velocity = $netQty / $daysInPeriod;
             if ($velocity <= 0) {
                 continue;
@@ -50,6 +66,7 @@ class ItemInsightRestockAlertBuilder
 
             $daysOfCover = $stock > 0 ? round($stock / $velocity, 2) : 0.0;
             $soldRatio = round($netQty / max($stock, 1.0), 4);
+            $isBestSeller = isset($bestSellerSet[$itemId]);
 
             $lastBuy = $buyByItem[$itemId] ?? null;
             $lastBuyQty = $lastBuy ? (float) $lastBuy['qty'] : null;
@@ -59,17 +76,19 @@ class ItemInsightRestockAlertBuilder
                 : null;
 
             $daysSinceBuy = $lastBuyDate
-                ? max(0, Carbon::parse($lastBuyDate)->startOfDay()->diffInDays($today))
+                ? max(0, Carbon::parse($lastBuyDate)->startOfDay()->diffInDays($asOfDay))
                 : null;
 
             $alertDetail = $this->buildAlertDetail(
                 $daysOfCover,
                 $soldRatio,
-                $velocity,
                 $lastBuyQty,
                 $lastBuyDate,
                 $buyCoverDays,
                 $daysSinceBuy,
+                $isBestSeller,
+                $stock,
+                $urgentThreshold,
             );
 
             if ($alertDetail === null) {
@@ -110,32 +129,43 @@ class ItemInsightRestockAlertBuilder
     private function buildAlertDetail(
         float $daysOfCover,
         float $soldRatio,
-        float $velocity,
         ?float $lastBuyQty,
         ?string $lastBuyDate,
         ?float $buyCoverDays,
         ?int $daysSinceBuy,
+        bool $isBestSeller,
+        float $stock,
+        ?int $urgentThreshold,
     ): ?string {
         $parts = [];
 
         $lowCover = $daysOfCover < self::LOW_COVER_DAYS;
+        $bestSellerLowCover = $isBestSeller && $daysOfCover < self::BEST_SELLER_COVER_DAYS;
         $hotSeller = $soldRatio >= self::HIGH_SOLD_RATIO;
+        $belowUrgent = $urgentThreshold !== null && $urgentThreshold > 0 && $stock <= (float) $urgentThreshold;
 
         if ($lowCover && ($hotSeller || $daysOfCover <= 0)) {
             $parts[] = sprintf(
-                '≈%s days of stock at current sell rate (sold ratio %s×)',
+                '≈%s days of stock at period sell rate (sold ratio %s×)',
                 number_format($daysOfCover, 1),
                 number_format($soldRatio, 1),
             );
-        } elseif ($lowCover) {
-            $parts[] = sprintf('Low cover: ≈%s days left', number_format($daysOfCover, 1));
+        } elseif ($lowCover || $bestSellerLowCover) {
+            $label = $isBestSeller ? 'Best seller low cover' : 'Low cover';
+            $parts[] = sprintf('%s: ≈%s days left at period sell rate', $label, number_format($daysOfCover, 1));
         } elseif ($hotSeller) {
             $parts[] = sprintf('High sold ratio %s× vs on-hand stock', number_format($soldRatio, 1));
+        } elseif ($belowUrgent && $isBestSeller) {
+            $parts[] = sprintf(
+                'Best seller at or below urgent threshold (%s units on hand, threshold %s)',
+                number_format($stock, 0),
+                number_format($urgentThreshold, 0),
+            );
         }
 
         if ($buyCoverDays !== null && $daysSinceBuy !== null && $daysSinceBuy > $buyCoverDays) {
             $parts[] = sprintf(
-                'Selling faster than last buy (%s units on %s ≈ %s days supply, %s days ago)',
+                'Selling faster than last buy before period end (%s units on %s ≈ %s days supply, %s days before period end)',
                 number_format($lastBuyQty ?? 0, 0),
                 $lastBuyDate,
                 number_format($buyCoverDays, 1),
@@ -143,10 +173,14 @@ class ItemInsightRestockAlertBuilder
             );
         } elseif ($buyCoverDays !== null && $daysOfCover < $buyCoverDays * 0.5) {
             $parts[] = sprintf(
-                'Stock will run out before last buy coverage (%s days vs %s days at sell rate)',
+                'Stock will run out before last buy coverage (%s days vs %s days at period sell rate)',
                 number_format($daysOfCover, 1),
                 number_format($buyCoverDays, 1),
             );
+        }
+
+        if ($parts === [] && $belowUrgent) {
+            $parts[] = sprintf('On-hand %s at or below urgent threshold %s', number_format($stock, 0), number_format($urgentThreshold, 0));
         }
 
         if ($parts === []) {
@@ -158,19 +192,32 @@ class ItemInsightRestockAlertBuilder
 
     /**
      * @param  list<int>  $itemIds
-     * @return array<int, float>
+     * @return array<int, array{stock_qty: float, restock_urgent_threshold: ?int}>
      */
-    private function physicalStockByItem(array $itemIds): array
+    private function physicalStockAndThresholdsByItem(array $itemIds): array
     {
-        return DB::table('warehouse_item as wi')
+        $stock = DB::table('warehouse_item as wi')
             ->join('customers as wh', 'wh.id', '=', 'wi.warehouse_id')
             ->whereNull('wh.deleted_at')
             ->where('wh.type', Addrbook::TYPE_WAREHOUSE)
             ->whereIn('wi.item_id', $itemIds)
             ->groupBy('wi.item_id')
             ->selectRaw('wi.item_id as item_id, COALESCE(SUM(wi.quantity), 0) as stock_qty')
-            ->pluck('stock_qty', 'item_id')
-            ->map(fn ($qty) => (float) $qty)
-            ->all();
+            ->pluck('stock_qty', 'item_id');
+
+        $thresholds = DB::table('items')
+            ->whereIn('id', $itemIds)
+            ->whereNull('deleted_at')
+            ->pluck('restock_urgent_threshold', 'id');
+
+        $rows = [];
+        foreach ($itemIds as $itemId) {
+            $rows[$itemId] = [
+                'stock_qty' => (float) ($stock[$itemId] ?? 0),
+                'restock_urgent_threshold' => isset($thresholds[$itemId]) ? (int) $thresholds[$itemId] : null,
+            ];
+        }
+
+        return $rows;
     }
 }
