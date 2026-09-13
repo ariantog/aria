@@ -95,6 +95,7 @@ return new class extends Migration
         (require __DIR__.'/2026_09_05_150000_add_ppn_included_to_customers_table.php')->up();
         (require __DIR__.'/2026_09_13_100000_install_item_insight_tables.php')->up();
         (require __DIR__.'/2026_09_13_100100_grant_item_insights_report_permission.php')->up();
+        (require __DIR__.'/2026_09_13_110000_add_months_included_to_item_insight_months.php')->up();
     }
 
     public function down(): void

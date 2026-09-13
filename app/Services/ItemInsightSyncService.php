@@ -15,7 +15,7 @@ class ItemInsightSyncService
     public const LOSS_LEADER_MIN_QTY = 1.0;
 
     /**
-     * @return array{year: int, month: int, rows: int, calculated_at: string}
+     * @return array{year: int, month: int, rows: int, calculated_at: string, months_included?: list<int>}
      */
     public function recalculateMonth(int $year, int $month, ?int $userId = null): array
     {
@@ -27,15 +27,103 @@ class ItemInsightSyncService
             throw new \InvalidArgumentException('Year is out of range.');
         }
 
-        $aggregates = $this->aggregateCompanyMonth($year, $month);
-        $daysInMonth = Carbon::create($year, $month, 1)->daysInMonth;
+        $aggregates = $this->aggregateCompanyMonths($year, [$month]);
+        $daysInPeriod = Carbon::create($year, $month, 1)->daysInMonth;
+
+        return $this->storeRankings(
+            $year,
+            $month,
+            $aggregates,
+            $daysInPeriod,
+            $userId,
+            [$month],
+        );
+    }
+
+    /**
+     * Year rollup uses calculated insight months in that year when any exist; otherwise
+     * every month that has warehouse_item_monthly_stats rows for the year.
+     *
+     * @return array{year: int, month: int, rows: int, calculated_at: string, months_included: list<int>}
+     */
+    public function recalculateYear(int $year, ?int $userId = null): array
+    {
+        if ($year < 2000 || $year > 2100) {
+            throw new \InvalidArgumentException('Year is out of range.');
+        }
+
+        $monthsIncluded = $this->resolveYearSourceMonths($year);
+        if ($monthsIncluded === []) {
+            return $this->storeRankings($year, ItemInsightMonth::MONTH_YEARLY, [], 0, $userId, []);
+        }
+
+        $aggregates = $this->aggregateCompanyMonths($year, $monthsIncluded);
+        $daysInPeriod = $this->daysInMonths($year, $monthsIncluded);
+
+        $result = $this->storeRankings(
+            $year,
+            ItemInsightMonth::MONTH_YEARLY,
+            $aggregates,
+            $daysInPeriod,
+            $userId,
+            $monthsIncluded,
+        );
+        $result['months_included'] = $monthsIncluded;
+
+        return $result;
+    }
+
+    /**
+     * Prefer months already calculated for item insights; fall back to warehouse stats months.
+     *
+     * @return list<int>
+     */
+    public function resolveYearSourceMonths(int $year): array
+    {
+        $fromInsights = ItemInsightMonth::query()
+            ->where('year', $year)
+            ->whereBetween('month', [1, 12])
+            ->orderBy('month')
+            ->pluck('month')
+            ->map(fn ($m) => (int) $m)
+            ->all();
+
+        if ($fromInsights !== []) {
+            return array_values(array_unique($fromInsights));
+        }
+
+        return DB::table('warehouse_item_monthly_stats')
+            ->where('year', $year)
+            ->distinct()
+            ->orderBy('month')
+            ->pluck('month')
+            ->map(fn ($m) => (int) $m)
+            ->filter(fn (int $m) => $m >= 1 && $m <= 12)
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $aggregates
+     * @param  list<int>  $monthsIncluded
+     * @return array{year: int, month: int, rows: int, calculated_at: string}
+     */
+    private function storeRankings(
+        int $year,
+        int $month,
+        array $aggregates,
+        int $daysInPeriod,
+        ?int $userId,
+        array $monthsIncluded,
+    ): array {
         $now = now();
+        $daysForVelocity = max(1, $daysInPeriod);
 
         $ranked = [
             ItemInsightRanking::CATEGORY_BEST_SELLING => $this->rankBestSelling($aggregates),
             ItemInsightRanking::CATEGORY_MOST_PROFITABLE => $this->rankMostProfitable($aggregates),
             ItemInsightRanking::CATEGORY_LOSS_LEADER => $this->rankLossLeaders($aggregates),
-            ItemInsightRanking::CATEGORY_FASTEST_SELLING => $this->rankFastestSelling($aggregates, $daysInMonth),
+            ItemInsightRanking::CATEGORY_FASTEST_SELLING => $this->rankFastestSelling($aggregates, $daysForVelocity),
         ];
 
         $payload = [];
@@ -66,7 +154,7 @@ class ItemInsightSyncService
             }
         }
 
-        DB::transaction(function () use ($year, $month, $payload, $totalRows, $userId, $now): void {
+        DB::transaction(function () use ($year, $month, $payload, $totalRows, $userId, $now, $monthsIncluded): void {
             ItemInsightRanking::query()
                 ->where('year', $year)
                 ->where('month', $month)
@@ -80,6 +168,7 @@ class ItemInsightSyncService
                 ['year' => $year, 'month' => $month],
                 [
                     'row_count' => $totalRows,
+                    'months_included' => $monthsIncluded !== [] ? $monthsIncluded : null,
                     'calculated_by' => $userId,
                     'calculated_at' => $now,
                 ],
@@ -95,15 +184,20 @@ class ItemInsightSyncService
     }
 
     /**
+     * @param  list<int>  $months
      * @return list<array<string, mixed>>
      */
-    private function aggregateCompanyMonth(int $year, int $month): array
+    private function aggregateCompanyMonths(int $year, array $months): array
     {
+        if ($months === []) {
+            return [];
+        }
+
         $rows = DB::table('warehouse_item_monthly_stats as w')
             ->join('items as i', 'i.id', '=', 'w.item_id')
             ->whereNull('i.deleted_at')
             ->where('w.year', $year)
-            ->where('w.month', $month)
+            ->whereIn('w.month', $months)
             ->select([
                 'w.item_id',
                 'i.name as item_name',
@@ -158,6 +252,21 @@ class ItemInsightSyncService
         }
 
         return $aggregates;
+    }
+
+    /**
+     * @param  list<int>  $months
+     */
+    private function daysInMonths(int $year, array $months): int
+    {
+        $total = 0;
+        foreach ($months as $month) {
+            if ($month >= 1 && $month <= 12) {
+                $total += Carbon::create($year, $month, 1)->daysInMonth;
+            }
+        }
+
+        return max(0, $total);
     }
 
     /**
@@ -216,9 +325,9 @@ class ItemInsightSyncService
      * @param  list<array<string, mixed>>  $aggregates
      * @return list<array<string, mixed>>
      */
-    private function rankFastestSelling(array $aggregates, int $daysInMonth): array
+    private function rankFastestSelling(array $aggregates, int $daysInPeriod): array
     {
-        $days = max(1, $daysInMonth);
+        $days = max(1, $daysInPeriod);
 
         foreach ($aggregates as &$row) {
             $row['daily_velocity'] = round($row['net_qty'] / $days, 4);
