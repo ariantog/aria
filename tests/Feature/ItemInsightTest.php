@@ -8,6 +8,7 @@ use App\Models\ItemInsightMonth;
 use App\Models\ItemInsightRanking;
 use App\Models\User;
 use App\Models\WarehouseItemMonthlyStat;
+use App\Services\ItemInsightQueryService;
 use App\Services\ItemInsightSyncService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Permission\Models\Permission;
@@ -170,14 +171,127 @@ it('recalculates a month via POST and redirects with status', function () {
 
     $this->actingAs($user)
         ->post(route('reports.item-insights.recalculate'), [
+            'grain' => ItemInsightQueryService::GRAIN_MONTH,
             'period' => '2025-12',
             'tab' => ItemInsightRanking::CATEGORY_BEST_SELLING,
         ])
         ->assertRedirect(route('reports.item-insights', [
+            'grain' => ItemInsightQueryService::GRAIN_MONTH,
             'period' => '2025-12',
             'tab' => ItemInsightRanking::CATEGORY_BEST_SELLING,
         ]))
         ->assertSessionHas('status');
 
     expect(ItemInsightMonth::query()->where('year', 2025)->where('month', 12)->exists())->toBeTrue();
+});
+
+it('recalculates yearly insights from calculated months only when partial year', function () {
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    $item = Item::factory()->create(['name' => 'Year Hero', 'cost' => 1000, 'price' => 5000]);
+    $year = 2026;
+
+    foreach ([1, 3] as $month) {
+        WarehouseItemMonthlyStat::create([
+            'warehouse_id' => $warehouse->id,
+            'item_id' => $item->id,
+            'year' => $year,
+            'month' => $month,
+            'sold_qty' => 10,
+            'returned_qty' => 0,
+            'sold_value' => 50_000,
+            'returned_value' => 0,
+        ]);
+        app(ItemInsightSyncService::class)->recalculateMonth($year, $month);
+    }
+
+    WarehouseItemMonthlyStat::create([
+        'warehouse_id' => $warehouse->id,
+        'item_id' => $item->id,
+        'year' => $year,
+        'month' => 6,
+        'sold_qty' => 99,
+        'returned_qty' => 0,
+        'sold_value' => 500_000,
+        'returned_value' => 0,
+    ]);
+
+    $result = app(ItemInsightSyncService::class)->recalculateYear($year);
+    expect($result['months_included'])->toBe([1, 3]);
+
+    $yearRow = ItemInsightMonth::query()
+        ->where('year', $year)
+        ->where('month', ItemInsightMonth::MONTH_YEARLY)
+        ->first();
+
+    expect($yearRow)->not->toBeNull();
+    expect($yearRow->monthsIncludedList())->toBe([1, 3]);
+
+    $best = ItemInsightRanking::query()
+        ->where('year', $year)
+        ->where('month', ItemInsightMonth::MONTH_YEARLY)
+        ->where('category', ItemInsightRanking::CATEGORY_BEST_SELLING)
+        ->orderBy('rank')
+        ->first();
+
+    expect((float) $best?->net_qty)->toBe(20.0);
+});
+
+it('falls back to warehouse stats months for yearly when no monthly insights exist', function () {
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    $item = Item::factory()->create(['cost' => 500, 'price' => 2000]);
+    $year = 2024;
+
+    WarehouseItemMonthlyStat::create([
+        'warehouse_id' => $warehouse->id,
+        'item_id' => $item->id,
+        'year' => $year,
+        'month' => 7,
+        'sold_qty' => 4,
+        'returned_qty' => 0,
+        'sold_value' => 8000,
+        'returned_value' => 0,
+    ]);
+
+    $result = app(ItemInsightSyncService::class)->recalculateYear($year);
+    expect($result['months_included'])->toBe([7]);
+    expect(ItemInsightRanking::query()->where('year', $year)->where('month', ItemInsightMonth::MONTH_YEARLY)->exists())->toBeTrue();
+});
+
+it('renders yearly item insights from stored rankings', function () {
+    $user = User::factory()->create();
+    $user->givePermissionTo('report-item-insights');
+
+    ItemInsightMonth::create([
+        'year' => 2025,
+        'month' => ItemInsightMonth::MONTH_YEARLY,
+        'row_count' => 1,
+        'months_included' => [1, 2, 3],
+        'calculated_at' => now(),
+    ]);
+    ItemInsightRanking::create([
+        'year' => 2025,
+        'month' => ItemInsightMonth::MONTH_YEARLY,
+        'category' => ItemInsightRanking::CATEGORY_BEST_SELLING,
+        'rank' => 1,
+        'item_id' => 9,
+        'item_name' => 'Yearly Top SKU',
+        'item_code' => 'Y-1',
+        'net_qty' => 120,
+        'net_value' => 1_200_000,
+        'cost_total' => 400_000,
+        'profit' => 800_000,
+        'margin_pct' => 66.6667,
+        'daily_velocity' => 1.32,
+    ]);
+
+    $this->actingAs($user)
+        ->get(route('reports.item-insights', [
+            'grain' => 'year',
+            'period' => '2025',
+            'tab' => ItemInsightRanking::CATEGORY_BEST_SELLING,
+        ]))
+        ->assertOk()
+        ->assertSee('Yearly Top SKU', false)
+        ->assertSee('partial year', false)
+        ->assertSee('item-insights-year-tracker', false);
 });
