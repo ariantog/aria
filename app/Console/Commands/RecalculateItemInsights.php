@@ -18,10 +18,6 @@ class RecalculateItemInsights extends Command
     {
         $year = (int) $this->argument('year');
 
-        if ($this->option('yearly') || $this->argument('month') === null && ! $this->input->hasArgument('month')) {
-            // month optional: if --yearly OR only year passed - actually when month omitted without yearly, we should require one or the other
-        }
-
         if ($this->option('yearly')) {
             return $this->recalculateYear($sync, $year);
         }
