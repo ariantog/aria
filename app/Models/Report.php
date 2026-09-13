@@ -20,6 +20,7 @@ class Report
             'view-warehouse-arrangement' => 'report-warehouse-arrangement',
             'view-product-performance' => 'report-product-performance',
             'view-inventory-health' => 'report-inventory-health',
+            'view-item-insights' => 'report-item-insights',
             'view-produksi-potong' => 'report-produksi-potong',
             'view-produksi-jahit' => 'report-produksi-jahit',
             'view-produksi-qc' => 'report-produksi-qc',
