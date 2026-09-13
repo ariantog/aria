@@ -14,6 +14,8 @@ class ItemInsightRanking extends Model
 
     public const CATEGORY_FASTEST_SELLING = 'fastest_selling';
 
+    public const CATEGORY_RESTOCK_ALERT = 'restock_alert';
+
     protected $fillable = [
         'year',
         'month',
@@ -28,6 +30,13 @@ class ItemInsightRanking extends Model
         'profit',
         'margin_pct',
         'daily_velocity',
+        'stock_qty',
+        'days_of_cover',
+        'sold_ratio',
+        'last_buy_qty',
+        'last_buy_date',
+        'buy_cover_days',
+        'alert_detail',
     ];
 
     protected function casts(): array
@@ -43,6 +52,12 @@ class ItemInsightRanking extends Model
             'profit' => 'float',
             'margin_pct' => 'float',
             'daily_velocity' => 'float',
+            'stock_qty' => 'float',
+            'days_of_cover' => 'float',
+            'sold_ratio' => 'float',
+            'last_buy_qty' => 'float',
+            'last_buy_date' => 'date',
+            'buy_cover_days' => 'float',
         ];
     }
 
@@ -56,6 +71,7 @@ class ItemInsightRanking extends Model
             self::CATEGORY_MOST_PROFITABLE => 'Most profitable',
             self::CATEGORY_LOSS_LEADER => 'Loss leaders',
             self::CATEGORY_FASTEST_SELLING => 'Fastest selling',
+            self::CATEGORY_RESTOCK_ALERT => 'Restock alerts',
         ];
     }
 

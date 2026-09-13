@@ -11,6 +11,10 @@ class ItemInsightSyncService
 {
     public const TOP_LIMIT = 50;
 
+    public function __construct(
+        private readonly ItemInsightRestockAlertBuilder $restockAlerts,
+    ) {}
+
     /** Minimum net units sold in the month to qualify as a loss leader candidate. */
     public const LOSS_LEADER_MIN_QTY = 1.0;
 
@@ -124,6 +128,7 @@ class ItemInsightSyncService
             ItemInsightRanking::CATEGORY_MOST_PROFITABLE => $this->rankMostProfitable($aggregates),
             ItemInsightRanking::CATEGORY_LOSS_LEADER => $this->rankLossLeaders($aggregates),
             ItemInsightRanking::CATEGORY_FASTEST_SELLING => $this->rankFastestSelling($aggregates, $daysForVelocity),
+            ItemInsightRanking::CATEGORY_RESTOCK_ALERT => $this->restockAlerts->rank($aggregates, $daysForVelocity),
         ];
 
         $payload = [];
@@ -133,23 +138,7 @@ class ItemInsightSyncService
             $rank = 0;
             foreach ($rows as $row) {
                 $rank++;
-                $payload[] = [
-                    'year' => $year,
-                    'month' => $month,
-                    'category' => $category,
-                    'rank' => $rank,
-                    'item_id' => $row['item_id'],
-                    'item_name' => $row['item_name'],
-                    'item_code' => $row['item_code'],
-                    'net_qty' => $row['net_qty'],
-                    'net_value' => $row['net_value'],
-                    'cost_total' => $row['cost_total'],
-                    'profit' => $row['profit'],
-                    'margin_pct' => $row['margin_pct'],
-                    'daily_velocity' => $row['daily_velocity'],
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ];
+                $payload[] = $this->rankingPayload($year, $month, $category, $rank, $row, $now);
                 $totalRows++;
             }
         }
@@ -180,6 +169,38 @@ class ItemInsightSyncService
             'month' => $month,
             'rows' => $totalRows,
             'calculated_at' => $now->toDateTimeString(),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $row
+     * @return array<string, mixed>
+     */
+    private function rankingPayload(int $year, int $month, string $category, int $rank, array $row, \DateTimeInterface $now): array
+    {
+        return [
+            'year' => $year,
+            'month' => $month,
+            'category' => $category,
+            'rank' => $rank,
+            'item_id' => $row['item_id'],
+            'item_name' => $row['item_name'],
+            'item_code' => $row['item_code'],
+            'net_qty' => $row['net_qty'],
+            'net_value' => $row['net_value'],
+            'cost_total' => $row['cost_total'],
+            'profit' => $row['profit'],
+            'margin_pct' => $row['margin_pct'],
+            'daily_velocity' => $row['daily_velocity'] ?? 0,
+            'stock_qty' => $row['stock_qty'] ?? 0,
+            'days_of_cover' => $row['days_of_cover'] ?? null,
+            'sold_ratio' => $row['sold_ratio'] ?? null,
+            'last_buy_qty' => $row['last_buy_qty'] ?? null,
+            'last_buy_date' => $row['last_buy_date'] ?? null,
+            'buy_cover_days' => $row['buy_cover_days'] ?? null,
+            'alert_detail' => $row['alert_detail'] ?? null,
+            'created_at' => $now,
+            'updated_at' => $now,
         ];
     }
 
