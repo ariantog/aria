@@ -110,6 +110,7 @@ $isYearly = $grain === ItemInsightQueryService::GRAIN_YEAR;
             @else
                 Monthly velocity is net units per calendar day in the month.
             @endif
+            Restock alerts flag fast sellers with low days-of-cover (sold ratio vs stock) and SKUs selling faster than the last buy quantity would cover.
             @if($isYearly)
                 Yearly recalculate uses already-calculated insight months when any exist; otherwise all months with warehouse stats for that year.
             @endif
@@ -167,11 +168,19 @@ $isYearly = $grain === ItemInsightQueryService::GRAIN_YEAR;
                     @if($category === ItemInsightRanking::CATEGORY_FASTEST_SELLING)
                         <th class="px-3 py-2 text-right">Units / day</th>
                     @endif
+                    @if($category === ItemInsightRanking::CATEGORY_RESTOCK_ALERT)
+                        <th class="px-3 py-2 text-right">Stock</th>
+                        <th class="px-3 py-2 text-right">Cover (days)</th>
+                        <th class="px-3 py-2 text-right">Sold ratio</th>
+                        <th class="px-3 py-2 text-right">Units / day</th>
+                        <th class="px-3 py-2">Last buy</th>
+                        <th class="px-3 py-2">Alert</th>
+                    @endif
                 </tr>
             </thead>
             <tbody class="divide-y divide-gray-100">
                 @forelse($rows as $row)
-                    <tr>
+                    <tr class="{{ $category === ItemInsightRanking::CATEGORY_RESTOCK_ALERT ? 'bg-amber-50/60' : '' }}">
                         <td class="px-3 py-2 text-gray-500">{{ $row->rank }}</td>
                         <td class="px-3 py-2 font-medium text-gray-900">{{ $row->item_name }}</td>
                         <td class="px-3 py-2 text-gray-600">{{ $row->item_code ?? '—' }}</td>
@@ -184,6 +193,23 @@ $isYearly = $grain === ItemInsightQueryService::GRAIN_YEAR;
                         @endif
                         @if($category === ItemInsightRanking::CATEGORY_FASTEST_SELLING)
                             <td class="px-3 py-2 text-right tabular-nums">{{ number_format($row->daily_velocity, 2) }}</td>
+                        @endif
+                        @if($category === ItemInsightRanking::CATEGORY_RESTOCK_ALERT)
+                            <td class="px-3 py-2 text-right tabular-nums">{{ number_format($row->stock_qty, 0) }}</td>
+                            <td class="px-3 py-2 text-right tabular-nums {{ ($row->days_of_cover ?? 99) < 14 ? 'font-semibold text-amber-800' : '' }}">{{ $row->days_of_cover !== null ? number_format($row->days_of_cover, 1) : '—' }}</td>
+                            <td class="px-3 py-2 text-right tabular-nums">{{ $row->sold_ratio !== null ? number_format($row->sold_ratio, 1).'×' : '—' }}</td>
+                            <td class="px-3 py-2 text-right tabular-nums">{{ number_format($row->daily_velocity, 2) }}</td>
+                            <td class="px-3 py-2 text-sm text-gray-600">
+                                @if($row->last_buy_date)
+                                    {{ number_format($row->last_buy_qty ?? 0, 0) }} on {{ $row->last_buy_date->format('Y-m-d') }}
+                                    @if($row->buy_cover_days)
+                                        <span class="block text-xs text-gray-500">≈ {{ number_format($row->buy_cover_days, 1) }} days at sell rate</span>
+                                    @endif
+                                @else
+                                    —
+                                @endif
+                            </td>
+                            <td class="px-3 py-2 text-sm text-amber-900">{{ $row->alert_detail ?? '—' }}</td>
                         @endif
                     </tr>
                 @empty

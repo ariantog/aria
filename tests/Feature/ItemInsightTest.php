@@ -7,10 +7,13 @@ use App\Models\ItemGroup;
 use App\Models\ItemInsightMonth;
 use App\Models\ItemInsightRanking;
 use App\Models\User;
+use App\Models\Transaction;
+use App\Models\WarehouseItem;
 use App\Models\WarehouseItemMonthlyStat;
 use App\Services\ItemInsightQueryService;
 use App\Services\ItemInsightSyncService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Permission;
 
 uses(RefreshDatabase::class);
@@ -255,6 +258,68 @@ it('falls back to warehouse stats months for yearly when no monthly insights exi
     $result = app(ItemInsightSyncService::class)->recalculateYear($year);
     expect($result['months_included'])->toBe([7]);
     expect(ItemInsightRanking::query()->where('year', $year)->where('month', ItemInsightMonth::MONTH_YEARLY)->exists())->toBeTrue();
+});
+
+it('flags restock alerts for fast sellers with low cover and buy pacing', function () {
+    $this->travelTo('2026-03-31');
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    $supplier = Addrbook::factory()->supplier()->create();
+    $item = Item::factory()->create(['name' => 'Hot SKU', 'code' => 'HOT-1', 'cost' => 1000]);
+
+    WarehouseItem::create([
+        'warehouse_id' => $warehouse->id,
+        'item_id' => $item->id,
+        'warehouse_type' => Addrbook::TYPE_WAREHOUSE,
+        'quantity' => 5,
+    ]);
+
+    $year = 2026;
+    $month = 3;
+    WarehouseItemMonthlyStat::create([
+        'warehouse_id' => $warehouse->id,
+        'item_id' => $item->id,
+        'year' => $year,
+        'month' => $month,
+        'sold_qty' => 30,
+        'returned_qty' => 0,
+        'sold_value' => 300_000,
+        'returned_value' => 0,
+    ]);
+
+    $buyTxn = Transaction::factory()->create([
+        'type' => Transaction::TYPE_BUY,
+        'date' => '2026-02-01',
+        'sender_id' => $supplier->id,
+        'receiver_id' => $warehouse->id,
+    ]);
+    DB::table('transaction_details')->insert([
+        'transaction_id' => $buyTxn->id,
+        'item_id' => $item->id,
+        'quantity' => 10,
+        'price' => 1000,
+        'discount' => 0,
+        'total' => 10_000,
+        'date' => '2026-02-01',
+        'transaction_type' => Transaction::TYPE_BUY,
+        'sender_id' => $supplier->id,
+        'receiver_id' => $warehouse->id,
+        'transaction_disc' => 0,
+    ]);
+
+    app(ItemInsightSyncService::class)->recalculateMonth($year, $month);
+
+    $alert = ItemInsightRanking::query()
+        ->where('year', $year)
+        ->where('month', $month)
+        ->where('category', ItemInsightRanking::CATEGORY_RESTOCK_ALERT)
+        ->where('item_id', $item->id)
+        ->first();
+
+    expect($alert)->not->toBeNull();
+    expect((float) $alert->stock_qty)->toBe(5.0);
+    expect((float) $alert->sold_ratio)->toBeGreaterThan(1.0);
+    expect((float) $alert->days_of_cover)->toBeLessThan(14.0);
+    expect($alert->alert_detail)->not->toBeEmpty();
 });
 
 it('renders yearly item insights from stored rankings', function () {
