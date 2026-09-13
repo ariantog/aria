@@ -260,6 +260,125 @@ it('falls back to warehouse stats months for yearly when no monthly insights exi
     expect(ItemInsightRanking::query()->where('year', $year)->where('month', ItemInsightMonth::MONTH_YEARLY)->exists())->toBeTrue();
 });
 
+it('uses last buy on or before period end when recalculating a month', function () {
+    $this->travelTo('2026-06-15');
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    $supplier = Addrbook::factory()->supplier()->create();
+    $item = Item::factory()->create(['name' => 'Period Buy SKU', 'cost' => 1000]);
+
+    WarehouseItem::create([
+        'warehouse_id' => $warehouse->id,
+        'item_id' => $item->id,
+        'warehouse_type' => Addrbook::TYPE_WAREHOUSE,
+        'quantity' => 3,
+    ]);
+
+    $year = 2026;
+    $month = 3;
+    WarehouseItemMonthlyStat::create([
+        'warehouse_id' => $warehouse->id,
+        'item_id' => $item->id,
+        'year' => $year,
+        'month' => $month,
+        'sold_qty' => 30,
+        'returned_qty' => 0,
+        'sold_value' => 300_000,
+        'returned_value' => 0,
+    ]);
+
+    $marchBuy = Transaction::factory()->create([
+        'type' => Transaction::TYPE_BUY,
+        'date' => '2026-03-15',
+        'sender_id' => $supplier->id,
+        'receiver_id' => $warehouse->id,
+    ]);
+    DB::table('transaction_details')->insert([
+        'transaction_id' => $marchBuy->id,
+        'item_id' => $item->id,
+        'quantity' => 20,
+        'price' => 1000,
+        'discount' => 0,
+        'total' => 20_000,
+        'date' => '2026-03-15',
+        'transaction_type' => Transaction::TYPE_BUY,
+        'sender_id' => $supplier->id,
+        'receiver_id' => $warehouse->id,
+        'transaction_disc' => 0,
+    ]);
+
+    $laterBuy = Transaction::factory()->create([
+        'type' => Transaction::TYPE_BUY,
+        'date' => '2026-05-01',
+        'sender_id' => $supplier->id,
+        'receiver_id' => $warehouse->id,
+    ]);
+    DB::table('transaction_details')->insert([
+        'transaction_id' => $laterBuy->id,
+        'item_id' => $item->id,
+        'quantity' => 500,
+        'price' => 1000,
+        'discount' => 0,
+        'total' => 500_000,
+        'date' => '2026-05-01',
+        'transaction_type' => Transaction::TYPE_BUY,
+        'sender_id' => $supplier->id,
+        'receiver_id' => $warehouse->id,
+        'transaction_disc' => 0,
+    ]);
+
+    app(ItemInsightSyncService::class)->recalculateMonth($year, $month);
+
+    $alert = ItemInsightRanking::query()
+        ->where('year', $year)
+        ->where('month', $month)
+        ->where('category', ItemInsightRanking::CATEGORY_RESTOCK_ALERT)
+        ->where('item_id', $item->id)
+        ->first();
+
+    expect($alert)->not->toBeNull();
+    expect((float) $alert->last_buy_qty)->toBe(20.0);
+    expect($alert->last_buy_date?->toDateString())->toBe('2026-03-15');
+});
+
+it('flags best sellers with moderate cover below the best-seller threshold', function () {
+    $this->travelTo('2026-04-30');
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    $item = Item::factory()->create([
+        'name' => 'Rank One SKU',
+        'restock_urgent_threshold' => 0,
+    ]);
+
+    WarehouseItem::create([
+        'warehouse_id' => $warehouse->id,
+        'item_id' => $item->id,
+        'warehouse_type' => Addrbook::TYPE_WAREHOUSE,
+        'quantity' => 25,
+    ]);
+
+    $year = 2026;
+    $month = 4;
+    WarehouseItemMonthlyStat::create([
+        'warehouse_id' => $warehouse->id,
+        'item_id' => $item->id,
+        'year' => $year,
+        'month' => $month,
+        'sold_qty' => 40,
+        'returned_qty' => 0,
+        'sold_value' => 400_000,
+        'returned_value' => 0,
+    ]);
+
+    app(ItemInsightSyncService::class)->recalculateMonth($year, $month);
+
+    $alert = ItemInsightRanking::query()
+        ->where('category', ItemInsightRanking::CATEGORY_RESTOCK_ALERT)
+        ->where('item_id', $item->id)
+        ->first();
+
+    expect($alert)->not->toBeNull();
+    expect($alert->alert_detail)->toContain('Best seller low cover');
+});
+
 it('flags restock alerts for fast sellers with low cover and buy pacing', function () {
     $this->travelTo('2026-03-31');
     $warehouse = Addrbook::factory()->warehouse()->create();

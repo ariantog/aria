@@ -41,6 +41,7 @@ class ItemInsightSyncService
             $daysInPeriod,
             $userId,
             [$month],
+            Carbon::create($year, $month, 1)->endOfMonth(),
         );
     }
 
@@ -58,11 +59,15 @@ class ItemInsightSyncService
 
         $monthsIncluded = $this->resolveYearSourceMonths($year);
         if ($monthsIncluded === []) {
-            return $this->storeRankings($year, ItemInsightMonth::MONTH_YEARLY, [], 0, $userId, []);
+            $asOf = Carbon::create($year, 12, 31)->endOfDay();
+
+            return $this->storeRankings($year, ItemInsightMonth::MONTH_YEARLY, [], 0, $userId, [], $asOf);
         }
 
         $aggregates = $this->aggregateCompanyMonths($year, $monthsIncluded);
         $daysInPeriod = $this->daysInMonths($year, $monthsIncluded);
+        $lastMonth = max($monthsIncluded);
+        $asOf = Carbon::create($year, $lastMonth, 1)->endOfMonth();
 
         $result = $this->storeRankings(
             $year,
@@ -71,6 +76,7 @@ class ItemInsightSyncService
             $daysInPeriod,
             $userId,
             $monthsIncluded,
+            $asOf,
         );
         $result['months_included'] = $monthsIncluded;
 
@@ -119,16 +125,23 @@ class ItemInsightSyncService
         int $daysInPeriod,
         ?int $userId,
         array $monthsIncluded,
+        \DateTimeInterface $asOf,
     ): array {
         $now = now();
         $daysForVelocity = max(1, $daysInPeriod);
+        $bestSelling = $this->rankBestSelling($aggregates);
 
         $ranked = [
-            ItemInsightRanking::CATEGORY_BEST_SELLING => $this->rankBestSelling($aggregates),
+            ItemInsightRanking::CATEGORY_BEST_SELLING => $bestSelling,
             ItemInsightRanking::CATEGORY_MOST_PROFITABLE => $this->rankMostProfitable($aggregates),
             ItemInsightRanking::CATEGORY_LOSS_LEADER => $this->rankLossLeaders($aggregates),
             ItemInsightRanking::CATEGORY_FASTEST_SELLING => $this->rankFastestSelling($aggregates, $daysForVelocity),
-            ItemInsightRanking::CATEGORY_RESTOCK_ALERT => $this->restockAlerts->rank($aggregates, $daysForVelocity),
+            ItemInsightRanking::CATEGORY_RESTOCK_ALERT => $this->restockAlerts->rank(
+                $aggregates,
+                $daysForVelocity,
+                $asOf,
+                $bestSelling,
+            ),
         ];
 
         $payload = [];

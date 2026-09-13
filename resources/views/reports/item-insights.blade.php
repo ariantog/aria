@@ -110,7 +110,7 @@ $isYearly = $grain === ItemInsightQueryService::GRAIN_YEAR;
             @else
                 Monthly velocity is net units per calendar day in the month.
             @endif
-            Restock alerts flag fast sellers with low days-of-cover (sold ratio vs stock) and SKUs selling faster than the last buy quantity would cover.
+            Restock alerts use period-end sell rate, on-hand stock (today), and the last buy on or before that period end (not later purchases).
             @if($isYearly)
                 Yearly recalculate uses already-calculated insight months when any exist; otherwise all months with warehouse stats for that year.
             @endif
