@@ -2,14 +2,12 @@
 
 use App\Enums\AddrbookType;
 use App\Models\Addrbook;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\TestCase;
 
-uses(RefreshDatabase::class);
+uses(TestCase::class);
 
 it('resolves addrbook type slug from enum instance without int cast', function () {
-    $addrbook = Addrbook::factory()->make([
-        'name' => 'Test Customer',
-    ]);
+    $addrbook = new Addrbook(['name' => 'Test Customer']);
     $addrbook->setAttribute('type', AddrbookType::Customer);
 
     expect($addrbook->type_slug)->toBe('customer');

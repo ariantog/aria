@@ -81,7 +81,16 @@ class Addrbook extends Model
 
     public function typeValue(): int
     {
+        if (array_key_exists('type', $this->attributes)) {
+            return self::typeValueFrom($this->attributes['type']);
+        }
+
         return self::typeValueFrom($this->type);
+    }
+
+    public function resolvedAddrbookType(): ?AddrbookTypeEnum
+    {
+        return AddrbookTypeEnum::coerce($this->attributes['type'] ?? $this->type);
     }
 
     public static function typeLabel(int $type): string
@@ -309,7 +318,7 @@ class Addrbook extends Model
 
     public function getTypeSlugAttribute(): string
     {
-        $enum = AddrbookTypeEnum::coerce($this->type);
+        $enum = $this->resolvedAddrbookType();
 
         return $enum?->slug() ?? self::typeSlug($this->typeValue());
     }
