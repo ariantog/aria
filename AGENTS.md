@@ -380,6 +380,20 @@ canonical hyphen pcode on save; **new writes** should store the full colorway on
 - **`uniqueStoredGroupName()` does not suffix for uniqueness** — it only trims to 255 chars.
   Strip legacy disambiguators like ` (CX90233-23)` via `productDisplayName()` / `stripUniquenessSuffix()`.
 
+### `items.type` (`ItemType` backed enum)
+
+`Item` casts `type` to `App\Enums\ItemType` (`ITEM` = 1, `ASSET_LANCAR` = 2, `ASSET_TETAP` = 3,
+`SERVICE` = 5). On an Eloquent `Item`, **`$item->type` is already an `ItemType` instance** (or null
+for invalid legacy ints) — **do not** `(int) $item->type`; PHP cannot cast the enum object to int.
+
+- Resolve from models or mixed input with **`ItemType::coerce($value)`** (enum instance, int, or
+  numeric string).
+- Raw SQL / `DB::table('items')` rows still expose `type` as int — `ItemType::tryFrom((int) $row->type)`
+  is fine there.
+- Legacy production values (e.g. `4`) are not enum cases; `coerce` / `tryFrom` return `null`. Stats
+  and dimensions that must tolerate legacy types use **`ItemDimensionResolver::findItem()`**, not bare
+  `Item::find()`.
+
 ### SKU code & display name (`items`)
 
 - **`items.code`:** manufactured `{TYPE}-{pcode}-{size?}` (e.g. `AJD-CX90324-05-S`); asset

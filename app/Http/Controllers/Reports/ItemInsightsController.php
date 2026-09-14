@@ -43,7 +43,7 @@ class ItemInsightsController extends Controller
 
             foreach ($items as $item) {
                 $itemShowUrls[$item->id] = ExportSellController::itemShowUrl(
-                    ItemType::tryFrom((int) $item->type),
+                    ItemType::coerce($item->type),
                     (int) $item->id,
                 );
             }

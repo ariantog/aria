@@ -122,6 +122,12 @@ it('renders item insights page from stored rankings without recalculating on GET
     $user = User::factory()->create();
     $user->givePermissionTo('report-item-insights');
 
+    $item = Item::factory()->create([
+        'name' => 'Cached Hero SKU',
+        'code' => 'SKU-1',
+        'type' => ItemType::ITEM,
+    ]);
+
     $year = 2026;
     $month = 4;
     ItemInsightMonth::create([
@@ -135,7 +141,7 @@ it('renders item insights page from stored rankings without recalculating on GET
         'month' => $month,
         'category' => ItemInsightRanking::CATEGORY_BEST_SELLING,
         'rank' => 1,
-        'item_id' => 1,
+        'item_id' => $item->id,
         'item_name' => 'Cached Hero SKU',
         'item_code' => 'SKU-1',
         'net_qty' => 50,
@@ -152,7 +158,9 @@ it('renders item insights page from stored rankings without recalculating on GET
         ->assertSee('Item Insights', false)
         ->assertSee('Cached Hero SKU', false)
         ->assertSee('2026-04', false)
-        ->assertSee('item-insights-month-tracker', false);
+        ->assertSee('item-insights-month-tracker', false)
+        ->assertSee(route('items.show', $item->id), false)
+        ->assertSee('item-insights-item-link-'.$item->id, false);
 });
 
 it('recalculates a month via POST and redirects with status', function () {
