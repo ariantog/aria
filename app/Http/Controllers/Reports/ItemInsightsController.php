@@ -2,7 +2,10 @@
 
 namespace App\Http\Controllers\Reports;
 
+use App\Enums\ItemType;
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\ExportSellController;
+use App\Models\Item;
 use App\Models\Report;
 use App\Services\ItemInsightQueryService;
 use App\Services\ItemInsightSyncService;
@@ -30,6 +33,21 @@ class ItemInsightsController extends Controller
 
         $calculated = $query->isCalculated($year, $month);
         $meta = $query->periodMeta($year, $month);
+        $rows = $calculated ? $query->rankingsFor($year, $month, $category) : collect();
+        $itemShowUrls = [];
+
+        if ($rows->isNotEmpty()) {
+            $items = Item::query()
+                ->whereIn('id', $rows->pluck('item_id'))
+                ->get(['id', 'type']);
+
+            foreach ($items as $item) {
+                $itemShowUrls[$item->id] = ExportSellController::itemShowUrl(
+                    ItemType::tryFrom((int) $item->type),
+                    (int) $item->id,
+                );
+            }
+        }
 
         return view('reports.item-insights', [
             'category' => $category,
@@ -42,7 +60,8 @@ class ItemInsightsController extends Controller
             'periodMeta' => $meta,
             'calculatedMonths' => $query->calculatedMonths(),
             'calculatedYears' => $query->calculatedYears(),
-            'rows' => $calculated ? $query->rankingsFor($year, $month, $category) : collect(),
+            'rows' => $rows,
+            'itemShowUrls' => $itemShowUrls,
         ]);
     }
 

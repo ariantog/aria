@@ -2,7 +2,8 @@
 
 namespace App\Services;
 
-use App\Models\Addrbook;
+use App\Models\Item;
+use App\Models\WarehouseItem;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -59,12 +60,13 @@ class ItemInsightRestockAlertBuilder
             $stockRow = $stockRows[$itemId] ?? ['stock_qty' => 0.0, 'restock_urgent_threshold' => null];
             $stock = max(0.0, (float) $stockRow['stock_qty']);
             $urgentThreshold = $stockRow['restock_urgent_threshold'];
-            $velocity = $netQty / $daysInPeriod;
-            if ($velocity <= 0) {
+            $dailyRate = $netQty / $daysInPeriod;
+            if ($dailyRate <= 0) {
                 continue;
             }
 
-            $daysOfCover = $stock > 0 ? round($stock / $velocity, 2) : 0.0;
+            $velocity = $dailyRate;
+            $daysOfCover = $this->daysOfCover($stock, $netQty, $daysInPeriod);
             $soldRatio = round($netQty / max($stock, 1.0), 4);
             $isBestSeller = isset($bestSellerSet[$itemId]);
 
@@ -196,28 +198,53 @@ class ItemInsightRestockAlertBuilder
      */
     private function physicalStockAndThresholdsByItem(array $itemIds): array
     {
-        $stock = DB::table('warehouse_item as wi')
-            ->join('customers as wh', 'wh.id', '=', 'wi.warehouse_id')
-            ->whereNull('wh.deleted_at')
-            ->where('wh.type', Addrbook::TYPE_WAREHOUSE)
-            ->whereIn('wi.item_id', $itemIds)
-            ->groupBy('wi.item_id')
-            ->selectRaw('wi.item_id as item_id, COALESCE(SUM(wi.quantity), 0) as stock_qty')
+        $stock = WarehouseItem::query()
+            ->forAvailableStock()
+            ->whereIn('item_id', $itemIds)
+            ->groupBy('item_id')
+            ->selectRaw('item_id, COALESCE(SUM(quantity), 0) as stock_qty')
             ->pluck('stock_qty', 'item_id');
 
-        $thresholds = DB::table('items')
+        $cachedQty = Item::query()
+            ->whereIn('id', $itemIds)
+            ->whereNull('deleted_at')
+            ->pluck('qty', 'id');
+
+        $thresholds = Item::query()
             ->whereIn('id', $itemIds)
             ->whereNull('deleted_at')
             ->pluck('restock_urgent_threshold', 'id');
 
         $rows = [];
         foreach ($itemIds as $itemId) {
+            $warehouseStock = (float) ($stock[$itemId] ?? 0);
+            $qtyFallback = (float) ($cachedQty[$itemId] ?? 0);
             $rows[$itemId] = [
-                'stock_qty' => (float) ($stock[$itemId] ?? 0),
+                'stock_qty' => $warehouseStock > 0 ? $warehouseStock : max(0.0, $qtyFallback),
                 'restock_urgent_threshold' => isset($thresholds[$itemId]) ? (int) $thresholds[$itemId] : null,
             ];
         }
 
         return $rows;
+    }
+
+    /**
+     * Days until on-hand stock runs out at the period average sell rate (matches inventory health).
+     */
+    public function daysOfCover(float $stock, float $netQty, int $daysInPeriod): float
+    {
+        $daysInPeriod = max(1, $daysInPeriod);
+        $netQty = max(0.0, $netQty);
+        $stock = max(0.0, $stock);
+
+        if ($netQty <= 0) {
+            return 0.0;
+        }
+
+        if ($stock <= 0) {
+            return 0.0;
+        }
+
+        return round($stock / ($netQty / $daysInPeriod), 4);
     }
 }

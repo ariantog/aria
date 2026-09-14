@@ -6,6 +6,7 @@ use App\Enums\AddrbookType;
 use App\Models\Addrbook;
 use App\Models\Transaction;
 use App\Services\Items\ItemDimensionResolver;
+use App\Support\TransactionDetailNetValue;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -39,8 +40,8 @@ class ItemStatsService
     /**
      * Monthly sell/return breakdown for a single SKU from live transaction_details.
      *
-     * Values apply the invoice header discount the same way warehouse monthly
-     * stats do: line total × (100 − discount%) / 100.
+     * Values match warehouse monthly stats: line total after header discount,
+     * plus an equal share of the parent transaction adjustment.
      *
      * @return array{
      *     months: list<array{
@@ -86,12 +87,23 @@ class ItemStatsService
                 });
             })
             ->get([
+                'transaction_details.transaction_id',
                 'transaction_details.date',
                 'transaction_details.transaction_type',
                 'transaction_details.quantity',
                 'transaction_details.total',
                 'transactions.discount',
+                'transactions.adjustment',
             ]);
+
+        $lineCounts = $rows->pluck('transaction_id')->unique()->filter()->isEmpty()
+            ? []
+            : DB::table('transaction_details')
+                ->whereIn('transaction_id', $rows->pluck('transaction_id')->unique())
+                ->groupBy('transaction_id')
+                ->selectRaw('transaction_id, COUNT(*) as detail_count')
+                ->pluck('detail_count', 'transaction_id')
+                ->all();
 
         $buckets = [];
 
@@ -115,8 +127,13 @@ class ItemStatsService
             }
 
             $qty = abs((float) $row->quantity);
-            $headerDiscount = max(0.0, min(100.0, (float) ($row->discount ?? 0)));
-            $value = (float) $row->total * (100 - $headerDiscount) / 100;
+            $lineCount = max(1, (int) ($lineCounts[$row->transaction_id] ?? 1));
+            $value = TransactionDetailNetValue::net(
+                (float) $row->total,
+                $row->discount,
+                $row->adjustment,
+                $lineCount,
+            );
 
             if ((int) $row->transaction_type === $sell) {
                 $buckets[$key]['sold_qty'] += $qty;
