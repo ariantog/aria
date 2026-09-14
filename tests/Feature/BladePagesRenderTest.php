@@ -157,7 +157,9 @@ it('renders the cash in switch on a sell transaction show page', function () {
         ->get(route('transactions.show', $sell))
         ->assertOk()
         ->assertSee('data-testid="sell-cash-in-switch"', false)
-        ->assertSee('data-testid="sell-cash-in-amount"', false);
+        ->assertSee('data-testid="sell-cash-in-amount"', false)
+        ->assertSee($warehouse->transactionsUrl(), false)
+        ->assertSee($customer->transactionsUrl(), false);
 });
 
 it('renders the addrbook item sales page', function () {

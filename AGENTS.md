@@ -399,6 +399,32 @@ Compare with **`$item->type === ItemType::ASSET_LANCAR`** or use **`$item->isAss
   and dimensions that must tolerate legacy types use **`ItemDimensionResolver::findItem()`**, not bare
   `Item::find()`.
 
+### Addrbook parties (`customers` / sender & receiver)
+
+`Addrbook` rows power transaction **sender** and **receiver** (`$transaction->sender`,
+`$transaction->receiver`). The column `type` is stored as an int today (`Addrbook::TYPE_*` =
+`App\Enums\AddrbookType` values). Some code paths already treat it as **`AddrbookType` enum**
+(`AddrbookController` uses `$a->type instanceof AddrbookType`). **Never `(int) $addrbook->type` on
+an Eloquent model** if the column might be enum-cast — PHP throws the same “could not be converted
+to int” error as `ItemType`.
+
+- **Links on transaction show** (desktop + mobile): **`$party->transactionsUrl()`** or
+  **`Addrbook::transactionsUrlFor($party)`** (`transactions/partials/show-party.blade.php`,
+  `transactions/show.blade.php`). Do not hand-build `route('addrbook.type.transactions', …)` from
+  `(int) $party->type`.
+- **Integer type id for static helpers** (`typeIsWarehouse`, `typeLabel`, redirects):
+  **`$addrbook->typeValue()`** or **`Addrbook::typeValueFrom($mixed)`**.
+- **Enum instance:** **`AddrbookType::coerce($value)`** (alias import in models:
+  `App\Enums\AddrbookType` — not the legacy `App\Models\AddrbookType` model if present).
+- **`transactions.sender_type` / `receiver_type`** on `Transaction` are still plain ints/strings in
+  the DB; party **links** always go through the loaded **`Addrbook`** model, not those columns.
+
+### `transactions.type` (plain int)
+
+`Transaction::$casts['type']` is **`integer`**, not an enum. Use **`(int) $transaction->type`** or
+`Transaction::TYPE_*` constants. Do not assume `TransactionType` enum on the model unless a future
+migration explicitly adds that cast.
+
 ### SKU code & display name (`items`)
 
 - **`items.code`:** manufactured `{TYPE}-{pcode}-{size?}` (e.g. `AJD-CX90324-05-S`); asset
