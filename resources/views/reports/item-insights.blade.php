@@ -7,6 +7,8 @@
 use App\Models\ItemInsightRanking;
 use App\Services\ItemInsightQueryService;
 
+$itemShowUrls = $itemShowUrls ?? [];
+
 $breadcrumbs = [
     ['title' => 'Reports', 'href' => '#'],
     ['title' => 'Item Insights', 'href' => route('reports.item-insights')],
@@ -17,6 +19,22 @@ $queryParams = fn (array $extra = []) => array_filter(array_merge([
     'tab' => $category,
 ], $extra));
 $isYearly = $grain === ItemInsightQueryService::GRAIN_YEAR;
+$fmtCoverDays = function (?float $days): string {
+    if ($days === null) {
+        return '—';
+    }
+    if ($days <= 0) {
+        return '0';
+    }
+    if ($days < 0.1) {
+        return '<0.1';
+    }
+    if ($days < 10) {
+        return number_format($days, 1);
+    }
+
+    return number_format($days, 0);
+};
 @endphp
 
 <div class="flex flex-col gap-4 p-3 sm:p-4">
@@ -180,10 +198,25 @@ $isYearly = $grain === ItemInsightQueryService::GRAIN_YEAR;
             </thead>
             <tbody class="divide-y divide-gray-100">
                 @forelse($rows as $row)
-                    <tr class="{{ $category === ItemInsightRanking::CATEGORY_RESTOCK_ALERT ? 'bg-amber-50/60' : '' }}">
+                    @php
+                        $itemUrl = $itemShowUrls[$row->item_id] ?? null;
+                    @endphp
+                    <tr class="{{ $category === ItemInsightRanking::CATEGORY_RESTOCK_ALERT ? 'bg-amber-50/60' : 'hover:bg-gray-50/50' }}">
                         <td class="px-3 py-2 text-gray-500">{{ $row->rank }}</td>
-                        <td class="px-3 py-2 font-medium text-gray-900">{{ $row->item_name }}</td>
-                        <td class="px-3 py-2 text-gray-600">{{ $row->item_code ?? '—' }}</td>
+                        <td class="px-3 py-2 font-medium text-gray-900">
+                            @if($itemUrl)
+                                <a href="{{ $itemUrl }}" class="text-blue-600 hover:underline" data-testid="item-insights-item-link-{{ $row->item_id }}">{{ $row->item_name }}</a>
+                            @else
+                                {{ $row->item_name }}
+                            @endif
+                        </td>
+                        <td class="px-3 py-2 text-gray-600">
+                            @if($itemUrl && $row->item_code)
+                                <a href="{{ $itemUrl }}" class="font-mono text-blue-600 hover:underline">{{ $row->item_code }}</a>
+                            @else
+                                {{ $row->item_code ?? '—' }}
+                            @endif
+                        </td>
                         <td class="px-3 py-2 text-right tabular-nums">{{ number_format($row->net_qty, 0) }}</td>
                         <td class="px-3 py-2 text-right tabular-nums">{{ number_format($row->net_value, 0) }}</td>
                         @if(in_array($category, [ItemInsightRanking::CATEGORY_MOST_PROFITABLE, ItemInsightRanking::CATEGORY_LOSS_LEADER], true))
@@ -196,7 +229,7 @@ $isYearly = $grain === ItemInsightQueryService::GRAIN_YEAR;
                         @endif
                         @if($category === ItemInsightRanking::CATEGORY_RESTOCK_ALERT)
                             <td class="px-3 py-2 text-right tabular-nums">{{ number_format($row->stock_qty, 0) }}</td>
-                            <td class="px-3 py-2 text-right tabular-nums {{ ($row->days_of_cover ?? 99) < 14 ? 'font-semibold text-amber-800' : '' }}">{{ $row->days_of_cover !== null ? number_format($row->days_of_cover, 1) : '—' }}</td>
+                            <td class="px-3 py-2 text-right tabular-nums {{ ($row->days_of_cover ?? 99) < 14 ? 'font-semibold text-amber-800' : '' }}">{{ $fmtCoverDays($row->days_of_cover !== null ? (float) $row->days_of_cover : null) }}</td>
                             <td class="px-3 py-2 text-right tabular-nums">{{ $row->sold_ratio !== null ? number_format($row->sold_ratio, 1).'×' : '—' }}</td>
                             <td class="px-3 py-2 text-right tabular-nums">{{ number_format($row->daily_velocity, 2) }}</td>
                             <td class="px-3 py-2 text-sm text-gray-600">

@@ -376,6 +376,9 @@ it('flags best sellers with moderate cover below the best-seller threshold', fun
         ->first();
 
     expect($alert)->not->toBeNull();
+    expect((float) $alert->stock_qty)->toBe(25.0);
+    expect((float) $alert->days_of_cover)->toBeGreaterThan(0.0);
+    expect((float) $alert->days_of_cover)->toBeLessThan(30.0);
     expect($alert->alert_detail)->toContain('Best seller low cover');
 });
 

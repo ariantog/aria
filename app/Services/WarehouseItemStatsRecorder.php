@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Transaction;
 use App\Models\WarehouseItemMonthlyStat;
 use App\Services\Items\ItemDimensionResolver;
+use App\Support\TransactionDetailNetValue;
 
 class WarehouseItemStatsRecorder
 {
@@ -46,9 +47,15 @@ class WarehouseItemStatsRecorder
         }
 
         $date = isset($detail->date) ? \Illuminate\Support\Carbon::parse($detail->date) : $transaction->date;
-        $headerDiscount = max(0.0, min(100.0, (float) ($transaction->discount ?? 0)));
         $lineTotal = (float) ($detail->total ?? 0);
-        $netValue = $lineTotal * (100 - $headerDiscount) / 100;
+        $transaction->loadMissing('details');
+        $lineCount = max(1, $transaction->details->count());
+        $netValue = TransactionDetailNetValue::net(
+            $lineTotal,
+            $transaction->discount,
+            $transaction->adjustment,
+            $lineCount,
+        );
         $qty = abs((float) ($detail->quantity ?? 0));
 
         // Loaded through the resolver so legacy rows whose items.type is no longer a
