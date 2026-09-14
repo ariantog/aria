@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\AddrbookType as AddrbookTypeEnum;
 use App\Support\FillsProductionColumnDefaults;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -63,6 +64,24 @@ class Addrbook extends Model
     public function resolvedPpnIncluded(): bool
     {
         return (bool) ($this->ppn_included ?? self::defaultPpnIncluded());
+    }
+
+    /**
+     * Integer type id from an Addrbook attribute, enum instance, or raw scalar.
+     * Use this instead of `(int) $addrbook->type` when the column may be cast to AddrbookType.
+     */
+    public static function typeValueFrom(mixed $type): int
+    {
+        if ($type instanceof AddrbookTypeEnum) {
+            return $type->value;
+        }
+
+        return (int) $type;
+    }
+
+    public function typeValue(): int
+    {
+        return self::typeValueFrom($this->type);
     }
 
     public static function typeLabel(int $type): string
@@ -196,6 +215,9 @@ class Addrbook extends Model
         return route('addrbook.type.index', $slug);
     }
 
+    /**
+     * Contact transaction list for this addrbook row (sender/receiver on transaction show).
+     */
     public function transactionsUrl(): string
     {
         return route('addrbook.type.transactions', ['type' => $this->type_slug, 'addrbook' => $this->id]);
@@ -282,12 +304,14 @@ class Addrbook extends Model
 
     public function getTypeNameAttribute(): string
     {
-        return self::typeLabel((int) $this->type);
+        return self::typeLabel($this->typeValue());
     }
 
     public function getTypeSlugAttribute(): string
     {
-        return self::typeSlug((int) $this->type);
+        $enum = AddrbookTypeEnum::coerce($this->type);
+
+        return $enum?->slug() ?? self::typeSlug($this->typeValue());
     }
 
     public function stat()
