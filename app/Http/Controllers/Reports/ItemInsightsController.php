@@ -2,9 +2,7 @@
 
 namespace App\Http\Controllers\Reports;
 
-use App\Enums\ItemType;
 use App\Http\Controllers\Controller;
-use App\Http\Controllers\ExportSellController;
 use App\Models\Item;
 use App\Models\Report;
 use App\Services\ItemInsightQueryService;
@@ -42,10 +40,7 @@ class ItemInsightsController extends Controller
                 ->get(['id', 'type']);
 
             foreach ($items as $item) {
-                $itemShowUrls[$item->id] = ExportSellController::itemShowUrl(
-                    ItemType::coerce($item->type),
-                    (int) $item->id,
-                );
+                $itemShowUrls[$item->id] = $item->showUrl();
             }
         }
 

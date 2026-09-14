@@ -159,7 +159,7 @@ it('renders item insights page from stored rankings without recalculating on GET
         ->assertSee('Cached Hero SKU', false)
         ->assertSee('2026-04', false)
         ->assertSee('item-insights-month-tracker', false)
-        ->assertSee(route('items.show', $item->id), false)
+        ->assertSee($item->showUrl(), false)
         ->assertSee('item-insights-item-link-'.$item->id, false);
 });
 
