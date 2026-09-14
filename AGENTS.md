@@ -385,9 +385,14 @@ canonical hyphen pcode on save; **new writes** should store the full colorway on
 `Item` casts `type` to `App\Enums\ItemType` (`ITEM` = 1, `ASSET_LANCAR` = 2, `ASSET_TETAP` = 3,
 `SERVICE` = 5). On an Eloquent `Item`, **`$item->type` is already an `ItemType` instance** (or null
 for invalid legacy ints) — **do not** `(int) $item->type`; PHP cannot cast the enum object to int.
+Compare with **`$item->type === ItemType::ASSET_LANCAR`** or use **`$item->isAssetLancar()`** (see
+`transactions/show` line items: `$item->showUrl()`).
 
-- Resolve from models or mixed input with **`ItemType::coerce($value)`** (enum instance, int, or
-  numeric string).
+- **Links to an item record:** use **`$item->showUrl()`** / **`$item->editUrl()`** on the model
+  (routes to `items`, `assetlancar`, or `assettetap` as appropriate). Do not re-derive URLs from
+  `(int) $item->type` or duplicate `ExportSellController::itemShowUrl()` unless you only have a type
+  int and id without loading `Item`.
+- Mixed input (enum, int, string): **`ItemType::coerce($value)`**.
 - Raw SQL / `DB::table('items')` rows still expose `type` as int — `ItemType::tryFrom((int) $row->type)`
   is fine there.
 - Legacy production values (e.g. `4`) are not enum cases; `coerce` / `tryFrom` return `null`. Stats
