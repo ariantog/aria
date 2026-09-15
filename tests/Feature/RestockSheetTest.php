@@ -21,7 +21,8 @@ beforeEach(function () {
     foreach (['restock-list', 'restock-create', 'restock-edit'] as $perm) {
         Permission::firstOrCreate(['name' => $perm]);
     }
-    $this->user->givePermissionTo(['restock-list', 'restock-create', 'restock-edit']);
+    Permission::firstOrCreate(['name' => 'restock-export']);
+    $this->user->givePermissionTo(['restock-list', 'restock-create', 'restock-edit', 'restock-export']);
 
     $this->typeTag = Tag::factory()->create([
         'type' => Tag::TYPE_TYPE,
@@ -485,6 +486,118 @@ test('sheet export returns xlsx download with all parent sections', function () 
     expect($values)->toContain('ELBOW-07');
 
     @unlink($tempPath);
+});
+
+test('sheet export is forbidden without restock-export permission', function () {
+    createAssetLancarSkus($this);
+    $sheet = app(RestockSheetService::class)->createSheet($this->typeTag, $this->user);
+
+    $viewer = User::factory()->create();
+    Permission::firstOrCreate(['name' => 'restock-list']);
+    $viewer->givePermissionTo('restock-list');
+
+    $this->actingAs($viewer)
+        ->get(route('restock.sheets.export', $sheet))
+        ->assertForbidden();
+});
+
+test('bulk export includes only selected sheets and pipeline stages', function () {
+    createAssetLancarSkus($this);
+
+    $kneeType = Tag::factory()->create([
+        'type' => Tag::TYPE_TYPE,
+        'code' => 'KNEE',
+        'name' => 'Knee Support',
+        'item_type' => ItemType::ASSET_LANCAR->value,
+    ]);
+
+    $elbowSheet = app(RestockSheetService::class)->createSheet($this->typeTag, $this->user);
+    $kneeSheet = RestockSheet::create([
+        'name' => 'Knee Support',
+        'type_tag_id' => $kneeType->id,
+        'created_by' => $this->user->id,
+    ]);
+    RestockCell::create([
+        'restock_sheet_id' => $kneeSheet->id,
+        'item_id' => Item::factory()->create()->id,
+        'qty_restock' => 1,
+    ]);
+
+    $response = $this->actingAs($this->user)
+        ->post(route('restock.export'), [
+            'sheet_ids' => [$elbowSheet->id],
+            'stages' => ['restock'],
+        ]);
+
+    $response->assertOk()
+        ->assertHeader('content-type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+
+    $tempPath = tempnam(sys_get_temp_dir(), 'restock-bulk-').'.xlsx';
+    file_put_contents($tempPath, $response->streamedContent());
+
+    $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($tempPath);
+    expect($spreadsheet->getSheetCount())->toBe(1);
+
+    $values = [];
+    foreach ($spreadsheet->getActiveSheet()->getRowIterator() as $row) {
+        foreach ($row->getCellIterator() as $cell) {
+            $value = $cell->getValue();
+            if ($value !== null && $value !== '') {
+                $values[] = (string) $value;
+            }
+        }
+    }
+
+    expect(collect($values)->contains(fn ($v) => str_contains((string) $v, 'Restock')))->toBeTrue();
+    expect(collect($values)->contains(fn ($v) => str_contains((string) $v, 'Production')))->toBeFalse();
+    expect(collect($values)->contains(fn ($v) => str_contains((string) $v, 'Cost (IDR)')))->toBeTrue();
+
+    @unlink($tempPath);
+});
+
+test('export uses configured cost_cnh column from restock settings', function () {
+    createAssetLancarSkus($this);
+    $sheet = app(RestockSheetService::class)->createSheet($this->typeTag, $this->user);
+    $cell = $sheet->cells()->first();
+    $cell->item->update(['cost' => 100, 'cost_cnh' => 12.5]);
+
+    Setting::updateOrCreate(['slug' => 'restock.export_cost_field'], [
+        'group' => 'Restock',
+        'name' => 'Export Cost Column',
+        'value' => 'cost_cnh',
+    ]);
+
+    $response = $this->actingAs($this->user)
+        ->get(route('restock.sheets.export', $sheet));
+
+    $tempPath = tempnam(sys_get_temp_dir(), 'restock-cost-').'.xlsx';
+    file_put_contents($tempPath, $response->streamedContent());
+    $worksheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($tempPath)->getActiveSheet();
+
+    $flatValues = [];
+    foreach ($worksheet->getRowIterator() as $row) {
+        foreach ($row->getCellIterator() as $cell) {
+            $value = $cell->getValue();
+            if ($value !== null && $value !== '') {
+                $flatValues[] = $value;
+            }
+        }
+    }
+
+    expect(collect($flatValues)->contains(fn ($v) => str_contains((string) $v, 'Cost (CNY)')))->toBeTrue();
+    expect(collect($flatValues)->contains(fn ($v) => (float) $v === 12.5))->toBeTrue();
+
+    @unlink($tempPath);
+});
+
+test('restock index shows bulk export panel when user can export', function () {
+    createAssetLancarSkus($this);
+    app(RestockSheetService::class)->createSheet($this->typeTag, $this->user);
+
+    $this->actingAs($this->user)
+        ->get('/restock')
+        ->assertOk()
+        ->assertSee('data-testid="restock-bulk-export-panel"', false);
 });
 
 test('grid includes group parent anchor url for color rows', function () {
