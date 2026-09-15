@@ -91,7 +91,29 @@ it('lists every customer and reseller with cash in without hardcoded ids', funct
         ->assertSee('data-testid="nett-cash-row-'.$customer->id.'"', false);
 });
 
-it('excludes pending cash in and internal lending from the bonus total', function () {
+it('still excludes cancelled cash in from the bonus total', function () {
+    $bank = Addrbook::factory()->create(['type' => Addrbook::TYPE_BANK]);
+    $customer = Addrbook::factory()->customer()->create(['name' => 'Toko Batal']);
+
+    createNettCashTransaction([
+        'sender_id' => $customer->id,
+        'receiver_id' => $bank->id,
+        'total' => 500_000,
+    ]);
+    createNettCashTransaction([
+        'sender_id' => $customer->id,
+        'receiver_id' => $bank->id,
+        'total' => 300_000,
+        'status' => Transaction::STATUS_CANCELLED,
+        'invoice' => 'CIN-CANCEL',
+    ]);
+
+    $report = app(NettCashService::class)->build(2026, 4, NettCashService::CONSOLIDATED_ENTITY);
+
+    expect($report['totals']['cash_in'])->toBe(500_000.0);
+});
+
+it('includes pending cash in in the bonus total and excludes internal lending', function () {
     $bank = Addrbook::factory()->create(['type' => Addrbook::TYPE_BANK]);
     $customer = Addrbook::factory()->customer()->create(['name' => 'Toko Usaha']);
     $lender = Addrbook::factory()->customer()->create([
@@ -120,7 +142,7 @@ it('excludes pending cash in and internal lending from the bonus total', functio
 
     $report = app(NettCashService::class)->build(2026, 4, NettCashService::CONSOLIDATED_ENTITY);
 
-    expect($report['totals']['cash_in'])->toBe(1_200_000.0)
+    expect($report['totals']['cash_in'])->toBe(1_600_000.0)
         ->and($report['lending_total'])->toBe(800_000.0)
         ->and(collect($report['lending_rows'])->pluck('name')->all())->toContain('Pinjaman Internal');
 

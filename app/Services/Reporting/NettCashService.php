@@ -223,7 +223,7 @@ class NettCashService
         }
 
         $rows = Transaction::query()
-            ->where('status', Transaction::STATUS_COMPLETED)
+            ->countsInReporting()
             ->where('type', Transaction::TYPE_CASH_IN)
             ->whereIn('sender_type', [Addrbook::TYPE_CUSTOMER, Addrbook::TYPE_RESELLER])
             ->where('receiver_type', Addrbook::TYPE_BANK)
@@ -256,7 +256,7 @@ class NettCashService
         $typeColumn = $side === 'sender' ? 'sender_type' : 'receiver_type';
 
         return Transaction::query()
-            ->where('status', Transaction::STATUS_COMPLETED)
+            ->countsInReporting()
             ->where('type', $type)
             ->whereIn($typeColumn, [Addrbook::TYPE_CUSTOMER, Addrbook::TYPE_RESELLER])
             ->whereIn($idColumn, $contactIds)
