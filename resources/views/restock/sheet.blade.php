@@ -6,6 +6,53 @@
     .restock-grid-wrap {
         overflow-x: auto;
         background: transparent;
+        padding-bottom: 0.5rem;
+        scrollbar-width: auto;
+        scrollbar-color: #9ca3af #e5e7eb;
+    }
+    html.dark .restock-grid-wrap {
+        scrollbar-color: #6b7280 #374151;
+    }
+    .restock-grid-wrap .tabulator .tabulator-tableholder {
+        scrollbar-width: auto;
+        scrollbar-color: #9ca3af #e5e7eb;
+    }
+    html.dark .restock-grid-wrap .tabulator .tabulator-tableholder {
+        scrollbar-color: #9ca3af #1f2937;
+    }
+    .restock-grid-wrap::-webkit-scrollbar,
+    .restock-grid-wrap .tabulator .tabulator-tableholder::-webkit-scrollbar {
+        height: 14px;
+        width: 14px;
+    }
+    .restock-grid-wrap::-webkit-scrollbar-track,
+    .restock-grid-wrap .tabulator .tabulator-tableholder::-webkit-scrollbar-track {
+        background: #e5e7eb;
+        border-radius: 9999px;
+    }
+    .restock-grid-wrap::-webkit-scrollbar-thumb,
+    .restock-grid-wrap .tabulator .tabulator-tableholder::-webkit-scrollbar-thumb {
+        background-color: #9ca3af;
+        border: 3px solid #e5e7eb;
+        border-radius: 9999px;
+        min-width: 48px;
+    }
+    .restock-grid-wrap::-webkit-scrollbar-thumb:hover,
+    .restock-grid-wrap .tabulator .tabulator-tableholder::-webkit-scrollbar-thumb:hover {
+        background-color: #6b7280;
+    }
+    html.dark .restock-grid-wrap::-webkit-scrollbar-track,
+    html.dark .restock-grid-wrap .tabulator .tabulator-tableholder::-webkit-scrollbar-track {
+        background: #1f2937;
+    }
+    html.dark .restock-grid-wrap::-webkit-scrollbar-thumb,
+    html.dark .restock-grid-wrap .tabulator .tabulator-tableholder::-webkit-scrollbar-thumb {
+        background-color: #6b7280;
+        border-color: #1f2937;
+    }
+    html.dark .restock-grid-wrap::-webkit-scrollbar-thumb:hover,
+    html.dark .restock-grid-wrap .tabulator .tabulator-tableholder::-webkit-scrollbar-thumb:hover {
+        background-color: #9ca3af;
     }
     .restock-grid-wrap .tabulator {
         display: inline-block;
