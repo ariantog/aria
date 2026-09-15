@@ -112,6 +112,17 @@ class SettingRegistry
                 'default' => [],
                 'hint' => 'Stock column on the restock sheet sums qty from these warehouses only. Leave all unchecked to sum every warehouse.',
             ],
+            'restock.export_cost_field' => [
+                'group' => 'Restock',
+                'name' => 'Export cost column',
+                'type' => 'select',
+                'default' => 'cost',
+                'options' => [
+                    'cost' => 'Cost (IDR)',
+                    'cost_cnh' => 'Cost (CNY / CNH)',
+                ],
+                'hint' => 'Unit cost column included in restock Excel exports.',
+            ],
             'asset_tetap.depreciation_expense_account_id' => [
                 'group' => 'Accounting',
                 'name' => 'Akun Beban Penyusutan',

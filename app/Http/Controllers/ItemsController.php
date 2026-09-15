@@ -373,6 +373,7 @@ class ItemsController extends Controller
             'product_name' => ['nullable', 'string', 'max:255'],
             'price' => ['nullable', 'numeric'],
             'cost' => $isAsset ? ['required', 'numeric'] : ['nullable'],
+            'cost_cnh' => ['nullable', 'numeric', 'min:0'],
             'description' => ['nullable', 'string'],
             'description2' => ['nullable', 'string'],
             'item_description' => $isAsset ? ['nullable', 'string'] : ['nullable'],
@@ -600,6 +601,7 @@ class ItemsController extends Controller
                 'warna_code' => $warnaTag?->code ?? '',
                 'price' => old('items.'.$item->id.'.price', $item->price),
                 'cost' => old('items.'.$item->id.'.cost', $item->cost),
+                'cost_cnh' => old('items.'.$item->id.'.cost_cnh', $item->cost_cnh),
                 'restock_urgent_threshold' => old(
                     'items.'.$item->id.'.restock_urgent_threshold',
                     $item->restock_urgent_threshold
@@ -648,6 +650,7 @@ class ItemsController extends Controller
         foreach ($itemIds as $itemId) {
             $rules["items.{$itemId}.price"] = ['nullable', 'numeric'];
             $rules["items.{$itemId}.cost"] = $isAsset ? ['nullable', 'numeric'] : ['nullable', 'numeric'];
+            $rules["items.{$itemId}.cost_cnh"] = ['nullable', 'numeric', 'min:0'];
             $rules["items.{$itemId}.restock_urgent_threshold"] = ['nullable', 'integer', 'min:1'];
         }
 
@@ -666,6 +669,7 @@ class ItemsController extends Controller
                 'id' => (int) $itemId,
                 'price' => $row['price'] ?? null,
                 'cost' => $row['cost'] ?? null,
+                'cost_cnh' => $row['cost_cnh'] ?? null,
                 'restock_urgent_threshold' => $row['restock_urgent_threshold'] ?? null,
             ];
         }
@@ -912,6 +916,7 @@ class ItemsController extends Controller
                 : ($legacyAssetProductName ?: '')),
             'price' => old('price', $item->price),
             'cost' => old('cost', $item->cost),
+            'cost_cnh' => old('cost_cnh', $item->cost_cnh),
             'description' => old('description', $item->catalogDescription()),
             'description2' => old('description2', $item->catalogDescription2()),
             'url' => old('url', optional($item->group)->url),

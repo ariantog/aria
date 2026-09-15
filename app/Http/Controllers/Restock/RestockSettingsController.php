@@ -44,6 +44,7 @@ class RestockSettingsController extends Controller
             'default_receiver_id' => ['required', 'integer', 'exists:customers,id'],
             'default_warehouse_ids' => ['nullable', 'array'],
             'default_warehouse_ids.*' => ['integer', 'exists:customers,id'],
+            'export_cost_field' => ['required', 'string', 'in:cost,cost_cnh'],
         ]);
 
         try {

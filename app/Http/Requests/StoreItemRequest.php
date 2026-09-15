@@ -24,6 +24,7 @@ class StoreItemRequest extends FormRequest
             'sku_overrides' => ['nullable', 'array'],
             'sku_overrides.*.price' => ['nullable', 'numeric', 'min:0'],
             'sku_overrides.*.cost' => ['nullable', 'numeric', 'min:0'],
+            'sku_overrides.*.cost_cnh' => ['nullable', 'numeric', 'min:0'],
             'sku_overrides.*.reseller_price' => ['nullable', 'numeric', 'min:0'],
             'sku_overrides.*.description' => ['nullable', 'string'],
             'sku_overrides.*.description2' => ['nullable', 'string'],
@@ -32,6 +33,7 @@ class StoreItemRequest extends FormRequest
             'tags.types' => $isAsset ? ['required', 'array', 'min:1'] : ['required'],
             'tags.sizes' => ['required', 'array', 'min:1'],
             'cost' => $isAsset ? ['required', 'numeric'] : ['nullable'],
+            'cost_cnh' => ['nullable', 'numeric', 'min:0'],
             'tags.warna' => $isAsset ? ['required', 'array', 'min:1'] : ['required'],
             'tags.jahit' => $isAsset ? ['nullable'] : ['required'],
         ];

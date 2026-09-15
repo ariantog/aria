@@ -63,6 +63,7 @@ class RestockSheetController extends Controller
       'grid' => $this->gridBuilder->build($sheet),
       'typeTags' => $this->sheetService->typeTags(),
       'canEdit' => request()->user()?->can(RestockSheet::getPermissions()['edit']) ?? false,
+      'canExport' => request()->user()?->can(RestockSheet::getPermissions()['export']) ?? false,
       'receiveReady' => $receiveReady,
       'stockWarehouseLabel' => $this->settingsService->stockDisplayLabel(),
     ]);
@@ -70,7 +71,7 @@ class RestockSheetController extends Controller
 
   public function export(RestockSheet $sheet): StreamedResponse
   {
-    Gate::authorize(RestockSheet::getPermissions()['view']);
+    Gate::authorize(RestockSheet::getPermissions()['export']);
 
     return $this->exportService->download($sheet);
   }

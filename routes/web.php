@@ -470,6 +470,7 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     // Restock Module
     Route::prefix('restock')->name('restock.')->group(function () {
         Route::get('/', [App\Http\Controllers\Restock\RestockTypeController::class, 'index'])->name('index');
+        Route::post('/export', [App\Http\Controllers\Restock\RestockTypeController::class, 'exportBulk'])->name('export');
         Route::get('/missing', [App\Http\Controllers\Restock\RestockMissingController::class, 'index'])->name('missing.index');
         Route::get('/type/{typeTag:code}/missing', [App\Http\Controllers\Restock\RestockMissingController::class, 'forType'])->name('type.missing');
         Route::post('/missing/{cell}/found', [App\Http\Controllers\Restock\RestockMissingController::class, 'markFound'])->name('missing.found');

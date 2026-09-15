@@ -6,6 +6,7 @@
         'product_name' => old('product_name', ''),
         'price' => old('price', ''),
         'cost' => old('cost', ''),
+        'cost_cnh' => old('cost_cnh', ''),
         'reseller_price' => old('reseller_price', ''),
     ];
 @endphp
@@ -34,6 +35,7 @@ function itemForm() {
         },
         defaultPrice: @js($formItem['price'] ?? ''),
         defaultCost: @js($formItem['cost'] ?? ''),
+        defaultCostCnh: @js($formItem['cost_cnh'] ?? ''),
         defaultResellerPrice: @js($formItem['reseller_price'] ?? ''),
         skuOverrides: @js(old('sku_overrides', [])),
         typeCode: '???',
@@ -477,7 +479,7 @@ function itemForm() {
         previewOverrideOpen(sku) {
             const row = this.skuOverrideRow(sku);
 
-            return ['price', 'cost', 'reseller_price', 'description', 'description2']
+            return ['price', 'cost', 'cost_cnh', 'reseller_price', 'description', 'description2']
                 .some((field) => String(row[field] ?? '').trim() !== '');
         },
     };

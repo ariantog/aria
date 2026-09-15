@@ -34,6 +34,7 @@ test('restock settings can be saved', function () {
             'default_supplier_id' => $supplier->id,
             'default_receiver_id' => $warehouse->id,
             'default_warehouse_ids' => [$displayWh->id],
+            'export_cost_field' => 'cost_cnh',
         ])
         ->assertRedirect(route('restock.settings.edit'))
         ->assertSessionHas('success');
@@ -41,6 +42,7 @@ test('restock settings can be saved', function () {
     expect(Setting::getValue('restock.default_supplier_id'))->toBe($supplier->id);
     expect(Setting::getValue('restock.default_receiver_id'))->toBe($warehouse->id);
     expect(Setting::getValue('restock.default_warehouse_ids'))->toBe([$displayWh->id]);
+    expect(Setting::getValue('restock.export_cost_field'))->toBe('cost_cnh');
 });
 
 test('restock settings reject non-supplier default sender', function () {
@@ -52,6 +54,7 @@ test('restock settings reject non-supplier default sender', function () {
         ->put(route('restock.settings.update'), [
             'default_supplier_id' => $warehouse->id,
             'default_receiver_id' => $receiver->id,
+            'export_cost_field' => 'cost',
         ])
         ->assertRedirect()
         ->assertSessionHas('error');

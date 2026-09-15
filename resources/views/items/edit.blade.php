@@ -31,6 +31,7 @@ $formItem = [
         : ($legacyAssetProductName ?: '')),
     'price' => old('price', $item->price),
     'cost' => old('cost', $item->cost),
+    'cost_cnh' => old('cost_cnh', $item->cost_cnh),
     'description' => old('description', $isAsset ? ($item->group?->description ?? '') : $item->catalogDescription()),
     'description2' => old('description2', $isAsset ? ($item->group?->description2 ?? '') : $item->catalogDescription2()),
     'item_description' => old('item_description', $isAsset ? ($item->description ?? '') : ''),

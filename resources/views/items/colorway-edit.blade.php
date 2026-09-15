@@ -150,7 +150,8 @@ $previewRows = collect($sizeRows)->map(fn ($row) => [
                                     <th class="px-3 py-2 text-left font-semibold">SKU</th>
                                     <th class="px-3 py-2 text-right font-semibold">Price</th>
                                     @if($isAsset)
-                                    <th class="px-3 py-2 text-right font-semibold">Cost</th>
+                                    <th class="px-3 py-2 text-right font-semibold">Cost (IDR)</th>
+                                    <th class="px-3 py-2 text-right font-semibold">Cost (CNY)</th>
                                     @endif
                                     <th class="px-3 py-2 text-right font-semibold">Restock urgent</th>
                                 </tr>
@@ -173,6 +174,11 @@ $previewRows = collect($sizeRows)->map(fn ($row) => [
                                     <td class="px-3 py-3 text-right">
                                         <input type="number" step="any" name="items[{{ $row['id'] }}][cost]"
                                                value="{{ $row['cost'] }}"
+                                               class="w-28 rounded-lg border border-gray-300 px-2 py-1.5 text-right text-sm font-mono focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                                    </td>
+                                    <td class="px-3 py-3 text-right">
+                                        <input type="number" step="any" name="items[{{ $row['id'] }}][cost_cnh]"
+                                               value="{{ $row['cost_cnh'] }}"
                                                class="w-28 rounded-lg border border-gray-300 px-2 py-1.5 text-right text-sm font-mono focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
                                     </td>
                                     @endif
