@@ -4,11 +4,20 @@
 <link href="{{ asset('vendor/tabulator/tabulator.min.css') }}" rel="stylesheet">
 <style>
     .restock-grid-wrap {
-        overflow-x: auto;
+        overflow-x: visible;
+        overflow-y: visible;
         background: transparent;
-        padding-bottom: 0.5rem;
+        padding-bottom: 0.75rem;
+        min-width: 0;
         scrollbar-width: auto;
         scrollbar-color: #9ca3af #e5e7eb;
+        touch-action: pan-x pan-y;
+    }
+    .restock-grid-wrap .tabulator .tabulator-tableholder {
+        -webkit-overflow-scrolling: touch;
+        touch-action: pan-x pan-y;
+        overscroll-behavior-x: contain;
+        overflow-x: scroll;
     }
     html.dark .restock-grid-wrap {
         scrollbar-color: #6b7280 #374151;
@@ -201,6 +210,9 @@
         height: 6rem;
         width: 6rem;
     }
+    .restock-grid-wrap .tabulator .tabulator-tableholder.restock-grid-panning {
+        cursor: grabbing;
+    }
     .restock-sheet-actions {
         position: sticky;
         top: 0;
@@ -241,6 +253,7 @@ $breadcrumbs = [
 
         <div class="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
             Select color row(s) with the checkboxes, then use move buttons to advance quantities through the pipeline, or <strong>Receive → Warehouse</strong> for shipped qty. Edit restock / production / shipped cells directly and click <strong>Save sheet</strong> for manual adjustments. <strong>Stock</strong> shows warehouse qty from settings ({{ $stockWarehouseLabel }}). Any receive shortfall is recorded on the <a href="{{ route('restock.type.missing', $sheet->typeTag) }}" class="font-medium underline">Missing SKUs</a> page.
+            <span class="mt-1 block text-blue-900/90">Wide sheets: swipe sideways on the grid, use the <strong>Scroll ← / →</strong> buttons, or roll the mouse wheel over the table (Shift+wheel also scrolls sideways).</span>
             @unless($receiveReady)
                 <span class="mt-1 block text-amber-800">Receive is disabled until defaults are configured in <a href="{{ route('restock.settings.edit') }}" class="font-medium underline">Restock settings</a>.</span>
             @endunless
@@ -279,6 +292,19 @@ $breadcrumbs = [
                    class="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
                     Export Excel
                 </a>
+                <span class="hidden h-6 w-px bg-gray-300 sm:inline" aria-hidden="true"></span>
+                <button type="button" @click="scrollGrids(-320)" data-testid="restock-grid-scroll-left"
+                        title="Scroll sheet left"
+                        class="rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                        aria-label="Scroll sheet left">
+                    Scroll ←
+                </button>
+                <button type="button" @click="scrollGrids(320)" data-testid="restock-grid-scroll-right"
+                        title="Scroll sheet right"
+                        class="rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                        aria-label="Scroll sheet right">
+                    Scroll →
+                </button>
                 <a href="{{ route('restock.type.missing', $sheet->typeTag) }}"
                    class="rounded-md border border-red-200 bg-red-50 px-3 py-1.5 text-sm font-medium text-red-800 hover:bg-red-100">
                     Missing SKUs
@@ -300,7 +326,7 @@ $breadcrumbs = [
 
     <div class="flex flex-col gap-4 p-4 pt-3">
     @forelse($grid['blocks'] as $block)
-        <section class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+        <section class="min-w-0 rounded-xl border border-gray-200 bg-white shadow-sm">
             @if(count($grid['blocks']) > 1)
                 <div class="border-b border-gray-100 bg-gray-50 px-4 py-2">
                     <h2 class="text-sm font-semibold text-gray-700">{{ $block['title'] }}</h2>
@@ -438,7 +464,125 @@ function restockSheetPage() {
                         this.syncCheckboxCells(table);
                     });
                 }
+
+                this.bindGridScrollHelpers();
             });
+        },
+
+        gridScrollHolders() {
+            return Array.from(document.querySelectorAll('.restock-grid-wrap .tabulator-tableholder'));
+        },
+
+        scrollGrids(delta) {
+            for (const holder of this.gridScrollHolders()) {
+                holder.scrollBy({ left: delta, behavior: 'smooth' });
+            }
+        },
+
+        bindGridScrollHelpers() {
+            document.querySelectorAll('.restock-grid-wrap').forEach((wrap) => {
+                this.bindGridWheelScroll(wrap);
+                this.bindGridTouchPan(wrap);
+            });
+        },
+
+        bindGridWheelScroll(wrap) {
+            if (wrap.dataset.restockWheelBound === '1') {
+                return;
+            }
+            wrap.dataset.restockWheelBound = '1';
+
+            wrap.addEventListener('wheel', (event) => {
+                const holder = event.target.closest('.tabulator-tableholder')
+                    || wrap.querySelector('.tabulator-tableholder');
+                if (!holder) {
+                    return;
+                }
+
+                const canScrollX = holder.scrollWidth > holder.clientWidth + 1;
+                if (!canScrollX) {
+                    return;
+                }
+
+                const deltaX = event.deltaX;
+                const deltaY = event.deltaY;
+                if (Math.abs(deltaX) > Math.abs(deltaY)) {
+                    return;
+                }
+
+                const canScrollY = holder.scrollHeight > holder.clientHeight + 1;
+                if (canScrollY && !event.shiftKey) {
+                    return;
+                }
+
+                holder.scrollLeft += deltaY;
+                event.preventDefault();
+            }, { passive: false });
+        },
+
+        bindGridTouchPan(wrap) {
+            const holder = wrap.querySelector('.tabulator-tableholder');
+            if (!holder || holder.dataset.restockPanBound === '1') {
+                return;
+            }
+            holder.dataset.restockPanBound = '1';
+
+            let pan = null;
+
+            const isInteractiveTarget = (target) => target.closest(
+                'input, button, a, textarea, select, label, [contenteditable="true"]'
+            );
+
+            holder.addEventListener('pointerdown', (event) => {
+                if (event.button !== 0) {
+                    return;
+                }
+                if (isInteractiveTarget(event.target)) {
+                    return;
+                }
+                if (holder.scrollWidth <= holder.clientWidth + 1) {
+                    return;
+                }
+
+                pan = {
+                    pointerId: event.pointerId,
+                    startX: event.clientX,
+                    startScroll: holder.scrollLeft,
+                    moved: false,
+                };
+                holder.setPointerCapture(event.pointerId);
+            });
+
+            holder.addEventListener('pointermove', (event) => {
+                if (!pan || pan.pointerId !== event.pointerId) {
+                    return;
+                }
+
+                const deltaX = event.clientX - pan.startX;
+                if (!pan.moved && Math.abs(deltaX) < 6) {
+                    return;
+                }
+
+                pan.moved = true;
+                holder.scrollLeft = pan.startScroll - deltaX;
+                holder.classList.add('restock-grid-panning');
+                event.preventDefault();
+            });
+
+            const endPan = (event) => {
+                if (!pan || pan.pointerId !== event.pointerId) {
+                    return;
+                }
+
+                if (holder.hasPointerCapture(event.pointerId)) {
+                    holder.releasePointerCapture(event.pointerId);
+                }
+                holder.classList.remove('restock-grid-panning');
+                pan = null;
+            };
+
+            holder.addEventListener('pointerup', endPan);
+            holder.addEventListener('pointercancel', endPan);
         },
 
         tableHeightForBlock(block) {
