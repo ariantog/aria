@@ -3,6 +3,7 @@
 namespace App\Services\Restock;
 
 use App\Models\RestockSheet;
+use App\Support\ItemImageResolver;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
@@ -44,6 +45,7 @@ class RestockSheetExportService
     public function __construct(
         protected RestockGridBuilder $gridBuilder,
         protected RestockSettingsService $settingsService,
+        protected ItemImageResolver $imageResolver,
     ) {}
 
     /**
@@ -650,118 +652,49 @@ class RestockSheetExportService
             return null;
         }
 
-        $mapped = $this->mapConfiguredUrlToDiskPath($imageUrl);
-        if ($mapped !== null) {
-            return $mapped;
-        }
-
-        $pathPart = parse_url($imageUrl, PHP_URL_PATH);
-        if (is_string($pathPart) && $pathPart !== '') {
-            if (preg_match('#/asset/(.+)$#', $pathPart, $matches) === 1) {
-                $basePath = rtrim((string) config('core-nation.item_image_path'), '/\\').DIRECTORY_SEPARATOR;
-                $mapped = $this->embeddableImagePath(
-                    $basePath.str_replace('/', DIRECTORY_SEPARATOR, $matches[1]),
-                );
-                if ($mapped !== null) {
-                    return $mapped;
-                }
-
-                $cdnBase = rtrim((string) config('core-nation.cdn_path'), '/\\').DIRECTORY_SEPARATOR;
-                $mapped = $this->embeddableImagePath(
-                    $cdnBase.str_replace('/', DIRECTORY_SEPARATOR, $matches[1]),
-                );
-                if ($mapped !== null) {
-                    return $mapped;
-                }
-            }
-
-            $publicMapped = $this->embeddableImagePath(public_path(ltrim($pathPart, '/')));
-            if ($publicMapped !== null) {
-                return $publicMapped;
+        $fromUrl = $this->imageResolver->resolveExistingDiskPathFromImageUrl($imageUrl);
+        if ($fromUrl !== null) {
+            $local = $this->embeddableImagePath($fromUrl);
+            if ($local !== null) {
+                return $local;
             }
         }
 
         return $this->fetchRemoteImageToTemp($imageUrl);
     }
 
-    protected function mapConfiguredUrlToDiskPath(string $imageUrl): ?string
-    {
-        $pairs = [
-            [config('core-nation.item_image_url'), config('core-nation.item_image_path')],
-            [config('core-nation.cdn_url'), config('core-nation.cdn_path')],
-        ];
-
-        foreach ($pairs as [$urlBase, $pathBase]) {
-            if (! is_string($urlBase) || ! is_string($pathBase)) {
-                continue;
-            }
-
-            $normalizedUrl = rtrim($urlBase, '/').'/';
-            if ($normalizedUrl === '/' || ! str_starts_with($imageUrl, $normalizedUrl)) {
-                continue;
-            }
-
-            $relative = substr($imageUrl, strlen($normalizedUrl));
-            $diskPath = rtrim($pathBase, '/\\').DIRECTORY_SEPARATOR.str_replace('/', DIRECTORY_SEPARATOR, $relative);
-            $mapped = $this->embeddableImagePath($diskPath);
-            if ($mapped !== null) {
-                return $mapped;
-            }
-        }
-
-        return null;
-    }
-
     protected function fetchRemoteImageToTemp(string $imageUrl): ?string
     {
-        $absoluteUrl = $this->absoluteImageUrl($imageUrl);
-        if ($absoluteUrl === null) {
-            return null;
-        }
+        foreach ($this->imageResolver->absoluteImageUrlsForFetch($imageUrl) as $absoluteUrl) {
+            try {
+                $response = Http::timeout(20)->get($absoluteUrl);
+            } catch (\Throwable) {
+                continue;
+            }
 
-        try {
-            $response = Http::timeout(20)->get($absoluteUrl);
-        } catch (\Throwable) {
-            return null;
-        }
+            if (! $response->successful()) {
+                continue;
+            }
 
-        if (! $response->successful()) {
-            return null;
-        }
+            $body = $response->body();
+            if ($body === '') {
+                continue;
+            }
 
-        $body = $response->body();
-        if ($body === '') {
-            return null;
-        }
+            $tempPath = tempnam(sys_get_temp_dir(), 'restock-fetch-').'.jpg';
+            if (file_put_contents($tempPath, $body) === false) {
+                @unlink($tempPath);
 
-        $tempPath = tempnam(sys_get_temp_dir(), 'restock-fetch-').'.jpg';
-        if (file_put_contents($tempPath, $body) === false) {
-            @unlink($tempPath);
+                continue;
+            }
 
-            return null;
-        }
+            if (@getimagesize($tempPath) === false) {
+                @unlink($tempPath);
 
-        if (@getimagesize($tempPath) === false) {
-            @unlink($tempPath);
+                continue;
+            }
 
-            return null;
-        }
-
-        return $this->registerTempImageFile($tempPath);
-    }
-
-    protected function absoluteImageUrl(string $imageUrl): ?string
-    {
-        if (str_starts_with($imageUrl, 'http://') || str_starts_with($imageUrl, 'https://')) {
-            return $imageUrl;
-        }
-
-        if (str_starts_with($imageUrl, '//')) {
-            return 'https:'.$imageUrl;
-        }
-
-        if (str_starts_with($imageUrl, '/')) {
-            return rtrim((string) config('app.url'), '/').$imageUrl;
+            return $this->registerTempImageFile($tempPath);
         }
 
         return null;

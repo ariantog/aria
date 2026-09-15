@@ -260,6 +260,11 @@ class RestockGridBuilder
             return $path;
         }
 
+        $fromUrl = $resolver->resolveExistingDiskPathFromImageUrl($item->image_url);
+        if ($fromUrl !== null && $this->isEmbeddableImagePath($fromUrl)) {
+            return $fromUrl;
+        }
+
         return null;
     }
 
