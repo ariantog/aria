@@ -155,12 +155,17 @@ test('type landing lists parent pcodes under the type', function () {
     createAssetLancarSkus($this);
     createAssetLancarSkus($this, 'ELBOW-07', 'Elbow Support v2');
 
+    $parents = app(RestockSheetService::class)->parentsForType($this->typeTag);
+    $elbow03Url = $parents->firstWhere('pcode', 'ELBOW-03')['group_url'] ?? null;
+    expect($elbow03Url)->not->toBeNull();
+
     $this->actingAs($this->user)
         ->get(route('restock.type.show', $this->typeTag))
         ->assertOk()
         ->assertSee('ELBOW-03')
         ->assertSee('ELBOW-07')
-        ->assertSee('Start tracking Elbow');
+        ->assertSee('Start tracking Elbow')
+        ->assertSee($elbow03Url, false);
 });
 
 test('creating a sheet seeds cells for every sku under the type', function () {
