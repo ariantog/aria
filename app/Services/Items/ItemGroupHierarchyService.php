@@ -289,7 +289,27 @@ class ItemGroupHierarchyService
 
         if ($itemType === ItemType::ASSET_LANCAR) {
             $master = strtoupper($parts[1] ?? '');
-            $query->whereRaw('UPPER(item_group.master) = ?', [$master]);
+            $groupIdsFromItems = Item::query()
+                ->where('type', ItemType::ASSET_LANCAR)
+                ->whereNull('deleted_at')
+                ->where(function (Builder $itemQuery) use ($master) {
+                    $itemQuery->whereRaw('UPPER(TRIM(items.pcode)) = ?', [$master])
+                        ->orWhereRaw('UPPER(items.code) LIKE ?', [$master.'-%']);
+                })
+                ->pluck('group_id')
+                ->map(fn ($id) => (int) $id)
+                ->filter(fn (int $id) => $id > 0)
+                ->unique()
+                ->values()
+                ->all();
+
+            $query->where(function (Builder $masterQuery) use ($master, $groupIdsFromItems) {
+                $masterQuery->whereRaw('UPPER(TRIM(item_group.master)) = ?', [$master]);
+
+                if ($groupIdsFromItems !== []) {
+                    $masterQuery->orWhereIn('item_group.id', $groupIdsFromItems);
+                }
+            });
         } else {
             $typeCode = strtoupper($parts[1] ?? '');
             $master = $this->identityBuilder->canonicalManufacturedMaster((string) ($parts[2] ?? ''))
@@ -386,7 +406,7 @@ class ItemGroupHierarchyService
         $allSizeCodes = $this->orderedSizeCodes($allItems);
         $hasSizes = $allSizeCodes !== ['—'];
 
-        return $groups
+        $sections = $groups
             ->map(function (ItemGroup $group) use ($allSizeCodes, $hasSizes, $jubelioStocks) {
                 $colorItems = $group->items;
                 $sample = $colorItems->first();
@@ -423,6 +443,19 @@ class ItemGroupHierarchyService
 
                         $section['size_rows'][] = $this->buildSizeRow($item, $sizeCode, $jubelioStocks);
                     }
+
+                    $includedItemIds = collect($section['size_rows'])
+                        ->pluck('item_id')
+                        ->map(fn ($id) => (int) $id);
+
+                    foreach ($colorItems as $item) {
+                        if ($includedItemIds->contains((int) $item->id)) {
+                            continue;
+                        }
+
+                        $sizeCode = $this->identityBuilder->itemSizeCode($item) ?? '—';
+                        $section['size_rows'][] = $this->buildSizeRow($item, $sizeCode, $jubelioStocks);
+                    }
                 } else {
                     foreach ($colorItems as $item) {
                         $section['no_size_items'][] = $this->buildSizeRow($item, '—', $jubelioStocks);
@@ -432,9 +465,52 @@ class ItemGroupHierarchyService
                 return $section;
             })
             ->filter()
-            ->sortBy('code')
             ->values()
             ->all();
+
+        return $this->mergeColorSectionsByCode($sections);
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $sections
+     * @return list<array<string, mixed>>
+     */
+    protected function mergeColorSectionsByCode(array $sections): array
+    {
+        $merged = [];
+
+        foreach ($sections as $section) {
+            $key = strtoupper((string) $section['code']).'|'.strtoupper((string) ($section['pcode'] ?? ''));
+
+            if (! isset($merged[$key])) {
+                $merged[$key] = $section;
+
+                continue;
+            }
+
+            $existing = $merged[$key];
+            $existing['size_rows'] = array_merge($existing['size_rows'], $section['size_rows']);
+            $existing['no_size_items'] = array_merge($existing['no_size_items'], $section['no_size_items']);
+            $existing['in_warehouse_qty'] = (float) $existing['in_warehouse_qty'] + (float) $section['in_warehouse_qty'];
+
+            $breakdown = collect($existing['warehouse_breakdown'] ?? [])->keyBy('name');
+            foreach ($section['warehouse_breakdown'] ?? [] as $row) {
+                $name = $row['name'];
+                $breakdown[$name] = [
+                    'name' => $name,
+                    'quantity' => (float) (($breakdown[$name]['quantity'] ?? 0) + $row['quantity']),
+                ];
+            }
+            $existing['warehouse_breakdown'] = $breakdown->values()->all();
+
+            if (($existing['image_url'] ?? '') === '' && ($section['image_url'] ?? '') !== '') {
+                $existing['image_url'] = $section['image_url'];
+            }
+
+            $merged[$key] = $existing;
+        }
+
+        return collect($merged)->sortBy('code')->values()->all();
     }
 
     /**
