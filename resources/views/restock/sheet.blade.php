@@ -70,6 +70,35 @@
     html.dark .restock-grid-wrap .tabulator .tabulator-header .tabulator-col.tabulator-col-group.tabulator-col-group-stock { background: #14532d; }
     .restock-grid-wrap .tabulator-cell.tabulator-editing { border: 2px solid #2563eb !important; }
 
+    .restock-grid-wrap .tabulator .tabulator-row.restock-data-row.tabulator-selected {
+        background-color: #dbeafe;
+    }
+    .restock-grid-wrap .tabulator .tabulator-row.restock-data-row.tabulator-selected > .tabulator-cell {
+        background-color: #dbeafe !important;
+    }
+    .restock-grid-wrap .tabulator .tabulator-row.restock-data-row.tabulator-selected > .tabulator-cell.restock-urgent-cell {
+        background-color: #bfdbfe !important;
+        color: #991b1b;
+    }
+    .restock-grid-wrap .tabulator .tabulator-row.restock-data-row.tabulator-selected > .tabulator-cell.restock-na-cell {
+        background-color: #cbd5e1 !important;
+        color: #64748b !important;
+    }
+    html.dark .restock-grid-wrap .tabulator .tabulator-row.restock-data-row.tabulator-selected {
+        background-color: #1e3a5f;
+    }
+    html.dark .restock-grid-wrap .tabulator .tabulator-row.restock-data-row.tabulator-selected > .tabulator-cell {
+        background-color: #1e3a5f !important;
+    }
+    html.dark .restock-grid-wrap .tabulator .tabulator-row.restock-data-row.tabulator-selected > .tabulator-cell.restock-urgent-cell {
+        background-color: #1e40af !important;
+        color: #fecaca;
+    }
+    html.dark .restock-grid-wrap .tabulator .tabulator-row.restock-data-row.tabulator-selected > .tabulator-cell.restock-na-cell {
+        background-color: #334155 !important;
+        color: #94a3b8 !important;
+    }
+
     .restock-grid-wrap .tabulator .tabulator-row.restock-data-row .tabulator-cell {
         padding: 5px 8px;
     }
