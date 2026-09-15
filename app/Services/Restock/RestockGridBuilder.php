@@ -254,30 +254,10 @@ class RestockGridBuilder
         }
 
         $resolver = app(ItemImageResolver::class);
-        $candidateIds = [];
+        $path = $resolver->resolveExistingDiskPathForItem($item);
 
-        if ((int) $item->group_id > 0) {
-            $candidateIds[] = (int) $item->group_id;
-        }
-
-        $candidateIds[] = (int) $item->id;
-
-        if ($item->relationLoaded('group') && $item->group?->relationLoaded('items')) {
-            foreach ($item->group->items as $sibling) {
-                $candidateIds[] = (int) $sibling->id;
-            }
-        }
-
-        $seen = [];
-        foreach ($candidateIds as $id) {
-            if ($id <= 0 || isset($seen[$id])) {
-                continue;
-            }
-            $seen[$id] = true;
-            $path = $resolver->diskPathForId($id);
-            if (is_file($path) && $this->isEmbeddableImagePath($path)) {
-                return $path;
-            }
+        if ($path !== null && $this->isEmbeddableImagePath($path)) {
+            return $path;
         }
 
         return null;

@@ -4,12 +4,13 @@ namespace App\Services\Restock;
 
 use App\Models\RestockSheet;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
-use PhpOffice\PhpSpreadsheet\Worksheet\MemoryDrawing;
+use PhpOffice\PhpSpreadsheet\Worksheet\Drawing;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -37,8 +38,8 @@ class RestockSheetExportService
 
     private const IMAGE_WIDTH = 32;
 
-    /** @var list<\GdImage|resource> */
-    protected array $heldImageResources = [];
+    /** @var list<string> */
+    protected array $tempImageFiles = [];
 
     public function __construct(
         protected RestockGridBuilder $gridBuilder,
@@ -62,7 +63,7 @@ class RestockSheetExportService
         $sheets = $sheets instanceof Collection ? $sheets->values() : collect($sheets)->values();
         $stages = $this->normalizeStages($stages);
         $costLabel = $this->settingsService->exportCostColumnLabel();
-        $this->heldImageResources = [];
+        $this->tempImageFiles = [];
 
         $spreadsheet = new Spreadsheet;
         $spreadsheet->removeSheetByIndex(0);
@@ -508,23 +509,19 @@ class RestockSheetExportService
             return;
         }
 
-        $thumbnail = $this->buildThumbnailResource($path, self::IMAGE_WIDTH, self::IMAGE_HEIGHT);
-        if ($thumbnail === null) {
+        $thumbnailPath = $this->buildThumbnailFile($path, self::IMAGE_WIDTH, self::IMAGE_HEIGHT);
+        if ($thumbnailPath === null) {
             return;
         }
 
-        $drawing = new MemoryDrawing;
-        $drawing->setImageResource($thumbnail);
-        $drawing->setRenderingFunction(MemoryDrawing::RENDERING_JPEG);
-        $drawing->setMimeType(MemoryDrawing::MIMETYPE_JPEG);
+        $drawing = new Drawing;
+        $drawing->setPath($thumbnailPath);
         $drawing->setWidth(self::IMAGE_WIDTH);
         $drawing->setHeight(self::IMAGE_HEIGHT);
         $drawing->setCoordinates(Coordinate::stringFromColumnIndex(self::COL_IMAGE).$rowNum);
         $drawing->setOffsetX(2);
         $drawing->setOffsetY(2);
         $drawing->setWorksheet($worksheet);
-
-        $this->heldImageResources[] = $thumbnail;
 
         $targetHeight = self::IMAGE_HEIGHT + 4;
         $currentHeight = $worksheet->getRowDimension($rowNum)->getRowHeight();
@@ -533,13 +530,10 @@ class RestockSheetExportService
         }
     }
 
-    /**
-     * @return \GdImage|resource|null
-     */
-    protected function buildThumbnailResource(string $sourcePath, int $maxWidth, int $maxHeight)
+    protected function buildThumbnailFile(string $sourcePath, int $maxWidth, int $maxHeight): ?string
     {
         if (! function_exists('imagecreatetruecolor')) {
-            return null;
+            return $this->passthroughEmbeddableFile($sourcePath);
         }
 
         $info = @getimagesize($sourcePath);
@@ -555,7 +549,7 @@ class RestockSheetExportService
         };
 
         if ($source === false || $source === null) {
-            return null;
+            return $this->passthroughEmbeddableFile($sourcePath);
         }
 
         $sourceWidth = imagesx($source);
@@ -570,11 +564,17 @@ class RestockSheetExportService
         $targetWidth = max(1, (int) round($sourceWidth * $scale));
         $targetHeight = max(1, (int) round($sourceHeight * $scale));
 
+        if ($scale >= 1.0 && strtolower(pathinfo($sourcePath, PATHINFO_EXTENSION)) === 'jpg') {
+            imagedestroy($source);
+
+            return $this->registerTempImageFile($sourcePath);
+        }
+
         $thumbnail = imagecreatetruecolor($targetWidth, $targetHeight);
         if ($thumbnail === false) {
             imagedestroy($source);
 
-            return null;
+            return $this->passthroughEmbeddableFile($sourcePath);
         }
 
         $background = imagecolorallocate($thumbnail, 255, 255, 255);
@@ -596,53 +596,175 @@ class RestockSheetExportService
         );
         imagedestroy($source);
 
-        return $thumbnail;
+        $tempPath = tempnam(sys_get_temp_dir(), 'restock-thumb-').'.jpg';
+        if (! imagejpeg($thumbnail, $tempPath, 85)) {
+            imagedestroy($thumbnail);
+            @unlink($tempPath);
+
+            return null;
+        }
+        imagedestroy($thumbnail);
+
+        return $this->registerTempImageFile($tempPath);
+    }
+
+    protected function passthroughEmbeddableFile(string $sourcePath): ?string
+    {
+        if (! is_file($sourcePath)) {
+            return null;
+        }
+
+        return $this->registerTempImageFile($sourcePath);
+    }
+
+    protected function registerTempImageFile(string $path): string
+    {
+        if (! in_array($path, $this->tempImageFiles, true)) {
+            $this->tempImageFiles[] = $path;
+        }
+
+        return $path;
     }
 
     protected function cleanupHeldImages(): void
     {
-        foreach ($this->heldImageResources as $resource) {
-            if (is_resource($resource) || $resource instanceof \GdImage) {
-                imagedestroy($resource);
+        foreach ($this->tempImageFiles as $path) {
+            if (str_starts_with($path, sys_get_temp_dir()) && is_file($path)) {
+                @unlink($path);
             }
         }
 
-        $this->heldImageResources = [];
+        $this->tempImageFiles = [];
     }
 
     protected function resolveExportImagePath(string $imageUrl, ?string $diskPath = null): ?string
     {
         if ($diskPath !== null && is_file($diskPath)) {
-            return $this->embeddableImagePath($diskPath);
+            $local = $this->embeddableImagePath($diskPath);
+            if ($local !== null) {
+                return $local;
+            }
         }
 
         if ($imageUrl === '' || str_contains($imageUrl, 'default-item.svg')) {
             return null;
         }
 
-        $baseUrl = rtrim((string) config('core-nation.item_image_url'), '/').'/';
-        $basePath = rtrim((string) config('core-nation.item_image_path'), '/\\').DIRECTORY_SEPARATOR;
-
-        if ($baseUrl !== '/' && str_starts_with($imageUrl, $baseUrl)) {
-            $relative = substr($imageUrl, strlen($baseUrl));
-
-            return $this->embeddableImagePath($basePath.str_replace('/', DIRECTORY_SEPARATOR, $relative));
+        $mapped = $this->mapConfiguredUrlToDiskPath($imageUrl);
+        if ($mapped !== null) {
+            return $mapped;
         }
 
         $pathPart = parse_url($imageUrl, PHP_URL_PATH);
-        if (! is_string($pathPart) || $pathPart === '') {
-            return null;
-        }
+        if (is_string($pathPart) && $pathPart !== '') {
+            if (preg_match('#/asset/(.+)$#', $pathPart, $matches) === 1) {
+                $basePath = rtrim((string) config('core-nation.item_image_path'), '/\\').DIRECTORY_SEPARATOR;
+                $mapped = $this->embeddableImagePath(
+                    $basePath.str_replace('/', DIRECTORY_SEPARATOR, $matches[1]),
+                );
+                if ($mapped !== null) {
+                    return $mapped;
+                }
 
-        if (preg_match('#/asset/(.+)$#', $pathPart, $matches) === 1) {
-            $mapped = $basePath.str_replace('/', DIRECTORY_SEPARATOR, $matches[1]);
-            $mappedPath = $this->embeddableImagePath($mapped);
-            if ($mappedPath !== null) {
-                return $mappedPath;
+                $cdnBase = rtrim((string) config('core-nation.cdn_path'), '/\\').DIRECTORY_SEPARATOR;
+                $mapped = $this->embeddableImagePath(
+                    $cdnBase.str_replace('/', DIRECTORY_SEPARATOR, $matches[1]),
+                );
+                if ($mapped !== null) {
+                    return $mapped;
+                }
+            }
+
+            $publicMapped = $this->embeddableImagePath(public_path(ltrim($pathPart, '/')));
+            if ($publicMapped !== null) {
+                return $publicMapped;
             }
         }
 
-        return $this->embeddableImagePath(public_path(ltrim($pathPart, '/')));
+        return $this->fetchRemoteImageToTemp($imageUrl);
+    }
+
+    protected function mapConfiguredUrlToDiskPath(string $imageUrl): ?string
+    {
+        $pairs = [
+            [config('core-nation.item_image_url'), config('core-nation.item_image_path')],
+            [config('core-nation.cdn_url'), config('core-nation.cdn_path')],
+        ];
+
+        foreach ($pairs as [$urlBase, $pathBase]) {
+            if (! is_string($urlBase) || ! is_string($pathBase)) {
+                continue;
+            }
+
+            $normalizedUrl = rtrim($urlBase, '/').'/';
+            if ($normalizedUrl === '/' || ! str_starts_with($imageUrl, $normalizedUrl)) {
+                continue;
+            }
+
+            $relative = substr($imageUrl, strlen($normalizedUrl));
+            $diskPath = rtrim($pathBase, '/\\').DIRECTORY_SEPARATOR.str_replace('/', DIRECTORY_SEPARATOR, $relative);
+            $mapped = $this->embeddableImagePath($diskPath);
+            if ($mapped !== null) {
+                return $mapped;
+            }
+        }
+
+        return null;
+    }
+
+    protected function fetchRemoteImageToTemp(string $imageUrl): ?string
+    {
+        $absoluteUrl = $this->absoluteImageUrl($imageUrl);
+        if ($absoluteUrl === null) {
+            return null;
+        }
+
+        try {
+            $response = Http::timeout(20)->get($absoluteUrl);
+        } catch (\Throwable) {
+            return null;
+        }
+
+        if (! $response->successful()) {
+            return null;
+        }
+
+        $body = $response->body();
+        if ($body === '') {
+            return null;
+        }
+
+        $tempPath = tempnam(sys_get_temp_dir(), 'restock-fetch-').'.jpg';
+        if (file_put_contents($tempPath, $body) === false) {
+            @unlink($tempPath);
+
+            return null;
+        }
+
+        if (@getimagesize($tempPath) === false) {
+            @unlink($tempPath);
+
+            return null;
+        }
+
+        return $this->registerTempImageFile($tempPath);
+    }
+
+    protected function absoluteImageUrl(string $imageUrl): ?string
+    {
+        if (str_starts_with($imageUrl, 'http://') || str_starts_with($imageUrl, 'https://')) {
+            return $imageUrl;
+        }
+
+        if (str_starts_with($imageUrl, '//')) {
+            return 'https:'.$imageUrl;
+        }
+
+        if (str_starts_with($imageUrl, '/')) {
+            return rtrim((string) config('app.url'), '/').$imageUrl;
+        }
+
+        return null;
     }
 
     protected function embeddableImagePath(string $path): ?string
