@@ -9,7 +9,7 @@ use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
-use PhpOffice\PhpSpreadsheet\Worksheet\Drawing;
+use PhpOffice\PhpSpreadsheet\Worksheet\MemoryDrawing;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -37,8 +37,8 @@ class RestockSheetExportService
 
     private const IMAGE_WIDTH = 32;
 
-    /** @var list<string> */
-    protected array $tempThumbnailPaths = [];
+    /** @var list<\GdImage|resource> */
+    protected array $heldImageResources = [];
 
     public function __construct(
         protected RestockGridBuilder $gridBuilder,
@@ -62,7 +62,7 @@ class RestockSheetExportService
         $sheets = $sheets instanceof Collection ? $sheets->values() : collect($sheets)->values();
         $stages = $this->normalizeStages($stages);
         $costLabel = $this->settingsService->exportCostColumnLabel();
-        $this->tempThumbnailPaths = [];
+        $this->heldImageResources = [];
 
         $spreadsheet = new Spreadsheet;
         $spreadsheet->removeSheetByIndex(0);
@@ -113,7 +113,7 @@ class RestockSheetExportService
             try {
                 (new Xlsx($spreadsheet))->save('php://output');
             } finally {
-                $this->cleanupTempThumbnails();
+                $this->cleanupHeldImages();
             }
         }, 200, [
             'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -499,40 +499,44 @@ class RestockSheetExportService
      */
     protected function embedSectionImage(Worksheet $worksheet, int $rowNum, array $sectionRow): void
     {
-        $path = $this->resolveExportImagePath((string) ($sectionRow['image_url'] ?? ''));
+        $diskPath = isset($sectionRow['image_disk_path']) ? (string) $sectionRow['image_disk_path'] : null;
+        $path = $this->resolveExportImagePath(
+            (string) ($sectionRow['image_url'] ?? ''),
+            $diskPath !== '' ? $diskPath : null,
+        );
         if ($path === null) {
             return;
         }
 
-        $thumbnail = $this->buildThumbnailFile($path, self::IMAGE_WIDTH, self::IMAGE_HEIGHT);
+        $thumbnail = $this->buildThumbnailResource($path, self::IMAGE_WIDTH, self::IMAGE_HEIGHT);
         if ($thumbnail === null) {
             return;
         }
 
-        $drawing = new Drawing;
-        $drawing->setPath($thumbnail);
-        $thumbInfo = @getimagesize($thumbnail);
-        if (is_array($thumbInfo)) {
-            $drawing->setWidth($thumbInfo[0]);
-            $drawing->setHeight($thumbInfo[1]);
-            $targetHeight = $thumbInfo[1] + 4;
-        } else {
-            $drawing->setHeight(self::IMAGE_HEIGHT);
-            $drawing->setWidth(self::IMAGE_WIDTH);
-            $targetHeight = self::IMAGE_HEIGHT + 4;
-        }
+        $drawing = new MemoryDrawing;
+        $drawing->setImageResource($thumbnail);
+        $drawing->setRenderingFunction(MemoryDrawing::RENDERING_JPEG);
+        $drawing->setMimeType(MemoryDrawing::MIMETYPE_JPEG);
+        $drawing->setWidth(self::IMAGE_WIDTH);
+        $drawing->setHeight(self::IMAGE_HEIGHT);
         $drawing->setCoordinates(Coordinate::stringFromColumnIndex(self::COL_IMAGE).$rowNum);
         $drawing->setOffsetX(2);
         $drawing->setOffsetY(2);
         $drawing->setWorksheet($worksheet);
 
+        $this->heldImageResources[] = $thumbnail;
+
+        $targetHeight = self::IMAGE_HEIGHT + 4;
         $currentHeight = $worksheet->getRowDimension($rowNum)->getRowHeight();
         if ($currentHeight < 0 || $currentHeight < $targetHeight) {
             $worksheet->getRowDimension($rowNum)->setRowHeight($targetHeight);
         }
     }
 
-    protected function buildThumbnailFile(string $sourcePath, int $maxWidth, int $maxHeight): ?string
+    /**
+     * @return \GdImage|resource|null
+     */
+    protected function buildThumbnailResource(string $sourcePath, int $maxWidth, int $maxHeight)
     {
         if (! function_exists('imagecreatetruecolor')) {
             return null;
@@ -573,6 +577,11 @@ class RestockSheetExportService
             return null;
         }
 
+        $background = imagecolorallocate($thumbnail, 255, 255, 255);
+        if ($background !== false) {
+            imagefill($thumbnail, 0, 0, $background);
+        }
+
         imagecopyresampled(
             $thumbnail,
             $source,
@@ -587,42 +596,26 @@ class RestockSheetExportService
         );
         imagedestroy($source);
 
-        $tempPath = tempnam(sys_get_temp_dir(), 'restock-thumb-');
-        if ($tempPath === false) {
-            imagedestroy($thumbnail);
-
-            return null;
-        }
-
-        $jpegPath = $tempPath.'.jpg';
-        @unlink($tempPath);
-
-        if (! imagejpeg($thumbnail, $jpegPath, 80)) {
-            imagedestroy($thumbnail);
-            @unlink($jpegPath);
-
-            return null;
-        }
-
-        imagedestroy($thumbnail);
-        $this->tempThumbnailPaths[] = $jpegPath;
-
-        return $jpegPath;
+        return $thumbnail;
     }
 
-    protected function cleanupTempThumbnails(): void
+    protected function cleanupHeldImages(): void
     {
-        foreach ($this->tempThumbnailPaths as $path) {
-            if (is_file($path)) {
-                @unlink($path);
+        foreach ($this->heldImageResources as $resource) {
+            if (is_resource($resource) || $resource instanceof \GdImage) {
+                imagedestroy($resource);
             }
         }
 
-        $this->tempThumbnailPaths = [];
+        $this->heldImageResources = [];
     }
 
-    protected function resolveExportImagePath(string $imageUrl): ?string
+    protected function resolveExportImagePath(string $imageUrl, ?string $diskPath = null): ?string
     {
+        if ($diskPath !== null && is_file($diskPath)) {
+            return $this->embeddableImagePath($diskPath);
+        }
+
         if ($imageUrl === '' || str_contains($imageUrl, 'default-item.svg')) {
             return null;
         }
@@ -637,11 +630,19 @@ class RestockSheetExportService
         }
 
         $pathPart = parse_url($imageUrl, PHP_URL_PATH);
-        if (is_string($pathPart) && $pathPart !== '') {
-            return $this->embeddableImagePath(public_path(ltrim($pathPart, '/')));
+        if (! is_string($pathPart) || $pathPart === '') {
+            return null;
         }
 
-        return null;
+        if (preg_match('#/asset/(.+)$#', $pathPart, $matches) === 1) {
+            $mapped = $basePath.str_replace('/', DIRECTORY_SEPARATOR, $matches[1]);
+            $mappedPath = $this->embeddableImagePath($mapped);
+            if ($mappedPath !== null) {
+                return $mappedPath;
+            }
+        }
+
+        return $this->embeddableImagePath(public_path(ltrim($pathPart, '/')));
     }
 
     protected function embeddableImagePath(string $path): ?string
