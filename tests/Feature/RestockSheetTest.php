@@ -414,10 +414,9 @@ test('sheet show page includes unified tabulator block grids', function () {
         ->assertDontSee('data-parent-grid=', false)
         ->assertSee('vendor/tabulator/tabulator.min.js', false)
         ->assertSee('Save sheet', false)
+        ->assertSee('overflow-x: auto', false)
         ->assertSee('Export Excel', false)
         ->assertSee('Stock', false)
-        ->assertSee('data-testid="restock-grid-scroll-left"', false)
-        ->assertSee('data-testid="restock-grid-scroll-right"', false)
         ->assertSee('restock-data-row.tabulator-selected', false);
 });
 
