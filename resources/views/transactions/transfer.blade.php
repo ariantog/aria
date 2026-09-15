@@ -54,28 +54,43 @@
                     @error('invoice')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
                 </div>
 
-                <div>
-                    <label for="sender" class="mb-1 block text-sm font-medium text-gray-700">From Account <span class="text-red-500">*</span></label>
-                    <select id="sender" name="sender"
-                            class="w-full rounded-lg border px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 @error('sender') border-red-500 @else border-gray-300 @enderror">
-                        <option value="">Choose source account…</option>
-                        @foreach($bankList as $bank)
-                        <option value="{{ $bank->id }}" @selected(old('sender', $defaultAccounts['sender_id'] ?? null) == $bank->id)>{{ $bank->name }}</option>
-                        @endforeach
-                    </select>
-                    @error('sender')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
-                </div>
+                <div class="space-y-3">
+                    <div>
+                        <label for="sender" class="mb-1 block text-sm font-medium text-gray-700">From Account <span class="text-red-500">*</span></label>
+                        <select id="sender" name="sender" x-ref="sender"
+                                class="w-full rounded-lg border px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 @error('sender') border-red-500 @else border-gray-300 @enderror">
+                            <option value="">Choose source account…</option>
+                            @foreach($bankList as $bank)
+                            <option value="{{ $bank->id }}" @selected(old('sender', $defaultAccounts['sender_id'] ?? null) == $bank->id)>{{ $bank->name }}</option>
+                            @endforeach
+                        </select>
+                        @error('sender')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
+                    </div>
 
-                <div>
-                    <label for="receiver" class="mb-1 block text-sm font-medium text-gray-700">To Account <span class="text-red-500">*</span></label>
-                    <select id="receiver" name="receiver"
-                            class="w-full rounded-lg border px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 @error('receiver') border-red-500 @else border-gray-300 @enderror">
-                        <option value="">Choose destination account…</option>
-                        @foreach($bankList as $bank)
-                        <option value="{{ $bank->id }}" @selected(old('receiver', $defaultAccounts['receiver_id'] ?? null) == $bank->id)>{{ $bank->name }}</option>
-                        @endforeach
-                    </select>
-                    @error('receiver')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
+                    <div class="flex justify-center">
+                        <button type="button"
+                                data-testid="transfer-swap-parties"
+                                @click="swapAccounts()"
+                                title="Switch sender and receiver"
+                                class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1">
+                            <svg class="h-4 w-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"/>
+                            </svg>
+                            Switch accounts
+                        </button>
+                    </div>
+
+                    <div>
+                        <label for="receiver" class="mb-1 block text-sm font-medium text-gray-700">To Account <span class="text-red-500">*</span></label>
+                        <select id="receiver" name="receiver" x-ref="receiver"
+                                class="w-full rounded-lg border px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 @error('receiver') border-red-500 @else border-gray-300 @enderror">
+                            <option value="">Choose destination account…</option>
+                            @foreach($bankList as $bank)
+                            <option value="{{ $bank->id }}" @selected(old('receiver', $defaultAccounts['receiver_id'] ?? null) == $bank->id)>{{ $bank->name }}</option>
+                            @endforeach
+                        </select>
+                        @error('receiver')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
+                    </div>
                 </div>
             </div>
         </div>
@@ -143,6 +158,16 @@ function transferForm() {
             if (this.totalAmount != null && Number.isNaN(this.totalAmount)) {
                 this.totalAmount = null;
             }
+        },
+        swapAccounts() {
+            const senderEl = this.$refs.sender;
+            const receiverEl = this.$refs.receiver;
+            if (!senderEl || !receiverEl) {
+                return;
+            }
+            const previousSender = senderEl.value;
+            senderEl.value = receiverEl.value;
+            receiverEl.value = previousSender;
         },
     };
 }
