@@ -39,7 +39,7 @@ class ItemImageResolver
 
     public function existsForId(int $id): bool
     {
-        return file_exists($this->diskPathForId($id));
+        return $this->resolveExistingDiskPathForId($id) !== null;
     }
 
     public function resolveUrlForId(int $id): ?string
@@ -120,21 +120,72 @@ class ItemImageResolver
 
     public function resolveDiskPathForItem(Item $item): string
     {
-        $url = $this->resolveUrlForItem($item);
+        $existing = $this->resolveExistingDiskPathForItem($item);
 
-        if ($url === $this->defaultImageUrl()) {
-            return $this->diskPathForId((int) (($item->group_id > 0) ? $item->group_id : $item->id));
+        if ($existing !== null) {
+            return $existing;
         }
 
-        foreach ($this->uniqueCandidateIdsForItem($item) as $id) {
-            $path = $this->diskPathForId($id);
+        return $this->diskPathForId((int) (($item->group_id > 0) ? $item->group_id : $item->id));
+    }
 
-            if (file_exists($path)) {
+    public function resolveExistingDiskPathForItem(Item $item): ?string
+    {
+        foreach ($this->uniqueCandidateIdsForItem($item) as $id) {
+            $path = $this->resolveExistingDiskPathForId($id);
+            if ($path !== null) {
                 return $path;
             }
         }
 
-        return $this->diskPathForId((int) (($item->group_id > 0) ? $item->group_id : $item->id));
+        return null;
+    }
+
+    public function resolveExistingDiskPathForId(int $id): ?string
+    {
+        if ($id <= 0) {
+            return null;
+        }
+
+        foreach ($this->diskPathCandidatesForId($id) as $path) {
+            if (is_file($path)) {
+                return $path;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function diskPathCandidatesForId(int $id): array
+    {
+        $folder = $this->folderForId($id);
+        $filename = $this->filenameForId($id);
+        $paths = [];
+
+        foreach ($this->imageStorageBases() as $base) {
+            $paths[] = rtrim($base, '/\\').DIRECTORY_SEPARATOR.$folder.DIRECTORY_SEPARATOR.$filename;
+        }
+
+        return $paths;
+    }
+
+    /**
+     * @return list<string>
+     */
+    protected function imageStorageBases(): array
+    {
+        $bases = [
+            config('core-nation.item_image_path'),
+            config('core-nation.cdn_path'),
+        ];
+
+        return array_values(array_unique(array_filter(array_map(
+            static fn ($base) => is_string($base) ? rtrim($base, '/\\') : null,
+            $bases,
+        ))));
     }
 
     /**
