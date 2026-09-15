@@ -3,74 +3,31 @@
 @push('head-css')
 <link href="{{ asset('vendor/tabulator/tabulator.min.css') }}" rel="stylesheet">
 <style>
+    /* Native horizontal scroll on the wrapper — whole grid (header + rows) moves together. */
     .restock-grid-wrap {
-        overflow-x: visible;
+        overflow-x: auto;
         overflow-y: visible;
-        background: transparent;
-        padding-bottom: 0.75rem;
+        max-width: 100%;
         min-width: 0;
-        scrollbar-width: auto;
-        scrollbar-color: #9ca3af #e5e7eb;
-        touch-action: pan-x pan-y;
-    }
-    .restock-grid-wrap .tabulator .tabulator-tableholder {
+        background: transparent;
         -webkit-overflow-scrolling: touch;
-        touch-action: pan-x pan-y;
-        overscroll-behavior-x: contain;
-        overflow-x: scroll;
-    }
-    html.dark .restock-grid-wrap {
-        scrollbar-color: #6b7280 #374151;
-    }
-    .restock-grid-wrap .tabulator .tabulator-tableholder {
-        scrollbar-width: auto;
-        scrollbar-color: #9ca3af #e5e7eb;
-    }
-    html.dark .restock-grid-wrap .tabulator .tabulator-tableholder {
-        scrollbar-color: #9ca3af #1f2937;
-    }
-    .restock-grid-wrap::-webkit-scrollbar,
-    .restock-grid-wrap .tabulator .tabulator-tableholder::-webkit-scrollbar {
-        height: 14px;
-        width: 14px;
-    }
-    .restock-grid-wrap::-webkit-scrollbar-track,
-    .restock-grid-wrap .tabulator .tabulator-tableholder::-webkit-scrollbar-track {
-        background: #e5e7eb;
-        border-radius: 9999px;
-    }
-    .restock-grid-wrap::-webkit-scrollbar-thumb,
-    .restock-grid-wrap .tabulator .tabulator-tableholder::-webkit-scrollbar-thumb {
-        background-color: #9ca3af;
-        border: 3px solid #e5e7eb;
-        border-radius: 9999px;
-        min-width: 48px;
-    }
-    .restock-grid-wrap::-webkit-scrollbar-thumb:hover,
-    .restock-grid-wrap .tabulator .tabulator-tableholder::-webkit-scrollbar-thumb:hover {
-        background-color: #6b7280;
-    }
-    html.dark .restock-grid-wrap::-webkit-scrollbar-track,
-    html.dark .restock-grid-wrap .tabulator .tabulator-tableholder::-webkit-scrollbar-track {
-        background: #1f2937;
-    }
-    html.dark .restock-grid-wrap::-webkit-scrollbar-thumb,
-    html.dark .restock-grid-wrap .tabulator .tabulator-tableholder::-webkit-scrollbar-thumb {
-        background-color: #6b7280;
-        border-color: #1f2937;
-    }
-    html.dark .restock-grid-wrap::-webkit-scrollbar-thumb:hover,
-    html.dark .restock-grid-wrap .tabulator .tabulator-tableholder::-webkit-scrollbar-thumb:hover {
-        background-color: #9ca3af;
     }
     .restock-grid-wrap .tabulator {
         display: inline-block;
         vertical-align: top;
         font-size: 13px;
         border-radius: 0.375rem;
-        width: auto;
-        max-width: 100%;
+        width: max-content;
+        max-width: none;
+        overflow: visible !important;
         background: transparent;
+    }
+    .restock-grid-wrap .tabulator .tabulator-header,
+    .restock-grid-wrap .tabulator .tabulator-header .tabulator-header-contents,
+    .restock-grid-wrap .tabulator .tabulator-tableholder {
+        overflow: visible !important;
+        height: auto !important;
+        max-height: none !important;
     }
     .restock-grid-wrap .tabulator .tabulator-tableholder,
     .restock-grid-wrap .tabulator .tabulator-header,
@@ -210,9 +167,6 @@
         height: 6rem;
         width: 6rem;
     }
-    .restock-grid-wrap .tabulator .tabulator-tableholder.restock-grid-panning {
-        cursor: grabbing;
-    }
     .restock-sheet-actions {
         position: sticky;
         top: 0;
@@ -253,7 +207,6 @@ $breadcrumbs = [
 
         <div class="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
             Select color row(s) with the checkboxes, then use move buttons to advance quantities through the pipeline, or <strong>Receive → Warehouse</strong> for shipped qty. Edit restock / production / shipped cells directly and click <strong>Save sheet</strong> for manual adjustments. <strong>Stock</strong> shows warehouse qty from settings ({{ $stockWarehouseLabel }}). Any receive shortfall is recorded on the <a href="{{ route('restock.type.missing', $sheet->typeTag) }}" class="font-medium underline">Missing SKUs</a> page.
-            <span class="mt-1 block text-blue-900/90">Wide sheets: swipe sideways on the grid, use the <strong>Scroll ← / →</strong> buttons, or roll the mouse wheel over the table (Shift+wheel also scrolls sideways).</span>
             @unless($receiveReady)
                 <span class="mt-1 block text-amber-800">Receive is disabled until defaults are configured in <a href="{{ route('restock.settings.edit') }}" class="font-medium underline">Restock settings</a>.</span>
             @endunless
@@ -292,19 +245,6 @@ $breadcrumbs = [
                    class="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
                     Export Excel
                 </a>
-                <span class="hidden h-6 w-px bg-gray-300 sm:inline" aria-hidden="true"></span>
-                <button type="button" @click="scrollGrids(-320)" data-testid="restock-grid-scroll-left"
-                        title="Scroll sheet left"
-                        class="rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
-                        aria-label="Scroll sheet left">
-                    Scroll ←
-                </button>
-                <button type="button" @click="scrollGrids(320)" data-testid="restock-grid-scroll-right"
-                        title="Scroll sheet right"
-                        class="rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
-                        aria-label="Scroll sheet right">
-                    Scroll →
-                </button>
                 <a href="{{ route('restock.type.missing', $sheet->typeTag) }}"
                    class="rounded-md border border-red-200 bg-red-50 px-3 py-1.5 text-sm font-medium text-red-800 hover:bg-red-100">
                     Missing SKUs
@@ -443,7 +383,6 @@ function restockSheetPage() {
                         index: '_rowKey',
                         renderVertical: 'basic',
                         layout: 'fitDataTable',
-                        height: this.tableHeightForBlock(block),
                         columnHeaderVertAlign: 'middle',
                         selectableRows: this.canEdit,
                         selectableRowsCheck: (row) => row.getData()._type === 'data',
@@ -456,140 +395,34 @@ function restockSheetPage() {
 
                     this.tables[block.id] = table;
                     if (isMatrix) {
-                        table.on('tableBuilt', () => this.collapseMatrixSubHeader(table));
                         table.on('columnResized', () => this.collapseMatrixSubHeader(table));
                     }
+                    table.on('tableBuilt', () => {
+                        if (isMatrix) {
+                            this.collapseMatrixSubHeader(table);
+                        }
+                        this.releaseTabulatorInternalScroll(table);
+                    });
                     table.on('rowSelectionChanged', () => {
                         this.syncSelectionCount();
                         this.syncCheckboxCells(table);
                     });
                 }
-
-                this.bindGridScrollHelpers();
             });
         },
 
-        gridScrollHolders() {
-            return Array.from(document.querySelectorAll('.restock-grid-wrap .tabulator-tableholder'));
-        },
-
-        scrollGrids(delta) {
-            for (const holder of this.gridScrollHolders()) {
-                holder.scrollBy({ left: delta, behavior: 'smooth' });
-            }
-        },
-
-        bindGridScrollHelpers() {
-            document.querySelectorAll('.restock-grid-wrap').forEach((wrap) => {
-                this.bindGridWheelScroll(wrap);
-                this.bindGridTouchPan(wrap);
-            });
-        },
-
-        bindGridWheelScroll(wrap) {
-            if (wrap.dataset.restockWheelBound === '1') {
+        releaseTabulatorInternalScroll(table) {
+            const root = table.element;
+            if (!root) {
                 return;
             }
-            wrap.dataset.restockWheelBound = '1';
 
-            wrap.addEventListener('wheel', (event) => {
-                const holder = event.target.closest('.tabulator-tableholder')
-                    || wrap.querySelector('.tabulator-tableholder');
-                if (!holder) {
-                    return;
-                }
-
-                const canScrollX = holder.scrollWidth > holder.clientWidth + 1;
-                if (!canScrollX) {
-                    return;
-                }
-
-                const deltaX = event.deltaX;
-                const deltaY = event.deltaY;
-                if (Math.abs(deltaX) > Math.abs(deltaY)) {
-                    return;
-                }
-
-                const canScrollY = holder.scrollHeight > holder.clientHeight + 1;
-                if (canScrollY && !event.shiftKey) {
-                    return;
-                }
-
-                holder.scrollLeft += deltaY;
-                event.preventDefault();
-            }, { passive: false });
-        },
-
-        bindGridTouchPan(wrap) {
-            const holder = wrap.querySelector('.tabulator-tableholder');
-            if (!holder || holder.dataset.restockPanBound === '1') {
-                return;
-            }
-            holder.dataset.restockPanBound = '1';
-
-            let pan = null;
-
-            const isInteractiveTarget = (target) => target.closest(
-                'input, button, a, textarea, select, label, [contenteditable="true"]'
-            );
-
-            holder.addEventListener('pointerdown', (event) => {
-                if (event.button !== 0) {
-                    return;
-                }
-                if (isInteractiveTarget(event.target)) {
-                    return;
-                }
-                if (holder.scrollWidth <= holder.clientWidth + 1) {
-                    return;
-                }
-
-                pan = {
-                    pointerId: event.pointerId,
-                    startX: event.clientX,
-                    startScroll: holder.scrollLeft,
-                    moved: false,
-                };
-                holder.setPointerCapture(event.pointerId);
+            root.style.overflow = 'visible';
+            root.querySelectorAll('.tabulator-header, .tabulator-header-contents, .tabulator-tableholder').forEach((el) => {
+                el.style.overflow = 'visible';
+                el.style.height = 'auto';
+                el.style.maxHeight = 'none';
             });
-
-            holder.addEventListener('pointermove', (event) => {
-                if (!pan || pan.pointerId !== event.pointerId) {
-                    return;
-                }
-
-                const deltaX = event.clientX - pan.startX;
-                if (!pan.moved && Math.abs(deltaX) < 6) {
-                    return;
-                }
-
-                pan.moved = true;
-                holder.scrollLeft = pan.startScroll - deltaX;
-                holder.classList.add('restock-grid-panning');
-                event.preventDefault();
-            });
-
-            const endPan = (event) => {
-                if (!pan || pan.pointerId !== event.pointerId) {
-                    return;
-                }
-
-                if (holder.hasPointerCapture(event.pointerId)) {
-                    holder.releasePointerCapture(event.pointerId);
-                }
-                holder.classList.remove('restock-grid-panning');
-                pan = null;
-            };
-
-            holder.addEventListener('pointerup', endPan);
-            holder.addEventListener('pointercancel', endPan);
-        },
-
-        tableHeightForBlock(block) {
-            const rows = block?.rows ?? [];
-            const isMatrix = block?.kind === 'matrix';
-
-            return Math.max(160, rows.length * 34 + (isMatrix ? 40 : 48));
         },
 
         async parseJsonResponse(res) {
@@ -1001,10 +834,10 @@ function restockSheetPage() {
 
                 const rows = block.rows ?? [];
                 const isMatrix = block.kind === 'matrix';
-                table.setHeight(this.tableHeightForBlock(block));
 
                 table.replaceData(rows).then(() => {
                     if (isMatrix) this.collapseMatrixSubHeader(table);
+                    this.releaseTabulatorInternalScroll(table);
                     table.redraw(true);
                     table.deselectRow();
                     for (const row of table.getRows()) {
