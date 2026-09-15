@@ -9,6 +9,7 @@ use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Worksheet\Drawing;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -25,6 +26,16 @@ class RestockSheetExportService
         'shipped' => ['title' => 'Shipped', 'color' => 'E5E7EB'],
         'stock' => ['title' => 'Stock', 'color' => 'D1FAE5'],
     ];
+
+    private const COL_IMAGE = 1;
+
+    private const COL_COLOR = 2;
+
+    private const COL_COST = 3;
+
+    private const IMAGE_HEIGHT = 36;
+
+    private const IMAGE_WIDTH = 36;
 
     public function __construct(
         protected RestockGridBuilder $gridBuilder,
@@ -175,11 +186,12 @@ class RestockSheetExportService
                     $colorText = $colorText."\n".$pcode;
                 }
 
-                $worksheet->setCellValue([1, $rowNum], $colorText);
-                $worksheet->getStyle([1, $rowNum])->getFont()->setBold(true);
-                $worksheet->getStyle([1, $rowNum])->getAlignment()->setWrapText(true);
+                $worksheet->setCellValue([self::COL_COLOR, $rowNum], $colorText);
+                $worksheet->getStyle([self::COL_COLOR, $rowNum])->getFont()->setBold(true);
+                $worksheet->getStyle([self::COL_COLOR, $rowNum])->getAlignment()->setWrapText(true);
+                $this->embedSectionImage($worksheet, $rowNum, $blockRow);
 
-                $col = 3;
+                $col = self::COL_COST + 1;
                 $parentSizes = $blockRow['sizes'] ?? [];
                 foreach ($stages as $stageKey) {
                     foreach ($sizes as $size) {
@@ -204,8 +216,8 @@ class RestockSheetExportService
                 continue;
             }
 
-            $worksheet->setCellValue([1, $rowNum], $blockRow['color_name'] ?? '—');
-            $col = 3;
+            $worksheet->setCellValue([self::COL_COLOR, $rowNum], $blockRow['color_name'] ?? '—');
+            $col = self::COL_COST + 1;
             $parentSizes = $blockRow['parent_sizes'] ?? [];
             foreach ($stages as $stageKey) {
                 foreach ($sizes as $size) {
@@ -249,17 +261,30 @@ class RestockSheetExportService
         $headerRow = $startRow;
         $subHeaderRow = $startRow + 1;
 
-        $worksheet->setCellValue([1, $headerRow], 'Color');
-        $worksheet->mergeCells('A'.$headerRow.':A'.$subHeaderRow);
-        $worksheet->setCellValue([2, $headerRow], $costLabel);
-        $worksheet->mergeCells('B'.$headerRow.':B'.$subHeaderRow);
+        $worksheet->setCellValue([self::COL_IMAGE, $headerRow], '');
+        $worksheet->mergeCells(
+            Coordinate::stringFromColumnIndex(self::COL_IMAGE).$headerRow.':'
+            .Coordinate::stringFromColumnIndex(self::COL_IMAGE).$subHeaderRow
+        );
+        $worksheet->setCellValue([self::COL_COLOR, $headerRow], 'Color');
+        $worksheet->mergeCells(
+            Coordinate::stringFromColumnIndex(self::COL_COLOR).$headerRow.':'
+            .Coordinate::stringFromColumnIndex(self::COL_COLOR).$subHeaderRow
+        );
+        $worksheet->setCellValue([self::COL_COST, $headerRow], $costLabel);
+        $worksheet->mergeCells(
+            Coordinate::stringFromColumnIndex(self::COL_COST).$headerRow.':'
+            .Coordinate::stringFromColumnIndex(self::COL_COST).$subHeaderRow
+        );
 
-        $worksheet->getStyle([1, $headerRow, 2, $subHeaderRow])->getFont()->setBold(true);
-        $worksheet->getStyle([1, $headerRow, 2, $subHeaderRow])
+        $worksheet->getStyle([self::COL_IMAGE, $headerRow, self::COL_COST, $subHeaderRow])->getFont()->setBold(true);
+        $worksheet->getStyle([self::COL_IMAGE, $headerRow, self::COL_COST, $subHeaderRow])
             ->getAlignment()
             ->setVertical(Alignment::VERTICAL_CENTER);
 
-        $col = 3;
+        $worksheet->getColumnDimensionByColumn(self::COL_IMAGE)->setWidth(6);
+
+        $col = self::COL_COST + 1;
         foreach ($stages as $stageKey) {
             $meta = self::STAGE_META[$stageKey];
             $stageStart = $col;
@@ -309,9 +334,11 @@ class RestockSheetExportService
         array $cellCosts,
     ): int {
         $headerRow = $startRow;
-        $worksheet->setCellValue([1, $headerRow], 'Color');
-        $worksheet->setCellValue([2, $headerRow], $costLabel);
-        $col = 3;
+        $worksheet->setCellValue([self::COL_IMAGE, $headerRow], '');
+        $worksheet->setCellValue([self::COL_COLOR, $headerRow], 'Color');
+        $worksheet->setCellValue([self::COL_COST, $headerRow], $costLabel);
+        $worksheet->getColumnDimensionByColumn(self::COL_IMAGE)->setWidth(6);
+        $col = self::COL_COST + 1;
         foreach ($stages as $stageKey) {
             $meta = self::STAGE_META[$stageKey];
             $worksheet->setCellValue([$col, $headerRow], $meta['title']);
@@ -348,9 +375,10 @@ class RestockSheetExportService
                     $colorText = $colorText."\n".$pcode;
                 }
 
-                $worksheet->setCellValue([1, $rowNum], $colorText);
-                $worksheet->getStyle([1, $rowNum])->getFont()->setBold(true);
-                $worksheet->getStyle([1, $rowNum])->getAlignment()->setWrapText(true);
+                $worksheet->setCellValue([self::COL_COLOR, $rowNum], $colorText);
+                $worksheet->getStyle([self::COL_COLOR, $rowNum])->getFont()->setBold(true);
+                $worksheet->getStyle([self::COL_COLOR, $rowNum])->getAlignment()->setWrapText(true);
+                $this->embedSectionImage($worksheet, $rowNum, $blockRow);
                 $rowNum++;
 
                 continue;
@@ -360,8 +388,8 @@ class RestockSheetExportService
                 continue;
             }
 
-            $worksheet->setCellValue([1, $rowNum], $blockRow['color_name'] ?? '—');
-            $col = 3;
+            $worksheet->setCellValue([self::COL_COLOR, $rowNum], $blockRow['color_name'] ?? '—');
+            $col = self::COL_COST + 1;
             foreach ($stages as $stageKey) {
                 $worksheet->setCellValue([$col, $rowNum], $blockRow[$stageKey] ?? 0);
                 $col++;
@@ -373,7 +401,7 @@ class RestockSheetExportService
             $this->finalizeCostMerge($worksheet, $pendingCostMerge, $rowNum - 1);
         }
 
-        $this->autoSizeColumns($worksheet, 2 + count($stages));
+        $this->autoSizeColumns($worksheet, self::COL_COST + count($stages));
 
         return $rowNum;
     }
@@ -422,7 +450,7 @@ class RestockSheetExportService
             return;
         }
 
-        $costCol = 2;
+        $costCol = self::COL_COST;
         if ($endRow > $startRow) {
             $worksheet->mergeCells(
                 Coordinate::stringFromColumnIndex($costCol).$startRow.':'
@@ -445,14 +473,81 @@ class RestockSheetExportService
     {
         $stageCols = count($stages) * (count($sizes) + (count($sizes) > 1 ? 1 : 0));
 
-        return 2 + $stageCols;
+        return self::COL_COST + $stageCols;
     }
 
     protected function autoSizeColumns(Worksheet $worksheet, int $lastCol): void
     {
         foreach (range(1, max(1, $lastCol)) as $columnIndex) {
+            if ($columnIndex === self::COL_IMAGE) {
+                continue;
+            }
             $worksheet->getColumnDimensionByColumn($columnIndex)->setAutoSize(true);
         }
+    }
+
+    /**
+     * @param  array<string, mixed>  $sectionRow
+     */
+    protected function embedSectionImage(Worksheet $worksheet, int $rowNum, array $sectionRow): void
+    {
+        $path = $this->resolveExportImagePath((string) ($sectionRow['image_url'] ?? ''));
+        if ($path === null) {
+            return;
+        }
+
+        $drawing = new Drawing;
+        $drawing->setPath($path);
+        $drawing->setHeight(self::IMAGE_HEIGHT);
+        $drawing->setWidth(self::IMAGE_WIDTH);
+        $drawing->setCoordinates(Coordinate::stringFromColumnIndex(self::COL_IMAGE).$rowNum);
+        $drawing->setOffsetX(4);
+        $drawing->setOffsetY(4);
+        $drawing->setWorksheet($worksheet);
+
+        $currentHeight = $worksheet->getRowDimension($rowNum)->getRowHeight();
+        $targetHeight = self::IMAGE_HEIGHT + 6;
+        if ($currentHeight < 0 || $currentHeight < $targetHeight) {
+            $worksheet->getRowDimension($rowNum)->setRowHeight($targetHeight);
+        }
+    }
+
+    protected function resolveExportImagePath(string $imageUrl): ?string
+    {
+        if ($imageUrl === '' || str_contains($imageUrl, 'default-item.svg')) {
+            return null;
+        }
+
+        $baseUrl = rtrim((string) config('core-nation.item_image_url'), '/').'/';
+        $basePath = rtrim((string) config('core-nation.item_image_path'), '/\\').DIRECTORY_SEPARATOR;
+
+        if ($baseUrl !== '/' && str_starts_with($imageUrl, $baseUrl)) {
+            $relative = substr($imageUrl, strlen($baseUrl));
+
+            return $this->embeddableImagePath($basePath.str_replace('/', DIRECTORY_SEPARATOR, $relative));
+        }
+
+        $pathPart = parse_url($imageUrl, PHP_URL_PATH);
+        if (is_string($pathPart) && $pathPart !== '') {
+            return $this->embeddableImagePath(public_path(ltrim($pathPart, '/')));
+        }
+
+        return null;
+    }
+
+    protected function embeddableImagePath(string $path): ?string
+    {
+        if (! is_file($path)) {
+            return null;
+        }
+
+        $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+
+        if (! in_array($extension, ['jpg', 'jpeg', 'png', 'gif'], true)) {
+            return null;
+        }
+
+        return $path;
     }
 
     protected function fieldPrefix(string $sizeCode): string
