@@ -161,11 +161,6 @@
     }
     .restock-section-image {
         cursor: pointer;
-        transition: width 0.15s ease, height 0.15s ease;
-    }
-    .restock-section-image.restock-section-image-lg {
-        height: 6rem;
-        width: 6rem;
     }
     .restock-sheet-actions {
         position: sticky;
@@ -337,6 +332,25 @@ $breadcrumbs = [
             </div>
         </div>
     </div>
+
+    <div x-show="imagePreviewOpen" x-cloak data-testid="restock-image-preview-dialog"
+         class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+         @click.self="closeSectionImagePreview()"
+         @keydown.escape.window="imagePreviewOpen && closeSectionImagePreview()">
+        <div class="relative max-h-[90vh] max-w-[min(90vw,42rem)] rounded-xl border border-gray-200 bg-white p-4 shadow-xl"
+             role="dialog" aria-modal="true" :aria-label="imagePreviewTitle || 'Product image'">
+            <button type="button" @click="closeSectionImagePreview()"
+                    class="absolute right-3 top-3 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                    aria-label="Close image preview">
+                Close
+            </button>
+            <p x-show="imagePreviewTitle" class="mb-3 max-w-[calc(90vw-5rem)] truncate pr-20 text-sm font-medium text-gray-900"
+               x-text="imagePreviewTitle"></p>
+            <img :src="imagePreviewUrl" alt=""
+                 class="mx-auto max-h-[min(80vh,36rem)] w-auto max-w-full rounded-lg object-contain"
+                 x-on:error="imagePreviewUrl = defaultImageUrl">
+        </div>
+    </div>
 </div>
 @endsection
 
@@ -358,6 +372,9 @@ function restockSheetPage() {
         moving: false,
         receiving: false,
         receiveModalOpen: false,
+        imagePreviewOpen: false,
+        imagePreviewUrl: '',
+        imagePreviewTitle: '',
         receiveLines: [],
         receiveForm: {
             date: @json(now()->toDateString()),
@@ -423,6 +440,16 @@ function restockSheetPage() {
                 el.style.height = 'auto';
                 el.style.maxHeight = 'none';
             });
+        },
+
+        openSectionImagePreview(url, title) {
+            this.imagePreviewUrl = url || this.defaultImageUrl;
+            this.imagePreviewTitle = title || '';
+            this.imagePreviewOpen = true;
+        },
+
+        closeSectionImagePreview() {
+            this.imagePreviewOpen = false;
         },
 
         async parseJsonResponse(res) {
@@ -517,9 +544,8 @@ function restockSheetPage() {
             img.onerror = () => { img.onerror = null; img.src = this.defaultImageUrl; };
             img.addEventListener('click', (event) => {
                 event.stopPropagation();
-                img.classList.toggle('restock-section-image-lg');
-                img.classList.toggle('h-9');
-                img.classList.toggle('w-9');
+                const title = data.name || data.pcode || '';
+                this.openSectionImagePreview(data.image_url, title);
             });
 
             return img;
