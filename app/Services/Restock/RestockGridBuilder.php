@@ -2,10 +2,12 @@
 
 namespace App\Services\Restock;
 
+use App\Models\Item;
 use App\Models\RestockCell;
 use App\Models\RestockSheet;
 use App\Services\Items\ItemGroupHierarchyService;
 use App\Services\Items\ItemIdentityBuilder;
+use App\Support\ItemImageResolver;
 use Illuminate\Support\Collection;
 
 class RestockGridBuilder
@@ -49,6 +51,7 @@ class RestockGridBuilder
                     'pcode' => $parentPcode,
                     'name' => $this->parentDisplayName($cells, $parentPcode),
                     'image_url' => $this->parentImageUrl($cells),
+                    'image_disk_path' => $this->parentImageDiskPath($cells),
                     'group_url' => $this->parentGroupUrl($cells),
                     'sizes' => $sizes,
                     'rows' => $rows,
@@ -155,6 +158,7 @@ class RestockGridBuilder
                 'pcode' => $parent['pcode'],
                 'name' => $parent['name'],
                 'image_url' => $parent['image_url'],
+                'image_disk_path' => $parent['image_disk_path'] ?? null,
                 'group_url' => $parent['group_url'] ?? null,
                 'sizes' => $parent['sizes'],
             ];
@@ -237,6 +241,53 @@ class RestockGridBuilder
         $item = $cells->first(fn (RestockCell $cell) => $cell->item !== null)?->item;
 
         return $item?->image_url ?? asset('images/default-item.svg');
+    }
+
+    /**
+     * @param  Collection<int, RestockCell>  $cells
+     */
+    protected function parentImageDiskPath(Collection $cells): ?string
+    {
+        $item = $cells->first(fn (RestockCell $cell) => $cell->item !== null)?->item;
+        if ($item === null) {
+            return null;
+        }
+
+        $resolver = app(ItemImageResolver::class);
+        $candidateIds = [];
+
+        if ((int) $item->group_id > 0) {
+            $candidateIds[] = (int) $item->group_id;
+        }
+
+        $candidateIds[] = (int) $item->id;
+
+        if ($item->relationLoaded('group') && $item->group?->relationLoaded('items')) {
+            foreach ($item->group->items as $sibling) {
+                $candidateIds[] = (int) $sibling->id;
+            }
+        }
+
+        $seen = [];
+        foreach ($candidateIds as $id) {
+            if ($id <= 0 || isset($seen[$id])) {
+                continue;
+            }
+            $seen[$id] = true;
+            $path = $resolver->diskPathForId($id);
+            if (is_file($path) && $this->isEmbeddableImagePath($path)) {
+                return $path;
+            }
+        }
+
+        return null;
+    }
+
+    protected function isEmbeddableImagePath(string $path): bool
+    {
+        $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+
+        return in_array($extension, ['jpg', 'jpeg', 'png', 'gif'], true);
     }
 
     /**

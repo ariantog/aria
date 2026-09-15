@@ -14,6 +14,7 @@ use App\Models\WarehouseItem;
 use App\Services\ItemService;
 use App\Services\Restock\RestockGridBuilder;
 use App\Services\Restock\RestockSheetService;
+use App\Support\ItemImageResolver;
 use Spatie\Permission\Models\Permission;
 
 beforeEach(function () {
@@ -588,6 +589,51 @@ test('export uses configured cost_cnh column from restock settings', function ()
     expect(collect($flatValues)->contains(fn ($v) => (float) $v === 12.5))->toBeTrue();
 
     @unlink($tempPath);
+});
+
+test('export embeds a thumbnail when the product image file exists on disk', function () {
+    createAssetLancarSkus($this);
+    $sheet = app(RestockSheetService::class)->createSheet($this->typeTag, $this->user);
+    $cell = $sheet->cells()->with('item')->first();
+    $groupId = (int) $cell->item->group_id;
+
+    $imagePath = app(ItemImageResolver::class)->diskPathForId($groupId);
+    $directory = dirname($imagePath);
+    if (! is_dir($directory)) {
+        mkdir($directory, 0777, true);
+    }
+
+    $image = imagecreatetruecolor(48, 48);
+    imagejpeg($image, $imagePath, 90);
+    imagedestroy($image);
+
+    $grid = app(RestockGridBuilder::class)->build($sheet->fresh());
+    $section = collect($grid['blocks'][0]['rows'])->firstWhere('_type', 'section');
+    expect($section['image_disk_path'] ?? null)->toBe($imagePath);
+
+    $response = $this->actingAs($this->user)
+        ->get(route('restock.sheets.export', $sheet));
+
+    $tempPath = tempnam(sys_get_temp_dir(), 'restock-image-').'.xlsx';
+    file_put_contents($tempPath, $response->streamedContent());
+
+    $zip = new ZipArchive;
+    expect($zip->open($tempPath))->toBeTrue();
+
+    $hasMedia = false;
+    for ($index = 0; $index < $zip->numFiles; $index++) {
+        $name = $zip->getNameIndex($index);
+        if (is_string($name) && str_starts_with($name, 'xl/media/')) {
+            $hasMedia = true;
+            break;
+        }
+    }
+    $zip->close();
+
+    expect($hasMedia)->toBeTrue();
+
+    @unlink($tempPath);
+    @unlink($imagePath);
 });
 
 test('restock index shows bulk export panel when user can export', function () {
