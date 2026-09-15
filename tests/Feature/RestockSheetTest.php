@@ -416,6 +416,8 @@ test('sheet show page includes unified tabulator block grids', function () {
         ->assertSee('Save sheet', false)
         ->assertSee('Export Excel', false)
         ->assertSee('Stock', false)
+        ->assertSee('data-testid="restock-grid-scroll-left"', false)
+        ->assertSee('data-testid="restock-grid-scroll-right"', false)
         ->assertSee('restock-data-row.tabulator-selected', false);
 });
 
