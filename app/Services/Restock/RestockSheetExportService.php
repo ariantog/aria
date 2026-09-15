@@ -33,9 +33,12 @@ class RestockSheetExportService
 
     private const COL_COST = 3;
 
-    private const IMAGE_HEIGHT = 36;
+    private const IMAGE_HEIGHT = 32;
 
-    private const IMAGE_WIDTH = 36;
+    private const IMAGE_WIDTH = 32;
+
+    /** @var list<string> */
+    protected array $tempThumbnailPaths = [];
 
     public function __construct(
         protected RestockGridBuilder $gridBuilder,
@@ -59,6 +62,7 @@ class RestockSheetExportService
         $sheets = $sheets instanceof Collection ? $sheets->values() : collect($sheets)->values();
         $stages = $this->normalizeStages($stages);
         $costLabel = $this->settingsService->exportCostColumnLabel();
+        $this->tempThumbnailPaths = [];
 
         $spreadsheet = new Spreadsheet;
         $spreadsheet->removeSheetByIndex(0);
@@ -106,7 +110,11 @@ class RestockSheetExportService
             : sprintf('restock-export-%s.xlsx', now()->format('Y-m-d'));
 
         return new StreamedResponse(function () use ($spreadsheet) {
-            (new Xlsx($spreadsheet))->save('php://output');
+            try {
+                (new Xlsx($spreadsheet))->save('php://output');
+            } finally {
+                $this->cleanupTempThumbnails();
+            }
         }, 200, [
             'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             'Content-Disposition' => 'attachment; filename="'.$filename.'"',
@@ -496,20 +504,121 @@ class RestockSheetExportService
             return;
         }
 
+        $thumbnail = $this->buildThumbnailFile($path, self::IMAGE_WIDTH, self::IMAGE_HEIGHT);
+        if ($thumbnail === null) {
+            return;
+        }
+
         $drawing = new Drawing;
-        $drawing->setPath($path);
-        $drawing->setHeight(self::IMAGE_HEIGHT);
-        $drawing->setWidth(self::IMAGE_WIDTH);
+        $drawing->setPath($thumbnail);
+        $thumbInfo = @getimagesize($thumbnail);
+        if (is_array($thumbInfo)) {
+            $drawing->setWidth($thumbInfo[0]);
+            $drawing->setHeight($thumbInfo[1]);
+            $targetHeight = $thumbInfo[1] + 4;
+        } else {
+            $drawing->setHeight(self::IMAGE_HEIGHT);
+            $drawing->setWidth(self::IMAGE_WIDTH);
+            $targetHeight = self::IMAGE_HEIGHT + 4;
+        }
         $drawing->setCoordinates(Coordinate::stringFromColumnIndex(self::COL_IMAGE).$rowNum);
-        $drawing->setOffsetX(4);
-        $drawing->setOffsetY(4);
+        $drawing->setOffsetX(2);
+        $drawing->setOffsetY(2);
         $drawing->setWorksheet($worksheet);
 
         $currentHeight = $worksheet->getRowDimension($rowNum)->getRowHeight();
-        $targetHeight = self::IMAGE_HEIGHT + 6;
         if ($currentHeight < 0 || $currentHeight < $targetHeight) {
             $worksheet->getRowDimension($rowNum)->setRowHeight($targetHeight);
         }
+    }
+
+    protected function buildThumbnailFile(string $sourcePath, int $maxWidth, int $maxHeight): ?string
+    {
+        if (! function_exists('imagecreatetruecolor')) {
+            return null;
+        }
+
+        $info = @getimagesize($sourcePath);
+        if ($info === false) {
+            return null;
+        }
+
+        $source = match ($info[2]) {
+            IMAGETYPE_JPEG => @imagecreatefromjpeg($sourcePath),
+            IMAGETYPE_PNG => @imagecreatefrompng($sourcePath),
+            IMAGETYPE_GIF => @imagecreatefromgif($sourcePath),
+            default => null,
+        };
+
+        if ($source === false || $source === null) {
+            return null;
+        }
+
+        $sourceWidth = imagesx($source);
+        $sourceHeight = imagesy($source);
+        if ($sourceWidth < 1 || $sourceHeight < 1) {
+            imagedestroy($source);
+
+            return null;
+        }
+
+        $scale = min($maxWidth / $sourceWidth, $maxHeight / $sourceHeight, 1.0);
+        $targetWidth = max(1, (int) round($sourceWidth * $scale));
+        $targetHeight = max(1, (int) round($sourceHeight * $scale));
+
+        $thumbnail = imagecreatetruecolor($targetWidth, $targetHeight);
+        if ($thumbnail === false) {
+            imagedestroy($source);
+
+            return null;
+        }
+
+        imagecopyresampled(
+            $thumbnail,
+            $source,
+            0,
+            0,
+            0,
+            0,
+            $targetWidth,
+            $targetHeight,
+            $sourceWidth,
+            $sourceHeight,
+        );
+        imagedestroy($source);
+
+        $tempPath = tempnam(sys_get_temp_dir(), 'restock-thumb-');
+        if ($tempPath === false) {
+            imagedestroy($thumbnail);
+
+            return null;
+        }
+
+        $jpegPath = $tempPath.'.jpg';
+        @unlink($tempPath);
+
+        if (! imagejpeg($thumbnail, $jpegPath, 80)) {
+            imagedestroy($thumbnail);
+            @unlink($jpegPath);
+
+            return null;
+        }
+
+        imagedestroy($thumbnail);
+        $this->tempThumbnailPaths[] = $jpegPath;
+
+        return $jpegPath;
+    }
+
+    protected function cleanupTempThumbnails(): void
+    {
+        foreach ($this->tempThumbnailPaths as $path) {
+            if (is_file($path)) {
+                @unlink($path);
+            }
+        }
+
+        $this->tempThumbnailPaths = [];
     }
 
     protected function resolveExportImagePath(string $imageUrl): ?string
