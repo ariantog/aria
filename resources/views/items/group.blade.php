@@ -53,7 +53,7 @@ $breadcrumbs = [
                     @forelse($parents as $parent)
                     <tr class="hover:bg-gray-50/50">
                         <td class="px-6 py-3 font-medium">
-                            <a href="{{ route('items.group-parent-detail', $parent['parent_slug']) }}" class="font-mono text-blue-600 hover:underline">{{ $parent['label'] }}</a>
+                            <a href="{{ route('items.group-parent-detail', $parent['parent_group_id']) }}" class="font-mono text-blue-600 hover:underline">{{ $parent['label'] }}</a>
                             @if($parent['is_asset'])
                             <span class="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-amber-800">Asset</span>
                             @endif

@@ -356,17 +356,11 @@ class Item extends Model
 
     public function groupParentUrl(): ?string
     {
-        $this->loadMissing(['group', 'tags']);
-
-        if ((int) $this->group_id <= 0 || $this->group === null) {
+        if ((int) $this->group_id <= 0) {
             return null;
         }
 
-        $builder = app(ItemIdentityBuilder::class);
-
-        return route('items.group-parent-detail', $builder->parentKeyToSlug(
-            $builder->itemParentKey($this)
-        ));
+        return route('items.group-parent-detail', $this->group_id);
     }
 
     /**

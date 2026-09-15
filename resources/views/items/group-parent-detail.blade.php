@@ -12,7 +12,7 @@ $breadcrumbs = [
 $fmt = fn ($v) => format_amount($v, 0);
 @endphp
 
-<div class="p-4 sm:p-6" x-data="groupWarehousePicker(@js($detail['warehouse_names']), @js($detail['parent_slug']))">
+<div class="p-4 sm:p-6" x-data="groupWarehousePicker(@js($detail['warehouse_names']), @js($detail['anchor_group_id']))">
     <div class="mb-4">
         <a href="{{ route('items.group') }}" class="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-gray-600 hover:bg-gray-100">
             <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
@@ -69,7 +69,7 @@ $fmt = fn ($v) => format_amount($v, 0);
                     <div class="border-t border-gray-100 pt-4 md:col-span-2">
                         <p class="mb-2 text-sm font-semibold uppercase tracking-wider text-gray-500">Rename Product</p>
                         <p class="mb-3 text-sm text-gray-600">Updates the product name for every color variant under this parent group.</p>
-                        <form method="POST" action="{{ route('items.group-parent-update', $detail['parent_slug']) }}" class="flex flex-col gap-3 sm:flex-row sm:items-end">
+                        <form method="POST" action="{{ route('items.group-parent-update', $detail['anchor_group_id']) }}" class="flex flex-col gap-3 sm:flex-row sm:items-end">
                             @csrf
                             @method('PUT')
                             <div class="flex-1">
@@ -89,7 +89,7 @@ $fmt = fn ($v) => format_amount($v, 0);
                         <label class="flex items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600">
                             <input type="checkbox" x-model="showZero" class="rounded border-gray-300"> Show 0 Quantity
                         </label>
-                        <a href="{{ route('items.group-parent-export', $detail['parent_slug']) }}"
+                        <a href="{{ route('items.group-parent-export', $detail['anchor_group_id']) }}"
                            class="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
                             <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
                             Export Excel
@@ -319,14 +319,14 @@ $fmt = fn ($v) => format_amount($v, 0);
 
 @push('scripts')
 <script>
-function groupWarehousePicker(warehouseNames, parentSlug) {
+function groupWarehousePicker(warehouseNames, parentGroupId) {
     return {
-        showZero: false,
+        showZero: true,
         warehouseFocusOpen: false,
         warehouseNames,
         selectedWarehouses: [],
-        storageKey: 'aria-item-group-wh-' + parentSlug,
-        openStorageKey: 'aria-item-group-wh-open-' + parentSlug,
+        storageKey: 'aria-item-group-wh-' + parentGroupId,
+        openStorageKey: 'aria-item-group-wh-open-' + parentGroupId,
         init() {
             try {
                 const saved = JSON.parse(localStorage.getItem(this.storageKey) || '[]');

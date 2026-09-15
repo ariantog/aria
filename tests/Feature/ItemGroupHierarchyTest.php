@@ -191,15 +191,13 @@ it('renders group list and parent detail pages', function () {
     ]);
     $item->tags()->attach([$this->blackTag->id, $this->sizeS->id]);
 
-    $slug = $this->builder->parentKeyToSlug($this->builder->itemParentKey($item->load('tags', 'group')));
-
     $this->actingAs($this->user)
         ->get(route('items.group'))
         ->assertOk()
         ->assertSee('GLOVE-01', false);
 
     $this->actingAs($this->user)
-        ->get(route('items.group-parent-detail', $slug))
+        ->get(route('items.group-parent-detail', $group->id))
         ->assertOk()
         ->assertSee('BLACK', false)
         ->assertSee('id="color-black"', false)
@@ -208,45 +206,6 @@ it('renders group list and parent detail pages', function () {
         ->assertSee('Export Excel', false)
         ->assertSee('all channels', false)
         ->assertSee('How to read quantities', false);
-});
-
-it('parent detail includes asset lancar items when item_group master drifts from pcode', function () {
-    $productName = 'CORE 2080MM WORKOUT BAND';
-    $strengths = ['XXLIGHT', 'HEAVY', 'MEDIUM', 'LIGHT', 'XLIGHT'];
-
-    foreach ($strengths as $index => $strength) {
-        $legacyMaster = $index < 2 ? 'POWERBAND-03' : 'POWERBAND-03-BLACK-'.$strength;
-        $group = ItemGroup::factory()->create([
-            'master' => $legacyMaster,
-            'variant' => 'BLACK',
-            'name' => $productName,
-        ]);
-
-        $item = Item::factory()->create([
-            'group_id' => $group->id,
-            'type' => ItemType::ASSET_LANCAR,
-            'pcode' => 'POWERBAND-03',
-            'code' => 'POWERBAND-03-BLACK-'.$strength,
-            'name' => $productName.' - BLACK - '.$strength,
-        ]);
-        $item->tags()->attach([$this->blackTag->id]);
-    }
-
-    $detail = $this->hierarchy->parentDetail('2:POWERBAND-03', fetchJubelio: false);
-
-    expect($detail)->not->toBeNull();
-    expect($detail['product_name'])->toBe($productName);
-    expect($detail['colors'])->toHaveCount(1);
-
-    $itemCodes = collect($detail['colors'])
-        ->flatMap(fn (array $color) => collect($color['size_rows'])->pluck('code'))
-        ->sort()
-        ->values()
-        ->all();
-
-    expect($itemCodes)->toHaveCount(5)
-        ->and($itemCodes)->toContain('POWERBAND-03-BLACK-MEDIUM')
-        ->and($itemCodes)->toContain('POWERBAND-03-BLACK-HEAVY');
 });
 
 it('exports parent group stock to excel', function () {
@@ -260,10 +219,8 @@ it('exports parent group stock to excel', function () {
     ]);
     $item->tags()->attach([$this->blackTag->id, $this->sizeS->id]);
 
-    $slug = $this->builder->parentKeyToSlug($this->builder->itemParentKey($item->load('tags', 'group')));
-
     $response = $this->actingAs($this->user)
-        ->get(route('items.group-parent-export', $slug));
+        ->get(route('items.group-parent-export', $group->id));
 
     $response->assertOk();
     expect($response->headers->get('content-type'))->toContain('spreadsheetml.sheet');

@@ -252,9 +252,10 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
 
     // Item Group Routes
     Route::get('items-group', [App\Http\Controllers\ItemsController::class, 'group'])->name('items.group');
-    Route::get('items-group/parent/{parentSlug}', [App\Http\Controllers\ItemsController::class, 'groupParentDetail'])->name('items.group-parent-detail');
-    Route::get('items-group/parent/{parentSlug}/export', [App\Http\Controllers\ItemsController::class, 'exportGroupParent'])->name('items.group-parent-export');
-    Route::put('items-group/parent/{parentSlug}', [App\Http\Controllers\ItemsController::class, 'updateGroupParent'])->name('items.group-parent-update');
+    Route::get('items-group/parent/{group}', [App\Http\Controllers\ItemsController::class, 'groupParentDetail'])->whereNumber('group')->name('items.group-parent-detail');
+    Route::get('items-group/parent/{group}/export', [App\Http\Controllers\ItemsController::class, 'exportGroupParent'])->whereNumber('group')->name('items.group-parent-export');
+    Route::put('items-group/parent/{group}', [App\Http\Controllers\ItemsController::class, 'updateGroupParent'])->whereNumber('group')->name('items.group-parent-update');
+    Route::get('items-group/parent/{parentSlug}', [App\Http\Controllers\ItemsController::class, 'redirectLegacyGroupParent'])->name('items.group-parent-legacy');
     Route::get('items-group/colorway/{group}/edit', [App\Http\Controllers\ItemsController::class, 'colorwayEdit'])->name('items.colorway-edit');
     Route::put('items-group/colorway/{group}', [App\Http\Controllers\ItemsController::class, 'colorwayUpdate'])->name('items.colorway-update');
     Route::get('items-group/{group}', [App\Http\Controllers\ItemsController::class, 'groupDetail'])->name('items.group-detail');

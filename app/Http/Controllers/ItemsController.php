@@ -221,10 +221,8 @@ class ItemsController extends Controller
             'deletedStock' => $stock['deleted_stock'],
             'canRecalculateQty' => $this->canRecalculateQty($item),
             'isAsset' => $item->type === ItemType::ASSET_LANCAR,
-            'groupUrl' => $this->legacyConverter->hasProductGroup($item)
-                ? route('items.group-parent-detail', $this->identityBuilder->parentKeyToSlug(
-                    $this->identityBuilder->itemParentKey($item)
-                ))
+            'groupUrl' => $this->legacyConverter->hasProductGroup($item) && (int) $item->group_id > 0
+                ? route('items.group-parent-detail', $item->group_id)
                 : null,
             'colorwayEditUrl' => $item->group_id > 0 && Gate::check(ItemGroup::getPermissions()['edit'])
                 ? route('items.colorway-edit', $item->group_id)
@@ -482,12 +480,11 @@ class ItemsController extends Controller
         ]);
     }
 
-    public function groupParentDetail(string $parentSlug)
+    public function groupParentDetail(ItemGroup $group)
     {
         Gate::authorize(ItemGroup::getPermissions()['view']);
 
-        $parentKey = $this->identityBuilder->parentKeyFromSlug($parentSlug);
-        $detail = $this->groupHierarchy->parentDetail($parentKey);
+        $detail = $this->groupHierarchy->parentDetailForAnchorGroup($group);
 
         abort_if($detail === null, 404);
 
@@ -498,16 +495,28 @@ class ItemsController extends Controller
         ]);
     }
 
-    public function exportGroupParent(string $parentSlug, ItemGroupParentExportService $exportService)
+    public function redirectLegacyGroupParent(string $parentSlug)
+    {
+        $parentKey = $this->identityBuilder->parentKeyFromSlug($parentSlug);
+        $anchorGroupId = $this->groupHierarchy->anchorGroupIdForParentKey($parentKey);
+
+        abort_if($anchorGroupId === null, 404);
+
+        return redirect()->route('items.group-parent-detail', $anchorGroupId, 301);
+    }
+
+    public function exportGroupParent(ItemGroup $group, ItemGroupParentExportService $exportService)
     {
         Gate::authorize(ItemGroup::getPermissions()['view']);
 
-        $parentKey = $this->identityBuilder->parentKeyFromSlug($parentSlug);
+        $detail = $this->groupHierarchy->parentDetailForAnchorGroup($group, fetchJubelio: false);
 
-        return $exportService->download($parentKey);
+        abort_if($detail === null, 404);
+
+        return $exportService->download($detail['parent_key']);
     }
 
-    public function updateGroupParent(Request $request, string $parentSlug)
+    public function updateGroupParent(Request $request, ItemGroup $group)
     {
         Gate::authorize(ItemGroup::getPermissions()['edit']);
 
@@ -517,19 +526,18 @@ class ItemsController extends Controller
             'name.required' => 'Product name is required.',
         ]);
 
-        $parentKey = $this->identityBuilder->parentKeyFromSlug($parentSlug);
-        $detail = $this->groupHierarchy->parentDetail($parentKey, fetchJubelio: false);
+        $detail = $this->groupHierarchy->parentDetailForAnchorGroup($group, fetchJubelio: false);
 
         abort_if($detail === null, 404);
 
         try {
             foreach ($detail['group_ids'] as $groupId) {
-                $group = ItemGroup::findOrFail($groupId);
-                $this->itemService->renameGroupProductName($group, $request->input('name'));
+                $renameGroup = ItemGroup::findOrFail($groupId);
+                $this->itemService->renameGroupProductName($renameGroup, $request->input('name'));
             }
 
             return redirect()
-                ->route('items.group-parent-detail', $parentSlug)
+                ->route('items.group-parent-detail', $group->id)
                 ->with('success', 'Product name updated for all colors in this group.');
         } catch (\Exception $e) {
             return back()->withErrors(['message' => $e->getMessage()])->withInput();
@@ -545,11 +553,11 @@ class ItemsController extends Controller
 
         abort_if($sample === null, 404);
 
-        $slug = $this->identityBuilder->parentKeyToSlug(
+        $anchorGroupId = $this->groupHierarchy->anchorGroupIdForParentKey(
             $this->identityBuilder->itemParentKey($sample)
-        );
+        ) ?? $group->id;
 
-        return redirect()->route('items.group-parent-detail', $slug);
+        return redirect()->route('items.group-parent-detail', $anchorGroupId);
     }
 
     public function colorwayEdit(ItemGroup $group)
@@ -575,9 +583,9 @@ class ItemsController extends Controller
             (string) $sample->pcode,
         );
         $color = $this->identityBuilder->itemColorInfo($sample);
-        $parentSlug = $this->identityBuilder->parentKeyToSlug(
+        $parentGroupId = $this->groupHierarchy->anchorGroupIdForParentKey(
             $this->identityBuilder->itemParentKey($sample)
-        );
+        ) ?? $group->id;
 
         $sizeRows = $items->map(function (Item $item) use ($itemType) {
             $sizeTag = $item->tags->firstWhere('type', Tag::TYPE_SIZE);
@@ -607,7 +615,7 @@ class ItemsController extends Controller
             'productTitle' => $usesPlaceholder ? '' : $productTitle,
             'usesPlaceholder' => $usesPlaceholder,
             'color' => $color,
-            'parentSlug' => $parentSlug,
+            'parentGroupId' => $parentGroupId,
             'isAsset' => $itemType === ItemType::ASSET_LANCAR,
             'brands' => $this->brandOptions(),
             'typeTags' => Tag::typeTagsForItem($itemType),
@@ -699,10 +707,10 @@ class ItemsController extends Controller
             $this->itemService->renameGroupProductName($group, $request->input('name'));
 
             $sample = $group->items()->with('tags')->first();
-            $redirect = $sample
-                ? route('items.group-parent-detail', $this->identityBuilder->parentKeyToSlug(
+            $redirect = $sample && (int) $group->id > 0
+                ? route('items.group-parent-detail', $this->groupHierarchy->anchorGroupIdForParentKey(
                     $this->identityBuilder->itemParentKey($sample)
-                ))
+                ) ?? $group->id)
                 : route('items.group');
 
             return redirect()

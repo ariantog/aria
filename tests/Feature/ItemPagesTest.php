@@ -489,8 +489,7 @@ test('items show page links group and tags to filtered lists', function () {
     ]);
     $item->tags()->attach([$typeTag->id, $warnaTag->id]);
 
-    $builder = app(\App\Services\Items\ItemIdentityBuilder::class);
-    $groupUrl = route('items.group-parent-detail', $builder->parentKeyToSlug($builder->itemParentKey($item->load('tags', 'group'))));
+    $groupUrl = route('items.group-parent-detail', $group->id);
 
     $this->actingAs($this->user)
         ->get(route('items.show', $item))
