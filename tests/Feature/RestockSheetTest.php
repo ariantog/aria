@@ -482,8 +482,8 @@ test('sheet export returns xlsx download with all parent sections', function () 
         }
     }
 
-    expect($values)->toContain('ELBOW-03');
-    expect($values)->toContain('ELBOW-07');
+    expect(collect($values)->contains(fn ($v) => str_contains((string) $v, 'ELBOW-03')))->toBeTrue();
+    expect(collect($values)->contains(fn ($v) => str_contains((string) $v, 'ELBOW-07')))->toBeTrue();
 
     @unlink($tempPath);
 });

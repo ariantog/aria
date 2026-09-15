@@ -5,7 +5,9 @@ namespace App\Services\Restock;
 use App\Models\RestockSheet;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
+use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -45,7 +47,6 @@ class RestockSheetExportService
     {
         $sheets = $sheets instanceof Collection ? $sheets->values() : collect($sheets)->values();
         $stages = $this->normalizeStages($stages);
-        $costField = $this->settingsService->exportCostField();
         $costLabel = $this->settingsService->exportCostColumnLabel();
 
         $spreadsheet = new Spreadsheet;
@@ -60,24 +61,24 @@ class RestockSheetExportService
                 $worksheet = $spreadsheet->createSheet($index);
                 $worksheet->setTitle($this->safeSheetTitle($sheet->name ?: 'Restock '.$sheet->id));
                 $grid = $this->gridBuilder->build($sheet);
-                $cellCosts = $this->cellCostMap($sheet, $costField);
+                $cellCosts = $this->cellCostMap($sheet, $this->settingsService->exportCostField());
 
-                if ($grid['parents'] === []) {
+                if ($grid['blocks'] === []) {
                     $worksheet->setCellValue('A1', 'No data to export.');
                 } else {
                     $rowNum = 1;
-                    foreach ($grid['parents'] as $parentIndex => $parent) {
-                        if ($parentIndex > 0) {
+                    foreach ($grid['blocks'] as $blockIndex => $block) {
+                        if ($blockIndex > 0) {
                             $rowNum += 2;
                         }
-                        $rowNum = $this->writeParentSection(
-                            $worksheet,
-                            $parent,
-                            $rowNum,
-                            $stages,
-                            $costLabel,
-                            $cellCosts,
-                        );
+                        if (count($grid['blocks']) > 1) {
+                            $worksheet->setCellValue('A'.$rowNum, $block['title'] ?? 'Block');
+                            $worksheet->getStyle('A'.$rowNum)->getFont()->setBold(true);
+                            $rowNum++;
+                        }
+                        $rowNum = $block['kind'] === 'flat'
+                            ? $this->writeFlatBlock($worksheet, $block, $rowNum, $stages, $costLabel, $cellCosts)
+                            : $this->writeMatrixBlock($worksheet, $block, $rowNum, $stages, $costLabel, $cellCosts);
                     }
                 }
             }
@@ -136,94 +137,322 @@ class RestockSheetExportService
     }
 
     /**
-     * @param  array{pcode: string, name: string, sizes: list<string>, rows: list<array<string, mixed>>}  $parent
+     * @param  array{kind: 'matrix', sizes: list<string>, rows: list<array<string, mixed>>}  $block
      * @param  list<string>  $stages
      * @param  array<int, float>  $cellCosts
      */
-    protected function writeParentSection(
+    protected function writeMatrixBlock(
         Worksheet $worksheet,
-        array $parent,
+        array $block,
         int $startRow,
         array $stages,
         string $costLabel,
         array $cellCosts,
     ): int {
-        $worksheet->setCellValue('A'.$startRow, $parent['name']);
-        $worksheet->setCellValue('A'.($startRow + 1), $parent['pcode']);
-        $worksheet->getStyle('A'.$startRow)->getFont()->setBold(true);
+        $sizes = $block['sizes'];
+        $rowNum = $this->writeMatrixHeader($worksheet, $startRow, $sizes, $stages, $costLabel);
 
-        $col = 2;
-        $headerRow = $startRow + 3;
-        $worksheet->setCellValue('A'.$headerRow, 'Color');
-        $worksheet->getStyle('A'.$headerRow)->getFont()->setBold(true);
+        $rows = $block['rows'];
+        $pendingCostMerge = null;
 
-        $columns = [];
-
-        foreach ($parent['sizes'] as $size) {
-            $prefix = $this->fieldPrefix($size);
-            $costCol = $col;
-            $costHeader = $parent['sizes'] === ['—'] ? $costLabel : "{$size} {$costLabel}";
-            $worksheet->setCellValue([$col, $headerRow], $costHeader);
-            $columns[] = ['kind' => 'cost', 'prefix' => $prefix, 'col' => $col];
-            $col++;
-
-            foreach ($stages as $stageKey) {
-                $meta = self::STAGE_META[$stageKey];
-                $field = $prefix.$stageKey;
-                $label = $parent['sizes'] === ['—']
-                    ? $meta['title']
-                    : "{$size} {$meta['title']}";
-                $stageStart = $col;
-                $worksheet->setCellValue([$col, $headerRow], $label);
-                $columns[] = ['kind' => 'qty', 'field' => $field, 'col' => $col, 'stage' => $stageKey];
-                $col++;
-
-                $worksheet->getStyle([$stageStart, $headerRow, $col - 1, $headerRow])
-                    ->getFill()
-                    ->setFillType(Fill::FILL_SOLID)
-                    ->getStartColor()
-                    ->setARGB('FF'.$meta['color']);
-            }
-        }
-
-        if (count($parent['sizes']) > 1) {
-            foreach ($stages as $stageKey) {
-                $meta = self::STAGE_META[$stageKey];
-                $totalField = $stageKey.'_total';
-                $worksheet->setCellValue([$col, $headerRow], $meta['title'].' Total');
-                $columns[] = ['kind' => 'qty', 'field' => $totalField, 'col' => $col, 'stage' => $stageKey];
-                $col++;
-
-                $worksheet->getStyle([$col - 1, $headerRow, $col - 1, $headerRow])
-                    ->getFill()
-                    ->setFillType(Fill::FILL_SOLID)
-                    ->getStartColor()
-                    ->setARGB('FF'.$meta['color']);
-            }
-        }
-
-        $rowNum = $headerRow + 1;
-        foreach ($parent['rows'] as $row) {
-            $worksheet->setCellValue('A'.$rowNum, $row['color_name'] ?? '—');
-            foreach ($columns as $column) {
-                if ($column['kind'] === 'cost') {
-                    $meta = $row['_meta'][$column['prefix']] ?? null;
-                    $cellId = (int) ($meta['cell_id'] ?? 0);
-                    $worksheet->setCellValue([$column['col'], $rowNum], $cellCosts[$cellId] ?? 0);
-
-                    continue;
+        foreach ($rows as $index => $blockRow) {
+            if (($blockRow['_type'] ?? '') === 'section') {
+                if ($pendingCostMerge !== null) {
+                    $this->finalizeCostMerge($worksheet, $pendingCostMerge, $rowNum - 1);
                 }
 
-                $worksheet->setCellValue([$column['col'], $rowNum], $row[$column['field']] ?? 0);
+                if (! empty($blockRow['_section_divider'])) {
+                    $rowNum++;
+                }
+
+                $groupCost = $this->resolveParentGroupCost($rows, $index, $cellCosts);
+                $pendingCostMerge = ['start' => $rowNum, 'value' => $groupCost];
+
+                $title = trim((string) ($blockRow['name'] ?? ''));
+                $pcode = trim((string) ($blockRow['pcode'] ?? ''));
+                $colorText = $title !== '' ? $title : $pcode;
+                if ($pcode !== '' && strtoupper($pcode) !== strtoupper($title)) {
+                    $colorText = $colorText."\n".$pcode;
+                }
+
+                $worksheet->setCellValue([1, $rowNum], $colorText);
+                $worksheet->getStyle([1, $rowNum])->getFont()->setBold(true);
+                $worksheet->getStyle([1, $rowNum])->getAlignment()->setWrapText(true);
+
+                $col = 3;
+                $parentSizes = $blockRow['sizes'] ?? [];
+                foreach ($stages as $stageKey) {
+                    foreach ($sizes as $size) {
+                        $label = in_array($size, $parentSizes, true) ? $size : '—';
+                        $worksheet->setCellValue([$col, $rowNum], $label);
+                        $worksheet->getStyle([$col, $rowNum])->getFont()->setBold(true);
+                        $col++;
+                    }
+                    if (count($sizes) > 1) {
+                        $worksheet->setCellValue([$col, $rowNum], 'Total');
+                        $worksheet->getStyle([$col, $rowNum])->getFont()->setBold(true);
+                        $col++;
+                    }
+                }
+
+                $rowNum++;
+
+                continue;
+            }
+
+            if (($blockRow['_type'] ?? '') !== 'data') {
+                continue;
+            }
+
+            $worksheet->setCellValue([1, $rowNum], $blockRow['color_name'] ?? '—');
+            $col = 3;
+            $parentSizes = $blockRow['parent_sizes'] ?? [];
+            foreach ($stages as $stageKey) {
+                foreach ($sizes as $size) {
+                    if (! in_array($size, $parentSizes, true)) {
+                        $worksheet->setCellValue([$col, $rowNum], '—');
+                    } else {
+                        $prefix = $this->fieldPrefix($size);
+                        $worksheet->setCellValue([$col, $rowNum], $blockRow[$prefix.$stageKey] ?? 0);
+                    }
+                    $col++;
+                }
+                if (count($sizes) > 1) {
+                    $worksheet->setCellValue([$col, $rowNum], $blockRow[$stageKey.'_total'] ?? 0);
+                    $col++;
+                }
+            }
+
+            $rowNum++;
+        }
+
+        if ($pendingCostMerge !== null) {
+            $this->finalizeCostMerge($worksheet, $pendingCostMerge, $rowNum - 1);
+        }
+
+        $this->autoSizeColumns($worksheet, $this->matrixLastColumn($sizes, $stages));
+
+        return $rowNum;
+    }
+
+    /**
+     * @param  list<string>  $sizes
+     * @param  list<string>  $stages
+     */
+    protected function writeMatrixHeader(
+        Worksheet $worksheet,
+        int $startRow,
+        array $sizes,
+        array $stages,
+        string $costLabel,
+    ): int {
+        $headerRow = $startRow;
+        $subHeaderRow = $startRow + 1;
+
+        $worksheet->setCellValue([1, $headerRow], 'Color');
+        $worksheet->mergeCells('A'.$headerRow.':A'.$subHeaderRow);
+        $worksheet->setCellValue([2, $headerRow], $costLabel);
+        $worksheet->mergeCells('B'.$headerRow.':B'.$subHeaderRow);
+
+        $worksheet->getStyle([1, $headerRow, 2, $subHeaderRow])->getFont()->setBold(true);
+        $worksheet->getStyle([1, $headerRow, 2, $subHeaderRow])
+            ->getAlignment()
+            ->setVertical(Alignment::VERTICAL_CENTER);
+
+        $col = 3;
+        foreach ($stages as $stageKey) {
+            $meta = self::STAGE_META[$stageKey];
+            $stageStart = $col;
+            $stageSpan = count($sizes) + (count($sizes) > 1 ? 1 : 0);
+
+            $worksheet->setCellValue([$col, $headerRow], $meta['title']);
+            if ($stageSpan > 1) {
+                $worksheet->mergeCells(
+                    Coordinate::stringFromColumnIndex($stageStart).$headerRow.':'
+                    .Coordinate::stringFromColumnIndex($stageStart + $stageSpan - 1).$headerRow
+                );
+            }
+
+            foreach ($sizes as $size) {
+                $worksheet->setCellValue([$col, $subHeaderRow], $size);
+                $col++;
+            }
+            if (count($sizes) > 1) {
+                $worksheet->setCellValue([$col, $subHeaderRow], 'Total');
+                $col++;
+            }
+
+            $worksheet->getStyle([$stageStart, $headerRow, $col - 1, $subHeaderRow])
+                ->getFill()
+                ->setFillType(Fill::FILL_SOLID)
+                ->getStartColor()
+                ->setARGB('FF'.$meta['color']);
+            $worksheet->getStyle([$stageStart, $headerRow, $col - 1, $subHeaderRow])
+                ->getFont()
+                ->setBold(true);
+        }
+
+        return $subHeaderRow + 1;
+    }
+
+    /**
+     * @param  array{kind: 'flat', rows: list<array<string, mixed>>}  $block
+     * @param  list<string>  $stages
+     * @param  array<int, float>  $cellCosts
+     */
+    protected function writeFlatBlock(
+        Worksheet $worksheet,
+        array $block,
+        int $startRow,
+        array $stages,
+        string $costLabel,
+        array $cellCosts,
+    ): int {
+        $headerRow = $startRow;
+        $worksheet->setCellValue([1, $headerRow], 'Color');
+        $worksheet->setCellValue([2, $headerRow], $costLabel);
+        $col = 3;
+        foreach ($stages as $stageKey) {
+            $meta = self::STAGE_META[$stageKey];
+            $worksheet->setCellValue([$col, $headerRow], $meta['title']);
+            $worksheet->getStyle([$col, $headerRow, $col, $headerRow])
+                ->getFill()
+                ->setFillType(Fill::FILL_SOLID)
+                ->getStartColor()
+                ->setARGB('FF'.$meta['color']);
+            $col++;
+        }
+        $worksheet->getStyle([1, $headerRow, $col - 1, $headerRow])->getFont()->setBold(true);
+
+        $rowNum = $headerRow + 1;
+        $rows = $block['rows'];
+        $pendingCostMerge = null;
+
+        foreach ($rows as $index => $blockRow) {
+            if (($blockRow['_type'] ?? '') === 'section') {
+                if ($pendingCostMerge !== null) {
+                    $this->finalizeCostMerge($worksheet, $pendingCostMerge, $rowNum - 1);
+                }
+
+                if (! empty($blockRow['_section_divider'])) {
+                    $rowNum++;
+                }
+
+                $groupCost = $this->resolveParentGroupCost($rows, $index, $cellCosts);
+                $pendingCostMerge = ['start' => $rowNum, 'value' => $groupCost];
+
+                $title = trim((string) ($blockRow['name'] ?? ''));
+                $pcode = trim((string) ($blockRow['pcode'] ?? ''));
+                $colorText = $title !== '' ? $title : $pcode;
+                if ($pcode !== '' && strtoupper($pcode) !== strtoupper($title)) {
+                    $colorText = $colorText."\n".$pcode;
+                }
+
+                $worksheet->setCellValue([1, $rowNum], $colorText);
+                $worksheet->getStyle([1, $rowNum])->getFont()->setBold(true);
+                $worksheet->getStyle([1, $rowNum])->getAlignment()->setWrapText(true);
+                $rowNum++;
+
+                continue;
+            }
+
+            if (($blockRow['_type'] ?? '') !== 'data') {
+                continue;
+            }
+
+            $worksheet->setCellValue([1, $rowNum], $blockRow['color_name'] ?? '—');
+            $col = 3;
+            foreach ($stages as $stageKey) {
+                $worksheet->setCellValue([$col, $rowNum], $blockRow[$stageKey] ?? 0);
+                $col++;
             }
             $rowNum++;
         }
 
-        foreach (range(1, max(1, $col - 1)) as $columnIndex) {
-            $worksheet->getColumnDimensionByColumn($columnIndex)->setAutoSize(true);
+        if ($pendingCostMerge !== null) {
+            $this->finalizeCostMerge($worksheet, $pendingCostMerge, $rowNum - 1);
         }
 
+        $this->autoSizeColumns($worksheet, 2 + count($stages));
+
         return $rowNum;
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $blockRows
+     * @param  array<int, float>  $cellCosts
+     */
+    protected function resolveParentGroupCost(array $blockRows, int $sectionIndex, array $cellCosts): float
+    {
+        $costs = [];
+
+        for ($i = $sectionIndex + 1; $i < count($blockRows); $i++) {
+            $row = $blockRows[$i];
+            if (($row['_type'] ?? '') === 'section') {
+                break;
+            }
+            if (($row['_type'] ?? '') !== 'data') {
+                continue;
+            }
+
+            foreach ($row['_meta'] ?? [] as $meta) {
+                $cellId = (int) ($meta['cell_id'] ?? 0);
+                if ($cellId > 0) {
+                    $costs[] = round($cellCosts[$cellId] ?? 0, 2);
+                }
+            }
+        }
+
+        if ($costs === []) {
+            return 0;
+        }
+
+        $unique = array_values(array_unique($costs));
+
+        return $unique[0];
+    }
+
+    /**
+     * @param  array{start: int, value: float}  $merge
+     */
+    protected function finalizeCostMerge(Worksheet $worksheet, array $merge, int $endRow): void
+    {
+        $startRow = $merge['start'];
+        if ($endRow < $startRow) {
+            return;
+        }
+
+        $costCol = 2;
+        if ($endRow > $startRow) {
+            $worksheet->mergeCells(
+                Coordinate::stringFromColumnIndex($costCol).$startRow.':'
+                .Coordinate::stringFromColumnIndex($costCol).$endRow
+            );
+        }
+
+        $worksheet->setCellValue([$costCol, $startRow], $merge['value']);
+        $worksheet->getStyle([$costCol, $startRow, $costCol, $endRow])
+            ->getAlignment()
+            ->setVertical(Alignment::VERTICAL_CENTER)
+            ->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+    }
+
+    /**
+     * @param  list<string>  $sizes
+     * @param  list<string>  $stages
+     */
+    protected function matrixLastColumn(array $sizes, array $stages): int
+    {
+        $stageCols = count($stages) * (count($sizes) + (count($sizes) > 1 ? 1 : 0));
+
+        return 2 + $stageCols;
+    }
+
+    protected function autoSizeColumns(Worksheet $worksheet, int $lastCol): void
+    {
+        foreach (range(1, max(1, $lastCol)) as $columnIndex) {
+            $worksheet->getColumnDimensionByColumn($columnIndex)->setAutoSize(true);
+        }
     }
 
     protected function fieldPrefix(string $sizeCode): string
