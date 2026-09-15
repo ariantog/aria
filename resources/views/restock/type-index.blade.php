@@ -87,12 +87,28 @@ if ($activeTypeTag) {
                                 <tr class="hover:bg-gray-50">
                                     <td class="px-4 py-3">
                                         <div class="flex items-center gap-3">
-                                            <img src="{{ $parent['image_url'] }}" alt="" class="h-10 w-10 rounded-md border border-gray-200 object-cover"
-                                                 onerror="this.onerror=null;this.src='{{ asset('images/default-item.svg') }}'">
-                                            <span class="font-medium text-gray-900">{{ $parent['name'] }}</span>
+                                            @if($parent['group_url'] ?? null)
+                                                <a href="{{ $parent['group_url'] }}" class="shrink-0">
+                                                    <img src="{{ $parent['image_url'] }}" alt="" class="h-10 w-10 rounded-md border border-gray-200 object-cover hover:opacity-90"
+                                                         onerror="this.onerror=null;this.src='{{ asset('images/default-item.svg') }}'">
+                                                </a>
+                                                <a href="{{ $parent['group_url'] }}"
+                                                   class="font-medium text-blue-700 hover:text-blue-900 hover:underline">{{ $parent['name'] }}</a>
+                                            @else
+                                                <img src="{{ $parent['image_url'] }}" alt="" class="h-10 w-10 shrink-0 rounded-md border border-gray-200 object-cover"
+                                                     onerror="this.onerror=null;this.src='{{ asset('images/default-item.svg') }}'">
+                                                <span class="font-medium text-gray-900">{{ $parent['name'] }}</span>
+                                            @endif
                                         </div>
                                     </td>
-                                    <td class="px-4 py-3 font-mono text-xs text-gray-600">{{ $parent['pcode'] }}</td>
+                                    <td class="px-4 py-3 font-mono text-xs">
+                                        @if($parent['group_url'] ?? null)
+                                            <a href="{{ $parent['group_url'] }}"
+                                               class="text-blue-700 hover:text-blue-900 hover:underline">{{ $parent['pcode'] }}</a>
+                                        @else
+                                            <span class="text-gray-600">{{ $parent['pcode'] }}</span>
+                                        @endif
+                                    </td>
                                     <td class="px-4 py-3 text-right tabular-nums text-gray-600">{{ $parent['sku_count'] }}</td>
                                     @if($sheet)
                                         <td class="px-4 py-3 text-right tabular-nums">{{ number_format($parent['totals']['restock']) }}</td>

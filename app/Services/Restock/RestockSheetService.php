@@ -66,7 +66,7 @@ class RestockSheetService
   /**
    * Parent pcode rows for the TYPE landing page (BELT-01, BELT-02, …).
    *
-   * @return Collection<int, array{pcode: string, name: string, image_url: string, sku_count: int, totals: array{restock: int, production: int, shipped: int}, urgent_count: int}>
+   * @return Collection<int, array{pcode: string, name: string, image_url: string, group_url: ?string, sku_count: int, totals: array{restock: int, production: int, shipped: int}, urgent_count: int}>
    */
   public function parentsForType(Tag $typeTag): Collection
   {
@@ -94,10 +94,18 @@ class RestockSheetService
           ->filter(fn (?string $n) => $n && strtoupper(trim($n)) !== strtoupper($parentPcode))
           ->first() ?? $group?->name ?? $parentPcode;
 
+        $firstItem = $items->first();
+        $groupUrl = $firstItem !== null
+          ? route('items.group-parent-detail', $this->identityBuilder->parentKeyToSlug(
+            $this->identityBuilder->itemParentKey($firstItem)
+          ))
+          : null;
+
         return [
           'pcode' => $parentPcode,
           'name' => $name,
           'image_url' => $group?->image_url ?? asset('images/default-item.svg'),
+          'group_url' => $groupUrl,
           'sku_count' => $items->count(),
           'totals' => [
             'restock' => (int) $cells->sum('qty_restock'),
