@@ -250,11 +250,11 @@ class RestockGridBuilder
             return null;
         }
 
-        $slug = $this->identityBuilder->parentKeyToSlug(
-            $this->identityBuilder->itemParentKey($item)
-        );
+        if ((int) $item->group_id <= 0) {
+            return null;
+        }
 
-        return route('items.group-parent-detail', $slug);
+        return route('items.group-parent-detail', $item->group_id);
     }
 
     /**

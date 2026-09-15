@@ -7,7 +7,7 @@
 $breadcrumbs = [
     ['title' => $isAsset ? 'Assets' : 'Items', 'href' => $isAsset ? route('assetlancar.index') : route('items.index')],
     ['title' => 'Groups', 'href' => route('items.group')],
-    ['title' => $sample->pcode, 'href' => route('items.group-parent-detail', $parentSlug)],
+    ['title' => $sample->pcode, 'href' => route('items.group-parent-detail', $parentGroupId)],
     ['title' => 'Edit colorway', 'href' => '#'],
 ];
 $previewRows = collect($sizeRows)->map(fn ($row) => [
@@ -27,7 +27,7 @@ $previewRows = collect($sizeRows)->map(fn ($row) => [
     'warnaName' => $color['name'] ?? '',
 ]))">
     <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <a href="{{ route('items.group-parent-detail', $parentSlug) }}" class="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-gray-600 hover:bg-gray-100">
+        <a href="{{ route('items.group-parent-detail', $parentGroupId) }}" class="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-gray-600 hover:bg-gray-100">
             <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
             Back to group
         </a>
@@ -212,7 +212,7 @@ $previewRows = collect($sizeRows)->map(fn ($row) => [
         </div>
 
         <div class="flex justify-end gap-4 border-t border-gray-200 pt-8">
-            <a href="{{ route('items.group-parent-detail', $parentSlug) }}" class="rounded-lg px-4 py-2 text-sm font-medium text-gray-500 hover:bg-gray-100">Cancel</a>
+            <a href="{{ route('items.group-parent-detail', $parentGroupId) }}" class="rounded-lg px-4 py-2 text-sm font-medium text-gray-500 hover:bg-gray-100">Cancel</a>
             <button type="submit" data-testid="colorway-save" class="min-w-[150px] rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Save colorway</button>
         </div>
     </form>

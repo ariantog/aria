@@ -112,7 +112,7 @@ class ItemGroupHierarchyService
 
                 return [
                     'parent_key' => $parentKey,
-                    'parent_slug' => $this->identityBuilder->parentKeyToSlug($parentKey),
+                    'parent_group_id' => (int) $row->sample_group_id,
                     'label' => $label,
                     'product_name' => $this->resolveListProductName(
                         (string) ($row->product_name ?? ''),
@@ -166,7 +166,7 @@ class ItemGroupHierarchyService
 
         return [
             'parent_key' => $parentKey,
-            'parent_slug' => $this->identityBuilder->parentKeyToSlug($parentKey),
+            'anchor_group_id' => (int) ($groups->min('id') ?? 0),
             'label' => $label,
             'item_type' => $itemType,
             'is_asset' => $itemType === ItemType::ASSET_LANCAR,
@@ -180,6 +180,37 @@ class ItemGroupHierarchyService
             'warehouse_breakdown' => $warehouseBreakdown,
             'warehouse_names' => $warehouseNames,
         ];
+    }
+
+    public function anchorGroupIdForParentKey(string $parentKey): ?int
+    {
+        $id = $this->groupsForParentKey($parentKey)->min('id');
+
+        return $id !== null ? (int) $id : null;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    public function parentDetailForAnchorGroup(ItemGroup $anchorGroup, bool $fetchJubelio = true): ?array
+    {
+        $sample = $anchorGroup->items()
+            ->whereNull('deleted_at')
+            ->with(['tags', 'group'])
+            ->orderBy('id')
+            ->first();
+
+        if ($sample === null) {
+            return null;
+        }
+
+        $detail = $this->parentDetail($this->identityBuilder->itemParentKey($sample), $fetchJubelio);
+
+        if ($detail !== null) {
+            $detail['anchor_group_id'] = (int) $anchorGroup->id;
+        }
+
+        return $detail;
     }
 
     /**
