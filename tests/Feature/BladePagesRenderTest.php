@@ -113,7 +113,8 @@ it('renders the transfer page', function () {
     $this->actingAs($this->user)
         ->get('/transactions/transfer')
         ->assertOk()
-        ->assertSee('Transfer Money', false);
+        ->assertSee('Transfer Money', false)
+        ->assertSee('data-testid="transfer-swap-parties"', false);
 });
 
 it('renders the adjust page', function () {
