@@ -4,6 +4,7 @@
         'product_name' => old('product_name'),
         'price' => old('price'),
         'cost' => old('cost'),
+        'cost_cnh' => old('cost_cnh'),
     ];
     $pcodePlaceholder = $isAsset ? 'GLOVE-01' : 'CX90233-23';
     $editingItem = isset($item);
@@ -86,12 +87,22 @@
                 'sharedHint' => 'Cost stays on this SKU. Other sizes in the colorway keep their own cost.',
                 'sharedTestId' => 'item-form-sku-cost',
             ])
-            <div>
-                <label class="mb-1 block text-sm font-medium text-gray-700" for="item-form-cost">Cost Price <span class="text-red-500">*</span></label>
-                <input type="number" step="any" id="item-form-cost" name="cost" value="{{ $fi['cost'] }}" required placeholder="0"
-                       data-testid="item-form-cost"
-                       class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 @error('cost') border-red-500 @enderror">
-                @error('cost')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                    <label class="mb-1 block text-sm font-medium text-gray-700" for="item-form-cost">Cost Price (IDR) <span class="text-red-500">*</span></label>
+                    <input type="number" step="any" id="item-form-cost" name="cost" value="{{ $fi['cost'] }}" required placeholder="0"
+                           data-testid="item-form-cost"
+                           class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 @error('cost') border-red-500 @enderror">
+                    @error('cost')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
+                </div>
+                <div>
+                    <label class="mb-1 block text-sm font-medium text-gray-700" for="item-form-cost-cnh">Cost (CNY)</label>
+                    <input type="number" step="any" id="item-form-cost-cnh" name="cost_cnh" value="{{ $fi['cost_cnh'] ?? '' }}" placeholder="0"
+                           data-testid="item-form-cost-cnh"
+                           class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 @error('cost_cnh') border-red-500 @enderror">
+                    @error('cost_cnh')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
+                    <p class="mt-1 text-xs text-gray-500">Supplier cost in Chinese yuan; per SKU like IDR cost.</p>
+                </div>
             </div>
         </fieldset>
         @endif

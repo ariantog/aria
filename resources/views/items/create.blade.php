@@ -8,6 +8,7 @@
         'product_name' => old('product_name'),
         'price' => old('price'),
         'cost' => old('cost'),
+        'cost_cnh' => old('cost_cnh'),
         'description' => old('description'),
         'description2' => old('description2'),
         'reseller_price' => old('reseller_price'),

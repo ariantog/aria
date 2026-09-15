@@ -229,6 +229,10 @@ class ItemService
                     $item->cost = $row['cost'] ?? 0;
                 }
 
+                if (array_key_exists('cost_cnh', $row)) {
+                    $item->cost_cnh = $row['cost_cnh'] ?? 0;
+                }
+
                 if (array_key_exists('restock_urgent_threshold', $row)) {
                     $item->restock_urgent_threshold = $this->normalizeRestockUrgentThreshold(
                         $row['restock_urgent_threshold']
@@ -464,6 +468,7 @@ class ItemService
         $item->name = $this->identityBuilder->buildName($displayName, $warnaTag, $sizeTag);
         $item->price = $input->price ?? $item->price ?? 0;
         $item->cost = $input->cost ?? $item->cost ?? 0;
+        $item->cost_cnh = $input->cost_cnh ?? $item->cost_cnh ?? 0;
         $item->restock_urgent_threshold = $this->normalizeRestockUrgentThreshold(
             $input->restock_urgent_threshold ?? $item->restock_urgent_threshold
         );
@@ -1219,6 +1224,10 @@ class ItemService
 
         if (array_key_exists('cost', $row) && $row['cost'] !== '' && $row['cost'] !== null) {
             $item->cost = max(0, (float) $row['cost']);
+        }
+
+        if (array_key_exists('cost_cnh', $row) && $row['cost_cnh'] !== '' && $row['cost_cnh'] !== null) {
+            $item->cost_cnh = max(0, (float) $row['cost_cnh']);
         }
 
         if (array_key_exists('reseller_price', $row) && $row['reseller_price'] !== '' && $row['reseller_price'] !== null) {
