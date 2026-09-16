@@ -78,6 +78,8 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::patch('items/{item}/legacy-code', [App\Http\Controllers\ItemsController::class, 'updateLegacyCode'])->name('items.update-legacy-code');
     Route::get('items/{item}/duplicate', [App\Http\Controllers\ItemsController::class, 'duplicate'])->name('items.duplicate');
     Route::resource('items', App\Http\Controllers\ItemsController::class);
+    Route::get('jubelio/item-links', [App\Http\Controllers\JubelioItemLinkController::class, 'index'])->name('jubelio.item-links.index');
+    Route::get('jubelio/item-links/parent/{group}', [App\Http\Controllers\JubelioItemLinkController::class, 'showGroup'])->whereNumber('group')->name('jubelio.item-links.group');
     Route::get('jubelio/order/cek', [App\Http\Controllers\JubelioController::class, 'cekOrder'])->name('jubelio.order.cek');
     Route::post('jubelio/order/cek/queue', [App\Http\Controllers\JubelioController::class, 'queueCekOrder'])->name('jubelio.order.cek.queue');
     Route::get('jubelio/token', [App\Http\Controllers\JubelioTokenController::class, 'index'])->name('jubelio.token.index');

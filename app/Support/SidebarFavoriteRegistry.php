@@ -431,6 +431,15 @@ class SidebarFavoriteRegistry
                 'active_prefix' => '/jubelio/order/cek',
             ],
             [
+                'key' => 'jubelio-item-links',
+                'label' => 'Item Links',
+                'group' => 'Jubelio',
+                'permission' => 'jubelio-view',
+                'route' => 'jubelio.item-links.index',
+                'params' => [],
+                'active_prefix' => '/jubelio/item-links',
+            ],
+            [
                 'key' => 'jubelio-koneksi',
                 'label' => 'Koneksi',
                 'group' => 'Jubelio',
