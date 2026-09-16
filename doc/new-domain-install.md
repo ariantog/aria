@@ -4,7 +4,9 @@ Use this for a **brand-new Aria host** with an **empty database** (another shop 
 
 Do **not** use this on the current Crystal production host (`aria.corenationactive.com`) or on any clone of that database.
 
-Current production stays on individual `php artisan migrate --path=...` plus `ProductionBootstrapSeeder`.
+**Crystal (current production)** uses individual `php artisan migrate --path=...` on the shared L10 MySQL schema, plus `ProductionBootstrapSeeder` when needed. It does **not** use the flow below.
+
+**New subdomain** uses a full greenfield `php artisan migrate` (all L12 migration files in order), then `NewDomainSeeder`. Do **not** run `database/migrations/2026_08_13_100000_production_database_bootstrap.php` on an empty database — that bundle is for L10 → L12 **clones** only.
 
 Canonical command: `php artisan app:install-new-domain` (wrapper: `scripts/install-new-domain.sh`).
 
@@ -14,10 +16,14 @@ Canonical command: `php artisan app:install-new-domain` (wrapper: `scripts/insta
 - Composer 2.
 - An **empty** MySQL database. Do not import `database/old.sql`, a Crystal dump, or any database that already has customers / reporting entities.
 - `APP_URL` host is the **new** subdomain, not `aria.corenationactive.com`.
+- `APP_TIMEZONE=Asia/Jakarta` (WIB) if you use Shopee Ads schedules or payroll/absensi.
+- `QUEUE_CONNECTION=database` so transaction summary jobs persist.
 - `ARIA_LEGACY_PRODUCTION` is unset / `false` on the new host.
 - On Crystal, keep `ARIA_LEGACY_PRODUCTION=true` so this path can never run there.
 
 MySQL permission tables default to `aria_permissions` / `aria_roles`. Leave `PERMISSION_TABLE_*` unset on a new MySQL host so `migrate` creates those names. Do not point a new empty DB at Crystal's live schema.
+
+Optional later: `ARCHIVE_DB_*` for data retention, `SHOPEE_*` / `TELEGRAM_*` for Shopee Ads, `JUBELIO_*` when omnichannel is ready, `ITEM_IMAGE_URL` / `CDN_URL` / `INVOICE_PATH` for production asset URLs.
 
 ## Guard (why the command may refuse)
 
@@ -46,9 +52,16 @@ php artisan app:install-new-domain
 
 That runs `php artisan migrate --force` then `db:seed --class=NewDomainSeeder --force`.
 
-Confirm the prompt (host + database name). `--force` skips the prompt only; it does not skip the guard.
+Confirm the prompt (host + database name). `--force` on the install command skips the prompt only; it does not skip the guard.
 
 `migrate` on a new domain also runs `2026_09_01_140000_seed_new_domain_baseline`, which calls the same seeder. A second seed from the install command is idempotent.
+
+After install on the server:
+
+```bash
+php artisan config:cache
+php artisan route:cache   # optional
+```
 
 ### Options
 
@@ -66,13 +79,19 @@ Do **not** run `migrate:fresh` / `migrate:refresh` except on local SQLite.
 
 ## What gets created
 
+### Schema (via full `migrate`)
+
+Greenfield migrations create the full L12 schema: reporting summaries, tax faktur, payroll/absensi, item group catalog (`brand` / `genre`, widened `name`), `items.alias`, reseller price, `items.cost_cnh`, item insight rollup tables, Jubelio/Shopee Ads tables, and addrbook `ppn_included` (default **true** on new contacts).
+
+### Data (`NewDomainSeeder`)
+
 `NewDomainSeeder` calls, in order:
 
 1. `SuperAdminSeeder` — user `superadmin` / `password` (login is **username**, not email). Change this immediately.
-2. `ProductionBootstrapSeeder` — Spatie permissions, cron rows (`ScheduledTaskSeeder`), `SettingRegistry` keys, stock-intelligence weights, staff checklist catalog.
+2. `ProductionBootstrapSeeder` — Spatie permissions (including newer report permissions such as item insights), cron rows (`ScheduledTaskSeeder`), all `SettingRegistry` keys, stock-intelligence weights, staff checklist catalog.
 3. `TypicalLedgerSeeder` — 15 operations and typical ledgers (new auto-increment ids, not Crystal ids). Reporting roles: marketplace / toko / material / production cost / tax / adjustment.
-4. `AddrbookPlaceholderSeeder` — one contact per type, plus `customerstat` and the default location.
-5. `NewDomainSettingsSeeder` — fills **empty** settings only:
+4. `AddrbookPlaceholderSeeder` — one contact per type, plus `customerstat` and the default location. Supplier placeholder has `ppn` enabled.
+5. `NewDomainSettingsSeeder` — fills **empty** operational settings only:
 
    | Setting | Points at |
    |---------|-----------|
@@ -83,21 +102,43 @@ Do **not** run `migrate:fresh` / `migrate:refresh` except on local SQLite.
    | `asset_tetap.depreciation_expense_account_id` | Biaya Perawatan |
    | `asset_tetap.depreciation_contra_account_id` | Penyesuaian Umum |
 
+`SettingSeeder` (inside step 2) also seeds registry defaults you should review in System Settings, including:
+
+| Setting | Default | Notes |
+|---------|---------|--------|
+| `ppn_rate` | 11 | Global rate label; tax still depends on entity/contact |
+| `transactions.default_ppn_included` | true | Buy/sell form default when contact has no `ppn_included` |
+| `restock.export_cost_field` | `cost` | Restock Excel export uses IDR `cost`; switch to `cost_cnh` if needed |
+| `reporting.persediaan_awal` | 0 | Opening inventory for Jan 2026 neraca roll-forward |
+
 Placeholder contacts: Pelanggan, Gudang, Kas / Bank, Supplier, Gudang Virtual, Akun Virtual, Reseller, Akun Umum, Lainnya.
 
 Operations: Biaya Marketplace, Biaya Toko, Marketing Umum, Gaji & Upah, Produksi, Logistik, Kantor & Utilitas, Perawatan & Mesin, Jasa Profesional, Kesejahteraan Karyawan, Pajak & Retribusi, Perbankan, Penyesuaian, Lain-lain, Sewa HQ.
 
 Catalog lives in `App\Support\NewDomainChartOfAccounts`. Re-running the seeder does not overwrite names or settings the operator already changed.
 
+### Cron rows seeded (high level)
+
+`ScheduledTaskSeeder` registers the usual daily/hourly jobs (warehouse item stats reconcile + backfill, reporting summaries/inventory snapshot, inventory health, Jubelio order sync, stock check, Shopee Ads process, and others). Notable:
+
+- **Jubelio:** `jubelio:order-jubelio-to-aria`, `jubelio:poll-missing-orders`, `jubelio:check-connection`, `app:jubelio-stock-check`. Legacy **`jubelio:get-orders` resume cron is not seeded** (removed).
+- **Depreciation:** `app:run-monthly-depreciation` is present but **inactive** until accounts are set.
+- **Data retention:** `app:process-data-retention-archive` is **inactive** until an archive DB exists.
+
 ## After install
 
 1. Log in as `superadmin` / `password` and change the password.
-2. Rename the placeholder contacts (or add real ones and leave the placeholders unused).
-3. Create the reporting entity at `/reports/entities`. Map banks, PKP, tax accounts, and ledger roles there. Do not import Crystal's `cv-crystal` row.
-4. Review System Settings (PPN rate, restock, produksi warehouse, depreciation accounts).
-5. Point OS cron at `php artisan schedule:run` every minute. Cron Manager (`/cron-manager`) already has the usual tasks; leave monthly depreciation **off** until the two depreciation accounts are correct, then enable `app:run-monthly-depreciation`.
-6. Run a queue worker (`php artisan queue:listen` or the scheduled `app:process-queue`) so `UpdateTransactionSummaries` drains.
+2. Rename placeholder contacts (or add real ones). Set **`ppn`** and **`ppn_included`** per supplier/customer/reseller as needed; item invoices use stored amounts, not a global 11% guess.
+3. Create the reporting entity at `/reports/entities`. Map banks, PKP, tax accounts, and ledger roles. Do not import Crystal's `cv-crystal` row. Set **`reporting.persediaan_awal`** if you need a non-zero January 2026 opening inventory.
+4. Review System Settings (PPN rate, default PPN included mode, restock export cost field, restock/produksi warehouses, depreciation accounts).
+5. Point OS cron at `php artisan schedule:run` every minute. Cron Manager (`/cron-manager`) lists seeded tasks; enable monthly depreciation only after depreciation accounts are correct.
+6. Run a queue worker (`php artisan queue:listen` or rely on `app:process-queue` each minute) so `UpdateTransactionSummaries` drains.
 7. Leave `JUBELIO_ACTIVE=false` until credentials and `jubeliosyncs` warehouse mapping are ready.
+8. **Item Insights** (`/reports/item-insights`): rankings are empty until you have sell history in `warehouse_item_monthly_stats`. Use **Recalculate** on the report (or wait for daily stats reconcile). There is no separate item-insights cron.
+9. **Warehouse stats backfill** for old months: System Settings → Warehouse Stats Backfill when you need arrangement / performance history before go-live month.
+10. Optional integrations: Shopee Ads (env + OAuth), archive database for data retention, CDN paths for item images and invoice PDFs.
+
+Reporting aggregate tables ignore transactions before `config('reporting.cutover_date')` (default `2025-01-01`).
 
 ## If install refuses
 
@@ -110,9 +151,13 @@ Catalog lives in `App\Support\NewDomainChartOfAccounts`. Re-running the seeder d
 ## Current production (Crystal)
 
 ```bash
-# Per migration, when the maintainer is ready — never a bare migrate:
+# One-shot schema catch-up on an L10 clone (maintainer), when listed in the bootstrap file:
+php artisan migrate --path=database/migrations/2026_08_13_100000_production_database_bootstrap.php --force
+
+# Any newer migration not yet in that bundle — individually, never bare migrate:
 php artisan migrate --path=database/migrations/YYYY_MM_DD_xxxxxx_....php --force
+
 php artisan db:seed --class=ProductionBootstrapSeeder --force
 ```
 
-The new-domain baseline migration is a documented no-op on Crystal.
+The new-domain baseline migration `2026_09_01_140000_seed_new_domain_baseline` is a documented **no-op** on Crystal (fingerprint / legacy host).

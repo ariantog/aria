@@ -53,7 +53,10 @@ it('ships a maintainer install guide', function () {
         ->and($source)->toContain('NewDomainSeeder')
         ->and($source)->toContain('ReportingBootstrapSeeder')
         ->and($source)->toContain('DemoDataSeeder')
-        ->and($source)->toContain('ARIA_LEGACY_PRODUCTION');
+        ->and($source)->toContain('ARIA_LEGACY_PRODUCTION')
+        ->and($source)->toContain('2026_08_13_100000_production_database_bootstrap.php')
+        ->and($source)->toContain('transactions.default_ppn_included')
+        ->and($source)->toContain('jubelio:get-orders');
 });
 
 it('seeds the new-domain baseline without re-running migrations', function () {
