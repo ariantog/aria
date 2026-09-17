@@ -8,7 +8,7 @@
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Roboto+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
     {{-- Tailwind CDN (v4 play CDN covers all utilities) --}}
     <script src="https://cdn.tailwindcss.com"></script>
@@ -17,16 +17,6 @@
             darkMode: 'class',
             theme: {
                 extend: {
-                    fontFamily: {
-                        // Avoid Windows Consolas / Liberation Mono (slashed zero). Roboto Mono matches mobile-friendly digits.
-                        mono: [
-                            '"Roboto Mono"',
-                            '"Segoe UI Mono"',
-                            'Menlo',
-                            'Monaco',
-                            'monospace',
-                        ],
-                    },
                     colors: {
                         sidebar: {
                             DEFAULT: 'hsl(var(--sidebar-background))',
@@ -75,10 +65,6 @@
         html { font-size: var(--app-font-size); }
         body {
             font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
-        }
-        /* Consistent mono digits (no slashed zero on Windows Consolas). */
-        .font-mono {
-            font-family: "Roboto Mono", "Segoe UI Mono", Menlo, Monaco, monospace;
         }
         [x-cloak] { display: none !important; }
 
