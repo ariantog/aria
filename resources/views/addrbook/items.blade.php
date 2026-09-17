@@ -243,7 +243,7 @@ $jubelioQtyCell = function (?array $jubelio, string $field, bool $highlightMisma
                                 <span x-show="onlineName" x-cloak>{{ $onlineNm }}</span>
                             </a>
                         </td>
-                        <td class="whitespace-nowrap px-3 py-2.5 font-mono text-xs" data-copy-col="code">
+                        <td class="whitespace-nowrap px-3 py-2.5 text-xs" data-copy-col="code">
                             <a href="{{ $itemShowUrl }}" onclick="event.stopPropagation()" class="text-blue-600 hover:underline" title="{{ $item->code }}">{{ $item->code }}</a>
                         </td>
                         <td class="max-w-[180px] px-3 py-2.5 text-xs text-gray-600" data-copy-col="item_alias" x-show="showItemAlias">

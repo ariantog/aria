@@ -108,10 +108,10 @@ $columnsStorageKey = $isAsset ? 'aria-assetlancar-index-columns' : 'aria-items-i
                         <td class="whitespace-nowrap px-3 py-2.5">
                             <a href="{{ $baseUrl }}/{{ $item->id }}" class="font-medium text-blue-600 hover:underline">{{ $item->id }}</a>
                         </td>
-                        <td class="whitespace-nowrap px-3 py-2.5 font-mono text-xs text-gray-800" data-testid="item-list-code-{{ $item->id }}">{{ $item->code ?: '-' }}</td>
+                        <td class="whitespace-nowrap px-3 py-2.5 text-gray-800" data-testid="item-list-code-{{ $item->id }}">{{ $item->code ?: '-' }}</td>
                         <td class="max-w-[160px] px-3 py-2.5" data-testid="item-list-group-{{ $item->id }}">
                             @if($groupUrl)
-                                <a href="{{ $groupUrl }}" class="block truncate font-mono text-xs text-blue-600 hover:underline" title="{{ $item->group?->name ?: '-' }}">{{ $item->group?->name ?: '-' }}</a>
+                                <a href="{{ $groupUrl }}" class="block truncate text-blue-600 hover:underline" title="{{ $item->group?->name ?: '-' }}">{{ $item->group?->name ?: '-' }}</a>
                             @else
                                 <span class="text-xs text-gray-400">—</span>
                             @endif
