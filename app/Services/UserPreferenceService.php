@@ -136,7 +136,11 @@ class UserPreferenceService
                 throw new InvalidArgumentException("{$definition['label']} is not a valid contact.");
             }
 
-            if (! in_array($this->addrbookTypeValue($addrbook), $definition['types'], true)) {
+            $types = $slug === 'transactions.default_move_receiver_id'
+                ? \App\Models\Transaction::movePartyAddrbookTypeIds($user)
+                : $definition['types'];
+
+            if (! in_array($this->addrbookTypeValue($addrbook), $types, true)) {
                 throw new InvalidArgumentException("{$definition['label']} must be the correct contact type.");
             }
 

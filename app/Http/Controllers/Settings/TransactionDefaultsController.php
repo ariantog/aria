@@ -89,7 +89,9 @@ class TransactionDefaultsController extends Controller
     {
         abort_unless(in_array($type, UserPreferenceRegistry::lookupTypes(), true), 404);
 
-        $types = UserPreferenceRegistry::lookupAddrbookTypes($type);
+        $types = $type === 'move_receiver'
+            ? \App\Models\Transaction::movePartyAddrbookTypeIds($request->user())
+            : UserPreferenceRegistry::lookupAddrbookTypes($type);
         abort_if($types === [], 404);
 
         $query = Addrbook::query()->whereIn('type', $types);

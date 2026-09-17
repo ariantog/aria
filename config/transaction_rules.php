@@ -16,8 +16,8 @@ return [
     'move' => [
         'id' => \App\Models\Transaction::TYPE_MOVE,
         'price_source' => 'price',
-        'sender_type' => [\App\Models\Addrbook::TYPE_WAREHOUSE, \App\Models\Addrbook::TYPE_V_WAREHOUSE],
-        'receiver_type' => [\App\Models\Addrbook::TYPE_WAREHOUSE, \App\Models\Addrbook::TYPE_V_WAREHOUSE],
+        'sender_type' => [\App\Models\Addrbook::TYPE_WAREHOUSE],
+        'receiver_type' => [\App\Models\Addrbook::TYPE_WAREHOUSE],
     ],
     'transfer' => [
         'id' => \App\Models\Transaction::TYPE_TRANSFER,
