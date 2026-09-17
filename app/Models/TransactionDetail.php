@@ -38,12 +38,12 @@ class TransactionDetail extends Model
 
     public function sender()
     {
-        return $this->belongsTo(Addrbook::class, 'sender_id');
+        return $this->belongsTo(Addrbook::class, 'sender_id')->withTrashed();
     }
 
     public function receiver()
     {
-        return $this->belongsTo(Addrbook::class, 'receiver_id');
+        return $this->belongsTo(Addrbook::class, 'receiver_id')->withTrashed();
     }
 
     public static function typeLabel(int $type): string
