@@ -51,11 +51,11 @@ class Jubeliosync extends Model
 
     public function warehouse(): HasOne
     {
-        return $this->hasOne(Addrbook::class, 'id', 'warehouse_id');
+        return $this->hasOne(Addrbook::class, 'id', 'warehouse_id')->withTrashed();
     }
 
     public function customer(): HasOne
     {
-        return $this->hasOne(Addrbook::class, 'id', 'customer_id');
+        return $this->hasOne(Addrbook::class, 'id', 'customer_id')->withTrashed();
     }
 }

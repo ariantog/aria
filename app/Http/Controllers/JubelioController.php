@@ -119,7 +119,7 @@ class JubelioController extends Controller
             ->all();
         $warehousesById = $warehouseIds === []
             ? collect()
-            : Addrbook::query()->whereIn('id', $warehouseIds)->get()->keyBy('id');
+            : Addrbook::withTrashed()->whereIn('id', $warehouseIds)->get()->keyBy('id');
 
         $refreshedOrderId = (int) session('jubelio_refreshed_order_id', 0);
         $refreshedSummary = session('jubelio_refreshed_summary');
