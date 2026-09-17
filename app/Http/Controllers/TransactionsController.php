@@ -87,6 +87,11 @@ class TransactionsController extends Controller
         if (! $config) {
             abort(404, "Transaction type '{$type}' not supported.");
         }
+        if ($type === 'move') {
+            $partyTypes = Transaction::movePartyAddrbookTypeIds(Auth::user());
+            $config['sender_type'] = $partyTypes;
+            $config['receiver_type'] = $partyTypes;
+        }
         $config['sender_route'] = route('transactions.lookup', ['type' => $type, 'role' => 'sender', 'addrbook_type' => $config['sender_type'] ?? null]);
         $config['receiver_route'] = route('transactions.lookup', ['type' => $type, 'role' => 'receiver', 'addrbook_type' => $config['receiver_type'] ?? null]);
         $getLabel = function ($role) use ($config) {

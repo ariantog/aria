@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Sales / inventory / cash document.
@@ -304,7 +305,9 @@ class Transaction extends Model
             'view' => 'transactions-list', 'create' => 'transactions-create',
             'edit' => 'transactions-edit', 'delete' => 'transactions-delete', 'show' => 'transactions-show',
             'type-buy' => 'transactions-type-buy', 'type-sell' => 'transactions-type-sell',
-            'type-move' => 'transactions-type-move', 'type-cash-in' => 'transactions-type-cash-in',
+            'type-move' => 'transactions-type-move',
+            'type-move-virtual' => 'transactions-type-move-virtual',
+            'type-cash-in' => 'transactions-type-cash-in',
             'type-cash-out' => 'transactions-type-cash-out', 'type-transfer' => 'transactions-type-transfer',
             'type-adjust' => 'transactions-type-adjust', 'type-return' => 'transactions-type-return',
             'type-return-supplier' => 'transactions-type-return-supplier',
@@ -322,6 +325,52 @@ class Transaction extends Model
     public static function permissionNameForType(string $typeSlug): ?string
     {
         return self::getPermissions()[self::typePermissionKey($typeSlug)] ?? null;
+    }
+
+    public static function userCanMoveVirtualWarehouses(?User $user): bool
+    {
+        if (! $user) {
+            return false;
+        }
+
+        if ($user->is_superadmin) {
+            return true;
+        }
+
+        return $user->can(self::getPermissions()['type-move-virtual']);
+    }
+
+    /**
+     * Addrbook types allowed as sender/receiver on Move for the given user.
+     *
+     * @return list<int>
+     */
+    public static function movePartyAddrbookTypeIds(?User $user): array
+    {
+        $types = [Addrbook::TYPE_WAREHOUSE];
+        if (self::userCanMoveVirtualWarehouses($user)) {
+            $types[] = Addrbook::TYPE_V_WAREHOUSE;
+        }
+
+        return $types;
+    }
+
+    public static function assertMovePartiesAllowed(?User $user, Addrbook $sender, Addrbook $receiver): void
+    {
+        $allowed = self::movePartyAddrbookTypeIds($user);
+        $errors = [];
+
+        if (! in_array($sender->typeValue(), $allowed, true)) {
+            $errors['sender_id'] = ['Move sender must be a physical warehouse for your permissions.'];
+        }
+
+        if (! in_array($receiver->typeValue(), $allowed, true)) {
+            $errors['receiver_id'] = ['Move receiver must be a physical warehouse for your permissions.'];
+        }
+
+        if ($errors !== []) {
+            throw ValidationException::withMessages($errors);
+        }
     }
 
     public static function userCanAccessType(?User $user, string $typeSlug): bool

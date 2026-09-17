@@ -25,6 +25,9 @@ class CreateItemTransaction
         $data = $request->validated();
         $sender = Addrbook::findOrFail($data['sender_id']);
         $receiver = Addrbook::findOrFail($data['receiver_id']);
+        if ($type === Transaction::TYPE_MOVE) {
+            Transaction::assertMovePartiesAllowed(Auth::user(), $sender, $receiver);
+        }
         $cashInPayload = $request->cashInPayload();
 
         return DB::transaction(function () use ($type, $data, $sender, $receiver, $cashInPayload) {
