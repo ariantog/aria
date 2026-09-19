@@ -2,7 +2,6 @@
 
 namespace App\Services\Items;
 
-use App\Enums\AddrbookType;
 use App\Enums\ItemType;
 use App\Models\Item;
 use App\Models\ItemGroup;
@@ -309,10 +308,7 @@ class ItemGroupHierarchyService
                     ->with([
                         'tags',
                         'warehouseItems' => fn ($wq) => $wq
-                            ->whereIn('warehouse_id', fn ($sq) => $sq->select('id')->from('customers')->whereIn('type', [
-                                AddrbookType::Warehouse->value,
-                                AddrbookType::VirtualWarehouse->value,
-                            ]))
+                            ->forAvailableStock()
                             ->with('warehouse'),
                     ]),
             ])
