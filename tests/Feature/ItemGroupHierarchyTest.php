@@ -1,10 +1,12 @@
 <?php
 
 use App\Enums\ItemType;
+use App\Models\Addrbook;
 use App\Models\Item;
 use App\Models\ItemGroup;
 use App\Models\Tag;
 use App\Models\User;
+use App\Models\WarehouseItem;
 use App\Services\Items\ItemGroupHierarchyService;
 use App\Services\Items\ItemIdentityBuilder;
 
@@ -106,6 +108,45 @@ it('lists parent groups newest item_group id first', function () {
     $parents = $this->hierarchy->paginateParents([], 50);
 
     expect($parents->pluck('label')->all())->toBe(['AJD CX95002', 'AJD CX95001']);
+});
+
+it('parent detail totals exclude virtual warehouse stock', function () {
+    $group = ItemGroup::factory()->create(['master' => 'CX93024', 'variant' => '05', 'name' => 'RUNNING SHIRT']);
+
+    $item = Item::factory()->create([
+        'group_id' => $group->id,
+        'type' => ItemType::ITEM,
+        'pcode' => 'CX93024-05',
+        'code' => 'AJD-CX93024-05-S',
+    ]);
+    $item->tags()->attach([$this->typeTag->id, $this->pinkTag->id, $this->sizeS->id]);
+
+    $physical = Addrbook::factory()->warehouse()->create(['name' => 'Gudang Fisik']);
+    $virtual = Addrbook::factory()->create([
+        'name' => 'V-WH Channel',
+        'type' => Addrbook::TYPE_V_WAREHOUSE,
+    ]);
+
+    WarehouseItem::create([
+        'warehouse_id' => $physical->id,
+        'item_id' => $item->id,
+        'warehouse_type' => (string) Addrbook::TYPE_WAREHOUSE,
+        'quantity' => 10,
+    ]);
+    WarehouseItem::create([
+        'warehouse_id' => $virtual->id,
+        'item_id' => $item->id,
+        'warehouse_type' => (string) Addrbook::TYPE_V_WAREHOUSE,
+        'quantity' => 50,
+    ]);
+
+    $parentKey = $this->builder->itemParentKey($item->load('tags', 'group'));
+    $detail = $this->hierarchy->parentDetail($parentKey, fetchJubelio: false);
+
+    expect($detail['total_warehouse_qty'])->toBe(10.0)
+        ->and($detail['warehouse_names'])->toBe(['Gudang Fisik'])
+        ->and($detail['colors'][0]['in_warehouse_qty'])->toBe(10.0)
+        ->and($detail['colors'][0]['size_rows'][0]['warehouse_qty'])->toBe(10.0);
 });
 
 it('renders parent detail with color sections and size rows', function () {
