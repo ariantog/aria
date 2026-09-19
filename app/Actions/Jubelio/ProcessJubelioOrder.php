@@ -10,6 +10,7 @@ use App\Models\Transaction;
 use App\Models\TransactionDetail;
 use App\Models\WarehouseItem;
 use App\Services\Jubelio\JubelioOrderPayloadService;
+use App\Services\Jubelio\JubelioOrderSyncStatus;
 use App\Services\Jubelio\JubelioOrderWarehouseResolver;
 use App\Services\Jubelio\JubelioSellerIncomeResolver;
 use App\Services\LocationAccessService;
@@ -40,15 +41,17 @@ class ProcessJubelioOrder
         $dataApi = $this->resolvePayload($order);
 
         if ($dataApi === []) {
+            $message = JubelioOrderSyncStatus::MESSAGE_SELL_API_EMPTY;
+
             $order->update([
                 'run_count' => $runCount,
-                'error_type' => 3,
-                'error' => 'Payload JSON tidak valid',
+                'error_type' => JubelioOrderSyncStatus::ERROR_PAYLOAD,
+                'error' => $message,
                 'stock_error_items' => null,
                 'status' => 1,
             ]);
 
-            return ['success' => false, 'message' => 'Payload JSON tidak valid'];
+            return ['success' => false, 'message' => $message];
         }
 
         if ($order->type === 'SELL') {
@@ -184,15 +187,17 @@ class ProcessJubelioOrder
             ->first();
 
         if (! $cekTransaksiSell) {
+            $message = JubelioOrderSyncStatus::MESSAGE_RETURN_SELL_MISSING;
+
             $order->update([
                 'run_count' => $runCount,
-                'error_type' => 3,
-                'error' => 'Transaksi jual (asal) tidak ditemukan untuk retur ini',
+                'error_type' => JubelioOrderSyncStatus::ERROR_PAYLOAD,
+                'error' => $message,
                 'stock_error_items' => null,
                 'status' => 1,
             ]);
 
-            return ['success' => false, 'message' => 'Transaksi jual (asal) tidak ditemukan untuk retur ini'];
+            return ['success' => false, 'message' => $message];
         }
 
         $returnMapping = $this->warehouseResolver->resolveReturnSync($order, null, $dataApi);
