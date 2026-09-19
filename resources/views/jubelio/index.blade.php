@@ -178,7 +178,7 @@ $td = 'px-1.5 py-2 align-top';
                         </td>
                         <td class="{{ $td }}" data-testid="jubelio-orders-sync-status">
                             <div class="flex min-w-0 flex-col items-start gap-0.5">
-                                @include('jubelio.partials.sync-status-badge', ['status' => $order->status, 'errorType' => $order->error_type, 'executeBy' => $order->user->name ?? null])
+                                @include('jubelio.partials.sync-status-badge', ['status' => $order->status, 'errorType' => $order->error_type, 'executeBy' => $order->user->name ?? null, 'orderType' => $order->type])
                                 <form method="POST" action="{{ route('jubelio.refresh-payload', $order) }}" class="inline">
                                     @csrf
                                     <input type="hidden" name="return_to_index" value="1">
@@ -195,7 +195,7 @@ $td = 'px-1.5 py-2 align-top';
                                 </form>
                                 @if($order->hasStockError())
                                 @include('jubelio.partials.stock-error-items', ['stockErrorItems' => $order->stockErrorItemsList()])
-                                @elseif(((($order->status == 1 && $order->error_type == 1)) || ($order->status == 2 && $order->error_type == 2)) && $order->error)
+                                @elseif(\App\Services\Jubelio\JubelioOrderSyncStatus::shouldShowErrorLine($order))
                                 <p class="max-w-full truncate text-[10px] text-red-600" title="{{ $order->error }}">{{ $order->error }}</p>
                                 @endif
                             </div>

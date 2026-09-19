@@ -7,6 +7,8 @@ use App\Models\Jubeliosync;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Models\WarehouseItem;
+use App\Actions\Jubelio\ProcessJubelioOrder;
+use App\Services\Jubelio\JubelioOrderSyncStatus;
 use App\Services\JubelioService;
 use Mockery\MockInterface;
 
@@ -1343,4 +1345,53 @@ it('can mark duplicate jubelio order as solved', function () {
     expect($order->error_type)->toBe(10)
         ->and($order->error)->toBeNull()
         ->and($order->execute_by)->toBe($user->id);
+});
+
+it('describes sell sync failure when jubelio sales order api returns empty', function () {
+    $this->mock(JubelioService::class, function (MockInterface $mock) {
+        $mock->shouldReceive('fetchSalesOrder')
+            ->with('api-empty-1')
+            ->andReturn(null);
+    });
+
+    $order = Jubelioorder::create([
+        'jubelio_order_id' => 'api-empty-1',
+        'source' => 1,
+        'invoice' => 'INV-API-EMPTY',
+        'type' => 'SELL',
+        'order_status' => 'SHIPPED',
+        'run_count' => 0,
+        'status' => 0,
+    ]);
+
+    $result = app(ProcessJubelioOrder::class)->execute($order);
+
+    expect($result['success'])->toBeFalse()
+        ->and($result['message'])->toBe(JubelioOrderSyncStatus::MESSAGE_SELL_API_EMPTY);
+
+    $order->refresh();
+    expect($order->error_type)->toBe(JubelioOrderSyncStatus::ERROR_PAYLOAD)
+        ->and($order->status)->toBe(1);
+});
+
+it('shows api gagal badge for sell orders with payload sync error on index', function () {
+    $user = User::factory()->create();
+
+    Jubelioorder::create([
+        'jubelio_order_id' => 'badge-api-1',
+        'source' => 1,
+        'invoice' => 'INV-BADGE-API',
+        'type' => 'SELL',
+        'order_status' => 'SHIPPED',
+        'run_count' => 1,
+        'error_type' => JubelioOrderSyncStatus::ERROR_PAYLOAD,
+        'error' => JubelioOrderSyncStatus::MESSAGE_SELL_API_EMPTY,
+        'status' => 1,
+    ]);
+
+    $this->actingAs($user)
+        ->get(route('jubelio.index', ['status' => 'error', 'invoice' => 'INV-BADGE-API']))
+        ->assertOk()
+        ->assertSee('API gagal', false)
+        ->assertSee('API Jubelio', false);
 });

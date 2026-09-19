@@ -100,7 +100,7 @@ $sc = $statusConfig[$order->status] ?? ['label' => 'Unknown', 'cls' => 'border b
                     <div>
                         <dt class="text-sm text-gray-400">Sync Status</dt>
                         <dd class="text-sm font-medium">
-                            @include('jubelio.partials.sync-status-badge', ['status' => $order->status, 'errorType' => $order->error_type, 'executeBy' => $order->user->name ?? null])
+                            @include('jubelio.partials.sync-status-badge', ['status' => $order->status, 'errorType' => $order->error_type, 'executeBy' => $order->user->name ?? null, 'orderType' => $order->type])
                         </dd>
                     </div>
                     <div>
@@ -239,7 +239,17 @@ $sc = $statusConfig[$order->status] ?? ['label' => 'Unknown', 'cls' => 'border b
             @if($order->error)
             <div class="rounded-xl border border-red-900/30 bg-red-50 p-6 shadow-sm">
                 <h2 class="mb-2 text-lg font-semibold text-red-600">Error Details</h2>
-                @if($order->status === 1 && $order->type === 'SELL')
+                @if($order->status === 1 && $order->error_type === \App\Services\Jubelio\JubelioOrderSyncStatus::ERROR_PAYLOAD && $order->type === 'SELL')
+                <p class="mb-4 text-sm text-red-700">
+                    Aria tidak mendapat data order dari API Jubelio saat diproses (bukan karena JSON di database kosong).
+                    Periksa <strong>Jubelio Token</strong>, klik <strong>Refresh payload</strong>, lalu <strong>Buat Transaksi Manual</strong>.
+                </p>
+                @elseif($order->status === 1 && $order->error_type === \App\Services\Jubelio\JubelioOrderSyncStatus::ERROR_PAYLOAD && $order->type === 'RETURN')
+                <p class="mb-4 text-sm text-red-700">
+                    Retur ini membutuhkan transaksi <strong>jual asal</strong> dengan invoice yang sama sudah ada di Aria.
+                    Posting jual dari Jubelio terlebih dahulu, lalu proses retur lagi.
+                </p>
+                @elseif($order->status === 1 && $order->type === 'SELL')
                 <p class="mb-4 text-sm text-red-700">
                     Biasanya terjadi karena stok di Aria tidak cukup di gudang yang dipetakan
                     @if($parties['warehouse'])
