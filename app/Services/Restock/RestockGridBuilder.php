@@ -286,11 +286,19 @@ class RestockGridBuilder
             return null;
         }
 
-        if ((int) $item->group_id <= 0) {
-            return null;
+        $anchorId = app(ItemGroupHierarchyService::class)
+            ->anchorGroupIdForParentKey($this->identityBuilder->itemParentKey($item));
+
+        if ($anchorId === null) {
+            $fallbackGroupId = $cells
+                ->first(fn (RestockCell $cell) => $cell->item && (int) $cell->item->group_id > 0)
+                ?->item
+                ?->group_id;
+
+            $anchorId = $fallbackGroupId > 0 ? (int) $fallbackGroupId : null;
         }
 
-        return route('items.group-parent-detail', $item->group_id);
+        return $anchorId !== null ? route('items.group-parent-detail', $anchorId) : null;
     }
 
     /**
@@ -430,13 +438,7 @@ class RestockGridBuilder
      */
     protected function colorGroupUrl(Collection $cells): ?string
     {
-        $item = $cells->first(fn (RestockCell $cell) => $cell->item !== null)?->item;
-
-        if ($item === null) {
-            return null;
-        }
-
-        $label = $this->identityBuilder->assetLancarColorLabel($item);
+        $label = $this->colorLabelForCells($cells);
 
         if ($label === '—') {
             return null;

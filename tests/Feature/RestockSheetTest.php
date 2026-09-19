@@ -658,6 +658,38 @@ test('grid includes group parent anchor url for color rows', function () {
     expect($blueRow['color_url'])->toContain('#color-blue');
 });
 
+test('grid color url uses restock cell color when sku has no parseable color segment', function () {
+    $group = \App\Models\ItemGroup::factory()->create([
+        'master' => 'WEIGHTBRACELET-01',
+        'variant' => 'PINK',
+        'name' => 'ADJUSTABLE WRIST BRACELET',
+    ]);
+
+    $pinkTag = Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'PINK', 'name' => 'PINK']);
+
+    $item = Item::factory()->create([
+        'group_id' => $group->id,
+        'type' => ItemType::ASSET_LANCAR,
+        'pcode' => 'WEIGHTBRACELET-01-PINK',
+        'code' => 'WEIGHTBRACELET-01-PINK',
+        'name' => 'ADJUSTABLE WRIST BRACELET - PINK',
+    ]);
+    $item->tags()->attach([$this->typeTag->id]);
+
+    $sheet = app(RestockSheetService::class)->createSheet($this->typeTag, $this->user);
+    $cell = $sheet->cells()->where('item_id', $item->id)->firstOrFail();
+    $cell->update(['color_id' => $pinkTag->id]);
+
+    $sheet->load(['cells.color', 'cells.size', 'cells.item.group', 'cells.item.tags', 'cells.item.warehouseItems']);
+    $grid = app(RestockGridBuilder::class)->build($sheet);
+
+    $pinkRow = collect($grid['parents'][0]['rows'])->firstWhere('color_name', 'PINK');
+
+    expect($pinkRow)->not->toBeNull();
+    expect($pinkRow['color_url'])->toContain('/items-group/parent/');
+    expect($pinkRow['color_url'])->toContain('#color-pink');
+});
+
 test('grid includes parent image url', function () {
     createAssetLancarSkus($this);
     $sheet = app(RestockSheetService::class)->createSheet($this->typeTag, $this->user);
