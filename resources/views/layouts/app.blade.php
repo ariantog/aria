@@ -66,6 +66,19 @@
         body {
             font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
         }
+        /*
+         * All table columns use the body font. font-mono resolves to Consolas on Windows (slashed zero).
+         * !important wins over Tailwind CDN utilities injected after this block.
+         */
+        table :where(th, td, th *, td *) {
+            font-family: inherit !important;
+        }
+        :where([data-copy-col], [data-copy-col] *) {
+            font-family: inherit !important;
+        }
+        .tabulator :where(.tabulator-cell, .tabulator-col-title, .tabulator-header-filter input) {
+            font-family: inherit !important;
+        }
         [x-cloak] { display: none !important; }
 
         /*
