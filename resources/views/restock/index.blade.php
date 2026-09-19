@@ -30,6 +30,11 @@ $stageLabels = [
             <p class="text-sm text-gray-500">Pipeline totals by restock sheet.</p>
         </div>
         <div class="flex flex-wrap items-center gap-2">
+            <a href="{{ route('restock.recommendations') }}"
+               class="inline-flex items-center justify-center rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-medium text-blue-800 hover:bg-blue-100"
+               data-testid="restock-recommendations-link">
+                Recommendations
+            </a>
             <a href="{{ route('restock.settings.edit') }}"
                class="inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
                 Settings
