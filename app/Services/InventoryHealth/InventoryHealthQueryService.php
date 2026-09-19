@@ -198,6 +198,22 @@ class InventoryHealthQueryService
         return $this->decorateAndPaginate($rows, $request, $windows);
     }
 
+    /**
+     * Company-wide inventory health rows using the same snapshot/live paths as the report.
+     * Does not apply reporting summary cutover — only warehouse stats and transaction detail windows.
+     *
+     * @return Collection<int, Item>
+     */
+    public function companyHealthRows(Request $request, ?User $user): Collection
+    {
+        $windows = $this->resolveWindows($request);
+        $rows = $this->canUseSnapshot($request)
+            ? $this->snapshotItems($request)
+            : $this->liveItems($request, $user, $windows);
+
+        return $this->decorateRows($rows, $request, $windows);
+    }
+
     private function snapshotsReady(): bool
     {
         return Schema::hasTable('inventory_health_snapshots')
@@ -287,14 +303,16 @@ class InventoryHealthQueryService
      * @param  Collection<int, Item>  $rows
      * @param  array{period_from: string, period_to: string, extended_from: string, period_days: int}  $windows
      */
-    private function decorateAndPaginate(Collection $rows, Request $request, array $windows): LengthAwarePaginator
+    /**
+     * @param  Collection<int, Item>  $rows
+     * @param  array{period_from: string, period_to: string, extended_from: string, period_days: int}  $windows
+     * @return Collection<int, Item>
+     */
+    private function decorateRows(Collection $rows, Request $request, array $windows): Collection
     {
-        $perPage = $this->resolvePerPage($request);
         $mode = $this->activityMode($request);
-        $status = (string) $request->query('status', '');
-        $validStatuses = array_filter(array_keys(InventoryHealthClassifier::statusOptions()));
 
-        $decorated = $rows->map(function (Item $item) use ($windows, $mode) {
+        return $rows->map(function (Item $item) use ($windows, $mode) {
             $activity = $this->activityTotals($item, $mode);
             $health = InventoryHealthClassifier::classify(
                 (float) $item->current_stock,
@@ -308,7 +326,16 @@ class InventoryHealthQueryService
             $item->setAttribute('health', $health);
 
             return $item;
-        });
+        })->values();
+    }
+
+    private function decorateAndPaginate(Collection $rows, Request $request, array $windows): LengthAwarePaginator
+    {
+        $perPage = $this->resolvePerPage($request);
+        $status = (string) $request->query('status', '');
+        $validStatuses = array_filter(array_keys(InventoryHealthClassifier::statusOptions()));
+
+        $decorated = $this->decorateRows($rows, $request, $windows);
 
         if (in_array($status, $validStatuses, true)) {
             $decorated = $decorated->filter(
