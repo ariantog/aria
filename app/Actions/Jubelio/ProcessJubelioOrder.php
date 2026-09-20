@@ -9,6 +9,7 @@ use App\Models\Jubeliosync;
 use App\Models\Transaction;
 use App\Models\TransactionDetail;
 use App\Models\WarehouseItem;
+use App\Services\Jubelio\JubelioOrderLineQuantity;
 use App\Services\Jubelio\JubelioOrderPayloadService;
 use App\Services\Jubelio\JubelioOrderSyncStatus;
 use App\Services\Jubelio\JubelioOrderWarehouseResolver;
@@ -305,7 +306,7 @@ class ProcessJubelioOrder
 
         $items = $groupedData[0]->map(function ($item) use ($existingProducts, $qtyKey) {
             $product = $existingProducts[strtoupper($item['item_code'])];
-            $qty = (float) $item[$qtyKey];
+            $qty = JubelioOrderLineQuantity::resolve($item, $qtyKey);
             $lineTotal = $this->resolveItemLineTotal($item, $qty);
 
             return [
