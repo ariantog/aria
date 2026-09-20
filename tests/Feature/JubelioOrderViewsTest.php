@@ -225,6 +225,73 @@ it('can manually process a pending jubelio sell order', function () {
         ->and($order->execute_by)->toBe($user->id);
 });
 
+it('uses qty_picked when jubelio sell payload has zero qty', function () {
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    $customer = Addrbook::factory()->create(['type' => Addrbook::TYPE_CUSTOMER]);
+    $item = Item::factory()->create(['code' => 'CORSET-01-BLACK-S', 'qty' => 5]);
+
+    WarehouseItem::create([
+        'warehouse_id' => $warehouse->id,
+        'warehouse_type' => $warehouse->type,
+        'item_id' => $item->id,
+        'quantity' => 5,
+    ]);
+
+    Jubeliosync::create([
+        'jubelio_store_id' => 11,
+        'jubelio_store_name' => 'Store',
+        'jubelio_location_id' => 4,
+        'jubelio_location_name' => 'WTC - Online',
+        'warehouse_id' => $warehouse->id,
+        'customer_id' => $customer->id,
+        'bin_id' => 0,
+    ]);
+
+    mockJubelioSalesOrder('zero-qty-1', [
+        'salesorder_no' => 'SP-ZERO-QTY-FALLBACK',
+        'store_id' => 11,
+        'location_id' => 4,
+        'sub_total' => 144000,
+        'real_total' => 111430,
+        'items' => [
+            [
+                'item_code' => 'CORSET-01-BLACK-S',
+                'qty' => '0.0000',
+                'qty_in_base' => '1.0000',
+                'qty_picked' => '1.0000',
+                'price' => '149000.0000',
+                'amount' => '144000.0000',
+            ],
+        ],
+    ]);
+
+    $order = Jubelioorder::create([
+        'jubelio_order_id' => 'zero-qty-1',
+        'source' => 1,
+        'invoice' => 'SP-ZERO-QTY-FALLBACK',
+        'type' => 'SELL',
+        'order_status' => 'SHIPPED',
+        'run_count' => 0,
+        'status' => 0,
+    ]);
+
+    app(ProcessJubelioOrder::class)->execute($order);
+
+    $transaction = Transaction::where('invoice', 'SP-ZERO-QTY-FALLBACK')->first();
+    expect($transaction)->not->toBeNull();
+
+    $detail = $transaction->details->first();
+    expect((float) $detail->quantity)->toBe(1.0)
+        ->and((float) $transaction->total_items)->toBe(1.0);
+
+    $wi = WarehouseItem::query()
+        ->where('warehouse_id', $warehouse->id)
+        ->where('item_id', $item->id)
+        ->first();
+    expect((float) $wi->quantity)->toBe(4.0);
+    expect((float) $item->fresh()->qty)->toBe(4.0);
+});
+
 it('shows jubelio and aria warehouse names on orders list', function () {
     $user = User::factory()->create();
     $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'Gudang Aria Utama']);
