@@ -93,9 +93,10 @@ it('lists fast-moving low-stock recommendations from inventory health rules', fu
     $service = app(RestockRecommendationService::class);
     $payload = $service->build(Request::create('/restock/recommendations'), $this->user);
 
-    expect($payload['fast_moving']->pluck('item_id'))->toContain($item->id);
-    expect($payload['fast_moving']->firstWhere('item_id', $item->id)['health_key'])
-        ->toBe(InventoryHealthClassifier::LOW);
+    $row = $payload['fast_moving']->firstWhere('item_id', $item->id);
+    expect($row)->not->toBeNull();
+    expect($row['health_key'])->toBe(InventoryHealthClassifier::LOW);
+    expect($row['worth']['pattern'])->toBeString();
 });
 
 it('lists high-margin recommendations from item insights with health guardrails', function () {
