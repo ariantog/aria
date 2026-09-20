@@ -449,7 +449,9 @@ class TransactionService
     }
 
     /**
-     * Rebuild running balances in date+id order. Used by Recalculate* commands.
+     * Rebuild addrbook money running balances (sender_balance / receiver_balance + stats) in date+id order.
+     * Does not read or write warehouse_item, items.qty, or transaction detail quantities — stock changes
+     * only through transaction posting (handleTransaction / editTransaction / revertTransaction).
      */
     public function rebuildRunningBalances(?int $addrbookId = null, ?string $fromDate = null): int
     {

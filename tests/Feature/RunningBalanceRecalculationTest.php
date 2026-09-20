@@ -5,6 +5,7 @@ use App\Models\AddrbookStat;
 use App\Models\Item;
 use App\Models\Transaction;
 use App\Models\TransactionDetail;
+use App\Models\WarehouseItem;
 use App\Services\TransactionService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -204,5 +205,37 @@ describe('app:recalculate-running-balances', function () {
 
         expect((float) $buyA->fresh()->sender_balance)->toBe(50000.0)
             ->and((float) $buyB->fresh()->sender_balance)->toBe(2.0);
+    });
+
+    it('does not change warehouse or item cached qty when rebuilding running balances', function () {
+        $service = app(TransactionService::class);
+        $supplier = Addrbook::factory()->create(['type' => Addrbook::TYPE_SUPPLIER]);
+        $warehouse = Addrbook::factory()->create(['type' => Addrbook::TYPE_WAREHOUSE]);
+        $item = Item::factory()->create(['qty' => 0]);
+
+        WarehouseItem::create([
+            'warehouse_id' => $warehouse->id,
+            'warehouse_type' => $warehouse->type,
+            'item_id' => $item->id,
+            'quantity' => 7,
+        ]);
+
+        postBuyForRunningBalance($service, $supplier, $warehouse, $item, '2026-08-01', 10, 5000);
+
+        $warehouseQty = (float) WarehouseItem::query()
+            ->where('warehouse_id', $warehouse->id)
+            ->where('item_id', $item->id)
+            ->value('quantity');
+        $itemQty = (float) $item->fresh()->qty;
+
+        DB::table('transactions')->update(['sender_balance' => 0]);
+
+        $this->artisan('app:recalculate-running-balances')->assertSuccessful();
+
+        expect((float) WarehouseItem::query()
+            ->where('warehouse_id', $warehouse->id)
+            ->where('item_id', $item->id)
+            ->value('quantity'))->toBe($warehouseQty)
+            ->and((float) $item->fresh()->qty)->toBe($itemQty);
     });
 });
