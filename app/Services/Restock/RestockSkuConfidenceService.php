@@ -21,7 +21,9 @@ class RestockSkuConfidenceService
     /** Sustained or recent velocity at or above this net units / calendar month. */
     public const PATTERN_HERO = 'hero_product';
 
-    public const HERO_MIN_MONTHLY_NET = 40.0;
+    public const PATTERN_FAST = 'fast_seller';
+
+    public const PATTERN_MEDIUM = 'medium_velocity';
 
     public const CONFIDENCE_HIGH = 'high';
 
@@ -143,19 +145,16 @@ class RestockSkuConfidenceService
             return $this->result(self::PATTERN_FATIGUE, self::CONFIDENCE_LOW, $fatigueDetail);
         }
 
-        if ($this->isHeroProduct($meanMonthly, $monthlyFromPeriod)) {
+        $velocityPattern = $this->velocityPattern($meanMonthly, $monthlyFromPeriod);
+        if ($velocityPattern !== null) {
             $confidence = $this->lowCover($daysOfCover, $healthKey)
                 ? self::CONFIDENCE_HIGH
                 : self::CONFIDENCE_MEDIUM;
 
             return $this->result(
-                self::PATTERN_HERO,
+                $velocityPattern['pattern'],
                 $confidence,
-                sprintf(
-                    'Hero velocity: ≈%s units/mo (health window), %s units/mo avg (12m).',
-                    number_format($monthlyFromPeriod, 1),
-                    number_format($meanMonthly, 1),
-                ),
+                $velocityPattern['detail'],
             );
         }
 
@@ -237,10 +236,26 @@ class RestockSkuConfidenceService
      * @param  list<float>  $monthlyNetQty
      * @param  array{sum: float, mean: float, std: float, cv: float, active_months: int, peak: float}  $stats
      */
-    private function isHeroProduct(float $meanMonthlyNet, float $monthlyFromHealthPeriod): bool
+    /**
+     * @return array{pattern: string, detail: string}|null
+     */
+    private function velocityPattern(float $meanMonthlyNet, float $monthlyFromHealthPeriod): ?array
     {
-        return $meanMonthlyNet >= self::HERO_MIN_MONTHLY_NET
-            || $monthlyFromHealthPeriod >= self::HERO_MIN_MONTHLY_NET;
+        $rate = RestockNetSell::effectiveMonthlyRate($monthlyFromHealthPeriod, $meanMonthlyNet);
+        $tier = RestockNetSell::velocityTier($rate);
+        $detail = sprintf(
+            '%s — ≈%s units/mo (health window), %s units/mo avg (12m).',
+            RestockNetSell::velocityTierLabels()[$tier],
+            number_format($monthlyFromHealthPeriod, 1),
+            number_format($meanMonthlyNet, 1),
+        );
+
+        return match ($tier) {
+            RestockNetSell::TIER_HERO => ['pattern' => self::PATTERN_HERO, 'detail' => $detail],
+            RestockNetSell::TIER_FAST => ['pattern' => self::PATTERN_FAST, 'detail' => $detail],
+            RestockNetSell::TIER_MEDIUM => ['pattern' => self::PATTERN_MEDIUM, 'detail' => $detail],
+            default => null,
+        };
     }
 
     private function isStableReplenishment(array $monthlyNetQty, array $stats, float $acceleration): bool
@@ -359,6 +374,8 @@ class RestockSkuConfidenceService
     {
         return [
             self::PATTERN_HERO => 'Hero product',
+            self::PATTERN_FAST => 'Fast seller',
+            self::PATTERN_MEDIUM => 'Medium velocity',
             self::PATTERN_STABLE => 'Stable replenishment',
             self::PATTERN_SPIKE => 'Spike opportunity',
             self::PATTERN_FATIGUE => 'Fatigue — hold',

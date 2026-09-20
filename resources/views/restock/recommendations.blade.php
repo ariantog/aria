@@ -105,7 +105,7 @@ $typeQuery = fn (string $typeValue) => array_filter([
     @if($tab === 'fast')
         @if($fastMoving->isEmpty())
             <div class="rounded-xl border border-dashed border-gray-300 bg-gray-50 p-8 text-center text-gray-500" data-testid="restock-recommendations-empty">
-                No hero-product / low-stock SKUs for the selected health window (hero = ≥ {{ \App\Services\Restock\RestockSkuConfidenceService::HERO_MIN_MONTHLY_NET }} net units/mo in the health window).
+                No hero-product / low-stock SKUs for the selected health window (velocity tiers: hero &gt; {{ \App\Services\Restock\RestockNetSell::VELOCITY_HERO_MIN }}, fast &gt; {{ \App\Services\Restock\RestockNetSell::VELOCITY_FAST_MIN }}, medium &gt; {{ \App\Services\Restock\RestockNetSell::VELOCITY_MEDIUM_MIN }} net units/mo).
                 <a href="{{ $inventoryHealthUrl }}" class="text-blue-600 hover:underline">Open Inventory Health</a>
             </div>
         @else
