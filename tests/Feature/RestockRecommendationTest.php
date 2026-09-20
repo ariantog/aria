@@ -174,7 +174,7 @@ it('renders the restock recommendations page', function () {
         ->get(route('restock.recommendations'))
         ->assertOk()
         ->assertSee('data-testid="restock-recommendations-page"', false)
-        ->assertSee('data-testid="restock-recommendations-tab-fast"', false)
+        ->assertSee('data-testid="restock-recommendations-tab-hero"', false)
         ->assertSee('data-testid="restock-recommendations-tab-margin"', false)
         ->assertSee('data-testid="restock-recommendations-type-all"', false)
         ->assertSee('data-testid="restock-recommendations-type-'.ItemType::ITEM->value.'"', false)

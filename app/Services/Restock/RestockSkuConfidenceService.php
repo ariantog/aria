@@ -18,6 +18,11 @@ class RestockSkuConfidenceService
 
     public const PATTERN_MODERATE = 'moderate';
 
+    /** Sustained or recent velocity at or above this net units / calendar month. */
+    public const PATTERN_HERO = 'hero_product';
+
+    public const HERO_MIN_MONTHLY_NET = 40.0;
+
     public const CONFIDENCE_HIGH = 'high';
 
     public const CONFIDENCE_MEDIUM = 'medium';
@@ -112,9 +117,11 @@ class RestockSkuConfidenceService
         $asOfDay = Carbon::parse($asOf ?? now())->startOfDay();
         $monthlyNetQty = array_map(fn ($v) => max(0.0, (float) $v), $monthlyNetQty);
         $stats = $this->seriesStats($monthlyNetQty);
+        $monthlyFromPeriod = RestockNetSell::monthlyRateFromPeriod($netPeriod, $periodDays);
+        $meanMonthly = $stats['mean'];
         $dailyRecent = $netPeriod / max(1, $periodDays);
-        $dailyBaseline = $stats['sum'] > 0
-            ? $stats['sum'] / max(1, count($monthlyNetQty) * 30)
+        $dailyBaseline = $meanMonthly > 0
+            ? $meanMonthly / 30
             : 0.0;
         $acceleration = $dailyBaseline > 0.01
             ? $dailyRecent / $dailyBaseline
@@ -134,6 +141,22 @@ class RestockSkuConfidenceService
 
         if ($fatigueDetail !== null) {
             return $this->result(self::PATTERN_FATIGUE, self::CONFIDENCE_LOW, $fatigueDetail);
+        }
+
+        if ($this->isHeroProduct($meanMonthly, $monthlyFromPeriod)) {
+            $confidence = $this->lowCover($daysOfCover, $healthKey)
+                ? self::CONFIDENCE_HIGH
+                : self::CONFIDENCE_MEDIUM;
+
+            return $this->result(
+                self::PATTERN_HERO,
+                $confidence,
+                sprintf(
+                    'Hero velocity: ≈%s units/mo (health window), %s units/mo avg (12m).',
+                    number_format($monthlyFromPeriod, 1),
+                    number_format($meanMonthly, 1),
+                ),
+            );
         }
 
         $isStable = $this->isStableReplenishment($monthlyNetQty, $stats, $acceleration);
@@ -214,6 +237,12 @@ class RestockSkuConfidenceService
      * @param  list<float>  $monthlyNetQty
      * @param  array{sum: float, mean: float, std: float, cv: float, active_months: int, peak: float}  $stats
      */
+    private function isHeroProduct(float $meanMonthlyNet, float $monthlyFromHealthPeriod): bool
+    {
+        return $meanMonthlyNet >= self::HERO_MIN_MONTHLY_NET
+            || $monthlyFromHealthPeriod >= self::HERO_MIN_MONTHLY_NET;
+    }
+
     private function isStableReplenishment(array $monthlyNetQty, array $stats, float $acceleration): bool
     {
         if ($stats['active_months'] < self::STABLE_MIN_ACTIVE_MONTHS) {
@@ -329,6 +358,7 @@ class RestockSkuConfidenceService
     public static function patternLabels(): array
     {
         return [
+            self::PATTERN_HERO => 'Hero product',
             self::PATTERN_STABLE => 'Stable replenishment',
             self::PATTERN_SPIKE => 'Spike opportunity',
             self::PATTERN_FATIGUE => 'Fatigue — hold',
@@ -366,18 +396,14 @@ class RestockSkuConfidenceService
         $rows = DB::table('warehouse_item_monthly_stats')
             ->whereIn('item_id', $itemIds)
             ->whereRaw('(year * 12 + month) >= ?', [$startKey])
-            ->groupBy('item_id', 'year', 'month')
-            ->selectRaw('item_id')
-            ->selectRaw('year')
-            ->selectRaw('month')
-            ->selectRaw('SUM(CASE WHEN sold_qty > returned_qty THEN sold_qty - returned_qty ELSE 0 END) as net_qty')
-            ->get();
+            ->get(['item_id', 'year', 'month', 'sold_qty', 'returned_qty']);
 
         $bucket = [];
         foreach ($rows as $row) {
             $itemId = (int) $row->item_id;
             $key = (int) $row->year * 12 + (int) $row->month;
-            $bucket[$itemId][$key] = (float) $row->net_qty;
+            $net = RestockNetSell::netQtyFromStatRow((float) $row->sold_qty, (float) $row->returned_qty);
+            $bucket[$itemId][$key] = ($bucket[$itemId][$key] ?? 0.0) + $net;
         }
 
         $series = [];

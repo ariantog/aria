@@ -92,8 +92,8 @@ $typeQuery = fn (string $typeValue) => array_filter([
     <div class="flex flex-wrap gap-2">
         <a href="{{ route('restock.recommendations', $tabQuery('fast')) }}"
            class="rounded-lg px-3 py-1.5 text-sm font-medium {{ $tab === 'fast' ? 'bg-blue-600 text-white' : 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50' }}"
-           data-testid="restock-recommendations-tab-fast">
-            Fast selling · low / out of stock ({{ $fastMoving->count() }})
+           data-testid="restock-recommendations-tab-hero">
+            Hero product · low / out of stock ({{ $fastMoving->count() }})
         </a>
         <a href="{{ route('restock.recommendations', $tabQuery('margin')) }}"
            class="rounded-lg px-3 py-1.5 text-sm font-medium {{ $tab === 'margin' ? 'bg-blue-600 text-white' : 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50' }}"
@@ -105,16 +105,17 @@ $typeQuery = fn (string $typeValue) => array_filter([
     @if($tab === 'fast')
         @if($fastMoving->isEmpty())
             <div class="rounded-xl border border-dashed border-gray-300 bg-gray-50 p-8 text-center text-gray-500" data-testid="restock-recommendations-empty">
-                No fast-moving low-stock SKUs for the selected health window.
+                No hero-product / low-stock SKUs for the selected health window (hero = ≥ {{ \App\Services\Restock\RestockSkuConfidenceService::HERO_MIN_MONTHLY_NET }} net units/mo in the health window).
                 <a href="{{ $inventoryHealthUrl }}" class="text-blue-600 hover:underline">Open Inventory Health</a>
             </div>
         @else
             <div class="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm">
-                <table class="min-w-full divide-y divide-gray-200 text-sm" data-testid="restock-recommendations-fast-table">
+                <table class="min-w-full divide-y divide-gray-200 text-sm" data-testid="restock-recommendations-hero-table">
                     <thead class="bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
                         <tr>
                             <th class="px-3 py-2">SKU</th>
                             <th class="px-3 py-2 text-right">Stock</th>
+                            <th class="px-3 py-2 text-right">Net / mo</th>
                             <th class="px-3 py-2 text-right">Net sold (period)</th>
                             <th class="px-3 py-2 text-right">Days cover</th>
                             <th class="px-3 py-2">Status</th>
@@ -132,6 +133,7 @@ $typeQuery = fn (string $typeValue) => array_filter([
                                     <div class="text-xs text-gray-500">{{ $row['item_name'] }}</div>
                                 </td>
                                 <td class="px-3 py-2 text-right tabular-nums">{{ number_format($row['stock_qty'], 0) }}</td>
+                                <td class="px-3 py-2 text-right tabular-nums">{{ number_format($row['monthly_net'] ?? 0, 1) }}</td>
                                 <td class="px-3 py-2 text-right tabular-nums">{{ number_format($row['net_period'], 0) }}</td>
                                 <td class="px-3 py-2 text-right tabular-nums">{{ $fmtCover($row['days_of_cover']) }}</td>
                                 <td class="px-3 py-2 text-gray-700">{{ $row['health_label'] }}</td>

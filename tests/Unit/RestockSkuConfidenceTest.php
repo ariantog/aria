@@ -25,12 +25,29 @@ it('classifies steady monthly demand as stable replenishment', function () {
         ->and($result['confidence'])->toBe(RestockSkuConfidenceService::CONFIDENCE_HIGH);
 });
 
-it('classifies demand acceleration as spike opportunity', function () {
+it('classifies hero velocity at forty units per month', function () {
+    $months = array_fill(0, 12, 10.0);
+
+    $result = $this->service->classify(
+        $months,
+        40.0,
+        30,
+        5.0,
+        10.0,
+        InventoryHealthClassifier::LOW,
+        null,
+        0.0,
+    );
+
+    expect($result['pattern'])->toBe(RestockSkuConfidenceService::PATTERN_HERO);
+});
+
+it('classifies demand acceleration as spike opportunity when below hero threshold', function () {
     $months = array_fill(0, 12, 1.0);
 
     $result = $this->service->classify(
         $months,
-        60.0,
+        15.0,
         30,
         2.0,
         1.0,
