@@ -11,6 +11,7 @@ use App\Services\InventoryHealth\InventoryHealthQueryService;
 use App\Services\InventoryHealth\InventoryHealthSyncService;
 use App\Services\ItemInsightQueryService;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 
 class RestockRecommendationService
@@ -21,10 +22,17 @@ class RestockRecommendationService
     /** High-margin SKUs with more days of cover than this are treated as adequately stocked. */
     public const HIGH_MARGIN_MAX_COVER_DAYS = 60.0;
 
+    public const PER_PAGE = 100;
+
+    public const MAX_PAGES = 5;
+
+    public const MAX_ITEMS = self::PER_PAGE * self::MAX_PAGES;
+
     public function __construct(
         private readonly InventoryHealthQueryService $inventoryHealth,
         private readonly ItemInsightQueryService $itemInsights,
         private readonly RestockSkuConfidenceService $skuConfidence,
+        private readonly RestockPipelineTotalsByItem $pipelineTotals,
     ) {}
 
     /**
@@ -35,8 +43,8 @@ class RestockRecommendationService
      *     health_source: string,
      *     insight_period: ?\App\Models\ItemInsightMonth,
      *     insight_calculated: bool,
-     *     fast_moving: Collection<int, array<string, mixed>>,
-     *     high_margin: Collection<int, array<string, mixed>>,
+     *     fast_moving: LengthAwarePaginator<int, array<string, mixed>>,
+     *     high_margin: LengthAwarePaginator<int, array<string, mixed>>,
      * }
      */
     public function build(Request $request, ?User $user, ?string $tab = null): array
@@ -60,13 +68,19 @@ class RestockRecommendationService
             ? $this->insightRankIndex($insightPeriod->year, $insightPeriod->month)
             : [];
 
-        $fastMoving = $this->withSkuConfidence(
-            $this->heroProductRecommendations($healthByItem, $insightIndex, $windows),
-            $windows,
+        $fastMoving = $this->paginateRecommendationRows(
+            $request,
+            $this->withSkuConfidence(
+                $this->heroProductRecommendations($healthByItem, $insightIndex, $windows),
+                $windows,
+            ),
         );
-        $highMargin = $this->withSkuConfidence(
-            $this->highMarginRecommendations($healthByItem, $insightIndex, $insightPeriod?->year, $insightPeriod?->month),
-            $windows,
+        $highMargin = $this->paginateRecommendationRows(
+            $request,
+            $this->withSkuConfidence(
+                $this->highMarginRecommendations($healthByItem, $insightIndex, $insightPeriod?->year, $insightPeriod?->month),
+                $windows,
+            ),
         );
 
         return [
@@ -205,8 +219,7 @@ class RestockRecommendationService
                     $b['item_id'],
                 ];
             })
-            ->values()
-            ->take(100);
+            ->values();
 
         return $rows;
     }
@@ -312,8 +325,44 @@ class RestockRecommendationService
                     $b['item_id'],
                 ];
             })
-            ->values()
-            ->take(50);
+            ->values();
+    }
+
+    /**
+     * @param  Collection<int, array<string, mixed>>  $rows
+     * @return LengthAwarePaginator<int, array<string, mixed>>
+     */
+    private function paginateRecommendationRows(Request $request, Collection $rows): LengthAwarePaginator
+    {
+        $capped = $rows->take(self::MAX_ITEMS)->values();
+        $perPage = self::PER_PAGE;
+        $page = max(1, (int) $request->query('page', 1));
+
+        $pageSlice = $capped->forPage($page, $perPage)->values();
+        $itemIds = $pageSlice->pluck('item_id')->map(fn ($id) => (int) $id)->all();
+        $pipeline = $this->pipelineTotals->forItems($itemIds);
+
+        $pageRows = $pageSlice->map(function (array $row) use ($pipeline) {
+            $itemId = (int) $row['item_id'];
+            $pipe = $pipeline[$itemId] ?? [
+                'qty_restock' => 0,
+                'qty_production' => 0,
+                'qty_shipped' => 0,
+            ];
+
+            return array_merge($row, $pipe);
+        })->values();
+
+        return new LengthAwarePaginator(
+            $pageRows,
+            $capped->count(),
+            $perPage,
+            $page,
+            [
+                'path' => $request->url(),
+                'query' => $request->query(),
+            ],
+        );
     }
 
     /**
