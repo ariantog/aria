@@ -169,8 +169,10 @@ class RestockRecommendationService
                 $insight = $insightIndex[$item->id] ?? null;
 
                 $reasons = [$item->health['rec'] ?? 'Restock'];
-                if ($monthlyNet >= RestockSkuConfidenceService::HERO_MIN_MONTHLY_NET) {
-                    $reasons[] = sprintf('Hero product: ≈%s net units/mo (health window)', number_format($monthlyNet, 1));
+                $velocityTier = RestockNetSell::velocityTier($monthlyNet);
+                if ($velocityTier !== RestockNetSell::TIER_BELOW) {
+                    $reasons[] = RestockNetSell::velocityTierLabels()[$velocityTier]
+                        .': ≈'.number_format($monthlyNet, 1).' net units/mo (health window)';
                 }
                 if ($stock <= 0) {
                     $reasons[] = 'Sold out with recent net sales';
@@ -213,13 +215,13 @@ class RestockRecommendationService
     {
         $key = $item->health['key'] ?? InventoryHealthClassifier::INACTIVE;
         $monthlyNet = RestockNetSell::monthlyRateFromPeriod((float) $item->net_period, $periodDays);
-        $isHeroVelocity = $monthlyNet >= RestockSkuConfidenceService::HERO_MIN_MONTHLY_NET;
+        $hasMediumPlusVelocity = RestockNetSell::velocityTier($monthlyNet) !== RestockNetSell::TIER_BELOW;
 
         if ($key === InventoryHealthClassifier::LOW) {
             return true;
         }
 
-        if (! $isHeroVelocity) {
+        if (! $hasMediumPlusVelocity) {
             return false;
         }
 
