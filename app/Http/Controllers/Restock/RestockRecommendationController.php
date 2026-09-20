@@ -17,8 +17,14 @@ class RestockRecommendationController extends Controller
 
         $payload = $service->build($request, $request->user());
 
+        $itemType = $payload['item_type'];
+        $itemTypeQuery = $itemType !== null ? (string) $itemType->value : '';
+
         return view('restock.recommendations', [
             'tab' => $payload['tab'],
+            'itemType' => $itemType,
+            'itemTypeQuery' => $itemTypeQuery,
+            'itemTypeOptions' => RestockRecommendationService::itemTypeFilterOptions(),
             'healthWindows' => $payload['health_windows'],
             'healthSource' => $payload['health_source'],
             'insightPeriod' => $payload['insight_period'],

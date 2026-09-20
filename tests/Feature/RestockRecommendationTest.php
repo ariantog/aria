@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\ItemType;
 use App\Models\Addrbook;
 use App\Models\Item;
 use App\Models\Transaction;
@@ -13,11 +14,12 @@ use App\Services\Restock\RestockRecommendationService;
 use Illuminate\Http\Request;
 use Spatie\Permission\Models\Permission;
 
-function restockHealthItem(string $name, string $code): Item
+function restockHealthItem(string $name, string $code, ItemType $type = ItemType::ITEM): Item
 {
     return Item::factory()->create([
         'name' => $name,
         'code' => $code,
+        'type' => $type,
     ]);
 }
 
@@ -133,13 +135,49 @@ it('lists high-margin recommendations from item insights with health guardrails'
     expect($row['margin_pct'])->toBeGreaterThan(25.0);
 });
 
+it('filters recommendations by item type', function () {
+    $this->travelTo('2026-05-15');
+    $manufactured = restockHealthItem('Mfg Low', 'MFG-LOW', ItemType::ITEM);
+    $asset = restockHealthItem('Asset Low', 'AST-LOW', ItemType::ASSET_LANCAR);
+
+    foreach ([$manufactured, $asset] as $item) {
+        restockHealthStock($item, $this->warehouse, 1);
+        restockHealthLine(
+            $this->user,
+            $this->warehouse,
+            $this->customer,
+            $item,
+            Transaction::TYPE_SELL,
+            30,
+            now()->subDays(3)->toDateString(),
+            $item->code.'-INV',
+        );
+    }
+
+    $service = app(RestockRecommendationService::class);
+    $all = $service->build(Request::create('/restock/recommendations'), $this->user);
+    $assetsOnly = $service->build(
+        Request::create('/restock/recommendations?item_type='.ItemType::ASSET_LANCAR->value),
+        $this->user,
+    );
+
+    expect($all['fast_moving']->pluck('item_id'))
+        ->toContain($manufactured->id, $asset->id);
+    expect($assetsOnly['fast_moving']->pluck('item_id'))
+        ->toContain($asset->id)
+        ->not->toContain($manufactured->id);
+});
+
 it('renders the restock recommendations page', function () {
     $this->actingAs($this->user)
         ->get(route('restock.recommendations'))
         ->assertOk()
         ->assertSee('data-testid="restock-recommendations-page"', false)
         ->assertSee('data-testid="restock-recommendations-tab-fast"', false)
-        ->assertSee('data-testid="restock-recommendations-tab-margin"', false);
+        ->assertSee('data-testid="restock-recommendations-tab-margin"', false)
+        ->assertSee('data-testid="restock-recommendations-type-all"', false)
+        ->assertSee('data-testid="restock-recommendations-type-'.ItemType::ITEM->value.'"', false)
+        ->assertSee('data-testid="restock-recommendations-type-'.ItemType::ASSET_LANCAR->value.'"', false);
 });
 
 it('forbids restock recommendations without permission', function () {
