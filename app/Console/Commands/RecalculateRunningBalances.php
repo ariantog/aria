@@ -11,7 +11,7 @@ class RecalculateRunningBalances extends Command
                             {--addrbook= : Only rebuild this addrbook id}
                             {--from= : Recalculate from this date onwards (Y-m-d)}';
 
-    protected $description = 'Rebuild transaction running balances in date+id order and sync addrbook stats';
+    protected $description = 'Rebuild money running balances (sender/receiver_balance, addrbook stats) — never stock quantities';
 
     public function handle(TransactionService $service): int
     {

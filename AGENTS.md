@@ -167,11 +167,21 @@ Authoritative helper: `Transaction::signedAmount($type, $amount)` in `app/Models
 
 ### Do NOT delete or rebuild `warehouse_item` stock
 
-Per-warehouse quantities live in **`warehouse_item`** and change only through **transaction posting**
-(`InventoryService` / `WarehouseItem::applyDelta` on completed buys, sells, moves, returns, Jubelio
-SELL/RETURN, etc.). **`items.qty`** is a cached total (physical warehouses only) — sync it by **reading**
-existing `warehouse_item` rows; do **not** delete, truncate, insert, or rebuild `warehouse_item` from
-transaction history in application code, artisan commands, or crons.
+Per-warehouse quantities live in **`warehouse_item`** and change **only through completed transaction
+posting** — manual entry in Aria (`TransactionService::handleTransaction` / `editTransaction` /
+`revertTransaction` on create, edit, delete) or inbound Jubelio orders (`jubelio:order-jubelio-to-aria` /
+`ProcessJubelioOrder`). **Nothing else** may change live **`warehouse_item`** quantities or move stock
+by replaying history: not `app:recalculate-running-balances`, not reporting rebuilds, not crons except
+the Jubelio order poster above.
+
+**`items.qty`** is a cached total (physical warehouses only) — sync it by **reading** existing
+`warehouse_item` rows; do **not** delete, truncate, insert, or rebuild `warehouse_item` from transaction
+history in application code, artisan commands, or crons.
+
+**`app:recalculate-running-balances`** (System Settings → Running Balances) rebuilds **money** running
+balances on `transactions` (`sender_balance` / `receiver_balance`) and addrbook stats only. It must
+**never** update `warehouse_item`, `items.qty`, `transaction_details.quantity`, or repost inventory.
+Fix wrong stock by correcting the transaction (edit detail qty and repost) — not by balance rebuild tools.
 
 **Manual `items.qty` sync commands** (read `warehouse_item` only; may update `items.qty`):
 
@@ -192,7 +202,7 @@ transaction history in application code, artisan commands, or crons.
   `warehouse_item` from transactions. Fix balance/stock bugs through transaction posting, observer
   ordering, or targeted row fixes — not a global warehouse recalc.
 - **`migrate:finalize-aggregation` was removed** — it rebuilt `warehouse_item` from transactions; use
-  `app:recalculate-running-balances` for running balances instead.
+  `app:recalculate-running-balances` only for **addrbook money** running balances (not stock).
 - **Dev / migration / wipe commands were removed** — do not reintroduce `app:delete-transactions`,
   `app:recalculate-item-sales`, `import:legacy-jubelio`, `app:fix-warehouse-types`, `migrate:legacy-journals`,
   `app:migrate-legacy-*`, `app:truncate-*`, `db:truncate-transactions`, or `app:reset-legacy-items-migration`.
@@ -619,6 +629,25 @@ Canonical code: `App\Services\Jubelio\JubelioOrderWarehouseResolver`,
 Pusat `-1`) — applies to RETURN mapping, **warehouse stock page** (`WarehouseJubelioStockService`),
 and Jubelio stock-check scans; using sell txn warehouse as primary RETURN filter; copying sell
 `sender_id` in `processReturn`; calling Jubelio API per row on `/jubelio` index.
+
+#### Reprocess inbound sell after a bad post (e.g. qty 0, stock not deducted)
+
+`ProcessJubelioOrder` refuses to create a second row when a **SELL** with the same `invoice` already
+exists (`Transaction sudah ada`). Editing detail qty on an already-posted Jubelio cron sell is awkward
+because stock never moved when qty was 0. **Maintainer playbook:**
+
+1. **Delete the bad transaction** in Aria (normal delete). That runs `revertTransaction` (reverses
+   channel **receivable** from header `total`; zero-qty lines revert **no** `warehouse_item` change).
+2. **Reset the `jubelioorders` row** so `jubelio:order-jubelio-to-aria` will pick it again:
+   `status = 0`, `run_count = 0`, `execute_by = NULL` (must be **NULL**, not `0` — cron uses
+   `whereNull('execute_by')`), `error = NULL`, `error_type = NULL`, `stock_error_items = NULL`.
+   Match by `invoice` = Jubelio `salesorder_no` and `type = 'SELL'`.
+3. **Re-post:** wait for cron or use **Process** on `/jubelio/{id}` after reset (manual path sets
+   `execute_by` to the user). Ship **`JubelioOrderLineQuantity`** (qty → `qty_picked` / `qty_in_base`
+   fallback) before re-running if Jubelio still sends `qty: 0`.
+
+Do **not** use `jubelio:order-jubelio-to-aria --truncate` — it bulk-deletes all `submit_type = 2`
+transactions and resets every order.
 
 #### Jubelio orders index (`/jubelio`)
 
