@@ -19,9 +19,16 @@ class RestockRecommendationController extends Controller
 
         $itemType = $payload['item_type'];
         $itemTypeQuery = $itemType !== null ? (string) $itemType->value : '';
+        $salesWindow = $payload['sales_window'];
+        $salesWindowQuery = $salesWindow === RestockRecommendationService::SALES_WINDOW_YEAR
+            ? (string) RestockRecommendationService::SALES_WINDOW_YEAR
+            : '';
 
         return view('restock.recommendations', [
             'tab' => $payload['tab'],
+            'salesWindow' => $salesWindow,
+            'salesWindowQuery' => $salesWindowQuery,
+            'salesWindowOptions' => RestockRecommendationService::salesWindowFilterOptions(),
             'itemType' => $itemType,
             'itemTypeQuery' => $itemTypeQuery,
             'itemTypeOptions' => RestockRecommendationService::itemTypeFilterOptions(),

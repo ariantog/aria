@@ -25,15 +25,28 @@ $fmtCover = function (?float $days): string {
 
     return number_format($days, 0);
 };
+$salesWindowYear = \App\Services\Restock\RestockRecommendationService::SALES_WINDOW_YEAR;
+$netSoldColumnLabel = $salesWindow === $salesWindowYear
+    ? 'Net sold (12 mo)'
+    : 'Net sold ('.$healthWindows['period_days'].'d)';
 $tabQuery = fn (string $next) => array_filter([
     'tab' => $next,
     'item_type' => $itemTypeQuery !== '' ? $itemTypeQuery : null,
+    'sales_window' => $salesWindowQuery !== '' ? $salesWindowQuery : null,
     'from' => request()->query('from'),
     'to' => request()->query('to'),
 ]);
 $typeQuery = fn (string $typeValue) => array_filter([
     'tab' => $tab,
     'item_type' => $typeValue !== '' ? $typeValue : null,
+    'sales_window' => $salesWindowQuery !== '' ? $salesWindowQuery : null,
+    'from' => request()->query('from'),
+    'to' => request()->query('to'),
+]);
+$salesWindowLinkQuery = fn (string $windowValue) => array_filter([
+    'tab' => $tab,
+    'item_type' => $itemTypeQuery !== '' ? $itemTypeQuery : null,
+    'sales_window' => $windowValue !== '' ? $windowValue : null,
     'from' => request()->query('from'),
     'to' => request()->query('to'),
 ]);
@@ -75,7 +88,25 @@ $typeQuery = fn (string $typeValue) => array_filter([
             @else
                 <span class="text-amber-700">Item insights not calculated yet — high-margin tab will be empty until you recalculate on Item Insights.</span>
             @endif
+            @if($salesWindow === $salesWindowYear)
+                <span class="text-gray-700">
+                    <span class="font-medium text-gray-900">Sales columns:</span>
+                    rolling 12 calendar months from warehouse stats (not a live transaction scan).
+                    Stock status and days of cover still use the health window above.
+                </span>
+            @endif
         </div>
+    </div>
+
+    <div class="flex flex-wrap items-center gap-2">
+        <span class="text-xs font-medium uppercase tracking-wide text-gray-500">Sales data</span>
+        @foreach($salesWindowOptions as $value => $label)
+            <a href="{{ route('restock.recommendations', $salesWindowLinkQuery((string) $value)) }}"
+               class="rounded-lg px-3 py-1.5 text-sm font-medium {{ (string) $salesWindowQuery === (string) $value ? 'bg-gray-900 text-white' : 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50' }}"
+               data-testid="restock-recommendations-sales-window-{{ $value === '' ? 'health' : $value }}">
+                {{ $label }}
+            </a>
+        @endforeach
     </div>
 
     <div class="flex flex-wrap items-center gap-2">
@@ -116,7 +147,7 @@ $typeQuery = fn (string $typeValue) => array_filter([
                             <th class="px-3 py-2">SKU</th>
                             <th class="px-3 py-2 text-right">Stock</th>
                             <th class="px-3 py-2 text-right">Net / mo</th>
-                            <th class="px-3 py-2 text-right">Net sold (period)</th>
+                            <th class="px-3 py-2 text-right">{{ $netSoldColumnLabel }}</th>
                             <th class="px-3 py-2 text-right" title="On restock sheets">Restock</th>
                             <th class="px-3 py-2 text-right" title="On restock sheets">Production</th>
                             <th class="px-3 py-2 text-right" title="On restock sheets">Shipping</th>
@@ -136,8 +167,8 @@ $typeQuery = fn (string $typeValue) => array_filter([
                                     <div class="text-xs text-gray-500">{{ $row['item_name'] }}</div>
                                 </td>
                                 <td class="px-3 py-2 text-right tabular-nums">{{ number_format($row['stock_qty'], 0) }}</td>
-                                <td class="px-3 py-2 text-right tabular-nums">{{ number_format($row['monthly_net'] ?? 0, 1) }}</td>
-                                <td class="px-3 py-2 text-right tabular-nums">{{ number_format($row['net_period'], 0) }}</td>
+                                <td class="px-3 py-2 text-right tabular-nums">{{ number_format($row['display_monthly_net'] ?? $row['monthly_net'] ?? 0, 1) }}</td>
+                                <td class="px-3 py-2 text-right tabular-nums">{{ number_format($row['display_net_sold'] ?? $row['net_period'], 0) }}</td>
                                 <td class="px-3 py-2 text-right tabular-nums">{{ number_format($row['qty_restock'] ?? 0, 0) }}</td>
                                 <td class="px-3 py-2 text-right tabular-nums">{{ number_format($row['qty_production'] ?? 0, 0) }}</td>
                                 <td class="px-3 py-2 text-right tabular-nums">{{ number_format($row['qty_shipped'] ?? 0, 0) }}</td>
@@ -182,6 +213,10 @@ $typeQuery = fn (string $typeValue) => array_filter([
                             <th class="px-3 py-2">SKU</th>
                             <th class="px-3 py-2 text-right">Margin</th>
                             <th class="px-3 py-2 text-right">Stock</th>
+                            @if($salesWindow === $salesWindowYear)
+                                <th class="px-3 py-2 text-right">Net / mo</th>
+                                <th class="px-3 py-2 text-right">{{ $netSoldColumnLabel }}</th>
+                            @endif
                             <th class="px-3 py-2 text-right">Restock</th>
                             <th class="px-3 py-2 text-right">Production</th>
                             <th class="px-3 py-2 text-right">Shipping</th>
@@ -202,6 +237,10 @@ $typeQuery = fn (string $typeValue) => array_filter([
                                 </td>
                                 <td class="px-3 py-2 text-right tabular-nums">{{ number_format($row['margin_pct'], 1) }}%</td>
                                 <td class="px-3 py-2 text-right tabular-nums">{{ number_format($row['stock_qty'], 0) }}</td>
+                                @if($salesWindow === $salesWindowYear)
+                                    <td class="px-3 py-2 text-right tabular-nums">{{ number_format($row['display_monthly_net'] ?? 0, 1) }}</td>
+                                    <td class="px-3 py-2 text-right tabular-nums">{{ number_format($row['display_net_sold'] ?? 0, 0) }}</td>
+                                @endif
                                 <td class="px-3 py-2 text-right tabular-nums">{{ number_format($row['qty_restock'] ?? 0, 0) }}</td>
                                 <td class="px-3 py-2 text-right tabular-nums">{{ number_format($row['qty_production'] ?? 0, 0) }}</td>
                                 <td class="px-3 py-2 text-right tabular-nums">{{ number_format($row['qty_shipped'] ?? 0, 0) }}</td>

@@ -12,6 +12,7 @@ use App\Services\InventoryHealth\InventoryHealthSyncService;
 use App\Services\ItemInsightQueryService;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
 class RestockRecommendationService
@@ -28,11 +29,18 @@ class RestockRecommendationService
 
     public const MAX_ITEMS = self::PER_PAGE * self::MAX_PAGES;
 
+    /** Display sales totals from inventory-health window (default). */
+    public const SALES_WINDOW_HEALTH = 0;
+
+    /** Display sales totals from rolling 12 calendar months (warehouse_item_monthly_stats). */
+    public const SALES_WINDOW_YEAR = 365;
+
     public function __construct(
         private readonly InventoryHealthQueryService $inventoryHealth,
         private readonly ItemInsightQueryService $itemInsights,
         private readonly RestockSkuConfidenceService $skuConfidence,
         private readonly RestockPipelineTotalsByItem $pipelineTotals,
+        private readonly RestockRollingYearStatsByItem $rollingYearStats,
     ) {}
 
     /**
@@ -43,6 +51,7 @@ class RestockRecommendationService
      *     health_source: string,
      *     insight_period: ?\App\Models\ItemInsightMonth,
      *     insight_calculated: bool,
+     *     sales_window: int,
      *     fast_moving: LengthAwarePaginator<int, array<string, mixed>>,
      *     high_margin: LengthAwarePaginator<int, array<string, mixed>>,
      * }
@@ -50,6 +59,7 @@ class RestockRecommendationService
     public function build(Request $request, ?User $user, ?string $tab = null): array
     {
         $tab = $this->normalizeTab($tab ?? $request->query('tab'));
+        $salesWindow = $this->normalizeSalesWindow($request);
         $itemType = $this->normalizeItemTypeFilter($request->query('item_type'));
         $healthRequest = $this->healthRequest($request);
         $windows = $this->inventoryHealth->resolveWindows($healthRequest);
@@ -70,21 +80,28 @@ class RestockRecommendationService
 
         $fastMoving = $this->paginateRecommendationRows(
             $request,
-            $this->withSkuConfidence(
-                $this->heroProductRecommendations($healthByItem, $insightIndex, $windows),
+            $this->enrichRecommendationRows(
+                $this->heroProductRecommendations($healthByItem, $insightIndex, $windows)
+                    ->take(self::MAX_ITEMS)
+                    ->values(),
                 $windows,
+                $salesWindow,
             ),
         );
         $highMargin = $this->paginateRecommendationRows(
             $request,
-            $this->withSkuConfidence(
-                $this->highMarginRecommendations($healthByItem, $insightIndex, $insightPeriod?->year, $insightPeriod?->month),
+            $this->enrichRecommendationRows(
+                $this->highMarginRecommendations($healthByItem, $insightIndex, $insightPeriod?->year, $insightPeriod?->month)
+                    ->take(self::MAX_ITEMS)
+                    ->values(),
                 $windows,
+                $salesWindow,
             ),
         );
 
         return [
             'tab' => $tab,
+            'sales_window' => $salesWindow,
             'item_type' => $itemType,
             'health_windows' => $windows,
             'health_source' => $meta['source'],
@@ -110,6 +127,31 @@ class RestockRecommendationService
             (string) ItemType::ITEM->value => ItemType::ITEM->label(),
             (string) ItemType::ASSET_LANCAR->value => ItemType::ASSET_LANCAR->label(),
         ];
+    }
+
+    /**
+     * @return array<string, string> query value => label
+     */
+    public static function salesWindowFilterOptions(): array
+    {
+        return [
+            '' => 'Health window',
+            (string) self::SALES_WINDOW_YEAR => '12 months (≈365 days)',
+        ];
+    }
+
+    public function normalizeSalesWindow(Request $request): int
+    {
+        $raw = $request->query('sales_window');
+        if ($raw === null || $raw === '' || $raw === '30' || $raw === 'health') {
+            return self::SALES_WINDOW_HEALTH;
+        }
+
+        if (in_array((string) $raw, ['365', '12m', '12', 'year'], true)) {
+            return self::SALES_WINDOW_YEAR;
+        }
+
+        return self::SALES_WINDOW_HEALTH;
     }
 
     public function normalizeItemTypeFilter(mixed $raw): ?ItemType
@@ -332,9 +374,23 @@ class RestockRecommendationService
      * @param  Collection<int, array<string, mixed>>  $rows
      * @return LengthAwarePaginator<int, array<string, mixed>>
      */
+    /**
+     * @param  Collection<int, array<string, mixed>>  $rows  already capped to MAX_ITEMS
+     */
+    private function enrichRecommendationRows(Collection $rows, array $windows, int $salesWindow): Collection
+    {
+        if ($rows->isEmpty()) {
+            return $rows;
+        }
+
+        $withConfidence = $this->withSkuConfidence($rows, $windows);
+
+        return $this->applySalesWindowDisplay($withConfidence, $windows, $salesWindow);
+    }
+
     private function paginateRecommendationRows(Request $request, Collection $rows): LengthAwarePaginator
     {
-        $capped = $rows->take(self::MAX_ITEMS)->values();
+        $capped = $rows->values();
         $perPage = self::PER_PAGE;
         $page = max(1, (int) $request->query('page', 1));
 
@@ -457,6 +513,54 @@ class RestockRecommendationService
                 'confidence_label' => RestockSkuConfidenceService::confidenceLabels()[RestockSkuConfidenceService::CONFIDENCE_MEDIUM],
                 'detail' => '',
             ];
+
+            return $row;
+        });
+    }
+
+    /**
+     * @param  Collection<int, array<string, mixed>>  $rows
+     * @param  array{period_from: string, period_to: string, extended_from: string, period_days: int}  $windows
+     * @return Collection<int, array<string, mixed>>
+     */
+    private function applySalesWindowDisplay(Collection $rows, array $windows, int $salesWindow): Collection
+    {
+        $periodDays = max(1, (int) $windows['period_days']);
+        $asOf = Carbon::parse($windows['period_to']);
+
+        if ($salesWindow !== self::SALES_WINDOW_YEAR) {
+            return $rows->map(function (array $row) use ($periodDays) {
+                $row['display_net_sold'] = (float) $row['net_period'];
+                $row['display_monthly_net'] = (float) ($row['monthly_net'] ?? RestockNetSell::monthlyRateFromPeriod((float) $row['net_period'], $periodDays));
+                $row['sales_window_days'] = $periodDays;
+
+                return $row;
+            });
+        }
+
+        $itemIds = $rows->pluck('item_id')->map(fn ($id) => (int) $id)->all();
+        $yearStats = $this->rollingYearStats->summariesForItems($itemIds, $asOf);
+
+        return $rows->map(function (array $row) use ($yearStats) {
+            $itemId = (int) $row['item_id'];
+            $stats = $yearStats[$itemId] ?? ['net_12m' => 0.0, 'monthly_avg' => 0.0];
+            $row['display_net_sold'] = (float) $stats['net_12m'];
+            $row['display_monthly_net'] = (float) $stats['monthly_avg'];
+            $row['sales_window_days'] = self::SALES_WINDOW_YEAR;
+
+            if (array_key_exists('monthly_net', $row)) {
+                $tier = RestockNetSell::velocityTier($stats['monthly_avg']);
+                $row['monthly_net'] = $stats['monthly_avg'];
+                $reasons = array_values(array_filter(
+                    $row['reasons'] ?? [],
+                    fn (string $reason) => ! str_contains($reason, 'net units/mo'),
+                ));
+                if ($tier !== RestockNetSell::TIER_BELOW) {
+                    $reasons[] = RestockNetSell::velocityTierLabels()[$tier]
+                        .': ≈'.number_format($stats['monthly_avg'], 1).' net units/mo (12 mo avg)';
+                }
+                $row['reasons'] = $reasons;
+            }
 
             return $row;
         });
