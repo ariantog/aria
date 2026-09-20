@@ -3,6 +3,9 @@
 use App\Enums\ItemType;
 use App\Models\Addrbook;
 use App\Models\Item;
+use App\Models\RestockCell;
+use App\Models\RestockSheet;
+use App\Models\Tag;
 use App\Models\Transaction;
 use App\Models\TransactionDetail;
 use App\Models\User;
@@ -93,7 +96,7 @@ it('lists fast-moving low-stock recommendations from inventory health rules', fu
     $service = app(RestockRecommendationService::class);
     $payload = $service->build(Request::create('/restock/recommendations'), $this->user);
 
-    $row = $payload['fast_moving']->firstWhere('item_id', $item->id);
+    $row = collect($payload['fast_moving']->items())->firstWhere('item_id', $item->id);
     expect($row)->not->toBeNull();
     expect($row['health_key'])->toBe(InventoryHealthClassifier::LOW);
     expect($row['worth']['pattern'])->toBeString();
@@ -131,7 +134,7 @@ it('lists high-margin recommendations from item insights with health guardrails'
     $service = app(RestockRecommendationService::class);
     $payload = $service->build(Request::create('/restock/recommendations'), $this->user);
 
-    $row = $payload['high_margin']->firstWhere('item_id', $item->id);
+    $row = collect($payload['high_margin']->items())->firstWhere('item_id', $item->id);
     expect($row)->not->toBeNull();
     expect($row['margin_pct'])->toBeGreaterThan(25.0);
 });
@@ -162,11 +165,56 @@ it('filters recommendations by item type', function () {
         $this->user,
     );
 
-    expect($all['fast_moving']->pluck('item_id'))
+    expect(collect($all['fast_moving']->items())->pluck('item_id'))
         ->toContain($manufactured->id, $asset->id);
-    expect($assetsOnly['fast_moving']->pluck('item_id'))
+    expect(collect($assetsOnly['fast_moving']->items())->pluck('item_id'))
         ->toContain($asset->id)
         ->not->toContain($manufactured->id);
+});
+
+it('shows restock sheet pipeline qty on recommendation rows', function () {
+    $this->travelTo('2026-05-15');
+    $item = restockHealthItem('Pipeline SKU', 'PIPE-1', ItemType::ASSET_LANCAR);
+    restockHealthStock($item, $this->warehouse, 1);
+    restockHealthLine(
+        $this->user,
+        $this->warehouse,
+        $this->customer,
+        $item,
+        Transaction::TYPE_SELL,
+        50,
+        now()->subDays(3)->toDateString(),
+        'PIPE-1-INV',
+    );
+
+    $typeTag = Tag::factory()->create([
+        'type' => Tag::TYPE_TYPE,
+        'code' => 'PIPE',
+        'name' => 'Pipe',
+        'item_type' => ItemType::ASSET_LANCAR->value,
+    ]);
+    $sheet = RestockSheet::create([
+        'name' => 'Pipe',
+        'type_tag_id' => $typeTag->id,
+        'created_by' => $this->user->id,
+    ]);
+    RestockCell::create([
+        'restock_sheet_id' => $sheet->id,
+        'item_id' => $item->id,
+        'qty_restock' => 7,
+        'qty_production' => 8,
+        'qty_shipped' => 9,
+    ]);
+
+    $row = collect(app(RestockRecommendationService::class)
+        ->build(Request::create('/restock/recommendations'), $this->user)['fast_moving']
+        ->items())
+        ->firstWhere('item_id', $item->id);
+
+    expect($row)->not->toBeNull();
+    expect($row['qty_restock'])->toBe(7)
+        ->and($row['qty_production'])->toBe(8)
+        ->and($row['qty_shipped'])->toBe(9);
 });
 
 it('renders the restock recommendations page', function () {

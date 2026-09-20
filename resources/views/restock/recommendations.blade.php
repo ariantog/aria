@@ -93,12 +93,12 @@ $typeQuery = fn (string $typeValue) => array_filter([
         <a href="{{ route('restock.recommendations', $tabQuery('fast')) }}"
            class="rounded-lg px-3 py-1.5 text-sm font-medium {{ $tab === 'fast' ? 'bg-blue-600 text-white' : 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50' }}"
            data-testid="restock-recommendations-tab-hero">
-            Hero product · low / out of stock ({{ $fastMoving->count() }})
+            Hero product · low / out of stock ({{ $fastMoving->total() }})
         </a>
         <a href="{{ route('restock.recommendations', $tabQuery('margin')) }}"
            class="rounded-lg px-3 py-1.5 text-sm font-medium {{ $tab === 'margin' ? 'bg-blue-600 text-white' : 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50' }}"
            data-testid="restock-recommendations-tab-margin">
-            High margin ({{ $highMargin->count() }})
+            High margin ({{ $highMargin->total() }})
         </a>
     </div>
 
@@ -117,6 +117,9 @@ $typeQuery = fn (string $typeValue) => array_filter([
                             <th class="px-3 py-2 text-right">Stock</th>
                             <th class="px-3 py-2 text-right">Net / mo</th>
                             <th class="px-3 py-2 text-right">Net sold (period)</th>
+                            <th class="px-3 py-2 text-right" title="On restock sheets">Restock</th>
+                            <th class="px-3 py-2 text-right" title="On restock sheets">Production</th>
+                            <th class="px-3 py-2 text-right" title="On restock sheets">Shipping</th>
                             <th class="px-3 py-2 text-right">Days cover</th>
                             <th class="px-3 py-2">Status</th>
                             <th class="px-3 py-2">Worth restocking?</th>
@@ -135,6 +138,9 @@ $typeQuery = fn (string $typeValue) => array_filter([
                                 <td class="px-3 py-2 text-right tabular-nums">{{ number_format($row['stock_qty'], 0) }}</td>
                                 <td class="px-3 py-2 text-right tabular-nums">{{ number_format($row['monthly_net'] ?? 0, 1) }}</td>
                                 <td class="px-3 py-2 text-right tabular-nums">{{ number_format($row['net_period'], 0) }}</td>
+                                <td class="px-3 py-2 text-right tabular-nums">{{ number_format($row['qty_restock'] ?? 0, 0) }}</td>
+                                <td class="px-3 py-2 text-right tabular-nums">{{ number_format($row['qty_production'] ?? 0, 0) }}</td>
+                                <td class="px-3 py-2 text-right tabular-nums">{{ number_format($row['qty_shipped'] ?? 0, 0) }}</td>
                                 <td class="px-3 py-2 text-right tabular-nums">{{ $fmtCover($row['days_of_cover']) }}</td>
                                 <td class="px-3 py-2 text-gray-700">{{ $row['health_label'] }}</td>
                                 <td class="px-3 py-2">
@@ -151,6 +157,11 @@ $typeQuery = fn (string $typeValue) => array_filter([
                         @endforeach
                     </tbody>
                 </table>
+                @if($fastMoving->hasPages())
+                    <div class="border-t border-gray-100 px-3 py-2 text-sm text-gray-600" data-testid="restock-recommendations-hero-pagination">
+                        {{ $fastMoving->links() }}
+                    </div>
+                @endif
             </div>
         @endif
     @else
@@ -171,6 +182,9 @@ $typeQuery = fn (string $typeValue) => array_filter([
                             <th class="px-3 py-2">SKU</th>
                             <th class="px-3 py-2 text-right">Margin</th>
                             <th class="px-3 py-2 text-right">Stock</th>
+                            <th class="px-3 py-2 text-right">Restock</th>
+                            <th class="px-3 py-2 text-right">Production</th>
+                            <th class="px-3 py-2 text-right">Shipping</th>
                             <th class="px-3 py-2 text-right">Days cover</th>
                             <th class="px-3 py-2">Health</th>
                             <th class="px-3 py-2">Worth restocking?</th>
@@ -188,6 +202,9 @@ $typeQuery = fn (string $typeValue) => array_filter([
                                 </td>
                                 <td class="px-3 py-2 text-right tabular-nums">{{ number_format($row['margin_pct'], 1) }}%</td>
                                 <td class="px-3 py-2 text-right tabular-nums">{{ number_format($row['stock_qty'], 0) }}</td>
+                                <td class="px-3 py-2 text-right tabular-nums">{{ number_format($row['qty_restock'] ?? 0, 0) }}</td>
+                                <td class="px-3 py-2 text-right tabular-nums">{{ number_format($row['qty_production'] ?? 0, 0) }}</td>
+                                <td class="px-3 py-2 text-right tabular-nums">{{ number_format($row['qty_shipped'] ?? 0, 0) }}</td>
                                 <td class="px-3 py-2 text-right tabular-nums">{{ $fmtCover($row['days_of_cover']) }}</td>
                                 <td class="px-3 py-2 text-gray-700">{{ $row['health_label'] }}</td>
                                 <td class="px-3 py-2">
@@ -204,6 +221,11 @@ $typeQuery = fn (string $typeValue) => array_filter([
                         @endforeach
                     </tbody>
                 </table>
+                @if($highMargin->hasPages())
+                    <div class="border-t border-gray-100 px-3 py-2 text-sm text-gray-600" data-testid="restock-recommendations-margin-pagination">
+                        {{ $highMargin->links() }}
+                    </div>
+                @endif
             </div>
         @endif
     @endif
