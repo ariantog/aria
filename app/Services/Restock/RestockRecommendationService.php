@@ -2,6 +2,7 @@
 
 namespace App\Services\Restock;
 
+use App\Enums\ItemType;
 use App\Models\Item;
 use App\Models\ItemInsightRanking;
 use App\Models\User;
@@ -28,6 +29,7 @@ class RestockRecommendationService
     /**
      * @return array{
      *     tab: string,
+     *     item_type: ?ItemType,
      *     health_windows: array{period_from: string, period_to: string, extended_from: string, period_days: int},
      *     health_source: string,
      *     insight_period: ?\App\Models\ItemInsightMonth,
@@ -39,13 +41,17 @@ class RestockRecommendationService
     public function build(Request $request, ?User $user, ?string $tab = null): array
     {
         $tab = $this->normalizeTab($tab ?? $request->query('tab'));
+        $itemType = $this->normalizeItemTypeFilter($request->query('item_type'));
         $healthRequest = $this->healthRequest($request);
         $windows = $this->inventoryHealth->resolveWindows($healthRequest);
         $meta = $this->inventoryHealth->pageMeta($healthRequest);
 
-        $healthByItem = $this->inventoryHealth
-            ->companyHealthRows($healthRequest, $user)
-            ->keyBy('id');
+        $healthByItem = $this->filterHealthByItemType(
+            $this->inventoryHealth
+                ->companyHealthRows($healthRequest, $user)
+                ->keyBy('id'),
+            $itemType,
+        );
 
         $insightPeriod = $this->itemInsights->latestCalculatedMonthlyPeriod();
         $insightCalculated = $insightPeriod !== null;
@@ -58,6 +64,7 @@ class RestockRecommendationService
 
         return [
             'tab' => $tab,
+            'item_type' => $itemType,
             'health_windows' => $windows,
             'health_source' => $meta['source'],
             'insight_period' => $insightPeriod,
@@ -70,6 +77,48 @@ class RestockRecommendationService
     private function normalizeTab(?string $tab): string
     {
         return in_array($tab, ['fast', 'margin'], true) ? $tab : 'fast';
+    }
+
+    /**
+     * @return array<string, string> query value => label (empty key = all restock-eligible types)
+     */
+    public static function itemTypeFilterOptions(): array
+    {
+        return [
+            '' => 'All types',
+            (string) ItemType::ITEM->value => ItemType::ITEM->label(),
+            (string) ItemType::ASSET_LANCAR->value => ItemType::ASSET_LANCAR->label(),
+        ];
+    }
+
+    public function normalizeItemTypeFilter(mixed $raw): ?ItemType
+    {
+        if ($raw === null || $raw === '') {
+            return null;
+        }
+
+        $value = is_string($raw) ? strtolower(trim($raw)) : $raw;
+
+        return match ($value) {
+            'item', 'manufactured', (string) ItemType::ITEM->value, ItemType::ITEM->value => ItemType::ITEM,
+            'asset_lancar', 'assetlancar', 'asset-lancar', (string) ItemType::ASSET_LANCAR->value, ItemType::ASSET_LANCAR->value => ItemType::ASSET_LANCAR,
+            default => null,
+        };
+    }
+
+    /**
+     * @param  Collection<int, Item>  $healthByItem
+     * @return Collection<int, Item>
+     */
+    private function filterHealthByItemType(Collection $healthByItem, ?ItemType $itemType): Collection
+    {
+        if ($itemType === null) {
+            return $healthByItem;
+        }
+
+        return $healthByItem
+            ->filter(fn (Item $item) => ItemType::coerce($item->type) === $itemType)
+            ->values();
     }
 
     /**

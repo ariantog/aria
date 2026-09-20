@@ -27,6 +27,13 @@ $fmtCover = function (?float $days): string {
 };
 $tabQuery = fn (string $next) => array_filter([
     'tab' => $next,
+    'item_type' => $itemTypeQuery !== '' ? $itemTypeQuery : null,
+    'from' => request()->query('from'),
+    'to' => request()->query('to'),
+]);
+$typeQuery = fn (string $typeValue) => array_filter([
+    'tab' => $tab,
+    'item_type' => $typeValue !== '' ? $typeValue : null,
     'from' => request()->query('from'),
     'to' => request()->query('to'),
 ]);
@@ -69,6 +76,17 @@ $tabQuery = fn (string $next) => array_filter([
                 <span class="text-amber-700">Item insights not calculated yet — high-margin tab will be empty until you recalculate on Item Insights.</span>
             @endif
         </div>
+    </div>
+
+    <div class="flex flex-wrap items-center gap-2">
+        <span class="text-xs font-medium uppercase tracking-wide text-gray-500">Item type</span>
+        @foreach($itemTypeOptions as $value => $label)
+            <a href="{{ route('restock.recommendations', $typeQuery((string) $value)) }}"
+               class="rounded-lg px-3 py-1.5 text-sm font-medium {{ (string) $itemTypeQuery === (string) $value ? 'bg-gray-900 text-white' : 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50' }}"
+               data-testid="restock-recommendations-type-{{ $value === '' ? 'all' : $value }}">
+                {{ $label }}
+            </a>
+        @endforeach
     </div>
 
     <div class="flex flex-wrap gap-2">
