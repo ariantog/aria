@@ -630,6 +630,25 @@ Pusat `-1`) — applies to RETURN mapping, **warehouse stock page** (`WarehouseJ
 and Jubelio stock-check scans; using sell txn warehouse as primary RETURN filter; copying sell
 `sender_id` in `processReturn`; calling Jubelio API per row on `/jubelio` index.
 
+#### Reprocess inbound sell after a bad post (e.g. qty 0, stock not deducted)
+
+`ProcessJubelioOrder` refuses to create a second row when a **SELL** with the same `invoice` already
+exists (`Transaction sudah ada`). Editing detail qty on an already-posted Jubelio cron sell is awkward
+because stock never moved when qty was 0. **Maintainer playbook:**
+
+1. **Delete the bad transaction** in Aria (normal delete). That runs `revertTransaction` (reverses
+   channel **receivable** from header `total`; zero-qty lines revert **no** `warehouse_item` change).
+2. **Reset the `jubelioorders` row** so `jubelio:order-jubelio-to-aria` will pick it again:
+   `status = 0`, `run_count = 0`, `execute_by = NULL` (must be **NULL**, not `0` — cron uses
+   `whereNull('execute_by')`), `error = NULL`, `error_type = NULL`, `stock_error_items = NULL`.
+   Match by `invoice` = Jubelio `salesorder_no` and `type = 'SELL'`.
+3. **Re-post:** wait for cron or use **Process** on `/jubelio/{id}` after reset (manual path sets
+   `execute_by` to the user). Ship **`JubelioOrderLineQuantity`** (qty → `qty_picked` / `qty_in_base`
+   fallback) before re-running if Jubelio still sends `qty: 0`.
+
+Do **not** use `jubelio:order-jubelio-to-aria --truncate` — it bulk-deletes all `submit_type = 2`
+transactions and resets every order.
+
 #### Jubelio orders index (`/jubelio`)
 
 - **Must not call the Jubelio API per row.** Use denormalized `jubelioorders` columns +
