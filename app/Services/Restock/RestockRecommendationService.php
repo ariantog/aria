@@ -24,6 +24,7 @@ class RestockRecommendationService
     public function __construct(
         private readonly InventoryHealthQueryService $inventoryHealth,
         private readonly ItemInsightQueryService $itemInsights,
+        private readonly RestockSkuConfidenceService $skuConfidence,
     ) {}
 
     /**
@@ -59,8 +60,14 @@ class RestockRecommendationService
             ? $this->insightRankIndex($insightPeriod->year, $insightPeriod->month)
             : [];
 
-        $fastMoving = $this->fastMovingRecommendations($healthByItem, $insightIndex);
-        $highMargin = $this->highMarginRecommendations($healthByItem, $insightIndex, $insightPeriod?->year, $insightPeriod?->month);
+        $fastMoving = $this->withSkuConfidence(
+            $this->fastMovingRecommendations($healthByItem, $insightIndex),
+            $windows,
+        );
+        $highMargin = $this->withSkuConfidence(
+            $this->highMarginRecommendations($healthByItem, $insightIndex, $insightPeriod?->year, $insightPeriod?->month),
+            $windows,
+        );
 
         return [
             'tab' => $tab,
@@ -332,6 +339,44 @@ class RestockRecommendationService
         }
 
         return $index;
+    }
+
+    /**
+     * @param  Collection<int, array<string, mixed>>  $rows
+     * @param  array{period_from: string, period_to: string, extended_from: string, period_days: int}  $windows
+     * @return Collection<int, array<string, mixed>>
+     */
+    private function withSkuConfidence(Collection $rows, array $windows): Collection
+    {
+        if ($rows->isEmpty()) {
+            return $rows;
+        }
+
+        $context = [];
+        foreach ($rows as $row) {
+            $context[(int) $row['item_id']] = [
+                'net_period' => (float) $row['net_period'],
+                'period_days' => $windows['period_days'],
+                'stock_qty' => (float) $row['stock_qty'],
+                'days_of_cover' => $row['days_of_cover'] !== null ? (float) $row['days_of_cover'] : null,
+                'health_key' => $row['health_key'] ?? null,
+            ];
+        }
+
+        $worth = $this->skuConfidence->forItems(array_keys($context), $context);
+
+        return $rows->map(function (array $row) use ($worth) {
+            $itemId = (int) $row['item_id'];
+            $row['worth'] = $worth[$itemId] ?? [
+                'pattern' => RestockSkuConfidenceService::PATTERN_MODERATE,
+                'pattern_label' => RestockSkuConfidenceService::patternLabels()[RestockSkuConfidenceService::PATTERN_MODERATE],
+                'confidence' => RestockSkuConfidenceService::CONFIDENCE_MEDIUM,
+                'confidence_label' => RestockSkuConfidenceService::confidenceLabels()[RestockSkuConfidenceService::CONFIDENCE_MEDIUM],
+                'detail' => '',
+            ];
+
+            return $row;
+        });
     }
 
     /**

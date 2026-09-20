@@ -48,7 +48,7 @@ $typeQuery = fn (string $typeValue) => array_filter([
                 <a href="{{ route('reports.inventory-health') }}" class="text-blue-600 hover:underline">Inventory Health</a>
                 (fast movers / low stock) and
                 <a href="{{ route('reports.item-insights') }}" class="text-blue-600 hover:underline">Item Insights</a>
-                (margin &amp; velocity). Uses warehouse stats and insight snapshots — not the reporting cutover summaries.
+                (margin &amp; velocity), plus per-SKU demand pattern (stable / spike / fatigue) from 12-month warehouse stats and buy sell-through — not reporting cutover summaries.
             </p>
         </div>
         <a href="{{ route('restock.index') }}"
@@ -118,6 +118,7 @@ $typeQuery = fn (string $typeValue) => array_filter([
                             <th class="px-3 py-2 text-right">Net sold (period)</th>
                             <th class="px-3 py-2 text-right">Days cover</th>
                             <th class="px-3 py-2">Status</th>
+                            <th class="px-3 py-2">Worth restocking?</th>
                             <th class="px-3 py-2">Why restock</th>
                         </tr>
                     </thead>
@@ -134,6 +135,9 @@ $typeQuery = fn (string $typeValue) => array_filter([
                                 <td class="px-3 py-2 text-right tabular-nums">{{ number_format($row['net_period'], 0) }}</td>
                                 <td class="px-3 py-2 text-right tabular-nums">{{ $fmtCover($row['days_of_cover']) }}</td>
                                 <td class="px-3 py-2 text-gray-700">{{ $row['health_label'] }}</td>
+                                <td class="px-3 py-2">
+                                    @include('restock.partials.worth-badge', ['worth' => $row['worth'] ?? [], 'itemId' => $row['item_id']])
+                                </td>
                                 <td class="px-3 py-2 text-gray-600">
                                     <ul class="list-disc pl-4 space-y-0.5">
                                         @foreach($row['reasons'] as $reason)
@@ -167,6 +171,7 @@ $typeQuery = fn (string $typeValue) => array_filter([
                             <th class="px-3 py-2 text-right">Stock</th>
                             <th class="px-3 py-2 text-right">Days cover</th>
                             <th class="px-3 py-2">Health</th>
+                            <th class="px-3 py-2">Worth restocking?</th>
                             <th class="px-3 py-2">Why restock</th>
                         </tr>
                     </thead>
@@ -183,6 +188,9 @@ $typeQuery = fn (string $typeValue) => array_filter([
                                 <td class="px-3 py-2 text-right tabular-nums">{{ number_format($row['stock_qty'], 0) }}</td>
                                 <td class="px-3 py-2 text-right tabular-nums">{{ $fmtCover($row['days_of_cover']) }}</td>
                                 <td class="px-3 py-2 text-gray-700">{{ $row['health_label'] }}</td>
+                                <td class="px-3 py-2">
+                                    @include('restock.partials.worth-badge', ['worth' => $row['worth'] ?? [], 'itemId' => $row['item_id']])
+                                </td>
                                 <td class="px-3 py-2 text-gray-600">
                                     <ul class="list-disc pl-4 space-y-0.5">
                                         @foreach($row['reasons'] as $reason)
