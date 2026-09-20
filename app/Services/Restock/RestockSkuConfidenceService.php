@@ -55,6 +55,7 @@ class RestockSkuConfidenceService
 
     public function __construct(
         private readonly ItemInsightLastBuyResolver $lastBuys,
+        private readonly RestockRollingYearStatsByItem $rollingYearStats,
     ) {}
 
     /**
@@ -70,7 +71,7 @@ class RestockSkuConfidenceService
         }
 
         $asOf = Carbon::parse($asOf ?? now());
-        $monthlyByItem = $this->monthlyNetSeriesByItem($itemIds, $asOf);
+        $monthlyByItem = $this->rollingYearStats->monthlyNetSeriesByItem($itemIds, $asOf);
         $lastBuyByItem = $this->lastBuys->forItems($itemIds, $asOf);
         $soldSinceBuy = $this->netSoldSinceLastBuy($itemIds, $lastBuyByItem, $asOf->toDateString());
 
@@ -393,47 +394,6 @@ class RestockSkuConfidenceService
             self::CONFIDENCE_MEDIUM => 'Medium confidence',
             self::CONFIDENCE_LOW => 'Low confidence',
         ];
-    }
-
-    /**
-     * @param  list<int>  $itemIds
-     * @return array<int, list<float>>
-     */
-    private function monthlyNetSeriesByItem(array $itemIds, \DateTimeInterface $asOf): array
-    {
-        $asOf = Carbon::parse($asOf);
-        $months = [];
-        for ($i = 11; $i >= 0; $i--) {
-            $cursor = $asOf->copy()->startOfMonth()->subMonths($i);
-            $months[] = [(int) $cursor->year, (int) $cursor->month];
-        }
-
-        $startKey = $months[0][0] * 12 + $months[0][1];
-
-        $rows = DB::table('warehouse_item_monthly_stats')
-            ->whereIn('item_id', $itemIds)
-            ->whereRaw('(year * 12 + month) >= ?', [$startKey])
-            ->get(['item_id', 'year', 'month', 'sold_qty', 'returned_qty']);
-
-        $bucket = [];
-        foreach ($rows as $row) {
-            $itemId = (int) $row->item_id;
-            $key = (int) $row->year * 12 + (int) $row->month;
-            $net = RestockNetSell::netQtyFromStatRow((float) $row->sold_qty, (float) $row->returned_qty);
-            $bucket[$itemId][$key] = ($bucket[$itemId][$key] ?? 0.0) + $net;
-        }
-
-        $series = [];
-        foreach ($itemIds as $itemId) {
-            $line = [];
-            foreach ($months as [$year, $month]) {
-                $key = $year * 12 + $month;
-                $line[] = (float) ($bucket[$itemId][$key] ?? 0.0);
-            }
-            $series[$itemId] = $line;
-        }
-
-        return $series;
     }
 
     /**

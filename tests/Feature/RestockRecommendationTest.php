@@ -224,9 +224,56 @@ it('renders the restock recommendations page', function () {
         ->assertSee('data-testid="restock-recommendations-page"', false)
         ->assertSee('data-testid="restock-recommendations-tab-hero"', false)
         ->assertSee('data-testid="restock-recommendations-tab-margin"', false)
+        ->assertSee('data-testid="restock-recommendations-sales-window-health"', false)
+        ->assertSee('data-testid="restock-recommendations-sales-window-365"', false)
         ->assertSee('data-testid="restock-recommendations-type-all"', false)
         ->assertSee('data-testid="restock-recommendations-type-'.ItemType::ITEM->value.'"', false)
         ->assertSee('data-testid="restock-recommendations-type-'.ItemType::ASSET_LANCAR->value.'"', false);
+});
+
+it('shows rolling 12-month net sell from warehouse stats when sales_window is 365', function () {
+    $this->travelTo('2026-06-20');
+    $item = restockHealthItem('Year Window SKU', 'YEAR-1');
+    restockHealthStock($item, $this->warehouse, 3);
+    restockHealthLine(
+        $this->user,
+        $this->warehouse,
+        $this->customer,
+        $item,
+        Transaction::TYPE_SELL,
+        10,
+        now()->subDays(5)->toDateString(),
+        'YEAR-1-RECENT',
+    );
+
+    foreach ([
+        [2026, 4, 40.0],
+        [2026, 5, 60.0],
+        [2026, 6, 20.0],
+    ] as [$year, $month, $sold]) {
+        WarehouseItemMonthlyStat::create([
+            'warehouse_id' => $this->warehouse->id,
+            'item_id' => $item->id,
+            'year' => $year,
+            'month' => $month,
+            'sold_qty' => $sold,
+            'returned_qty' => 0,
+            'sold_value' => $sold * 1000,
+            'returned_value' => 0,
+        ]);
+    }
+
+    $service = app(RestockRecommendationService::class);
+    $payload = $service->build(
+        Request::create('/restock/recommendations?sales_window=365'),
+        $this->user,
+    );
+
+    $row = collect($payload['fast_moving']->items())->firstWhere('item_id', $item->id);
+    expect($row)->not->toBeNull();
+    expect($payload['sales_window'])->toBe(RestockRecommendationService::SALES_WINDOW_YEAR);
+    expect($row['display_net_sold'])->toBe(120.0);
+    expect($row['display_monthly_net'])->toBe(10.0);
 });
 
 it('forbids restock recommendations without permission', function () {
