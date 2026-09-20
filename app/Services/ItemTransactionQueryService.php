@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Addrbook;
+use App\Models\Transaction;
 use App\Models\User;
 use App\Support\LikeSearch;
 use Illuminate\Database\Eloquent\Builder;
@@ -11,7 +12,7 @@ use Illuminate\Http\Request;
 class ItemTransactionQueryService
 {
     /**
-     * @return array{from: string, to: string, invoice: string, party: string}
+     * @return array{from: string, to: string, invoice: string, party: string, type: string}
      */
     public function filtersFromRequest(Request $request): array
     {
@@ -28,6 +29,7 @@ class ItemTransactionQueryService
             'to' => trim((string) $request->query('to', '')),
             'invoice' => trim((string) $request->query('invoice', '')),
             'party' => $party,
+            'type' => trim((string) $request->query('type', '')),
         ];
     }
 
@@ -37,6 +39,7 @@ class ItemTransactionQueryService
         $from = $this->dateValue($filters['from']);
         $to = $this->dateValue($filters['to']);
         $partyId = $this->partyId($filters['party']);
+        $typeId = $this->transactionTypeId($filters['type']);
 
         return $query
             ->when($from !== null, fn (Builder $q) => $q->whereDate('transaction_details.date', '>=', $from))
@@ -47,6 +50,7 @@ class ItemTransactionQueryService
                 return $q->whereHas('transaction', fn (Builder $tq) => $tq->where('invoice', 'like', $pattern));
             })
             ->when($partyId !== null, fn (Builder $q) => $this->applyPartyIdFilter($q, $partyId))
+            ->when($typeId !== null, fn (Builder $q) => $q->where('transaction_details.transaction_type', $typeId))
             ->orderByDesc('transaction_details.date')
             ->orderByDesc('transaction_id');
     }
@@ -113,5 +117,17 @@ class ItemTransactionQueryService
         }
 
         return $value;
+    }
+
+    private function transactionTypeId(string $value): ?int
+    {
+        if ($value === '' || ! ctype_digit($value)) {
+            return null;
+        }
+
+        $id = (int) $value;
+        $validIds = array_column(Transaction::getTypes(), 'id');
+
+        return in_array($id, $validIds, true) ? $id : null;
     }
 }

@@ -41,6 +41,7 @@ $typeColors = [
         'resetUrl' => $resetUrl,
         'partyLookupUrl' => $partyLookupUrl,
         'selectedParty' => $selectedParty ?? null,
+        'transactionTypes' => $transactionTypes ?? [],
     ])
 
     <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm"
