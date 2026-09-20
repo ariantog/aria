@@ -61,7 +61,7 @@ class RestockRecommendationService
             : [];
 
         $fastMoving = $this->withSkuConfidence(
-            $this->fastMovingRecommendations($healthByItem, $insightIndex),
+            $this->heroProductRecommendations($healthByItem, $insightIndex, $windows),
             $windows,
         );
         $highMargin = $this->withSkuConfidence(
@@ -151,26 +151,33 @@ class RestockRecommendationService
      * @param  array<int, array<string, mixed>>  $insightIndex
      * @return Collection<int, array<string, mixed>>
      */
-    private function fastMovingRecommendations(Collection $healthByItem, array $insightIndex): Collection
+    /**
+     * @param  array{period_from: string, period_to: string, extended_from: string, period_days: int}  $windows
+     */
+    private function heroProductRecommendations(Collection $healthByItem, array $insightIndex, array $windows): Collection
     {
-        $rows = $healthByItem
-            ->filter(function (Item $item) {
-                $key = $item->health['key'] ?? null;
+        $periodDays = max(1, (int) $windows['period_days']);
 
-                return $key === InventoryHealthClassifier::LOW;
+        $rows = $healthByItem
+            ->filter(function (Item $item) use ($periodDays) {
+                return $this->qualifiesForHeroProductTab($item, $periodDays);
             })
-            ->map(function (Item $item) use ($insightIndex) {
+            ->map(function (Item $item) use ($insightIndex, $periodDays) {
                 $cover = $item->health['days_of_cover'] ?? null;
                 $stock = (float) $item->current_stock;
+                $monthlyNet = RestockNetSell::monthlyRateFromPeriod((float) $item->net_period, $periodDays);
                 $insight = $insightIndex[$item->id] ?? null;
 
                 $reasons = [$item->health['rec'] ?? 'Restock'];
+                if ($monthlyNet >= RestockSkuConfidenceService::HERO_MIN_MONTHLY_NET) {
+                    $reasons[] = sprintf('Hero product: ≈%s net units/mo (health window)', number_format($monthlyNet, 1));
+                }
                 if ($stock <= 0) {
                     $reasons[] = 'Sold out with recent net sales';
                 }
                 if ($insight !== null) {
                     if (($insight['fastest_rank'] ?? null) !== null) {
-                        $reasons[] = 'Fastest selling #'.$insight['fastest_rank'].' this month';
+                        $reasons[] = 'Item Insights velocity rank #'.$insight['fastest_rank'].' this month';
                     }
                     if (($insight['restock_alert_rank'] ?? null) !== null && $insight['alert_detail']) {
                         $reasons[] = (string) $insight['alert_detail'];
@@ -180,6 +187,7 @@ class RestockRecommendationService
                 return $this->rowFromHealthItem($item, [
                     'reasons' => array_values(array_unique($reasons)),
                     'insight' => $insight,
+                    'monthly_net' => $monthlyNet,
                     'sort_cover' => $cover ?? 0.0,
                     'sort_net' => (float) $item->net_period,
                 ]);
@@ -199,6 +207,30 @@ class RestockRecommendationService
             ->take(100);
 
         return $rows;
+    }
+
+    private function qualifiesForHeroProductTab(Item $item, int $periodDays): bool
+    {
+        $key = $item->health['key'] ?? InventoryHealthClassifier::INACTIVE;
+        $monthlyNet = RestockNetSell::monthlyRateFromPeriod((float) $item->net_period, $periodDays);
+        $isHeroVelocity = $monthlyNet >= RestockSkuConfidenceService::HERO_MIN_MONTHLY_NET;
+
+        if ($key === InventoryHealthClassifier::LOW) {
+            return true;
+        }
+
+        if (! $isHeroVelocity) {
+            return false;
+        }
+
+        if (in_array($key, [InventoryHealthClassifier::DEAD, InventoryHealthClassifier::OVERSTOCK, InventoryHealthClassifier::INACTIVE], true)) {
+            return false;
+        }
+
+        $cover = $item->health['days_of_cover'] ?? null;
+
+        return $cover === null
+            || $cover < InventoryHealthClassifier::OVERSTOCK_COVER_DAYS;
     }
 
     /**
