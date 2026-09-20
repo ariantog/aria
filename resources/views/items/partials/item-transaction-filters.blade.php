@@ -51,6 +51,17 @@
                        data-testid="item-tx-invoice"
                        class="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
             </div>
+            <div class="flex flex-col gap-1">
+                <label for="item-tx-type" class="text-xs font-medium uppercase text-gray-500">Type</label>
+                <select id="item-tx-type" name="type"
+                        data-testid="item-tx-type"
+                        class="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                    <option value="">All Types</option>
+                    @foreach($transactionTypes ?? [] as $t)
+                        <option value="{{ $t['id'] }}" @selected((string) ($filters['type'] ?? '') === (string) $t['id'])>{{ $t['name'] }}</option>
+                    @endforeach
+                </select>
+            </div>
             @include('transactions.partials.export-sell-party-combobox', [
                 'name' => 'party',
                 'label' => 'Party',

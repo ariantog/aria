@@ -54,6 +54,7 @@ it('renders item transaction filters on items and assetlancar pages', function (
         ->assertSee('data-testid="item-tx-from"', false)
         ->assertSee('data-testid="item-tx-to"', false)
         ->assertSee('data-testid="item-tx-invoice"', false)
+        ->assertSee('data-testid="item-tx-type"', false)
         ->assertSee('data-testid="item-tx-party-combobox"', false)
         ->assertSee($storageKey, false)
         ->assertSee('localStorage.getItem(this.filtersStorageKey)', false)
@@ -120,6 +121,28 @@ it('filters item transactions by invoice substring', function () {
         ->assertDontSee('TRX-000', false)
         ->assertSee('value="999"', false);
 });
+
+it('filters item transactions by transaction type on items and assetlancar', function (string $routeName, ItemType $itemType) {
+    $item = Item::factory()->create(['type' => $itemType]);
+
+    seedItemTransactionLine($item, [
+        'type' => Transaction::TYPE_SELL,
+        'invoice' => 'TYPE-FILTER-SELL',
+    ]);
+    seedItemTransactionLine($item, [
+        'type' => Transaction::TYPE_BUY,
+        'invoice' => 'TYPE-FILTER-BUY',
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route($routeName, ['item' => $item, 'type' => Transaction::TYPE_SELL]))
+        ->assertOk()
+        ->assertSee('TYPE-FILTER-SELL', false)
+        ->assertDontSee('TYPE-FILTER-BUY', false);
+})->with([
+    'items' => ['items.transactions', ItemType::ITEM],
+    'assetlancar' => ['assetlancar.transactions', ItemType::ASSET_LANCAR],
+]);
 
 it('filters item transactions by party as sender', function () {
     $item = Item::factory()->create();

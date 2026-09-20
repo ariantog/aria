@@ -10,6 +10,7 @@ use App\Models\Item;
 use App\Models\ItemGroup;
 use App\Models\Report;
 use App\Models\Tag;
+use App\Models\Transaction;
 use App\Models\TransactionDetail;
 use App\Services\ItemAvailabilityService;
 use App\Services\ItemListFilter;
@@ -784,6 +785,7 @@ class ItemsController extends Controller
             'selectedParty' => $queryService->resolveSelectedParty($filters['party'], $request->user()),
             'partyId' => $queryService->resolvePartyId($filters['party']),
             'hasActiveFilters' => $queryService->hasActiveFilters($filters),
+            'transactionTypes' => Transaction::getTypes(),
         ]);
     }
 
