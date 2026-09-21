@@ -160,6 +160,18 @@ On a **failed halfway** database:
 
 Simplest recovery on a new host: empty the database (or create a fresh schema) and re-run install after deploying the fix.
 
+## If `install_l12_production_tables` fails on `monthly_account_summaries` (errno 150)
+
+`2026_08_12_200000_install_l12_production_tables` recreates any missing L12 tables. On a **greenfield** database, `customers.id` (and other legacy tables) are **BIGINT** from Laravel migrations, while an older build used `integer()` FK columns — MySQL errno **150**.
+
+Deploy the current fix (greenfield-aware column types in that migration). Recovery:
+
+1. Drop the partial table if it exists (`DROP TABLE IF EXISTS monthly_account_summaries;`).
+2. Remove the migration row only if the table is gone and you need a clean retry: `DELETE FROM migrations WHERE migration = '2026_08_12_200000_install_l12_production_tables';`
+3. Run `php artisan migrate --force` again.
+
+If several aggregation tables failed the same way, empty the database and re-run `php artisan app:install-new-domain` after deploying the fix.
+
 ## If `install_l12_production_tables` fails dropping `stok_reports` (errno 1451)
 
 That migration only **drops** BIGINT FK tables when fixing a **production INT(11)** clone. On a **greenfield** database (`customers.id` is still BIGINT from Laravel migrations), it should **skip** those drops and keep the tables created earlier in the same `migrate` run.
