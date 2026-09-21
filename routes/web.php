@@ -80,6 +80,11 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::resource('items', App\Http\Controllers\ItemsController::class);
     Route::get('jubelio/item-links', [App\Http\Controllers\JubelioItemLinkController::class, 'index'])->name('jubelio.item-links.index');
     Route::get('jubelio/item-links/parent/{group}', [App\Http\Controllers\JubelioItemLinkController::class, 'showGroup'])->whereNumber('group')->name('jubelio.item-links.group');
+    Route::get('jubelio/auto-link', [App\Http\Controllers\JubelioItemAutoLinkController::class, 'index'])->name('jubelio.auto-link.index');
+    Route::post('jubelio/auto-link/pause', [App\Http\Controllers\JubelioItemAutoLinkController::class, 'pause'])->name('jubelio.auto-link.pause');
+    Route::post('jubelio/auto-link/resume', [App\Http\Controllers\JubelioItemAutoLinkController::class, 'resume'])->name('jubelio.auto-link.resume');
+    Route::post('jubelio/auto-link/run-batch', [App\Http\Controllers\JubelioItemAutoLinkController::class, 'runBatch'])->name('jubelio.auto-link.run-batch');
+    Route::post('jubelio/auto-link/items/{item}/reset-attempts', [App\Http\Controllers\JubelioItemAutoLinkController::class, 'resetItem'])->name('jubelio.auto-link.reset-item');
     Route::get('jubelio/order/cek', [App\Http\Controllers\JubelioController::class, 'cekOrder'])->name('jubelio.order.cek');
     Route::post('jubelio/order/cek/queue', [App\Http\Controllers\JubelioController::class, 'queueCekOrder'])->name('jubelio.order.cek.queue');
     Route::get('jubelio/token', [App\Http\Controllers\JubelioTokenController::class, 'index'])->name('jubelio.token.index');

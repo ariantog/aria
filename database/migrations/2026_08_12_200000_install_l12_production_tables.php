@@ -32,6 +32,7 @@ return new class extends Migration
         $this->createProductPerformanceRollupsTable();
         $this->createWarehouseArrangementTables();
         $this->createWarehouseStatBackfillsTable();
+        $this->createJubelioItemLinkAutoTables();
         $this->createItemIdentityConversionTables();
         $this->createRestockTables();
     }
@@ -43,6 +44,8 @@ return new class extends Migration
         Schema::dropIfExists('restock_sheets');
         Schema::dropIfExists('item_identity_conversion_results');
         Schema::dropIfExists('item_identity_conversion_runs');
+        Schema::dropIfExists('jubelio_item_link_attempts');
+        Schema::dropIfExists('jubelio_item_link_runners');
         Schema::dropIfExists('warehouse_stat_backfills');
         Schema::dropIfExists('warehouse_arrangement_candidate_sources');
         Schema::dropIfExists('warehouse_arrangement_candidates');
@@ -420,6 +423,37 @@ return new class extends Migration
             $table->timestamp('last_run_at')->nullable();
             $table->timestamps();
         });
+    }
+
+    private function createJubelioItemLinkAutoTables(): void
+    {
+        if (! Schema::hasTable('jubelio_item_link_runners')) {
+            Schema::create('jubelio_item_link_runners', function (Blueprint $table) {
+                $table->id();
+                $table->boolean('paused')->default(false);
+                $table->string('calls_hour_bucket', 13)->nullable();
+                $table->unsignedSmallInteger('calls_hour_count')->default(0);
+                $table->timestamp('last_run_at')->nullable();
+                $table->timestamps();
+            });
+        }
+
+        if (! Schema::hasTable('jubelio_item_link_attempts')) {
+            Schema::create('jubelio_item_link_attempts', function (Blueprint $table) {
+                $table->id();
+                $table->unsignedInteger('item_id');
+                $table->string('outcome', 32);
+                $table->string('search_q', 255);
+                $table->unsignedInteger('matched_jubelio_item_id')->nullable();
+                $table->unsignedSmallInteger('candidates_count')->default(0);
+                $table->unsignedSmallInteger('http_status')->nullable();
+                $table->text('error_message')->nullable();
+                $table->timestamp('created_at')->useCurrent();
+
+                $table->index(['item_id', 'created_at'], 'jub_link_att_item_created_idx');
+                $table->index(['outcome', 'created_at'], 'jub_link_att_outcome_idx');
+            });
+        }
     }
 
     private function createItemIdentityConversionTables(): void

@@ -145,7 +145,7 @@
 
     $jubelioNavLabels = ['Jubelio'];
     if ($hasPerm('jubelio-view') || $isSuperAdmin) {
-        $jubelioNavLabels = array_merge($jubelioNavLabels, ['Orders', 'Cancellations', 'Get Orders', 'Cek Order', 'Item Links', 'Koneksi']);
+        $jubelioNavLabels = array_merge($jubelioNavLabels, ['Orders', 'Cancellations', 'Get Orders', 'Cek Order', 'Item Links', 'Auto Link', 'Koneksi']);
     }
     if ($hasPerm('jubelio-sync') || $isSuperAdmin) {
         $jubelioNavLabels[] = 'Stock Sync';
@@ -569,6 +569,7 @@
         <a href="{{ route('jubelio.get-orders.index') }}" x-show="navLinkVisible('Get Orders', 'Jubelio')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/jubelio-get-orders') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Get Orders</a>
         <a href="{{ route('jubelio.order.cek') }}" x-show="navLinkVisible('Cek Order', 'Jubelio')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/jubelio/order/cek') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Cek Order</a>
         <a href="{{ route('jubelio.item-links.index') }}" x-show="navLinkVisible('Item Links', 'Jubelio')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/jubelio/item-links') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Item Links</a>
+        <a href="{{ route('jubelio.auto-link.index') }}" x-show="navLinkVisible('Auto Link', 'Jubelio')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/jubelio/auto-link') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Auto Link</a>
         <a href="{{ route('jubelio.token.index') }}" x-show="navLinkVisible('Koneksi', 'Jubelio')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/jubelio/token') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Koneksi</a>
         @endif
         @if($hasPerm('jubelio-sync') || $isSuperAdmin)

@@ -119,6 +119,16 @@ class Item extends Model
         return $this->hasMany(WarehouseItem::class);
     }
 
+    public function jubelioLinkAttempts(): HasMany
+    {
+        return $this->hasMany(JubelioItemLinkAttempt::class);
+    }
+
+    public function latestJubelioLinkAttempt(): HasOne
+    {
+        return $this->hasOne(JubelioItemLinkAttempt::class)->latestOfMany();
+    }
+
     public function depreciation(): HasOne
     {
         return $this->hasOne(Depreciation::class, 'item_id');
