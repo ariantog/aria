@@ -1,5 +1,6 @@
 <?php
 
+use App\Support\GreenfieldMysqlSchema;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
@@ -133,7 +134,7 @@ return new class extends Migration
                 $table->id();
                 $table->smallInteger('year');
                 $table->tinyInteger('month');
-                $this->legacyReferenceIdColumn($table, 'customer_id');
+                GreenfieldMysqlSchema::legacyReferenceIdColumn($table, 'customer_id');
                 $table->decimal('cash_in', 15, 2)->default(0);
                 $table->decimal('cash_out', 15, 2)->default(0);
                 $table->decimal('sell', 15, 2)->default(0);
@@ -142,7 +143,7 @@ return new class extends Migration
 
                 $table->unique(['year', 'month', 'customer_id'], 'account_summary_unique');
                 $table->index(['year', 'month']);
-                $this->addLegacyCustomerForeignKey($table, 'customer_id');
+                GreenfieldMysqlSchema::addCustomerForeignKey($table, 'customer_id');
             });
         }
 
@@ -169,8 +170,8 @@ return new class extends Migration
             Schema::create('daily_inventory_summaries', function (Blueprint $table) {
                 $table->id();
                 $table->date('date');
-                $this->legacyReferenceIdColumn($table, 'warehouse_id');
-                $this->legacyReferenceIdColumn($table, 'item_id');
+                GreenfieldMysqlSchema::legacyReferenceIdColumn($table, 'warehouse_id');
+                GreenfieldMysqlSchema::legacyReferenceIdColumn($table, 'item_id');
                 $table->decimal('qty_sell', 15, 2)->default(0);
                 $table->decimal('qty_buy', 15, 2)->default(0);
                 $table->decimal('qty_move_in', 15, 2)->default(0);
@@ -185,8 +186,8 @@ return new class extends Migration
                 $table->unique(['date', 'warehouse_id', 'item_id'], 'inventory_summary_unique');
                 $table->index('date');
                 $table->index(['warehouse_id', 'item_id']);
-                $this->addLegacyCustomerForeignKey($table, 'warehouse_id');
-                $this->addLegacyItemForeignKey($table, 'item_id');
+                GreenfieldMysqlSchema::addCustomerForeignKey($table, 'warehouse_id');
+                GreenfieldMysqlSchema::addItemForeignKey($table, 'item_id');
             });
         }
     }
@@ -201,16 +202,16 @@ return new class extends Migration
             $table->id();
             $table->smallInteger('year');
             $table->tinyInteger('month');
-            $this->legacyReferenceIdColumn($table, 'group_id', true);
-            $this->legacyReferenceIdColumn($table, 'customer_id', true);
+            GreenfieldMysqlSchema::legacyReferenceIdColumn($table, 'group_id', true);
+            GreenfieldMysqlSchema::legacyReferenceIdColumn($table, 'customer_id', true);
             $table->decimal('qty_net', 15, 2)->default(0);
             $table->decimal('amount_net', 15, 2)->default(0);
             $table->timestamps();
 
             $table->unique(['year', 'month', 'group_id', 'customer_id'], 'item_sale_cust_unique');
             $table->index(['year', 'month']);
-            $this->addLegacyItemGroupForeignKey($table, 'group_id', true);
-            $this->addLegacyCustomerForeignKey($table, 'customer_id', true);
+            GreenfieldMysqlSchema::addItemGroupForeignKey($table, 'group_id', true);
+            GreenfieldMysqlSchema::addCustomerForeignKey($table, 'customer_id', true);
         });
     }
 
@@ -221,9 +222,9 @@ return new class extends Migration
                 $table->id();
                 $table->timestamp('generet_at');
                 $table->string('type');
-                $this->legacyReferenceIdColumn($table, 'generet_by', true);
+                GreenfieldMysqlSchema::legacyReferenceIdColumn($table, 'generet_by', true);
                 $table->timestamps();
-                $this->addLegacyUserForeignKey($table, 'generet_by', true);
+                GreenfieldMysqlSchema::addUserForeignKey($table, 'generet_by', true);
             });
         }
 
@@ -231,26 +232,26 @@ return new class extends Migration
             Schema::create('stock_data', function (Blueprint $table) {
                 $table->id();
                 $table->foreignId('id_stock_report')->constrained('stok_reports')->cascadeOnDelete();
-                $this->legacyReferenceIdColumn($table, 'item_id');
+                GreenfieldMysqlSchema::legacyReferenceIdColumn($table, 'item_id');
                 $table->string('item_name');
                 $table->decimal('score', 8, 4);
                 $table->string('performance_key');
                 $table->string('performance_level');
                 $table->integer('gap_days')->nullable();
-                $this->legacyReferenceIdColumn($table, 'current_warehouse_id');
+                GreenfieldMysqlSchema::legacyReferenceIdColumn($table, 'current_warehouse_id');
                 $table->string('current_warehouse_name');
                 $table->integer('current_warehouse_qty');
                 $table->string('current_warehouse_last_sale')->nullable();
                 $table->integer('current_warehouse_days_ago')->nullable();
-                $this->legacyReferenceIdColumn($table, 'best_performing_warehouse_id', true);
+                GreenfieldMysqlSchema::legacyReferenceIdColumn($table, 'best_performing_warehouse_id', true);
                 $table->string('best_performing_warehouse_name')->nullable();
                 $table->string('best_performing_warehouse_last_sale')->nullable();
                 $table->integer('best_performing_warehouse_days_ago')->nullable();
                 $table->integer('best_performing_warehouse_qty')->nullable();
                 $table->timestamps();
-                $this->addLegacyItemForeignKey($table, 'item_id');
-                $this->addLegacyCustomerForeignKey($table, 'current_warehouse_id');
-                $this->addLegacyCustomerForeignKey($table, 'best_performing_warehouse_id', true);
+                GreenfieldMysqlSchema::addItemForeignKey($table, 'item_id');
+                GreenfieldMysqlSchema::addCustomerForeignKey($table, 'current_warehouse_id');
+                GreenfieldMysqlSchema::addCustomerForeignKey($table, 'best_performing_warehouse_id', true);
             });
         }
     }
@@ -263,8 +264,8 @@ return new class extends Migration
 
         Schema::create('warehouse_item_monthly_stats', function (Blueprint $table) {
             $table->id();
-            $this->legacyReferenceIdColumn($table, 'warehouse_id');
-            $this->legacyReferenceIdColumn($table, 'item_id');
+            GreenfieldMysqlSchema::legacyReferenceIdColumn($table, 'warehouse_id');
+            GreenfieldMysqlSchema::legacyReferenceIdColumn($table, 'item_id');
             $table->unsignedSmallInteger('month');
             $table->unsignedSmallInteger('year');
             $table->decimal('sold_qty', 15, 2)->default(0);
@@ -272,7 +273,7 @@ return new class extends Migration
             $table->decimal('sold_value', 15, 2)->default(0);
             $table->decimal('returned_value', 15, 2)->default(0);
             $table->unsignedTinyInteger('item_type')->nullable();
-            $this->legacyReferenceIdColumn($table, 'group_id', true);
+            GreenfieldMysqlSchema::legacyReferenceIdColumn($table, 'group_id', true);
             $table->string('pcode', 64)->nullable();
             $table->string('type_code', 64)->default('-');
             $table->string('warna_code', 64)->default('-');
@@ -283,9 +284,9 @@ return new class extends Migration
             $table->unique(['warehouse_id', 'item_id', 'month', 'year'], 'wh_item_monthly_unique');
             $table->index(['warehouse_id', 'year', 'month'], 'wh_item_monthly_wh_period');
             $table->index(['item_id', 'year', 'month'], 'wh_item_monthly_item_period');
-            $this->addLegacyCustomerForeignKey($table, 'warehouse_id');
-            $this->addLegacyItemForeignKey($table, 'item_id');
-            $this->addLegacyItemGroupForeignKey($table, 'group_id', true);
+            GreenfieldMysqlSchema::addCustomerForeignKey($table, 'warehouse_id');
+            GreenfieldMysqlSchema::addItemForeignKey($table, 'item_id');
+            GreenfieldMysqlSchema::addItemGroupForeignKey($table, 'group_id', true);
         });
     }
 
@@ -299,7 +300,7 @@ return new class extends Migration
             $table->id();
             $table->unsignedSmallInteger('period_days');
             $table->string('lens', 20);
-            $this->legacyReferenceIdColumn($table, 'warehouse_id', false, 0);
+            GreenfieldMysqlSchema::legacyReferenceIdColumn($table, 'warehouse_id', false, 0);
             $table->string('grain', 32);
             $table->string('dimension_key', 191);
             $table->unsignedTinyInteger('item_type')->nullable();
@@ -324,20 +325,20 @@ return new class extends Migration
         if (! Schema::hasTable('warehouse_arrangement_sources')) {
             Schema::create('warehouse_arrangement_sources', function (Blueprint $table) {
                 $table->id();
-                $this->legacyReferenceIdColumn($table, 'destination_warehouse_id');
-                $this->legacyReferenceIdColumn($table, 'source_warehouse_id');
+                GreenfieldMysqlSchema::legacyReferenceIdColumn($table, 'destination_warehouse_id');
+                GreenfieldMysqlSchema::legacyReferenceIdColumn($table, 'source_warehouse_id');
                 $table->timestamps();
 
                 $table->unique(['destination_warehouse_id', 'source_warehouse_id'], 'arr_src_dest_src_unique');
-                $this->addLegacyCustomerForeignKey($table, 'destination_warehouse_id', false, 'arr_src_dest_fk');
-                $this->addLegacyCustomerForeignKey($table, 'source_warehouse_id', false, 'arr_src_source_fk');
+                GreenfieldMysqlSchema::addCustomerForeignKey($table, 'destination_warehouse_id', false, 'arr_src_dest_fk');
+                GreenfieldMysqlSchema::addCustomerForeignKey($table, 'source_warehouse_id', false, 'arr_src_source_fk');
             });
         }
 
         if (! Schema::hasTable('warehouse_arrangement_pcode_snapshots')) {
             Schema::create('warehouse_arrangement_pcode_snapshots', function (Blueprint $table) {
                 $table->id();
-                $this->legacyReferenceIdColumn($table, 'destination_warehouse_id');
+                GreenfieldMysqlSchema::legacyReferenceIdColumn($table, 'destination_warehouse_id');
                 $table->string('pcode');
                 $table->string('master')->nullable();
                 $table->string('master_name')->nullable();
@@ -351,15 +352,15 @@ return new class extends Migration
                 $table->timestamps();
 
                 $table->unique(['destination_warehouse_id', 'pcode'], 'arr_pcode_dest_pcode_unique');
-                $this->addLegacyCustomerForeignKey($table, 'destination_warehouse_id', false, 'arr_pcode_snap_dest_fk');
+                GreenfieldMysqlSchema::addCustomerForeignKey($table, 'destination_warehouse_id', false, 'arr_pcode_snap_dest_fk');
             });
         }
 
         if (! Schema::hasTable('warehouse_arrangement_candidates')) {
             Schema::create('warehouse_arrangement_candidates', function (Blueprint $table) {
                 $table->id();
-                $this->legacyReferenceIdColumn($table, 'destination_warehouse_id');
-                $this->legacyReferenceIdColumn($table, 'item_id');
+                GreenfieldMysqlSchema::legacyReferenceIdColumn($table, 'destination_warehouse_id');
+                GreenfieldMysqlSchema::legacyReferenceIdColumn($table, 'item_id');
                 $table->string('pcode')->nullable();
                 $table->string('master')->nullable();
                 $table->string('item_code')->nullable();
@@ -375,8 +376,8 @@ return new class extends Migration
 
                 $table->unique(['destination_warehouse_id', 'item_id'], 'arr_candidate_dest_item_unique');
                 $table->index(['destination_warehouse_id', 'pcode'], 'arr_candidate_dest_pcode_idx');
-                $this->addLegacyCustomerForeignKey($table, 'destination_warehouse_id', false, 'arr_cand_dest_fk');
-                $this->addLegacyItemForeignKey($table, 'item_id', false, 'arr_cand_item_fk');
+                GreenfieldMysqlSchema::addCustomerForeignKey($table, 'destination_warehouse_id', false, 'arr_cand_dest_fk');
+                GreenfieldMysqlSchema::addItemForeignKey($table, 'item_id', false, 'arr_cand_item_fk');
             });
         }
 
@@ -384,7 +385,7 @@ return new class extends Migration
             Schema::create('warehouse_arrangement_candidate_sources', function (Blueprint $table) {
                 $table->id();
                 $table->foreignId('candidate_id');
-                $this->legacyReferenceIdColumn($table, 'source_warehouse_id');
+                GreenfieldMysqlSchema::legacyReferenceIdColumn($table, 'source_warehouse_id');
                 $table->unsignedInteger('source_stock')->default(0);
                 $table->unsignedInteger('suggested_qty')->default(1);
                 $table->timestamps();
@@ -392,7 +393,7 @@ return new class extends Migration
                 $table->unique(['candidate_id', 'source_warehouse_id'], 'arr_cand_src_unique');
                 $table->foreign('candidate_id', 'arr_cand_src_cand_fk')
                     ->references('id')->on('warehouse_arrangement_candidates')->cascadeOnDelete();
-                $this->addLegacyCustomerForeignKey($table, 'source_warehouse_id', false, 'arr_cand_src_wh_fk');
+                GreenfieldMysqlSchema::addCustomerForeignKey($table, 'source_warehouse_id', false, 'arr_cand_src_wh_fk');
             });
         }
     }
@@ -433,11 +434,11 @@ return new class extends Migration
                 $table->unsignedInteger('success_count')->default(0);
                 $table->unsignedInteger('failed_count')->default(0);
                 $table->unsignedInteger('skipped_count')->default(0);
-                $this->legacyReferenceIdColumn($table, 'user_id', true);
+                GreenfieldMysqlSchema::legacyReferenceIdColumn($table, 'user_id', true);
                 $table->timestamp('started_at')->nullable();
                 $table->timestamp('finished_at')->nullable();
                 $table->timestamps();
-                $this->addLegacyUserForeignKey($table, 'user_id', true);
+                GreenfieldMysqlSchema::addUserForeignKey($table, 'user_id', true);
             });
         }
 
@@ -445,7 +446,7 @@ return new class extends Migration
             Schema::create('item_identity_conversion_results', function (Blueprint $table) {
                 $table->id();
                 $table->foreignId('run_id')->constrained('item_identity_conversion_runs')->cascadeOnDelete();
-                $this->legacyReferenceIdColumn($table, 'item_id');
+                GreenfieldMysqlSchema::legacyReferenceIdColumn($table, 'item_id');
                 $table->string('status', 20);
                 $table->string('failure_code', 40)->nullable();
                 $table->text('detail')->nullable();
@@ -454,7 +455,7 @@ return new class extends Migration
 
                 $table->index(['item_id', 'status']);
                 $table->index('failure_code');
-                $this->addLegacyItemForeignKey($table, 'item_id');
+                GreenfieldMysqlSchema::addItemForeignKey($table, 'item_id');
             });
         }
     }
@@ -467,19 +468,19 @@ return new class extends Migration
             Schema::create('restock_sheets', function (Blueprint $table) {
                 $table->id();
                 $table->string('name');
-                $this->legacyReferenceIdColumn($table, 'type_tag_id');
-                $this->legacyReferenceIdColumn($table, 'representative_group_id', true);
-                $this->legacyReferenceIdColumn($table, 'created_by');
+                GreenfieldMysqlSchema::legacyReferenceIdColumn($table, 'type_tag_id');
+                GreenfieldMysqlSchema::legacyReferenceIdColumn($table, 'representative_group_id', true);
+                GreenfieldMysqlSchema::legacyReferenceIdColumn($table, 'created_by');
                 $table->timestamp('last_saved_at')->nullable();
-                $this->legacyReferenceIdColumn($table, 'last_saved_by', true);
+                GreenfieldMysqlSchema::legacyReferenceIdColumn($table, 'last_saved_by', true);
                 $table->timestamps();
 
                 $table->unique('type_tag_id');
                 $table->index('type_tag_id');
-                $this->addLegacyTagForeignKey($table, 'type_tag_id');
-                $this->addLegacyItemGroupForeignKey($table, 'representative_group_id', true);
-                $this->addLegacyUserForeignKey($table, 'created_by');
-                $this->addLegacyUserForeignKey($table, 'last_saved_by', true);
+                GreenfieldMysqlSchema::addTagForeignKey($table, 'type_tag_id');
+                GreenfieldMysqlSchema::addItemGroupForeignKey($table, 'representative_group_id', true);
+                GreenfieldMysqlSchema::addUserForeignKey($table, 'created_by');
+                GreenfieldMysqlSchema::addUserForeignKey($table, 'last_saved_by', true);
             });
         }
 
@@ -487,9 +488,9 @@ return new class extends Migration
             Schema::create('restock_cells', function (Blueprint $table) {
                 $table->id();
                 $table->foreignId('restock_sheet_id')->constrained()->cascadeOnDelete();
-                $this->legacyReferenceIdColumn($table, 'item_id');
-                $this->legacyReferenceIdColumn($table, 'color_id', true);
-                $this->legacyReferenceIdColumn($table, 'size_id', true);
+                GreenfieldMysqlSchema::legacyReferenceIdColumn($table, 'item_id');
+                GreenfieldMysqlSchema::legacyReferenceIdColumn($table, 'color_id', true);
+                GreenfieldMysqlSchema::legacyReferenceIdColumn($table, 'size_id', true);
                 $table->unsignedInteger('qty_restock')->default(0);
                 $table->unsignedInteger('qty_production')->default(0);
                 $table->unsignedInteger('qty_shipped')->default(0);
@@ -502,9 +503,9 @@ return new class extends Migration
 
                 $table->unique(['restock_sheet_id', 'item_id']);
                 $table->index(['restock_sheet_id', 'color_id', 'size_id']);
-                $this->addLegacyItemForeignKey($table, 'item_id');
-                $this->addLegacyTagForeignKey($table, 'color_id', true);
-                $this->addLegacyTagForeignKey($table, 'size_id', true);
+                GreenfieldMysqlSchema::addItemForeignKey($table, 'item_id');
+                GreenfieldMysqlSchema::addTagForeignKey($table, 'color_id', true);
+                GreenfieldMysqlSchema::addTagForeignKey($table, 'size_id', true);
             });
         }
 
@@ -516,14 +517,14 @@ return new class extends Migration
                 $table->integer('qty_before')->default(0);
                 $table->integer('qty_after')->default(0);
                 $table->string('action');
-                $this->legacyReferenceIdColumn($table, 'user_id');
-                $this->legacyReferenceIdColumn($table, 'transaction_id', true);
+                GreenfieldMysqlSchema::legacyReferenceIdColumn($table, 'user_id');
+                GreenfieldMysqlSchema::legacyReferenceIdColumn($table, 'transaction_id', true);
                 $table->string('note')->nullable();
                 $table->timestamps();
 
                 $table->index(['restock_cell_id', 'created_at']);
                 $table->index('transaction_id');
-                $this->addLegacyUserForeignKey($table, 'user_id');
+                GreenfieldMysqlSchema::addUserForeignKey($table, 'user_id');
                 // No FK to transactions — production table is RANGE-partitioned by date (MySQL errno 150).
             });
         }
@@ -566,7 +567,7 @@ return new class extends Migration
 
         Schema::table('sessions', function (Blueprint $table) {
             if (! Schema::hasColumn('sessions', 'user_id')) {
-                if ($this->usesGreenfieldBigintPrimaryKeys()) {
+                if (GreenfieldMysqlSchema::usesBigintLegacyPrimaryKeys()) {
                     $table->unsignedBigInteger('user_id')->nullable()->index()->after('id');
                 } else {
                     $table->integer('user_id')->nullable()->index()->after('id');
@@ -593,7 +594,7 @@ return new class extends Migration
             return;
         }
 
-        if ($this->usesGreenfieldBigintPrimaryKeys()) {
+        if (GreenfieldMysqlSchema::usesBigintLegacyPrimaryKeys()) {
             return;
         }
 
@@ -670,70 +671,4 @@ return new class extends Migration
         }
     }
 
-    private function usesGreenfieldBigintPrimaryKeys(): bool
-    {
-        if (Schema::getConnection()->getDriverName() !== 'mysql' || ! Schema::hasTable('customers')) {
-            return false;
-        }
-
-        $row = DB::selectOne(
-            'SELECT COLUMN_TYPE FROM information_schema.COLUMNS
-             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?',
-            ['customers', 'id']
-        );
-
-        return $row && stripos($row->COLUMN_TYPE, 'bigint') !== false;
-    }
-
-    private function legacyReferenceIdColumn(Blueprint $table, string $column, bool $nullable = false, ?int $default = null): void
-    {
-        if ($this->usesGreenfieldBigintPrimaryKeys()) {
-            $definition = $table->unsignedBigInteger($column);
-        } else {
-            $definition = $table->integer($column);
-        }
-
-        if ($nullable) {
-            $definition->nullable();
-        }
-
-        if ($default !== null) {
-            $definition->default($default);
-        }
-    }
-
-    private function addLegacyCustomerForeignKey(Blueprint $table, string $column, bool $nullable = false, ?string $name = null): void
-    {
-        $fk = $name !== null ? $table->foreign($column, $name) : $table->foreign($column);
-        $fk->references('id')->on('customers');
-        $nullable ? $fk->nullOnDelete() : $fk->cascadeOnDelete();
-    }
-
-    private function addLegacyItemForeignKey(Blueprint $table, string $column, bool $nullable = false, ?string $name = null): void
-    {
-        $fk = $name !== null ? $table->foreign($column, $name) : $table->foreign($column);
-        $fk->references('id')->on('items');
-        $nullable ? $fk->nullOnDelete() : $fk->cascadeOnDelete();
-    }
-
-    private function addLegacyItemGroupForeignKey(Blueprint $table, string $column, bool $nullable = false, ?string $name = null): void
-    {
-        $fk = $name !== null ? $table->foreign($column, $name) : $table->foreign($column);
-        $fk->references('id')->on('item_group');
-        $nullable ? $fk->nullOnDelete() : $fk->cascadeOnDelete();
-    }
-
-    private function addLegacyUserForeignKey(Blueprint $table, string $column, bool $nullable = false, ?string $name = null): void
-    {
-        $fk = $name !== null ? $table->foreign($column, $name) : $table->foreign($column);
-        $fk->references('id')->on('users');
-        $nullable ? $fk->nullOnDelete() : $fk->cascadeOnDelete();
-    }
-
-    private function addLegacyTagForeignKey(Blueprint $table, string $column, bool $nullable = false, ?string $name = null): void
-    {
-        $fk = $name !== null ? $table->foreign($column, $name) : $table->foreign($column);
-        $fk->references('id')->on('tags');
-        $nullable ? $fk->nullOnDelete() : $fk->cascadeOnDelete();
-    }
 };

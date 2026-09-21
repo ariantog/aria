@@ -1,5 +1,6 @@
 <?php
 
+use App\Support\GreenfieldMysqlSchema;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
@@ -15,15 +16,19 @@ return new class extends Migration
     {
         if (! Schema::hasTable('depreciation')) {
             Schema::create('depreciation', function (Blueprint $table) {
-                $table->integer('item_id')->primary();
+                if (GreenfieldMysqlSchema::usesBigintLegacyPrimaryKeys()) {
+                    $table->unsignedBigInteger('item_id')->primary();
+                } else {
+                    $table->integer('item_id')->primary();
+                }
                 $table->integer('value')->default(0);
                 $table->date('buy_date');
                 $table->decimal('buy_price', 20, 2)->default(0);
                 $table->date('expire_date');
                 $table->decimal('residual_value', 20, 2)->default(0);
                 $table->integer('useful_life_months')->default(0);
-                $table->integer('warehouse_id')->default(0);
-                $table->integer('buy_transaction_id')->nullable();
+                GreenfieldMysqlSchema::legacyReferenceIdColumn($table, 'warehouse_id', false, 0);
+                GreenfieldMysqlSchema::legacyReferenceIdColumn($table, 'buy_transaction_id', true);
                 $table->string('notes', 255)->default('');
                 $table->index('buy_transaction_id', 'dep_buy_trx_idx');
             });
@@ -41,11 +46,11 @@ return new class extends Migration
             }
 
             if (! Schema::hasColumn('depreciation', 'warehouse_id')) {
-                $table->integer('warehouse_id')->default(0);
+                GreenfieldMysqlSchema::legacyReferenceIdColumn($table, 'warehouse_id', false, 0);
             }
 
             if (! Schema::hasColumn('depreciation', 'buy_transaction_id')) {
-                $table->integer('buy_transaction_id')->nullable();
+                GreenfieldMysqlSchema::legacyReferenceIdColumn($table, 'buy_transaction_id', true);
             }
 
             if (! Schema::hasColumn('depreciation', 'notes')) {

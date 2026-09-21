@@ -1,5 +1,6 @@
 <?php
 
+use App\Support\GreenfieldMysqlSchema;
 use App\Support\ProductionMysqlCompat;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
@@ -23,6 +24,10 @@ return new class extends Migration
     public function up(): void
     {
         if (Schema::getConnection()->getDriverName() !== 'mysql') {
+            return;
+        }
+
+        if (GreenfieldMysqlSchema::usesBigintLegacyPrimaryKeys()) {
             return;
         }
 

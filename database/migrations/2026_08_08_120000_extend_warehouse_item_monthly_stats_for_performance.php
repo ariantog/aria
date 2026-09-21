@@ -1,5 +1,6 @@
 <?php
 
+use App\Support\GreenfieldMysqlSchema;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
@@ -43,7 +44,7 @@ return new class extends Migration
                 $table->id();
                 $table->unsignedSmallInteger('period_days');
                 $table->string('lens', 20);
-                $table->integer('warehouse_id')->default(0);
+                GreenfieldMysqlSchema::legacyReferenceIdColumn($table, 'warehouse_id', false, 0);
                 $table->string('grain', 32);
                 $table->string('dimension_key', 191);
                 $table->unsignedTinyInteger('item_type')->nullable();

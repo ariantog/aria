@@ -6,7 +6,7 @@ Do **not** use this on the current Crystal production host (`aria.corenationacti
 
 **Crystal (current production)** uses individual `php artisan migrate --path=...` on the shared L10 MySQL schema, plus `ProductionBootstrapSeeder` when needed. It does **not** use the flow below.
 
-**New subdomain** uses a full greenfield `php artisan migrate` (all L12 migration files in order), then `NewDomainSeeder`. Do **not** run `database/migrations/2026_08_13_100000_production_database_bootstrap.php` on an empty database — that bundle is for L10 → L12 **clones** only.
+**New subdomain** uses a full greenfield `php artisan migrate` (all L12 migration files in order), then `NewDomainSeeder`. The migration file `2026_08_13_100000_production_database_bootstrap.php` is still **listed** in that chain but **no-ops** on greenfield MySQL (`customers.id` is BIGINT): each child migration runs from its own timestamp. Do **not** run that bootstrap file alone with `--path=` on an empty database — that bundle is for L10 → L12 **clones** only.
 
 Canonical command: `php artisan app:install-new-domain` (wrapper: `scripts/install-new-domain.sh`).
 
@@ -171,6 +171,18 @@ Deploy the current fix (greenfield-aware column types in that migration). Recove
 3. Run `php artisan migrate --force` again.
 
 If several aggregation tables failed the same way, empty the database and re-run `php artisan app:install-new-domain` after deploying the fix.
+
+## If `production_database_bootstrap` fails on `warehouse_arrangement_refresh_jobs` (errno 150)
+
+Older builds ran the bootstrap **bundle** on greenfield and tried `integer('user_id')` FKs to `users.id` (BIGINT). Current code **skips the entire bootstrap** on greenfield MySQL and fixes standalone install migrations to use `App\Support\GreenfieldMysqlSchema`.
+
+If migrate failed mid-bootstrap, drop any partial table and retry:
+
+```sql
+DROP TABLE IF EXISTS warehouse_arrangement_refresh_jobs;
+```
+
+Then `php artisan migrate --force`. If `2026_08_13_100000_production_database_bootstrap` is already marked ran but later migrations did not finish, you do not need to delete that row — the bootstrap no-op is safe on retry; focus on the migration that actually failed.
 
 ## If `install_l12_production_tables` fails dropping `stok_reports` (errno 1451)
 

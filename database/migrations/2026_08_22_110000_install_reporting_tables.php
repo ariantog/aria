@@ -1,5 +1,6 @@
 <?php
 
+use App\Support\GreenfieldMysqlSchema;
 use App\Support\ProductionMysqlCompat;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
@@ -83,7 +84,7 @@ return new class extends Migration
             Schema::create('reporting_entity_banks', function (Blueprint $table) {
                 $table->id();
                 $table->foreignId('reporting_entity_id')->constrained('reporting_entities')->cascadeOnDelete();
-                $table->integer('bank_id');
+                GreenfieldMysqlSchema::legacyReferenceIdColumn($table, 'bank_id');
                 $table->boolean('is_active')->default(true);
                 $table->timestamps();
 
@@ -102,8 +103,8 @@ return new class extends Migration
         if (! Schema::hasTable('reporting_channel_banks')) {
             Schema::create('reporting_channel_banks', function (Blueprint $table) {
                 $table->id();
-                $table->integer('customer_id');
-                $table->integer('bank_id');
+                GreenfieldMysqlSchema::legacyReferenceIdColumn($table, 'customer_id');
+                GreenfieldMysqlSchema::legacyReferenceIdColumn($table, 'bank_id');
                 $table->text('notes')->nullable();
                 $table->timestamps();
 
@@ -123,8 +124,8 @@ return new class extends Migration
         if (! Schema::hasTable('reporting_warehouse_fulfillment')) {
             Schema::create('reporting_warehouse_fulfillment', function (Blueprint $table) {
                 $table->id();
-                $table->integer('warehouse_id');
-                $table->integer('customer_id');
+                GreenfieldMysqlSchema::legacyReferenceIdColumn($table, 'warehouse_id');
+                GreenfieldMysqlSchema::legacyReferenceIdColumn($table, 'customer_id');
                 $table->text('notes')->nullable();
                 $table->timestamps();
 
@@ -143,7 +144,8 @@ return new class extends Migration
         if (! Schema::hasTable('reporting_ledger_roles')) {
             Schema::create('reporting_ledger_roles', function (Blueprint $table) {
                 $table->id();
-                $table->integer('customer_id')->unique();
+                GreenfieldMysqlSchema::legacyReferenceIdColumn($table, 'customer_id');
+                $table->unique('customer_id');
                 $table->string('role', 40);
                 $table->timestamps();
             });
@@ -159,7 +161,8 @@ return new class extends Migration
         if (! Schema::hasTable('reporting_tax_accounts')) {
             Schema::create('reporting_tax_accounts', function (Blueprint $table) {
                 $table->id();
-                $table->integer('legacy_ledger_id')->unique();
+                GreenfieldMysqlSchema::legacyReferenceIdColumn($table, 'legacy_ledger_id');
+                $table->unique('legacy_ledger_id');
                 $table->foreignId('reporting_entity_id')->constrained('reporting_entities')->cascadeOnDelete();
                 $table->string('tax_type', 30);
                 $table->timestamps();
@@ -176,8 +179,9 @@ return new class extends Migration
         if (! Schema::hasTable('ledger_merge_maps')) {
             Schema::create('ledger_merge_maps', function (Blueprint $table) {
                 $table->id();
-                $table->integer('old_customer_id')->unique();
-                $table->integer('new_customer_id');
+                GreenfieldMysqlSchema::legacyReferenceIdColumn($table, 'old_customer_id');
+                $table->unique('old_customer_id');
+                GreenfieldMysqlSchema::legacyReferenceIdColumn($table, 'new_customer_id');
                 $table->timestamps();
 
                 $table->index('new_customer_id');
@@ -225,8 +229,10 @@ return new class extends Migration
             $alter();
         }
 
-        $this->dropForeignKeyIfExists('customers', 'customers_default_bank_id_foreign');
-        $this->ensureIntegerColumn('customers', 'default_bank_id', true);
+        if (! GreenfieldMysqlSchema::usesBigintLegacyPrimaryKeys()) {
+            $this->dropForeignKeyIfExists('customers', 'customers_default_bank_id_foreign');
+            $this->ensureIntegerColumn('customers', 'default_bank_id', true);
+        }
     }
 
     private function alignOperationsReportSlug(): void
@@ -242,6 +248,10 @@ return new class extends Migration
 
     private function alignCustomerReferenceColumns(): void
     {
+        if (GreenfieldMysqlSchema::usesBigintLegacyPrimaryKeys()) {
+            return;
+        }
+
         foreach (self::CUSTOMER_INT_COLUMNS as $table => $columns) {
             if (! Schema::hasTable($table)) {
                 continue;
@@ -260,7 +270,7 @@ return new class extends Migration
             return;
         }
 
-        if (! ProductionMysqlCompat::isMysql()) {
+        if (! ProductionMysqlCompat::isMysql() || GreenfieldMysqlSchema::usesBigintLegacyPrimaryKeys()) {
             return;
         }
 

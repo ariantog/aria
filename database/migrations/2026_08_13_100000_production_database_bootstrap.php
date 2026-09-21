@@ -1,5 +1,6 @@
 <?php
 
+use App\Support\GreenfieldMysqlSchema;
 use Illuminate\Database\Migrations\Migration;
 
 /**
@@ -45,6 +46,13 @@ return new class extends Migration
 {
     public function up(): void
     {
+        // Full greenfield `migrate` runs each child migration file in order. This
+        // bundle is for L10 → L12 clones only; it would add INT FKs and shrink
+        // BIGINT columns on an empty Laravel-schema database.
+        if (GreenfieldMysqlSchema::usesBigintLegacyPrimaryKeys()) {
+            return;
+        }
+
         (require __DIR__.'/2026_08_13_115000_normalize_legacy_mysql_zero_dates.php')->up();
         (require __DIR__.'/2026_08_12_100000_align_production_schema.php')->up();
         (require __DIR__.'/2026_08_12_200000_install_l12_production_tables.php')->up();
