@@ -136,6 +136,13 @@ class RestockSheetService
     return $this->assetLancarItemsForType($typeTag)->exists();
   }
 
+  public function itemBelongsToTypeCatalog(Tag $typeTag, int $itemId): bool
+  {
+    return $this->assetLancarItemsForType($typeTag)
+      ->where('items.id', $itemId)
+      ->exists();
+  }
+
   public function createSheet(Tag $typeTag, User $user): RestockSheet
   {
     if (RestockSheet::where('type_tag_id', $typeTag->id)->exists()) {

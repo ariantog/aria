@@ -407,7 +407,12 @@ class RestockRecommendationService
                 'sheet_links' => [],
             ];
 
-            return array_merge($row, $pipe);
+            $monthlyRate = (float) ($row['display_monthly_net'] ?? $row['monthly_net'] ?? 0.0);
+            $row = array_merge($row, $pipe);
+            $row['monthly_selling_rate'] = $monthlyRate;
+            $row['suggested_restock_qty'] = RestockRecommendationApplyService::suggestedQtyFromMonthlyRate($monthlyRate);
+
+            return $row;
         })->values();
 
         return new LengthAwarePaginator(
@@ -578,5 +583,48 @@ class RestockRecommendationService
             'period_from' => $windows['period_from'],
             'period_to' => $windows['period_to'],
         ];
+    }
+
+    /**
+     * Net units per calendar month for apply-to-sheet (matches list display for the same filters).
+     *
+     * @param  list<int>  $itemIds
+     * @return array<int, float>
+     */
+    public function monthlySellingRatesForItems(Request $request, ?User $user, array $itemIds): array
+    {
+        $itemIds = array_values(array_unique(array_filter($itemIds, fn (int $id) => $id > 0)));
+        if ($itemIds === []) {
+            return [];
+        }
+
+        $salesWindow = $this->normalizeSalesWindow($request);
+        $healthRequest = $this->healthRequest($request);
+        $windows = $this->inventoryHealth->resolveWindows($healthRequest);
+        $periodDays = max(1, (int) $windows['period_days']);
+
+        $healthByItem = $this->inventoryHealth
+            ->companyHealthRows($healthRequest, $user)
+            ->keyBy('id');
+
+        $yearStats = $salesWindow === self::SALES_WINDOW_YEAR
+            ? $this->rollingYearStats->summariesForItems($itemIds, Carbon::parse($windows['period_to']))
+            : [];
+
+        $out = [];
+        foreach ($itemIds as $itemId) {
+            if ($salesWindow === self::SALES_WINDOW_YEAR) {
+                $out[$itemId] = (float) ($yearStats[$itemId]['monthly_avg'] ?? 0.0);
+
+                continue;
+            }
+
+            $item = $healthByItem->get($itemId);
+            $out[$itemId] = $item !== null
+                ? RestockNetSell::monthlyRateFromPeriod((float) $item->net_period, $periodDays)
+                : 0.0;
+        }
+
+        return $out;
     }
 }

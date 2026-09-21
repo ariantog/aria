@@ -70,6 +70,27 @@ $salesWindowLinkQuery = fn (string $windowValue) => array_filter([
         </a>
     </div>
 
+    @if(session('success'))
+        <div class="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800" data-testid="restock-recommendations-flash-success">
+            {{ session('success') }}
+        </div>
+    @endif
+    @if(session('error'))
+        <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" data-testid="restock-recommendations-flash-error">
+            {{ session('error') }}
+        </div>
+    @endif
+    @if(session('apply_skipped'))
+        <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900" data-testid="restock-recommendations-flash-skipped">
+            <p class="font-medium">Some SKUs were skipped:</p>
+            <ul class="mt-1 list-disc pl-5">
+                @foreach(session('apply_skipped') as $skip)
+                    <li>#{{ $skip['item_id'] }}: {{ $skip['reason'] }}</li>
+                @endforeach
+            </ul>
+        </div>
+    @endif
+
     <div class="rounded-xl border border-gray-200 bg-white p-4 text-sm text-gray-600">
         <div class="flex flex-wrap gap-x-6 gap-y-2">
             <span>
@@ -140,6 +161,23 @@ $salesWindowLinkQuery = fn (string $windowValue) => array_filter([
                 <a href="{{ $inventoryHealthUrl }}" class="text-blue-600 hover:underline">Open Inventory Health</a>
             </div>
         @else
+            @if($canApplyToSheets)
+                <form method="POST" action="{{ route('restock.recommendations.apply') }}" class="flex flex-wrap items-center gap-2">
+                    @csrf
+                    @include('restock.partials.recommendations-apply-hidden')
+                    @foreach($fastMoving as $row)
+                        @if(($row['suggested_restock_qty'] ?? 0) > 0 && \App\Enums\ItemType::coerce($row['item_type'] ?? null) === \App\Enums\ItemType::ASSET_LANCAR)
+                            <input type="hidden" name="item_ids[]" value="{{ $row['item_id'] }}">
+                        @endif
+                    @endforeach
+                    <button type="submit"
+                            class="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
+                            data-testid="restock-recommendations-apply-page-hero">
+                        Add this page to sheets (1 mo rate)
+                    </button>
+                    <span class="text-xs text-gray-500">Sets restock qty to ⌈net/mo⌉ per SKU (won’t lower existing qty).</span>
+                </form>
+            @endif
             <div class="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm">
                 <table class="min-w-full divide-y divide-gray-200 text-sm" data-testid="restock-recommendations-hero-table">
                     <thead class="bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
@@ -154,6 +192,9 @@ $salesWindowLinkQuery = fn (string $windowValue) => array_filter([
                             <th class="px-3 py-2 text-right">Days cover</th>
                             <th class="px-3 py-2">Status</th>
                             <th class="px-3 py-2">Worth restocking?</th>
+                            @if($canApplyToSheets)
+                                <th class="px-3 py-2">Sheet</th>
+                            @endif
                             <th class="px-3 py-2">Why restock</th>
                         </tr>
                     </thead>
@@ -180,6 +221,24 @@ $salesWindowLinkQuery = fn (string $windowValue) => array_filter([
                                 <td class="px-3 py-2">
                                     @include('restock.partials.worth-badge', ['worth' => $row['worth'] ?? [], 'itemId' => $row['item_id']])
                                 </td>
+                                @if($canApplyToSheets)
+                                    <td class="px-3 py-2">
+                                        @if(\App\Enums\ItemType::coerce($row['item_type'] ?? null) === \App\Enums\ItemType::ASSET_LANCAR && ($row['suggested_restock_qty'] ?? 0) > 0)
+                                            <form method="POST" action="{{ route('restock.recommendations.apply') }}">
+                                                @csrf
+                                                @include('restock.partials.recommendations-apply-hidden')
+                                                <input type="hidden" name="item_ids[]" value="{{ $row['item_id'] }}">
+                                                <button type="submit"
+                                                        class="whitespace-nowrap rounded-md border border-blue-200 bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100"
+                                                        data-testid="restock-recommendations-apply-{{ $row['item_id'] }}">
+                                                    Add {{ $row['suggested_restock_qty'] }}
+                                                </button>
+                                            </form>
+                                        @else
+                                            <span class="text-xs text-gray-400">—</span>
+                                        @endif
+                                    </td>
+                                @endif
                                 <td class="px-3 py-2 text-gray-600">
                                     <ul class="list-disc pl-4 space-y-0.5">
                                         @foreach($row['reasons'] as $reason)
@@ -209,6 +268,22 @@ $salesWindowLinkQuery = fn (string $windowValue) => array_filter([
                 <a href="{{ $itemInsightsUrl }}" class="text-blue-600 hover:underline">Open Item Insights</a>
             </div>
         @else
+            @if($canApplyToSheets)
+                <form method="POST" action="{{ route('restock.recommendations.apply') }}" class="flex flex-wrap items-center gap-2">
+                    @csrf
+                    @include('restock.partials.recommendations-apply-hidden')
+                    @foreach($highMargin as $row)
+                        @if(($row['suggested_restock_qty'] ?? 0) > 0 && \App\Enums\ItemType::coerce($row['item_type'] ?? null) === \App\Enums\ItemType::ASSET_LANCAR)
+                            <input type="hidden" name="item_ids[]" value="{{ $row['item_id'] }}">
+                        @endif
+                    @endforeach
+                    <button type="submit"
+                            class="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
+                            data-testid="restock-recommendations-apply-page-margin">
+                        Add this page to sheets (1 mo rate)
+                    </button>
+                </form>
+            @endif
             <div class="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm">
                 <table class="min-w-full divide-y divide-gray-200 text-sm" data-testid="restock-recommendations-margin-table">
                     <thead class="bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
@@ -226,6 +301,9 @@ $salesWindowLinkQuery = fn (string $windowValue) => array_filter([
                             <th class="px-3 py-2 text-right">Days cover</th>
                             <th class="px-3 py-2">Health</th>
                             <th class="px-3 py-2">Worth restocking?</th>
+                            @if($canApplyToSheets)
+                                <th class="px-3 py-2">Sheet</th>
+                            @endif
                             <th class="px-3 py-2">Why restock</th>
                         </tr>
                     </thead>
@@ -255,6 +333,24 @@ $salesWindowLinkQuery = fn (string $windowValue) => array_filter([
                                 <td class="px-3 py-2">
                                     @include('restock.partials.worth-badge', ['worth' => $row['worth'] ?? [], 'itemId' => $row['item_id']])
                                 </td>
+                                @if($canApplyToSheets)
+                                    <td class="px-3 py-2">
+                                        @if(\App\Enums\ItemType::coerce($row['item_type'] ?? null) === \App\Enums\ItemType::ASSET_LANCAR && ($row['suggested_restock_qty'] ?? 0) > 0)
+                                            <form method="POST" action="{{ route('restock.recommendations.apply') }}">
+                                                @csrf
+                                                @include('restock.partials.recommendations-apply-hidden')
+                                                <input type="hidden" name="item_ids[]" value="{{ $row['item_id'] }}">
+                                                <button type="submit"
+                                                        class="whitespace-nowrap rounded-md border border-blue-200 bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100"
+                                                        data-testid="restock-recommendations-apply-{{ $row['item_id'] }}">
+                                                    Add {{ $row['suggested_restock_qty'] }}
+                                                </button>
+                                            </form>
+                                        @else
+                                            <span class="text-xs text-gray-400">—</span>
+                                        @endif
+                                    </td>
+                                @endif
                                 <td class="px-3 py-2 text-gray-600">
                                     <ul class="list-disc pl-4 space-y-0.5">
                                         @foreach($row['reasons'] as $reason)

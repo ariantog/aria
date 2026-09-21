@@ -473,6 +473,7 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::prefix('restock')->name('restock.')->group(function () {
         Route::get('/', [App\Http\Controllers\Restock\RestockTypeController::class, 'index'])->name('index');
         Route::get('/recommendations', [App\Http\Controllers\Restock\RestockRecommendationController::class, 'index'])->name('recommendations');
+        Route::post('/recommendations/apply-to-sheets', [App\Http\Controllers\Restock\RestockRecommendationController::class, 'applyToSheets'])->name('recommendations.apply');
         Route::post('/export', [App\Http\Controllers\Restock\RestockTypeController::class, 'exportBulk'])->name('export');
         Route::get('/missing', [App\Http\Controllers\Restock\RestockMissingController::class, 'index'])->name('missing.index');
         Route::get('/type/{typeTag:code}/missing', [App\Http\Controllers\Restock\RestockMissingController::class, 'forType'])->name('type.missing');
